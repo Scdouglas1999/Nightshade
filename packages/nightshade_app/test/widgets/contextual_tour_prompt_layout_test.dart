@@ -90,8 +90,8 @@ void main() {
     expect(cardRect.right, lessThanOrEqualTo(childRect.right + 1));
   });
 
-  // The band is gone, so the failure it used to cause cannot come back: content
-  // underneath stays operable even on a viewport shorter than the card.
+  // With no reserved band, content underneath stays operable even on a viewport
+  // shorter than the card.
   testWidgets('content stays operable under the card on a short viewport',
       (tester) async {
     var taps = 0;
@@ -141,7 +141,7 @@ void main() {
     expect(tester.getRect(find.byKey(_childKey)), full);
   });
 
-  // WD-EQ-5: the cost side of the float. A host whose bottom-right corner
+  // The cost side of the float. A host whose bottom-right corner
   // carries live controls (Equipment: the DISCOVERY header's Scan All /
   // Collapse, the mount card's Unpark / Track / Home / Flip row, the STATUS
   // rail's blockers block) opts into the band, and then the card must not

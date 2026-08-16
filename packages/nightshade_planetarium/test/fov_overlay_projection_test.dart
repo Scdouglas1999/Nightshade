@@ -291,7 +291,7 @@ void main() {
   });
 
   group('0h/24h seam', () {
-    // M31 sits at RA 0.71h; anything near 0h used to make the FOV box vanish.
+    // M31 sits at RA 0.71h: the seam case for a view parked just below 24h.
     const viewState = SkyViewState(
       centerRA: 23.9,
       centerDec: 20,
@@ -304,8 +304,8 @@ void main() {
       final placed = projector.project(target)!;
 
       // 0.3h = 4.5 deg of RA, foreshortened by cos(20 deg) => ~4.23 deg east,
-      // i.e. ~85 px to the LEFT at 20 px/deg. The old flat overlay computed a
-      // -23.7h difference and put the box ~6700 px off the right edge.
+      // i.e. ~85 px to the LEFT at 20 px/deg. A flat RA difference reads
+      // -23.7h here and puts the box thousands of pixels off the right edge.
       expect(placed.dx, lessThan(projector.screenCenter.dx));
       expect(projector.screenCenter.dx - placed.dx, closeTo(85, 3.0));
       expect(placed.dx, inInclusiveRange(0, size.width));
@@ -551,7 +551,7 @@ void main() {
       final actual = telradCenter(painter);
       expect(actual.dx, closeTo(expected.dx, 1e-9));
       expect(actual.dy, closeTo(expected.dy, 1e-9));
-      // The old flat maths mirrored this: east drew right of center.
+      // East draws LEFT of center; flat RA arithmetic mirrors it.
       expect(actual.dx, lessThan(size.width / 2));
     });
 

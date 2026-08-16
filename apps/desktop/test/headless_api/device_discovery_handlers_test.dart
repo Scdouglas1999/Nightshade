@@ -12,9 +12,8 @@ import 'handler_test_helpers.dart';
 /// Fake [DeviceBackend] that records every `discoverDevices` call and returns
 /// scripted per-type results / failures. Only the discovery surface is modeled;
 /// any other method the handler is not expected to touch routes through
-/// [noSuchMethod] and loud-fails (per "errors are a feature"), so an
-/// accidental extra dependency surfaces immediately instead of silently
-/// returning null.
+/// [noSuchMethod] and throws, so an accidental extra dependency surfaces
+/// immediately instead of silently returning null.
 class _FakeDeviceBackend implements DeviceBackend {
   /// Devices to return per type. Types absent from the map return `[]`.
   final Map<DeviceType, List<DeviceInfo>> devicesByType;
@@ -402,7 +401,8 @@ void main() {
     test(
       'surfaces a host-side rescan failure as 500 (no fake success)',
       () async {
-        // Errors are a feature: a failing host rescan must NOT report success.
+        // A failing host rescan must NOT report success — the caller would
+        // read an empty device list as "nothing attached".
         final backend = _FakeDeviceBackend(
           rescanFailure: 'ASI SDK init failed',
         );

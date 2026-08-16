@@ -1,9 +1,7 @@
 part of '../bridge_stub.dart';
 
 extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
-  // =========================================================================
   // Initialization
-  // =========================================================================
 
   /// Initialize the native bridge
   Future<void> init({String? logDirectory}) async {
@@ -343,9 +341,7 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
     _discoveryCacheTime = null;
   }
 
-  // =========================================================================
-  // Event Stream
-  // =========================================================================
+  // Event stream
 
   /// Stream of events from the native side
   Stream<NightshadeEvent> eventStream() {

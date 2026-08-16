@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../sequence_tree.dart -- extracted for maintainability.
-//
 // Save-as-snippet dialog plus icon, colour and accessibility helpers of _NodeItemState.
 part of '../sequence_tree.dart';
 

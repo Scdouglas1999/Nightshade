@@ -217,11 +217,9 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
     } else {
       // Faint stars: continue smoothly from the mag-4 value (1.5 px).
       //
-      // The old branch was `max(0.5, (6.5 - m) * 0.3)`, which is 0.75 at mag 4
-      // against the 1.5 the branch above returns at the same magnitude — a 2x
-      // step across a hair's width of brightness, which gave the field a
-      // visible two-population look. It also hit its 0.5 floor by mag 4.83, so
-      // every star fainter than that drew at exactly the same size.
+      // The faint branch has to join the mag-4 value continuously: a branch
+      // that returns 0.75 where the one above returns 1.5 puts a 2x step across
+      // a hair's width of brightness and gives the field a two-population look.
       //
       // Geometric decay keeps the gradation going, then flattens at a floor
       // that is still a visible dot. Below that floor the fade is carried by
@@ -243,16 +241,11 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
     // Opacity falls geometrically with magnitude, mirroring the way flux does,
     // and keeps falling across the whole rendered range.
     //
-    // The old form `max(0.3, (7 - mag) / 6)` reached its floor at about mag
-    // 5.2, so every star fainter than that drew at identical alpha — and, with
-    // the old radius curve, identical size too, making the deep field
-    // completely flat. That barely showed while the renderer capped out at mag
-    // 8; now that the FOV-adaptive limit reaches mag 12, most stars on screen
-    // at a narrow field sit in exactly that range.
-    //
-    // Tuned to stay close to the previous values through the mid range
-    // (mag 3: 0.64 vs 0.67, mag 5: 0.41 vs 0.33) so bright fields look
-    // familiar, while continuing down to a faint-but-present floor.
+    // A curve that reaches its floor early draws every star fainter than that
+    // at identical alpha, which flattens the deep field — and the FOV-adaptive
+    // limit reaches mag 12, so at a narrow field most stars on screen sit in
+    // exactly that range. The geometric decay runs down to a faint-but-present
+    // floor instead.
     if (mag <= 1.0) return 1.0;
     return math.pow(0.80, mag - 1.0).toDouble().clamp(0.10, 1.0);
   }
@@ -277,14 +270,11 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   /// Colour for a star, preferring its measured B-V colour index over its
   /// spectral-type letter.
   ///
-  /// The renderer used to call `_spectralTypeToColor(star.spectralType ?? 'G')`
-  /// and never look at [Star.colorIndex] at all — even though the HYG loader
-  /// populates it. Two consequences: every star with a blank spectral field
-  /// (and every prefixed type like `sdB` or `DA`, which `spectralType[0]` also
-  /// mishandles) was drawn cream-yellow as though it were a G star; and the
-  /// colours that were right came from seven discrete buckets, so the field had
-  /// no gradation. B-V is a continuous measurement, so it can drive a
-  /// continuous ramp — see [_bvToColor].
+  /// The HYG loader populates [Star.colorIndex], and B-V is a continuous
+  /// measurement, so it drives a continuous ramp (see [_bvToColor]). The
+  /// spectral letter is the fallback: it has seven buckets, a blank field
+  /// defaults to a G-star cream, and prefixed types like `sdB` or `DA`
+  /// mishandle `spectralType[0]`.
   Color _starColor(Star star) {
     final bv = star.colorIndex;
     if (bv != null && bv.isFinite) return _bvToColor(bv);
@@ -333,7 +323,7 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
     return baseColor;
   }
 
-  // ============ Gradient-based glow helpers ============
+  // Gradient-based glow helpers
   // These replace expensive MaskFilter.blur with radial gradients
   // for better performance on low-powered devices.
 
@@ -349,8 +339,8 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
     if (!qualityConfig.useGlowEffects) return;
 
     // Use _ShaderCache to avoid creating a new RadialGradient.createShader()
-    // every call. Previously this created ~600+ uncached shaders per frame
-    // for galaxy rendering alone.
+    // every call — otherwise galaxy rendering alone builds ~600 shaders per
+    // frame.
     final shader = _ShaderCache.getRadialShader(
       center,
       radius,
@@ -466,7 +456,7 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   }
 }
 
-// ===== B-V colour index -> display colour =====
+// B-V colour index to display colour
 //
 // B-V is a continuous measurement, so it can drive a continuous colour ramp
 // instead of the seven discrete buckets the spectral-type path produces.

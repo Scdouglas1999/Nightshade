@@ -29,9 +29,7 @@ import 'package:nightshade_core/src/providers/settings_provider.dart';
 import 'package:nightshade_core/src/services/equipment_health_service.dart';
 import 'package:nightshade_core/src/services/time_sync_service.dart';
 
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
+// Test scaffolding.
 
 class _StubCameraNotifier extends CameraStateNotifier {
   _StubCameraNotifier(super.ref, CameraStateSnapshot initial) {
@@ -293,9 +291,7 @@ PolarAlignmentError _alignErr() => PolarAlignmentError(
   timestamp: DateTime.now(),
 );
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+// Tests.
 
 void main() {
   group('DarkLibraryCoverageRule', () {

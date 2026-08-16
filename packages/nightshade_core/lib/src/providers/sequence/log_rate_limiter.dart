@@ -1,13 +1,13 @@
 /// Keeps one repetitive diagnostic from consuming the whole log.
 ///
-/// WF-N1: `SequenceExecutor._handleSequencerEvent` traced EVERY backend event
-/// at debug level ("Received event: type=…, category=…"). At roughly five lines
-/// a second that fills `LoggingService`'s 1000-entry in-memory ring — the ring
+/// `SequenceExecutor._handleSequencerEvent` traces EVERY backend event at debug
+/// level ("Received event: type=…, category=…"). At roughly five lines a second
+/// that fills `LoggingService`'s 1000-entry in-memory ring — the ring
 /// Settings ▸ Advanced ▸ Logs and `/api/logs/recent` read — in about three
-/// minutes. During an autopilot night the viewer showed nothing but
-/// `SequenceExecutor` DBG rows and its source dropdown offered no other
-/// producer at all, so any diagnostic worth reading (the scheduler's reconcile
-/// line included) was gone before the operator looked.
+/// minutes. Unlimited, an autopilot night leaves the viewer showing nothing but
+/// `SequenceExecutor` DBG rows with no other producer in its source dropdown,
+/// and any diagnostic worth reading (the scheduler's reconcile line included)
+/// is gone before the operator looks.
 ///
 /// The trace is worth keeping — when an event goes missing it is the only
 /// evidence Dart ever saw it — so it is rate-limited rather than deleted.

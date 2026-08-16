@@ -15,9 +15,7 @@ import 'package:nightshade_core/src/services/hips/hips_tile_cache.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_fetcher.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_loader.dart';
 
-// ---------------------------------------------------------------------------
 // Test doubles
-// ---------------------------------------------------------------------------
 
 /// A manually-driven clock: scheduled callbacks fire only when [fireAll] is
 /// called, so the debounce is fully deterministic with no real wall-clock wait.
@@ -71,9 +69,7 @@ class _CapturingErrorSink implements HipsTileLoaderErrorSink {
   void onTileError(HipsTileFailure failure) => failures.add(failure);
 }
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 const String _surveyId = 'CDS/P/DSS2/red';
 const String _baseUrl = 'https://alasky.cds.unistra.fr/DSS/DSS2Merged';

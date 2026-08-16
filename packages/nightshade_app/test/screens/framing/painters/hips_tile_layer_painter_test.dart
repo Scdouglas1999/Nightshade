@@ -297,22 +297,22 @@ void main() {
   test(
       'Allsky base uses square packed cells (non-square grid): the sub-rectangle '
       'sampled for a high-row tile is not row-drifted', () async {
-    // REGRESSION (registration offset): the HiPS Allsky packs the 12*4^k order-k
-    // tiles into a grid that is floor(sqrt(N)) cells WIDE but ceil(N/width) cells
-    // TALL — NOT square (order 3: 768 tiles -> 27 wide x 29 tall, last row partly
-    // empty). A painter that derived the cell HEIGHT from the WIDTH
-    // (height/27 instead of height/29) made every cell ~7% too tall AND drifted
-    // the sampled row-origin downward by `row * excess` px, so a high-row tile's
-    // coarse base sampled the wrong sky — the whole Allsky mosaic appeared shifted
-    // (M81 at Dec+69, whose order-3 ancestor is at row 4, landed ~0.3deg
-    // off-centre). The cells are SQUARE, so the correct cell height is
+    // Registration offset: the HiPS Allsky packs the 12*4^k order-k tiles into a
+    // grid that is floor(sqrt(N)) cells WIDE but ceil(N/width) cells TALL — NOT
+    // square (order 3: 768 tiles -> 27 wide x 29 tall, last row partly empty). A
+    // painter that derives the cell HEIGHT from the WIDTH (height/27 instead of
+    // height/29) makes every cell ~7% too tall AND drifts the sampled row-origin
+    // downward by `row * excess` px, so a high-row tile's coarse base samples the
+    // wrong sky and the whole Allsky mosaic appears shifted (M81 at Dec+69, whose
+    // order-3 ancestor is at row 4, lands ~0.3deg off-centre). The cells are
+    // SQUARE, so the correct cell height is
     // `image.height / ceil(N/nbTilesPerLine)`, which equals the cell width.
     //
     // This pins it with a per-row vertical GRADIENT Allsky (green encodes the
     // exact Allsky-Y), so the sampled green at a tile's screen centre reveals the
     // sub-cell-precise Allsky-Y the painter sampled. With square cells that Y must
-    // fall inside the tile's order-3 ancestor cell's true pixel band; the buggy
-    // too-tall cell would push it `row * excess` px past the band's bottom.
+    // fall inside the tile's order-3 ancestor cell's true pixel band; a too-tall
+    // cell pushes it `row * excess` px past the band's bottom.
     const allskyOrder = 3;
     final nbPerLine = math.sqrt(12 * (1 << (2 * allskyOrder))).floor(); // 27
     final nbRows =

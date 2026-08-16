@@ -1,7 +1,7 @@
-/// SEQ-6 / STATE-VOCAB: a run the operator stopped WHILE IT WAS RUNNING was
-/// reported as "paused-stopped" — a raw state-machine token, and a false claim
-/// about what happened (the log shows Resumed, then Stopping). The token means
-/// "stopped, checkpoint kept", which is about resumability.
+/// A run the operator stops WHILE IT IS RUNNING must not be reported as
+/// "paused-stopped" — a raw state-machine token, and a false claim about what
+/// happened. The token means "stopped, checkpoint kept", which is about
+/// resumability, not about a pause.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -34,11 +34,10 @@ void main() {
     expect(runStatusLabel(''), 'Unknown');
   });
 
-  // Wave E refutation of the first WD-SEQ-N1 fix: `isRunCancellationNotice`
-  // was a substring test on "cancelled", so pressing Stop after a night with a
-  // REAL fault whose text contains that word dropped the fault too — the
-  // Session Report then showed no Errors section at all. These four are the
-  // refuter's own inputs, each shaped like a message the stack really emits.
+  // A substring test on "cancelled" inside `isRunCancellationNotice` drops a
+  // REAL fault whose text contains that word when Stop is pressed, leaving the
+  // Session Report with no Errors section at all. These four inputs are each
+  // shaped like a message the stack really emits.
   group('a stop drops the notice and NOTHING else', () {
     const realFaults = <String>[
       'Temperature compensation cancelled',

@@ -136,7 +136,7 @@ const List<NextUseStep> kNextUseSteps = <NextUseStep>[
 /// Throws a [StateError] if no step is defined for [id]. The list is required
 /// to be exhaustive over [NextUseActionId], so a missing step is a programming
 /// error that must surface immediately rather than be papered over with a
-/// silent fallback (errors are a feature in this codebase).
+/// silent fallback.
 NextUseStep stepFor(NextUseActionId id) {
   for (final step in kNextUseSteps) {
     if (step.id == id) {

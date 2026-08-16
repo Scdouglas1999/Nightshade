@@ -11,9 +11,9 @@
 // meridian-flip timing and the horizon mask, so anyone on the path could
 // choose where the rig believed it was standing.
 //
-// The old parser also answered `0.0` for a missing lat/lon, turning a
-// rate-limited or rewritten reply into Null Island — a real place in the Gulf
-// of Guinea where nothing is up when the app says it is.
+// A missing lat/lon must not answer `0.0` either: that puts a rate-limited or
+// rewritten reply on Null Island — a real place in the Gulf of Guinea where
+// nothing is up when the app says it is.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

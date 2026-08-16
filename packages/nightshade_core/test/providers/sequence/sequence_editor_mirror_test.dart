@@ -4,10 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../harness/in_memory_database.dart';
 
-/// Tests for LIM-4: live MASTER -> SLAVE mirroring of the OPEN sequencer
-/// editor canvas via the [HostMutationEntity.sequenceEditor] host-mutation and
-/// the slave-side `_applySequenceEditorMirror` apply branch (reached through
-/// the public [applyRemoteSyncEvent] entrypoint).
+/// Live MASTER -> SLAVE mirroring of the OPEN sequencer editor canvas via the
+/// [HostMutationEntity.sequenceEditor] host-mutation and the slave-side
+/// `_applySequenceEditorMirror` apply branch (reached through the public
+/// [applyRemoteSyncEvent] entrypoint).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

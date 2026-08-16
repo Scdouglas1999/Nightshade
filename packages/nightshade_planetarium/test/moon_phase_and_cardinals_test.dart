@@ -41,9 +41,9 @@ void main() {
 
   group('lunar terminator geometry', () {
     test('semi-minor axis is |2k-1| and never a cosine of it', () {
-      // The old formula wrapped this in cos(pi * ...), which made the ellipse
-      // full width at first quarter (rendering it as a new moon) and zero width
-      // at k = 0.75 (rendering it as full).
+      // Wrapping |2k-1| in another cosine makes the ellipse full width at
+      // first quarter (drawn as a new moon) and zero width at k = 0.75 (drawn
+      // as full).
       expect(
         MoonPhaseGeometry.terminatorSemiAxisFraction(0.0),
         closeTo(1.0, 1e-9),
@@ -296,7 +296,8 @@ void main() {
     }
 
     test('lit area tracks illumination through the whole cycle', () async {
-      // The old construction produced 0.0 at first quarter and 1.0 at k = 0.75.
+      // A non-monotonic construction reads 0.0 at first quarter and 1.0 at
+      // k = 0.75.
       for (final k in [0.05, 0.25, 0.5, 0.75, 0.95]) {
         expect(
           await renderedLitFraction(k),
@@ -403,8 +404,8 @@ void main() {
         ),
       ).cardinalScreenPositions(size)['S']!;
 
-      // The old implementation pinned every label to a fixed screen corner, so
-      // this delta was always zero.
+      // Labels follow the sky, not a fixed screen corner, so rotating the view
+      // moves them.
       expect((southAt(180) - southAt(210)).distance, greaterThan(20));
     });
   });

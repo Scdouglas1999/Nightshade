@@ -115,9 +115,8 @@ void main() {
       );
       addTearDown(retried.close);
 
-      // Settle on a *result*: before the fix this stayed an AsyncError forever
-      // (drift replayed its cached failure), so the loop below would never see
-      // a row and the final expect would fail.
+      // Settle on a *result*: a retry that keeps replaying drift's cached
+      // failure stays an AsyncError forever and never yields a row.
       var rows = const <TransientDetectionRow>[];
       for (var i = 0; i < 60; i++) {
         final value = retried.read();

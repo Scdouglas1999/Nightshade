@@ -1,8 +1,8 @@
-// SLOP-DUP-001 follow-up regression: phd2GetAlgoParamNames decodes the list of
-// algorithm parameter names from the SAME JSON key the server emits. The
-// headless handler (handlePhd2GetAlgoParamNames) returns
-// `{"axis": ..., "names": [...]}`, but the client previously read 'params',
-// which always yielded null and threw on cast. This pins the decode to 'names'.
+// phd2GetAlgoParamNames decodes the algorithm parameter names from the SAME
+// JSON key the server emits: the headless handler
+// (handlePhd2GetAlgoParamNames) returns `{"axis": ..., "names": [...]}`, so
+// this pins the decode to 'names'. Any other key yields null and throws on
+// cast.
 
 import 'dart:convert';
 

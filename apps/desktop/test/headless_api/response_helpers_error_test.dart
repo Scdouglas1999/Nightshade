@@ -1,6 +1,5 @@
-// Tests for the unified [jsonError] envelope helper (NAME-001) and that its
-// output decodes via the single converged client parser
-// [ServerError.tryFromJson].
+// Tests for the unified [jsonError] envelope helper and that its output
+// decodes via the single converged client parser [ServerError.tryFromJson].
 
 import 'dart:convert';
 import 'dart:io';

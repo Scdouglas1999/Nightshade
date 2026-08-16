@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../mosaic_wizard_dialog.dart -- extracted for maintainability.
-//
 // Checkpoint probing, panel geometry, time estimates, sequence/project creation and validation dialogs.
 part of '../mosaic_wizard_dialog.dart';
 
@@ -241,11 +239,10 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
   }
 
   void _generateMosaic() {
-    // WD-COL-N2: the live drive reported clicking this button as producing
-    // "no snackbar, no inline error, no new node in the tree, no new log
-    // line" — which is indistinguishable from a disabled button, a swallowed
-    // tap, and a stale binary. One line at entry (and one at each early
-    // return) settles which of those happened.
+    // A click that produces "no snackbar, no inline error, no new node in the
+    // tree, no new log line" is indistinguishable from a disabled button, a
+    // swallowed tap, and a stale binary. One line at entry (and one at each
+    // early return) settles which of those happened.
     _logWizardAction('load-into-sequencer requested');
     const mosaicService = MosaicService();
 
@@ -445,8 +442,8 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
 
   /// One log line per wizard action, so a click that "did nothing" can be told
   /// apart from a click that never arrived. `panelSize=` records the state the
-  /// gating decision was made from — the field that made two live drives
-  /// disagree about whether the buttons were even enabled.
+  /// gating decision is made from — the field that decides whether the buttons
+  /// are enabled at all.
   void _logWizardAction(String message) {
     developer.log(
       '[MosaicWizard] $message (panelSize='

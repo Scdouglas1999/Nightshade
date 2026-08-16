@@ -21,8 +21,7 @@ extension _ImagingServiceQualityProcessing on ImagingService {
       mean: mean,
       stdDev: stdDev,
     );
-    // This path's historical contract is a non-null double; an unmeasurable
-    // frame scored 0.0 here before and still does.
+    // This path returns a non-null double; an unmeasurable frame scores 0.0.
     return score.isNaN ? 0.0 : score;
   }
 }

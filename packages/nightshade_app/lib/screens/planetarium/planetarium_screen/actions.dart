@@ -123,7 +123,17 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     try {
       final viewState = ref.read(skyViewStateProvider);
       final renderConfig = ref.read(skyRenderConfigProvider);
-      final location = ref.read(observerLocationProvider);
+      // A finder chart states a horizon: it prints the object's altitude and
+      // the night's twilight for the observer it was made for. Without a site
+      // there is no such observer, so the export is refused rather than
+      // charted against 0/0.
+      final site = ref.read(observerLocationProvider).site;
+      if (site == null) {
+        context.showWarningSnackBar(
+          'Set your observing location in Settings to export a finder chart.',
+        );
+        return;
+      }
       final time = ref.read(observationTimeProvider);
       final constellations = ref.read(constellationDataProvider);
       final selectedState = ref.read(selectedObjectProvider);
@@ -196,8 +206,8 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         dsos: dsos,
         constellations: constellations,
         observationTime: time.time,
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: site.latitude,
+        longitude: site.longitude,
         chartConfig: FinderChartConfig(
           printMode: false,
           chartResolution: 2048,
@@ -252,11 +262,19 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
           name: obj.name,
         );
 
-    // Navigate to framing screen
+    // Navigate to framing screen. The target coordinates are already set
+    // above, so a failure here strands the user on the planetarium with the
+    // framing target silently changed — log it rather than absorb it.
     try {
       context.goNamed('framing');
-    } catch (e) {
-      // Router might not be available, ignore
+    } catch (e, stack) {
+      developer.log(
+        '[Planetarium] Could not open ${obj.name} in Framing: $e',
+        name: 'Planetarium',
+        level: 900,
+        error: e,
+        stackTrace: stack,
+      );
     }
 
     _dismissPopup();
@@ -650,9 +668,13 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     // Home is the observer's zenith in whichever frame is active, not the fixed
     // point RA 0h / Dec 0 — which at the audited site sat 14 deg BELOW the
     // horizon, so "reset view" pointed the map at the ground.
-    final (ra, dec) = ref.read(skyViewHomeCenterProvider);
     final notifier = ref.read(skyViewStateProvider.notifier);
-    notifier.setCenter(ra, dec);
+    // The zenith needs an observer. With no site on record only the horizontal
+    // frame has a home, so the equatorial centre is left where it is.
+    final home = ref.read(skyViewHomeCenterProvider);
+    if (home != null) {
+      notifier.setCenter(home.$1, home.$2);
+    }
     notifier.setHorizontalCenter(0, 90);
     notifier.setFieldOfView(60);
   }

@@ -1,7 +1,8 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
-  /// than silently degrading; errors are a feature here.
+  /// GET /api/logs/recent — the host's most recent log entries. A missing or
+  /// malformed payload throws instead of degrading to an empty list.
   Future<List<LogEntry>> fetchRecentServerLogs({
     int limit = 200,
     String? severityMin,

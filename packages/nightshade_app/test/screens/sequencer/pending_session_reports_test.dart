@@ -1,10 +1,9 @@
-// WF-N5 — the Session Report modal that appeared once a minute all night.
+// The Session Report must not appear as a modal once a minute all night.
 //
 // With the autopilot armed and its dispatched runs failing fast, every terminal
-// run opened a MODAL Session Report plus a "How did this run go? / Write note"
-// prompt over whatever screen the operator was on (the Builder at 00:06:13,
-// Plan Tonight at 00:06:53, History at 00:07:40), each one swallowing the click
-// aimed at the app underneath.
+// run would open a MODAL Session Report plus a "How did this run go? / Write
+// note" prompt over whatever screen the operator is on, each one swallowing the
+// click aimed at the app underneath.
 //
 // Two halves are pinned here:
 //   1. the sequencer screen asks `sessionReportPresentationProvider` BEFORE it

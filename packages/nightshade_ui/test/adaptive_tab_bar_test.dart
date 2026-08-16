@@ -181,12 +181,11 @@ void main() {
       expect(chevrons(), findsNWidgets(2));
     });
 
-    // WD-SCI-N4: the chevrons were `Positioned` over the strip, so at 900 px
-    // the right one painted on top of the Science tab and it rendered as
-    // `S › ce`; after a nudge the left one covered History (`Hi ‹ y`) and the
-    // right clipped Diagnostics. A hint must not eat the label it is hinting
-    // about, so the geometry is pinned: no chevron rect may intersect a tab
-    // label rect.
+    // Chevrons `Positioned` over the strip paint on top of the tab labels: at
+    // 900 px the right one covers Science and it renders as `S › ce`; after a
+    // nudge the left one covers History (`Hi ‹ y`) and the right clips
+    // Diagnostics. A hint must not eat the label it is hinting about, so the
+    // geometry is pinned: no chevron rect may intersect a tab label rect.
     testWidgets('a chevron never paints over a tab label', (tester) async {
       await _pumpAt(tester, const Size(900, 760), _host());
       expect(chevrons(), findsWidgets);

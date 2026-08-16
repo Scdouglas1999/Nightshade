@@ -63,7 +63,7 @@ void main() {
       'the-users-real-data',
     );
 
-    // The marker the old build left behind, byte-for-byte in shape.
+    // A recovery marker in the shape the recovery path writes.
     File(p.join(dir.path, '.recovered-on-1786325956702.txt')).writeAsStringSync(
       'db_path=${dbFile.path}\n'
       'recovered_at_utc=2026-08-10T01:39:16.702486Z\n'

@@ -1,11 +1,7 @@
-// Part of ../equipment_screen.dart -- extracted for maintainability.
-//
 // Collapsible sidebar, first-time onboarding, setup steps, and mismatch banner.
 part of '../equipment_screen.dart';
 
-// ============================================================================
-// Collapsible Sidebar Widget
-// ============================================================================
+// Collapsible sidebar widget
 
 class _CollapsibleSidebar extends StatefulWidget {
   final bool isCollapsed;
@@ -131,9 +127,7 @@ class _CollapsibleSidebarState extends State<_CollapsibleSidebar>
   }
 }
 
-// ============================================================================
-// First-Time User Onboarding
-// ============================================================================
+// First-time user onboarding
 
 class _FirstTimeOnboarding extends StatelessWidget {
   final NightshadeColors colors;
@@ -152,14 +146,12 @@ class _FirstTimeOnboarding extends StatelessWidget {
     // steps + both CTAs never overflow a short phone viewport (e.g. 360x640 or
     // a phone in landscape, where the content is taller than the screen).
     //
-    // Scrolling alone was not enough. Measured at 360x640, the desktop-sized
-    // rhythm below made this column 705dp tall, which pushed the secondary
-    // "I'll do it manually" CTA to y=633 — 41dp *below* the fold, so its
-    // 48dp-tall button clipped to a 7dp-tall tap target and the action was
-    // invisible on first run unless the user guessed to scroll. The phone tier
-    // therefore uses its own vertical rhythm (roughly two-thirds of desktop's)
-    // so the whole first-run panel fits a 640dp viewport with both CTAs on
-    // screen. Desktop keeps the airy spacing.
+    // Scrolling alone is not enough: at 360x640 the desktop rhythm below makes
+    // this column 705dp tall, which pushes the secondary "I'll do it manually"
+    // CTA below the fold and clips its 48dp button to a 7dp tap target. The
+    // phone tier therefore uses its own vertical rhythm (roughly two-thirds of
+    // desktop's) so the whole first-run panel fits a 640dp viewport with both
+    // CTAs on screen. Desktop keeps the airy spacing.
     final isPhone = Responsive.isPhone(context);
     final pad = isPhone ? 16.0 : 48.0;
     final gapAfterIcon =

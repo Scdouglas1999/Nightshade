@@ -1,11 +1,7 @@
-// Part of ../tutorial_models.dart -- extracted for maintainability.
-//
 // Dashboard through sequencer screen-tour definitions.
 part of '../tutorial_models.dart';
 
-// ============================================================
-// DASHBOARD TOUR (12 steps)
-// ============================================================
+// Dashboard tour (12 steps)
 const List<TutorialStep> _dashboardTour = [
   TutorialStep(
     id: 'dt_welcome',
@@ -139,9 +135,7 @@ const List<TutorialStep> _dashboardTour = [
   ),
 ];
 
-// ============================================================
-// EQUIPMENT TOUR (10 steps)
-// ============================================================
+// Equipment tour (10 steps)
 const List<TutorialStep> _equipmentTour = [
   TutorialStep(
     id: 'et_welcome',
@@ -253,9 +247,7 @@ const List<TutorialStep> _equipmentTour = [
   ),
 ];
 
-// ============================================================
-// IMAGING TOUR (15 steps)
-// ============================================================
+// Imaging tour (15 steps)
 const List<TutorialStep> _imagingTour = [
   TutorialStep(
     id: 'it_welcome',
@@ -422,9 +414,7 @@ const List<TutorialStep> _imagingTour = [
   ),
 ];
 
-// ============================================================
-// GUIDING TOUR (10 steps)
-// ============================================================
+// Guiding tour (10 steps)
 const List<TutorialStep> _guidingTour = [
   TutorialStep(
     id: 'gt_welcome',
@@ -536,9 +526,7 @@ const List<TutorialStep> _guidingTour = [
   ),
 ];
 
-// ============================================================
-// SEQUENCER TOUR (12 steps)
-// ============================================================
+// Sequencer tour (12 steps)
 const List<TutorialStep> _sequencerTour = [
   TutorialStep(
     id: 'st_welcome',

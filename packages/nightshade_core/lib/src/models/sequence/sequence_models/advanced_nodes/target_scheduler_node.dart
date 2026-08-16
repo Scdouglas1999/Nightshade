@@ -185,9 +185,8 @@ class TargetSchedulerNode extends SequenceNode {
     double? minScoreToRun,
     int? recomputeEveryNExposures,
     bool? finishIterationOnSwitch,
-    // PHASE-5: plain `?? this.swapOnConditionsBelow` keep-or-replace
-    // semantics. The previous explicit-clear-via-`null` path moves to
-    // rebuild-explicit at the editor — see
+    // Keep-or-replace: omitted or null keeps the current value. Clearing it
+    // back to null is rebuild-explicit at the editor — see
     // target_scheduler_properties.dart's adaptive-swap toggle.
     double? swapOnConditionsBelow,
     double? swapHysteresisSecs,
@@ -251,9 +250,7 @@ class TargetSchedulerNode extends SequenceNode {
   ];
 }
 
-// =============================================================================
 // SmartExposure — multi-filter container instruction
-// =============================================================================
 
 /// One row in a [SmartExposureNode]'s filter plan.
 ///
@@ -307,15 +304,10 @@ abstract class FilterPlan with _$FilterPlan {
   double get integrationSecs => count * durationSecs;
 }
 
-// PHASE-5: the `_sentinel` const used by TargetHeaderNode,
-// TargetSchedulerNode, and SciencePhotometryNode is removed — all
-// three classes now use plain `?? this.X` copyWith semantics. See the
-// Phase-5 commits for the migration log.
-
 /// Map [BinningMode] to the PascalCase string Rust's serde expects.
 /// Kept private and local: SciencePhotometryNode and SmartExposureNode
-/// (SequenceNode subclasses — out of scope for Phase 2) still call into
-/// these helpers directly because their freezed conversion is deferred.
+/// (SequenceNode subclasses) still call into these helpers directly because
+/// their freezed conversion is deferred.
 /// New non-SequenceNode classes should use [BinningModeJsonConverter]
 /// from `_json_converters.dart` instead — `FilterPlan` does.
 String _binningModeToRustString(BinningMode mode) {

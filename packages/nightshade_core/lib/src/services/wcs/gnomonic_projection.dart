@@ -104,10 +104,8 @@ class SolvedWcs {
       apOrder > 0 && bpOrder > 0 && apCoeffs.isNotEmpty && bpCoeffs.isNotEmpty;
 
   /// True iff every WCS field is finite and the plate scale is positive.
-  /// The overlay must refuse to project against a zero pixel scale —
-  /// dividing by it would produce ±inf pixel coordinates and silently hide
-  /// the WCS bug (a violation of the project's "errors are a feature"
-  /// rule).
+  /// The overlay must refuse to project against a zero pixel scale: dividing
+  /// by it produces ±inf pixel coordinates and hides the broken WCS.
   bool get isValid =>
       raHours.isFinite &&
       decDegrees.isFinite &&

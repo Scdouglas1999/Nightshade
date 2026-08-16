@@ -1,8 +1,8 @@
-// HTTP-005 regression: POST /api/files/validate must enforce the same
-// allow-list root containment its sibling /api/files/browse does. A path
-// outside the allow-list is rejected with the `path_not_allowed` 403 BEFORE any
-// stat / write-probe runs, so the endpoint can no longer act as a filesystem
-// existence/writability oracle that drops a probe file at an arbitrary path.
+// POST /api/files/validate must enforce the same allow-list root containment
+// its sibling /api/files/browse does. A path outside the allow-list is
+// rejected with the `path_not_allowed` 403 BEFORE any stat / write-probe runs,
+// so the endpoint cannot act as a filesystem existence/writability oracle that
+// drops a probe file at an arbitrary path.
 // In-root validation (including not-yet-created save paths) is unaffected.
 
 import 'dart:convert';

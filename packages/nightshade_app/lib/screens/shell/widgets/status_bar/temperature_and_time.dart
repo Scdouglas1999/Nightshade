@@ -109,14 +109,8 @@ bool siteLocationIsSet(double latitude, double longitude) =>
 ///
 /// `lstHours` is null when there is no site to compute it for.
 ///
-/// The chip used to render the raw [localSiderealTimeProvider] value
-/// unconditionally, and that provider's observer defaults to **Los Angeles**
-/// (`PlanetariumObserver`), while `locationSyncProvider` only pushes the real
-/// site once one is configured — and its two paths disagree about the 0/0
-/// sentinel, so an unconfigured rig showed either LA's or Greenwich's sidereal
-/// time depending on load order. A precise "LST 21:14" for a site the operator
-/// never gave is worse than no LST: sidereal time is exactly what you read to
-/// decide what is transiting.
+/// A precise "LST 21:14" for a site the operator never gave is worse than no
+/// LST: sidereal time is exactly what you read to decide what is transiting.
 @visibleForTesting
 String formatLstChip(double? lstHours) {
   if (lstHours == null) return 'LST --:--';
@@ -131,19 +125,14 @@ String formatLstChip(double? lstHours) {
 
 /// Wall-clock and LST chip that owns its per-second tick.
 ///
-/// The tick used to live on `_StatusBarState`, so one `setState` a second
-/// rebuilt the whole bar — every device pill, both action buttons, the
-/// enclosing `LayoutBuilder` — to move one digit. Owning it here scopes that
-/// rebuild to this chip; `status_bar_idle_repaint_test.dart` pins it via
-/// Flutter's rebuild tracer.
+/// Owning the tick here scopes the per-second rebuild to this chip; on
+/// `_StatusBarState` one `setState` a second rebuilds every device pill, both
+/// action buttons and the enclosing `LayoutBuilder` to move one digit.
+/// `status_bar_idle_repaint_test.dart` pins it via Flutter's rebuild tracer.
 ///
-/// Measured honestly, that scoping is the whole of the win. Re-measuring a
-/// rebuilt release bundle with `NIGHTSHADE_FRAME_TIMING=1` showed the idle
-/// frame rate unchanged at 1.0 fps (a clock showing seconds must produce a
-/// frame per second) and per-frame raster cost unchanged within noise — so the
-/// [RepaintBoundary] below is insurance against this chip dirtying the bar,
-/// NOT a demonstrated saving. Flutter's Linux embedder appears to submit a
-/// full-window frame regardless of damage.
+/// The [RepaintBoundary] below is insurance against this chip dirtying the bar,
+/// NOT a measured saving: Flutter's Linux embedder submits a full-window frame
+/// regardless of damage.
 ///
 /// Ticking stops while the app is backgrounded.
 class _TimeDisplay extends ConsumerStatefulWidget {

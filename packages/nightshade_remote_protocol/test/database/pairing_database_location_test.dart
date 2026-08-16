@@ -1,13 +1,13 @@
-// Paired devices are long-lived remote credentials. They used to be the one
-// store in the app that ignored NIGHTSHADE_DATABASE_DIR: `_openConnection`
-// went straight to getApplicationDocumentsDirectory()/Nightshade/pairing.db,
-// so a scratch profile launched with its own empty database came up already
-// trusting every device the real install had ever paired, and moving the data
-// directory left the credentials behind.
+// Paired devices are long-lived remote credentials, so the pairing store must
+// honour NIGHTSHADE_DATABASE_DIR like every other store: resolving straight to
+// getApplicationDocumentsDirectory()/Nightshade/pairing.db means a scratch
+// profile with its own empty database still trusts every device the real
+// install ever paired, and moving the data directory leaves the credentials
+// behind.
 //
 // These tests pin the resolver against the same override nightshade.db honours,
 // and the one-time carry-forward that keeps an existing headless daemon's
-// pairings when the override starts being obeyed.
+// pairings.
 
 import 'dart:io';
 

@@ -55,17 +55,11 @@ class RunWatchHandlers {
   /// other handler files do.
   final ProviderContainer container;
 
-  /// Source of NightshadeEvent broadcasts. The headless server already
-  /// subscribes to the backend stream and fans it out to WebSocket
-  /// clients; this stream is the same one, exposed here so the SSE
-  /// handler can re-broadcast to /events subscribers without a second
-  /// subscription on the executor's broadcast channel.
+  /// Broadcast of the server's single subscription on `backend.eventStream`.
   ///
-  /// Why a broadcast [Stream] of [NightshadeEvent] rather than the raw
-  /// backend stream: SSE clients can come and go independently; if every
-  /// SSE subscriber attached to `backend.eventStream` directly we'd race
-  /// on the underlying tokio broadcast channel. The headless server wires
-  /// this controller in once and we subscribe to its broadcast.
+  /// SSE clients come and go independently; subscribing each one to the
+  /// backend stream directly would race on the underlying tokio broadcast
+  /// channel, so every /events subscriber fans out from this one instead.
   final Stream<NightshadeEvent> eventBroadcast;
 
   /// Maximum events to retain for the snapshot's `recentEvents` block.
@@ -81,8 +75,6 @@ class RunWatchHandlers {
   /// that provider stores the FRB bridge's NightshadeEvent variant
   /// (sealed payload union) which has a different toJson shape from
   /// the core NightshadeEvent we get out of `backend.eventStream`.
-  /// Sourcing from the same stream the SSE handler uses guarantees
-  /// the snapshot's `recentEvents` and the SSE feed agree.
   final List<NightshadeEvent> _recentBuffer = <NightshadeEvent>[];
   StreamSubscription<NightshadeEvent>? _bufferSubscription;
 
@@ -112,9 +104,7 @@ class RunWatchHandlers {
   void _logWarning(String message) =>
       _logger.warning(message, source: 'RunWatchHandlers');
 
-  // ===========================================================================
   // Snapshot
-  // ===========================================================================
 
   /// GET /api/run-watch/snapshot
   ///
@@ -157,24 +147,28 @@ class RunWatchHandlers {
     }
 
     // Live SequenceProgress + currentSequence — these come from
-    // providers that the executor populates via event subscriptions.
-    // Wrapped in try/catch so a provider error degrades gracefully to
-    // an idle-shaped progress block.
+    // providers that the executor populates via event subscriptions. A
+    // provider failure degrades to state:'unknown' with the reason, never
+    // to an idle-shaped block: a remote operator must not be told the rig
+    // is idle because a read threw mid-run.
     Map<String, Object?> progressBlock;
     try {
       final progress = container.read(sequenceProgressProvider);
       progressBlock = _progressToJson(progress);
     } catch (e) {
       _logWarning('snapshot: progress provider read failed: $e');
-      progressBlock = _idleProgressJson();
+      progressBlock = _unavailableProgressJson(e);
     }
 
+    // Same rule for the target header: a derivation failure is reported as
+    // unavailable-with-reason, distinct from the null block that means no
+    // sequence is loaded.
     Map<String, Object?>? activeTargetBlock;
     try {
       activeTargetBlock = _activeTargetBlock();
     } catch (e) {
       _logWarning('snapshot: active-target derivation failed: $e');
-      activeTargetBlock = null;
+      activeTargetBlock = _unavailableTargetJson(e);
     }
 
     // Guide stats: pulled from the backend's phd2 status (the GuideStats
@@ -273,10 +267,9 @@ class RunWatchHandlers {
 
     // Coerce any BigInt values to JSON-safe forms before encoding. frb maps
     // Rust u64/i64 fields (notably event timestamps from `event.toJson()`) to
-    // Dart BigInt, which dart:convert cannot encode -> previously a 500
-    // ("Converting object to an encodable object failed: Instance of
-    // '_BigIntImpl'"). Applied once to the whole bundle so every sub-block is
-    // covered, not just the one that happens to carry a BigInt today.
+    // Dart BigInt, which dart:convert cannot encode. Applied once to the whole
+    // bundle so every sub-block is covered, not just the one that happens to
+    // carry a BigInt today.
     return jsonOk(
       _jsonSafe(<String, Object?>{
             'serverTime': DateTime.now().toUtc().toIso8601String(),
@@ -325,20 +318,40 @@ class RunWatchHandlers {
     'progressPercent': p.progressPercent,
   };
 
-  Map<String, Object?> _idleProgressJson() => {
-    'state': 'idle',
+  /// Progress block for a failed read. Every measured field is null, not
+  /// zero: the server does not know how far the run has got, and a zeroed
+  /// block reads on the client as a rig that is doing nothing.
+  Map<String, Object?> _unavailableProgressJson(Object error) => {
+    'state': 'unknown',
     'currentNodeId': null,
     'currentNodeName': null,
     'currentTarget': null,
     'currentFilter': null,
-    'totalExposures': 0,
-    'completedExposures': 0,
-    'totalIntegrationSecs': 0.0,
-    'completedIntegrationSecs': 0.0,
-    'elapsedSecs': 0.0,
+    'totalExposures': null,
+    'completedExposures': null,
+    'totalIntegrationSecs': null,
+    'completedIntegrationSecs': null,
+    'elapsedSecs': null,
     'estimatedRemainingSecs': null,
-    'message': null,
-    'progressPercent': 0.0,
+    'message': 'Progress unavailable: $error',
+    'progressPercent': null,
+  };
+
+  /// Target block for a failed derivation. `unavailable` separates "we
+  /// could not work out the target" from the null block that means no
+  /// sequence is loaded.
+  Map<String, Object?> _unavailableTargetJson(Object error) => {
+    'unavailable': true,
+    'message': 'Target unavailable: $error',
+    'id': null,
+    'name': null,
+    'raHours': null,
+    'decDegrees': null,
+    'altitudeDeg': null,
+    'azimuthDeg': null,
+    'horizonDeg': null,
+    'timeToSetSecs': null,
+    'timeToTransitSecs': null,
   };
 
   /// Derives the active TargetHeaderNode from the currently-loaded
@@ -467,9 +480,10 @@ class RunWatchHandlers {
     try {
       return jsonDecode(raw);
     } on FormatException catch (e) {
-      // Why: the recovery context is produced by Rust as a JSON string;
-      // if it's malformed we'd rather surface the raw string than blow
-      // up the entire snapshot. The client renders this as opaque info.
+      // Why: the recovery context is produced by Rust as a JSON string.
+      // Surfacing the raw string keeps the rest of the snapshot readable;
+      // throwing here would lose every other field. The client renders this
+      // as opaque info.
       // FormatException is the only exception jsonDecode raises on
       // malformed input — narrower catch keeps unrelated failures loud.
       _logWarning('snapshot: malformed JSON in recovery context: $e');
@@ -477,9 +491,7 @@ class RunWatchHandlers {
     }
   }
 
-  // ===========================================================================
   // Frame thumbnail (JPEG)
-  // ===========================================================================
 
   /// GET /api/run-watch/frame-thumbnail
   ///
@@ -584,9 +596,7 @@ class RunWatchHandlers {
     );
   }
 
-  // ===========================================================================
   // Server-Sent Events
-  // ===========================================================================
 
   /// GET /api/run-watch/events
   ///
@@ -678,9 +688,7 @@ class RunWatchHandlers {
     );
   }
 
-  // ===========================================================================
   // Internal helpers
-  // ===========================================================================
 
   /// Encode a NightshadeEvent the way the SSE/snapshot path expects.
   Map<String, Object?> _eventToJson(NightshadeEvent event) {

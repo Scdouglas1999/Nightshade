@@ -2,11 +2,9 @@
 // verbatim notice "Sequence cancelled" (native executor, NodeStatus::Cancelled
 // arm). Every surface that reads the raw event stream has to recognise that one
 // string — and NOTHING else — or it either cries wolf over a deliberate stop or
-// (the Wave E refutation of the first attempt) swallows a genuine fault whose
-// text merely contains the word "cancelled".
+// swallows a genuine fault whose text merely contains the word "cancelled".
 //
-// The counter-inputs below are the refuter's own list, taken from strings the
-// stack really emits.
+// The counter-inputs below are strings the stack really emits.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/providers/sequence/run_stop_classification.dart';
@@ -20,8 +18,8 @@ void main() {
       expect(isSequenceCancelledNotice('  sequence CANCELLED  '), isTrue);
     });
 
-    // Wave E refutation: a substring test on "cancelled" swallowed every one of
-    // these, so a night with a real fault reported no errors at all.
+    // A substring test on "cancelled" swallows every one of these, so a night
+    // with a real fault reports no errors at all.
     test('a real fault whose text contains "cancelled" is NOT a stop', () {
       const realFaults = <String>[
         // native/.../instructions/temperature_compensation.rs

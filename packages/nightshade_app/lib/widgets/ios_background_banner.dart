@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Set true while a sequence is running on iOS so the UI displays the
-/// "honest banner" advisory (audit §3.2). Mobile code drives this; desktop
+/// "honest banner" advisory. Mobile code drives this; desktop
 /// builds never flip it.
 final iosBackgroundBannerProvider = StateProvider<bool>((_) => false);
 

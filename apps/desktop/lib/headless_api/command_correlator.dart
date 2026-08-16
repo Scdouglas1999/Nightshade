@@ -119,8 +119,8 @@ class _PendingCommand {
 ///
 /// * Multiple clients racing the same operation/device in tight
 ///   succession will FIFO-pair their events against whichever command
-///   the correlator saw first. The audit's §10 note documents this; for
-///   single-client workflows it is correct.
+///   the correlator saw first, which is correct for single-client
+///   workflows.
 /// * Events that arrive after [ttl] elapses are not correlated. The TTL
 ///   exists to prevent the pending set from growing without bound when
 ///   a driver hangs or a sequence is aborted before completion.

@@ -112,9 +112,7 @@ class AnalyticsHandlers {
     };
   }
 
-  // ===========================================================================
-  // Get All Sessions
-  // ===========================================================================
+  // Get all sessions
 
   Future<Response> handleGetAllSessions(Request request) async {
     _logInfo('[API] GET /api/sessions');
@@ -126,9 +124,7 @@ class AnalyticsHandlers {
     });
   }
 
-  // ===========================================================================
   // Get Session By ID
-  // ===========================================================================
 
   Future<Response> handleGetSessionById(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id');
@@ -143,9 +139,7 @@ class AnalyticsHandlers {
     return jsonOk({"session": _sessionToJson(session)});
   }
 
-  // ===========================================================================
-  // Get Active Session
-  // ===========================================================================
+  // Get active session
 
   Future<Response> handleGetActiveSession(Request request) async {
     _logInfo('[API] GET /api/sessions/active');
@@ -160,9 +154,7 @@ class AnalyticsHandlers {
     return jsonOk({"session": _sessionToJson(activeSessions.first)});
   }
 
-  // ===========================================================================
-  // Get Recent Sessions
-  // ===========================================================================
+  // Get recent sessions
 
   Future<Response> handleGetRecentSessions(Request request) async {
     // Absent → 10. A supplied limit must be a positive, bounded whole number so
@@ -185,9 +177,7 @@ class AnalyticsHandlers {
     });
   }
 
-  // ===========================================================================
-  // Create Session
-  // ===========================================================================
+  // Create session
 
   Future<Response> handleCreateSession(Request request) async {
     _logInfo('[API] POST /api/sessions');
@@ -271,9 +261,7 @@ class AnalyticsHandlers {
     return jsonOk({"status": "created", "id": id});
   }
 
-  // ===========================================================================
-  // Update Session
-  // ===========================================================================
+  // Update session
 
   Future<Response> handleUpdateSession(Request request, String id) async {
     _logInfo('[API] PUT /api/sessions/$id');
@@ -338,9 +326,7 @@ class AnalyticsHandlers {
     return jsonOk({"status": "updated"});
   }
 
-  // ===========================================================================
-  // End Session
-  // ===========================================================================
+  // End session
 
   Future<Response> handleEndSession(Request request, String id) async {
     _logInfo('[API] POST /api/sessions/$id/end');
@@ -367,9 +353,7 @@ class AnalyticsHandlers {
     return jsonOk({"status": "ended"});
   }
 
-  // ===========================================================================
-  // Delete Session
-  // ===========================================================================
+  // Delete session
 
   Future<Response> handleDeleteSession(Request request, String id) async {
     _logInfo('[API] DELETE /api/sessions/$id');
@@ -390,9 +374,7 @@ class AnalyticsHandlers {
     return jsonOk({"status": "deleted"});
   }
 
-  // ===========================================================================
-  // Get Session Stats
-  // ===========================================================================
+  // Get session stats
 
   Future<Response> handleGetSessionStats(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id/stats');
@@ -465,9 +447,7 @@ class AnalyticsHandlers {
     });
   }
 
-  // ===========================================================================
-  // Session Science Data
-  // ===========================================================================
+  // Session science data
 
   Future<Response> handleGetSessionPsfTiles(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id/psf-tiles');
@@ -489,9 +469,7 @@ class AnalyticsHandlers {
     return jsonOk({'residuals': residuals.map(_residualVectorToJson).toList()});
   }
 
-  // ===========================================================================
-  // Get Analytics Summary
-  // ===========================================================================
+  // Get analytics summary
 
   Future<Response> handleGetAnalyticsSummary(Request request) async {
     _logInfo('[API] GET /api/analytics/summary');
@@ -508,9 +486,7 @@ class AnalyticsHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Total Integration Time
-  // ===========================================================================
+  // Get total integration time
 
   Future<Response> handleGetTotalIntegrationTime(Request request) async {
     _logInfo('[API] GET /api/analytics/integration-time');
@@ -523,9 +499,7 @@ class AnalyticsHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Target Statistics
-  // ===========================================================================
+  // Get target statistics
 
   Future<Response> handleGetTargetStatistics(
     Request request,
@@ -539,9 +513,7 @@ class AnalyticsHandlers {
     return jsonOk({"stats": stats});
   }
 
-  // ===========================================================================
-  // Untracked Targets Cleanup
-  // ===========================================================================
+  // Untracked targets cleanup
 
   /// GET /api/analytics/untracked-targets/count
   /// Number of "untracked" library targets (no integration goal, not a
@@ -573,9 +545,7 @@ class AnalyticsHandlers {
     return jsonOk({"status": "removed", "deleted": deleted});
   }
 
-  // ===========================================================================
-  // Get Sessions For Target
-  // ===========================================================================
+  // Get sessions for target
 
   Future<Response> handleGetSessionsForTarget(
     Request request,
@@ -591,9 +561,7 @@ class AnalyticsHandlers {
     });
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   Map<String, dynamic> _sessionToJson(ImagingSession session) {
     return {

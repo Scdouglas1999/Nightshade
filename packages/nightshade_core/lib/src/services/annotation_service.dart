@@ -297,9 +297,7 @@ class AnnotationService {
       .where((a) => a != null)
       .cast<ImageAnnotation>();
 
-  // =========================================================================
   // Catalog & helper methods (kept in main file for shared access)
-  // =========================================================================
 
   Future<AnnotationCatalog?> _loadAnnotationCatalog() async {
     final override = debugAnnotationCatalogOverride;
@@ -519,18 +517,13 @@ class AnnotationService {
   /// INDI `EQUATORIAL_EOD_COORD` convention) to the degrees a plate-solve
   /// hint expects.
   ///
-  /// The unit is a CONTRACT, not something to be inferred. This used to guess
-  /// — "values in [0, 24] are hours, anything larger is degrees" — which reads
-  /// as defensive but cannot work: [0, 24] is the *entire* legal hours domain,
-  /// so a caller that genuinely had degrees and happened to be pointing inside
-  /// RA 0h-1.6h got silently multiplied by 15 and sent a hint ~15x off, while
-  /// a caller with hours was indistinguishable from it. A guess that rescales
-  /// data is worse than a value you can see is wrong.
+  /// The unit is a contract, never inferred from the value: [0, 24] is the
+  /// entire legal hours domain, so no range test can tell hours from degrees.
   ///
-  /// Out-of-range input therefore means a driver violated the contract. Say so
-  /// and pass it through un-rescaled rather than quietly inventing a unit: a
-  /// bad hint only costs solve time (solvers fall back to blind), whereas a
-  /// silently rescaled one is indistinguishable from a correct hint.
+  /// Out-of-range input means a driver violated the contract. It is logged and
+  /// passed through un-rescaled: a bad hint only costs solve time (solvers fall
+  /// back to blind), while a silently rescaled one is indistinguishable from a
+  /// correct hint.
   double _raHoursToSolverDegrees(double raHours) {
     if (!raHours.isFinite || raHours < 0.0 || raHours > 24.0) {
       _logger.warning(

@@ -10,12 +10,19 @@ extension _SequencerConfig on SequencerHandlers {
     final backend = container.read(sequencerBackendProvider);
     try {
       await backend.sequencerSetSimulationMode(enabled);
-    } catch (e) {
-      // Release/production appliance builds deliberately refuse simulation mode
-      // (NightshadeError.NotSupported) so a shipped rig never drives mock
-      // hardware. Surface that as a clean 400 with an actionable message rather
-      // than an opaque 500 internal_error a remote client can't interpret.
-      _logInfo('[API] POST /api/sequencer/simulation rejected: $e');
+    } on bridge_api.NightshadeError catch (e) {
+      // Release/appliance builds refuse simulation mode with a typed
+      // NotSupported so a shipped rig never drives mock hardware. That one
+      // refusal is a policy answer the caller can act on. Every other backend
+      // error — bridge not loaded, executor lock unavailable, a serialisation
+      // fault — is rethrown so the error translator reports what actually
+      // failed instead of dressing a fault up as a policy refusal.
+      final refused = e.maybeMap(
+        notSupported: (_) => true,
+        orElse: () => false,
+      );
+      if (!refused) rethrow;
+      _logInfo('[API] POST /api/sequencer/simulation refused: $e');
       return jsonBadRequest({
         'error': 'simulation_mode_unavailable',
         'message':
@@ -107,10 +114,9 @@ extension _SequencerConfig on SequencerHandlers {
   /// POST /api/sequencer/save-path.
   ///
   /// The save path is where a run's science frames land, so an unusable value
-  /// is data loss with a delay: the endpoint used to answer `ok` to the empty
-  /// string, to an uncreatable directory and to a read-only one, and the
-  /// sequencer then captured a full run and discarded every frame. Nothing is
-  /// forwarded to the backend until this host has proved it can write there.
+  /// is data loss with a delay — a full night captured and every frame
+  /// discarded. Nothing is forwarded to the backend until this host has proved
+  /// it can create the directory and write into it.
   Future<Response> _handleSequencerSetSavePath(Request request) async {
     _logInfo('[API] POST /api/sequencer/save-path');
     final payload = await readJsonObject(request);
@@ -148,15 +154,13 @@ extension _SequencerConfig on SequencerHandlers {
 
     // Point the host's own capture-folder setting at the same directory.
     //
-    // Live rig L30 (2026-08-09): setting the save path and then writing 30
-    // frames to it left `GET /api/system/disk-space` answering
-    // `{"configured": false}` all night. The two are separate settings —
-    // `sequencerSetSavePath` is the NATIVE executor's output directory, while
-    // the free-space guard, the disk-space watchdog and the capture-folder UI
-    // all read `appSettings.imageOutputPath` — and nothing linked them. A
-    // headless-only operator has no other way to set the second one, so the
-    // guard watched nothing while the disk filled. Set to DIFFERENT volumes it
-    // is worse than inert: it reports healthy space on the wrong disk.
+    // These are two separate settings: `sequencerSetSavePath` is the NATIVE
+    // executor's output directory, while the free-space guard, the disk-space
+    // watchdog and the capture-folder UI all read
+    // `appSettings.imageOutputPath`. A headless-only operator has no other way
+    // to set the second, so unlinked the guard watches nothing while the disk
+    // fills — and pointed at a different volume it is worse than inert,
+    // reporting healthy space on the wrong disk.
     //
     // Non-fatal: the run's frames go where the caller asked either way, and
     // refusing a valid save path because a monitoring setting could not be
@@ -362,11 +366,9 @@ extension _SequencerConfig on SequencerHandlers {
       telescopeFocalLengthMm: optionalDouble(payload, 'telescopeFocalLengthMm'),
       telescopeApertureMm: optionalDouble(payload, 'telescopeApertureMm'),
     );
-    // Say which fields were understood. `focalLengthMm` — the obvious
-    // misspelling of `telescopeFocalLengthMm` — used to answer a bare
-    // `{"status":"ok"}` and drop the value, and the only way to find out was
-    // to read a later FITS header and notice FOCALLEN missing. See
-    // [fieldReport].
+    // Echo which fields were understood, so a key the endpoint dropped — say
+    // `focalLengthMm` for `telescopeFocalLengthMm` — is visible in the reply
+    // instead of in a later FITS header missing FOCALLEN. See [fieldReport].
     return jsonOk({
       'status': 'ok',
       ...fieldReport(payload, const {

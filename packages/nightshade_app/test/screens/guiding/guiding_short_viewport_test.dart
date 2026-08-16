@@ -58,8 +58,8 @@ class _OverflowGuard {
   }
 }
 
-/// Heights that put the guiding body below the old 333 dp inversion point,
-/// plus one just above it so the normal path stays covered.
+/// Heights that put the guiding body below the 333 dp inversion point, plus one
+/// just above it so the normal path stays covered.
 const _shortHeights = <(String, Size)>[
   ('banner-squeezed phone', Size(411, 300)),
   ('banner-squeezed small phone', Size(360, 300)),

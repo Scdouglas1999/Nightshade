@@ -164,23 +164,23 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
   /// Live alt/az for the object this popup is HEADED BY — never for whatever
   /// happens to be selected.
   ///
-  /// This block used to read `selectedObjectAltAzProvider`, which follows the
-  /// global selection while the header, catalogue coordinates and every action
-  /// button stay pinned to the object captured at tap time. Selecting something
-  /// else (a search result, a list row, a deep link) therefore left a popup
-  /// headed "Deneb" reporting M57's altitude to 0.1 deg, complete with a red
-  /// "Below Horizon" badge for a star that was 11.5 deg up — and, in the other
-  /// direction, a green "Excellent" badge for a star 2.8 deg below the horizon.
-  /// A true-looking sentence about the wrong object is worse than no sentence.
-  (double alt, double az) get _objectAltAz {
-    final location = ref.watch(observerLocationProvider);
+  /// `selectedObjectAltAzProvider` follows the GLOBAL selection, while the
+  /// header, catalogue coordinates and every action button stay pinned to the
+  /// object captured at tap time. Reading it here would report one object's
+  /// altitude — and its horizon badge — under another object's name.
+  ///
+  /// Null with no site on record: an altitude is a reading against a horizon,
+  /// and there is no horizon without an observer.
+  (double alt, double az)? get _objectAltAz {
+    final site = ref.watch(observerLocationProvider).site;
+    if (site == null) return null;
     final time = ref.watch(observationMinuteProvider);
     return AstronomyCalculations.objectAltAz(
       raDeg: widget.coordinates.raDegrees,
       decDeg: widget.coordinates.dec,
       dt: time,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
+      latitudeDeg: site.latitude,
+      longitudeDeg: site.longitude,
     );
   }
 
@@ -518,12 +518,15 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
   }
 
   Widget _buildAltAz() {
-    final (alt, az) = _objectAltAz;
+    // No site, no horizon: the whole "Current Position" block is a statement
+    // about where the object is FOR THE OBSERVER, so it is omitted rather than
+    // computed against a default one.
+    final altAz = _objectAltAz;
+    if (altAz == null) return const SizedBox.shrink();
+    final (alt, az) = altAz;
 
-    // The badge used to grade on altitude alone, so at 11:52 local — with the
-    // app's own dashboard reading "Dark in 10h 36m" — a target 63 deg up got a
-    // green "Excellent" pill while the Sun was also 63 deg up. Sky brightness
-    // outranks altitude: an unobservable target must not be badged green.
+    // Sky brightness outranks altitude: a target 63 deg up in broad daylight
+    // must not be badged green just because it is high.
     final grade = gradeObservability(
       altitudeDeg: alt,
       sunAltitudeDeg: ref.watch(sunAltitudeProvider),

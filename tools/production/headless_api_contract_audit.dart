@@ -7,17 +7,15 @@ const _serverPath = 'apps/desktop/lib/headless_api_server.dart';
 /// under here exposes a top-level `List<HeadlessRoute> buildXxxRoutes
 /// (...)` whose entries take the shape
 /// `HeadlessRoute(HttpMethod.<verb>, '<path>', ...)`. The audit scans
-/// this directory in addition to [_serverPath] so the registered-route
-/// inventory survives the refactor that moved the inline
-/// `router.<verb>(...)` calls out of `start()`.
+/// this directory in addition to [_serverPath], so the registered-route
+/// inventory covers the declarative tables as well as any inline
+/// `router.<verb>(...)` calls in `start()`.
 const _routesDirectory = 'apps/desktop/lib/headless_api/routes';
 
-/// File the canonical `availableHeadlessEndpoints()` catalog now lives
-/// in. Moved out of `headless_api_server.dart` when the system handlers
-/// were extracted into their own class, then split into a dedicated
-/// `system_endpoint_catalog.dart` (re-exported from `system_handlers.dart`);
-/// the audit reads this file's source to compare the advertised list
-/// against the registered routes.
+/// File the canonical `availableHeadlessEndpoints()` catalog lives in: a
+/// dedicated `system_endpoint_catalog.dart`, re-exported from
+/// `system_handlers.dart`. The audit reads this file's source to compare
+/// the advertised list against the registered routes.
 const _systemHandlersPath =
     'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart';
 
@@ -368,10 +366,10 @@ Map<String, bool> _versionNegotiationCoverage({
 }) {
   final normalizedApiDocsSource = apiDocsSource.replaceAll(RegExp(r'\s+'), ' ');
   return {
-    // MOBILE-002: the core compatibility model now delegates to the single
+    // The core compatibility model delegates to the single
     // NightshadeServerCompatibility policy so the two cannot diverge. Verify
     // the delegation here and pin the 2.4.0 floor + the three rejection codes
-    // in that single source of truth (value unchanged from the prior literal).
+    // in that single source of truth.
     'shared_compatibility_policy':
         remoteApiCompatibilitySource.contains(
           'NightshadeServerCompatibility.minimumSupportedVersion',

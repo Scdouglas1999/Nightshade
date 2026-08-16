@@ -1,10 +1,9 @@
-// A11Y-STATE: the imaging controls a screen reader is told it cannot use.
+// The imaging controls must not tell a screen reader they cannot be used.
 //
-// IMG-6 recorded every filter chip and the Frame Type / Binning dropdowns on
-// the Imaging screen as `panel: Ha [DISABLED]` / `button: Light [DISABLED]`
-// while clicking them drove the wheel. The cause is the same everywhere: a tap
-// action with no role and no enabled flag, and AT-SPI reads an absent enabled
-// flag as "disabled". These pin the two surfaces the cluster named.
+// A tap action with no role and no enabled flag reads to AT-SPI as disabled, so
+// every filter chip and the Frame Type / Binning dropdowns on the Imaging screen
+// dump as `panel: Ha [DISABLED]` / `button: Light [DISABLED]` while clicking
+// them drives the wheel. These pin both surfaces.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';

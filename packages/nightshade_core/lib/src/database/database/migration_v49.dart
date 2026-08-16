@@ -11,7 +11,7 @@ extension _NightshadeDatabaseMigrationV49 on NightshadeDatabase {
   ///   * `sequence_versions` — append-only, per-sequence version history for
   ///     review/restore.
   ///   * `session_diagnostics` — per-session recovery history + optical-train
-  ///     baseline/current snapshots, previously only in volatile providers.
+  ///     baseline/current snapshots.
   ///
   /// All adds are guarded ([_columnExists] / [_tableExists]) because the v2–v17
   /// migration chain recreates several tables from the CURRENT Drift schema —

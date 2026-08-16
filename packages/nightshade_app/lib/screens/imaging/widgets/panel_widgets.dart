@@ -16,9 +16,8 @@ import '../../../widgets/touch_target_floor.dart';
 /// Each of [InputRow], [InputRowEditable], [DropdownRow], and
 /// [SliderRowInteractive] renders its label through this helper so the help
 /// icon hugs the label text inside the row's label `Expanded`, leaving the
-/// existing label/control flex layout untouched. When [helpId] is null the
-/// result is identical to the bare label `Text` that shipped before, so no
-/// existing call site changes behaviour.
+/// label/control flex layout untouched. When [helpId] is null the result is a
+/// bare label `Text`.
 Widget _panelRowLabel(
   BuildContext context, {
   required String label,
@@ -723,11 +722,11 @@ class DropdownRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isEnabled = onChanged != null;
 
-    // NEW-C3: the label and the control published as two adjacent, unrelated
+    // Left apart, the label and the control publish as two adjacent, unrelated
     // nodes — `panel: Frame Type` followed by `button: Light` — so assistive
-    // tech announced "Light" with nothing saying what was Light.
+    // tech announces "Light" with nothing saying what is Light.
     //
-    // The control now carries BOTH: one merged node reading "Frame Type Light"
+    // The control carries BOTH: one merged node reading "Frame Type Light"
     // with the button role and the tap action. The visible label text is
     // excluded from semantics so it does not linger beside it as a second,
     // valueless node; the help affordance keeps its own node, because it is a
@@ -876,15 +875,11 @@ class _SmallButtonState extends State<SmallButton> {
   Widget build(BuildContext context) {
     final primaryForeground = Theme.of(context).colorScheme.onPrimary;
     final isEnabled = widget.isEnabled;
-    // The OUTLINE variant used to render its disabled state as a full-strength
-    // `textMuted` border and label — which is exactly how ordinary secondary
-    // text and borders are drawn everywhere else in the app, so a disabled
-    // outline button was indistinguishable from an enabled one. In the imaging
-    // Guiding panel that put a live-looking "Stop" and "Dither" next to a
-    // visibly greyed "Start" while all three were gated on the same
-    // `isConnected`; clicking Dither correctly did nothing, which reads as the
-    // app swallowing the command. Dim the whole control the way the filled
-    // variant already does so "cannot press this" is legible at a glance.
+    // Disabled must not be drawn at the strength of ordinary secondary text:
+    // a full-strength `textMuted` border and label is exactly how enabled
+    // secondary chrome looks everywhere else, so a disabled outline button
+    // reads as pressable and its no-op reads as a swallowed command. Dim the
+    // whole control the way the filled variant does.
     final outlineColor = isEnabled
         ? widget.colors.primary
         : widget.colors.textMuted

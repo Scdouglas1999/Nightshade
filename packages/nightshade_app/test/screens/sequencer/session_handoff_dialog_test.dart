@@ -96,11 +96,11 @@ void main() {
     expect(captured![2], SessionHandoffDecision.restart);
   });
 
-  // A sub-minute carry-over used to round to "0m", so the tile read
-  // "M31 has 0m from the most recent session (4 accepted frames)" — four
-  // real frames on disk described as no integration at all. The dialog now
-  // shares `formatIntegrationSeconds` with the Continue Session dialog and
-  // the dashboard's run cards.
+  // A sub-minute carry-over rounded to "0m" makes the tile read "M31 has 0m
+  // from the most recent session (4 accepted frames)" — four real frames on disk
+  // described as no integration at all. The dialog shares
+  // `formatIntegrationSeconds` with the Continue Session dialog and the
+  // dashboard's run cards.
   testWidgets('a sub-minute carry-over is not reported as zero',
       (tester) async {
     final co = SessionCarryOver(

@@ -145,20 +145,7 @@ final nextUseDismissedActionsProvider = StreamProvider<Set<NextUseActionId>>((
 /// outcome — at worst we surface a prompt for something already done, never the
 /// reverse where we hide a genuinely-needed nudge.
 ///
-/// Per-action signals:
-/// * [NextUseActionId.buildSmartNight] — complete once any Smart Night draft
-///   exists. Building a plan (or explicitly skip-tracking via a saved draft)
-///   writes a draft to the shared draft store, so a non-empty store is the
-///   single signal that the user has engaged with Smart Night.
-/// * [NextUseActionId.frameTarget] — complete once a target has been set on the
-///   current session ([SessionState.targetName] is non-empty). Reuses the live
-///   session target signal rather than re-deriving it.
-/// * [NextUseActionId.configurePlateSolver] — complete once the readiness
-///   plate-solver item is [ReadinessLevel.ready].
-/// * [NextUseActionId.runAutofocus] — complete once the readiness focus item is
-///   [ReadinessLevel.ready] (focus has been established).
-/// * [NextUseActionId.captureFirstLight] — complete once at least one captured
-///   image exists.
+/// Each per-action signal is a live-state read, not a stored "done" flag.
 final nextUseCompletedActionsProvider = Provider<Set<NextUseActionId>>((ref) {
   final completed = <NextUseActionId>{};
 

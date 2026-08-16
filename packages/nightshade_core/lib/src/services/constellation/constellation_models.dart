@@ -1,8 +1,9 @@
 // Pillar C ("Constellation") — Dart value types for the hub wire contract.
 //
-// These decode the JSON the Constellation hub (`docs/nightshade_5_0_contracts.md`
-// §5) returns and carry the typed error surface the client raises. Field names
-// mirror the wire contract (camelCase) so the maps round-trip straight through.
+// These decode the JSON the Constellation hub returns (contract in
+// `docs/nightshade_5_0_contracts.md`) and carry the typed error surface the
+// client raises. Field names mirror the wire contract (camelCase) so the maps
+// round-trip straight through.
 
 /// How a [ConstellationException] should be classified by callers (retry vs
 /// surface vs reauth). Mirrors the WebDAV sync target's error taxonomy.
@@ -49,8 +50,8 @@ class HubInfo {
   /// that don't advertise the flag are treated as sums-only).
   final bool acceptsRawSubs;
 
-  /// Whether the hub requires an explicit consented license on every share path
-  /// (WS4). When true the contribute sheet MUST collect a license before any
+  /// Whether the hub requires an explicit consented license on every share
+  /// path. When true the contribute sheet MUST collect a license before any
   /// bytes are sent; the client pre-validates the user's choice against
   /// [supportedLicenses]. Defaults false for older hubs that don't advertise it
   /// (treated as no consent contract — the legacy unconditional contribute).
@@ -109,7 +110,7 @@ class HubAccount {
   );
 }
 
-/// `POST /v1/tokens` result — a freshly minted fine-grained scoped token (WS4).
+/// `POST /v1/tokens` result — a freshly minted fine-grained scoped token.
 /// [bearerToken] is the RAW token (returned exactly once), the rest echoes the
 /// narrowing the hub applied so a UI can show what was granted.
 class MintedToken {
@@ -267,7 +268,7 @@ class HandoffClaim {
 /// A shared target advertised by the hub (browse / "what's dark now").
 ///
 /// The hub's swarm-target listing is not pinned field-for-field in the contract
-/// (§5 leaves the browse payload to the hub), so this decodes the stable subset
+/// (the browse payload is left to the hub), so this decodes the stable subset
 /// every hub returns and tolerates the rest.
 class SharedTarget {
   final int targetId;
@@ -386,7 +387,7 @@ class ContributionRecord {
   });
 }
 
-/// A collaborative mosaic published on the hub (Collaborative Sky WS2): a panel
+/// A collaborative mosaic published on the hub: a panel
 /// grid whose panels are claimable distributed work items. Field names mirror the
 /// hub's `CollaborativeMosaicRow.toJson` wire shape.
 class CollabMosaic {
@@ -512,7 +513,7 @@ class CollabMosaicPanel {
       );
 }
 
-/// A successful panel claim from the hub broker (WS2): the baton token + expiry.
+/// A successful panel claim from the hub broker: the baton token + expiry.
 /// Mirrors [HandoffClaim] but keyed by `(mosaicId, panelIndex)`.
 class MosaicPanelClaim {
   final String mosaicId;
@@ -538,7 +539,7 @@ class MosaicPanelClaim {
   }
 }
 
-/// A live co-imaging session on the hub (Collaborative Sky WS3): N rigs JOIN the
+/// A live co-imaging session on the hub: N rigs JOIN the
 /// SAME target and their subs co-add through the additive fusion pipeline, so
 /// effective integration scales with rig count and imaging continues across
 /// longitudes. Field names mirror the hub's `CoImagingSessionRow.toJson`.
@@ -816,7 +817,7 @@ class FollowTheNightSuggestion {
 }
 
 /// One credited contributor on a finished collaborative artifact, materialized
-/// server-side by the hub's `AttributionService` (WS4). Mirrors one entry of the
+/// server-side by the hub's `AttributionService`. Mirrors one entry of the
 /// `GET /v1/attribution` `contributors` list.
 ///
 /// The hub honours each contributor's attribution consent: an anonymous
@@ -869,13 +870,13 @@ class ContributorCredit {
 
 /// The authoritative, ordered contributor-credit list for one finished
 /// collaborative artifact — the client-side decode of `GET /v1/attribution`
-/// (WS5's contributor-credits UI source). The hub keys attribution on an
+/// and the source for contributor-credits UI. The hub keys attribution on an
 /// `(artifactType, artifactRef)` pair: `'mosaic'`/mosaicId, `'coimaging'`/
 /// sessionId, or `'tile'`/`'subframe'`/`'calibration'` for the other flows.
 ///
-/// The UI reads credits back through this rather than reconstructing them from a
-/// browse payload, per the WS4 consent contract (the consent + attribution truth
-/// is retained server-side, where a local DB tamper cannot edit it away).
+/// The UI reads credits back through this rather than reconstructing them from
+/// a browse payload: the consent + attribution truth is retained server-side,
+/// where a local DB tamper cannot edit it away.
 class ArtifactAttribution {
   final String artifactType;
   final String artifactRef;

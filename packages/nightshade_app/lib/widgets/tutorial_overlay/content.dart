@@ -163,12 +163,12 @@ class _TutorialOverlayContentState extends State<_TutorialOverlayContent> {
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: Semantics(
-        // WF-SS-N4: this node is focusable — the `Focus` above it takes the
-        // keyboard for the whole tour — but it declared no enabled state, so
-        // it dumped as `panel: Tutorial step 1 of 12: … [DISABLED]`: an
-        // overlay that says it holds your keyboard and is dead at the same
-        // time. It is live (Enter/Space/Backspace/Escape all do something),
-        // and it says so.
+        // This node is focusable — the `Focus` above it takes the keyboard for
+        // the whole tour — so it has to declare an enabled state. Without one
+        // it dumps as `panel: Tutorial step 1 of 12: … [DISABLED]`: an overlay
+        // that says it holds your keyboard and is dead at the same time. It is
+        // live (Enter/Space/Backspace/Escape all do something), and it says
+        // so.
         container: true,
         enabled: true,
         label:

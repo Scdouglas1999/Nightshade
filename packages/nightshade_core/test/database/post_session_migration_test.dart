@@ -184,7 +184,6 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // v41 -> v42 (Smart Morning Report / "Night Doctor"): the `night_reports`
   // table plus additive Smart-Morning-Report columns on the v41 raw-DDL
   // `integrated_masters` / `integrated_master_frames` tables.

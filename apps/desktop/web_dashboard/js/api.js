@@ -23,7 +23,7 @@ class NightshadeApi {
     this._eventListeners = new Map();
     this._connected = false;
     this._wsConnected = false;
-    // CSRF token bound to the HttpOnly session cookie (§2.5 long-form).
+    // CSRF token bound to the HttpOnly session cookie.
     // In-memory only — never persisted to storage. The cookie itself is
     // HttpOnly so JS can't read it; the CSRF token is what proves a
     // request originated from the SPA rather than from an attacker who
@@ -129,9 +129,9 @@ class NightshadeApi {
         method,
         headers: this._headers(undefined, method),
         // Always attach cookies on same-origin requests. Why unconditional:
-        // §2.5 long-form ships HttpOnly cookies for the "remember" path;
-        // omitting credentials would prevent the cookie from round-
-        // tripping even when present. Cross-origin allowance is gated by
+        // the "remember" path rides an HttpOnly cookie, and omitting
+        // credentials would stop that cookie round-tripping even when it is
+        // present. Cross-origin allowance is gated by
         // Access-Control-Allow-Credentials server-side, so this stays
         // safe on disallowed origins.
         credentials: 'include',
@@ -524,9 +524,9 @@ class NightshadeApi {
   }
 
   async filterWheelSetByName(deviceId, filterName) {
-    // The backend payload key is `name` (see handleFilterWheelSetByName); the
-    // dashboard previously sent `filterName`, which the validator rejected
-    // with "field 'name' required".
+    // The backend payload key is `name` (see handleFilterWheelSetByName).
+    // Sending `filterName` instead trips the validator with
+    // "field 'name' required".
     return this._post('/api/filter-wheel/set-by-name', { deviceId, name: filterName });
   }
 
@@ -757,7 +757,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Safety (§2.17 — ops panels)
+  // Safety — ops panels
   // =========================================================================
 
   // Aggregate safety status across all connected safety monitors.
@@ -767,7 +767,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Sequences — listing + load by id (§2.17 — ops panels)
+  // Sequences — listing + load by id (ops panels)
   // =========================================================================
 
   // List sequences saved in the database. Excludes templates (handled by a
@@ -790,23 +790,21 @@ class NightshadeApi {
     });
   }
 
-  // Abort = stop. Why an alias: the §2.17 brief uses "Abort"; the server uses
-  // "stop". Keeping both names makes the dashboard code match the brief
-  // verbatim without a confusing rename.
+  // Abort = stop. The dashboard UI labels this control "Abort"; the server
+  // route is "stop". The alias lets each side keep its own vocabulary.
   async sequencerAbort() {
     return this.sequencerStop();
   }
 
   // =========================================================================
-  // Checkpoint resume (§2.17 — ops panels)
+  // Checkpoint resume — ops panels
   // =========================================================================
 
-  // TODO[W5-BACKEND-EXTEND]: the current sequencer only supports a single
-  // active checkpoint, not a list. /api/sequencer/checkpoint/has +
-  // /api/sequencer/checkpoint/info return that single entry. The §2.17 brief
-  // describes a "picker" so we normalise the response to an array of length
-  // 0 or 1; if/when multi-checkpoint support lands the wire format will need
-  // to change, and the UI already iterates over an array.
+  // TODO: the sequencer supports a single active checkpoint, not a list.
+  // /api/sequencer/checkpoint/has + /api/sequencer/checkpoint/info return
+  // that single entry. The UI renders a picker, so normalise the response to
+  // an array of length 0 or 1; multi-checkpoint support would change the wire
+  // format here and nothing in the UI, which already iterates over an array.
   async sequencerListCheckpoints() {
     const hasResp = await this._get('/api/sequencer/checkpoint/has');
     if (!hasResp || !hasResp.hasCheckpoint) {
@@ -829,7 +827,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Dome (§2.17 — ops panels)
+  // Dome — ops panels
   // =========================================================================
 
   async domeOpen(deviceId) {
@@ -862,7 +860,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Profiles (§2.17 — ops panels)
+  // Profiles — ops panels
   // =========================================================================
 
   async profilesGetList() {
@@ -880,10 +878,10 @@ class NightshadeApi {
     );
   }
 
-  // TODO[W5-BACKEND-EXTEND]: no /api/profiles/reload endpoint exists. The
-  // desktop UI re-reads the active profile to pick up out-of-band edits;
-  // here we re-activate the active profile id, which has equivalent effect
-  // (it forces device caches + filter offsets to repopulate from disk).
+  // TODO: no /api/profiles/reload endpoint exists. The desktop UI re-reads
+  // the active profile to pick up out-of-band edits; re-activating the active
+  // profile id has equivalent effect here, forcing device caches + filter
+  // offsets to repopulate from disk.
   async profilesReload() {
     const active = await this.profilesGetActive();
     const profile = active && active.profile;
@@ -894,15 +892,15 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Analytics — session summary (§2.17 — ops panels)
+  // Analytics — session summary (ops panels)
   // =========================================================================
 
-  // TODO[W5-BACKEND-EXTEND]: there is no /api/analytics/session-summary
-  // endpoint. The closest is /api/sessions/active (which returns the row
-  // with totalExposures / totalIntegrationSecs / avgHfr) and the science
-  // bundle (which carries the transparency sample series we use for the
-  // sparkline). Compose them so the dashboard panel has both the headline
-  // stats and the transparency trend without waiting on a new server route.
+  // TODO: there is no /api/analytics/session-summary endpoint. The closest
+  // are /api/sessions/active (the row with totalExposures /
+  // totalIntegrationSecs / avgHfr) and the science bundle (the transparency
+  // sample series behind the sparkline). Compose them so the dashboard panel
+  // has both the headline stats and the transparency trend without a new
+  // server route.
   async analyticsGetSessionSummary() {
     const active = await this._get('/api/sessions/active');
     const session = active && active.session;
@@ -927,7 +925,7 @@ class NightshadeApi {
     return { session, transparency };
   }
   // =========================================================================
-  // Plate Solve (§2.17 W5-WEB-WIZARDS)
+  // Plate Solve
   // =========================================================================
 
   // /api/plate-solve takes a file system path. The web dashboard finds the
@@ -950,14 +948,14 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // §W7E — Image gallery + log tail
+  // Image gallery + log tail
   //
   // The gallery panel uses /api/images?limit=N (full listing) plus
   // /api/images/{id}/thumbnail for the per-row image. The log panel
   // uses /api/logs/tail (SSE) — EventSource doesn't accept custom
-  // headers so the bearer goes through ?access_token= (the server
-  // already accepts that fallback for SSE endpoints, see
-  // headless_api_server.dart §2.4 SSE auth fallback).
+  // headers so the bearer goes through ?access_token=, the query-param
+  // fallback the server accepts on SSE endpoints (see
+  // headless_api_server.dart).
   // =========================================================================
 
   /// Paginated list of captured images, newest first. The query mirrors
@@ -1061,7 +1059,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Polar Alignment (§2.17 W5-WEB-WIZARDS)
+  // Polar Alignment
   // =========================================================================
 
   // The desktop backend uses snake_case for the polar alignment payload (see
@@ -1105,7 +1103,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Flat Wizard (§2.17 W5-WEB-WIZARDS)
+  // Flat Wizard
   // =========================================================================
 
   // Multi-filter ADU calibration. Returns an array of FlatResult JSON objects
@@ -1161,7 +1159,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Mosaic Planner (§2.17 W5-WEB-WIZARDS)
+  // Mosaic Planner
   // =========================================================================
 
   // Compute the panel centers for a mosaic — useful for the preview step
@@ -1202,7 +1200,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Framing Assistant (§2.17 W5-WEB-WIZARDS)
+  // Framing Assistant
   // =========================================================================
 
   // Slew without solve-and-correct — the cheap "go close to" path.
@@ -1253,7 +1251,7 @@ class NightshadeApi {
   }
 
   // =========================================================================
-  // Planetarium / FOV (§2.17 W5-WEB-WIZARDS)
+  // Planetarium / FOV
   // =========================================================================
 
   // Returns the effective FOV (width/height in degrees) for the active
@@ -1320,7 +1318,7 @@ class NightshadeApi {
 
   /**
    * Exchange the current bearer token for an HttpOnly session cookie + CSRF
-   * token (§2.5 long-form). The server sets `Set-Cookie` with HttpOnly,
+   * token. The server sets `Set-Cookie` with HttpOnly,
    * Secure, SameSite=Strict; the cookie value never enters JS. The returned
    * CSRF token is stashed in memory and echoed via `X-Nightshade-CSRF` on
    * every subsequent write.

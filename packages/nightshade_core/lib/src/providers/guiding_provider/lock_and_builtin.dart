@@ -1,8 +1,6 @@
 part of '../guiding_provider.dart';
 
-// =============================================================================
-// PHD2 LOCK POSITION PROVIDER
-// =============================================================================
+// PHD2 lock position provider
 
 /// Provider for current guide star lock position
 final lockPositionProvider =
@@ -92,9 +90,7 @@ class LockPositionNotifier extends StateNotifier<({double x, double y})?> {
   }
 }
 
-// =============================================================================
-// BUILT-IN GUIDER CONFIG PROVIDER
-// =============================================================================
+// Built-in guider config provider
 
 /// The device ID used by the built-in multi-star guider.
 const String builtinGuiderDeviceId = 'native:builtin_guider:multi_star';

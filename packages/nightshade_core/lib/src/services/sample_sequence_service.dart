@@ -49,10 +49,8 @@ class SampleSequence {
 
   /// Human-readable expected total run time (e.g. "1 hr 15 min", "16 hr").
   ///
-  /// CON-59: this is a DURATION and nothing else. Two entries used to append
-  /// "capture" ("~3 min capture") so one column mixed a length of time with a
-  /// claim about what the time is spent on, and the two readings were not
-  /// comparable at a glance.
+  /// A duration and nothing else — no "~3 min capture" qualifiers, so the
+  /// column stays comparable at a glance.
   final String expectedTotalTime;
 
   /// Path of the JSON asset under the `nightshade_core` package's

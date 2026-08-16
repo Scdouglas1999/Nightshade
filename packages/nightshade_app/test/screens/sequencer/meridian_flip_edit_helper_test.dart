@@ -1,16 +1,10 @@
 // Tests for `applyMeridianFlipEdit(...)`, the editor-layer helper that
 // owns the "touching a config field clears useGlobalDefaults" UX heuristic.
 //
-// Historical context: this heuristic used to live inside
-// `MeridianFlipNode.copyWith`, where it was pinned by the
-// `touching_a_config_field_implicitly_flips_global_defaults_off` /
-// `touching_only_structural_fields_does_not_flip_global_defaults` /
-// `explicit_use_global_defaults_arg_always_wins` tests in
-// `packages/nightshade_core/test/models/sequence/`
-// `sequence_node_complex_subclasses_test.dart`. The behaviour moved to the
-// editor layer (see `meridian_flip_edit_helper.dart`) so the data model
-// can adopt freezed in Phase 6. These tests pin the same UX behaviour at
-// its new home.
+// The heuristic belongs in the editor layer, not in
+// `MeridianFlipNode.copyWith`, so the data model stays a plain field-replace
+// (see `meridian_flip_edit_helper.dart`). These tests pin the behaviour where it
+// lives.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/meridian_flip_edit_helper.dart';

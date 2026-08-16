@@ -1,19 +1,11 @@
-// WD-N1: the first-run device steps printed a Rust error chain at the user.
+// The first-run device steps must not print a Rust error chain at the user: on
+// a machine with no Alpaca server (the shipped default has the backend ON) the
+// raw failure is an enum dump, a URL, a Rust error chain and an errno, four
+// wrapped red lines twice over on the third screen of the product.
 //
-// Read verbatim off step 3 of a fresh install on 2026-08-13, on a machine with
-// no Alpaca server (the shipped default has the backend ON):
-//
-//   Alpaca: nothing answered — Alpaca server connection failed:
-//   NightshadeError.connectionFailed(deviceId: localhost:11111, reason: Failed
-//   to connect to Alpaca server: error sending request for url
-//   (http://localhost:11111/management/v1/configureddevices): error trying to
-//   connect: tcp connect error: Connection refused (os error 111))
-//
-// Four wrapped red lines, twice over (Alpaca and INDI), on the third screen of
-// the product — an enum dump, a URL, a Rust error chain and an errno.
-//
-// WD-N2: the same block is what pushed step 6 into overprinting itself, because
-// the picker is handed a fixed-height box and its chrome is not fixed.
+// The same block is what pushes the device-picker step into overprinting
+// itself, because the picker is handed a fixed-height box and its chrome is
+// not fixed.
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,8 +56,7 @@ class _FailedBackendsDiscovery extends UnifiedDiscoveryNotifier {
   }) async {}
 }
 
-/// Same two failed backends, plus the simulated wheel the operator selects —
-/// the exact state of the live repro (WE-SP-1).
+/// Same two failed backends, plus the simulated wheel the operator selects.
 class _FailedBackendsWithWheel extends _FailedBackendsDiscovery {
   _FailedBackendsWithWheel(super.ref) {
     const info = DeviceInfo(
@@ -165,7 +156,7 @@ List<String> _renderedText(WidgetTester tester) => tester
     .toList();
 
 void main() {
-  group('WD-N1 — the failure line is human copy', () {
+  group('the failure line is human copy', () {
     test('a refused connection names the endpoint, not the error chain', () {
       final described = describeBackendFailure(_rawAlpacaError);
       expect(described, 'nothing is listening at localhost:11111');
@@ -207,7 +198,7 @@ void main() {
     });
   });
 
-  group('WD-N2 — step 6 must not paint two texts on top of each other', () {
+  group('step 6 must not paint two texts on top of each other', () {
     for (final size in const [Size(1600, 900), Size(1280, 800)]) {
       testWidgets(
           'filter-wheel step lays out cleanly with two failed backends at '
@@ -233,12 +224,12 @@ void main() {
     }
   });
 
-  // WE-SP-1: the residual of the WD-N2 fix. With the two backend-failure lines
-  // present, the just-selected device card was cut through the middle of its
-  // subtitle — "Sim" drawn with its lower half missing, no bottom border, and
-  // nothing on screen saying the box scrolls (a mouse wheel revealed the rest).
-  // The row it truncated was the one the operator had just chosen.
-  group('WE-SP-1 — the picker says it scrolls, and shows what was picked', () {
+  // With the two backend-failure lines present, the just-selected device card
+  // is cut through the middle of its subtitle — "Sim" drawn with its lower half
+  // missing, no bottom border, and nothing on screen saying the box scrolls (a
+  // mouse wheel reveals the rest). The truncated row is the one the operator
+  // just chose.
+  group('the picker says it scrolls, and shows what was picked', () {
     testWidgets('the device list carries a permanently visible scrollbar', (
       tester,
     ) async {

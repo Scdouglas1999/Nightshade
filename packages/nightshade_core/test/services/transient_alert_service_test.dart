@@ -41,8 +41,8 @@ void main() {
     /// Drive the TNS Search -> Get Object pair from a list of object payloads.
     ///
     /// TNS is the only feed the service fetches, so it is also the vehicle for
-    /// the caching, filtering and coordinate-parsing tests below. They used to
-    /// ride on an AAVSO fixture whose response shape VSX does not produce.
+    /// the caching, filtering and coordinate-parsing tests below. An AAVSO
+    /// fixture would not carry a response shape VSX produces.
     void stubTns(List<Map<String, dynamic>> objects) {
       when(
         () => mockHttpClient.post(
@@ -188,11 +188,11 @@ void main() {
         });
 
         test('an AAVSO source that is enabled is never fetched', () async {
-          // VSX's api.list is a positional catalog search, so the old AAVSO feed
-          // could only ever answer with an empty set - which the surface then
-          // reported as "AAVSO: 0 alerts", a dead feed presented as a quiet sky.
-          // It is not dispatched at all now, so a stored profile that still has
-          // it enabled must produce no upstream traffic and no alerts.
+          // VSX's api.list is a positional catalog search, so an AAVSO alert
+          // feed built on it can only answer with an empty set — a dead feed
+          // that reads as a quiet sky. It is not dispatched, so a stored
+          // profile that still enables it must produce no upstream traffic and
+          // no alerts.
           final alerts = await service.getAllAlerts(
             const TransientAlertSettings(
               enabledSources: {TransientSource.aavso, TransientSource.manual},
@@ -210,16 +210,18 @@ void main() {
           );
         });
 
-        test('the shipped default enables only feeds that are fetched', () async {
-          // The default used to be {aavso, mpec, cbat, manual}: three sources the
-          // service never queries, so a fresh install reported it was monitoring
-          // feeds it was not.
-          const defaults = TransientAlertSettings();
-          final advertised = defaults.enabledSources
-              .where((source) => source != TransientSource.manual)
-              .toSet();
-          expect(advertised.difference(kFetchableTransientSources), isEmpty);
-        });
+        test(
+          'the shipped default enables only feeds that are fetched',
+          () async {
+            // A default that enables a source the service never queries has a
+            // fresh install reporting it monitors feeds it does not.
+            const defaults = TransientAlertSettings();
+            final advertised = defaults.enabledSources
+                .where((source) => source != TransientSource.manual)
+                .toSet();
+            expect(advertised.difference(kFetchableTransientSources), isEmpty);
+          },
+        );
 
         test('sorts alerts by priority then discovery time', () async {
           stubTns([

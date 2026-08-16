@@ -1,7 +1,6 @@
-// The planetarium falls back to a ~79-star built-in list whenever no HYG
-// catalog file is on disk — including after the v42 -> v44 rename orphaned an
-// existing install. That state used to be completely silent: the sky just lost
-// almost every star. It has to announce itself.
+// The planetarium falls back to a ~79-star built-in list whenever no HYG catalog
+// file is on disk — a catalog rename can orphan an existing install. That state
+// has to ANNOUNCE itself: silently, the sky just loses almost every star.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

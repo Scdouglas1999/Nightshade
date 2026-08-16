@@ -7,8 +7,8 @@
 // map still slides/shears the actual imagery inside each correctly-placed quad, so
 // an extended object (a galaxy) develops diagonal content seams and stars look
 // oval/displaced (worst at high declination, where the HEALPix diamonds are most
-// skewed). The earlier registration tests passed while the visible result was
-// wrong precisely because they only checked vertex geometry.
+// skewed). A registration test that checks only vertex geometry passes while the
+// visible result is wrong.
 //
 // The decisive, projection-free, render-free ground truth is SEAM CONTINUITY: two
 // HEALPix diamonds that share a sky edge must show byte-identical real content
@@ -16,10 +16,10 @@
 // real DSS2 tiles across every candidate `(u,v) -> (tx,ty)` map uniquely picks the
 // correct convention — and it must be the one the painter uses
 // (`HipsTileLayerPainter._emitVertex`): `tx = v, ty = u` (a pure transpose, no
-// flip). The previously-shipped `ty = 1 - u` flip scored far worse here and was
-// visibly torn in the rendered M31 mosaic; the committed
+// flip). A `ty = 1 - u` flip scores far worse here and tears the rendered M31
+// mosaic visibly; the committed
 // `test/fixtures/hips/goldens/hips_fixture_m31_mosaic.png` byte-golden locks the
-// resulting correct render of the real painter as the painter-coupled regression.
+// correct render of the real painter as the painter-coupled guard.
 //
 // Determinism: committed real bytes, production decode path, no network.
 

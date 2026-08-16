@@ -1,12 +1,9 @@
-// WD-SCI-N5: the Night Doctor must not report "no problems detected" on a night
-// whose every sub the same screen badges POOR.
+// The Night Doctor must not report "no problems detected" on a night whose every
+// sub the same screen badges POOR.
 //
-// Live evidence (Wave D, 2026-08-13): a completed 4-frame run showed
-// "100 / 100 · A clean night — no problems detected · Excellent · 0 findings"
-// on Session Review's Narrative tab while Workbench badged all four subs red
-// POOR at HFR 5.7 against the panel's own cull line of 3.5. Advisory badges
-// never changing acceptance is documented policy; a perfect score with zero
-// findings on a night where every frame graded POOR is not.
+// Advisory badges never changing ACCEPTANCE is documented policy; a perfect
+// score with zero findings on a night where every frame graded POOR is a
+// different claim, and a false one.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/session_review/narrative_view.dart';

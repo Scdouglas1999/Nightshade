@@ -158,8 +158,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
           ),
         )
         .addMiddleware(_corsMiddleware())
-        // HTTP-001: the declared-Content-Length ceiling (header-only, no body
-        // read) stays ahead of auth so an over-large declared upload is still
+        // The declared-Content-Length ceiling (header-only, no body read)
+        // stays ahead of auth so an over-large declared upload is still
         // rejected with 413 without credentials; the chunked-body buffering is
         // deferred to _chunkedBodyLimitMiddleware below, AFTER auth, so an
         // unauthenticated client cannot force the server to buffer a body up to
@@ -267,9 +267,9 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       }
     });
 
-    // Collaborative Sky WS2 — arm the unattended collaborative-mosaic driver so
-    // an owner appliance auto-assembles (and a participant auto-downloads) the
-    // finished mosaic with nobody watching. Reuses the same hub-credentialed
+    // Arm the unattended collaborative-mosaic driver so an owner appliance
+    // auto-assembles (and a participant auto-downloads) the finished mosaic
+    // with nobody watching. Reuses the same hub-credentialed
     // [CollaborativeMosaicService] the headless mosaic endpoints drive; a
     // no-hub config simply makes each refresh a quiet auth no-op until the
     // operator signs in.
@@ -371,10 +371,9 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         fields: {'restored': restored, 'rejectedMalformed': rejected},
       );
     } catch (e, st) {
-      // We do NOT silently fall back to an empty map: the audit flagged
-      // silent-restart-loses-clients as the actual production-breaking
-      // failure mode. If hydration crashes we want the operator to know
-      // their phones may need to re-pair, so log it loudly.
+      // Never fall back silently to an empty map. A restart that quietly
+      // loses every paired client looks like the phones broke; logging the
+      // hydration failure tells the operator they may need to re-pair.
       _logError(
         '[AUTH] Failed to hydrate paired session tokens from disk: $e\n$st',
       );
@@ -412,8 +411,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   /// Why 60 s: revocation propagation is bounded by this interval. The
   /// `_evictPairedSessionToken` callback runs synchronously on direct revoke
   /// paths, but the sweep also catches tokens that hit `expires_at` between
-  /// requests (no client ever attempted to use them, so the verify path
-  /// never fired the listener).
+  /// requests — no client attempts to use them, so the verify path never runs
+  /// the listener for them.
   void _scheduleTokenSweep() {
     _tokenSweepTimer?.cancel();
     _tokenSweepTimer = Timer.periodic(tokenSweepInterval, (_) {
@@ -720,8 +719,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // work observes the cancellation flag and exits its next poll.
     _jobSweepTimer?.cancel();
     _jobSweepTimer = null;
-    // stop the unattended collaborative-mosaic driver (WS2). In-flight stitches
-    // own their own cleanup; only the scheduling stops.
+    // stop the unattended collaborative-mosaic driver. In-flight stitches own
+    // their own cleanup; only the scheduling stops.
     _collabMosaicPoller?.stop();
     _collabMosaicPoller = null;
     await _jobManager.dispose();

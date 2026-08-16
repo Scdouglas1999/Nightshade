@@ -32,9 +32,7 @@ class AtlasHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'AtlasHandlers');
 
-  // ===========================================================================
   // GET /api/atlas/regions
-  // ===========================================================================
 
   Future<Response> handleGetRegions(Request request) async {
     _logInfo('[API] GET /api/atlas/regions');
@@ -45,9 +43,7 @@ class AtlasHandlers {
     });
   }
 
-  // ===========================================================================
   // POST /api/atlas/regions
-  // ===========================================================================
 
   Future<Response> handleCreateRegion(Request request) async {
     _logInfo('[API] POST /api/atlas/regions');
@@ -109,9 +105,7 @@ class AtlasHandlers {
     return jsonOk({'id': id});
   }
 
-  // ===========================================================================
   // GET /api/atlas/coverage
-  // ===========================================================================
   //
   // Per-tile coverage rows (deepest first), the heat-overlay / gallery data the
   // companion's "Your Sky" browser renders and the "your contribution" bar sums.
@@ -129,9 +123,7 @@ class AtlasHandlers {
     });
   }
 
-  // ===========================================================================
   // GET /api/atlas/region/<id>
-  // ===========================================================================
 
   Future<Response> handleGetRegion(Request request, String id) async {
     _logInfo('[API] GET /api/atlas/region/$id');
@@ -161,9 +153,7 @@ class AtlasHandlers {
     });
   }
 
-  // ===========================================================================
   // GET /api/atlas/region/<id>/cutout
-  // ===========================================================================
   //
   // Returns the co-added PNG of the region cone as image bytes. Optional query
   // params: outPixels (default 2048), interp (bilinear|catmullRom|lanczos3).
@@ -239,9 +229,7 @@ class AtlasHandlers {
     );
   }
 
-  // ===========================================================================
   // GET /api/atlas/region/<id>/timeline
-  // ===========================================================================
 
   Future<Response> handleGetRegionTimeline(Request request, String id) async {
     _logInfo('[API] GET /api/atlas/region/$id/timeline');
@@ -267,9 +255,7 @@ class AtlasHandlers {
     });
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   Future<SkyAtlasRegionRow?> _findRegion(int regionId) async {
     final regions = await _service.regions();
@@ -282,8 +268,7 @@ class AtlasHandlers {
   /// Shared preamble for the three `/api/atlas/region/<id>/...` routes: parse
   /// [id] as an integer and resolve the region. Returns either the resolved
   /// `(regionId, region)` pair (with `error == null`) or a ready-made [error]
-  /// [Response] carrying the exact envelope all three routes shared verbatim
-  /// before this was extracted (SLOP-DUP-002):
+  /// [Response] carrying the envelope all three routes share:
   ///   * 400 `invalid_region_id` / 'region id must be an integer' for a
   ///     non-integer id, and
   ///   * 404 `region_not_found` / `region <id> not found` when no region

@@ -1,9 +1,7 @@
 part of '../headless_api_server.dart';
 
 extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
-  // ===========================================================================
   // Middleware
-  // ===========================================================================
 
   Middleware _requestTrackingMiddleware() {
     return (innerHandler) {
@@ -106,7 +104,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     };
   }
 
-  /// HTTP-001 (part 1 of 2): header-only `Content-Length` ceiling.
+  /// Header-only `Content-Length` ceiling (part 1 of 2).
   ///
   /// This runs BEFORE auth because it reads only the declared `Content-Length`
   /// header (never the body), so a declared over-limit upload is rejected with
@@ -135,15 +133,13 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     };
   }
 
-  /// HTTP-001 (part 2 of 2): buffer-and-cap a chunked request body.
+  /// Buffer-and-cap a chunked request body.
   ///
   /// Only requests that (a) use a body-bearing method and (b) omit
   /// `Content-Length` (i.e. `Transfer-Encoding: chunked`) reach the streaming
-  /// cap here. This middleware is installed AFTER [_authMiddleware] in the
-  /// pipeline so an unauthenticated request to a protected path is rejected
-  /// (401) before any of its body is read — closing the pre-auth buffering
-  /// vector. The streaming cap and 413 envelope for authenticated uploads are
-  /// unchanged from the previous single-middleware behaviour.
+  /// cap here. Installed AFTER [_authMiddleware] in the pipeline so an
+  /// unauthenticated request to a protected path is rejected (401) before any
+  /// of its body is read, which closes the pre-auth buffering vector.
   Middleware _chunkedBodyLimitMiddleware() {
     return (innerHandler) {
       return (request) async {
@@ -284,8 +280,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
       // Why include the CSRF header: cookie-bearing fetches from the
       // dashboard SPA echo the server-issued CSRF token via
       // `X-Nightshade-CSRF`; without it in the allow-list the browser
-      // would block the request before our middleware ever ran (§2.5
-      // long-form).
+      // would block the request before this middleware ever ran.
       'Access-Control-Allow-Headers':
           'Origin, Content-Type, X-Auth-Token, Authorization, '
           'X-Nightshade-API-Version, X-Request-ID, X-Nightshade-CSRF',
@@ -299,12 +294,11 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
   }
 
   String? _resolveAllowedOrigin(Request request, String? origin) {
-    // Why delegate: previous behaviour reflected any origin that matched the
-    // bound host:port, which let any local-loopback browser app bypass CORS
-    // on a different port (§2.27). [CorsAllowList] applies the explicit
-    // configured allow-list and an even stricter rule for high-risk control
-    // paths; the same-origin escape hatch is preserved so the bundled
-    // dashboard continues to work without configuration.
+    // Why delegate: reflecting any origin that matches the bound host:port
+    // lets any local-loopback browser app bypass CORS from a different port.
+    // [CorsAllowList] applies the explicit configured allow-list and an even
+    // stricter rule for high-risk control paths; the same-origin escape hatch
+    // keeps the bundled dashboard working without configuration.
     return _corsAllowList.resolve(
       requestOrigin: origin,
       requestUri: request.requestedUri,

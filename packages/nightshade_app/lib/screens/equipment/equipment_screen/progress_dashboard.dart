@@ -1,5 +1,3 @@
-// Part of ../equipment_screen.dart -- extracted for maintainability.
-//
 // Connect-all progress UI, connection summary, and device dashboard.
 part of '../equipment_screen.dart';
 
@@ -211,9 +209,7 @@ class _ConnectAllProgressChip extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Connection Status Summary Widget
-// ============================================================================
+// Connection status summary widget
 
 class _ConnectionStatusSummary extends ConsumerWidget {
   @override
@@ -301,9 +297,7 @@ class _ConnectionStatusSummary extends ConsumerWidget {
   }
 }
 
-// ============================================================================
-// Device Dashboard Widget
-// ============================================================================
+// Device dashboard widget
 
 class _DeviceDashboard extends ConsumerWidget {
   final EquipmentProfileModel? profile;
@@ -311,7 +305,6 @@ class _DeviceDashboard extends ConsumerWidget {
   /// Invoked when the empty-state primary CTA is pressed. Required so the
   /// "Connect Devices" button is discoverable directly from the empty state
   /// itself rather than only from the (potentially collapsed) sidebar.
-  /// See audit §4.6.
   final void Function(EquipmentProfileModel) onConnectAll;
 
   /// Invoked when the empty-state secondary CTA is pressed in the
@@ -501,10 +494,9 @@ class _DeviceDashboard extends ConsumerWidget {
               (p.weatherId != null && p.weatherId!.isNotEmpty) ||
               (p.coverCalibratorId != null && p.coverCalibratorId!.isNotEmpty);
 
-      // Audit §4.6: surface a primary CTA in the empty state itself.
-      // Previously the copy advised the user to find "Connect All" in the
-      // sidebar — which lives inside the per-profile menu and is undiscoverable
-      // when the sidebar is collapsed.
+      // The empty state carries its own primary CTA: "Connect All" lives inside
+      // the per-profile menu and is undiscoverable when the sidebar is
+      // collapsed, so pointing at it is not an instruction the user can follow.
       if (hasDevicesAssigned) {
         // Profile has devices but none connected
         return _EquipmentEmptyState(

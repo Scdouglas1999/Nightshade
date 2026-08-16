@@ -1,21 +1,19 @@
 /// Human-readable integration / elapsed times, in the one shape the app uses.
 ///
-/// WHY THIS EXISTS: the Continue Session dialog formatted integration as
-/// whole minutes ("0 minutes" for a 12-second session, "2 minutes" for 90
-/// seconds) while the dashboard's last-run card rendered the same run as
-/// "12s". Reporting real captured photons as "0 minutes" reads as "the run
-/// did nothing". One formatter, so the two surfaces cannot disagree.
+/// One formatter, so two surfaces cannot disagree: a dialog that formats
+/// integration as whole minutes reads "0 minutes" for a 12-second session and
+/// "2 minutes" for 90 seconds, while the dashboard's last-run card renders the
+/// same run as "12s". Reporting real captured photons as "0 minutes" reads as
+/// "the run did nothing".
 ///
-/// Wave C2 folded ~30 private `_formatDuration` copies in here. They were not
-/// one function: four distinct output shapes existed side by side, so
-/// [DurationFormat] is parameterised by [DurationStyle] instead of picking a
-/// winner and silently restyling half the app.
+/// Four distinct output shapes are in use across the app, so [DurationFormat]
+/// is parameterised by [DurationStyle] rather than picking a winner and
+/// silently restyling half the surfaces.
 ///
-/// THE ONE DELIBERATE BEHAVIOUR CHANGE (GUI finding SEQ-20): every copy that
-/// rendered only whole minutes printed **"0m"** for a sub-minute duration — the
-/// builder's target card read "4 planned exposures • 0m" next to a "~20s"
-/// estimate for the same node. All four styles here render seconds below one
-/// minute, so "0m" is unreachable. Above one minute those sites are unchanged.
+/// All four styles render seconds below one minute, so "0m" is unreachable: a
+/// whole-minutes-only rendering puts "4 planned exposures • 0m" next to a
+/// "~20s" estimate for the same node. Above one minute the styles agree with
+/// their call sites.
 library;
 
 /// Which units a duration string shows, and where it stops.

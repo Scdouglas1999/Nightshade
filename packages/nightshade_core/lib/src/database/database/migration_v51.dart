@@ -3,11 +3,10 @@ part of '../database.dart';
 extension _NightshadeDatabaseMigrationV51 on NightshadeDatabase {
   /// Version 51 (science flagship): full anisotropic WCS on `captured_images`.
   ///
-  /// The native plate-solve path already surfaces the CD matrix and SIP
-  /// distortion terms, but per-frame solves previously persisted only the
-  /// isotropic `solved_pixel_scale`/`solved_rotation` scalars, so stored and
-  /// live science consumers rebuilt their projection isotropically and the
-  /// distortion correction never activated outside post-session masters.
+  /// The native plate-solve path surfaces the CD matrix and SIP distortion
+  /// terms; persisting them per frame is what lets stored and live science
+  /// consumers rebuild an anisotropic projection with distortion correction,
+  /// rather than the isotropic `solved_pixel_scale`/`solved_rotation` pair.
   ///
   /// The four `solved_cd*` scalars are the same CD-matrix form ASTAP emits
   /// (`cd1_1 = -scale*cos`, `cd1_2 = scale*sin`, `cd2_1 = scale*sin`,

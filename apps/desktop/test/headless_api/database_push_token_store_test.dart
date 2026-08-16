@@ -5,11 +5,11 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 /// Phase D — the DB-backed [PushTokenStore] adapter.
 ///
-/// Guards two production gaps the in-memory store/tests previously masked:
+/// Guards two production gaps an in-memory store cannot show:
 ///  - the store implements [StalePushTokenSink], so the deliveries' automatic
-///    404/410 cleanup actually deletes the dead token row (finding #3);
+///    404/410 cleanup actually deletes the dead token row;
 ///  - a revoked device's token never fans out, because `revokeDevice` deletes
-///    its push rows AND `getPushTokensByPlatform` joins on `is_active` (#4).
+///    its push rows AND `getPushTokensByPlatform` joins on `is_active`.
 void main() {
   late PairingDatabase db;
   late DatabasePushTokenStore store;

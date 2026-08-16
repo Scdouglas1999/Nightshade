@@ -1,8 +1,7 @@
 /// Shared DECIDE scoring contract.
 ///
-/// Nightshade has THREE target scorers that historically each rolled their own
-/// "multiply every factor by its weight, sum, maybe divide by the weight-sum"
-/// aggregation:
+/// The one home for the weighted-sum aggregation the three target scorers
+/// share:
 ///
 ///  * the live autopilot [`SchedulerEngine._scoreCandidate`] (6 factors,
 ///    UNNORMALIZED additive),
@@ -11,21 +10,14 @@
 ///  * the in-sequence `TargetSchedulerNode` preview + its Rust mirror
 ///    (`scheduling::scoring`), which use the SAME normalized 5-axis math.
 ///
-/// The *axes* and *weighting models* legitimately differ (the engine carries
-/// filterCoverage / timeRemaining / userPriority axes and a different transit
-/// curve the planner lacks; it is additive, not normalized). What they all
-/// share is the final **weighted-sum aggregation primitive**. This file is the
-/// one home for that primitive so the three scorers stop each open-coding it.
+/// Their axes and weighting models legitimately differ; only the aggregation is
+/// shared. This primitive does NOT pick the weights and does NOT change any
+/// numbers — each caller passes its own factors/weights, and
+/// [WeightedScoreMode] selects additive vs normalized.
 ///
-/// The contract lives in `nightshade_planetarium` because the dependency
-/// direction is one-way (`nightshade_core` -> `nightshade_planetarium`,
-/// planetarium imports nothing from core), so both the core `SchedulerEngine`
-/// and the core `TargetSchedulerNode` can delegate here without a cycle.
-///
-/// IMPORTANT: this primitive does NOT pick the weights and does NOT change any
-/// numbers. Each caller passes its own factors/weights; the only behavioral
-/// knob is [WeightedScoreMode], which selects additive vs normalized so each
-/// caller reproduces its historical output verbatim.
+/// It lives in `nightshade_planetarium` because the dependency direction is
+/// one-way (`nightshade_core` -> `nightshade_planetarium`), so both core
+/// callers can delegate here without a cycle.
 library;
 
 /// How a [WeightedScore] folds its weighted factors into a single total.

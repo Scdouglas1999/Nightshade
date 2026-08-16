@@ -1,8 +1,8 @@
-// Tests for the C6 FramingCanvas integration:
+// Tests for the FramingCanvas integration:
 //
 //   * the on-canvas scale bar reports a *real* angular distance derived from the
-//     shared FramingPlateScale (it scales with the preview FOV) instead of the
-//     old fixed "10'" expression,
+//     shared FramingPlateScale, so it scales with the preview FOV rather than
+//     reading a fixed value,
 //   * the survey-source picker is a real NightshadeDropdown wired to
 //     FramingNotifier.setSurveySource (selecting a band changes the active
 //     source — no dead handler),
@@ -115,8 +115,8 @@ void main() {
   testWidgets('scale bar reports a real angular distance, not a fixed 10\'',
       (tester) async {
     // A narrow preview FOV (0.5°) packs more pixels per degree than a wide one,
-    // so the snapped scale-bar value must be SMALLER for the narrow field — the
-    // bar can no longer be the old constant "10'".
+    // so the snapped scale-bar value must be SMALLER for the narrow field — it
+    // cannot be a constant.
     await _pumpCanvas(
       tester,
       framingState: const FramingState(previewFovDegrees: 0.5),

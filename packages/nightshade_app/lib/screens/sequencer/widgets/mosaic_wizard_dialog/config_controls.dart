@@ -350,14 +350,9 @@ class _AdvancedPanel extends StatelessWidget {
   final double panelHeightArcmin;
 
   /// Per-dimension: false while neither the rig nor the user has supplied that
-  /// panel field. The field then starts EMPTY — pre-filling it with the
-  /// state's placeholder printed a concrete "60.0 × 40.0" two inches below the
-  /// banner saying the panel size was unknown, so the dialog contradicted
-  /// itself.
-  ///
-  /// Tracked per dimension (WD-COL-N3): with one shared flag, typing a WIDTH
-  /// flipped the height field from empty to the placeholder `40.0` in the same
-  /// frame, which then read as a number the user had entered.
+  /// panel field. The field then starts EMPTY — pre-filling it with the state's
+  /// placeholder prints a concrete size under the banner saying the panel size
+  /// is unknown. See `mosaic_wizard_dialog.dart` for why it is per-dimension.
   final bool panelWidthKnown;
   final bool panelHeightKnown;
   final VoidCallback onToggle;
@@ -392,12 +387,11 @@ class _AdvancedPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // NEW-C2: a bare InkWell publishes a tap action but no role and no
-          // enabled state, and AT-SPI reads the missing enabled flag as
-          // insensitive — the live tree printed this live control as
-          // `panel: Advanced (numerical) [DISABLED]`. Declaring the role and
-          // the (always true) enabled state is what makes it announce as the
-          // expandable button it is.
+          // A bare InkWell publishes a tap action but no role and no enabled
+          // state, and AT-SPI reads the missing enabled flag as insensitive, so
+          // this live control dumps as `panel: Advanced (numerical) [DISABLED]`.
+          // Declaring the role and the (always true) enabled state is what makes
+          // it announce as the expandable button it is.
           Semantics(
             button: true,
             enabled: true,
@@ -519,9 +513,9 @@ class _NumberFieldState extends State<_NumberField> {
   late final TextEditingController _ctl;
   final FocusNode _focus = FocusNode();
 
-  /// Why the last keystroke was not accepted, or null. Out-of-range typing used
-  /// to be dropped in silence: the field kept the characters, the wizard kept
-  /// the old number, and nothing said which one was in force.
+  /// Why the last keystroke was not accepted, or null. Dropping out-of-range
+  /// typing in silence leaves the characters in the field and the old number in
+  /// the wizard, with nothing saying which one is in force.
   String? _error;
 
   @override
@@ -549,11 +543,8 @@ class _NumberFieldState extends State<_NumberField> {
     super.didUpdateWidget(old);
     final value = widget.value;
     if (value == null) return;
-    // WD-COL-N3: never rewrite the field the user is typing in. Typing a panel
-    // WIDTH used to make the wizard declare the panel size known, which flipped
-    // the HEIGHT field's value from null to the 60×40 placeholder — and this
-    // branch then wrote `40.0` over whatever the user was in the middle of
-    // entering, so "type 35" ended up as 40.0.
+    // Never rewrite the field the user is typing in: this branch would
+    // otherwise write the seeded value over a half-entered number.
     if (_focus.hasFocus) return;
     final current = double.tryParse(_ctl.text);
     if (current == null || (current - value).abs() > 1e-3) {
@@ -903,6 +894,4 @@ class _SmallField extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Visual planner — interactive sky view with FOV panels
-// ============================================================================

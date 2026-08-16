@@ -30,8 +30,8 @@ enum DecisionCategory {
   final String wireKey;
 
   /// Parse a wire key into the enum. Returns [DecisionCategory.unknown]
-  /// for unrecognised inputs rather than throwing — we'd rather show
-  /// the row with a placeholder than crash the replay feed.
+  /// for unrecognised inputs rather than throwing, so an unknown row renders
+  /// with a placeholder instead of crashing the replay feed.
   static DecisionCategory fromWireKey(String s) {
     for (final c in DecisionCategory.values) {
       if (c.wireKey == s) return c;
@@ -87,10 +87,9 @@ class ReplayDecision {
   /// before the DB write completes).
   final int? id;
 
-  /// FK to `sequence_runs.id`. May be `null` when the decision was
-  /// emitted outside a tracked run (rare; the executor only emits
-  /// inside the spawned task post-start, but the field models the
-  /// schema honestly).
+  /// FK to `sequence_runs.id`. May be `null` for a decision emitted outside a
+  /// tracked run (rare; the executor only emits inside the spawned task
+  /// post-start, but the field models the schema honestly).
   final int? sequenceRunId;
 
   /// UTC timestamp the decision was made.

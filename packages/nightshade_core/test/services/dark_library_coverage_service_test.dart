@@ -30,11 +30,9 @@ void main() {
     test('treats a master dark inside tolerance as covered', () {
       const service = DarkLibraryCoverageService();
 
-      // Why: previously this used exposure=180.6 against tolerance ±1.0s
-      // and temp=-9.8 against ±0.5°C. After unification the
-      // defaults are ±0.5s / ±1.0°C, so we use a sample inside the new
-      // exposure window (180.3) and outside the old, narrower temp
-      // window (-9.2) to demonstrate the unified value is being honored.
+      // The unified defaults are ±0.5s / ±1.0°C: the sample sits inside that
+      // exposure window (180.3) and outside a ±0.5°C temperature window
+      // (-9.2), so it only matches when both unified values are honoured.
       final report = service.evaluate(
         requirements: const [
           DarkFrameRequirement(
@@ -91,11 +89,10 @@ void main() {
 
     test('regression: exact-exposure-and-temperature match counts as'
         'covered with the default tolerances', () {
-      // Why: this is the exact scenario the audit flagged. The coverage
-      // UI used to claim "all darks present" with a ±1.0s exposure
-      // tolerance while DarkLibraryDao.findBestMatch used ±0.001s and
-      // returned null at runtime for the SAME 60.0s/60.0s pair due to
-      // floating-point representation. Now both must agree.
+      // The coverage UI and DarkLibraryDao.findBestMatch must agree on the
+      // same 60.0s/60.0s pair: different tolerances have the UI claim "all
+      // darks present" while the runtime match returns null on
+      // floating-point representation alone.
       const service = DarkLibraryCoverageService();
       const requirement = DarkFrameRequirement(
         gain: 100,

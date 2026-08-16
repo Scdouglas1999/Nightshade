@@ -18,12 +18,11 @@ class MosaicProjectsListScreen extends ConsumerWidget {
 
   /// Open the wizard and re-read the list when it closes.
   ///
-  /// WD-COL-N1: the wizard creates the project and pushes its detail screen,
-  /// but this list is still mounted underneath, so its `autoDispose` provider
-  /// is never disposed and never re-runs. Pressing Back therefore returned to
-  /// the state the list held before the create — on a first run, the
-  /// "No mosaic projects yet" empty state, one route above the 15-panel
-  /// project that had just been made.
+  /// The wizard creates the project and pushes its detail screen, but this
+  /// list stays mounted underneath, so its `autoDispose` provider is never
+  /// disposed and never re-runs on its own. Without this re-read, Back lands on
+  /// the state the list held before the create — on a first run, the "No mosaic
+  /// projects yet" empty state, one route above the project just made.
   static Future<void> _newMosaic(BuildContext context, WidgetRef ref) async {
     await showDialog<void>(
       context: context,
@@ -101,11 +100,10 @@ class MosaicProjectsListScreen extends ConsumerWidget {
                   ),
                   data: (projects) => projects.isEmpty
                       ? _refreshableCenter(
-                          // The old copy sent the operator to Framing or the
-                          // Planetarium while "New mosaic" sat in the header of
-                          // this very screen. Lead with the control that is
-                          // here, and keep the other two routes as the aside
-                          // they are.
+                          // Lead with the control that is on this screen —
+                          // "New mosaic" sits in the header — and keep the
+                          // Framing and Planetarium routes as the aside they
+                          // are.
                           EmptyState(
                             icon: NightshadeIcons.grid,
                             title: 'No mosaic projects yet',
@@ -168,9 +166,9 @@ class _BackBar extends StatelessWidget {
         vertical: NightshadeTokens.spaceXs,
       ),
       alignment: Alignment.centerLeft,
-      // One tap target for the whole "< Back" affordance. The label used to sit
-      // outside the IconButton, so a press on the word "Back" — the part that
-      // reads as the control — did nothing and only the chevron popped.
+      // ONE tap target for the whole "< Back" affordance: a label outside the
+      // IconButton leaves the word — the part that reads as the control —
+      // unpressable.
       child: Tooltip(
         message: 'Back',
         // A bare InkWell publishes a tap action but no role, so a screen

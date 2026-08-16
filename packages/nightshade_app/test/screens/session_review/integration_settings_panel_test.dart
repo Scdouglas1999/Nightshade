@@ -162,7 +162,7 @@ void main() {
     expect(find.text('Bayer drizzle'), findsOneWidget);
   });
 
-  // --- profiles must not be placebos ---------------------------------------
+  // profiles must not be placebos
   //
   // "Maximum Quality" shipped as a byte-identical copy of Balanced: it restated
   // five constructor defaults and differed only in `sourcePreset`, a label the

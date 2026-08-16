@@ -137,10 +137,10 @@ void main() {
     expect(resultOf(), isTrue);
   });
 
-  // Regression for a live defect: the editor validated optics only against
-  // `<= 0`, so a focal length of 999999999 mm with an aperture of 0.0001 mm was
-  // accepted and the f/Ratio readout showed `f/9999999990000.0`. Focal length
-  // reaches the FITS FOCALLEN card and the plate-solve field-of-view estimate.
+  // Validating optics only against `<= 0` accepts a focal length of 999999999 mm
+  // with an aperture of 0.0001 mm and shows `f/9999999990000.0` in the f/Ratio
+  // readout. Focal length reaches the FITS FOCALLEN card and the plate-solve
+  // field-of-view estimate.
   testWidgets('implausible optics block the save and blank the f/Ratio readout',
       (tester) async {
     final db = mockDatabase();

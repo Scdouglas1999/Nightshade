@@ -15,13 +15,13 @@ import 'package:sqlite3/sqlite3.dart';
 ///  - `handoff_claims`  — single-holder follow-the-night claim per target
 ///  - `audit_log`       — append-only request audit trail
 ///  - `shared_calibration_masters` — published masters keyed by the full
-///    calibration tuple + provenance (Collaborative Sky WS1)
+///    calibration tuple + provenance
 ///  - `collaborative_mosaics` / `collaborative_mosaic_panels` — a published
-///    mosaic grid whose panels are claimable distributed work items (WS2)
+///    mosaic grid whose panels are claimable distributed work items
 ///  - `coimaging_sessions` / `coimaging_participants` — live co-imaging session
-///    state + per-rig membership with assigned framing offsets (WS3)
+///    state + per-rig membership with assigned framing offsets
 ///  - `coimaging_batons` — per-session longitude-baton claim, isolated from the
-///    cone-merged shared target so sessions cannot seize each other's baton (WS3)
+///    cone-merged shared target so sessions cannot seize each other's baton
 class HubDatabase {
   HubDatabase._(this.db);
 
@@ -176,7 +176,7 @@ class HubDatabase {
 
     // --- Collaborative Sky (6.0) -------------------------------------------
 
-    // WS1 — shared calibration masters. One row per published master, keyed by
+    // Shared calibration masters. One row per published master, keyed by
     // the full calibration tuple the client matcher scores on, plus provenance
     // (camera, frame count, dark current, who shot it) and consent (license).
     // Darks/bias are sensor-keyed; flats carry the optics-specific
@@ -233,7 +233,7 @@ class HubDatabase {
       'ON shared_calibration_masters(account_id);',
     );
 
-    // WS2 — collaborative mosaics. The published grid; panels are claimable work
+    // Collaborative mosaics. The published grid; panels are claimable work
     // items brokered with the hand-off baton pattern (one holder per panel).
     db.execute('''
       CREATE TABLE IF NOT EXISTS collaborative_mosaics (
@@ -284,7 +284,7 @@ class HubDatabase {
       'ON collaborative_mosaic_panels(assigned_account_id);',
     );
 
-    // WS3 — live co-imaging sessions. The hub tracks combined integration /
+    // Live co-imaging sessions. The hub tracks combined integration /
     // frame count across all participating rigs; each participant gets a small
     // assigned framing offset so rigs tile the field instead of stacking
     // identically. `shared_target_id` links the longitude hand-off baton.
@@ -349,7 +349,7 @@ class HubDatabase {
       );
     ''');
 
-    // --- WS4 — Trust, Consent, Identity (cross-cutting) --------------------
+    // --- Trust, consent, identity (cross-cutting) --------------------------
 
     // MODERATION: an operator must be able to stop an abusive account without
     // deleting it (which would FK-cascade away its history). `suspended_at` is
@@ -405,10 +405,11 @@ class HubDatabase {
     _ensureColumn('raw_subframe_contributions', 'consent_id', 'TEXT');
 
     // The collaborative-mosaic panel + co-imaging participant ledgers gain the
-    // same license + consent_id + attribution_consent the WS2/WS3 SHARE paths
-    // record at upload / contribute time. A panel master streamed into a shared
-    // redistributable mosaic — and a co-imaging rig's combined-accounting report
-    // — are shares exactly like a tile contribution, so each carries the consent
+    // same license + consent_id + attribution_consent the mosaic / co-imaging
+    // SHARE paths record at upload / contribute time. A panel master streamed
+    // into a shared redistributable mosaic — and a co-imaging rig's
+    // combined-accounting report — are shares exactly like a tile contribution,
+    // so each carries the consent
     // that gated it: the retraction (force-release / panel reset) can revoke the
     // matching consent, and the finalize/close attribution can read the license +
     // honour the contributor's named-vs-anonymous choice. Guarded so existing DBs
@@ -482,8 +483,8 @@ class HubDatabase {
   /// without the column — `PRAGMA table_info` is the column inventory, and the
   /// `ALTER TABLE ... ADD COLUMN` is skipped when the column already exists (so
   /// re-running is a no-op and a fresh DB that defined the column inline is
-  /// untouched). No default is applied beyond SQL NULL, matching how the WS1-3
-  /// tables treat nullable provenance.
+  /// untouched). No default is applied beyond SQL NULL, matching how the
+  /// collaborative tables treat nullable provenance.
   void _ensureColumn(String table, String column, String type) {
     final cols = db.select('PRAGMA table_info($table);');
     final present = cols.any((r) => r['name'] == column);

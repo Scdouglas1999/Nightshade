@@ -11,9 +11,7 @@ import 'dart:math' as math;
 class Sgp4 {
   Sgp4._();
 
-  // ============================================================================
   // Constants
-  // ============================================================================
 
   // WGS-72 Earth constants
   static const double _j2 = 0.001082616;
@@ -362,9 +360,7 @@ class Sgp4 {
     );
   }
 
-  // ============================================================================
-  // ECI to Geodetic/Topocentric conversions
-  // ============================================================================
+  // ECI to geodetic/topocentric conversions
 
   /// Convert ECI position to geodetic coordinates (lat, lon, alt).
   ///
@@ -620,9 +616,7 @@ class Sgp4 {
   }
 }
 
-// ============================================================================
 // Data classes
-// ============================================================================
 
 /// Orbital elements parsed from a TLE.
 class OrbitalElements {
@@ -762,9 +756,7 @@ class LookAngles {
       'Range: ${range.toStringAsFixed(0)}km';
 }
 
-// ============================================================================
 // Internal satellite record
-// ============================================================================
 
 class _Satrec {
   int epochYr = 0;

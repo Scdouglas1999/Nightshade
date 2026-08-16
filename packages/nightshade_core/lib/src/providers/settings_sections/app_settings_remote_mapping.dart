@@ -34,7 +34,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       alpacaServerHost: remote.alpacaServerHost,
       alpacaServerPort: remote.alpacaServerPort,
       alpacaAutoDiscover: remote.alpacaAutoDiscover,
-      useSimulationMode: effectiveSimulationMode(remote.useSimulationMode),
       imageOutputPath: remote.imageOutputPath,
       safetyFailMode: remote.safetyFailMode,
       // Image Grading — carried by the wire model so an unattended
@@ -215,7 +214,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       alpacaServerHost: settings.alpacaServerHost,
       alpacaServerPort: settings.alpacaServerPort,
       alpacaAutoDiscover: settings.alpacaAutoDiscover,
-      useSimulationMode: settings.useSimulationMode,
       imageOutputPath: settings.imageOutputPath,
       observer: previous?.observer ?? '',
       telescope: previous?.telescope ?? '',
@@ -468,12 +466,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'alpacaAutoDiscover':
         return value is bool
             ? current.copyWith(alpacaAutoDiscover: value)
-            : null;
-      case 'useSimulationMode':
-        return value is bool
-            ? current.copyWith(
-                useSimulationMode: effectiveSimulationMode(value),
-              )
             : null;
       case 'imageOutputPath':
         return value is String

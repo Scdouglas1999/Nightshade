@@ -44,23 +44,22 @@ class PushHandlers {
   final EnsurePairingService ensurePairingService;
   final LoggingService logger;
 
-  /// Whether the host has a [RemotePushDelivery] wired (an FCM service
-  /// account, an APNs key, or an explicit dev mock). Supplied as a closure so
-  /// the handler reads the LIVE value — delivery can be (re)configured after
-  /// the handler is constructed.
+  /// What the host's wired [RemotePushDelivery] does with an alert. Supplied
+  /// as a closure so the handler reads the LIVE value — delivery can be
+  /// (re)configured after the handler is constructed.
   ///
   /// Without this, `/api/push/targets` could only report whether anyone had
-  /// registered, which is half the truth: registered tokens with no configured
+  /// registered, which is half the truth: registered tokens with no real
   /// channel still deliver nothing.
-  final bool Function() cloudDeliveryConfigured;
+  final PushDeliveryChannel Function() deliveryChannel;
 
   PushHandlers({
     required this.ensurePairingService,
     required this.logger,
-    bool Function()? cloudDeliveryConfigured,
-  }) : cloudDeliveryConfigured = cloudDeliveryConfigured ?? _noCloudDelivery;
+    PushDeliveryChannel Function()? deliveryChannel,
+  }) : deliveryChannel = deliveryChannel ?? _noDeliveryChannel;
 
-  static bool _noCloudDelivery() => false;
+  static PushDeliveryChannel _noDeliveryChannel() => PushDeliveryChannel.none;
 
   void _logInfo(String message) => logger.info(message, source: 'PushHandlers');
   void _logWarning(String message) =>
@@ -88,11 +87,11 @@ class PushHandlers {
   /// device. Returns a 403 [Response] to short-circuit on mismatch (or when
   /// the caller cannot be resolved to an active device), or `null` to proceed.
   ///
-  /// This is the fix for the cross-device IDOR: every `/api/push/*` mutation
-  /// is scoped to the caller's own push registration. A low-trust / guest /
-  /// stolen control token can no longer register, delete, or mute another
-  /// operator's safety-alert delivery. Resolving through the active-device
-  /// fingerprint lookup also rejects revoked/inactive callers for free.
+  /// Every `/api/push/*` mutation is scoped to the caller's own push
+  /// registration, so a low-trust, guest, or stolen control token cannot
+  /// register, delete, or mute another operator's safety-alert delivery.
+  /// Resolving through the active-device fingerprint lookup also rejects
+  /// revoked and inactive callers.
   Future<Response?> _requireOwnDevice(
     Request request,
     String targetDeviceId,
@@ -313,11 +312,13 @@ class PushHandlers {
   /// `GET /api/push/targets` — can a critical alert actually reach a phone
   /// right now?
   ///
-  /// Exists because the desktop's "Push critical alerts to mobile" switch used
-  /// to render ON with nothing indicating that no device could receive the
-  /// push. On Android that was never true in a stock build — the FCM client is
-  /// a dormant scaffold pending Firebase provisioning, so the phone never
-  /// registers a token and the count here stays 0.
+  /// The answer drives the desktop's "Push critical alerts to mobile" switch,
+  /// which must never render as delivering when nothing can receive. On
+  /// Android in a stock build nothing can: the FCM client is a dormant
+  /// scaffold pending Firebase provisioning, so the phone registers no token
+  /// and the count here stays 0. A would-send mock is likewise reported as a
+  /// host with no cloud delivery — `deliveryChannel` names it as `mock` so a
+  /// client can say so, but it never counts as delivery.
   ///
   /// Deliberately returns COUNTS and a verdict, never token values or device
   /// identifiers: a client that can read this must not be able to enumerate
@@ -347,7 +348,7 @@ class PushHandlers {
       registeredDeviceCount: deviceIds.length,
       fcmTokenCount: fcm,
       apnsTokenCount: apns,
-      cloudDeliveryConfigured: cloudDeliveryConfigured(),
+      channel: deliveryChannel(),
     );
 
     return jsonOk(targets.toJson(), headers: {requestIdHeader: requestId});

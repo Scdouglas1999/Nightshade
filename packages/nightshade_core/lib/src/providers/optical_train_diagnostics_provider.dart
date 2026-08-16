@@ -75,9 +75,9 @@ final opticalTrainDiagnosticsProvider = Provider.autoDispose
 
 /// Memoized optical-train diagnostics derived from the *latest captured-image
 /// snapshot* of PSF tiles and residual vectors. Used by the science analytics
-/// tab, where rebuilds were re-running `analyze()` every Riverpod frame
-/// (audit §6.20). Pass the active session ID, or `null` for sessionless /
-/// quick-capture mode — the provider switches sources accordingly.
+/// tab, where an unmemoized read re-runs `analyze()` on every Riverpod frame.
+/// Pass the active session ID, or `null` for sessionless / quick-capture mode
+/// — the provider switches sources accordingly.
 final latestSnapshotOpticalTrainDiagnosticsProvider = Provider.autoDispose
     .family<OpticalTrainDiagnostics, int?>((ref, sessionId) {
       final psfTiles = sessionId != null

@@ -14,19 +14,11 @@ import 'database_provider.dart';
 /// Riverpod surface for per-target / per-run notes
 /// and the structural sequence diff.
 ///
-/// The service-layer types are exposed through three thin providers so
-/// the UI never reaches into the raw Drift connection directly:
-///   * [notesServiceProvider]       — singleton service.
-///   * [notesForTargetProvider]     — reactive list for a target id.
-///   * [notesForRunProvider]        — reactive list for a sequence run.
-///   * [sequenceDiffServiceProvider] — singleton diff engine.
-///
-/// Why a [Provider] (not [FutureProvider]): the service constructs
-/// instantly and holds a long-lived broadcast controller; consumers
-/// that need live data subscribe via `notesForTargetProvider`'s
-/// [StreamProvider] which pumps fresh snapshots on every mutation
-/// (including writes from other UI surfaces, so adding a note from the
-/// target card immediately re-renders the history dialog).
+/// The service-layer types are exposed through thin providers so the UI never
+/// reaches into the raw Drift connection directly. The list providers are
+/// [StreamProvider]s fed by the service's broadcast controller, which pumps a
+/// fresh snapshot on every mutation — including writes from another surface,
+/// so a note added on the target card re-renders the history dialog.
 
 final notesServiceProvider = Provider<NotesService>((ref) {
   final database = ref.watch(databaseProvider);

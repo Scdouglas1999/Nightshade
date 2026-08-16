@@ -1,7 +1,7 @@
-// WD-SEQ-N4: the scheduler queue's STATUS chip said "Below horizon" for a
-// target at +9.8°, directly beside its own (correct) sentence
-// "altitude 9.8° below site minimum 30.0°". Above the horizon is not the same
-// as below the site minimum.
+// The scheduler queue's STATUS chip and its own sentence say the same thing: a
+// chip reading "Below horizon" for a target at +9.8° sits beside "altitude 9.8°
+// below site minimum 30.0°", and above the horizon is not the same as below the
+// site minimum.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/scheduler/scheduler_decision.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';

@@ -18,7 +18,7 @@ class CalibrationTagEntry {
   final String? cameraId;
   final DateTime updatedAt;
 
-  /// WS1 shared-library provenance: who shared this master, when, under what
+  /// Shared-library provenance: who shared this master, when, under what
   /// license, and the serialized `Provenance` blob. Null for a master the user
   /// captured locally (only set when a master was pulled from a hub).
   final String? sharedBy;
@@ -26,7 +26,7 @@ class CalibrationTagEntry {
   final String? license;
   final String? provenanceJson;
 
-  /// WS1 retract handle: the hub master id this LOCAL master was published
+  /// Retract handle: the hub master id this LOCAL master was published
   /// under. Non-null marks a master the user has shared to the hub (and so can
   /// un-share / retract); cleared back to null on retract.
   final String? publishedRemoteId;
@@ -69,7 +69,7 @@ class CalibrationTagsDao {
       'shared_by, shared_at, license, provenance_json, published_remote_id';
 
   /// Merge-upsert the row for `(type, masterId)`. Null fields keep the
-  /// previously stored value; to clear notes pass `clearNotes: true`. The WS1
+  /// previously stored value; to clear notes pass `clearNotes: true`. The
   /// sharing columns ([sharedBy] / [sharedAt] / [license] / [provenanceJson])
   /// are stamped when a master is merged in from a hub.
   Future<void> upsert(

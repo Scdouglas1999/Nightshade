@@ -12,9 +12,7 @@ import 'planetarium_providers.dart';
 
 export '../catalogs/hyg_depth.dart' show kHygFaintFloorMag;
 
-// ============================================================================
 // Deep-star tier — downloadable Tycho-2 / Gaia subset below the HYG floor
-// ============================================================================
 
 /// FOV (degrees) below which the deep-star tier is consulted.
 ///
@@ -115,12 +113,10 @@ final deepStarsInViewProvider = FutureProvider<List<Star>>((ref) async {
 /// depth and no deep tier is filling in behind it.
 ///
 /// At an imaging-scale field the chart is not "a dark patch of sky", it is a
-/// catalog running out: a 1 deg field carries of order 100-200 real stars to
-/// mag 12, and the shipped pack holds three or four of them. That is the
-/// framing and guide-star check this screen exists for, so the state has to say
-/// so — the fallback banner only fires when HYG is missing ENTIRELY, and stayed
-/// silent for the far more common case where HYG is installed and simply too
-/// shallow for the zoom.
+/// catalog running out: a 1 deg field carries 100-200 real stars to mag 12 and
+/// the shipped pack holds three or four. Distinct from the fallback banner,
+/// which fires only when HYG is missing entirely, not when it is installed and
+/// too shallow for the zoom.
 final starChartDepthLimitedProvider = Provider<bool>((ref) {
   final fov = ref.watch(skyViewStateProvider.select((s) => s.fieldOfView));
   if (fov >= kDeepStarFovThresholdDegrees) return false;

@@ -14,9 +14,9 @@ class _BuilderContent extends ConsumerWidget {
     // tree+properties split — instead of falling into the desktop 3-column
     // layout, whose dense toolbar/header rows overflow at that height.
     //
-    // The old `Responsive.isMobile` (`< 768`) lumped small tablets in with
-    // phones AND switched on width alone, so a rotated phone got the squished
-    // desktop path. Branching on the short side fixes both.
+    // `Responsive.isMobile` (`< 768`) would lump small tablets in with phones
+    // AND switch on width alone, dropping a rotated phone into the squished
+    // desktop path. Branching on the short side avoids both.
     return LayoutBuilder(
       builder: (context, constraints) {
         final shortSide = constraints.maxWidth < constraints.maxHeight
@@ -25,7 +25,7 @@ class _BuilderContent extends ConsumerWidget {
         if (BreakpointTokens.isPhone(shortSide)) {
           return _MobileBuilderLayout(colors: colors);
         }
-        // §24: thread this LayoutBuilder's width down to the desktop layout
+        // Thread this LayoutBuilder's width down to the desktop layout
         // instead of opening a second nested LayoutBuilder. The outer builder
         // is intentionally kept (not MediaQuery) so the short-side / split-
         // pane logic stays correct when the sequencer is embedded in a
@@ -57,18 +57,15 @@ class _DesktopBuilderLayout extends ConsumerWidget {
 
   /// The width the document pane needs before the side panels may keep theirs.
   ///
-  /// Measured at a 900px window (Wave D, WD-SEQ-N2): the properties pane kept
-  /// its ~250px and the palette its ~200px while the canvas — the pane that
-  /// holds the thing being edited — was squeezed to ~180px. At that width the
-  /// node's inline editors broke to one control per line (a bare "x" alone on a
-  /// row), "Total 3.0" was clipped mid-value and the target rollup truncated to
-  /// "12 planne...". `minCenterWidth` alone never triggered because the rail
-  /// fallback only fires below palette+300+properties *collapsed*, which a
-  /// 900px window clears easily. The center is the document; it collapses the
-  /// side panels rather than being crushed by them.
+  /// The center is the document: below this width the SIDE panels collapse
+  /// rather than the canvas. `minCenterWidth` alone does not cover it — the
+  /// rail fallback only fires below palette+300+properties *collapsed*, which a
+  /// 900px window clears easily while squeezing the canvas to ~180px, where the
+  /// node's inline editors break to one control per line and values clip
+  /// mid-string.
   static const double comfortableCenterWidth = 380.0;
 
-  /// §7: bucket the raw available width to the nearest 64px before computing
+  /// Bucket the raw available width to the nearest 64px before computing
   /// panel dimensions, so a continuous window-resize drag only steps the
   /// derived panel sizes occasionally instead of re-tweening every frame.
   static double _bucketWidth(double width) => (width / 64.0).round() * 64.0;
@@ -101,13 +98,13 @@ class _DesktopBuilderLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final toolboxCollapsed = ref.watch(sequencerToolboxCollapsedProvider);
     final propertiesCollapsed = ref.watch(sequencerPropertiesCollapsedProvider);
-    // WE-SEQ-N7: the operator's answer to the derived collapse below.
+    // The operator's answer to the derived collapse below.
     final toolboxForceOpen = ref.watch(sequencerToolboxForceOpenProvider);
     final propertiesForceOpen = ref.watch(sequencerPropertiesForceOpenProvider);
     final persistedLeftWidth = ref.watch(sequencerLeftPanelWidthProvider);
     final persistedRightWidth = ref.watch(sequencerRightPanelWidthProvider);
 
-    // §7: derive panel sizes from a bucketed width so a continuous resize
+    // Derive panel sizes from a bucketed width so a continuous resize
     // drag only steps the dimensions every ~64px instead of every frame.
     final dims = _panelDimensions(_bucketWidth(availableWidth));
 
@@ -119,9 +116,8 @@ class _DesktopBuilderLayout extends ConsumerWidget {
 
     return Column(
       children: [
-        // CON-52: Builder was the one Sequencer tab with no heading at all,
-        // while its three siblings each had a different one. It gets the same
-        // shared heading; the toolbar below still carries the live sequence's
+        // Builder carries the same shared heading as its three sibling
+        // Sequencer tabs; the toolbar below still carries the live sequence's
         // own name and actions.
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -158,25 +154,24 @@ class _DesktopBuilderLayout extends ConsumerWidget {
           },
         ),
 
-        // Main content. Width comes from _BuilderContent's LayoutBuilder
-        // (§24) so there is no second nested LayoutBuilder here.
+        // Main content. Width comes from _BuilderContent's LayoutBuilder, so
+        // there is no second nested LayoutBuilder here.
         Expanded(
           child: Builder(
             builder: (context) {
               // Below the absolute minimum, fall back to a rail-only layout
               // that keeps a thin draggable icon palette so users can still
-              // drop nodes onto the tree (audit §4.7).
+              // drop nodes onto the tree.
               if (availableWidth < bothCollapsedMinWidth) {
                 return _NarrowDesktopLayout(colors: colors);
               }
 
-              // §8: when space is tight we no longer yank a whole panel
-              // collapsed the instant a node is selected. Both panels stay
-              // visible at their *min* widths in the tight band; the truly
-              // narrow case below bothCollapsedMinWidth already drops to the
-              // rail layout above. Auto-collapse is *derived* — we never
-              // write back to the user-pref providers (§4.7), so widening
-              // the window restores the user's saved expanded preference.
+              // In the tight band both panels stay visible at their *min*
+              // widths rather than one being yanked collapsed the instant a
+              // node is selected; below bothCollapsedMinWidth the rail layout
+              // above already takes over. Auto-collapse is DERIVED — never
+              // written back to the user-pref providers — so widening the
+              // window restores the saved expanded preference.
               final spaceTight = availableWidth < bothExpandedWidth;
 
               // Honor the explicit user collapse prefs; tight space packs both
@@ -196,12 +191,12 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                   centerWithToolboxCollapsed < comfortableCenterWidth;
 
               // The derived collapse is the DEFAULT at this width, not a
-              // verdict: an explicit "show me" always wins (WE-SEQ-N7). Without
-              // the override the toggle icons were inert at ~900px — the
-              // effective state was `pref || derived`, so flipping the pref
-              // changed nothing on screen and the operator could neither add
-              // nor edit a node. The operator's own collapse still wins over
-              // their own force-open, which is what the toggle writes.
+              // verdict: an explicit "show me" always wins. Without the
+              // override the effective state is `pref || derived`, which makes
+              // the toggle icons inert at ~900px — flipping the pref changes
+              // nothing on screen and the operator can neither add nor edit a
+              // node. The operator's own collapse still wins over their own
+              // force-open, which is what the toggle writes.
               final effectiveToolboxCollapsed = toolboxCollapsed ||
                   (autoCollapseToolbox && !toolboxForceOpen);
               final effectivePropertiesCollapsed = propertiesCollapsed ||
@@ -210,7 +205,7 @@ class _DesktopBuilderLayout extends ConsumerWidget {
               // Derived expanded widths. When space is tight, both panels use
               // their min width. Otherwise a panel may grow to its expanded
               // width when the *other* panel is collapsed. A user-dragged
-              // width (persisted, §6) overrides the derived width.
+              // width (persisted) overrides the derived width.
               final leftDerived = spaceTight
                   ? dims.leftMin
                   : (effectivePropertiesCollapsed
@@ -255,7 +250,7 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                           .read(sequencerToolboxForceOpenProvider.notifier)
                           .state = opening;
                     },
-                    // §6: persist a drag so it survives the next layout pass
+                    // Persist a drag so it survives the next layout pass
                     // instead of snapping back to the derived width.
                     onWidthChanged: (w) => ref
                         .read(sequencerLeftPanelWidthProvider.notifier)
@@ -284,11 +279,10 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     ),
                   ),
 
-                  // Right panel - Properties. §21: the panel can now expand
-                  // with an empty state, so the toggle is always live and the
-                  // affordance is discoverable before a node is selected —
-                  // the panel renders NodePropertiesPanel's own "select a
-                  // node" empty state.
+                  // Right panel - Properties. The panel expands with an empty
+                  // state, so the toggle is always live and the affordance is
+                  // discoverable before a node is selected — the panel renders
+                  // NodePropertiesPanel's own "select a node" empty state.
                   _CollapsiblePanel(
                     colors: colors,
                     isCollapsed: effectivePropertiesCollapsed,

@@ -422,13 +422,8 @@ class LiveStackingBroadcastService {
     if (!_state.active) return;
     if (width <= 0 || height <= 0 || previewData.isEmpty) return;
 
-    // Delegate the canonical stretch + watermark + encode to the shared
-    // renderer. The broadcast's historical behaviour is preserved by the spec
-    // we hand it: aspect-fit downscale to the configured thumbnail box, quality
-    // 82, watermark-only (no stat panel — the broadcast page renders its own
-    // telemetry, so the JPEG itself stays clean), the same 0.5/99.5 percentile
-    // stretch, and the large (arial48) watermark font the pre-extraction
-    // broadcast always used (see [_broadcastSpec]).
+    // The shared renderer owns the stretch + watermark + encode; the spec
+    // (see [_broadcastSpec]) pins the broadcast's own look.
     final jpeg = _renderer.renderJpegFromMono(
       width: width,
       height: height,
@@ -481,15 +476,12 @@ class LiveStackingBroadcastService {
     _updates.close();
   }
 
-  // ===========================================================================
   // Internal: share-card spec + watermark tokens
-  // ===========================================================================
 
   /// Build the [ShareCardSpec] the shared [ShareCardRenderer] uses to render a
-  /// broadcast frame. Preserves the broadcast's historical look: aspect-fit
-  /// downscale to the configured thumbnail box, the rendered watermark text,
-  /// no stat panel (the broadcast HTML page renders telemetry separately, so
-  /// the JPEG stays a clean image), and the large watermark font.
+  /// broadcast frame: aspect-fit downscale to the configured thumbnail box,
+  /// the rendered watermark text in the large font, and no stat panel — the
+  /// broadcast page renders telemetry itself, so the JPEG stays a clean image.
   ShareCardSpec _broadcastSpec() {
     return ShareCardSpec(
       title: '',
@@ -557,10 +549,6 @@ final liveStackingBroadcastServiceProvider =
 ///     comes up disabled, not in a brief "armed" window), and
 ///   * propagates live: flipping the toggle during an active broadcast
 ///     force-deactivates the session.
-///
-/// Kept as a separate provider so the broadcast service itself stays
-/// free of a SettingsDao dependency — unit tests of the service alone
-/// don't need a SQLite-backed database.
 final liveStackingKillSwitchBridgeProvider = Provider<void>((ref) {
   final svc = ref.watch(liveStackingBroadcastServiceProvider);
   // Initial seed: read once, apply.

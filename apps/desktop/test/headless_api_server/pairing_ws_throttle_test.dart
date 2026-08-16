@@ -1,10 +1,10 @@
-// Integration coverage for the pairing / WebSocket throttling hardening:
-//   * HTTP-003 — POST /api/pairing/start is rate-limited (429) per socket peer.
-//   * HTTP-002 — POST /api/pairing/lan-claim is rate-limited (429) per socket
-//     peer so a LAN flood cannot mint session tokens without bound.
-//   * HTTP-004 — the legacy WS ?token= auth path routes failed attempts through
-//     the same bearer-token failure limiter (429) as the Authorization header,
-//     while a valid token still upgrades.
+// Integration coverage for the pairing / WebSocket throttling:
+//   * POST /api/pairing/start is rate-limited (429) per socket peer.
+//   * POST /api/pairing/lan-claim is rate-limited (429) per socket peer so a
+//     LAN flood cannot mint session tokens without bound.
+//   * the legacy WS ?token= auth path routes failed attempts through the same
+//     bearer-token failure limiter (429) as the Authorization header, while a
+//     valid token still upgrades.
 
 import 'dart:convert';
 import 'dart:io';
@@ -57,7 +57,7 @@ void main() {
       container.dispose();
     });
 
-    test('HTTP-003: POST /api/pairing/start is throttled with 429', () async {
+    test('POST /api/pairing/start is throttled with 429', () async {
       for (var i = 0; i < defaultControlRateLimitMaxRequests; i++) {
         final ok = await _post(client, baseUri, '/api/pairing/start');
         expect(
@@ -73,73 +73,57 @@ void main() {
       expect(blocked.headers['retry-after'], isNotNull);
     });
 
-    test(
-      'HTTP-002: POST /api/pairing/lan-claim is throttled with 429',
-      () async {
-        // From loopback the claim is refused (not a private-LAN source), but the
-        // endpoint rate limit runs ahead of the handler, so a flood still trips
-        // the shared 429 — bounding how many claims (and thus tokens) one peer
-        // can drive.
-        for (var i = 0; i < defaultControlRateLimitMaxRequests; i++) {
-          final refused = await _post(
-            client,
-            baseUri,
-            '/api/pairing/lan-claim',
-          );
-          expect(
-            refused.statusCode,
-            isNot(HttpStatus.tooManyRequests),
-            reason: 'lan-claim #$i should reach the handler',
-          );
-        }
-
-        final blocked = await _post(client, baseUri, '/api/pairing/lan-claim');
-        expect(blocked.statusCode, HttpStatus.tooManyRequests);
-        expect(blocked.body['code'], 'rate_limited');
-      },
-    );
-
-    test(
-      'HTTP-004: a valid legacy ?token= still upgrades the WebSocket',
-      () async {
-        final socket = await WebSocket.connect(
-          'ws://127.0.0.1:${server.actualPort}/events'
-          '?token=admin-token&apiVersion=2.5.0',
+    test('POST /api/pairing/lan-claim is throttled with 429', () async {
+      // From loopback the claim is refused (not a private-LAN source), but the
+      // endpoint rate limit runs ahead of the handler, so a flood still trips
+      // the shared 429 — bounding how many claims (and thus tokens) one peer
+      // can drive.
+      for (var i = 0; i < defaultControlRateLimitMaxRequests; i++) {
+        final refused = await _post(client, baseUri, '/api/pairing/lan-claim');
+        expect(
+          refused.statusCode,
+          isNot(HttpStatus.tooManyRequests),
+          reason: 'lan-claim #$i should reach the handler',
         );
-        try {
-          expect(socket.readyState, WebSocket.open);
-        } finally {
-          await socket.close();
-        }
-      },
-    );
+      }
 
-    test(
-      'HTTP-004: repeated bad ?token= WS attempts trip the 429 limiter',
-      () async {
-        // The bearer-token failure limiter trips at 30 failures/min (the
-        // TokenResolver default). Each bad attempt is rejected (not 429) until
-        // the threshold, then the next is a 429 — the same lockout the
-        // Authorization-header path enforces.
-        for (var i = 0; i < 30; i++) {
-          final attempt = await _wsTokenAttempt(
-            server.actualPort,
-            'garbage-token-$i',
-          );
-          expect(
-            attempt,
-            isNot(HttpStatus.tooManyRequests),
-            reason: 'bad WS attempt #$i should be a normal rejection, not 429',
-          );
-        }
+      final blocked = await _post(client, baseUri, '/api/pairing/lan-claim');
+      expect(blocked.statusCode, HttpStatus.tooManyRequests);
+      expect(blocked.body['code'], 'rate_limited');
+    });
 
-        final blocked = await _wsTokenAttempt(
+    test('a valid legacy ?token= still upgrades the WebSocket', () async {
+      final socket = await WebSocket.connect(
+        'ws://127.0.0.1:${server.actualPort}/events'
+        '?token=admin-token&apiVersion=2.5.0',
+      );
+      try {
+        expect(socket.readyState, WebSocket.open);
+      } finally {
+        await socket.close();
+      }
+    });
+
+    test('repeated bad ?token= WS attempts trip the 429 limiter', () async {
+      // The bearer-token failure limiter trips at 30 failures/min (the
+      // TokenResolver default). Each bad attempt is rejected (not 429) until
+      // the threshold, then the next is a 429 — the same lockout the
+      // Authorization-header path enforces.
+      for (var i = 0; i < 30; i++) {
+        final attempt = await _wsTokenAttempt(
           server.actualPort,
-          'garbage-final',
+          'garbage-token-$i',
         );
-        expect(blocked, HttpStatus.tooManyRequests);
-      },
-    );
+        expect(
+          attempt,
+          isNot(HttpStatus.tooManyRequests),
+          reason: 'bad WS attempt #$i should be a normal rejection, not 429',
+        );
+      }
+
+      final blocked = await _wsTokenAttempt(server.actualPort, 'garbage-final');
+      expect(blocked, HttpStatus.tooManyRequests);
+    });
   });
 }
 

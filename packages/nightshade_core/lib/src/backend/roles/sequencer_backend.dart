@@ -32,9 +32,7 @@ import '../../services/adaptive_swap_service.dart' show AdaptiveSwapBackend;
 /// are sequencer-runtime mutations and the adaptive-swap composer depends
 /// on exactly that pair.
 abstract class SequencerBackend implements AdaptiveSwapBackend {
-  // =========================================================================
-  // Sequencer Control
-  // =========================================================================
+  // Sequencer control
 
   /// Start the sequencer
   Future<void> sequencerStart();
@@ -89,6 +87,14 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
 
   /// Set simulation mode (use mock devices instead of real hardware)
   Future<void> sequencerSetSimulationMode(bool enabled);
+
+  /// Whether the executor is currently driving simulated device ops.
+  ///
+  /// This is a readback of what the executor holds, not of what anyone
+  /// requested: the flag flips only once the call installing simulated ops
+  /// has returned successfully, so a UI badge fed from here cannot claim
+  /// simulated hardware while real mounts and cameras are under the run.
+  Future<bool> sequencerIsSimulationMode();
 
   /// Set connected devices for the sequencer
   Future<void> sequencerSetDevices({
@@ -252,7 +258,7 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   /// Rust sequencer. Drives the `CloudArrivingIn`, `CloudOpeningIn`, and
   /// `CloudCoverThreshold` triggers. All fields are optional; `null`
   /// values disable the corresponding evaluator branch rather than
-  /// firing on a default (errors are a feature here).
+  /// firing on a default.
   ///
   /// `predictedClearSkyAlt` / `predictedClearSkyAz` must be either both
   /// set or both null; a half-specified direction is logged at WARN and
@@ -299,9 +305,7 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   @override
   Future<AdaptiveSwapSnapshot?> sequencerGetAdaptiveSwapSnapshot();
 
-  // =========================================================================
-  // Recovery Mode
-  // =========================================================================
+  // Recovery mode
 
   /// Operator pressed "Try Now" on the Run Dashboard banner — fires the
   /// next recovery attempt immediately (skipping the wait timer). No-op
@@ -335,9 +339,7 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   /// records.
   Future<String> getRecoveryHistoryJson();
 
-  // =========================================================================
   // Checkpoint / Crash Recovery
-  // =========================================================================
 
   /// Set the directory for checkpoint files
   Future<void> sequencerSetCheckpointDir(String path);

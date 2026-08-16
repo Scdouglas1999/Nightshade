@@ -84,10 +84,9 @@ class _MeasurementOverlayPainter extends CustomPainter {
   /// Project a celestial coordinate through the shared [SkyFovProjector], the
   /// same projection the sky painter and the FOV overlays use.
   ///
-  /// This used to hardcode the stereographic branch, so in orthographic or
-  /// azimuthal-equidistant mode the ruler drifted away from the stars it was
-  /// drawn between — the measurement stayed numerically right but pointed at
-  /// the wrong pair of objects.
+  /// Hardcoding one projection branch here would leave the ruler drifting away
+  /// from the stars it is drawn between: numerically right, pointing at the
+  /// wrong pair of objects.
   Offset? _project(CelestialCoordinate coord, Offset center, double scale) {
     return SkyFovProjector(
       viewState: viewState,

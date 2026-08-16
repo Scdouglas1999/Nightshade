@@ -1,10 +1,11 @@
-// Regression: an equipment-profile export was a bare map of profile fields
-// with no marker of what it was, so importing anything else failed deep inside
-// field parsing and the operator was shown the raw Dart exception —
-// "Import failed: FormatException: Unexpected character (at character 1)" for a
-// text file, "Import failed: FormatException: Profile name must be a non-empty
-// string" for unrelated JSON. Exports now identify themselves and every
-// rejection is prose the operator can act on.
+// An equipment-profile export identifies itself, and every import rejection is
+// prose the operator can act on.
+//
+// A bare map of profile fields with no marker of what it is fails deep inside
+// field parsing for anything else, showing the raw Dart exception — "Import
+// failed: FormatException: Unexpected character (at character 1)" for a text
+// file, "Import failed: FormatException: Profile name must be a non-empty
+// string" for unrelated JSON.
 
 import 'dart:convert';
 
@@ -102,9 +103,8 @@ void main() {
 
   group('another Nightshade document is not mistaken for a profile', () {
     // The picker filters to *.json and a sequence export lives in the same
-    // folder. Its top-level `name` used to be enough for the legacy
-    // bare-map path to accept it, so picking one imported a profile named
-    // after the sequence with a 0 mm focal length and reported success.
+    // folder. Accepting any document with a top-level `name` imports a profile
+    // named after the sequence with a 0 mm focal length and reports success.
     test('a sequence export is refused and named', () {
       try {
         profilesFromExportDocument(

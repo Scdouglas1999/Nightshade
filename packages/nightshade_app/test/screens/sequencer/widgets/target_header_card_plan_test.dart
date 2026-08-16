@@ -3,9 +3,9 @@
 // The card is the thing a user reads to decide whether tonight's plan is
 // right, so its "N planned exposures · Xm" line has to agree with the
 // toolbar's frame counter (Sequence.totalExposures) and with the stored
-// estimate. It previously walked the target's subtree with NO loop
-// multiplier, so every Quick-Start-Wizard sequence — a `Capture Loop ×N`
-// wrapping one exposure node — reported a tenth of its real plan.
+// estimate. Walking the target's subtree with NO loop multiplier makes every
+// Quick-Start-Wizard sequence — a `Capture Loop ×N` wrapping one exposure node —
+// report a tenth of its real plan.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

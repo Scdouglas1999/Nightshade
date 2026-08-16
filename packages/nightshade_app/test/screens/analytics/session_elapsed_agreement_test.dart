@@ -1,10 +1,10 @@
-// A session the app never closed must be described the same way everywhere.
+// A session that was never closed must be described the same way everywhere.
 //
-// Observed defect: for one row (status in_progress, end_time NULL, three
-// frames spanning 20 minutes) Analytics > History read "46h 2m elapsed" —
-// `now - startTime`, which grows forever after a crash — while Analytics >
-// Session read "DURATION 0s", because it computed
-// `(endTime ?? startTime) - startTime`. Two readouts, both false, in one app.
+// For one row (status in_progress, end_time NULL, three frames spanning 20
+// minutes) Analytics > History reads `now - startTime` — "46h 2m elapsed",
+// growing forever after a crash — while Analytics > Session computes
+// `(endTime ?? startTime) - startTime` and reads "DURATION 0s". Two readouts,
+// both false, in one app.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

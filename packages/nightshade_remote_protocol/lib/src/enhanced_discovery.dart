@@ -370,12 +370,10 @@ class QrConnectionData {
 /// mDNS name. Public-Internet hosts in a pairing QR almost certainly mean the
 /// QR was tampered with.
 ///
-/// The previous implementation rejected Tailscale CGNAT addresses
-/// (100.64.0.0/10) and IPv6 ULA addresses (fc00::/7), which made QR pairing
-/// unusable for the common "remote observatory exposed via Tailscale" topology
-/// where the phone never lands on the same LAN as the rig. Both ranges are now
-/// accepted. We do NOT accept 100.0.0.0/8 wholesale — that would let an
-/// attacker craft a QR pointing at any of 16M public hosts in the leading /10
+/// Tailscale CGNAT addresses (100.64.0.0/10) and IPv6 ULA addresses (fc00::/7)
+/// are accepted: a remote observatory exposed over Tailscale never puts the
+/// phone on the same LAN as the rig. 100.0.0.0/8 is NOT accepted wholesale —
+/// that would let a crafted QR point at any of the 16M public hosts in the /10
 /// before the CGNAT block starts.
 bool isLocalNetworkHost(String host) => TailnetDetector.isAccepted(host);
 
@@ -416,11 +414,11 @@ typedef DiscoveryStatusCallback = void Function(String status);
 /// Enhanced discovery service with multiple fallback methods
 /// Why a server probe succeeded or failed.
 ///
-/// Exists because the previous `bool` probe made "reachable" and "authorised"
-/// the same answer. A Nightshade host drops every paired token when it
-/// restarts, so the commonest real-world failure is a perfectly reachable host
-/// rejecting a stale token — which the UI then reported as "Could not reach
-/// `<host>`", pointing the operator at their network instead of re-pairing.
+/// Reachable and authorised are different answers. A Nightshade host drops
+/// every paired token when it restarts, so the commonest failure is a perfectly
+/// reachable host rejecting a stale token; reported as "Could not reach
+/// `<host>`" it sends the operator to debug their network instead of pairing
+/// again.
 enum ServerProbeOutcome {
   /// Answered, compatible, and accepted the credential (or needs none).
   reachable,
@@ -602,7 +600,7 @@ class EnhancedNightshadeDiscovery {
       // HttpServer rejects plain HTTP on an HTTPS socket) and the un-enriched
       // entry is shown to the operator. Honouring the scheme the discovery
       // path inferred lets the enrichment land cleanly. UDP-broadcast paths
-      // default to `http`, matching legacy behaviour.
+      // default to `http`.
       final response = await http
           .get(
             buildNightshadeServerUri(
@@ -1054,7 +1052,7 @@ class EnhancedNightshadeDiscovery {
   /// Generate QR code data string for a server.
   ///
   /// `version` and `fingerprint` are mandatory — the mobile scanner refuses
-  /// payloads without them (see §3.1 of the v2.5.0 audit).
+  /// payloads without them.
   static String generateQrData({
     required String host,
     required int webPort,

@@ -57,7 +57,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Suspend the now-indicator timer when the app is backgrounded so a
-    // hidden timeline doesn't repaint every minute (§4.33).
+    // hidden timeline doesn't repaint every minute.
     if (state == AppLifecycleState.resumed) {
       if (_nowTimer == null || !_nowTimer!.isActive) {
         setState(() => _now = DateTime.now());

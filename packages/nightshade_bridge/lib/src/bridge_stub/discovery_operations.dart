@@ -1,9 +1,7 @@
 part of '../bridge_stub.dart';
 
 extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
-  // =========================================================================
-  // Device Discovery
-  // =========================================================================
+  // Device discovery
 
   /// Discover available devices of a specific type.
   ///
@@ -60,9 +58,7 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
       allDevices[dt] = <DeviceInfo>[];
     }
 
-    // =========================================================================
-    // 1. Native Bridge Discovery (includes ASCOM, native ZWO, Alpaca, etc.)
-    // =========================================================================
+    // 1. Native bridge discovery (includes ASCOM, native ZWO, Alpaca, etc.)
     if (_nativeAvailable) {
       // Discover all types in parallel through native bridge
       final futures = <Future<void>>[];
@@ -102,9 +98,7 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
       await Future.wait(futures);
     }
 
-    // =========================================================================
     // Populate cache and print a single summary line
-    // =========================================================================
     for (final devices in allDevices.values) {
       final seenIds = <String>{};
       devices.removeWhere((device) => !seenIds.add(device.id));

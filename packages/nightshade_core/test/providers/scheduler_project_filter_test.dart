@@ -282,10 +282,9 @@ void main() {
 
   group('wheel-less profiles', () {
     // A profile with no named filters is an OSC/DSLR rig, not a
-    // misconfiguration. The loader used to hand the engine a bare empty
-    // availableFilters list, which made every filter containment check false —
-    // so the unfiltered goal the integration-goals editor now offers scored 0
-    // in _filterCoverageFactor and its frames were dropped from the dispatched
+    // misconfiguration. Handing the engine a bare empty availableFilters list
+    // makes every filter containment check false, so an unfiltered goal scores
+    // 0 in _filterCoverageFactor and its frames drop out of the dispatched
     // sequence in favour of a defensive 30 s default frame.
     test(
       'a profile with no filters is loaded as one unfiltered slot, not none',

@@ -1,18 +1,17 @@
-// Integration test for the SequenceExecutor's session-lifecycle
-// hooks.
+// Integration test for the SequenceExecutor's session-lifecycle hooks.
 //
-// Three agents shipped providers that depend on the executor
-// calling specific hooks at session start and end:
+// Several providers depend on the executor calling specific hooks at session
+// start and end:
 //   * Optical-train baseline / current-snapshot providers
 //     (`opticalTrainBaselineProvider`, `opticalTrainCurrentSnapshotProvider`)
 //   * Post-session health summary (`postSessionHealthSummaryProvider`)
 //   * NotificationRouter active sequence (`router.setActiveSequence`)
 //
-// Plus the new USB disconnect log feeding
+// Plus the USB disconnect log feeding
 // `DeviceHealthSnapshot.disconnectCountLast24h`.
 //
-// This test pins all four wirings end-to-end so a regression that drops
-// any one of them fires loudly at `flutter test` time. The executor's
+// This test pins all four wirings end-to-end so dropping any one of them fires
+// loudly at `flutter test` time. The executor's
 // session-start / session-end hook methods are exposed via @visibleForTesting
 // shims so the test drives them directly without spinning up a full
 // sequencer run.

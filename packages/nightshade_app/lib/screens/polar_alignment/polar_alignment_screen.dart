@@ -14,11 +14,9 @@ import 'polar_alignment_body_layout.dart';
 import 'polar_alignment_error_format.dart';
 import 'widgets/all_sky_target_reticle.dart';
 import 'widgets/polar_alignment_segmented_button.dart';
-// ---------------------------------------------------------------------------
 // File split: the PolarAlignmentScreen state keeps lifecycle and alignment
 // actions. Panel builders, helper widgets, and painters live in focused library
 // parts so the private provider-facing implementation remains encapsulated.
-// ---------------------------------------------------------------------------
 
 part 'polar_alignment_screen_parts/_status_and_settings.dart';
 part 'polar_alignment_screen_parts/_progress_widgets.dart';
@@ -33,10 +31,9 @@ part 'polar_alignment_screen_parts/_right_panel.dart';
 
 /// The footer line that names why Start Alignment is refusing.
 ///
-/// Present only while a prerequisite is unmet, so a widget test asserting on
-/// it is asserting the operator can read the refusal — the hover tooltip that
-/// used to be the only explanation is invisible to a click, to a screen
-/// reader and to a photograph of the screen.
+/// Present only while a prerequisite is unmet, so a widget test asserting on it
+/// is asserting the operator can READ the refusal. A hover tooltip is invisible
+/// to a click, to a screen reader and to a photograph of the screen.
 const Key startBlockedNoticeKey = Key('polar-alignment-start-blocked');
 
 class PolarAlignmentScreen extends ConsumerStatefulWidget {

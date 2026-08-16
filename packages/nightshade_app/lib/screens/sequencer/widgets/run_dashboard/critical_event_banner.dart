@@ -9,22 +9,14 @@ import 'run_dashboard_providers.dart';
 /// Persistent banner above the Run Dashboard for **critical** executor
 /// events that the user must not miss.
 ///
-/// Why this exists:
-///   * The Trigger Feed only shows the last 5 events. Critical events
-///     scroll off in seconds and the user — who often steps away from
-///     the laptop for an hour — would never see them.
-///   * Critical events are independently routed to `uiNotificationProvider`
-///     (toast) and, if the user has enabled `audibleAlertsOnCritical`, to
-///     a system bell. This banner is the *visual* signal that something
-///     needs attention right now.
+/// The Trigger Feed only shows the last 5 events, so a critical one scrolls off
+/// in seconds — and the operator is often away from the laptop for an hour.
+/// Critical events also route to `uiNotificationProvider` and, when
+/// `audibleAlertsOnCritical` is set, to a system bell; this banner is the
+/// visual signal.
 ///
-/// Behavior:
-///   * Hidden when there are no unresolved critical events.
-///   * Shows the most-recent event prominently; collapses older ones to
-///     a "+N more" pill that expands inline on tap.
-///   * Each event has its own dismiss action; "Dismiss all" clears the
-///     entire stack.
-///   * No timeout: the banner stays until the user dismisses it.
+/// NO TIMEOUT: the banner stays until the user dismisses it. The most-recent
+/// event shows prominently and older ones collapse to a "+N more" pill.
 class RunDashboardCriticalBanner extends ConsumerStatefulWidget {
   const RunDashboardCriticalBanner({super.key});
 

@@ -1,9 +1,7 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiMountGuidingOperations on _FfiBackendBase {
-  // =========================================================================
-  // Mount Control
-  // =========================================================================
+  // Mount control
 
   @override
   Future<void> mountSlewToCoordinates(
@@ -81,9 +79,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     return await bridge_api.apiGetMountStatus(deviceId: deviceId);
   }
 
-  // =========================================================================
-  // Focuser Control
-  // =========================================================================
+  // Focuser control
 
   @override
   Future<void> focuserMoveTo(String deviceId, int position) async {
@@ -128,8 +124,8 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
       stepSize: stepSize,
       stepsOut: stepsOut,
       // `AutofocusConfigApi.method` selects the curve-fitting algorithm. The
-      // separate Dart `method` value describes the star metric (historically
-      // "Star HFR") and is not a native curve enum.
+      // separate Dart `method` value describes the star metric and is not a
+      // native curve enum.
       method: autofocusCurveMethodForNativeBridge(curveFitting),
       binning: binning,
       gain: gain,
@@ -162,9 +158,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge_api.apiCancelAutofocus();
   }
 
-  // =========================================================================
-  // Filter Wheel Control
-  // =========================================================================
+  // Filter wheel control
 
   @override
   Future<void> filterWheelSetPosition(String deviceId, int position) async {
@@ -195,9 +189,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     );
   }
 
-  // =========================================================================
-  // Rotator Control
-  // =========================================================================
+  // Rotator control
 
   @override
   Future<void> rotatorMoveTo(String deviceId, double angle) async {
@@ -247,9 +239,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge.NativeBridge.apiRotatorSyncToPa(deviceId: deviceId, pa: pa);
   }
 
-  // =========================================================================
-  // Dome Control
-  // =========================================================================
+  // Dome control
 
   @override
   Future<void> domeOpenShutter(String deviceId) async {
@@ -286,9 +276,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge_api.apiDomeAbortSlew(deviceId: deviceId);
   }
 
-  // =========================================================================
-  // Cover Calibrator Control
-  // =========================================================================
+  // Cover calibrator control
 
   @override
   Future<void> coverOpen(String deviceId) async {
@@ -313,9 +301,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge_api.apiCoverCalibratorCalibratorOff(deviceId: deviceId);
   }
 
-  // =========================================================================
   // PHD2 Guiding
-  // =========================================================================
 
   @override
   Future<bool> isPhd2Running({
@@ -408,7 +394,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
       rmsTotal: status.rmsTotal,
       snr: status.snr,
       starMass: status.starMass,
-      // FRB Phd2Status no longer provides avgDistance; keep legacy field at 0
+      // FRB Phd2Status carries no avgDistance; the legacy field reports 0.
       avgDistance: 0.0,
       trackedStars: trackedStars,
     );
@@ -511,9 +497,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge.NativeBridge.phd2DeselectStar();
   }
 
-  // =========================================================================
   // Generic Guiding (driver-agnostic abstraction)
-  // =========================================================================
 
   @override
   Future<void> guiderStartGuiding({
@@ -634,9 +618,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     );
   }
 
-  // =========================================================================
-  // Plate Solving
-  // =========================================================================
+  // Plate solving
 
   @override
   Future<PlateSolveResult> plateSolve({
@@ -660,9 +642,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
         : bridge.NativeBridge.plateSolveBlind(imagePath, timeoutSeconds);
   }
 
-  // =======================================================================
   // Plate Solver Setup (local — runs against this machine's filesystem)
-  // =======================================================================
 
   @override
   Future<PlateSolverDetection> detectPlateSolvers() async {

@@ -3,8 +3,7 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
-/// On-disk store for shared master-calibration FITS files (Collaborative Sky
-/// WS1 — shared calibration libraries).
+/// On-disk store for the shared calibration library's master FITS files.
 ///
 /// Mirrors [SubframeStore]: every published master is kept as its own immutable
 /// file so a publish/retract is an exact file write/delete, with the queryable

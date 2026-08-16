@@ -32,13 +32,11 @@ String normalizeProfileName(String name) => name.trim().toLowerCase();
 
 /// What the operator is told when an import does not go through.
 ///
-/// A rejected import used to surface the raw `toString()` of whatever was
-/// thrown — "Import failed: FormatException: Unexpected character (at
-/// character 1)" for a text file, "Import failed: FormatException: Profile
-/// name must be a non-empty string" for unrelated JSON. Neither names the file
-/// nor tells the operator what to do. [ProfileImportException] already carries
-/// operator-facing prose; anything else is genuinely unexpected and is kept
-/// verbatim so a real bug is still legible in the log.
+/// A raw `toString()` — "FormatException: Unexpected character (at character
+/// 1)" — names neither the file nor what to do about it.
+/// [ProfileImportException] already carries operator-facing prose; anything else
+/// is genuinely unexpected and is kept verbatim so a real bug stays legible in
+/// the log.
 String describeProfileImportFailure(Object error, {String? fileName}) {
   final subject = fileName == null ? 'that file' : '"$fileName"';
   if (error is ProfileImportException) {
@@ -162,12 +160,11 @@ class _EquipmentProfilesScreenState
         ),
       ),
       data: (state) {
-        // The selection is an identity, not a snapshot. Deleting the selected
-        // profile used to leave the detail pane rendering the deleted row —
-        // with a live "Set Active" that threw "no such profile row" — beside a
-        // list that already said "No profiles yet". Resolve the selection
-        // against the authoritative list every build so no control can survive
-        // the row it acts on.
+        // The selection is an IDENTITY, not a snapshot: resolved against the
+        // authoritative list every build, so no control can survive the row it
+        // acts on. A held snapshot leaves the detail pane rendering a deleted
+        // profile — with a live "Set Active" — beside a list that says there
+        // are none.
         final selected = _selectionIn(state);
         if (_selectedProfile != null && selected == null) {
           _scheduleSelectionDrop(_selectedProfile!.id);
@@ -947,6 +944,4 @@ class _DuplicateProfileDialogState extends State<_DuplicateProfileDialog> {
   }
 }
 
-// ============================================================================
-// Profile List Sidebar
-// ============================================================================
+// Profile list sidebar

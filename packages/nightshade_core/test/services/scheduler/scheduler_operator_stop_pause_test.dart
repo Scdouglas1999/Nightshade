@@ -1,14 +1,10 @@
-// An operator Stop of an autopilot-dispatched run PAUSES the autopilot
-// (WF-N3, owner decision 1 of 2026-08-14).
+// An operator Stop of an autopilot-dispatched run PAUSES the autopilot.
 //
-// Before this, the operator pressed Stop, the run ended, and ~44 s later the
-// next tick found the rig free and dispatched the very same target again — the
-// autopilot silently overruling the human who had just stopped it. The engine
-// now asks the sink HOW its dispatched run ended: a failure or a natural
-// completion still re-dispatches (one failed run must not end the unattended
-// night, WE-SEQ-N1), but a stop somebody else commanded parks the autopilot in
-// `paused` with `pausedByOperatorStop` set, so the UI can offer
-// "Autopilot paused — resume?" instead of quietly taking the rig back.
+// The engine asks the sink HOW its dispatched run ended: a failure or a natural
+// completion still re-dispatches, so one failed run does not end the unattended
+// night, but a stop somebody else commanded parks the autopilot in `paused`
+// with `pausedByOperatorStop` set. Otherwise the next tick finds the rig free
+// and dispatches the same target again, overruling the operator who stopped it.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/scheduler/scheduler_status.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
@@ -199,34 +195,31 @@ void main() {
       await engine.dispose();
     });
 
-    test(
-      'a run that FAILED still re-dispatches (WE-SEQ-N1 regression)',
-      () async {
-        final sink = _ExecutorSink();
-        final engine = SchedulerEngine(
-          site: _site,
-          sequenceSink: sink,
-          candidateLoader: () async => [_candidate()],
-          clock: _night,
-        );
+    test('a run that FAILED still re-dispatches', () async {
+      final sink = _ExecutorSink();
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [_candidate()],
+        clock: _night,
+      );
 
-        await engine.start();
-        sink.dispatchedRunFailed();
+      await engine.start();
+      sink.dispatchedRunFailed();
 
-        await engine.evaluateNow(reason: 'tick');
+      await engine.evaluateNow(reason: 'tick');
 
-        expect(
-          sink.dispatched.length,
-          2,
-          reason:
-              'one failed run must not end the unattended night — nobody stopped '
-              'anything, so there is no operator decision to respect',
-        );
-        expect(engine.status.state, SchedulerState.running);
-        expect(engine.status.pausedByOperatorStop, isFalse);
-        await engine.dispose();
-      },
-    );
+      expect(
+        sink.dispatched.length,
+        2,
+        reason:
+            'one failed run must not end the unattended night — nobody stopped '
+            'anything, so there is no operator decision to respect',
+      );
+      expect(engine.status.state, SchedulerState.running);
+      expect(engine.status.pausedByOperatorStop, isFalse);
+      await engine.dispose();
+    });
 
     test('a Start after the pause clears the operator-stop flag', () async {
       final sink = _ExecutorSink();

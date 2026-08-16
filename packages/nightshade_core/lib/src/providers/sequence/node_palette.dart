@@ -5,7 +5,7 @@ import '../session_optimizer_provider.dart';
 import '../settings_provider.dart';
 import 'sequencer_defaults.dart';
 
-/// Audit §11 — descriptor used by the palette to render a plugin-contributed
+/// Descriptor used by the palette to render a plugin-contributed
 /// sequence node WITHOUT depending on the `nightshade_plugins` package
 /// (`nightshade_plugins` already imports nothing of `nightshade_core`, so
 /// adding a reverse dependency would risk a cycle).
@@ -44,8 +44,7 @@ class PluginNodeBlueprint {
 
   /// Default opaque JSON config the palette stamps onto a freshly-dropped
   /// node. Must be parseable by `jsonDecode`; the app-layer adapter validates
-  /// this when building the blueprint so malformed defaults are filtered out
-  /// (errors are a feature here).
+  /// this when building the blueprint so malformed defaults are filtered out.
   final String defaultConfigJson;
 
   const PluginNodeBlueprint({
@@ -106,7 +105,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
   // floor + hysteresis. Falls back to the constructor defaults when
   // settings haven't loaded yet so the palette is never empty.
   final appSettings = ref.watch(appSettingsProvider).valueOrNull;
-  // Audit §11 — plugin-contributed sequence nodes. The default
+  // Plugin-contributed sequence nodes. The default
   // provider value is an empty list; the app layer overrides
   // `pluginNodeBlueprintsProvider` with a live view of the plugin host's
   // node registry, so the palette updates the moment a plugin
@@ -318,12 +317,9 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           description: 'Perform meridian flip',
           createNode: () => MeridianFlipNode(),
         ),
-        // The node has a full executor, editor and serialiser, and
-        // SmartNightService already emits it into generated plans — it was
-        // simply absent from the palette, so a hand-built startup sequence
-        // could not include it. `isNorth` follows the observer latitude for
-        // the same reason SmartNightService derives it: a southern-hemisphere
-        // run must rotate about the SOUTH celestial pole.
+        // `isNorth` follows the observer latitude, matching what
+        // SmartNightService derives: a southern-hemisphere run must rotate
+        // about the SOUTH celestial pole.
         NodePaletteItem(
           name: 'Polar Alignment',
           icon: 'compass',
@@ -518,20 +514,18 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
         ),
       ],
     ),
-    // Audit §11 — append plugin-contributed categories last so they sit
-    // at the bottom of the palette without re-ordering the user's
-    // familiar built-in groups. We emit one or more "Plugins / <category>"
-    // sections so plugins that publish multiple nodes get a clean
-    // sub-grouping (matching `SequenceNodeDefinition.category`). When no
-    // plugins are loaded the expression below evaluates to an empty
-    // spread and the palette looks identical to the pre-plugin version.
+    // Plugin-contributed categories go last so they sit at the bottom of the
+    // palette without re-ordering the familiar built-in groups. One or more
+    // "Plugins / <category>" sections give plugins that publish multiple nodes
+    // a clean sub-grouping (matching `SequenceNodeDefinition.category`). With
+    // no plugins loaded the expression below evaluates to an empty spread and
+    // the palette holds only the built-in groups.
     ..._buildPluginPaletteCategories(pluginBlueprints),
   ];
 });
 
-/// Audit §11 — convert the plugin blueprint list into one or more
-/// palette categories so plugin nodes feel like first-class palette
-/// members. Grouping rules:
+/// Convert the plugin blueprint list into one or more palette categories so
+/// plugin nodes are first-class palette members. Grouping rules:
 ///
 ///   * Blueprints are grouped by their plugin-supplied `category` (case-
 ///     preserving). Empty / whitespace-only categories fall into a
@@ -541,10 +535,9 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
 ///     matter what name the plugin chose.
 ///   * Inside a category, items are sorted by `name` so the palette has
 ///     a stable order regardless of plugin registration order.
-///   * Blueprints with empty `pluginId` / `nodeTypeId` / `name` are
-///     dropped (errors-are-a-feature). The app-layer adapter is the
-///     primary defence — this is belt-and-braces so a malformed
-///     blueprint can never crash the palette.
+///   * Blueprints with empty `pluginId` / `nodeTypeId` / `name` are dropped.
+///     The app-layer adapter is the primary defence; this second check keeps a
+///     malformed blueprint from crashing the palette.
 List<NodePaletteCategory> _buildPluginPaletteCategories(
   List<PluginNodeBlueprint> blueprints,
 ) {

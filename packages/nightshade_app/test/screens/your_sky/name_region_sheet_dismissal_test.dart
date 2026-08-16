@@ -1,15 +1,13 @@
-// Regression: SKY-2 — creating a region locked the whole app behind a modal
-// that never lifted.
+// Creating a region must not lock the whole app behind a modal that never
+// lifts.
 //
-// Found live. Your Sky > Name a region > Custom RA/Dec > Create region: the
-// write committed (the region was there after a force-quit) but the button
-// stayed a spinner forever and Cancel, Escape, an outside click and every
-// nav-rail item were inert. The sheet guarded itself with
-// `PopScope(canPop: !_saving)` and then closed itself with `maybePop`, which
-// asks that guard for permission — so as soon as the write outlived the frame
-// that set `_saving`, the sheet was asking a barrier it had raised itself to
-// let it out, and was told no. Force-quitting was the only exit, taking any
-// running sequence with it.
+// A sheet that guards itself with `PopScope(canPop: !_saving)` and then closes
+// itself with `maybePop` asks that guard for permission: as soon as the write
+// outlives the frame that set `_saving`, it is asking a barrier it raised itself
+// to let it out, and is told no. The write commits, but the button stays a
+// spinner forever while Cancel, Escape, an outside click and every nav-rail item
+// are inert — force-quitting is the only exit, taking any running sequence with
+// it.
 //
 // The timing is why this needs a gated write: a write that completes inside
 // the same frame as the tap pops before `canPop: false` is ever built, which

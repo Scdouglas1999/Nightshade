@@ -95,8 +95,7 @@ void main() {
     expect(queued.single.coordinates.dec, closeTo(41.27, 1e-6));
     expect(queued.single.object, same(m31));
 
-    // Same container, sequencer surface: the panel that used to be permanently
-    // empty now shows the queued target.
+    // Same container, sequencer surface: the panel shows the queued target.
     await _pump(
       tester,
       container,

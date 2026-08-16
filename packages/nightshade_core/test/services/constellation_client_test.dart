@@ -95,7 +95,7 @@ void main() {
         expect(seen!.headers['integrationSecondsDelta'], '9000.0');
         expect(seen!.headers['instrument'], 'asi2600-fp');
         expect(seen!.headers['solver'], 'astap');
-        // WS4: the share carries its consented license + attribution choice.
+        // The share carries its consented license + attribution choice.
         expect(seen!.headers['license'], 'cc-by');
         expect(seen!.headers['attributionConsent'], 'true');
         expect(seen!.bodyBytes, [9, 8, 7, 6]);
@@ -475,7 +475,7 @@ void main() {
       expect(seen!.url.queryParameters['order'], '9');
       expect(seen!.url.queryParameters['capturedImageId'], '42');
       expect(seen!.url.queryParameters['instrument'], 'asi2600');
-      // WS4: the raw-subframe share carries its license + raw-sub opt-in.
+      // The raw-subframe share carries its license + raw-sub opt-in.
       expect(seen!.url.queryParameters['license'], 'cc-by');
       expect(seen!.url.queryParameters['shareRawSubframes'], 'true');
       expect(seen!.headers['Authorization'], 'Bearer tok-123');

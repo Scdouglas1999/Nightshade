@@ -45,7 +45,7 @@ enum NightFindingSeverity {
 /// evidence it, and actionable advice.
 ///
 /// Immutable value type with value equality and JSON round-tripping, matching
-/// the `integration_settings.dart` house style.
+/// `integration_settings.dart`.
 class NightFinding {
   /// Stable detector id (e.g. `'focus_drift'`), used for dedup + UI keys.
   final String id;
@@ -169,12 +169,9 @@ class NightReport {
   /// frames, too few to judge, or frames carrying no quality metrics.
   ///
   /// The score is a DEGRADATION score — it starts at 100 and only subtracts
-  /// per-finding penalties — so a night that produced nothing to analyse used to
-  /// come out at a perfect 100 with the headline "A clean night — no problems
-  /// detected". That was observed on a FAILED run with zero accepted frames and
-  /// on a dark-only session. Absence of evidence is not evidence of a good
-  /// night, so those reports now carry this sentinel and the UI must render
-  /// "Not graded" instead of a number.
+  /// per-finding penalties — so a night with nothing to analyse scores a
+  /// perfect 100 unless it carries this sentinel instead. The UI must render
+  /// it as "Not graded", never as a number.
   ///
   /// It is deliberately outside 0..100 so it survives the `night_reports.score`
   /// round-trip (an `INTEGER NOT NULL` column) with no schema migration.

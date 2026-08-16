@@ -72,12 +72,10 @@ class OrphanedNodesRule implements SequenceValidator {
       return const [];
     }
 
-    // True root-reachability walk. The previous flat "any node references
-    // this id" set masked transitively-unreachable orphans: a detached
-    // subtree whose nodes cross-reference each other (parent lists each
-    // other's ids) all appeared "referenced" even though none of them hang
-    // off the root. Walk the tree from the root following childIds and
-    // collect only the genuinely-reachable ids.
+    // True root-reachability walk, not a flat "any node references this id"
+    // set: a detached subtree whose nodes cross-reference each other all read
+    // as "referenced" while none of them hangs off the root. Walk from the
+    // root following childIds and collect only the genuinely-reachable ids.
     final reachable = <String>{};
     final queue = <String>[rootId];
     while (queue.isNotEmpty) {
@@ -150,9 +148,8 @@ class EmptyContainerRule implements SequenceValidator {
 ///   * `repeatUntil` (wall-clock target) and `repeatUntilAltitude` (target
 ///     altitude crossing) act as terminating triggers.
 ///
-/// Bug-prone foot-gun. Run forever / WhileDark with no cap → ERROR (refuse
-/// to validate clean). Was previously a warning but a loop without any
-/// terminating condition is a runaway.
+/// Run forever / WhileDark with no cap → ERROR (refuse to validate clean): a
+/// loop without any terminating condition is a runaway.
 class UnboundedLoopRule implements SequenceValidator {
   @override
   String get name => 'UnboundedLoop';

@@ -1,12 +1,11 @@
-// Regression: the Android app must report the version it actually is.
+// The Android app must report the version it actually is.
 //
 // Observed live on an Android 15 emulator running a build of
 // apps/mobile/pubspec.yaml `version: 6.0.0+24`: Settings -> About displayed
-// "Version 2.6.0". The entry point overrode appVersionProvider with a
+// "Version 2.6.0", because the entry point overrode appVersionProvider with a
 // hardcoded `const AppVersionInfo(version: '2.6.0', buildNumber: 6)` (and fed
-// the same literal to pluginHostAppVersionOverride), four major versions stale,
-// under a comment claiming it mirrored the desktop entry — which actually reads
-// PackageInfo.
+// the same literal to pluginHostAppVersionOverride). Any literal here goes
+// stale silently; the desktop entry reads PackageInfo, and so must this one.
 //
 // This is more than a cosmetic label. appVersionProvider's own contract says:
 // "a misconfigured version masks the entire OTA update flow (the server

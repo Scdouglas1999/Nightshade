@@ -44,17 +44,16 @@ part 'sequencer_screen_parts/mobile_layout.dart';
 
 /// Canonical route path for the sequencer screen.
 ///
-/// §14: referenced by the router's [GoRoute] and the shell's
-/// run-overlay-visibility check so the two can't drift via a copy-pasted
-/// `'/sequencer'` string literal. The app-wide running-sequence mini-player is
-/// a follow-up that depends on run-dashboard-owned content (see crossAreaDep).
+/// Referenced by the router's [GoRoute] and the shell's run-overlay-visibility
+/// check so the two cannot drift via a copy-pasted `'/sequencer'` string
+/// literal.
 const String kSequencerRoutePath = '/sequencer';
 
 /// The top-level sequencer tabs, in display order.
 ///
 /// Single source of truth for both the [TabController] length and the
 /// [AdaptiveTabBar] strip — adding a tab here updates the controller, the
-/// strip and the keyboard accelerator hints in one edit (audit §4.3 / §3).
+/// strip and the keyboard accelerator hints in one edit.
 enum SequencerTab {
   builder('Builder', LucideIcons.workflow),
   templates('Templates', LucideIcons.fileStack),
@@ -90,8 +89,8 @@ SequencerTab? sequencerTabFromQuery(String? value) {
 
 /// The tabs inside the desktop toolbox panel, in display order.
 ///
-/// Replaces the old binary `snippetPaletteVisibleProvider` so Ctrl+T always
-/// has a visible effect even when the user is on the Queue tab (audit §25).
+/// A tab selection rather than a visibility flag, so Ctrl+T always has a
+/// visible effect even when the user is on the Queue tab.
 enum SequencerToolboxTab { nodes, snippets, queue }
 
 /// Currently selected sequencer tab.
@@ -114,15 +113,12 @@ final sequencerPropertiesCollapsedProvider =
 /// "Show me the toolbox anyway", set when the operator opens a pane the narrow
 /// layout had auto-collapsed.
 ///
-/// WE-SEQ-N7: the desktop builder derives a collapse when the canvas would be
-/// squeezed, and the effective state was `pref || derived`. At ~900px both
-/// panes derive collapsed, so the toggle icons flipped a preference that could
-/// never win: clicking the toolbox icon three times and the properties icon
-/// once left the tree with no palette and no Target Settings. A plan could be
-/// read but no node added or edited, with no escape hatch short of resizing the
-/// window. The derived collapse is a good DEFAULT and a bad verdict — these
-/// overrides are how the operator overrules it, and they are cleared the moment
-/// they collapse the pane again.
+/// The desktop builder derives a collapse when the canvas would be squeezed.
+/// That derived collapse is a good DEFAULT and a bad verdict: with an effective
+/// state of `pref || derived`, the toggle icons flip a preference that can never
+/// win, leaving no palette and no Target Settings and no escape short of
+/// resizing the window. This override is how the operator overrules it, and it
+/// is cleared the moment they collapse the pane again.
 final sequencerToolboxForceOpenProvider = StateProvider<bool>((ref) => false);
 
 /// "Show me the properties anyway" — see [sequencerToolboxForceOpenProvider].
@@ -138,24 +134,23 @@ final sequencerToolboxTabProvider =
 
 /// Backwards-compatible "reveal the snippets palette" trigger.
 ///
-/// §25 replaced the bidirectional bool↔3-tab sync with [sequencerToolboxTabProvider].
-/// One cross-area caller (Templates tab → "Go to Builder") still flips this to
-/// `true` to surface snippets. We keep it as a *write-only intent flag* that
-/// the toolbox panel bridges one-way into the enum (setting it back to false
-/// after acting), so there is no bidirectional coupling and the external
-/// caller keeps working without that area being edited here. See crossAreaDep.
+/// [sequencerToolboxTabProvider] owns the toolbox tab. One cross-area caller
+/// (Templates tab → "Go to Builder") flips this to `true` to surface snippets,
+/// so it stays a *write-only intent flag* that the toolbox panel bridges
+/// one-way into the enum (setting it back to false after acting). There is no
+/// bidirectional coupling.
 final snippetPaletteVisibleProvider = StateProvider<bool>((ref) => false);
 
 /// User-dragged width of the desktop left (toolbox) panel, or null to fall
-/// back to the derived responsive width. Persisted in-session so a drag no
-/// longer snaps back on the next layout pass (audit §6).
+/// back to the derived responsive width. Persisted in-session so a drag does
+/// not snap back on the next layout pass.
 final sequencerLeftPanelWidthProvider = StateProvider<double?>((ref) => null);
 
 /// User-dragged width of the desktop right (properties) panel.
 final sequencerRightPanelWidthProvider = StateProvider<double?>((ref) => null);
 
 /// Flattened (item, categoryName) pairs derived from [nodePaletteProvider]
-/// for the narrow-desktop icon rail (§18).
+/// for the narrow-desktop icon rail.
 ///
 /// Hoisting the flattening here means it recomputes only when the palette
 /// itself changes, not on every rail rebuild (window resize / hover). The
@@ -216,9 +211,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     });
 
     // Sync provider -> controller via a listen hook rather than peeking at
-    // the provider during build(). The build-time animateTo() worked most
-    // of the time but fired under window-resize storms / hot-reload,
-    // causing flicker (audit §4.3).
+    // the provider during build(). A build-time animateTo() also fires under
+    // window-resize storms / hot-reload, which flickers.
     ref.listenManual<int>(sequencerTabProvider, (prev, next) {
       if (!mounted) return;
       if (_tabController.index != next) {
@@ -251,11 +245,11 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       // its state-update path before we push a new route.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        // WF-N5 — a report is only worth a modal when somebody is watching.
-        // While the autopilot holds the rig (or the run that just ended was
-        // its own dispatch) the next terminal result is minutes away, and
-        // stacking a dialog per run put a click-eating modal over whatever
-        // screen the operator was on. Those queue instead.
+        // A report is only worth a modal when somebody is watching. While the
+        // autopilot holds the rig (or the run that just ended was its own
+        // dispatch) the next terminal result is minutes away, and a dialog per
+        // run stacks a click-eating modal over whatever screen the operator is
+        // on. Those queue instead.
         if (ref.read(sessionReportPresentationProvider) ==
             SessionReportPresentation.queued) {
           ref.read(pendingSessionReportsProvider.notifier).enqueue(
@@ -371,9 +365,9 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final isRunning = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
-    // Tab sync runs via ref.listenManual in initState (audit §4.3). The
-    // current value is still read for the shortcut bindings below that
-    // gate behaviour to the Builder tab.
+    // Tab sync runs via ref.listenManual in initState. The current value is
+    // still read for the shortcut bindings below that gate behaviour to the
+    // Builder tab.
     final currentTab = ref.watch(sequencerTabProvider);
 
     return ContextualTourPrompt(
@@ -383,18 +377,16 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       description: context.l10n.text('sequencerTourDescription'),
       durationMinutes: 4,
       alignment: Alignment.bottomRight,
-      // §22: the per-entry 400ms fade was cosmetic and replayed on every
-      // route entry. The shell already animates route transitions, so the
-      // screen mounts directly with no extra entrance animation.
+      // The shell animates route transitions, so the screen mounts directly
+      // with no entrance animation of its own.
       child: CallbackShortcuts(
         bindings: {
-          // Trust-patch §B: undo/redo/delete/duplicate/paste are
-          // mutations and MUST no-op while the sequence is running.
-          // Cutting Ctrl+Z is the load-bearing change here: a stray
-          // Ctrl+Z mid-run used to roll back Dart state while Rust
-          // kept executing the old tree (split-brain). Ctrl+C
-          // (clipboard copy) and Escape (clear multi-select) are
-          // NOT mutations and stay enabled.
+          // undo/redo/delete/duplicate/paste are mutations and MUST
+          // no-op while the sequence is running: a stray Ctrl+Z
+          // mid-run rolls back Dart state while Rust keeps executing
+          // the old tree (split-brain). Ctrl+C (clipboard copy) and
+          // Escape (clear multi-select) are NOT mutations and stay
+          // enabled.
           const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () {
             if (currentTab != 0) return;
             if (!ref.read(canEditSequenceProvider)) return;
@@ -488,7 +480,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
           },
           // Ctrl+T (or Cmd+T on Mac) toggles the toolbox between Nodes and
           // Snippets. From the Queue tab it switches to Snippets so the
-          // keystroke always has a visible effect (audit §25).
+          // keystroke always has a visible effect.
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
             if (currentTab != SequencerTab.builder.index) return;
             final current = ref.read(sequencerToolboxTabProvider);
@@ -510,8 +502,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
         // instead of out of it.
         child: FocusScope(
           autofocus: true,
-          // §17: derive ONE form-factor decision at the screen level and
-          // thread it to the tab strip so the header and the body agree.
+          // Derive ONE form-factor decision at the screen level and thread it
+          // to the tab strip so the header and the body agree.
           // We branch on the *short* side (same rule _BuilderContent uses)
           // so a phone held in landscape is treated as a phone in both the
           // strip and the content, instead of the strip (MediaQuery width)
@@ -539,8 +531,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
 
                   // Tab content. Each tab is lazily gated so Templates /
                   // Sequences / History are not constructed (and their async
-                  // loads not kicked off) until the user first visits them
-                  // (audit §2). The Builder tab is the default landing tab so
+                  // loads not kicked off) until the user first visits them.
+                  // The Builder tab is the default landing tab so
                   // it builds immediately. Once visited, a tab stays built so
                   // re-selecting it is instant and its scroll/async state
                   // survives. AnimatedTabBarView keeps the fade/slide between
@@ -555,10 +547,10 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                           index: SequencerTab.builder.index,
                           builder: (_) => _BuilderContent(colors: colors),
                         ),
-                        // Templates tab — merged library. Bundled read-only
-                        // sample sequences (audit §8.3.5) now live inside this
-                        // tab as a "Starters" section above the saved/built-in
-                        // templates, so the standalone Samples tab is gone.
+                        // Templates tab — the merged library. Bundled
+                        // read-only sample sequences live here as a "Starters"
+                        // section above the saved/built-in templates, so there
+                        // is no separate Samples tab.
                         _LazyTab(
                           controller: _tabController,
                           index: SequencerTab.templates.index,
@@ -590,7 +582,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
 }
 
 /// Defers construction of an off-screen tab until it is first selected, then
-/// keeps it built so re-selection is instant (audit §2).
+/// keeps it built so re-selection is instant.
 ///
 /// While unvisited it renders an empty [SizedBox.shrink] so the tab's subtree
 /// — and any async loading it kicks off in `initState` (Library/History) — is

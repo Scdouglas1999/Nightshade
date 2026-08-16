@@ -23,18 +23,17 @@ class _StubFilterWheelNotifier extends FilterWheelStateNotifier {
   }
 }
 
-/// Regression suite for two run-record lies observed on the same live run.
+/// Two ways a run record states something the run did not do.
 ///
-/// 1. The Session Report's Mount & focus block read "Autofocus runs 0" for a
-///    run whose Autofocus node swept 9 points, logged
+/// 1. `SequenceRunStats.recordAutofocus()` with no production call site can
+///    only ever report 0, so the Session Report's Mount & focus block reads
+///    "Autofocus runs 0" for a run whose Autofocus node swept 9 points, logged
 ///    "Child 'Autofocus' completed with status: Success" and moved the focuser
-///    25000 -> 25070. `SequenceRunStats.recordAutofocus()` had no production
-///    call site at all, so the counter could not be anything but 0.
-/// 2. The same run's four frames were filed by `stats_json.targetBreakdown`
-///    under the filter key "Unknown" while `captured_images.filter` said "R"
-///    for all four and the live telemetry strip said "Filter: R". The stats
-///    bucket read `SequencerEvent.ExposureCompleted.filter`, a field the
-///    native event does not carry.
+///    25000 -> 25070.
+/// 2. A stats bucket reading `SequencerEvent.ExposureCompleted.filter` — a
+///    field the native event does not carry — files every frame under the
+///    filter key "Unknown" while `captured_images.filter` says "R" and the live
+///    telemetry strip says "Filter: R".
 void main() {
   setUpAll(registerMocktailFallbackValues);
 

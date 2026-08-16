@@ -85,10 +85,8 @@ class MosaicProjectService {
   final PostSessionSeam _seam;
   final MosaicService _geometry;
 
-  // ---------------------------------------------------------------------------
   // 1. Plan — lay the grid out into a durable project + per-panel rows, each
   //    with its OWN distinct capture target.
-  // ---------------------------------------------------------------------------
 
   /// Create a durable mosaic project: persist a `mosaic_projects` row, compute
   /// each panel's center RA/Dec from the grid geometry, create one DISTINCT
@@ -215,9 +213,7 @@ class MosaicProjectService {
     });
   }
 
-  // ---------------------------------------------------------------------------
   // 2. Capture — launch the per-panel-target mosaic sequence into the executor.
-  // ---------------------------------------------------------------------------
 
   /// LAUNCH capture for [projectId]: resolve each panel's distinct capture
   /// target, hand the app layer a [MosaicCaptureRequest] so it can build the
@@ -274,9 +270,7 @@ class MosaicProjectService {
     return request;
   }
 
-  // ---------------------------------------------------------------------------
   // 3. Integrate — turn each panel's captured subs into a per-panel master.
-  // ---------------------------------------------------------------------------
 
   /// Integrate every panel of [projectId]: for each panel, gather its accepted
   /// captured subs (by the panel's `target_id`), run the existing
@@ -339,9 +333,7 @@ class MosaicProjectService {
     return outcomes;
   }
 
-  // ---------------------------------------------------------------------------
   // 4. Stitch — project the panel masters onto one shared canvas.
-  // ---------------------------------------------------------------------------
 
   /// Stitch [projectId]'s integrated panels into one mosaic master.
   ///
@@ -399,13 +391,13 @@ class MosaicProjectService {
         continue;
       }
 
-      // FITS-existence gate (remediation 2026-06-09, finding #4): a non-empty
-      // path is NOT proof the file is on disk. A master FITS removed by a temp
-      // sweep on legacy data, a manual cleanup, or a supersession bug would be
-      // handed to the native stitcher, which fails to read it and ABORTS THE
-      // WHOLE MOSAIC — defeating the per-panel skip-gate. Probe existence
-      // (best-effort, like the WCS probe) and degrade a missing file to a
-      // skipped panel so one bad panel never poisons the stitch.
+      // FITS-existence gate: a non-empty path is NOT proof the file is on
+      // disk. A master FITS removed by a temp sweep on legacy data, a manual
+      // cleanup, or a supersession bug reaches the native stitcher, which fails
+      // to read it and ABORTS THE WHOLE MOSAIC, defeating the per-panel
+      // skip-gate. Existence is probed (best-effort, like the WCS probe) and a
+      // missing file degrades to a skipped panel so one bad panel never poisons
+      // the stitch.
       if (!await _safeFitsExists(fitsPath)) {
         skips.add(
           MosaicPanelStitchSkip(

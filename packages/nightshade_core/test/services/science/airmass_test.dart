@@ -26,17 +26,14 @@ import 'package:nightshade_core/nightshade_core.dart';
 double _secantZenith(double altitudeDegrees) =>
     1.0 / math.sin(altitudeDegrees * math.pi / 180.0);
 
-/// Kasten & Young (1989), the formula that used to be copied into the
-/// photometric-calibration wizard. Kept here (and nowhere in `lib/`) so the
-/// tests can state exactly how far the retired copies were from the model the
-/// product now uses.
+/// Kasten & Young (1989). Kept here, and nowhere in `lib/`, so the tests can
+/// state how far an alternative formula sits from the product's model.
 double _kastenYoung1989(double altitudeDegrees) =>
     1.0 /
     (math.sin(altitudeDegrees * math.pi / 180.0) +
         0.50572 * math.pow(altitudeDegrees + 6.07995, -1.6364));
 
-/// Pickering (2002) with no low-altitude switch — the formula that used to be
-/// copied into the AAVSO exporter.
+/// Pickering (2002) with no low-altitude switch.
 double _pickering2002(double altitudeDegrees) =>
     1.0 /
     math.sin(
@@ -108,9 +105,9 @@ void main() {
 
     test('is Young 1994 at the horizon, not Pickering and not a clamp', () {
       // Young (1994) at z = 90° evaluates to 31.73; the accepted
-      // standard-atmosphere value is 31.78. Pickering's expression, which the
-      // AAVSO exporter used to run all the way down, reads 38.75 there — 22%
-      // high — and the exporter's clamp(1, 40) never bound it.
+      // standard-atmosphere value is 31.78. Pickering's expression run all the
+      // way down reads 38.75 there — 22% high — and a clamp(1, 40) never binds
+      // it.
       final horizon = airmassForTrueAltitude(0.0)!;
       expect(horizon, closeTo(31.74, 0.05));
       expect(_pickering2002(0.0), closeTo(38.75, 0.05));
@@ -168,9 +165,9 @@ void main() {
   });
 
   group('the retired copies really did disagree', () {
-    // These are regression anchors: each asserts a number the product used to
-    // publish, so a future re-introduction of one of these formulas is a test
-    // failure and not a silent drift between surfaces.
+    // Each asserts the number one of the retired formulas publishes, so
+    // re-introducing any of them is a test failure rather than a silent drift
+    // between surfaces.
     test('the wizard clamp(1, 8) erased the low-altitude leverage it needs', () {
       // At 4° true altitude the atmosphere is ~11.9 air masses deep. The
       // wizard reported 8.0 — and 8.0 for every frame below ~7°, which flattens

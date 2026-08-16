@@ -1,5 +1,5 @@
-// SCI-28 (Stop destroys the stack) + SCI-47 (frame counts and pixel counts in
-// one unitless list) for the live-stacking panel.
+// The live-stacking panel: Stop must not destroy the stack, and frame counts
+// must not share a unitless list with pixel counts.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -248,12 +248,11 @@ void main() {
     expect(find.text('Could not save the stacked master'), findsOneWidget);
   });
 
-  // ND-6: typing `stack_master.fits` into the save chooser produced
-  // `stack_master.png` on disk — the extension was swapped silently, so the
-  // operator believed they had a FITS master with a header, WCS and
-  // integration metadata, and had a picture instead. Decision 8 made the FITS
-  // master real; a format the stacker still cannot write is refused with the
-  // reason rather than renamed.
+  // Typing `stack_master.fits` into the save chooser must not produce
+  // `stack_master.png` on disk: a silently swapped extension leaves the operator
+  // believing they have a FITS master with a header, WCS and integration
+  // metadata when they have a picture. A format the stacker cannot write is
+  // refused with the reason rather than renamed.
   testWidgets('a format the stacker cannot write is refused, not renamed',
       (tester) async {
     final harness = await _pumpPanel(

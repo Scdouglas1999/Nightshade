@@ -88,9 +88,9 @@ void main() {
     expect(find.text('join'), findsOneWidget);
   });
 
-  // NEW-E1: the label was a bare Text beside an IconButton, so clicking the
-  // WORD did nothing and the tree published `panel: Back` with no role. The
-  // whole row is one control now.
+  // The whole row is one control. A bare Text beside an IconButton leaves a
+  // click on the WORD doing nothing, and publishes `panel: Back` with no
+  // role.
   testWidgets('the label is part of the control, and the control is a button',
       (tester) async {
     final handle = tester.ensureSemantics();

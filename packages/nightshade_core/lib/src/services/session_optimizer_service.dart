@@ -231,8 +231,7 @@ class SessionOptimizationPlan {
   bool get hasRecommendation => primaryTarget != null;
 }
 
-/// Inputs needed to replace the old Plan Tonight exposure lookup table with
-/// the Smart Night exposure calculator.
+/// Inputs the Smart Night exposure calculator needs.
 class SmartNightExposureContext {
   final CameraExposureSpec camera;
   final int bortleClass;
@@ -527,10 +526,8 @@ class SessionOptimizerService {
       if (exposurePlan.rationale != null) exposurePlan.rationale!,
       // dataProgress is EXACTLY 0.0 when the target has no integration at all
       // (target_suggestion_service._calculateDataProgress returns 0.1 for
-      // "some data, no plan"), so the old `< 0.25` test called a target with
-      // zero captured frames a "large unfinished dataset" and an "efficient
-      // completion target" — in the same block that said "No data collected
-      // yet". There is nothing to complete until something has been captured.
+      // "some data, no plan"), so the `> 0` half of the test is what keeps a
+      // target with zero captured frames from being called partially captured.
       if (primary.dataProgress > 0 && primary.dataProgress < 0.25)
         'Partially captured already, so finishing it is an efficient use of '
             'tonight.',

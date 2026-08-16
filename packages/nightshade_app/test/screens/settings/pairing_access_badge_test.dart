@@ -1,9 +1,8 @@
-// Regression: the Paired Devices list rendered every row identically — name,
-// device-type label, paired-on date — and never said what a device's token is
-// allowed to DO, even though the host has always stored it
-// (paired_devices.auth_grant_spec). A phone holding 'admin' looked exactly like
-// a view-only browser, which is precisely the distinction you need at the
-// moment you are deciding which row to revoke.
+// The Paired Devices list must say what a device's token is allowed to DO — the
+// host stores it in `paired_devices.auth_grant_spec`. Rendering every row
+// identically (name, device-type label, paired-on date) makes a phone holding
+// 'admin' look exactly like a view-only browser, which is precisely the
+// distinction you need at the moment you are deciding which row to revoke.
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

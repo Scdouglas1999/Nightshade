@@ -1,8 +1,6 @@
 part of '../planetarium_providers.dart';
 
-// ============================================================================
-// Search Provider
-// ============================================================================
+// Search provider
 
 /// Object type filter for search
 enum SearchObjectTypeFilter { all, stars, galaxies, nebulae, clusters }
@@ -299,17 +297,14 @@ const Map<String, String> _wellKnownStarNames = {
 /// A solar-system body (major planet, comet, or asteroid) exposed to the
 /// unified search as a searchable [CelestialObject].
 ///
-/// Solar-system bodies move, so they are not part of the static star/DSO
-/// catalogs the search otherwise scans. This provider computes their current
-/// positions on demand from the orbital theory (VSOP87 for planets, Keplerian
-/// propagation for minor bodies) so the omnibox can resolve "jupiter" or
-/// "ceres" regardless of whether the corresponding sky overlay is toggled on.
+/// Positions are computed on demand from the orbital theory (VSOP87 for
+/// planets, Keplerian propagation for minor bodies), so the omnibox resolves
+/// "jupiter" or "ceres" whether or not the sky overlay is on.
 ///
-/// Each body is wrapped as a [SolarSystemBody] (a [Star] subtype, so every
-/// point-source code path keeps working) using the same id conventions the
-/// sky-view tap handler uses (`PLANET_<name>` / `MINORBODY_<name>`) so
-/// selection, fly-to, and the details panel treat a searched planet identically
-/// to a tapped one.
+/// Each body is wrapped as a [SolarSystemBody] (a [Star] subtype) under the
+/// same ids the sky-view tap handler uses (`PLANET_<name>` /
+/// `MINORBODY_<name>`), so selection, fly-to and the details panel treat a
+/// searched planet identically to a tapped one.
 final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
   final time = ref.watch(observationMinuteProvider);
   final objects = <CelestialObject>[];
@@ -373,11 +368,8 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
 
     // Catalogue numbers are zero-padded in cross-identifiers, so a plain
     // substring match on a typed designation drags in every object whose
-    // PGC/UGC digits happen to contain it — typing "6720" ranked NGC7107
-    // (PGC 067209), IC728 (UGC 06720), NGC7112 (PGC 067208) and IC5118
-    // (PGC 067202) immediately under M57, and M57 only led because it was the
-    // brightest of the tie. A designation-shaped query resolves its own
-    // catalogue entry first, deterministically.
+    // PGC/UGC digits happen to contain it. A designation-shaped query resolves
+    // its own catalogue entry first, deterministically.
     final designationQuery = _splitDesignation(qLower);
 
     try {
@@ -707,14 +699,18 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
 
     // Observable now filter
     if (filters.observableNow) {
-      final location = _ref.read(observerLocationProvider);
+      final site = _ref.read(observerLocationProvider).site;
+      // Whether an object is up is a question about a place. With no site on
+      // record nothing can pass the filter — listing objects as observable
+      // would state an altitude nobody has computed.
+      if (site == null) return false;
       final obsTime = _ref.read(observationTimeProvider);
       final (alt, _) = AstronomyCalculations.objectAltAz(
         raDeg: obj.coordinates.ra * 15,
         decDeg: obj.coordinates.dec,
         dt: obsTime.time,
-        latitudeDeg: location.latitude,
-        longitudeDeg: location.longitude,
+        latitudeDeg: site.latitude,
+        longitudeDeg: site.longitude,
       );
       if (alt < 10) return false; // Must be at least 10° above horizon
     }

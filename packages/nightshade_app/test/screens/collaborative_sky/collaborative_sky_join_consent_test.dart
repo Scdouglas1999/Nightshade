@@ -1,5 +1,4 @@
-// Collaborative Sky WS3 — the co-imaging JOIN flow must never promise a co-add
-// it will not deliver.
+// The co-imaging JOIN flow must never promise a co-add it will not deliver.
 //
 // A completed sub only folds into the combined stack when an UNATTENDED
 // contribution consent is on record (the same MosaicUploadConsent the mosaic
@@ -134,7 +133,8 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
-      // The success snackbar tells the truth: subs will NOT co-add yet.
+      // The success snackbar says what actually happens: subs will NOT co-add
+      // yet.
       expect(find.textContaining('Sharing is off'), findsOneWidget);
       expect(
         find.textContaining('your subs co-add into the combined stack'),

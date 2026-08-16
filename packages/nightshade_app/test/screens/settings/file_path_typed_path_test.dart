@@ -88,11 +88,10 @@ void main() {
         findsOneWidget);
   });
 
-  // The fix claims the box commits "on Enter AND on focus loss (tabbing away
-  // is how people leave a path box)". Enter is covered above; without this
-  // case a fix that only wired onSubmitted would still look complete, and the
-  // operator who types a path and clicks the next field would silently lose it
-  // — the original finding, one keystroke away.
+  // The box commits on Enter AND on focus loss — tabbing away is how people
+  // leave a path box. Enter is covered above; without this case, wiring only
+  // onSubmitted would look complete while the operator who types a path and
+  // clicks the next field loses it silently.
   testWidgets('leaving the field commits the typed path', (tester) async {
     final handle = await _pump(tester);
 
@@ -185,8 +184,7 @@ void main() {
   // resolves under the documents directory (resolveDefaultDatabaseFile) while
   // LoggingService writes <application-support>/logs
   // (resolveNightshadeDataDirectory). Naming one folder and claiming the other
-  // is inside it swaps the old "managed automatically" for a worse untruth: a
-  // bug report with no logs attached.
+  // is inside it produces a bug report with no logs attached.
   testWidgets('the logs folder is named separately and can be opened',
       (tester) async {
     final reveals = <(String, String)>[];

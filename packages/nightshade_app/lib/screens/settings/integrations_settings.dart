@@ -140,7 +140,7 @@ class IntegrationsSettings extends ConsumerWidget {
 
     // Ensure the bundled plugins are registered before we read host state.
     // A registration failure must NOT silently render an empty list — surface
-    // it as an error state (errors are a feature).
+    // it as an error state.
     final registration = ref.watch(pluginRegistrationProvider);
 
     return registration.when(

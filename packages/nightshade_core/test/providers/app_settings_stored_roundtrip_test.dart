@@ -121,8 +121,6 @@ void main() {
       alpacaServerHost: 'alp.local',
       alpacaServerPort: 11112,
       alpacaAutoDiscover: true,
-      // Sequencer Execution
-      useSimulationMode: true,
       // Web Server
       webServerEnabled: true,
       webServerPort: 9090,

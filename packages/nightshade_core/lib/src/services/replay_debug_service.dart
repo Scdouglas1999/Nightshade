@@ -62,14 +62,12 @@ class ReplayDebugService {
     _schemaEnsured = true;
   }
 
-  // ---------------------------------------------------------------------------
   // Change-notification fan-out.
   //
   // Each subscriber listens on its own stream over the broadcast bus so
   // multiple replay screens (desktop + web-remote viewers) all see fresh
   // data after a write. The `_notify()` call after every mutation flushes
   // a tick that downstream stream-builders rebuild on.
-  // ---------------------------------------------------------------------------
   final _changeBus = StreamController<void>.broadcast();
   void _notify() {
     if (!_changeBus.isClosed) {
@@ -82,9 +80,7 @@ class ReplayDebugService {
     await _changeBus.close();
   }
 
-  // ---------------------------------------------------------------------------
   // Writes.
-  // ---------------------------------------------------------------------------
 
   /// Persist a decision built from a Rust bridge event. Returns the
   /// inserted row id.
@@ -184,9 +180,7 @@ class ReplayDebugService {
     return removed;
   }
 
-  // ---------------------------------------------------------------------------
   // Reads.
-  // ---------------------------------------------------------------------------
 
   /// One-shot fetch of every decision for a given run, ordered
   /// chronologically (ascending by timestamp). Returns an empty list

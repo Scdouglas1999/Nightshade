@@ -214,17 +214,15 @@ class ImagingTaskHandler extends TaskHandler {
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    // This used to call
-    // `FlutterForegroundTask.updateService` every 5 s with a hardcoded
-    // "Sequence running..." text, which clobbered whatever real progress
-    // text the main isolate's `updateProgress()` last wrote. The real
-    // notification text is driven from the main isolate by the sequence
-    // event listener (see `ImagingForegroundService.updateProgress` in
-    // this file, called from `MobileSequenceHooks._handleProgressUpdate`);
-    // the repeat event was never doing useful work for it.
+    // Intentionally a no-op; kept because the plugin's [TaskHandler]
+    // interface requires the override.
     //
-    // Kept as an override (rather than removed) because the plugin's
-    // [TaskHandler] interface requires it; intentionally a no-op.
+    // The notification text is the run's real progress, written from the main
+    // isolate by the sequence event listener (see
+    // `ImagingForegroundService.updateProgress` in this file, called from
+    // `MobileSequenceHooks._handleProgressUpdate`). A periodic overwrite from
+    // this isolate would replace it with a generic placeholder every few
+    // seconds.
   }
 
   @override

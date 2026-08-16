@@ -26,10 +26,9 @@ extension _DeviceServiceProfileConnections on DeviceService {
   /// * One device failing does NOT block any other device. Per-device
   ///   errors are reported as `failed` events; the stream itself never
   ///   errors and always closes cleanly once every device is settled.
-  /// * Errors are a feature: the original backend error is preserved on
-  ///   the `failed` event so the UI can show it (driver error, "device not
-  ///   reachable", USB hub blip, etc.). We do NOT swallow or rewrite the
-  ///   error.
+  /// * The original backend error rides on the `failed` event verbatim
+  ///   (driver error, "device not reachable", USB hub blip); it is never
+  ///   swallowed or rewritten.
   /// * If [profile] has no configured devices, the stream closes
   ///   immediately with no events.
   ///

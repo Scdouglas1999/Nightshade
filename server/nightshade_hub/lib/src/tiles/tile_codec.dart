@@ -3,9 +3,9 @@
 ///
 /// # Why this lives in the hub
 ///
-/// The hub fuses contributions server-side. The contract (§5) says it may
-/// either call the Rust `merge_tiles` over an FFI shim or re-implement the
-/// documented additive merge in Dart "per the documented NSA1 format". The
+/// The hub fuses contributions server-side, which it can do either by calling
+/// the Rust `merge_tiles` over an FFI shim or by re-implementing the documented
+/// additive merge in Dart. The
 /// keystone's on-disk format is `NST1` (`TILE_MAGIC` / `TILE_STATE_VERSION = 1`),
 /// and the federation algebra is deliberately trivial: a per-pixel weighted
 /// mean decomposes into six running vectors (`sum_w`, `sum_w2`, `sum_wx`,

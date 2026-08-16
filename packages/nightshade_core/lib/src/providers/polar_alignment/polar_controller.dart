@@ -1,9 +1,5 @@
 part of '../polar_alignment_provider.dart';
 
-// =============================================================================
-// POLAR ALIGNMENT CONTROLLER (Actions)
-// =============================================================================
-
 /// Controller provider for polar alignment actions
 final polarAlignmentControllerProvider = Provider<PolarAlignmentController>((
   ref,

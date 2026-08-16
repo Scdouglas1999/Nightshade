@@ -108,9 +108,8 @@ extension _NightshadeDatabaseMigrationV32ToV40 on NightshadeDatabase {
     }
 
     // Version 35: Promote safety monitor to a first-class equipment-profile
-    // device. Prior to this version, a connected safety monitor had to be
-    // re-selected manually every session because there was no profile
-    // column to persist it (Audit C1). The column is nullable so existing
+    // device, so a connected safety monitor persists with the profile instead
+    // of being re-selected every session. The column is nullable so existing
     // profiles upgrade cleanly without backfill.
     if (from < 35) {
       final hasSafetyMonitorId = await _columnExists(
@@ -125,11 +124,10 @@ extension _NightshadeDatabaseMigrationV32ToV40 on NightshadeDatabase {
     }
 
     // Version 36: Promote switch device to a first-class equipment-profile
-    // device. Mirrors v35's safety-monitor promotion: prior to
-    // this column, a connected switch device had to be re-selected manually
-    // every session because there was no profile column to persist it.
-    // The column is nullable so existing profiles upgrade cleanly without
-    // backfill.
+    // device, mirroring v35's safety-monitor promotion. Without this column a
+    // connected switch device has to be re-selected manually every session,
+    // because no profile column persists it. The column is nullable so
+    // existing profiles upgrade cleanly without backfill.
     if (from < 36) {
       final hasSwitchId = await _columnExists(
         'equipment_profiles',
@@ -144,14 +142,13 @@ extension _NightshadeDatabaseMigrationV32ToV40 on NightshadeDatabase {
 
     // Version 37 : Sidecar thumbnail caching for captured images.
     //
-    // Mobile/Pi gallery load was dominated by 200+ cold FITS reads, one
-    // per thumbnail request. The fix is to write a `.thumb.jpg` next to
-    // each FITS at capture time and serve that cached file with ETag
-    // headers. The `thumbnail_path` column records the sidecar's on-disk
-    // path so the GET handler doesn't have to probe the filesystem on
-    // every call. Nullable for backward compatibility — legacy rows are
-    // healed lazily on first read or via the explicit
-    // `/api/images/backfill-thumbnails` job.
+    // Mobile/Pi gallery load is otherwise dominated by 200+ cold FITS reads,
+    // one per thumbnail request. A `.thumb.jpg` written next to each FITS at
+    // capture time and served with ETag headers takes that off the hot path.
+    // The `thumbnail_path` column records the sidecar's on-disk path so the
+    // GET handler does not have to probe the filesystem on every call.
+    // Nullable for backward compatibility — legacy rows are healed lazily on
+    // first read or via the explicit `/api/images/backfill-thumbnails` job.
     if (from < 37) {
       await _ensureCapturedImagesThumbnailPathColumn();
     }

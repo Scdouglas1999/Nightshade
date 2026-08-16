@@ -32,9 +32,9 @@ void main() {
       }
     });
 
-    // The whole point of the fix: dragging the same FRACTION of the plot has to
-    // rotate the surface by the same angle whatever the window is. A fixed
-    // radians-per-pixel rate made a wide desktop plot several times as twitchy.
+    // Dragging the same FRACTION of the plot has to rotate the surface by the
+    // same angle whatever the window is. A fixed radians-per-pixel rate makes a
+    // wide desktop plot several times as twitchy.
     test('the same fractional drag rotates equally on a small and wide plot',
         () {
       const small = Size(600, 340);

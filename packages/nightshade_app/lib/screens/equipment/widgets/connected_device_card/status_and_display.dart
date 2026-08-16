@@ -41,7 +41,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
 
   /// Header icon tint — never use category [accentColor] when disconnected.
   /// Safety-monitor accent is `colors.success`, which would read as "connected"
-  /// if we fell back to accent (audit §4.22).
+  /// if we fell back to accent.
   Color _iconColorForState(
       DeviceConnectionState state, NightshadeColors colors) {
     return switch (state) {
@@ -88,13 +88,13 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
                   letterSpacing: 0.5,
                 ),
               ),
-              // WE-EQ-N6: at 1600x900 the FILTER WHEEL card read
-              // "Simulated Filter ..." while the camera, mount and focuser
-              // cards beside it — same column width — showed their full names,
-              // so one card looked like it had a different, mangled device.
-              // The name is a couple of characters over, not paragraphs: shrink
-              // it to fit before dropping any of it, and keep the ellipsis (and
-              // a tooltip) for a name that is genuinely too long.
+              // A name a couple of characters over the column width must
+              // shrink to fit before any of it is dropped: at 1600x900 the
+              // FILTER WHEEL card ellipsises to "Simulated Filter ..." beside
+              // camera, mount and focuser cards of the same width showing
+              // their full names, so one card looks like it holds a different,
+              // mangled device. The ellipsis (and a tooltip) stays for a name
+              // that is genuinely too long.
               Tooltip(
                 message: deviceName,
                 child: FittedBox(
@@ -648,9 +648,8 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final age = lastChecked == null ? null : now.difference(lastChecked);
         final isStale = age != null && age > _safetyStatusStaleAfter;
         return [
-          // A stale reading is NOT a safe reading. A wedged driver read used to
-          // leave this pinned on green "SAFE" indefinitely while nothing was
-          // actually being polled.
+          // A stale reading is NOT a safe reading: once the read is older
+          // than the staleness budget the card reports STALE, never SAFE.
           _DeviceMetric(
             value: lastChecked == null
                 ? 'UNKNOWN'
@@ -766,8 +765,8 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
   /// `<level>/<max>` only when the driver actually reported both halves.
   ///
   /// `maxBrightness` arrives as 0 when neither the host payload nor the native
-  /// capability probe carried a brightness scale, and `brightness` is null when
-  /// the level itself was not reported. Either way there is no reading to show.
+  /// capability probe carries a brightness scale, and `brightness` is null when
+  /// the level itself is unreported. Either way there is no reading to show.
   String _calibratorBrightnessLabel(
       CoverCalibratorCapabilitySnapshot snapshot) {
     final isPowered = snapshot.calibratorStatus == CalibratorStatus.ready ||
@@ -850,7 +849,5 @@ String _formatAge(Duration age) {
 ///
 /// The environmental poll runs every 5 s with a 4 s read cap, so a healthy cycle
 /// completes well inside 10 s. 30 s therefore cannot fire on ordinary jitter but
-/// still catches a wedged or unresponsive monitor within half a minute — which
-/// matters because the previous behaviour was to keep rendering green "SAFE"
-/// forever.
+/// still catches a wedged or unresponsive monitor within half a minute.
 const Duration _safetyStatusStaleAfter = Duration(seconds: 30);

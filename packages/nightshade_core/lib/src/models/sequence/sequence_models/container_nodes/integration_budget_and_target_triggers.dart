@@ -2,9 +2,7 @@
 
 part of '../../sequence_models.dart';
 
-// =============================================================================
-// CONTAINER / LOGIC NODES
-// =============================================================================
+// Container / logic nodes
 
 /// Dart mirror of the Rust `FilterBudgetEntry`.
 /// `Absolute(secs)` caps that filter at a fixed time; `Ratio(value)` is
@@ -151,7 +149,6 @@ class IntegrationBudget {
   );
 }
 
-// ============================================================================
 // Per-target start/end altitude crossings.
 //
 // `TargetTrigger` mirrors the Rust enum in
@@ -160,7 +157,6 @@ class IntegrationBudget {
 // begins / ends imaging. We use a hand-rolled sealed-class hierarchy so
 // JSON encoding stays symmetric with the Rust
 // `#[serde(tag = "kind", content = "value")]` shape.
-// ============================================================================
 
 /// One leaf or compound condition that can gate a target's start / end.
 ///

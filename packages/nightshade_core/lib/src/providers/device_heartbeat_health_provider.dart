@@ -1,21 +1,17 @@
 /// Per-device heartbeat health state.
 ///
 /// Rust's heartbeat monitor publishes [HeartbeatStatusChanged] events for
-/// every device that has `apiStartDeviceHeartbeat` running. Before this
-/// provider those events were dropped on the Dart side — users had to
-/// open the diagnostics panel to learn that the camera or mount was
-/// degrading. The provider stores the latest reported health per device
-/// id so the equipment cards can render a colored indicator (green /
-/// amber / gray) with a tooltip carrying the actual failure reason
-/// (errors are a feature here).
+/// every device that has `apiStartDeviceHeartbeat` running. This provider
+/// stores the latest reported health per device id so the equipment cards can
+/// render a colored indicator (green / amber / gray) with a tooltip carrying
+/// the actual failure reason.
 ///
-/// The state is intentionally *separate* from the existing
-/// `*StateProvider` connection state (see the related change and ):
-/// heartbeat reports a richer signal (degraded != disconnected) and we
-/// don't want the heartbeat dispatch path to step on the established
-/// disconnect / error handlers. The connection-state notifiers still
-/// own connecting/connected/disconnected/error — this provider only
-/// surfaces the health gradient on top.
+/// The state is deliberately *separate* from the `*StateProvider` connection
+/// state: heartbeat reports a richer signal (degraded != disconnected), and
+/// the heartbeat dispatch path must not step on the established disconnect /
+/// error handlers. The connection-state notifiers own
+/// connecting/connected/disconnected/error; this provider only surfaces the
+/// health gradient on top.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -283,16 +279,15 @@ class DeviceHeartbeatHealthNotifier
         }
         return (HeartbeatHealth.degraded, buf.toString());
       case 'disconnected':
-        // The Rust monitor marks the device disconnected after the
-        // failure threshold is crossed. The heartbeat-lost path no longer
-        // emits a standalone equipment `Disconnected` event (deduped to
-        // avoid a redundant disconnect toast); instead, DeviceService's
-        // `HeartbeatStatusChanged` handler routes the `disconnected`
-        // status through `_handleDeviceDisconnected`, which calls
-        // `clearDevice` to drop this entry back to gray "unknown". We
-        // still record the transient `degraded`-equivalent state here so
-        // a listener that observes this status event before the clear
-        // runs sees a sensible value.
+        // The Rust monitor marks the device disconnected after the failure
+        // threshold is crossed. The heartbeat-lost path emits no standalone
+        // equipment `Disconnected` event, which would raise a second
+        // disconnect toast; DeviceService's `HeartbeatStatusChanged` handler
+        // routes the `disconnected` status through `_handleDeviceDisconnected`,
+        // which calls `clearDevice` to drop this entry back to gray "unknown".
+        // The transient degraded state is still recorded here so a listener
+        // that observes this status event before the clear runs sees a
+        // sensible value.
         return (
           HeartbeatHealth.degraded,
           consecutiveFailures > 0

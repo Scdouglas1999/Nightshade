@@ -8,49 +8,21 @@ import 'snackbar_helper.dart';
 
 /// Universal wrapper for sequence mutations originating from the UI.
 ///
-/// The trust patch elevated several historically-silent failure modes in
-/// `CurrentSequenceNotifier` into typed exceptions:
+/// Every mutation site routes through here so the catch and the user-facing
+/// feedback are identical: the editor raises typed exceptions
+/// ([SequenceLockedException], [SnippetDeserializationException],
+/// [CrossParentReorderException], [NoActiveSequenceException],
+/// [SequenceValidationFailedException]) which an uncaught call site turns into
+/// an undismissable red-error overlay.
 ///
-///   * [SequenceLockedException] — mutation attempted while the sequencer
-///     is Running / Paused / Stopping. UI affordances *should* already be
-///     disabled by [canEditSequenceProvider] but races (drag-drop already
-///     in-flight when Start is pressed, etc.) can still hit it.
-///   * [SnippetDeserializationException] — clipboard/snippet payload
-///     contains a `nodeType` the editor doesn't recognise. Common when
-///     pasting from a newer version of the app.
-///   * [CrossParentReorderException] — Targets-tab reorder across two
-///     parent containers; the bulk API can't express the desired semantic.
-///   * [NoActiveSequenceException] — the user invoked a mutation before
-///     opening or creating a sequence.
-///   * [SequenceValidationFailedException] — the editor wrote OK but the
-///     sequence won't round-trip through a file save / programmatic export.
-///     Carries the full [ValidationIssue] list.
+/// Returns `true` when the action completed without raising one of the known
+/// editor exceptions; `false` when one was caught and surfaced (the helper has
+/// already shown the snackbar / dialog).
 ///
-/// Before this helper, ~15 call sites in `nightshade_app` invoked
-/// `currentSequenceProvider.notifier.X(...)` with no try/catch at all,
-/// turning thrown exceptions into red-error overlays the user couldn't
-/// dismiss. This helper centralises the catch + user-facing feedback so
-/// every mutation site behaves identically.
-///
-/// Usage:
-/// ```dart
-/// await withSequenceMutation(
-///   context,
-///   ref,
-///   operationName: 'Duplicate Node',
-///   action: () async {
-///     ref.read(currentSequenceProvider.notifier).duplicateNode(id);
-///   },
-/// );
-/// ```
-///
-/// Returns `true` when the action completed without raising one of the
-/// known editor exceptions; `false` when one of them was caught and
-/// surfaced to the user (the helper has already shown the snackbar /
-/// dialog). Synchronous throws from non-editor code (e.g. `StateError`)
-/// are NOT swallowed — they bubble out to whatever try/catch the caller
-/// has, or to the framework. This is deliberate: surprise crashes are
-/// still bugs to fix, not user-facing errors to paper over.
+/// Synchronous throws from NON-editor code (e.g. `StateError`) are deliberately
+/// NOT swallowed — they bubble out to the caller or the framework, because a
+/// surprise crash is a bug to fix rather than a user-facing error to paper
+/// over.
 Future<bool> withSequenceMutation(
   BuildContext context,
   WidgetRef ref, {

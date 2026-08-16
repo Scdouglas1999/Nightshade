@@ -1,9 +1,7 @@
 part of '../backup_service.dart';
 
 extension _BackupTableRegistry on BackupService {
-  // =========================================================================
   // Private export methods
-  // =========================================================================
 
   Future<Map<String, dynamic>> _exportSettings() async {
     final settingsDao = SettingsDao(database);
@@ -22,9 +20,9 @@ extension _BackupTableRegistry on BackupService {
 
     // Drift's generated JSON codec includes the primary key, default/active
     // flags, timestamps, device display names, and every current profile
-    // column. The previous hand-written subset omitted `id` and `isDefault`;
-    // replace-restoring that backup allocated a new id and silently lost the
-    // startup profile designation, breaking foreign-key identity.
+    // column, so `id` and `isDefault` survive a restore: without them a
+    // replace-restore allocates a new id and loses the startup-profile
+    // designation, breaking foreign-key identity.
     return profiles.map((profile) => profile.toJson()).toList();
   }
 
@@ -57,12 +55,10 @@ extension _BackupTableRegistry on BackupService {
     }).toList();
   }
 
-  // =========================================================================
   // Extended-coverage export/import. Each table is exported as a
   // JSON array of the drift-generated `toJson()` representation. Restore
   // uses the corresponding companion's `fromJson` + InsertMode.insertOrIgnore
   // so existing primary keys round-trip without overwriting current data.
-  // =========================================================================
 
   /// Export every extended-coverage table to a `tableKey -> rows` map.
   /// Keys are the same strings the restore branch looks for in the backup
@@ -106,12 +102,11 @@ extension _BackupTableRegistry on BackupService {
       'lineRatioProducts': await _dumpTable(database.lineRatioProducts),
       // Focus models
       'focusModels': await _dumpTable(database.focusModels),
-      // Weather-safety configuration. NOT a key/value setting — it lives in its
-      // own single-row table, so it was absent from every backup: restoring on
-      // a new machine silently reset every safety threshold (and the master
-      // switch) to defaults while the page promised "restoring replaces local
-      // configuration". Imported by [_importWeatherSettings], which updates the
-      // singleton row instead of insert-or-ignoring a second one.
+      // Weather-safety configuration. NOT a key/value setting — it lives in
+      // its own single-row table, so it has to be enumerated here or a restore
+      // leaves every safety threshold (and the master switch) at defaults.
+      // Imported by [_importWeatherSettings], which updates the singleton row
+      // instead of insert-or-ignoring a second one.
       'weatherSettings': await _dumpTable(database.weatherSettings),
     };
   }

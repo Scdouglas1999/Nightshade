@@ -19,7 +19,7 @@ const double _atTargetToleranceC = 1.0;
 /// fixed cadence, pushing values into [cameraStateProvider] and
 /// [temperatureHistoryProvider].
 ///
-/// Extracted from `DeviceService` so the polling lifecycle is owned by a
+/// Separate from `DeviceService` so the polling lifecycle is owned by a
 /// dedicated collaborator. The poller is started by
 /// [DeviceService.connectCamera] and stopped by
 /// [DeviceService.disconnectCamera] / `prepareForBackendSwap` /

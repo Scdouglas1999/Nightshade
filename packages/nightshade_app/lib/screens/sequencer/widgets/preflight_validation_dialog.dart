@@ -16,18 +16,13 @@ part 'preflight_validation_dialog/issue_section.dart';
 
 part 'preflight_validation_dialog/section_builders.dart';
 
-// =============================================================================
 // PRE-FLIGHT VALIDATION DIALOG
-// =============================================================================
 //
 // UI shell for the canonical sequence validator. The validation engine
 // lives in `nightshade_core/.../sequence/sequence_validation.dart` — this
-// file only renders the result.
-//
-// Previously this file defined its own ValidationIssue / ValidationSeverity
-// / ValidationResult types. They were moved into the core engine and we
-// now consume those directly to keep one source of truth for sequence
-// validation across the app.
+// file only renders the result. It consumes that engine's ValidationIssue /
+// ValidationSeverity / ValidationResult types directly, so there is one source
+// of truth for sequence validation across the app.
 
 /// Pre-flight validation dialog
 class PreFlightValidationDialog extends ConsumerStatefulWidget {

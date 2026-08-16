@@ -1,9 +1,9 @@
-// Regression for a live defect in Settings › Equipment Profiles › Edit: the
-// Filter Focus Offsets card is built from the SAME controllers as the Filter
-// Configuration chips, but the chip's name field fired no rebuild, so the two
-// lists disagreed for the rest of the edit session. Naming the first filter
-// produced no offsets card at all, and a filter added with '+' had no offset
-// input until the operator saved and re-opened the editor.
+// In Settings › Equipment Profiles › Edit the Filter Focus Offsets card is
+// built from the SAME controllers as the Filter Configuration chips, so the
+// chip's name field must fire a rebuild. Without one the two lists disagree for
+// the rest of the edit session: naming the first filter produces no offsets card
+// at all, and a filter added with '+' has no offset input until the operator
+// saves and re-opens the editor.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -166,9 +166,8 @@ void main() {
     // The built-in guider is a SOFTWARE guider: it reuses the imaging camera
     // and pulses the mount, so it has no cable, no power switch and no vendor
     // driver. Its preflight names the exact missing profile value, and the
-    // dialog used to answer "we couldn't pin down the exact cause" while
-    // holding that message — then told the operator to reseat a cable that
-    // does not exist and restart the app.
+    // dialog must route that to a configuration cause rather than the
+    // reseat-a-cable playbook.
     group('built-in guider preflight', () {
       const focalLengthError =
           'Failed to connect built-in guider: Operation failed: Built-in '

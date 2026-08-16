@@ -39,7 +39,7 @@ mixin UndoBatchMixin {
   ///
   /// Inside a `withUndoBatch` block, only the first call within the
   /// outermost batch actually pushes (later calls within the same batch
-  /// are no-ops); outside any batch, every call pushes (legacy behavior).
+  /// are no-ops); outside any batch, every call pushes.
   void saveUndo() {
     final snapshot = currentState;
     if (snapshot == null) return;

@@ -5,10 +5,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Confirmation for the Sequencer toolbar's "Slew to Target".
 ///
-/// The button used to command a real slew on a single click: no dialog, no
-/// toast, no "Slewing…" state and not one line in the log. The only way to
-/// discover the mount had moved — including to a target 13° BELOW the horizon —
-/// was to open another screen and read the Equipment panel.
+/// A slew is a physical action that can point the mount below the horizon, so
+/// it is confirmed before it is commanded rather than firing on a single click.
 ///
 /// Returns true when the operator confirms the move.
 Future<bool> showSlewToTargetConfirmation(

@@ -1,10 +1,9 @@
-// WE-SEQ-N4: the Dashboard's "Last night" card printed the raw state-machine
-// token — "New Sequence / Paused-stopped · 1 hour ago". SEQ-6 replaced that
-// vocabulary everywhere Wave D looked (History chips, the Session Report title
-// "Stopped (resumable)"), but this card carried its OWN status→copy mapping
-// whose default arm just capitalised the token. Same defect shape as
-// WD-SEQ-N4's `_statusLabel` in target_score_row.dart: two implementations of
-// one label, and the fixed one is not the one on screen.
+// The Dashboard's "Last night" card must not print the raw state-machine token
+// — "New Sequence / Paused-stopped · 1 hour ago". It shares the run-status
+// vocabulary the History chips and the Session Report title ("Stopped
+// (resumable)") use; a private status→copy mapping whose default arm just
+// capitalises the token is a second implementation of one label, and it is the
+// one on screen.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

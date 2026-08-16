@@ -374,12 +374,12 @@ class _DatabaseRecoveryLauncherState
     }
   }
 
-  /// Retry backoff. The ordinary reason for a retry is that another startup
-  /// surface holds the dialog slot, which clears in a second or two, so the
-  /// first attempts stay fast. The pathological reason is a marker store that
-  /// cannot be read at all — and at a flat 100ms that was an unbounded hot loop
-  /// for the life of the process, on a machine that is expected to run all
-  /// night. Back off to a slow poll instead.
+  /// Retry backoff over two failure modes. The ordinary one is another startup
+  /// surface holding the dialog slot, which clears in a second or two, so the
+  /// first attempts stay fast. The pathological one is a marker store that
+  /// cannot be read at all: a flat 100 ms there is an unbounded hot loop for
+  /// the life of a process expected to run all night, so it backs off to a slow
+  /// poll.
   ///
   /// It keeps polling rather than giving up: this notice is how the operator
   /// learns their database was rebuilt and data may be missing, so abandoning

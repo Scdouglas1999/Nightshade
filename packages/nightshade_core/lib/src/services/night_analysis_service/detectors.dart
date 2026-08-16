@@ -1,10 +1,6 @@
 part of '../night_analysis_service.dart';
 
 extension _NightAnalysisDetectors on NightAnalysisService {
-  // ===========================================================================
-  // Detectors
-  // ===========================================================================
-
   /// **Focus drift.** A slow, monotone rise in HFR over the night — usually
   /// thermal focus shift the autofocus didn't keep up with. Fires when the
   /// later-half median HFR is materially above the earlier-half median AND the
@@ -427,13 +423,13 @@ extension _NightAnalysisDetectors on NightAnalysisService {
     return findings;
   }
 
-  /// **The frame grader's own verdict (NEW-E5).** Every other detector looks
-  /// for a *change* across the night — drift, a collapse, an onset — so a night
-  /// that was uniformly bad from the first sub to the last trips none of them,
-  /// and the score (which only subtracts) lands on a perfect 100 with
-  /// "A clean night — no problems detected". That is exactly what a live 4×3 s
-  /// run produced while the same app's Workbench badged all four subs POOR
-  /// (HFR 5.7 against its 3.5 cull line, quality_score ~35).
+  /// **The frame grader's own verdict.** Every other detector looks for a
+  /// *change* across the night — drift, a collapse, an onset — so a night that
+  /// is uniformly bad from the first sub to the last trips none of them, and
+  /// the score (which only subtracts) lands on a perfect 100 with "A clean
+  /// night — no problems detected". A live 4×3 s run does exactly that while
+  /// the same app's Workbench badges all four subs POOR (HFR 5.7 against its
+  /// 3.5 cull line, quality_score ~35).
   ///
   /// So the night verdict reads the same [FrameQualityAssessmentService] the
   /// Workbench reads. This is a reconciliation, not a second opinion: if the

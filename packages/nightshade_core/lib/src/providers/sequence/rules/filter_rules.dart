@@ -89,8 +89,9 @@ class FilterInWheelRule implements RefAwareSequenceValidator {
 /// declare, while no filter wheel is connected.
 ///
 /// Sequences are built in daylight with nothing plugged in, which is exactly
-/// when [FilterInWheelRule] cannot run — so a typo ("Ha" vs "H-alpha") used to
-/// survive until the run tried to move the wheel. The profile is the
+/// when [FilterInWheelRule] cannot run, so the profile is the only check
+/// available at build time — otherwise a typo ("Ha" vs "H-alpha") survives
+/// until the run tries to move the wheel. The profile is the
 /// operator's own declaration of what is in the rig, and it is already the
 /// source the palette seeds filter names from and the Change Filter editor
 /// binds its dropdown to, so it is the right build-time reference.

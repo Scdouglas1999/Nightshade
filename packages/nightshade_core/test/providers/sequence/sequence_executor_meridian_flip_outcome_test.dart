@@ -16,15 +16,13 @@ class _TestBackendNotifier extends BackendNotifier {
   }
 }
 
-/// Regression suite for the meridian-flip run-record defects.
+/// The meridian-flip run record states what the flip actually did.
 ///
-/// Live evidence these lock down (sim mount, `sequence_runs` row 55):
-/// a flip trigger fired, the executor logged an 8-step flip including a 15.0 s
-/// mount slew, its post-flip plate-solve recentre FAILED, and the run still
-/// persisted
+/// Without the verdict crossing the bridge, a flip trigger fires, the executor
+/// logs an 8-step flip including a 15.0 s mount slew, its post-flip plate-solve
+/// recentre FAILS, and the run still persists
 /// `{"meridianFlips":0, "errorMessages":[], "warningMessages":[]}` with
-/// `status = completed`. The flip verdict never reached Dart at all because
-/// nothing on the trigger path carried it across the bridge.
+/// `status = completed`.
 void main() {
   late MockBackend backend;
   late StreamController<backend_events.NightshadeEvent> eventController;
@@ -226,16 +224,11 @@ void main() {
   });
 
   test('a terminal SequenceFailed actually finalizes the run', () async {
-    // Regression for the bug that made a failed run un-finalizable: the native
-    // `ExecutorEvent::SequenceFailed` was flattened onto
-    // `SequencerEvent::Error`, which Dart handles as a NON-terminal mid-run
-    // error. The `case 'SequenceFailed'` branch below was therefore dead code,
-    // so `sequence_runs.status` stayed `'running'` with a null `ended_at`
-    // forever and the still-active imaging session then refused the next start
-    // with `active_session_exists`.
-    //
-    // Proven live before the fix with a flip-free failing sequence
-    // (`PLAIN FAIL PROBE`): run row 60 was left at `status = running`.
+    // A terminal `SequenceFailed` reaches the terminal handler, not
+    // `SequencerEvent::Error`, which Dart treats as a NON-terminal mid-run
+    // error. Flattened, `sequence_runs.status` stays `'running'` with a null
+    // `ended_at` forever and the still-active imaging session refuses the next
+    // start with `active_session_exists`.
     final (container, executor) = build();
     container.read(sequenceExecutionStateProvider.notifier).state =
         SequenceExecutionState.running;

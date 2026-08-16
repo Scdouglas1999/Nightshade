@@ -1,5 +1,3 @@
-// Part of ../notification_service.dart -- extracted for maintainability.
-//
 // Navigation callback and injectable notification sink contract.
 part of '../notification_service.dart';
 

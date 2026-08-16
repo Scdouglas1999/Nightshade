@@ -8,16 +8,13 @@ import 'package:nightshade_core/src/services/science/narrator/narrator_service.d
 
 /// The sessionless (hand-driven) narrator path.
 ///
-/// An adversarial verifier found the ticker had been pointed at the sessionless
-/// feed while nothing wrote to it: `_bindStreams` returns as soon as
-/// `_sessionId == null`, and `_onImagesChanged` — the only producer of
-/// `_imageStats` — hangs off `sessionImagesStreamProvider`, which is only bound
-/// below that return. An operator shooting by hand for an hour saw an empty
-/// strip, which was the original complaint, one layer down.
+/// `_bindStreams` returns as soon as `_sessionId == null`, and
+/// `_onImagesChanged` — the producer of `_imageStats` — hangs off
+/// `sessionImagesStreamProvider`, which is bound below that return. So the
+/// sessionless path has its own producer, `_ingestSessionlessStats`, and these
+/// tests pin it rather than the widget: without it an operator shooting by
+/// hand sees an empty strip.
 ///
-/// These tests pin the producer, not the widget: if `_ingestSessionlessStats`
-/// stops being called, or goes back to only stashing `_pendingFwhm`, the
-/// context loses its samples and the first three go red.
 /// The service takes a `Ref`, so it has to be built inside the container.
 final _sessionlessServiceProvider = Provider<NarratorService>(
   (ref) => NarratorService(ref, sessionId: null),

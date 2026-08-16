@@ -23,9 +23,7 @@ class PlanetariumHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'PlanetariumHandlers');
 
-  // ===========================================================================
   // Mount Position (for FOV overlay on remote planetarium)
-  // ===========================================================================
 
   /// GET /api/planetarium/mount-position
   /// Returns current mount RA/Dec/rotation for FOV display on client planetarium.
@@ -94,9 +92,7 @@ class PlanetariumHandlers {
     });
   }
 
-  // ===========================================================================
   // FOV Configuration (camera/optical setup for FOV calculation)
-  // ===========================================================================
 
   /// GET /api/planetarium/fov-config
   /// Returns camera sensor size, pixel size, focal length, reducer for FOV calculation.
@@ -180,9 +176,7 @@ class PlanetariumHandlers {
     });
   }
 
-  // ===========================================================================
-  // Target Interactions
-  // ===========================================================================
+  // Target interactions
 
   /// POST /api/planetarium/slew-to
   /// Slew mount to RA/Dec coordinates.
@@ -329,9 +323,7 @@ class PlanetariumHandlers {
     return jsonOk({'status': 'synced', 'ra': ra, 'dec': dec});
   }
 
-  // ===========================================================================
-  // Catalog Data
-  // ===========================================================================
+  // Catalog data
 
   /// GET /api/planetarium/catalog/search?query=M31
   /// Search objects by name across star and DSO catalogs.
@@ -548,9 +540,7 @@ class PlanetariumHandlers {
     });
   }
 
-  // ===========================================================================
-  // WebSocket Subscription Info
-  // ===========================================================================
+  // WebSocket subscription info
 
   /// GET /api/planetarium/subscribe-info
   /// Returns WebSocket URL and event types for real-time mount updates.
@@ -589,9 +579,7 @@ class PlanetariumHandlers {
     });
   }
 
-  // ===========================================================================
-  // Observer Location
-  // ===========================================================================
+  // Observer location
 
   /// GET /api/planetarium/location
   /// Get current observer location for astronomical calculations.
@@ -617,7 +605,6 @@ class PlanetariumHandlers {
     });
   }
 
-  // ===========================================================================
   // Observing lists (host-backed favorites/lists subsystem)
   //
   // A remote slave's local SQLite observing-lists tables are never populated,
@@ -625,7 +612,6 @@ class PlanetariumHandlers {
   // planner candidate list, and the Settings > Observing Lists screen all read
   // empty there. These endpoints serve the master's lists/items and route the
   // slave's mutations to the host so curated lists stay on the master.
-  // ===========================================================================
 
   ObservingListsDao get _observingListsDao =>
       container.read(observingListsDaoProvider);
@@ -694,8 +680,8 @@ class PlanetariumHandlers {
     _logInfo('[API] POST /api/observing-lists/update');
     final payload = await readJsonObject(request);
     final id = requireInt(payload, 'id', min: 1);
-    // Same truthfulness fix as update-notes: a rename against a nonexistent id
-    // used to answer 200 'updated' while changing nothing.
+    // A rename against an unknown id must 404, not answer 200 'updated' while
+    // changing nothing.
     if (await _observingListsDao.getListById(id) == null) {
       return jsonNotFound({
         'error': 'list_not_found',
@@ -755,8 +741,9 @@ class PlanetariumHandlers {
         // value silently yields wrong plans long after the bad write.
         ra: requireDouble(payload, 'ra', min: 0, max: 24),
         dec: requireDouble(payload, 'dec', min: -90, max: 90),
-        // Also persisted: a magnitude of 1e9 or a negative angular size used to
-        // be stored verbatim. target_handlers.dart already bounds sizeArcmin.
+        // Also persisted, so bounded to physical ranges: magnitude -30..40,
+        // angular size non-negative. target_handlers.dart bounds sizeArcmin
+        // the same way.
         magnitude: optionalDouble(payload, 'magnitude', min: -30, max: 40),
         sizeArcmin: optionalDouble(payload, 'sizeArcmin', min: 0),
         notes: optionalString(payload, 'notes'),
@@ -786,8 +773,8 @@ class PlanetariumHandlers {
       itemId,
       optionalString(payload, 'notes'),
     );
-    // Report the truth: this used to answer 'updated' even when no row matched,
-    // so a client that had "saved" a note had no way to learn it hadn't.
+    // A no-row update is a 404, so a client cannot believe a save that did not
+    // happen.
     if (written == 0) {
       return jsonNotFound({
         'error': 'item_not_found',

@@ -4,11 +4,11 @@ import 'package:nightshade_core/src/models/equipment_profile.dart'
     as remote_profile;
 import 'package:nightshade_core/src/models/equipment_profile_remote_mapping.dart';
 
-/// LIM-3 / LIM-6: the canonical equipment-profile converter must be lossless for
-/// every field the slave's equipment cards need, including the three fields
-/// added in LIM-3 (`meridianFlipOverrides`, `safetyMonitorName`, `switchName`).
-/// These tests also lock in the preserve-from-existing guard so a slave-shaped
-/// save can never silently wipe host-side meridian overrides / flags.
+/// The canonical equipment-profile converter is lossless for every field the
+/// slave's equipment cards need, `meridianFlipOverrides`, `safetyMonitorName`
+/// and `switchName` included. These tests also lock in the
+/// preserve-from-existing guard so a slave-shaped save can never silently wipe
+/// host-side meridian overrides / flags.
 db.EquipmentProfile _sampleRow({
   int id = 7,
   String? meridianFlipOverrides = '{"enabled":true,"flipAtDeg":1.5}',
@@ -68,7 +68,7 @@ db.EquipmentProfile _sampleRow({
 }
 
 void main() {
-  group('equipment_profile_remote_mapping LIM-3 fields', () {
+  group('equipment_profile_remote_mapping override + name fields', () {
     test(
       'db -> remote -> db round-trips meridianFlipOverrides / safetyMonitorName / switchName',
       () {

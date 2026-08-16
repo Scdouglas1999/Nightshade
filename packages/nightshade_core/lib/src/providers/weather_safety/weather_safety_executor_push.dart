@@ -4,7 +4,6 @@ part of '../weather_safety_provider.dart';
 
 /// Periodic pushes from [WeatherSafetyNotifier] into the Rust executor.
 extension _WeatherSafetyExecutorPush on WeatherSafetyNotifier {
-  // -------------------------------------------------------------------------
   // Cloud-motion forwarding to the Rust executor.
   //
   // The Rust cloud-aware triggers (`CloudArrivingIn`, `CloudOpeningIn`,
@@ -13,7 +12,6 @@ extension _WeatherSafetyExecutorPush on WeatherSafetyNotifier {
   // `backend.sequencerUpdateCloudMotion(...)`. The first push runs
   // immediately so a sequence that starts right after app launch has
   // current data on its first evaluator tick.
-  // -------------------------------------------------------------------------
 
   void _startCloudMotionPush() {
     _cloudMotionPushTimer?.cancel();
@@ -49,7 +47,7 @@ extension _WeatherSafetyExecutorPush on WeatherSafetyNotifier {
 
   /// Compute the verdict pushed to the Rust executor's `WeatherUnsafe` trigger.
   ///
-  /// Architecture-unification 2026-06-05 (Subsystem 2). Returns:
+  /// Returns:
   ///   * `null` (ABSTAIN) when the operator has effectively opted out of
   ///     weather-driven aborts — safety disabled, currently snoozed, or the
   ///     no-data fail-mode is permissive (failOpen / warnOnly). Abstaining
@@ -65,8 +63,8 @@ extension _WeatherSafetyExecutorPush on WeatherSafetyNotifier {
   ///     unsafe and the operator has NOT opted out.
   ///
   /// This is strictly safety-monotone: it only ever ADDS an unsafe assertion or
-  /// ABSTAINS — it never asserts SAFE in a situation where the previous code
-  /// would have asserted UNSAFE on a non-hardware source.
+  /// ABSTAINS — it never asserts SAFE while a non-hardware source says
+  /// UNSAFE.
   bool? _computePushedVerdict({
     required WeatherSettings weatherSettings,
     required WeatherSafetyStatus finalStatus,
@@ -170,8 +168,7 @@ extension _WeatherSafetyExecutorPush on WeatherSafetyNotifier {
       // Cloud arrival prediction: present only when the analyzer reports
       // a finite eta (cloudMotion.etaToLocation). If the analyzer has no
       // motion / no nearby clouds, push None so the Rust trigger stays
-      // quiescent — silent fallback to a sentinel would defeat the
-      // "errors are a feature" rule.
+      // quiescent: a sentinel here would arrive as a real arrival time.
       final arrivalMinutes = motion?.etaToLocation?.inSeconds != null
           ? motion!.etaToLocation!.inSeconds / 60.0
           : null;

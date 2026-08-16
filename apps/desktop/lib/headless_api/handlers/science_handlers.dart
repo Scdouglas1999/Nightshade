@@ -83,10 +83,9 @@ class ScienceHandlers {
     _logInfo('[API] POST /api/science/settings');
     final payload = await readJsonObject(request);
     final rawSettings = optionalObject(payload, 'settings') ?? const {};
-    // Why: schema accepts heterogeneous value types from clients (strings,
-    // numbers, booleans). Coerce to canonical string form for storage; this
-    // matches the previous semantics. Values must not be null — that's an
-    // explicit user error and gets a structured 400.
+    // The schema accepts heterogeneous value types from clients (strings,
+    // numbers, booleans), coerced to canonical string form for storage. A null
+    // value is an explicit caller error and gets a structured 400.
     final settings = <String, String>{};
     for (final entry in rawSettings.entries) {
       if (!entry.key.startsWith('science.')) {
@@ -636,7 +635,7 @@ class ScienceHandlers {
       // Why: 422 Unprocessable Entity — input was syntactically valid but the
       // transform fit could not converge with these matched stars. Distinct
       // from 400 (bad request shape) so clients can retry with more stars
-      // rather than reformatting the payload. Non-2xx per §2.23.
+      // rather than reformatting the payload.
       return jsonResponse({
         'error':
             'Nightshade could not compute a stable transform from these matched stars.',

@@ -295,8 +295,8 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
   }
 
   Widget _buildSpeedIndicator(ObservationTimeState timeState, Color txtColor) {
-    // A held sky says so. Reporting "1×" while nothing moves is the same lie
-    // the pause button used to tell.
+    // A held sky says so: reporting "1×" while nothing moves states a rate the
+    // clock is not running at.
     if (timeState.isPaused) {
       return _readoutNode(
         label: 'Time paused',
@@ -420,7 +420,7 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
   Widget _buildNowButton(Color accent, {bool expanded = false}) {
     final button = TextButton.icon(
       icon: Icon(LucideIcons.clock, size: 14, color: accent),
-      // CON-56: Title case, like every other button in the build.
+      // Title case, like every other button in the build.
       label: Text('Now', style: TextStyle(color: accent, fontSize: 11)),
       onPressed: _jumpToNow,
       style: TextButton.styleFrom(
@@ -457,7 +457,7 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
         color: hasDusk ? accent : accent.withValues(alpha: 0.5),
       ),
       label: Text(
-        // CON-56: Title case, like every other button in the build.
+        // Title case, like every other button in the build.
         'Tonight',
         style: TextStyle(
           color: hasDusk ? accent : accent.withValues(alpha: 0.5),

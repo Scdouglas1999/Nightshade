@@ -50,9 +50,7 @@ void main() {
       return jsonDecode(await response.readAsString()) as Map<String, dynamic>;
     }
 
-    // =====================================================================
     // /api/sequence-runs
-    // =====================================================================
 
     test('GET /api/sequence-runs lists runs with envelope', () async {
       await db.sequenceRunsDao.startRun(
@@ -101,9 +99,7 @@ void main() {
       expect(body['total'], 5);
     });
 
-    // =====================================================================
     // /api/notes-journal
-    // =====================================================================
 
     test('GET /api/notes-journal lists observation log entries', () async {
       await db.observationLogsDao.insertLog(
@@ -221,9 +217,7 @@ void main() {
       },
     );
 
-    // =====================================================================
     // /api/db/notes
-    // =====================================================================
 
     test(
       'POST, PUT, and DELETE /api/db/notes mutate the host journal',
@@ -301,9 +295,7 @@ void main() {
       expect(response.statusCode, HttpStatus.notFound);
     });
 
-    // =====================================================================
     // /api/guide-rms-history
-    // =====================================================================
 
     test('GET /api/guide-rms-history lists guide-rms samples', () async {
       await db.guideRmsHistoryDao.insertSample(
@@ -351,9 +343,7 @@ void main() {
       );
     });
 
-    // =====================================================================
     // /api/polar-alignment-history
-    // =====================================================================
 
     test('GET /api/polar-alignment-history lists alignment runs', () async {
       await db
@@ -388,9 +378,7 @@ void main() {
       expect(body['total'], 1);
     });
 
-    // =====================================================================
     // /api/db/dark-library
-    // =====================================================================
 
     test('GET /api/db/dark-library lists dark frames', () async {
       await db.darkLibraryDao.addEntry(
@@ -450,9 +438,7 @@ void main() {
       expect(body['total'], 1);
     });
 
-    // =====================================================================
     // /api/db/flat-history
-    // =====================================================================
 
     test('GET /api/db/flat-history lists flats with filter', () async {
       await db.flatHistoryDao.insertEntry(
@@ -485,9 +471,7 @@ void main() {
       expect(body['total'], 1);
     });
 
-    // =====================================================================
     // Replay scrubber endpoints
-    // =====================================================================
 
     group('GET /api/sequence-runs/<runId>', () {
       test('returns 400 for non-integer runId', () async {

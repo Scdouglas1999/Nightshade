@@ -423,16 +423,13 @@ extension _PhotometricWizardFrameSelection
         '${airmass.toStringAsFixed(2)}';
   }
 
-  // =========================================================================
-  // Step 2: Auto-match detected stars to catalog
-  // =========================================================================
+  // Step 2: auto-match detected stars to catalog
 }
 
 /// The airmass the extinction fit will use for a frame, or null when the frame
 /// has no usable altitude.
 ///
 /// Wraps the product's one airmass model so the frame list and the fit agree
-/// about which frames are usable — the list used to show none of this and the
-/// user first learned a frame was unusable from an error at "Match Stars".
+/// about which frames are usable.
 double? airmassForFrame(double? altitudeDeg) =>
     altitudeDeg == null ? null : airmassForTrueAltitude(altitudeDeg);

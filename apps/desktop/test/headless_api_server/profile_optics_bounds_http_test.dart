@@ -1,12 +1,9 @@
-// Regression for a live defect: `POST /api/profiles` accepted a physically
-// impossible optical train.
+// `POST /api/profiles` must refuse a physically impossible optical train.
 //
-// Observed against a running host before the fix — the body below returned
-// `HTTP 200 {"status":"saved","id":"7"}`, and `GET /api/profiles` then read the
-// row back as focalLength 999999999 / aperture 0.0001, i.e. f/9999999990000.00.
 // Focal length is written to the FITS `FOCALLEN` card and drives plate-solve
-// field-of-view estimation and arcsec/px image scale, so an implausible value
-// silently corrupts astrometry and every derived measurement for that rig.
+// field-of-view estimation and arcsec/px image scale, so accepting focalLength
+// 999999999 with aperture 0.0001 — f/9999999990000 — silently corrupts
+// astrometry and every derived measurement for that rig.
 //
 // This drives a real socket against the real route table and the real
 // middleware stack rather than calling the handler directly, so it proves what

@@ -69,7 +69,7 @@ void _applyEquipmentTelemetry(
   Map<String, dynamic> data,
 ) {
   switch (eventType) {
-    // --- Camera temperature / cooling ------------------------------------
+    // Camera temperature / cooling
     case 'CameraTemperatureChanged':
       final temp = (data['temperature'] as num?)?.toDouble();
       final power = (data['coolerPower'] as num?)?.toDouble() ?? 0.0;
@@ -103,7 +103,7 @@ void _applyEquipmentTelemetry(
       // No additional state change (matches event_handling.dart).
       break;
 
-    // --- Mount position / motion -----------------------------------------
+    // Mount position / motion
     case 'MountPositionChanged':
       final ra = (data['ra'] as num?)?.toDouble();
       final dec = (data['dec'] as num?)?.toDouble();
@@ -166,7 +166,7 @@ void _applyEquipmentTelemetry(
       _read(reader, mountStateProvider.notifier).setParked(false);
       break;
 
-    // --- Focuser ----------------------------------------------------------
+    // Focuser
     case 'FocuserMoveStarted':
       _read(reader, focuserStateProvider.notifier).setMoving(true);
       break;
@@ -207,7 +207,7 @@ void _applyEquipmentTelemetry(
       }
       break;
 
-    // --- Filter wheel -----------------------------------------------------
+    // Filter wheel
     case 'FilterChanging':
       _read(reader, filterWheelStateProvider.notifier).setMoving(true);
       break;
@@ -238,7 +238,7 @@ void _applyEquipmentTelemetry(
       }
       break;
 
-    // --- Rotator ----------------------------------------------------------
+    // Rotator
     case 'RotatorMoveStarted':
       _read(reader, rotatorStateProvider.notifier).setMoving(true);
       break;

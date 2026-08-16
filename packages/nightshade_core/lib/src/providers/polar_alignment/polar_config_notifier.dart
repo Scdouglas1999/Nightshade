@@ -1,8 +1,6 @@
 part of '../polar_alignment_provider.dart';
 
-// =============================================================================
-// POLAR ALIGNMENT CONFIGURATION PROVIDER (Persisted)
-// =============================================================================
+// Polar alignment configuration provider (persisted)
 
 /// Provider for persisted polar alignment configuration
 final polarAlignmentConfigProvider =

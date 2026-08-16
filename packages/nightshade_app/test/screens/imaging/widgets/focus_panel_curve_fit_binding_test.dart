@@ -1,16 +1,16 @@
 // The imaging Focus panel's autofocus curve-fit control must show the strategy
 // the run will actually use.
 //
-// Regression: the row was labelled "Method", bound to `FocusSettings.method`
-// and offered ['V-Curve', 'Hyperbolic', 'Parabolic']. `FocusSettings.method` is
+// Binding it to `FocusSettings.method` gets both halves wrong: that field is
 // seeded from `AppSettings.afMethod`, the star METRIC, whose only legal value is
-// 'Star HFR' — so `items.contains(value)` was always false and the closed
-// dropdown rendered blank on every launch. Worse, picking a value there changed
-// nothing about the run: `_runAutofocus` resolves the curve fit from
-// `AppSettings.afCurveFitting`, and the FFI backend maps THAT value onto the
-// native curve enum (`autofocusCurveMethodForNativeBridge`).
+// 'Star HFR', so against ['V-Curve', 'Hyperbolic', 'Parabolic']
+// `items.contains(value)` is false and the closed dropdown renders blank on
+// every launch — and picking a value there changes nothing about the run, since
+// `_runAutofocus` resolves the curve fit from `AppSettings.afCurveFitting` and
+// the FFI backend maps THAT value onto the native curve enum
+// (`autofocusCurveMethodForNativeBridge`).
 //
-// The control is now bound to `afCurveFitting`, shares one vocabulary with the
+// So the control is bound to `afCurveFitting`, shares one vocabulary with the
 // Settings screen (`AutofocusSettings.curveFittingOptions`), and writes edits
 // back to the persisted setting.
 
@@ -125,8 +125,9 @@ void main() {
 
     final dropdown = _curveFitDropdown(tester);
     // Every option the panel offers must be a value the autofocus run can
-    // resolve, so it reads the shared list rather than a private copy. The old
-    // private list contained 'V-Curve', which no persisted value ever equals.
+    // resolve, so it reads the SHARED list rather than a private copy — a
+    // private list can carry entries like 'V-Curve' that no persisted value
+    // ever equals.
     expect(dropdown.items, AutofocusSettings.curveFittingOptions);
     expect(dropdown.items, isNot(contains('V-Curve')));
     // And the value it renders is drawn from that same vocabulary, so the

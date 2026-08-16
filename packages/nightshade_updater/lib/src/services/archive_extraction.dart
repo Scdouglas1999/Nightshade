@@ -15,12 +15,11 @@ class UnsafeArchiveEntryException implements Exception {
 
 /// Stream-extract `zipFile` into `destination`.
 ///
-/// Why streaming: a release ZIP is up to ~256 MiB; calling
-/// `zipFile.readAsBytes()` would load the entire archive into the Dart
-/// heap, OOM'ing on low-RAM imaging laptops (§7A.8). Instead we read
-/// the central directory off disk via [InputFileStream] and write each
-/// entry through [OutputFileStream] so neither input nor output ever
-/// fully materialises in memory.
+/// A release ZIP reaches ~256 MiB, so `zipFile.readAsBytes()` would load the
+/// whole archive into the Dart heap and OOM a low-RAM imaging laptop. The
+/// central directory is read off disk via [InputFileStream] and each entry is
+/// written through [OutputFileStream], so neither input nor output ever fully
+/// materialises in memory.
 Future<void> extractZipSafely(File zipFile, Directory destination) async {
   final input = InputFileStream(zipFile.path);
   try {

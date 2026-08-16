@@ -272,6 +272,4 @@ String _transportLabel(
 ) =>
     configured.contains(kind) ? kind.label : '${kind.label} (not configured)';
 
-// ---------------------------------------------------------------------------
 // Per-category editor dialog
-// ---------------------------------------------------------------------------

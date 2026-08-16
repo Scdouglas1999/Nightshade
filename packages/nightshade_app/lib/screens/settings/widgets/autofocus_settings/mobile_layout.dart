@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../autofocus_settings.dart -- extracted for maintainability.
-//
 // Mobile layout and filter-settings builders of _AutofocusSettingsState.
 part of '../autofocus_settings.dart';
 

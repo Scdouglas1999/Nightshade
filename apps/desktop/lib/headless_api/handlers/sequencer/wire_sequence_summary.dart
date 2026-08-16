@@ -31,13 +31,10 @@ class _WireSequenceSummary {
   /// wheel, rotator — so `collect_required_devices` in the Rust executor can
   /// refuse a run that needs one of those and was never given it. The guider,
   /// dome and cover calibrator are reached through `device_ops` with no id at
-  /// all, so that walk structurally cannot see them, and its own doc comment
-  /// says so about `Dither`.
-  ///
-  /// Confirmed still open on the live rig 2026-08-09: `Dither`, `StartGuiding`
-  /// and `CalibratorOn` each answered `POST /api/sequencer/start -> 200
-  /// {"status":"started"}` and then failed mid-run. The host is the one place
-  /// that can close this — it knows which devices are actually connected.
+  /// all, so that walk structurally cannot see them and a `Dither`,
+  /// `StartGuiding` or `CalibratorOn` node starts, then fails mid-run. The
+  /// host is the one place that can refuse it — it knows which devices are
+  /// actually connected.
   final Map<DeviceType, String> unassignableRoleRequirements;
 
   const _WireSequenceSummary({
@@ -48,12 +45,23 @@ class _WireSequenceSummary {
     this.unassignableRoleRequirements = const {},
   });
 
-  /// Read [json] as a serialized `SequenceDefinition`. Never throws: this runs
-  /// on the load path, and a summary that cannot be built must degrade to a
-  /// less-labelled session row rather than refuse a sequence the executor
-  /// itself accepted. `validateSequenceWireJson` has already run by here and
-  /// rejects anything structurally unusable.
-  static _WireSequenceSummary? parse(String json) {
+  /// Read [json] as a serialized `SequenceDefinition`.
+  ///
+  /// Never throws: this runs on the load path, and a summary that cannot be
+  /// built must degrade to a less-labelled session row rather than refuse a
+  /// sequence the executor itself accepted. `validateSequenceWireJson` has
+  /// already run by here and rejects anything structurally unusable, so a
+  /// failure here means the LABELLING could not be derived, not that the
+  /// sequence is bad.
+  ///
+  /// [onError] receives that failure. The load path has the logger, so the
+  /// swallow is auditable there instead of vanishing: a null summary silently
+  /// costs the run its `imaging_sessions` row AND leaves the guider / dome /
+  /// cover pre-flight with nothing to check.
+  static _WireSequenceSummary? parse(
+    String json, {
+    void Function(Object error)? onError,
+  }) {
     try {
       final decoded = jsonDecode(json);
       if (decoded is! Map<String, Object?>) return null;
@@ -92,7 +100,8 @@ class _WireSequenceSummary {
         totalExposures: total,
         unassignableRoleRequirements: _collectUnassignableRoles(nodes, rootId),
       );
-    } catch (_) {
+    } on Object catch (error) {
+      onError?.call(error);
       return null;
     }
   }

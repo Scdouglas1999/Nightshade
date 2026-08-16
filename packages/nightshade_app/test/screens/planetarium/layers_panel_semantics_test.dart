@@ -1,15 +1,12 @@
-// Regression: SKY-17 — the planetarium's sky-layer switches exposed no state.
+// The planetarium's sky-layer switches must expose their state.
 //
-// Found live. One accessibility dump of the open Layers panel listed twelve
-// rows as `panel: <name> [DISABLED]` — DSO labels, Constellation lines,
-// Milky Way, Coordinate grid, Ecliptic, Meridian and the rest — beside two that
-// reported as proper toggles with an on/off state. A screen-reader user was
-// told that twelve of the fourteen sky layers could not be operated, and none
-// of them said whether they were on.
-//
-// Cause: each row is a label Text and a Switch under one InkWell with nothing
-// merging them, so the name and the state landed in different nodes and the
-// named one carried no action. Same defect SettingRow was fixed for.
+// Each row is a label Text and a Switch under one InkWell; with nothing merging
+// them the name and the state land in different nodes and the named one carries
+// no action. The Layers panel then dumps twelve of its fourteen rows as
+// `panel: <name> [DISABLED]` — DSO labels, Constellation lines, Milky Way,
+// Coordinate grid, Ecliptic, Meridian and the rest — beside two that report as
+// proper toggles, telling a screen-reader user most sky layers cannot be
+// operated and none of them whether they are on. Same shape as SettingRow.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

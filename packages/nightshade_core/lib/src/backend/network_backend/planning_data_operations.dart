@@ -12,9 +12,7 @@ part of '../network_backend.dart';
 /// abstract [NightshadeBackend] surface — only a slave calls them, behind an
 /// `is NetworkBackend` branch in the corresponding service/provider.
 mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
-  // ===========================================================================
   // Integration goals
-  // ===========================================================================
 
   /// GET /api/integration-goals?targetId= — every goal, or the goals for one
   /// target when [targetId] is supplied.
@@ -64,9 +62,7 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
     await _delete('integration-goals?all=true');
   }
 
-  // ===========================================================================
   // Target constraints
-  // ===========================================================================
 
   /// GET /api/target-constraints?targetId= — every constraint, or the
   /// constraints for one target.
@@ -111,9 +107,7 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
     await _delete('target-constraints?all=true');
   }
 
-  // ===========================================================================
   // Scheduler queue membership
-  // ===========================================================================
 
   /// GET /api/scheduler/removed-targets — the ids the host's operator has taken
   /// out of the scheduler queue. A slave that could not see these ran its
@@ -145,9 +139,7 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
     await _delete('scheduler/removed-targets?targetId=$targetId');
   }
 
-  // ===========================================================================
   // Horizon profiles
-  // ===========================================================================
 
   /// GET /api/horizon-profiles — every custom horizon profile.
   Future<List<HorizonProfile>> getHorizonProfiles() async {
@@ -155,9 +147,7 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
     return _listFrom(response, 'profiles', HorizonProfile.fromJson);
   }
 
-  // ===========================================================================
   // Projects (multi-night campaigns)
-  // ===========================================================================
 
   /// GET /api/projects — every project, most-recently-updated first.
   Future<List<Project>> getProjects() async {
@@ -183,9 +173,7 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
     return CampaignProgress.fromJson(response);
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   List<T> _listFrom<T>(
     Map<String, dynamic> response,

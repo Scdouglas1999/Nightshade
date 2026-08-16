@@ -13,9 +13,7 @@ import 'nightshade_colors.dart';
 abstract final class NightshadeTypography {
   NightshadeTypography._();
 
-  // ===========================================================================
-  // Font Families
-  // ===========================================================================
+  // Font families
 
   /// Primary font for UI text — Hanken Grotesk (bundled variable font).
   ///
@@ -29,9 +27,7 @@ abstract final class NightshadeTypography {
   /// renders offline (no runtime font fetch).
   static const String fontFamilyMono = 'SplineSansMono';
 
-  // ===========================================================================
-  // Font-size scale (numeric tokens — in-use, value-preserving)
-  // ===========================================================================
+  // Font-size scale (numeric tokens)
   //
   // The named TextStyle scale below (h1..h6, body*, label*, mono*, ...) is the
   // GO-FORWARD typography intent — a migrating screen should prefer adopting a
@@ -71,9 +67,7 @@ abstract final class NightshadeTypography {
   static const double fontSize26 = 26.0;
   static const double fontSize28 = 28.0;
 
-  // ===========================================================================
-  // Heading Styles
-  // ===========================================================================
+  // Heading styles
 
   /// H1 - Page titles, hero text
   /// 32px, Semi-bold
@@ -135,9 +129,7 @@ abstract final class NightshadeTypography {
     letterSpacing: 0.25,
   );
 
-  // ===========================================================================
-  // Body Styles
-  // ===========================================================================
+  // Body styles
 
   /// Body large - Primary reading text
   /// 16px, Regular
@@ -179,9 +171,7 @@ abstract final class NightshadeTypography {
     letterSpacing: 0,
   );
 
-  // ===========================================================================
-  // Label Styles
-  // ===========================================================================
+  // Label styles
 
   /// Label large - Button text, navigation items
   /// 14px, Medium
@@ -225,14 +215,9 @@ abstract final class NightshadeTypography {
 
   /// Label strong - Emphasized small label / inline value (13px, Semi-bold).
   ///
-  /// The semibold-small style the screens reach for most after the named
-  /// scale — a strong key/value label or list-row title. It fills the 13/w600
-  /// gap between [label] (13/w500) and [h6] (12/w600). The screen layer carries
-  /// ~27 inline `TextStyle(fontSize: 13, fontWeight: w600, color: …)` literals
-  /// that this folds; apply the call-site color with `.copyWith(color:)` /
-  /// `.colored(…)`. (Folding adopts this role's line-height/tracking from the
-  /// label family — a deliberate, imperceptible refinement, NOT the purely
-  /// mechanical numeric-token swap. See docs/design/token-migration-map.md.)
+  /// The semibold-small style for a strong key/value label or list-row title:
+  /// it fills the 13/w600 gap between [label] (13/w500) and [h6] (12/w600).
+  /// Apply the call-site color with `.copyWith(color:)` / `.colored(…)`.
   static const TextStyle labelStrong = TextStyle(
     fontFamily: fontFamily,
     fontSize: 13,
@@ -254,9 +239,7 @@ abstract final class NightshadeTypography {
     letterSpacing: 0.1,
   );
 
-  // ===========================================================================
-  // Caption & Utility Styles
-  // ===========================================================================
+  // Caption & utility styles
 
   /// Caption - Metadata, timestamps
   /// 12px, Regular
@@ -281,10 +264,9 @@ abstract final class NightshadeTypography {
   /// Overline - Section dividers, category labels
   /// 10px, Semi-bold, uppercase
   ///
-  /// Tight tracking (0.6, not the old 1.5) so uppercased labels read as crisp
-  /// instrument etching rather than the wide-tracked "generated dashboard"
-  /// caps. Hanken Grotesk's even uppercase already carries the small-label
-  /// rhythm without exaggerated letter spacing.
+  /// Tight tracking (0.6) so uppercased labels read as crisp instrument etching
+  /// rather than wide-tracked caps. Hanken Grotesk's even uppercase already
+  /// carries the small-label rhythm without exaggerated letter spacing.
   static const TextStyle overline = TextStyle(
     fontFamily: fontFamily,
     fontSize: 10,
@@ -293,9 +275,7 @@ abstract final class NightshadeTypography {
     letterSpacing: 0.6,
   );
 
-  // ===========================================================================
-  // Monospace Styles (Technical Displays)
-  // ===========================================================================
+  // Monospace styles (technical displays)
 
   /// Mono large - Large numeric values, coordinates
   /// 18px, Regular (non-tabular; use [telemetryMd] for live-updating values)
@@ -359,9 +339,7 @@ abstract final class NightshadeTypography {
     letterSpacing: 0,
   );
 
-  // ===========================================================================
-  // Special Styles
-  // ===========================================================================
+  // Special styles
 
   /// Stat value - Large statistic displays
   /// 36px, Bold
@@ -423,9 +401,7 @@ abstract final class NightshadeTypography {
     letterSpacing: 0,
   );
 
-  // ===========================================================================
-  // Theme Integration
-  // ===========================================================================
+  // Theme integration
 
   /// Material [TextTheme] wired to Nightshade semantic colors.
   static TextTheme textTheme(NightshadeColors colors) {
@@ -448,9 +424,7 @@ abstract final class NightshadeTypography {
     );
   }
 
-  // ===========================================================================
-  // Helper Methods
-  // ===========================================================================
+  // Helper methods
 
   /// Apply a color to any text style
   static TextStyle withColor(TextStyle style, Color color) {

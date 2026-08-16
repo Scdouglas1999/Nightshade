@@ -13,18 +13,10 @@ import 'equipment_profiles.dart';
 /// uses the resulting confidence (R²) to gate whether the next session can
 /// skip a real AF sweep and trust the prediction.
 ///
-/// Why a dedicated table rather than extending [FlatHistory] / piggybacking
-/// on [PolarAlignmentHistory]:
-///   * The model is a *single, mutating, current-best* per filter — not an
-///     append-only history. Storing it row-per-sample would force every
-///     reader to re-run the regression on every query.
-///   * Per-filter offset learning needs `(profile_id, filter_name)` as a
-///     uniqueness key; making that a real index/unique constraint here gives
-///     the predictor an O(1) lookup at AF time.
-///
-/// Backwards compat: nothing else in the schema references this table; legacy
-/// in-session-only models (powered by the JSON-file [FocusModelService])
-/// continue to work without persistence.
+/// One mutating current-best row per `(profile_id, filter_name)` — not an
+/// append-only history — so a reader never re-runs the regression to answer a
+/// query, and the unique index gives the predictor an O(1) lookup at AF time.
+/// Nothing else in the schema references this table.
 @DataClassName('FocusModelEntry')
 @TableIndex(name: 'idx_focus_models_profile', columns: {#equipmentProfileId})
 @TableIndex(
@@ -117,13 +109,9 @@ class FocusModels extends Table {
   ///   ...
   /// ]
   /// ```
-  /// Kept inline (rather than spilled to its own table) because:
-  ///   1. Read-after-write is always whole-list (we re-fit from all samples
-  ///      on every insertion), so per-sample indexing buys nothing.
-  ///   2. The cap is fixed (50 by default, 200 max), so the column is
-  ///      bounded in size.
-  ///   3. The user can export a whole model + its history as one JSON blob
-  ///      for sharing/backup without join queries.
+  /// Kept inline: reads are always whole-list (the fit re-runs over every
+  /// sample on insertion) and the retained count is capped (50 by default,
+  /// 200 max), so the column stays bounded.
   TextColumn get trainingSamplesJson =>
       text().withDefault(const Constant('[]'))();
 

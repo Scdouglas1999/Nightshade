@@ -459,11 +459,10 @@ class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
 ///
 /// The session id itself is also remote-aware. `dbSessionId` is only ever set
 /// locally by [SessionStateNotifier.startSession] / `recoverSession`, so a
-/// phone or tablet that merely *watches* a host-started run never has one — the
-/// strip rendered "No frames captured this session yet" for the whole night
-/// while the host's `/api/images` already held every frame. When the local id is
-/// absent we fall back to the host's own active session, using the same
-/// `status == 'active'` invariant `SessionsDao.getActiveSessions` relies on.
+/// phone or tablet that merely *watches* a host-started run never has one. When
+/// the local id is absent this falls back to the host's own active session,
+/// using the same `status == 'active'` invariant
+/// `SessionsDao.getActiveSessions` relies on.
 final recentSessionFramesProvider = Provider<List<CapturedImage>>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is! NetworkBackend) {
@@ -569,9 +568,7 @@ ImageFileFormat _imageFormatFromDbString(String str) {
   }
 }
 
-// =============================================================================
-// TEMPERATURE HISTORY TRACKING
-// =============================================================================
+// Temperature history tracking
 
 /// A point in the temperature history
 class TemperaturePoint {

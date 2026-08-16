@@ -150,9 +150,7 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
     );
   }
 
-  // =========================================================================
-  // Type Conversion Helpers
-  // =========================================================================
+  // Type conversion helpers
 
   bridge.DeviceType _toBridgeDeviceType(DeviceType type) {
     switch (type) {

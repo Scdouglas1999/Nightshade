@@ -1,9 +1,8 @@
 /// Authoritative catalog of every public HTTP endpoint the headless
 /// server exposes.
 ///
-/// Extracted from `system_handlers.dart` so the (large) hand-maintained
-/// route list lives apart from the info/self-test handler logic that
-/// consumes it. Surfaced in two places:
+/// The (large) hand-maintained route list lives apart from the info/self-test
+/// handler logic that consumes it. Surfaced in two places:
 ///   * the `endpoints` array on `GET /api/info`,
 ///   * the OpenAPI route list driving `GET /api/openapi.json`.
 ///
@@ -325,9 +324,9 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/mosaic/validate',
     'POST /api/mosaic/estimate-time',
     'GET /api/mosaic/recommended-exposure',
-    // Collaborative mosaics (Collaborative Sky WS2) — an unattended rig
-    // discovers open collaborative projects, publishes/joins one, claims +
-    // uploads a panel master, and drives central assembly + output.
+    // Collaborative Sky mosaics — an unattended rig discovers open
+    // collaborative projects, publishes/joins one, claims + uploads a panel
+    // master, and drives central assembly + output.
     'GET /api/mosaic/collaborative',
     'GET /api/mosaic/collaborative/<mosaicId>',
     'POST /api/mosaic/projects/<projectId>/publish',
@@ -345,8 +344,8 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/mosaic/projects/<projectId>/panels/<panelIndex>/upload',
     'POST /api/mosaic/projects/<projectId>/assemble',
     'POST /api/mosaic/projects/<projectId>/output',
-    // Live co-imaging (Collaborative Sky WS3) — N rigs share one target,
-    // reporting to the combined accounting and driving the longitude baton.
+    // Collaborative Sky live co-imaging — N rigs share one target, reporting
+    // to the combined accounting and driving the longitude baton.
     'GET /api/coimaging/sessions',
     'POST /api/coimaging/sessions',
     'GET /api/coimaging/sessions/<sessionId>',

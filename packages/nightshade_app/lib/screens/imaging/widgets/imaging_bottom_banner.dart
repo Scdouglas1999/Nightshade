@@ -39,8 +39,7 @@ class ImagingBottomBanner extends ConsumerStatefulWidget {
   final VoidCallback onToggleLoop;
 
   /// Whether the Stats readout (temp / RMS / HFR) should be shown. Hidden on
-  /// narrow/mobile widths to match the previous behaviour that dropped the
-  /// stats section there.
+  /// narrow/mobile widths, where the stats section has no room.
   final bool showStats;
 
   const ImagingBottomBanner({
@@ -527,7 +526,7 @@ class _DurationFieldState extends State<_DurationField> {
 }
 
 /// Compact "Exposure" popover for the less-used Gain / Offset / Binning fields,
-/// keeping them reachable without the old always-expanded Exposure row.
+/// keeping them reachable without an always-expanded Exposure row.
 class _ExposurePopover extends StatelessWidget {
   final NightshadeColors colors;
   final ExposureSettings settings;

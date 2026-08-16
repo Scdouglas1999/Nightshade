@@ -1,5 +1,5 @@
-// Audit §11 — end-to-end test for the plugin-node palette wiring shipped
-// in `nightshade_app/lib/services/plugin_node_palette_wiring.dart`.
+// End-to-end test for the plugin-node palette wiring in
+// `nightshade_app/lib/services/plugin_node_palette_wiring.dart`.
 //
 // The wiring layer plugs the live `PluginNodeRegistry` (defined in
 // `nightshade_plugins`) into the `pluginNodeBlueprintsProvider` (defined
@@ -160,7 +160,7 @@ class _NotifierTestPlugin extends SequencePlugin {
   @override
   String get description => 'Surfaces a single Ping node for palette tests';
   @override
-  String get author => 'Audit §11';
+  String get author => 'Palette wiring tests';
 
   @override
   Future<void> onLoad(PluginContext context) async {}
@@ -193,7 +193,7 @@ class _BrokenDefinitionPlugin extends SequencePlugin {
   @override
   String get description => 'Mixes malformed + valid node definitions';
   @override
-  String get author => 'Audit §11';
+  String get author => 'Palette wiring tests';
 
   @override
   Future<void> onLoad(PluginContext context) async {}

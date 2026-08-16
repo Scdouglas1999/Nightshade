@@ -25,9 +25,7 @@ class FramingHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'FramingHandlers');
 
-  // ===========================================================================
-  // Slew To Target
-  // ===========================================================================
+  // Slew to target
 
   Future<Response> handleSlewToTarget(Request request) async {
     _logInfo('[API] POST /api/framing/slew-to-target');
@@ -53,9 +51,7 @@ class FramingHandlers {
     return jsonOk({'status': 'slewing', 'targetRa': ra, 'targetDec': dec});
   }
 
-  // ===========================================================================
-  // Center On Target
-  // ===========================================================================
+  // Center on target
 
   Future<Response> handleCenterOnTarget(Request request) async {
     _logInfo('[API] POST /api/framing/center-on-target');
@@ -187,9 +183,7 @@ class FramingHandlers {
     return jsonOk(resultToJson(result));
   }
 
-  // ===========================================================================
-  // Sync Mount
-  // ===========================================================================
+  // Sync mount
 
   Future<Response> handleSyncMount(Request request) async {
     _logInfo('[API] POST /api/framing/sync');
@@ -215,9 +209,7 @@ class FramingHandlers {
     return jsonOk({'status': 'synced', 'ra': ra, 'dec': dec});
   }
 
-  // ===========================================================================
-  // Get Current Position
-  // ===========================================================================
+  // Get current position
 
   Future<Response> handleGetCurrentPosition(Request request) async {
     _logInfo('[API] GET /api/framing/current-position');
@@ -249,9 +241,7 @@ class FramingHandlers {
     });
   }
 
-  // ===========================================================================
-  // Rotate To Angle
-  // ===========================================================================
+  // Rotate to angle
 
   Future<Response> handleRotateTo(Request request) async {
     _logInfo('[API] POST /api/framing/rotate-to');
@@ -276,9 +266,7 @@ class FramingHandlers {
     return jsonOk({'status': 'rotating', 'targetAngle': angle});
   }
 
-  // ===========================================================================
-  // Abort Slew
-  // ===========================================================================
+  // Abort slew
 
   Future<Response> handleAbortSlew(Request request) async {
     _logInfo('[API] POST /api/framing/abort-slew');
@@ -301,8 +289,8 @@ class FramingHandlers {
     // stopped". This is the most dangerous instance of the pattern, because it
     // can mask the fact that a slew is still running somewhere else.
     //
-    // Fail SAFE, not merely honest: a failed status read still issues the
-    // abort. Never skip a mount abort because we could not confirm motion.
+    // Never skip a mount abort because we could not confirm motion: a failed
+    // status read still issues the abort.
     var wasRunning = true;
     try {
       final status = await backend.getMountStatus(mount.id);
@@ -329,9 +317,7 @@ class FramingHandlers {
     return jsonOk({'status': 'aborted', kWasRunningField: true});
   }
 
-  // ===========================================================================
-  // Park Mount
-  // ===========================================================================
+  // Park mount
 
   Future<Response> handleParkMount(Request request) async {
     _logInfo('[API] POST /api/framing/park');
@@ -352,9 +338,7 @@ class FramingHandlers {
     return jsonOk({'status': 'parking'});
   }
 
-  // ===========================================================================
-  // Unpark Mount
-  // ===========================================================================
+  // Unpark mount
 
   Future<Response> handleUnparkMount(Request request) async {
     _logInfo('[API] POST /api/framing/unpark');
@@ -375,9 +359,7 @@ class FramingHandlers {
     return jsonOk({'status': 'unparking'});
   }
 
-  // ===========================================================================
-  // Set Framing Target (remote handoff)
-  // ===========================================================================
+  // Set framing target (remote handoff)
 
   /// POST /api/framing/set-target
   ///
@@ -403,9 +385,7 @@ class FramingHandlers {
     return jsonOk({'status': 'ok', 'ra': ra, 'dec': dec, 'name': name});
   }
 
-  // ===========================================================================
   // Save framing on a target row
-  // ===========================================================================
 
   /// POST /api/framing/save
   ///

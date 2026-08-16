@@ -1,16 +1,15 @@
 // A sequencer-captured frame must land in `captured_images` carrying the same
 // capture metadata as the FITS file written from the same exposure.
 //
-// The defect: the FITS header was built from the Rust `FrameContext`, which
-// holds the live per-frame telemetry, and that struct was then discarded. The
-// database row was built from a completely separate progress event carrying
-// only node id, save path and grading metrics. So a sequenced sub landed with
-// NULL gain, offset, sensor temperature, cooler power, mount pointing, pier
-// side, focuser position and rotator angle — while the file written
-// microseconds earlier had all of them. The row and the file disagreed about
-// the same frame.
+// The FITS header is built from the Rust `FrameContext`, which holds the live
+// per-frame telemetry. Discarding that struct and building the database row
+// from a separate progress event — node id, save path and grading metrics only
+// — lands a sequenced sub with NULL gain, offset, sensor temperature, cooler
+// power, mount pointing, pier side, focuser position and rotator angle while
+// the file written microseconds earlier has all of them: the row and the file
+// disagreeing about the same frame.
 //
-// The fix carries the FrameContext's own values onto the frame event
+// The FrameContext's own values ride onto the frame event
 // (`FrameCaptureMetadata`), so both surfaces are stamped from one struct. This
 // suite is the second half of that proof: the Rust test
 // `database_row_and_fits_header_agree_for_the_same_frame`
@@ -18,9 +17,9 @@
 // payload; these assert the `captured_images` row equals the event payload.
 // Chained, the row equals the header.
 //
-// Deliberately NOT tested against `resolveFrameAttribution`: that is the second
-// source of truth this fix removes. Attribution is only consulted as a fallback
-// for a host too old to send the payload, which the last test covers.
+// Deliberately NOT tested against `resolveFrameAttribution`: that is a second
+// source of truth, consulted only as a fallback for a host too old to send the
+// payload, which the last test covers.
 
 import 'dart:async';
 
@@ -172,9 +171,9 @@ void main() {
 
       final row = await awaitRow('exposure-node-capture');
 
-      // Camera state. Before the fix these came from the node CONFIG (what the
-      // sequence asked for) and the temperature/cooler columns were never
-      // written at all.
+      // Camera state comes from what the camera REPORTED, not from the node
+      // CONFIG (what the sequence asked for), and the temperature/cooler
+      // columns are written.
       expect(row.gain, 139, reason: 'FITS GAIN card says 139');
       expect(row.offset, 21, reason: 'FITS OFFSET card says 21');
       expect(
@@ -295,14 +294,12 @@ void main() {
     },
   );
 
-  // --------------------------------------------------------------------------
   // The residual second source: `capture.X ?? attribution.X`.
   //
   // `resolveFrameAttribution` walks the loaded sequence tree and can still
   // supply gain, offset, binning, frame type and exposure length. These two
   // tests pin exactly when it may and may not do so, because a fallback nobody
   // has bounded is just the two-sources-of-truth defect wearing a `??`.
-  // --------------------------------------------------------------------------
 
   /// With a capture payload present (every FFI frame, and any host new enough
   /// to send one), the tree must not contribute a single column — not even when

@@ -122,13 +122,13 @@ test('framing wizard validates coordinates before advancing to motion actions', 
   );
 });
 
-// Regression: `/api/sequencer/status` reports `progress` as a 0..1 FRACTION
-// (`SequencerStatus.progress` — "Overall progress (0.0 to 1.0)"). Both
-// dashboard render paths used to feed that fraction straight into a percent
-// readout, so a finished run (progress 1.0) displayed "Progress 1%" with an
-// empty bar, aria-valuenow="1" on a 0..100 progressbar, and an ETA that never
-// reached "complete". Execute the real helper so the math — not just its
-// spelling — is pinned.
+// `/api/sequencer/status` reports `progress` as a 0..1 FRACTION
+// (`SequencerStatus.progress` — "Overall progress (0.0 to 1.0)"). A render
+// path that feeds that fraction straight into a percent readout shows a
+// finished run (progress 1.0) as "Progress 1%" with an empty bar,
+// aria-valuenow="1" on a 0..100 progressbar, and an ETA that never reaches
+// "complete". Execute the real helper so the math — not just its spelling —
+// is pinned.
 test('sequencer progress converts the 0..1 API fraction to percent', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'js', 'app.js'),
@@ -169,10 +169,10 @@ test('sequencer progress converts the 0..1 API fraction to percent', () => {
   }
 });
 
-// Regression: an observatory is routinely offline. Neither static surface may
-// reference an external origin — a Google Fonts <link> used to fire a doomed
-// DNS/TCP attempt and a CSP violation on every page load, because the server's
-// own response header is `style-src 'self'`. Also: `frame-ancestors` is
+// An observatory is routinely offline. Neither static surface may reference
+// an external origin — a Google Fonts <link> costs a doomed DNS/TCP attempt
+// and a CSP violation on every page load, because the server's own response
+// header is `style-src 'self'`. Also: `frame-ancestors` is
 // ignored when delivered via <meta> (browsers log an error) and belongs only in
 // the response header.
 test('static surfaces reference no external origins and no meta frame-ancestors', () => {
@@ -207,10 +207,10 @@ test('static surfaces reference no external origins and no meta frame-ancestors'
   }
 });
 
-// Regression: `/api/images/<id>/thumbnail` 404s ("Image file not found")
-// whenever the FITS behind a surviving DB row is gone. Both failure paths used
-// to hide the <img>, collapsing the gallery card's 100px media slot to a bare
-// timestamp, so unreachable frames rendered as an unexplained list of dates.
+// `/api/images/<id>/thumbnail` 404s ("Image file not found") whenever the
+// FITS behind a surviving DB row is gone. A failure path that hides the <img>
+// collapses the gallery card's 100px media slot to a bare timestamp, so
+// unreachable frames render as an unexplained list of dates.
 test('gallery thumbnail failures keep the card and label the placeholder', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'js', 'app.js'),
@@ -251,11 +251,11 @@ test('gallery thumbnail failures keep the card and label the placeholder', () =>
   assert.match(rule, /display:\s*flex/);
 });
 
-// Regression: pairing codes are WORD-WORD-NNNN (TokenManager.generatePairingCode,
-// e.g. STAR-LYRA-1234). Run-Watch shipped a numeric 6-digit field —
-// maxlength="6" pattern="[0-9]{6}" plus a /^\d{6}$/ guard — so typing a real
-// code truncated it to "STAR-L" and the guard refused to POST it at all. The
-// surface's only pairing path could not be completed by any input.
+// Pairing codes are WORD-WORD-NNNN (TokenManager.generatePairingCode, e.g.
+// STAR-LYRA-1234). A numeric 6-digit field — maxlength="6"
+// pattern="[0-9]{6}" plus a /^\d{6}$/ guard — truncates a real code to
+// "STAR-L" and then refuses to POST it at all, which leaves the surface's only
+// pairing path impossible to complete with any input.
 test('run-watch pairing accepts the real WORD-WORD-NNNN code format', () => {
   const root = path.join(__dirname, '..', '..', 'web_run_watch');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -295,12 +295,12 @@ test('run-watch pairing accepts the real WORD-WORD-NNNN code format', () => {
   );
 });
 
-// Regression: the page CSP is `connect-src 'self' ws: wss:`, so the dashboard
-// can only reach the origin that served it. A Server URL pointing at another
-// host used to dismiss the login overlay, sit silent for ~6s inside the
-// 3-attempt backoff, then flash a 4s "Connection failed: Failed to fetch"
-// toast — leaving the operator on a permanently Disconnected dashboard with no
-// way back to the form short of a reload.
+// The page CSP is `connect-src 'self' ws: wss:`, so the dashboard can only
+// reach the origin that served it. Without an up-front check, a Server URL
+// pointing at another host dismisses the login overlay, sits silent for ~6s
+// inside the 3-attempt backoff, then flashes a 4s "Connection failed: Failed
+// to fetch" toast — leaving the operator on a permanently Disconnected
+// dashboard with no way back to the form short of a reload.
 test('cross-origin server URLs are refused up front with a specific reason', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'js', 'app.js'),

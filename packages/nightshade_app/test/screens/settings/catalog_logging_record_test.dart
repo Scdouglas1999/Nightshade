@@ -1,10 +1,10 @@
-// Regression: Settings › Catalogs snackbarred every outcome and logged none of
-// them. A live session that failed five GLADE+ downloads (and one that
-// succeeded) produced zero matching entries in Settings › Logs and zero in the
-// 18.8 MB exported log file — searching 'download' or 'glade' returned
-// "0 of 139 entries", and the level filter reported the whole night as one
-// error. The log viewer and the export therefore gave a user and a support
-// engineer false confidence about a session that had failed repeatedly.
+// Settings › Catalogs must LOG its outcomes, not only snackbar them. Snackbars
+// alone leave a session that failed five GLADE+ downloads (and one that
+// succeeded) with zero matching entries in Settings › Logs and zero in the
+// exported log file — searching 'download' or 'glade' returns "0 of 139
+// entries", and the level filter reports the whole night as one error, giving a
+// user and a support engineer false confidence about a session that failed
+// repeatedly.
 //
 // These tests assert against the SAME LoggingService instance the screen
 // resolves from the provider graph, which is what feeds the in-app viewer and

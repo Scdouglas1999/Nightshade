@@ -19,18 +19,13 @@ import 'preview_display_scale.dart' show previewDisplayScaleProvider;
 ///
 ///  1. A low-emphasis status readout cluster (resolution / binning / zoom% and
 ///     a Sky transparency readout). Reads as STATUS — no button chrome.
-///  2. A single labelled **Overlays** popover that replaces the six former
-///     loose overlay-toggle icons. Each menu row drives the exact same
-///     provider/callback the old icon did.
+///  2. A single labelled **Overlays** popover holding the overlay toggles as
+///     labelled rows, so the frame is not fringed with loose glyphs.
 ///  3. A tight view-controls group (zoom in/out, 1:1, fit, abort capture).
 ///
 /// The same widget renders for both the desktop and mobile imaging layouts.
 /// On narrow widths the status cluster is allowed to scroll horizontally so it
 /// never pushes the controls off-screen; the controls stay pinned trailing.
-///
-/// Every control here reuses the providers and callbacks that previously lived
-/// in the on-image overlay bar — this is purely a relocation + regrouping, not
-/// a behaviour change.
 class ImagingPreviewToolbar extends ConsumerWidget {
   final NightshadeColors colors;
   final bool showCrosshair;
@@ -266,9 +261,8 @@ class _StatusReadoutCluster extends StatelessWidget {
   }
 }
 
-/// The single labelled "Overlays" entry point that replaces the six former
-/// loose overlay-toggle icons. Tapping opens a compact popover of labelled
-/// checkbox rows; each row drives the same provider/callback the old icon did.
+/// The single labelled "Overlays" entry point. Tapping opens a compact popover
+/// of labelled checkbox rows, one per overlay.
 ///
 /// The button shows the active accent whenever *any* overlay is enabled, so the
 /// operator still gets at-a-glance "something is drawn on the frame" feedback
@@ -307,11 +301,11 @@ class OverlaysMenuButton extends ConsumerWidget {
         catalogEnabled ||
         scienceHudVisible;
 
-    // NEW-C2: this published as `panel: Overlays [DISABLED]` — a live popup
-    // trigger announced as an inert panel, because PopupMenuButton's InkWell
-    // contributes a tap action but no button role or enabled state, and the
-    // pill inside contributed a second, separate named node. One control, one
-    // node, with the role and the state it actually has.
+    // Undeclared, this publishes as `panel: Overlays [DISABLED]` — a live popup
+    // trigger announced as an inert panel — because PopupMenuButton's InkWell
+    // contributes a tap action but no button role or enabled state, and the pill
+    // inside contributes a second, separate named node. One control, one node,
+    // with the role and the state it actually has.
     return MergeSemantics(
       child: Semantics(
         button: true,
@@ -395,10 +389,9 @@ class OverlaysMenuButton extends ConsumerWidget {
                   scienceHudVisible: !scienceHudVisible,
                 ),
               ),
-              // The measurement readouts used to vanish on a 2.5 s idle timer, so
-              // the numbers you check every frame were hidden whenever you weren't
-              // moving the mouse. They are now explicit and default on; this row is
-              // how you get the clean-frame view back.
+              // The measurement readouts are explicit and default ON — nothing
+              // on the canvas hides itself on a timer. This row is how the
+              // clean-frame view is asked for.
               _overlayItem(
                 value: 6,
                 icon: NightshadeIcons.activity,
@@ -700,9 +693,9 @@ class _ViewControlsGroup extends StatelessWidget {
 }
 
 /// Settings-only catalog-overlay control: a caret that opens the catalog
-/// magnitude/kind popover. The overlay's on/off now lives in the Overlays
-/// menu, so unlike the old combined toggle+caret button this exposes *only*
-/// the deeper configuration and never duplicates the enable toggle.
+/// magnitude/kind popover. The overlay's on/off lives in the Overlays menu, so
+/// this exposes *only* the deeper configuration and never duplicates the
+/// enable toggle.
 class _CatalogOverlaySettingsButton extends ConsumerWidget {
   final NightshadeColors colors;
 

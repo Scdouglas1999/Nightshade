@@ -14,37 +14,18 @@ import 'settings_provider.dart';
 /// Composes the app's existing setup signals into a single, fail-closed
 /// [ReadinessReport].
 ///
-/// This is the provider layer that feeds the pure [buildReadinessReport]
-/// decision function (see `models/readiness/readiness_models.dart`). It owns
-/// exactly one responsibility: collect a handful of booleans from the
-/// device-state / settings / plate-solver / dark-library providers and hand
-/// them to the pure builder. All readiness *rules* live in the model so they
-/// are unit-testable without Riverpod; this file only wires inputs.
+/// Collects booleans from the device-state / settings / plate-solver /
+/// dark-library providers and hands them to the pure [buildReadinessReport]
+/// (see `models/readiness/readiness_models.dart`), where all readiness *rules*
+/// live; this file only wires inputs.
 ///
-/// ## Fail-closed contract
-///
-/// Every input is collected so that *absence of positive evidence is treated
-/// as "not satisfied"*. Concretely:
-///
-/// * Async providers ([appSettingsProvider], [plateSolverDetectionProvider],
-///   [plateSolverPreferenceProvider], [darkLibraryStatsProvider]) are read via
-///   `.valueOrNull`; a `null` (still
-///   loading) or an error state collapses the corresponding flag to `false`.
-///   We never optimistically assume a setting is configured just because we
-///   have not finished reading it.
-/// * Device connection is satisfied only on an explicit
-///   [DeviceConnectionState.connected]. `connecting`, `error`, and
-///   `disconnected` all read as not-connected.
-///
-/// This is deliberate: per the project's "errors are a feature" stance, a
-/// genuinely disconnected camera or an unreadable settings store must surface
-/// as a blocking readiness item, not silently degrade to "ready".
-///
-/// Because each input provider is itself reactive, this `Provider` recomputes
-/// automatically whenever any underlying signal changes — there is no manual
-/// invalidation to maintain.
+/// Absence of positive evidence is "not satisfied": async inputs are read via
+/// `.valueOrNull` so a still-loading or errored provider collapses its flag to
+/// `false`, and only an explicit [DeviceConnectionState.connected] counts as
+/// connected. A disconnected camera or an unreadable settings store must
+/// surface as a blocking item rather than degrade to "ready".
 final readinessReportProvider = Provider<ReadinessReport>((ref) {
-  // --- Critical devices -----------------------------------------------------
+  // Critical devices
   // A profile is "present" if any equipment profile exists. The active-profile
   // selector is derived from the same state, so watching the list is the
   // single, cheapest signal that the user has completed equipment setup.
@@ -59,7 +40,7 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
       ref.watch(mountStateProvider).connectionState ==
       DeviceConnectionState.connected;
 
-  // --- Location & output path (persisted settings) --------------------------
+  // Location & output path (persisted settings)
   // `appSettingsProvider` is async; while it loads (`valueOrNull == null`) or
   // on error, both derived flags fail closed to false.
   final settings = ref.watch(appSettingsProvider).valueOrNull;
@@ -74,7 +55,7 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
   final outputPathSet =
       settings != null && settings.imageOutputPath.trim().isNotEmpty;
 
-  // --- Plate solver ---------------------------------------------------------
+  // Plate solver
   // Readiness must reflect the selected solver, not merely some other solver
   // installed on disk. For Auto, either usable engine is sufficient.
   final solverDetection = ref.watch(plateSolverDetectionProvider).valueOrNull;
@@ -84,13 +65,13 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
       solverPreference != null &&
       solverDetection.supports(solverPreference.choice);
 
-  // --- Dark library ---------------------------------------------------------
+  // Dark library
   // Coverage is satisfied once at least one master dark exists. The stats
   // provider re-runs whenever the library changes; loading/error -> false.
   final stats = ref.watch(darkLibraryStatsProvider).valueOrNull;
   final darkLibraryHasCoverage = stats != null && stats.masterCount > 0;
 
-  // --- Focus state ----------------------------------------------------------
+  // Focus state
   // Focus is "known" only when the focuser is connected AND it reports a
   // current position. A connected focuser that has never reported a position
   // is treated as unknown (caution), never assumed in focus.
@@ -99,7 +80,7 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
       focuser.connectionState == DeviceConnectionState.connected &&
       focuser.position != null;
 
-  // --- Other assigned profile devices --------------------------------------
+  // Other assigned profile devices
   // Camera and mount are already covered by the critical-devices item, so they
   // are filtered out here to avoid double-reporting the same fault.
   final offlineProfileDevices = ref

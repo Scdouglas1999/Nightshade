@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // Multi-target, planetary, unattended, and mosaic node-tree factories.
 part of '../templates_tab.dart';
 

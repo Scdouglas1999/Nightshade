@@ -62,14 +62,15 @@ extension _CenteringLoop on CenteringService {
     required CenteringConfig config,
     void Function(CenteringStatus)? onStatusUpdate,
   }) async {
-    // WS3 Gap 1 — live co-imaging framing offset: when this target centre
-    // belongs to a co-imaging session this rig is in, slew/centre on
-    // `centre + the rig's hub-assigned offset` so the rigs tile the field and
-    // reject correlated/walking noise instead of all framing identically. The
-    // offset resolves from the durable membership (no hub round-trip); a rig in
-    // no covering session, or any failure, falls through to the raw target so
-    // ordinary centering is never affected. `targetRa` is app-canonical HOURS;
-    // the offset helper works in degrees, so we convert at the boundary.
+    // Live co-imaging framing offset: when this target centre belongs to a
+    // co-imaging session this rig is in, slew/centre on `centre + the rig's
+    // hub-assigned offset` so the rigs tile the field and reject
+    // correlated/walking noise instead of all framing identically. The offset
+    // resolves from the durable membership (no hub round-trip); a rig in no
+    // covering session, or any failure, falls through to the raw target so
+    // ordinary centering is unaffected. `targetRa` is app-canonical HOURS and
+    // the offset helper works in degrees, so the conversion happens at the
+    // boundary.
     final framed = await _resolveCoImagingFramedTarget(
       targetRaHours: targetRa,
       targetDecDeg: targetDec,

@@ -378,9 +378,9 @@ void main() {
 
     test('a previously-DEAD external transport fires for an at-idle '
         'weather-unsafe with no sequence running', () async {
-      // Direct regression for "external transports fire even with no sequence
-      // running". Before eager-mount the router only existed once a UI surface
-      // built it, so an idle weather-unsafe abort never reached Discord/email.
+      // External transports fire even with no sequence running. A router that
+      // exists only once a UI surface builds it leaves an idle weather-unsafe
+      // abort never reaching Discord/email.
       final push = PushNotificationService(
         config: const PushNotificationConfig(),
       );

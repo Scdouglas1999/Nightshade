@@ -12,8 +12,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
     // Orientation-aware overlay placement. Every floating overlay's rectangle
     // is recomputed from the live viewport + SafeArea (see
     // [MobileOverlaySlots]) so the controls/compass/minimap/time-panel never
-    // overlap or clip when the phone rotates — the old code pinned them with
-    // fixed offsets tuned for portrait and broke in landscape.
+    // overlap or clip when the phone rotates; fixed offsets tuned for portrait
+    // break in landscape.
     return LayoutBuilder(
       builder: (context, constraints) {
         final media = MediaQuery.of(context);
@@ -155,10 +155,13 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                   final showCompass = ref.watch(showCompassHudProvider);
                   if (!showCompass) return const SizedBox.shrink();
 
-                  final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                  // Alt/az is a reading against a horizon, so the HUD has
+                  // nothing to show until a site is on record.
+                  final altAz = ref.watch(viewCenterAltAzProvider);
+                  if (altAz == null) return const SizedBox.shrink();
                   return CompassHud(
-                    azimuth: az,
-                    altitude: alt,
+                    azimuth: altAz.$1,
+                    altitude: altAz.$2,
                     size: sizing.compassSize,
                     showAltitude: false,
                   );
@@ -174,26 +177,33 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                   final showMinimap = ref.watch(showMinimapProvider);
                   if (!showMinimap) return const SizedBox.shrink();
 
-                  final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                  // The minimap plots the view against the horizon, which
+                  // needs a site.
+                  final altAz = ref.watch(viewCenterAltAzProvider);
+                  if (altAz == null) return const SizedBox.shrink();
                   final viewState = ref.watch(skyViewStateProvider);
 
                   return SkyMinimap(
-                    azimuth: az,
-                    altitude: alt,
+                    azimuth: altAz.$1,
+                    altitude: altAz.$2,
                     fieldOfView: viewState.fieldOfView,
                     rotation: viewState.rotation,
                     size: sizing.minimapSize,
                     onTap: (tapAz, tapAlt) {
-                      final location = ref.read(observerLocationProvider);
+                      // Unreachable without a site — the minimap above returns
+                      // early — but the conversion needs one, so it is read
+                      // rather than assumed.
+                      final site = ref.read(observerLocationProvider).site;
+                      if (site == null) return;
                       final time = ref.read(observationTimeProvider);
                       final lst = AstronomyCalculations.localSiderealTime(
-                          time.time, location.longitude);
+                          time.time, site.longitude);
 
                       final (ra, dec) =
                           AstronomyCalculations.horizontalToEquatorial(
                         altDeg: tapAlt,
                         azDeg: tapAz,
-                        latitudeDeg: location.latitude,
+                        latitudeDeg: site.latitude,
                         lstHours: lst,
                       );
 
@@ -436,9 +446,13 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                                   ref.watch(performanceMonitorProvider);
                               final refreshRate =
                                   ref.watch(displayRefreshRateProvider);
+                              // Null until the first frame timing lands, so
+                              // the HUD reads "--" rather than a nominal rate
+                              // the monitor has not measured.
                               final fps = monitor.estimatedFps;
-                              final cappedFps =
-                                  fps > refreshRate ? refreshRate : fps;
+                              final cappedFps = fps == null
+                                  ? null
+                                  : (fps > refreshRate ? refreshRate : fps);
                               final buildMs = monitor.averageBuildTime;
                               final rasterMs = monitor.averageRasterTime;
 
@@ -464,7 +478,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
-                                          'FPS ${cappedFps.toStringAsFixed(1)} / ${refreshRate.toStringAsFixed(0)}Hz',
+                                          'FPS ${cappedFps?.toStringAsFixed(1) ?? '--'}'
+                                          ' / ${refreshRate.toStringAsFixed(0)}Hz',
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
@@ -495,13 +510,13 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                         ),
                       ),
 
-                      // Left tool rail — view controls stacked directly above the
-                      // slew controls in a single scrollable column. Previously
-                      // these were two independently-Positioned panels (top:60 and
-                      // a fixed top:220); as ViewControls grew past ~160px tall it
-                      // overran the slew panel and they overlapped. Binding the
-                      // rail between top:60 and bottom:120 lets it scroll on short
-                      // windows instead of colliding with the bottom panels.
+                      // Left tool rail — view controls stacked directly above
+                      // the slew controls in a SINGLE scrollable column. As two
+                      // independently-Positioned panels, ViewControls overruns
+                      // the slew panel once it grows past ~160px tall. Binding
+                      // the rail between top:60 and bottom:120 lets it scroll on
+                      // short windows instead of colliding with the bottom
+                      // panels.
                       Positioned(
                         top: 60,
                         left: 16,
@@ -545,11 +560,13 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                             }
 
                             final sizing = AdaptiveSizing.of(context);
-                            final (az, alt) =
-                                ref.watch(viewCenterAltAzProvider);
+                            // Alt/az is a reading against a horizon, so the
+                            // HUD has nothing to show until a site is set.
+                            final altAz = ref.watch(viewCenterAltAzProvider);
+                            if (altAz == null) return const SizedBox.shrink();
                             return CompassHud(
-                              azimuth: az,
-                              altitude: alt,
+                              azimuth: altAz.$1,
+                              altitude: altAz.$2,
                               size: sizing.compassSize,
                               showAltitude: !sizing.useCondensedHud,
                             );
@@ -568,29 +585,35 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                             }
 
                             final sizing = AdaptiveSizing.of(context);
-                            final (az, alt) =
-                                ref.watch(viewCenterAltAzProvider);
+                            // The minimap plots the view against the
+                            // horizon, which needs a site.
+                            final altAz = ref.watch(viewCenterAltAzProvider);
+                            if (altAz == null) return const SizedBox.shrink();
                             final viewState = ref.watch(skyViewStateProvider);
 
                             return SkyMinimap(
-                              azimuth: az,
-                              altitude: alt,
+                              azimuth: altAz.$1,
+                              altitude: altAz.$2,
                               fieldOfView: viewState.fieldOfView,
                               rotation: viewState.rotation,
                               size: sizing.minimapSize,
                               onTap: (tapAz, tapAlt) {
-                                final location =
-                                    ref.read(observerLocationProvider);
+                                // Unreachable without a site — the minimap
+                                // above returns early — but the conversion
+                                // needs one, so it is read rather than assumed.
+                                final site =
+                                    ref.read(observerLocationProvider).site;
+                                if (site == null) return;
                                 final time = ref.read(observationTimeProvider);
                                 final lst =
                                     AstronomyCalculations.localSiderealTime(
-                                        time.time, location.longitude);
+                                        time.time, site.longitude);
 
                                 final (ra, dec) = AstronomyCalculations
                                     .horizontalToEquatorial(
                                   altDeg: tapAlt,
                                   azDeg: tapAz,
-                                  latitudeDeg: location.latitude,
+                                  latitudeDeg: site.latitude,
                                   lstHours: lst,
                                 );
 
@@ -603,11 +626,9 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                         ),
                       ),
 
-                      // Time-travel panel — centered along the bottom so it clears
-                      // the compass HUD (bottom-left), the mini-map (bottom-right)
-                      // and the full-width info bar (bottom:0). It used to sit at
-                      // bottom:110/left:16, overlapping the compass and the left
-                      // tool rail.
+                      // Time-travel panel — centered along the bottom so it
+                      // clears the compass HUD (bottom-left), the mini-map
+                      // (bottom-right) and the full-width info bar (bottom:0).
                       Positioned(
                         bottom: 44,
                         left: 0,

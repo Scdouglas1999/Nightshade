@@ -53,7 +53,7 @@ int reconcileFieldQualityIndex({
 /// The *workbench* rendering of the one [SessionReviewController] state: a
 /// dense, control-heavy console for the operator who wants to drive every knob.
 ///
-/// Layout (design §1, §2.6): the cull rail (sub table + blink + lasso) on the
+/// Layout: the cull rail (sub table + blink + lasso) on the
 /// left; the master with every overlay toggle, the per-sub field-quality maps,
 /// the narrowband mixer, an A/B re-integrate compare, and the full
 /// integration-settings form on the right.
@@ -287,9 +287,8 @@ class _RightColumn extends StatelessWidget {
         const SizedBox(height: NightshadeTokens.spaceLg),
 
         // ── Per-sub field quality (PSF map). ─────────────────────────────
-        // Reuses the shared PsfFieldMapView painter (extracted from the
-        // diagnostics surface) at per-sub granularity, per the design's
-        // "Reused: psf_field_map.dart".
+        // Reuses the shared PsfFieldMapView painter — the same one the
+        // diagnostics surface renders — at per-sub granularity.
         const SectionHeader(title: 'Optical field quality'),
         const SizedBox(height: NightshadeTokens.spaceSm),
         _FieldQualityCard(subs: state.acceptedLights),
@@ -626,9 +625,10 @@ class _FieldQualityCardState extends ConsumerState<_FieldQualityCard> {
 
 /// The applied narrowband composite result card.
 ///
-/// Surfaces the persisted `narrowband_composites` row after a palette is applied
-/// — the SHO/HOO output is no longer an orphan FITS on disk. It shows the
-/// palette, the component master ids the composite was combined from, the output
+/// Surfaces the persisted `narrowband_composites` row after a palette is
+/// applied, so the SHO/HOO output is a durable row rather than an orphan FITS
+/// on disk. It shows the palette, the component master ids the composite was
+/// combined from, the output
 /// dimensions, and the on-disk path. When a stretched preview PNG sits alongside
 /// the composite FITS (same path, `.png` extension) it is rendered through the
 /// shared [MasterOverlayView] hero exactly like an integrated master; otherwise a

@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/utils/utc_timestamp.dart';
 
 /// Timestamps that cross the Rust/HTTP boundary are UTC instants. The native
-/// bridge historically emitted them without a `Z`, and `DateTime.parse` reads
-/// that offset-less form as *local* time — so every consumer shifted the
-/// instant by the host's timezone offset. These assertions are host-TZ
+/// bridge can emit them without a `Z`, and `DateTime.parse` reads that
+/// offset-less form as *local* time — shifting the instant by the host's
+/// timezone offset for every consumer. These assertions are host-TZ
 /// independent: `DateTime` equality also compares [DateTime.isUtc], so a
 /// local-flagged parse fails even when the host clock is UTC.
 void main() {

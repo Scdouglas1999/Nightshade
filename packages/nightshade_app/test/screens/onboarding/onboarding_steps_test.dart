@@ -329,10 +329,10 @@ void main() {
       expect(container.read(onboardingSiteEntryErrorProvider), isNull);
     });
 
-    // Regression: typing an out-of-range latitude transits the in-range
-    // prefixes "1" and "10". Committing per keystroke persisted those, so a
-    // rejected "100" left 10 degrees North on record as the user's observing
-    // site while the field showed 100 behind a red error. Nothing may persist.
+    // Typing an out-of-range latitude transits the in-range prefixes "1" and
+    // "10". Committing per keystroke persists those, so a rejected "100" leaves
+    // 10 degrees North on record as the user's observing site while the field
+    // shows 100 behind a red error. Nothing may persist.
     testWidgets('rejected latitude persists neither the value nor its prefixes',
         (tester) async {
       final db = _newDb();
@@ -353,9 +353,8 @@ void main() {
           reason: 'no prefix of a rejected latitude may reach settings');
     });
 
-    // Regression: the shell used to return null for this step unconditionally,
-    // so Next advanced with the red error still on screen. The step now
-    // publishes a blocking reason the shell reads.
+    // The step publishes a blocking reason the shell reads: returning null
+    // unconditionally lets Next advance with the red error still on screen.
     testWidgets('out-of-range entry publishes a blocking reason for the shell',
         (tester) async {
       final db = _newDb();
@@ -446,9 +445,9 @@ void main() {
       expect(container.read(onboardingSiteEntryErrorProvider), isNull);
     });
 
-    // Regression: first launch used to persist an IP-geolocation estimate as the
-    // observing site before the user saw it. The estimate is now a suggestion —
-    // visible, labelled with its provenance, and inert until clicked.
+    // First launch must not persist an IP-geolocation estimate as the observing
+    // site before the user sees it. The estimate is a suggestion — visible,
+    // labelled with its provenance, and inert until clicked.
     testWidgets('IP estimate is offered but never persisted on its own',
         (tester) async {
       final db = _newDb();
@@ -799,10 +798,10 @@ void main() {
 
     testWidgets('step list ticks only the steps that captured a value',
         (tester) async {
-      // The sidebar used to tick every step behind the cursor, so a guider the
-      // user tested, failed to reach and skipped carried the same filled tick
-      // as the camera they really configured — while the Review screen said
-      // "— not set —" about the same guider.
+      // The sidebar must not tick every step behind the cursor: a guider the
+      // user tested, failed to reach and skipped would carry the same filled
+      // tick as the camera they really configured, while the Review screen says
+      // "— not set —" about that same guider.
       final db = _newDb();
       addTearDown(db.close);
       late ProviderContainer container;

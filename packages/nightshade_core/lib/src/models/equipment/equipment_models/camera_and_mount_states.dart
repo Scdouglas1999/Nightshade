@@ -140,10 +140,8 @@ class MountState extends Equatable {
   final bool canPark;
   final DeviceError? lastError;
 
-  /// Whether auto-reconnection is enabled for this device.
-  /// Defaults to `true` to preserve historical behavior (auto-reconnect
-  /// was previously hard-coded on for every device type except camera,
-  /// which was the only type that honored a user preference).
+  /// Whether auto-reconnection is enabled for this device. Defaults to `true`
+  /// so an unattended rig recovers a dropped link without an operator.
   final bool autoReconnectEnabled;
 
   const MountState({

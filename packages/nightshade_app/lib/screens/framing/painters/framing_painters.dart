@@ -19,11 +19,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// The rectangle is scaled by the shared [FramingPlateScale] so the FOV reticle
 /// is astrometrically co-registered with the survey background, the equipment
 /// overlay, and the mosaic grid — they all derive on-screen pixels-per-degree
-/// from the *same* plate scale. This eliminates the historical triple-scale bug
-/// where this painter used a hardcoded `60px/deg`, the equipment overlay used
-/// `size.width / previewFov`, and the mosaic grid used yet another `60px/deg`,
-/// so the reticle drawn over a patch of sky did not line up with the pixels the
-/// survey imagery occupied there.
+/// from the *same* plate scale.
 class FramingFOVPainter extends CustomPainter {
   /// Radial gap, in logical pixels, between the top edge of the FOV rectangle
   /// and the center of the rotation handle.
@@ -254,9 +250,8 @@ class FramingFOVPainter extends CustomPainter {
 ///
 /// Like [FramingFOVPainter] and [FramingMosaicGridPainter], the rectangle is
 /// scaled from the shared [FramingPlateScale] — the *same* plate scale the
-/// survey background is drawn at — instead of the old `size.width / previewFov`
-/// re-derivation. The capture area therefore lines up to the pixel with both
-/// the survey imagery and the FOV / mosaic overlays.
+/// survey background is drawn at — so the capture area lines up to the pixel
+/// with both the survey imagery and the FOV / mosaic overlays.
 class FramingEquipmentFOVOverlayPainter extends CustomPainter {
   final double fovWidth;
   final double fovHeight;

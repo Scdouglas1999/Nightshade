@@ -1,11 +1,11 @@
-// COL2-15 — the wizard's sky preview must draw the plan it is previewing,
-// including panels on the far side of the RA 0h seam.
+// The wizard's sky preview must draw the plan it is previewing, including
+// panels on the far side of the RA 0h seam.
 //
 // The planner places each panel from `(panelRa - centreRa) * 15` degrees. RA is
 // circular, so a mosaic centred at 0.0h puts its western column at ~23.9h and
 // that subtraction reads 358.5 degrees instead of -1.5: the whole column is
-// positioned a full sky away and lands off the canvas. The user then frames a
-// mosaic whose panels they can neither see nor toggle.
+// positioned a full sky away and lands off the canvas, leaving the user framing
+// a mosaic whose panels they can neither see nor toggle.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

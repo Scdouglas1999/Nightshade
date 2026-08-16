@@ -4,7 +4,6 @@ part of '../profile_editor_dialog.dart';
 
 extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
   // Section 2: Optical Train
-  // ============================================================================
 
   Widget _buildOpticalTrainSection(NightshadeColors colors, ThemeData theme) {
     return _SectionCard(
@@ -237,9 +236,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
         : value.toString();
   }
 
-  // ============================================================================
-  // Section 3: Devices
-  // ============================================================================
+  // Section 3: devices
 
   Widget _buildDevicesSection(NightshadeColors colors, ThemeData theme) {
     final discovery = ref.watch(unifiedDiscoveryProvider);
@@ -528,6 +525,4 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
     if (_coverCalibratorId != null) count++;
     return count;
   }
-
-  // ============================================================================
 }

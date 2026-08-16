@@ -1,7 +1,7 @@
-// Unit tests for the Collaborative Sky shared trust primitives: Provenance,
+// Unit tests for the shared trust primitives: Provenance,
 // ContributionConsent/License, and the scoped-role/permission model. These lock
-// the wire round-trip and the permission semantics every later workstream
-// (WS1-4) and the hub's mirrored `ScopedGrant` depend on.
+// the wire round-trip and the permission semantics every collaborative feature
+// and the hub's mirrored `ScopedGrant` depend on.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/collaboration/collaboration_models.dart';

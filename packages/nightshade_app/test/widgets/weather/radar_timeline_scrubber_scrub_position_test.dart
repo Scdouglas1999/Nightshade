@@ -22,10 +22,10 @@ final _track = find.byWidgetPredicate(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // The frame you land on has to be the frame under your finger. The scrub used
-  // to be measured off the whole control row and corrected with a hardcoded
-  // 100/200px allowance for the transport buttons, so the mapping carried both
-  // an offset and a scale error that grew with the surface width.
+  // The frame you land on has to be the frame under your finger. Measuring the
+  // scrub off the whole control row and correcting with a fixed allowance for
+  // the transport buttons carries both an offset and a scale error that grow
+  // with the surface width.
   for (final surface in const [Size(1000, 500), Size(2560, 700)]) {
     testWidgets('scrubbing lands on the frame under the pointer at $surface',
         (tester) async {

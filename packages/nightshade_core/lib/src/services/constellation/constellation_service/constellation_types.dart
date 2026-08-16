@@ -27,7 +27,7 @@ typedef ConstellationClientFactory =
     ConstellationClient Function(ConstellationCredentials credentials);
 
 /// Looks up shared-target listings from a hub. The browse payload is not pinned
-/// field-for-field by the contract (§5 leaves it to the hub), so it is fetched
+/// field-for-field by the contract (it is left to the hub), so it is fetched
 /// through this small seam rather than baked into [ConstellationClient]; the
 /// production impl issues a `GET /v1/targets` read.
 typedef SharedTargetBrowser =

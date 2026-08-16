@@ -1,8 +1,7 @@
 // Where the scheduler's own diagnostics go.
 //
-// WF-N1: every SchedulerEngine diagnostic was written with `dart:developer`,
-// which in a shipping Flutter build has NO destination the operator (or an
-// auditor) can reach:
+// `dart:developer` alone has NO destination in a shipping Flutter build that
+// the operator (or an auditor) can reach:
 //
 //   * the rolling `nightshade.log.<date>` on disk is written by the Rust
 //     tracing appender and carried 0 SchedulerEngine lines, and
@@ -10,9 +9,9 @@
 //     `dart:developer` never feeds — its source dropdown offered only
 //     `SequenceExecutor`.
 //
-// So the reconcile line — the E-fix's stated two-implementations guard, the one
-// piece of evidence that says WHICH engine instance re-armed the autopilot —
-// could not be checked by anyone after the fact.
+// A `dart:developer`-only reconcile line — the one piece of evidence that says
+// WHICH engine instance re-armed the autopilot — is therefore uncheckable after
+// the fact.
 //
 // The engine keeps writing to `dart:developer` (useful under a debugger) and
 // ALSO writes to an injectable [SchedulerLogSink]. The Riverpod wiring binds

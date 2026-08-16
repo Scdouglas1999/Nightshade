@@ -1,8 +1,8 @@
-// Regression: choosing Spanish left the LANDING SCREEN entirely in English.
+// Choosing Spanish must not leave the LANDING SCREEN in English.
 //
-// Settings > General > Language > Spanish translated the nav rail, the title
-// bar, the status bar and the whole Settings tree — and then the Dashboard,
-// the screen the app opens on, rendered "TONIGHT'S BRIEFING", "No run active",
+// Settings > General > Language > Spanish translates the nav rail, the title
+// bar, the status bar and the whole Settings tree; untranslated, the Dashboard
+// — the screen the app opens on — renders "TONIGHT'S BRIEFING", "No run active",
 // "Image tonight", "Plan Tonight", "Tonight's targets", "Readiness", "Moon",
 // "Waning Gibbous", "Moonrise", "Moonset", "Last run", "No runs yet…",
 // "Set a capture directory to track free space." and "Edit Dashboard" in

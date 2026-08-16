@@ -1,8 +1,8 @@
-// Regression: the sequencer's target-preview tooltip states "Transit: HH:MM",
-// a fact about the OBSERVING SITE, and formatted it with `.toLocal()` — the
-// controlling laptop's zone. Settings → Location → Timezone moved the status
-// bar, the dashboard and the planetarium Tonight tab but not this line, so a
-// remote operator planning against the site's meridian read their own zone.
+// The sequencer's target-preview tooltip states "Transit: HH:MM", a fact about
+// the OBSERVING SITE, so it follows Settings → Location → Timezone like the
+// status bar, the dashboard and the planetarium Tonight tab. Formatting with
+// `.toLocal()` gives a remote operator planning against the site's meridian
+// their own zone instead.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

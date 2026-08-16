@@ -19,9 +19,7 @@ class DarkLibraryService {
 
   DarkLibraryService(this._dao);
 
-  // ---------------------------------------------------------------------------
   // Registration
-  // ---------------------------------------------------------------------------
 
   /// Register a captured dark or bias frame in the library.
   ///
@@ -60,9 +58,7 @@ class DarkLibraryService {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Matching
-  // ---------------------------------------------------------------------------
 
   /// Find the best-matching dark or bias for a light frame's parameters.
   ///
@@ -99,9 +95,7 @@ class DarkLibraryService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Master Dark Creation
-  // ---------------------------------------------------------------------------
+  // Master dark creation
 
   /// Create a master dark by median-combining a list of raw dark frames.
   ///
@@ -206,9 +200,7 @@ class DarkLibraryService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Dark Subtraction
-  // ---------------------------------------------------------------------------
+  // Dark subtraction
 
   /// Subtract a dark frame from a light frame, pixel by pixel.
   ///
@@ -243,9 +235,7 @@ class DarkLibraryService {
     return _parseFitsPixels(bytes).pixels;
   }
 
-  // ---------------------------------------------------------------------------
-  // Library Management
-  // ---------------------------------------------------------------------------
+  // Library management
 
   /// Get all entries in the library.
   Future<List<DarkLibraryEntry>> getAllEntries() => _dao.getAllEntries();
@@ -351,9 +341,7 @@ class DarkLibraryService {
     return orphanIds.length;
   }
 
-  // ---------------------------------------------------------------------------
   // Private helpers
-  // ---------------------------------------------------------------------------
 
   Future<void> _deleteFileIfExists(String path) async {
     final file = File(path);
@@ -379,16 +367,15 @@ class DarkLibraryService {
   /// Supported `BITPIX` values:
   ///
   /// - `16`  — signed 16-bit (big-endian) reinterpreted as unsigned with the
-  ///   historical `BZERO = 32768` offset. This path is preserved verbatim for
-  ///   regression parity with darks captured by Nightshade itself.
+  ///   implicit `BZERO = 32768` offset Nightshade's own darks are written with.
   /// - `-32` — IEEE 754 single-precision float (big-endian, FITS spec). Used
   ///   by NINA, PixInsight, SiriL master darks. Converted to u16 via
   ///   `clamp(round(BSCALE * stored + BZERO), 0, 65535)`.
   /// - `-64` — IEEE 754 double-precision float (big-endian, FITS spec).
   ///   Same conversion as `-32`.
   ///
-  /// Any other `BITPIX` is rejected with a `FormatException` that lists the
-  /// supported encodings (errors are a feature here).
+  /// Any other `BITPIX` is rejected with a `FormatException` listing the
+  /// supported encodings.
   ///
   /// When float samples fall outside `[0, 65535]` after BZERO/BSCALE scaling,
   /// the parser saturates them and emits a single warning per file via
@@ -450,7 +437,7 @@ class DarkLibraryService {
     }
 
     // Reject unsupported BITPIX loudly — list the supported encodings so the
-    // user can fix their pipeline (errors are a feature here).
+    // user can fix their pipeline.
     const supportedBitpix = <int>[16, -32, -64];
     if (!supportedBitpix.contains(bitpix)) {
       throw FormatException(
@@ -480,11 +467,9 @@ class DarkLibraryService {
     int saturatedHigh = 0;
 
     if (bitpix == 16) {
-      // FITS stores 16-bit data as big-endian signed shorts. The historical
-      // BZERO=32768 convention encodes [0..65535] unsigned. We preserve the
-      // original byte-for-byte behaviour here (no BSCALE handling) to keep
-      // existing dark libraries identical after this change — the BZERO=32768
-      // offset is implicit when the keyword is absent.
+      // FITS stores 16-bit data as big-endian signed shorts; the BZERO=32768
+      // convention encodes [0..65535] unsigned and is implicit when the
+      // keyword is absent. This path applies no BSCALE.
       for (int i = 0; i < pixelCount; i++) {
         final bytePos = dataOffset + i * 2;
         final highByte = bytes[bytePos];

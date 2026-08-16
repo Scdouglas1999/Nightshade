@@ -1,10 +1,7 @@
-// Part of ../tutorial_models.dart -- extracted for maintainability.
-//
 // First-night onboarding and workflow tutorial definitions.
 part of '../tutorial_models.dart';
 
-// ============================================================
-// FIRST NIGHT WIZARD (7 steps)
+// First night wizard (7 steps)
 //
 // The full new-user walkthrough — fires on first launch when no tutorial
 // progress exists. Unlike the existing in-app overlay tours, each step is
@@ -17,7 +14,6 @@ part of '../tutorial_models.dart';
 // WHY each phase exists, not just where to click. A new astrophotographer
 // launching Nightshade should be able to finish the wizard and have a
 // sequence running without consulting external docs.
-// ============================================================
 const List<TutorialStep> _firstNight = [
   TutorialStep(
     id: 'fn_welcome',
@@ -193,10 +189,8 @@ const List<TutorialStep> _firstNight = [
   ),
 ];
 
-// ============================================================
-// FIRST LIGHT TOUR (5 steps)
+// First light tour (5 steps)
 // Connect -> Expose -> View
-// ============================================================
 const List<TutorialStep> _firstLight = [
   TutorialStep(
     id: 'fl_welcome',
@@ -262,15 +256,11 @@ const List<TutorialStep> _firstLight = [
   ),
 ];
 
-// ============================================================
-// EQUIPMENT SETUP TOUR (4 steps)
+// Equipment setup tour (4 steps)
 // Profiles -> Drivers -> Connect
-// ============================================================
-// Every step used to name a control that does not exist ("the Profiles tab",
-// "the Connections tab", "the New Profile button") and point at a targetKey no
-// widget registers, so nothing was ever spotlighted. The Equipment screen has a
-// Profiles side panel with a + button and per-device cards; the copy and the
-// keys now describe that.
+// Each step names a control that exists on the Equipment screen (a Profiles
+// side panel with a + button, per-device cards) and a targetKey some widget
+// registers — a key nothing registers spotlights nothing.
 const List<TutorialStep> _equipmentSetup = [
   TutorialStep(
     id: 'eq_profiles_overview',
@@ -326,10 +316,8 @@ const List<TutorialStep> _equipmentSetup = [
   ),
 ];
 
-// ============================================================
-// TARGET PLANNING TOUR (4 steps)
+// Target planning tour (4 steps)
 // Planetarium -> Search -> Slew -> Frame
-// ============================================================
 const List<TutorialStep> _targetPlanning = [
   TutorialStep(
     id: 'tp_planetarium',
@@ -389,10 +377,8 @@ const List<TutorialStep> _targetPlanning = [
   ),
 ];
 
-// ============================================================
-// AUTOMATED IMAGING TOUR (5 steps)
+// Automated imaging tour (5 steps)
 // Sequencer basics -> Build -> Run
-// ============================================================
 const List<TutorialStep> _automatedImaging = [
   TutorialStep(
     id: 'ai_sequencer_intro',
@@ -462,10 +448,8 @@ const List<TutorialStep> _automatedImaging = [
   ),
 ];
 
-// ============================================================
-// CALIBRATION FRAMES TOUR (3 steps)
+// Calibration frames tour (3 steps)
 // Flat wizard workflow
-// ============================================================
 const List<TutorialStep> _calibrationFrames = [
   TutorialStep(
     id: 'cf_what_are_flats',
@@ -509,10 +493,8 @@ const List<TutorialStep> _calibrationFrames = [
   ),
 ];
 
-// ============================================================
-// ADVANCED FEATURES TOUR (4 steps)
+// Advanced features tour (4 steps)
 // Analytics, weather, history, settings
-// ============================================================
 const List<TutorialStep> _advancedFeatures = [
   TutorialStep(
     id: 'af_analytics',

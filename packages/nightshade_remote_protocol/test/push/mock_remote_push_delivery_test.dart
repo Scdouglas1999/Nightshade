@@ -159,7 +159,7 @@ void main() {
     expect(fcmOnly.delivered.map((d) => d.token.deviceId), ['android']);
   });
 
-  // Regression: the production wire frame carries the per-event key in
+  // The production wire frame carries the per-event key in
   // `eventType` (NotificationCategory.storageKey == 'weatherUnsafe') and the
   // coarse EventCategory in `category` ('safety'). The mute gate MUST read
   // `eventType` — if it reads `category` ('safety') the mute matrix is inert

@@ -62,9 +62,7 @@ class EquipmentHealthPanel extends ConsumerWidget {
   }
 }
 
-// =============================================================================
-// Header Bar (always visible)
-// =============================================================================
+// Header bar (always visible)
 
 class _HealthHeaderBar extends StatelessWidget {
   final AsyncValue<EquipmentHealthReport> reportAsync;
@@ -170,9 +168,7 @@ class _HealthHeaderBar extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// Score Badge
-// =============================================================================
+// Score badge
 
 class _ScoreBadge extends StatelessWidget {
   final double score;
@@ -246,9 +242,7 @@ class _ScoreBadge extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// Health Detail Content (shown when expanded)
-// =============================================================================
+// Health detail content (shown when expanded)
 
 class _HealthDetailContent extends StatelessWidget {
   final EquipmentHealthReport report;
@@ -305,9 +299,7 @@ class _HealthDetailContent extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// Score Gauge Row
-// =============================================================================
+// Score gauge row
 
 class _ScoreGaugeRow extends StatelessWidget {
   final double score;
@@ -390,9 +382,7 @@ class _ScoreGaugeRow extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// Insight Card
-// =============================================================================
+// Insight card
 
 class _InsightCard extends StatelessWidget {
   final EquipmentHealthInsight insight;
@@ -455,9 +445,7 @@ class _InsightCard extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// Device Heartbeat Chip
-// =============================================================================
+// Device heartbeat chip
 
 class _DeviceHeartbeatChip extends ConsumerWidget {
   final DeviceHealthSnapshot snapshot;
@@ -539,11 +527,10 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
   /// What the chip says under the device name.
   ///
   /// Only the camera notifier records a successful-communication timestamp, so
-  /// every other device arrives here with zero. Rendering that as an age gave
-  /// each of them a green "OK - 20676d ago" — 56 years, i.e. the epoch — on a
-  /// rig that had been connected for seconds. An absent timestamp is unknown,
-  /// and the panel whose whole job is to notice a device going quiet has to say
-  /// so rather than print the worst staleness value there is and call it OK.
+  /// every other device arrives here with zero. An absent timestamp is UNKNOWN,
+  /// not maximally stale: rendering it as an age prints the epoch as a contact
+  /// time, and the panel whose job is to notice a device going quiet has to say
+  /// it does not know.
   static String _statusLine(DeviceHealthSnapshot snapshot) {
     final health = snapshot.isHealthy ? 'OK' : 'Unhealthy';
     if (snapshot.lastSuccessfulTimestampMs <= 0) {
@@ -565,9 +552,7 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
   }
 }
 
-// =============================================================================
-// Health Error Content
-// =============================================================================
+// Health error content
 
 class _HealthErrorContent extends StatelessWidget {
   final Object error;

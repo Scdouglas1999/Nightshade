@@ -6,12 +6,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Probes the device-class TIER family ([Responsive.isMobile] / [isTablet] /
 /// [isDesktop] / [isDesktopLarge] / [isUltraWide]).
 ///
-/// The regression these pin down: the tier family used to branch on the raw
-/// window WIDTH, so a landscape phone or a foldable cover screen (long edge
-/// >= 768, e.g. the Galaxy Z Fold 6 cover at 905x369) reported desktop-class
-/// and got the desktop split layout. On a mobile OS the tier must key off the
-/// SHORTEST side so the classification is orientation-stable, matching
-/// [Responsive.isPhone]. On desktop the live width must still drive the tier.
+/// Branching the tier family on the raw window WIDTH reports desktop-class for
+/// a landscape phone or a foldable cover screen (long edge >= 768, e.g. the
+/// Galaxy Z Fold 6 cover at 905x369) and hands it the desktop split layout. On
+/// a mobile OS the tier keys off the SHORTEST side so the classification is
+/// orientation-stable, matching [Responsive.isPhone]. On desktop the live width
+/// still drives the tier.
 Future<
   ({
     bool isMobile,
@@ -72,9 +72,8 @@ void main() {
     testWidgets('905x369 Fold cover screen classifies as mobile, not desktop', (
       tester,
     ) async {
-      // The exact regression: 905 >= 768 so the old width-based isMobile was
-      // false and stack_result (and every other isMobile branch) wrongly
-      // rendered the desktop split. Short edge 369 < 600 => mobile tier.
+      // 905 >= 768, so a width-based isMobile reads false and every isMobile
+      // branch renders the desktop split. Short edge 369 < 600 => mobile tier.
       final r = await _probe(tester, const Size(905, 369));
       expect(
         r.isMobile,

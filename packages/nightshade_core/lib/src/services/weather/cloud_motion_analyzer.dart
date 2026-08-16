@@ -20,9 +20,6 @@ enum CloudMotionUnavailableReason {
   /// animation opacity, or a single-point cloud-cover scalar). Optical-flow /
   /// centroid tracking across such frames is meaningless because the centroid
   /// can never move, so no genuine arrival ETA or direction can be derived.
-  ///
-  /// This is the honest replacement for the previous behaviour, which returned
-  /// a fake [CloudMotion] computed from a constant field.
   noSpatialData,
 
   /// Spatial structure existed but the tracked cloud mass did not move enough

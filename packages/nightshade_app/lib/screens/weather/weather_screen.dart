@@ -57,7 +57,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
   bool _statusCardExpanded = true;
 
   // Refresh timer. Suspended when the app is backgrounded so a hidden window
-  // doesn't keep hammering the radar API every five minutes (§4.33).
+  // doesn't keep hammering the radar API every five minutes.
   Timer? _refreshTimer;
 
   @override

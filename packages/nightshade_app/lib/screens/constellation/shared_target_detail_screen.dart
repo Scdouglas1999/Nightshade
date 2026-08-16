@@ -218,7 +218,7 @@ class _SharedTargetDetailScreenState
       // Pull the additive `.nst` accumulator (finalized: false) so the service
       // actually folds it into the local atlas — that merge is what makes the
       // swarm's depth show up in Your Sky. A finalized FITS pull is a
-      // display-only blob the app never blends, which would make the "blended
+      // display-only blob that never blends, which would make the "blended
       // into Your Sky" copy below false.
       final tiles = await ref
           .read(constellationServiceProvider)
@@ -445,7 +445,7 @@ class _JoinCard extends StatelessWidget {
   }
 }
 
-/// Opens a LIVE co-imaging session on this target (WS3): the anchor side of
+/// Opens a LIVE co-imaging session on this target: the anchor side of
 /// pooling integration across rigs, distinct from the async swarm Contribute/
 /// Pull below. Available on every backend since the session routes through the
 /// hub client, not the local atlas.

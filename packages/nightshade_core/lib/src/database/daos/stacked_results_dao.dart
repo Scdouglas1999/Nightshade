@@ -17,9 +17,8 @@ import '../database.dart';
 /// the raw-DDL `thumbnail_path` column. It is deliberately *not* a Drift
 /// `@DriftAccessor`, which would require the table to be Drift-declared.
 ///
-/// Per project policy this DAO never silently swallows failures: SQLite errors
-/// propagate to the caller, and reads map nullable columns to the
-/// [StackAndShareResult] model's well-defined defaults rather than guessing.
+/// SQLite errors propagate to the caller; reads map nullable columns to the
+/// [StackAndShareResult] model's defaults.
 class StackedResultsDao {
   StackedResultsDao(this._db);
 

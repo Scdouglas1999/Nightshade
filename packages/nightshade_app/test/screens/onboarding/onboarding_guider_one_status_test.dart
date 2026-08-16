@@ -1,9 +1,8 @@
-// SET-3: the guider card stacked two contradictory status lines — a green
-// "Guider set to PHD2 at localhost:4400" directly above a red "No response on
-// localhost:4400" — and the red one outlived the choice it belonged to.
-// Picking the built-in guider underneath cleared the green line and left the
-// PHD2 failure on screen, so the step ended with a working native guider
-// chosen and an error showing.
+// The guider card carries ONE status line. Stacking a green "Guider set to PHD2
+// at localhost:4400" directly above a red "No response on localhost:4400" is
+// self-contradictory, and a red line that outlives the choice it belongs to
+// survives picking the built-in guider underneath — ending the step with a
+// working native guider chosen and an error showing.
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

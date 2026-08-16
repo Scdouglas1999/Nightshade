@@ -25,13 +25,11 @@ import 'target_coordinates.dart';
 import 'target_node_properties.dart';
 import 'target_scheduler_properties.dart';
 
-// ---------------------------------------------------------------------------
 // File split: the per-node property widgets, input primitives, dispatcher,
 // and timing section live in `node_properties_panel_parts/`. The public
 // `NodePropertiesPanel` widget stays in this file. Parts share the same
 // library scope so private symbols (_NodeEditor, _TextInput, etc.) cross
 // files without needing to be promoted.
-// ---------------------------------------------------------------------------
 
 part 'node_properties_panel_parts/_input_primitives.dart';
 part 'node_properties_panel_parts/_node_editor.dart';

@@ -150,9 +150,7 @@ extension _PostSessionIntegrationStages on PostSessionIntegrationService {
   /// star-reduction / deconvolution previews. Each pass that writes an artifact
   /// persists its on-disk output path onto the master (the v44
   /// `background_extracted_path` / `deconvolved_path` / `star_reduced_path` /
-  /// `color_calibrated_path` columns) so the workbench can surface the result;
-  /// previously these written paths were discarded and only
-  /// `background_extracted=1` survived.
+  /// `color_calibrated_path` columns) so the workbench can surface the result.
   ///
   /// [wcs] is the master's just-solved WCS (from [_solveAndStoreWcs]) or null
   /// when the master is un-solved — colour calibration needs it to place

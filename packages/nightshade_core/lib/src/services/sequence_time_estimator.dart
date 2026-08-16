@@ -17,30 +17,24 @@ class SequenceTimeEstimator {
   /// simulation so the node chip, the timeline, the Pre-Flight duration and
   /// the run-dashboard total all agree. Construct via [SequenceTimeEstimator.new]
   /// with a config derived from the user's `SequencerDefaults` (see the app
-  /// call sites); the no-arg `const` form keeps the estimator's historical
-  /// defaults so existing tests and zero-config callers behave unchanged.
+  /// call sites); the no-arg `const` form uses [defaultEstimatorOverhead].
   final SequenceOverheadConfig overhead;
 
   /// Construct with an explicit overhead model. Defaults to
-  /// [defaultEstimatorOverhead], which preserves the estimator's historical
-  /// timing constants (2 s download, 5 s dither, 30 s slew/center, 120 s
-  /// meridian-flip base, 10 min cooling) rather than the
-  /// [SequenceOverheadConfig] field defaults, so the long-standing unit
-  /// tests and goldens keep passing.
+  /// [defaultEstimatorOverhead] (2 s download, 5 s dither, 30 s slew/center,
+  /// 120 s meridian-flip base, 10 min cooling), not the
+  /// [SequenceOverheadConfig] field defaults.
   const SequenceTimeEstimator({this.overhead = defaultEstimatorOverhead});
 
-  // ============================================================================
   // Default timing constants (in seconds unless noted)
-  // ============================================================================
 
-  /// The estimator's historical overhead constants, expressed as a
-  /// [SequenceOverheadConfig]. These differ from the
-  /// [SequenceOverheadConfig] field defaults on purpose — the estimator has
-  /// always used lighter assumptions (2 s download, 5 s dither/settle, 30 s
-  /// slew + center, 120 s meridian-flip base) and the time-estimator tests +
-  /// timeline goldens are pinned to them. App call sites override this with a
-  /// config built from `SequencerDefaults` so the live estimate honours the
-  /// user's real cadence.
+  /// The estimator's overhead constants, expressed as a
+  /// [SequenceOverheadConfig]. They differ from the [SequenceOverheadConfig]
+  /// field defaults on purpose — lighter assumptions (2 s download, 5 s
+  /// dither/settle, 30 s slew + center, 120 s meridian-flip base) that the
+  /// time-estimator tests and timeline goldens are pinned to. App call sites
+  /// override this with a config built from `SequencerDefaults` so the live
+  /// estimate honours the operator's real cadence.
   static const SequenceOverheadConfig defaultEstimatorOverhead =
       SequenceOverheadConfig(
         downloadOverheadPerExposureSecs: 2.0,
@@ -127,12 +121,12 @@ class SequenceTimeEstimator {
   /// Intrinsic duration of ONE instance of [node], excluding its children.
   ///
   /// Public so the sequencer tree's per-row rollup bills each node with the
-  /// same model the timeline and the pre-flight simulation use. The rollup used
-  /// to carry its own table of per-node costs, which disagreed with this one on
-  /// every node it did not list (Delay, Wait, Park, Script and Rotator were all
-  /// billed at zero) and on Cool Camera (a flat "cooling" constant instead of
-  /// the node's own configured duration) — so the Builder's estimate chip and
-  /// the Pre-Flight simulation printed different totals for the same sequence.
+  /// same model the timeline and the pre-flight simulation use. A second table
+  /// of per-node costs disagrees with this one on every node it does not list
+  /// (Delay, Wait, Park, Script and Rotator bill at zero) and on Cool Camera (a
+  /// flat "cooling" constant instead of the node's own configured duration), so
+  /// the Builder's estimate chip and the Pre-Flight simulation print different
+  /// totals for the same sequence.
   ///
   /// [at] anchors the nodes whose duration depends on the clock (Wait Until);
   /// it defaults to now.

@@ -54,8 +54,8 @@ class ServerError implements Exception {
   ///
   ///   1. Canonical `{code, message, details?}` — the original envelope.
   ///   2. Unified `{error, code, message, ...}` — the backward-compatible
-  ///      transition envelope emitted by `jsonError` (NAME-001), where
-  ///      `error` mirrors `message` for legacy display-only clients. The
+  ///      transition envelope emitted by `jsonError`, where `error`
+  ///      mirrors `message` for legacy display-only clients. The
   ///      machine `code` always wins over the legacy `error` field.
   ///   3. Legacy prose-only `{error: '...'}` — the historical bodies that
   ///      carried a human string but no machine code AND no `message`. The

@@ -76,9 +76,9 @@ class _ActionButtons extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
         ],
-        // The solver's own per-filter reason. It was written to
-        // FlatWizardState.warningMessage and never read by anything, so a run
-        // that partly failed showed no explanation at all.
+        // The solver's own per-filter reason, from
+        // FlatWizardState.warningMessage, so a run that partly failed explains
+        // itself.
         if (state.warningMessage != null) ...[
           Container(
             padding: const EdgeInsets.all(12),

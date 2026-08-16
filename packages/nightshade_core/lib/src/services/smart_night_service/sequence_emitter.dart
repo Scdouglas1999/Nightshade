@@ -565,13 +565,14 @@ extension _SmartNightSequenceEmitter on SmartNightService {
   /// Flats are emitted ONLY for filters that have an ADU-calibrated exposure
   /// in [flatPlan] (sourced from the `flat_history` table, where each row
   /// records the exposure that hit a target histogram percentage). Each
-  /// calibrated filter uses the SAME exposure + panel brightness that
-  /// previously achieved its ADU target — never a blind fixed exposure.
+  /// calibrated filter uses the SAME exposure + panel brightness its recorded
+  /// row achieved the ADU target with — never a blind fixed exposure.
   ///
   /// Filters with no calibration (and the case where NO calibration data is
   /// available at all) produce a loud [NotificationNode] reminder instead of
   /// a guessed exposure: an uncalibrated panel flat that misses half-well does
-  /// not calibrate the lights, so we fail loud rather than capture wrong data.
+  /// not calibrate the lights, so the run fails loud rather than capturing
+  /// wrong data.
   void _emitPanelFlats({
     required EquipmentProfileModel profile,
     required SmartNightSettings settings,

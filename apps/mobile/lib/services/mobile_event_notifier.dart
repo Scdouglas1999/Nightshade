@@ -208,8 +208,8 @@ class MobileEventNotifier {
     switch (event.eventType) {
       case 'StarLost':
       case 'LostStar':
-        // PHD2 emits "LostStar" historically; the Rust bridge canonicalizes
-        // it to "StarLost" in the docs, but both are seen on older servers.
+        // PHD2 emits "LostStar"; the Rust bridge canonicalizes it to
+        // "StarLost" in the docs. Both reach this client, so accept both.
         await _notifications.notifyGuidingLost(
           'Guide star has been lost. Guiding has stopped.',
         );

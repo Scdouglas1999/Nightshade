@@ -10,23 +10,11 @@ import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
-/// Live-rig L29 (2026-08-09). After a night of headless runs the appliance
-/// held:
-///
-/// ```
-/// PS> (Get-ChildItem C:\src\rigframes -Filter *.fits -Recurse).Count
-/// 30
-/// GET /api/images?limit=100 -> 8 entries, every one of them from the single
-///                              run started via checkpoint/resume
-/// ```
-///
-/// Thirty frames on disk, eight in the database. The `load -> start` path the
-/// appliance actually uses re-implements a subset of `SequenceExecutor.start()`
-/// and had neither of the two host-side steps that make a night reviewable: it
-/// never opened the `imaging_sessions` row, and it never subscribed to the
+/// The `load -> start` path the appliance uses re-implements a subset of
+/// `SequenceExecutor.start()`, so it must carry both host-side steps that make
+/// a night reviewable: open the `imaging_sessions` row, and subscribe to the
 /// native event stream that turns a captured frame into a `captured_images`
-/// row. The resume path had the subscription, which is why its eight frames
-/// survived.
+/// row. Missing either leaves frames on disk with no database record.
 ///
 /// These tests pin both halves at the seam. They fail if either is removed.
 class _MockSequencerBackend extends Mock implements SequencerBackend {}
@@ -85,13 +73,12 @@ String _wireSequence({
   ],
 });
 
-/// Live-rig L16 residual (2026-08-09). The Rust `collect_required_devices`
-/// walk gates the five roles `sequencerSetDevices` carries; the guider, dome
-/// and cover calibrator are reached through `device_ops` with no id, so that
-/// walk structurally cannot see them. Confirmed on the rig: `Dither`,
-/// `StartGuiding` and `CalibratorOn` each answered
-/// `POST /api/sequencer/start -> 200 {"status":"started"}` and then failed
-/// mid-run. The host is the only place that knows what is connected.
+/// The Rust `collect_required_devices` walk gates the five roles
+/// `sequencerSetDevices` carries; the guider, dome and cover calibrator are
+/// reached through `device_ops` with no id, so that walk structurally cannot
+/// see them and a `Dither`, `StartGuiding` or `CalibratorOn` node answers
+/// `200 {"status":"started"}` and then fails mid-run. The host is the only
+/// place that knows what is connected.
 String _wireWith(
   String nodeType, {
   String name = 'The Step',
@@ -512,12 +499,11 @@ void main() {
     );
   });
 
-  /// Found by running the L29 fix on the live rig rather than by reading it.
-  /// After a `load` that failed on a missing field, the next `start` answered
-  /// `409 no_sequence_loaded` — and `GET /api/sessions` showed **session id 3,
-  /// named after a sequence from twenty minutes earlier, zero exposures,
-  /// status completed**: a night that never happened, labelled with the wrong
-  /// sequence.
+  /// A `load` that fails on a missing field must leave no session row behind.
+  /// Unguarded, the next `start` answers `409 no_sequence_loaded` while
+  /// `GET /api/sessions` shows **a session named after a sequence from twenty
+  /// minutes earlier, zero exposures, status completed** — a night that never
+  /// happened, labelled with the wrong sequence.
   group('a refused start leaves no session behind', () {
     late _MockSequencerBackend sequencer;
     late _MockDeviceBackend devices;
@@ -642,8 +628,8 @@ void main() {
     });
   });
 
-  /// Live rig 2026-08-09, immediately after restarting the appliance with the
-  /// capture folder already configured:
+  /// Restart the appliance with the capture folder already configured, and
+  /// without the restore:
   ///
   /// ```
   /// GET  /api/system/disk-space -> {"configured": true, "path": "C:\\", ...}

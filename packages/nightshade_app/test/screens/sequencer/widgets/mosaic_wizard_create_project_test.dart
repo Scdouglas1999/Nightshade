@@ -186,8 +186,8 @@ void main() {
     final args = calls.single;
     // The default wizard design: 3×3 grid, 10% overlap, 0° rotation, opened at
     // RA 12.5h / Dec 30.0°. The panel size is DERIVED from the overridden rig
-    // (500 mm focal length, 4144×2822 px at 4.63 µm => 2.198° × 1.500°); it
-    // used to be a hardcoded 60×40 arcmin that matched no camera at all.
+    // (500 mm focal length, 4144×2822 px at 4.63 µm => 2.198° × 1.500°), never
+    // a fixed placeholder that matches no camera.
     expect(args['name'], 'Mosaic 12.50h 30.0°');
     expect(args['rows'], 3);
     expect(args['cols'], 3);
@@ -201,9 +201,8 @@ void main() {
     // panelTargetId callback end-to-end (wizard design -> controller ->
     // service). For the wizard's ad-hoc centre it is null — the project-service
     // assigns the distinct per-panel capture targets inside createProject — but
-    // the argument MUST be present in the call so the plumbing exists. Before
-    // the fix the controller dropped it entirely and the service signature had
-    // no such parameter.
+    // the argument MUST be present in the call so the plumbing exists end to
+    // end.
     expect(args.containsKey('panelTargetId'), isTrue,
         reason:
             'the per-panel target callback must be wired through createProject');
@@ -293,9 +292,9 @@ void main() {
     // must default MosaicSequenceOptions.minAltitude to the Smart Night floor
     // so every panel TargetHeader carries a minAltitude (serialized as
     // `min_altitude` => a `start_when AltitudeAbove` wait in the executor).
-    // Before the fix the wizard passed no minAltitude and every panel header's
-    // minAltitude was null — a panel could begin imaging below the horizon
-    // floor. This taps the real button and reads the generated sequence back.
+    // With no minAltitude every panel header's is null and a panel can begin
+    // imaging below the horizon floor. This taps the real button and reads the
+    // generated sequence back.
     final service = _MockService();
     _recordCreateCalls(service, returns: 1);
     await _pumpWizard(

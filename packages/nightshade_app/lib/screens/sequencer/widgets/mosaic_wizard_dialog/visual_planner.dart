@@ -403,8 +403,8 @@ class _PanelLayer extends StatelessWidget {
   /// The panel number, drawn in its own top-most layer.
   ///
   /// It sits in the cell's top-left corner rather than its centre: centred,
-  /// the middle panel of any odd grid was hidden under the drag-centre
-  /// handle. It is pointer-transparent so a tap still toggles the panel
+  /// the middle panel of any odd grid hides under the drag-centre handle.
+  /// It is pointer-transparent so a tap still toggles the panel
   /// underneath, and it is the last thing painted so neither the handle nor
   /// a neighbouring panel's overlap fill can sit on top of a digit.
   Widget _panelNumber(_PanelPosition p, Offset centerPx) {
@@ -452,6 +452,4 @@ class _PanelLayer extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Painters
-// ============================================================================

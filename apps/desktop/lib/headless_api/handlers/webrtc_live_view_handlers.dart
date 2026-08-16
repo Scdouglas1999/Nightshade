@@ -163,9 +163,7 @@ class WebRtcLiveViewHandlers {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Route handlers
-  // ---------------------------------------------------------------------------
 
   /// POST /api/webrtc/live-view/offer
   Future<Response> handleOffer(Request request) async {
@@ -453,9 +451,7 @@ class WebRtcLiveViewHandlers {
     return noContentResponse();
   }
 
-  // ---------------------------------------------------------------------------
   // Session lifecycle
-  // ---------------------------------------------------------------------------
 
   Future<_WebRtcLiveViewSession> _createSession({
     required String sessionId,

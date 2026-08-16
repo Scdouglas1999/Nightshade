@@ -1,4 +1,3 @@
-// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../polar_alignment_screen.dart';
@@ -178,9 +177,9 @@ extension _ScreenShell on _PolarAlignmentScreenState {
     final mountConnected = ref.watch(mountStateProvider
         .select((s) => s.connectionState == DeviceConnectionState.connected));
     // A parked mount cannot slew between the three points and is not pointing
-    // at sky. The run used to start anyway, expose, blind-solve a field it was
-    // never going to solve, and hand back "Plate solve timed out" — a solver
-    // error for what is a mount the app knew was parked before the click.
+    // at sky, so the run is refused before it starts. Letting it run returns
+    // "Plate solve timed out" — a solver error for a mount the app knew was
+    // parked before the click.
     final mountParked = mountConnected &&
         ref.watch(mountStateProvider.select((s) => s.isParked));
     final equipmentReady = cameraConnected && mountConnected && !mountParked;

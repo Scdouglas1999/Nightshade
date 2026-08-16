@@ -1,5 +1,3 @@
-// Part of ../framing_controls.dart -- extracted for maintainability.
-//
 // Mosaic spinner, option buttons, start-corner selector and export button.
 part of '../framing_controls.dart';
 
@@ -303,10 +301,10 @@ class _CornerOption extends StatelessWidget {
 /// to the project screen (`/mosaic/:id`) so the scheduler/sequencer can consume
 /// it.
 ///
-/// This replaces the old export-to-targets behaviour, which wrote orphaned
-/// `targets` rows (`objectType: 'mosaic'`) that no project or sequence could
-/// drive — a dead end. The grid geometry is taken from the live framing state
-/// via [FramingNotifier.createDurableMosaicProject], so the persisted project
+/// A durable project rather than orphaned `targets` rows (`objectType:
+/// 'mosaic'`), because only a project can be driven by a sequence. The grid
+/// geometry is taken from the live framing state via
+/// [FramingNotifier.createDurableMosaicProject], so the persisted project
 /// matches the panels shown on the canvas.
 class FramingExportMosaicButton extends ConsumerStatefulWidget {
   final NightshadeColors colors;

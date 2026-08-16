@@ -105,6 +105,11 @@ void main() {
         (tester) async {
       final container =
           ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      // The zenith — and so the sky view's home pose — is only defined for an
+      // observer, so this case needs a site on record.
+      container
+          .read(observerLocationProvider.notifier)
+          .setLocation(latitude: 40.0, longitude: -105.0);
       late WidgetRef capturedRef;
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -123,7 +128,7 @@ void main() {
       // The sky view starts at its default pose (the zenith — it no longer
       // opens on RA 0h / Dec 0, which pointed below the horizon), and nothing
       // is selected.
-      final (homeRa, _) = container.read(skyViewHomeCenterProvider);
+      final homeRa = container.read(skyViewHomeCenterProvider)!.$1;
       expect(
         container.read(skyViewStateProvider).centerRA,
         closeTo(homeRa, 0.02),
@@ -155,6 +160,11 @@ void main() {
         (tester) async {
       final container =
           ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      // The zenith — and so the sky view's home pose — is only defined for an
+      // observer, so this case needs a site on record.
+      container
+          .read(observerLocationProvider.notifier)
+          .setLocation(latitude: 40.0, longitude: -105.0);
       // A user who left the sky view in the horizontal frame would otherwise
       // arrive at a planetarium that simply did not move: centerRA/centerDec
       // are inert there.

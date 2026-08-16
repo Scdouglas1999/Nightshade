@@ -43,7 +43,7 @@ final defectMapHostDarkPickerProvider =
 
 /// Image-calibration controls for the imaging screen.
 ///
-/// Surfaces the per-camera defect map (W6-DEFECT) pipeline:
+/// Surfaces the per-camera defect-map pipeline:
 /// - status line ("1,243 pixels, built 2 days ago at -10C")
 /// - build-from-darks button
 /// - apply-during-capture toggle

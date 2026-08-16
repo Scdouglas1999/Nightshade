@@ -1,9 +1,7 @@
-// SLOP-DEFENSIVE-001 regression: the opportunistic cloud-motion push is
-// best-effort telemetry layered on top of the authoritative SafeRig (Dart)
-// and WeatherUnsafe (Rust) gates. A failure pushing it MUST stay
-// non-blocking — it must never rethrow out of `_pushCloudMotion` and must
-// never wedge the verdict-push loop. (The fix also logs the failure instead
-// of silently swallowing it behind a comment that falsely claimed it logged.)
+// The opportunistic cloud-motion push is best-effort telemetry layered on top
+// of the authoritative SafeRig (Dart) and WeatherUnsafe (Rust) gates. A failure
+// pushing it stays non-blocking: it never rethrows out of `_pushCloudMotion` and
+// never wedges the verdict-push loop. The failure is logged, not swallowed.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,7 +59,7 @@ void main() {
         unsafeOverride: any(named: 'unsafeOverride'),
       ),
     ).thenAnswer((_) async {});
-    // The cloud-motion push faults — historically this was silently dropped.
+    // The cloud-motion push faults; the failure must be logged, not dropped.
     when(
       () => backend.sequencerUpdateCloudMotion(
         currentCoverPercent: any(named: 'currentCoverPercent'),

@@ -113,7 +113,7 @@ void main() {
       isNull,
       reason: 'the empty-class header must not overflow at phone width',
     );
-    // And the chrome the fix is about is actually on screen at this width.
+    // And the chrome under test is actually on screen at this width.
     expect(find.text('COVER / CALIBRATORS'), findsOneWidget);
     expect(find.byTooltip('Scan for switches'), findsOneWidget);
   });

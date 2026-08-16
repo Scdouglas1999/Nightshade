@@ -9,9 +9,9 @@ import '../../services/live_stacking_service.dart';
 /// value equality), matching the style of [LiveStackingConfig] /
 /// [LiveStackingStats] in `live_stacking_service.dart` — no freezed / codegen.
 ///
-/// Per project policy these models never silently swallow data: helpers like
-/// [StackAndShareProgress.fraction] return well-defined values for degenerate
-/// inputs (e.g. zero total frames) rather than producing NaN.
+/// Helpers like [StackAndShareProgress.fraction] return a well-defined value
+/// for degenerate inputs (e.g. zero total frames) rather than a NaN that would
+/// reach a progress bar.
 
 part 'stack_and_share/stack_and_share_config.dart';
 part 'stack_and_share/stack_and_share_progress.dart';

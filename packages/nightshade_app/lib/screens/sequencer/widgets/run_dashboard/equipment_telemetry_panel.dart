@@ -11,10 +11,6 @@ import '../equipment_telemetry_strip.dart';
 /// for which device fields render — both the toolbar (horizontal) and
 /// this dashboard panel (vertical) read the same providers and produce
 /// matching telemetry.
-///
-/// History: this file used to hand-format a parallel set of device rows.
-/// That duplicate was deleted when the strip learned to render vertically
-/// — see `equipment_telemetry_strip.dart`'s `_VerticalLayout`.
 class RunDashboardEquipmentPanel extends ConsumerWidget {
   const RunDashboardEquipmentPanel({super.key});
 

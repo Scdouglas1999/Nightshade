@@ -1,18 +1,17 @@
-// NEW-C2 / WD-SCI-N2: no screen in the analytics-family may ship a tap target
-// that publishes no role.
+// No screen in the analytics family may ship a tap target that publishes no
+// role.
 //
-// Wave D read `panel: Photometry [DISABLED]`, `panel: Field Quality [DISABLED]`
-// and `panel: Anomalies [DISABLED]` off the live accessibility tree while all
-// three chips worked when clicked, and named the same shape on four further
-// screens. The cause is always the same: `InkWell`/`GestureDetector` publishes
-// a tap ACTION and no role and no enabled flag, and AT-SPI reads an absent
-// enabled flag as "disabled". A screen-reader user is told the control is
-// unavailable; a mouse user finds it working.
+// A bare `InkWell`/`GestureDetector` publishes a tap ACTION with no role and no
+// enabled flag, and AT-SPI reads an absent enabled flag as "disabled". The live
+// tree then reads `panel: Photometry [DISABLED]`, `panel: Field Quality
+// [DISABLED]`, `panel: Anomalies [DISABLED]` for chips that work when clicked:
+// a screen-reader user is told the control is unavailable, a mouse user finds
+// it working.
 //
-// Fixing the three chips Wave D happened to look at leaves the class alive, so
-// this sweeps the whole surface the batch owns. It is a source scan rather than
-// a widget drive because most of these sites need a live database, a run, or a
-// solved frame to render at all — the structural rule holds without any of that.
+// Pinning individual chips leaves the class alive, so this sweeps the whole
+// surface. It is a source scan rather than a widget drive because most of these
+// sites need a live database, a run, or a solved frame to render at all — the
+// structural rule holds without any of that.
 
 import 'dart:io';
 

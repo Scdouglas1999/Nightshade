@@ -31,13 +31,13 @@ class AutopilotArmedRule implements RefAwareSequenceValidator {
     // The autopilot's OWN dispatched run goes through this same pre-flight;
     // warning there would be telling the scheduler about itself.
     //
-    // This suppression is only sound while the ownership flag is truthful. It
-    // was not: "New Sequence" left the slot marked `autopilot` after a single
-    // dispatch, so the operator's own plan inherited the scheduler's exemption
-    // (WE-SEQ-N3). The flag is now reclaimed by every manual load/create/clear
-    // (`CurrentSequenceNotifier._reclaimManualOwnership`), and this line is how
-    // a live log says WHICH answer this rule got — "suppressed" in a log for a
-    // plan the operator built is the fingerprint of that bug returning.
+    // This suppression is only sound while the ownership flag is truthful. A
+    // slot left marked `autopilot` after a single dispatch hands the operator's
+    // own plan the scheduler's exemption, so the flag is reclaimed by every
+    // manual load/create/clear
+    // (`CurrentSequenceNotifier._reclaimManualOwnership`). This line is how a
+    // live log says WHICH answer this rule got — "suppressed" in a log for a
+    // plan the operator built is the fingerprint of that failure.
     if (ref.read(activePlanOwnerProvider) == ActivePlanOwner.autopilot) {
       developer.log(
         'AutopilotArmedRule: suppressed for "${sequence.name}" — the editor '

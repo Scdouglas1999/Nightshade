@@ -1,4 +1,3 @@
-// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../polar_alignment_screen.dart';
@@ -194,12 +193,11 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
     return colors.error;
   }
 
-  /// Task 4.6: History panel widget
+  /// History panel.
   ///
-  /// Why: uses the streaming history provider (`polarAlignmentHistoryStreamProvider`)
-  /// so new alignment runs appear in the panel immediately after the run
-  /// completes — previously the panel was on a one-shot Future and stale until
-  /// the screen was rebuilt.
+  /// Reads the STREAMING history provider
+  /// (`polarAlignmentHistoryStreamProvider`) so a new run appears as soon as it
+  /// completes; a one-shot Future here stays stale until the screen rebuilds.
   Widget _buildHistoryPanel(NightshadeColors colors) {
     final profileId = ref.watch(activeEquipmentProfileProvider)?.id;
     final historyAsync =

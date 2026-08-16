@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -129,7 +130,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
   // user has panned away.
   String? _appliedSkyTargetQuery;
 
-  // Filter sidebar state (legacy desktop layout — retained, no longer mounted)
+  // Filter sidebar expansion state for the desktop layout.
   bool _filterSidebarExpanded = false;
 
   // Redesigned shell: which right-docked panel is open (desktop). Mutually
@@ -291,9 +292,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
                 }
               },
               // Redesigned "top command bar + dockable panels" shell — ONE
-              // adaptive layout for desktop and phone. The legacy
-              // desktop/mobile layouts (`_buildDesktopLayout` /
-              // `_buildMobileLayout`) remain on disk but are no longer mounted.
+              // adaptive layout for desktop and phone.
               child: _buildShell(context, colors, selectedObject),
             ),
           ),

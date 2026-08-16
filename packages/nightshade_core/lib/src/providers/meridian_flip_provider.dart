@@ -31,11 +31,10 @@ const _kMeridianFlipSettingsKey = 'meridian_flip_settings';
 
 /// Initial-load health for [globalMeridianFlipSettingsProvider].
 ///
-/// The settings provider keeps the historical plain
-/// [MeridianFlipSettings] state shape because many runtime consumers read it
-/// synchronously. This companion state prevents the settings UI and sequence
-/// start boundary from mistaking the model defaults for a loaded host
-/// snapshot.
+/// The settings provider holds a plain [MeridianFlipSettings] state shape
+/// because many runtime consumers read it synchronously. This companion state
+/// keeps the settings UI and the sequence-start boundary from mistaking the
+/// model defaults for a loaded host snapshot.
 final globalMeridianFlipSettingsLoadStateProvider =
     StateProvider<AsyncValue<void>>((ref) => const AsyncLoading());
 
@@ -218,7 +217,7 @@ class GlobalMeridianFlipSettingsNotifier
     return operation;
   }
 
-  // === Individual Setting Updates ===
+  // Individual setting updates
   // These allow updating individual settings without replacing the entire object
 
   /// Update standalone monitoring enabled
@@ -520,13 +519,9 @@ enum MeridianMonitorDecision {
 /// Watcher that fires meridian-flip alerts when standalone monitoring is on
 /// and the mount crosses the configured trigger condition.
 ///
-/// Why this exists :
-///   The Sequencer Settings -> Meridian Flip section exposes a
-///   `standaloneMonitoringEnabled` toggle. Prior to this wire-up the toggle
-///   flipped a database row that nothing watched. Operators reasonably expect
-///   that enabling "monitor meridian even when no sequence is running"
-///   produces an observable effect: when the mount approaches the meridian,
-///   *something* must happen.
+/// This is what makes the Sequencer Settings -> Meridian Flip
+/// `standaloneMonitoringEnabled` toggle observable: with it on, the mount
+/// approaching the meridian must produce an effect with no sequence running.
 ///
 /// When the trigger fires the monitor does BOTH of:
 ///   1. Alert — `flipExecutionStateProvider` -> `executing`,
@@ -719,12 +714,10 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
 
   /// Execute the actual flip via the canonical native flip engine.
   ///
-  /// The historical limitation ("the Rust meridian flip executor is only
-  /// reachable through the sequencer") is gone: `performMeridianFlip` runs
-  /// the same engine standalone, and the native side refuses if a sequence
-  /// is running — so this cannot double-command the mount. The alert above
-  /// still fires first so the operator hears about the flip even if the
-  /// execution then fails.
+  /// `performMeridianFlip` runs the canonical engine standalone, and the
+  /// native side refuses if a sequence owns the mount, so this cannot
+  /// double-command it. The alert above fires first so the operator hears
+  /// about the flip even if the execution then fails.
   Future<bool> _executeStandaloneFlip(
     MeridianFlipSettings settings,
     MountState mount, {

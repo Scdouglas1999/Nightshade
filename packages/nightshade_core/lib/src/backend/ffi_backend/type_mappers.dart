@@ -1,9 +1,7 @@
 part of '../ffi_backend.dart';
 
 extension _FfiBackendTypeMappers on _FfiBackendBase {
-  // =========================================================================
   // FRB->Dart Type Mappers
-  // =========================================================================
 
   /// Convert pure Dart FitsWriteHeader to bridge FitsWriteHeader
   bridge.FitsWriteHeader _toBridgeFitsHeader(FitsWriteHeader h) {
@@ -190,9 +188,7 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
     );
   }
 
-  // =========================================================================
-  // Error Conversion
-  // =========================================================================
+  // Error conversion
 
   /// Convert any exception to a structured NightshadeError.
   ///

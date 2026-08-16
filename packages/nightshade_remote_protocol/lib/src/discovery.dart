@@ -10,10 +10,9 @@ class DiscoveredServer {
   final String host;
   final int webPort;
 
-  /// Deprecated WebRTC signalling port. WebRTC was removed; nothing dials this
-  /// any more. Kept only so the legacy UDP/QR wire shapes still round-trip.
-  /// Synthetic [DiscoveredServer]s should leave it at its default rather than
-  /// repeating the old `45678` literal.
+  /// Signalling port carried by the legacy UDP/QR wire shapes. Nothing dials
+  /// it; it exists so those payloads still round-trip. Synthetic
+  /// [DiscoveredServer]s should leave it at its default.
   final int signalingPort;
   final String name;
 
@@ -141,8 +140,8 @@ class DiscoveredServer {
 /// Handle returned from [NightshadeDiscovery.startBroadcasting] so callers
 /// can terminate the announcement loop without leaking the periodic timer.
 ///
-/// Audit §3.11: previous implementation called `Timer.periodic(2 s)` with no
-/// reference and no cancellation, leaking one timer per call.
+/// Every announcement timer is reachable through a handle; an uncancellable
+/// `Timer.periodic` leaks one timer per broadcast call.
 class DiscoveryBroadcaster {
   final RawDatagramSocket socket;
   final Timer _timer;
@@ -171,8 +170,8 @@ class DiscoveryBroadcaster {
 ///
 /// Wire format: every datagram is a JSON object plus the UTF-8 prefix
 /// `[_responsePrefix]` (server announcements) or `[_requestPrefix]` (client
-/// probes). The previous implementation used `:`-delimited substrings which
-/// collided with Nightshade device IDs (e.g. `native:vendor:idx`).
+/// probes). A JSON body rather than `:`-delimited fields, because Nightshade
+/// device IDs contain colons (e.g. `native:vendor:idx`).
 class NightshadeDiscovery {
   /// Server-side fixed port — desktop instances bind here so clients can
   /// target a known address.
@@ -270,9 +269,9 @@ class NightshadeDiscovery {
           if (!raw.startsWith(_requestPrefix)) return;
           socket.send(messageBytes, datagram.address, datagram.port);
         } catch (e, stackTrace) {
-          // Why: a malformed datagram is expected noise on a shared LAN —
-          // log at fine level. The previous unnamed-binding catch swallowed
-          // the distinction between routine noise and a real socket failure.
+          // A malformed datagram is expected noise on a shared LAN, so log it
+          // at fine level — named, so it stays distinguishable from a real
+          // socket failure.
           developer.log(
             'Ignoring malformed discovery probe: $e\n$stackTrace',
             name: 'NightshadeDiscovery',
@@ -371,9 +370,9 @@ class NightshadeDiscovery {
         }
       });
 
-      // Structured probe — server-side validates the prefix; the JSON body
-      // gives us a forward-compat hook for adding device-id / pairing fields
-      // without breaking the protocol again.
+      // Structured probe — the server validates the prefix; the JSON body is
+      // the forward-compat hook for adding device-id / pairing fields without
+      // breaking the protocol.
       final probe = utf8.encode(
         '$_requestPrefix${jsonEncode({'protocol': _protocolVersion})}',
       );

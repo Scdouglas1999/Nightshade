@@ -33,7 +33,7 @@ void main() {
   });
 
   test('a sub-day BLS peak is no longer printed in bare hours', () {
-    // 0.33h was what the marker used to say for the 20-minute peak.
+    // The 20-minute peak must not be reported in hours (0.33h).
     expect(blsPeakLabel(twentyMinutesInDays), isNot(contains('h')));
     expect(
         periodogramPeakLabel(1.0 / twentyMinutesInDays), isNot(endsWith('d')));

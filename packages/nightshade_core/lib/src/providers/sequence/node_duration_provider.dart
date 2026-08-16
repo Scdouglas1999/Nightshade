@@ -29,19 +29,11 @@ import 'sequencer_defaults.dart' show sequencerOverheadConfigProvider;
 ///
 /// Disabled nodes contribute 0 — matching the executor's behaviour.
 ///
-/// Caching: returned as a [Provider.family] keyed by node ID. Riverpod
-/// memoizes per-key and invalidates the whole family when
-/// [currentSequenceProvider] changes (because we `ref.watch` it). That is
-/// fine — we *want* a single mutation to clear every node's cached value;
-/// stale roll-ups deeper in the tree would be a "silent fallback" bug.
-///
-/// Performance: the family reads its id out of [_nodeRollupMapProvider],
-/// which computes the WHOLE tree's rollup in a single post-order DFS and
-/// caches the result. Previously each family element re-walked the subtree
-/// under its node, so painting an N-node tree (every row reads its own
-/// element) was O(N^2) per edit — a deep loop-heavy sequence re-walked the
-/// same exposure leaves once per ancestor. Now the map is built once per
-/// sequence identity and every row is an O(1) map lookup.
+/// The family reads its id out of [_nodeRollupMapProvider], which computes the
+/// WHOLE tree's rollup in one cached post-order DFS, so painting an N-node tree
+/// is O(N) rather than O(N^2). A change to [currentSequenceProvider]
+/// invalidates the whole family: every node's cached value must clear together,
+/// because a stale roll-up deeper in the tree is a silent wrong answer.
 final nodeRollupDurationProvider = Provider.family<Duration, String>((
   ref,
   nodeId,
@@ -59,10 +51,9 @@ final _nodeRollupMapProvider = Provider<Map<String, Duration>>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
   if (sequence == null) return const <String, Duration>{};
   // ONE engine and ONE overhead model, shared with the timeline, the node
-  // timing panel and the pre-flight simulation. The rollup used to hold its
-  // own per-node cost table on top of the config defaults, so the Builder's
-  // estimate chip and the Pre-Flight "Duration" disagreed about the same
-  // sequence by tens of percent.
+  // timing panel and the pre-flight simulation. A second per-node cost table
+  // here would let the Builder's estimate chip and the Pre-Flight "Duration"
+  // disagree about the same sequence.
   final estimator = SequenceTimeEstimator(
     overhead: ref.watch(sequencerOverheadConfigProvider),
   );

@@ -20,30 +20,15 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_progress_bar.d
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Pulls the `AnimationController` driving the SequenceProgressBar's
-/// background-pulse `AnimatedBuilder`.
-///
-/// `find.byType(AnimatedBuilder).first` is no longer reliable: framework
-/// wrappers (MaterialApp/Title/etc.) now insert AnimatedBuilders whose
-/// `animation` is a `ValueNotifier`, which yielded
-///   "type 'ValueNotifier&lt;String?&gt;' is not a subtype of type
-///    'AnimationController' in type cast"
-/// after the stash@{1} merge bumped the wrapper tree. Filter to the first
-/// builder whose animation actually IS an AnimationController so we lock
-/// onto SequenceProgressBar's own pulse, not the framework's plumbing.
 /// Locate the SequenceProgressBar's background-pulse `AnimationController`.
 ///
-/// `find.byType(AnimatedBuilder).first` is no longer reliable: framework
-/// wrappers (MaterialApp/Title/etc.) insert AnimatedBuilders whose
-/// `animation` is a `ValueNotifier`, which yielded
-///   "type 'ValueNotifier&lt;String?&gt;' is not a subtype of type
-///    'AnimationController' in type cast"
-/// after the stash@{1} merge bumped the wrapper tree. SequenceProgressBar
-/// also nests a second AnimatedBuilder (`_PulsingIndicator`'s breathing
-/// dot) when `!isPaused`. We use the public widget's debug accessor
-/// `debugPulseControllerForTesting` (added with @visibleForTesting on the
-/// State class) to lock onto the right controller without subtree
-/// guesswork.
+/// `find.byType(AnimatedBuilder).first` is not reliable: framework wrappers
+/// (MaterialApp/Title/…) insert AnimatedBuilders whose `animation` is a
+/// `ValueNotifier`, which fails the cast to `AnimationController`.
+/// SequenceProgressBar also nests a second AnimatedBuilder
+/// (`_PulsingIndicator`'s breathing dot) when `!isPaused`. The public
+/// `debugPulseControllerForTesting` accessor locks onto the right controller
+/// without subtree guesswork.
 AnimationController _pulseControllerOf(WidgetTester tester) {
   final state = tester.state<SequenceProgressBarState>(
     find.byType(SequenceProgressBar),

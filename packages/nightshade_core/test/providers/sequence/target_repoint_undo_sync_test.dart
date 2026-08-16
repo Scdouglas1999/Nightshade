@@ -1,14 +1,13 @@
-// Wave E refutation of SEQ-13: the builder→catalog re-point sync was hung off
-// `updateNode` ONLY, and undo()/redo() restore a whole Sequence snapshot
-// without going through it.
+// undo()/redo() restore a whole Sequence snapshot without going through
+// `updateNode`, so a builder→catalog re-point sync hung off `updateNode` alone
+// misses them.
 //
-// So Ctrl+Z reached the identical two-copies divergence SEQ-13 was raised for —
-// and worse, the STALE copy became the one the operator never confirmed: the
-// builder card reads the restored coordinates while the scheduler keeps scoring
-// the ones that were just undone.
+// Ctrl+Z then reaches the same two-copies divergence a re-point does — with the
+// STALE copy the one the operator never confirmed: the builder card reads the
+// restored coordinates while the scheduler keeps scoring the ones just undone.
 //
-// The refuter's exact counter-input is pinned below: re-point M42-TEST
-// 5.5885 h / −5.39° → 21.42 h / −35.0° (catalog follows), then undo().
+// The counter-input is pinned below: re-point M42-TEST 5.5885 h / −5.39° →
+// 21.42 h / −35.0° (catalog follows), then undo().
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,7 +80,7 @@ void main() {
     expect(
       (await row()).ra,
       closeTo(21.42, 1e-9),
-      reason: 'the edit itself still syncs (SEQ-13 proper)',
+      reason: 'the edit itself still syncs',
     );
 
     editor.undo();
@@ -94,9 +93,9 @@ void main() {
       closeTo(5.5885, 1e-9),
       reason:
           'Ctrl+Z is a re-point too: the scheduler scores the catalog row, so '
-          'leaving it at the undone coordinates recreates the exact divergence '
-          'SEQ-13 was raised for — with the stale copy now the one the '
-          'operator never confirmed',
+          'leaving it at the undone coordinates recreates the builder/catalog '
+          'divergence — with the stale copy now the one the operator never '
+          'confirmed',
     );
     expect((await row()).dec, closeTo(-5.39, 1e-9));
   });

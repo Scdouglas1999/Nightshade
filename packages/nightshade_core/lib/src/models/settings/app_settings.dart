@@ -30,6 +30,10 @@ abstract class ObserverLocation with _$ObserverLocation {
       _$ObserverLocationFromJson(json);
 }
 
+/// Remote settings wire model. Every field here must also appear in
+/// `_remotableSettingKeys` (settings_sections/app_settings_partial_persistence
+/// _mapping.dart) under its DB key, or a remote save of that key throws through
+/// the `_assertKeysRemotable` guard instead of round-tripping.
 @freezed
 abstract class AppSettings with _$AppSettings {
   const factory AppSettings({
@@ -65,7 +69,10 @@ abstract class AppSettings with _$AppSettings {
     @Default('localhost') String alpacaServerHost,
     @Default(11111) int alpacaServerPort,
     @Default(false) bool alpacaAutoDiscover,
-    // Sequencer execution settings
+    // Retired: simulation mode is not a shippable runtime state (the bundled
+    // native library is always a release build and refuses it). The field
+    // stays so stored and remote payloads that still carry it decode; nothing
+    // reads it.
     @Default(false) bool useSimulationMode,
     // Image capture settings
     @Default('') String imageOutputPath,
@@ -80,11 +87,8 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String skippedUpdateVersion,
     // Safety settings
     @Default(SafetyFailMode.failClosed) SafetyFailMode safetyFailMode,
-    // -------------------------------------------------------------------
-    // Image Grading: live frame Pass/Reject thresholds. Opt-in:
-    // disabled by default so existing users keep current behaviour
-    // (every captured frame saved, none auto-rejected).
-    // -------------------------------------------------------------------
+    // Image grading: live frame Pass/Reject thresholds. Opt-in — disabled by
+    // default, so every captured frame is saved and none auto-rejected.
     /// Master switch: when false, no grading runs at all.
     @Default(false) bool enableImageGrading,
 
@@ -109,13 +113,9 @@ abstract class AppSettings with _$AppSettings {
     /// Relative paths resolve against the run save_path; absolute paths
     /// are used verbatim.
     String? imageGradingRejectFolderPath,
-    // -------------------------------------------------------------------
-    // Sky-brightness adaptive exposures: global defaults.
-    // Per-ExposureNode overrides still win at runtime; these are the
-    // values pushed into the executor via
-    // `sequencerUpdateDefaultAdaptiveExposure` when none of the active
-    // nodes carry their own block.
-    // -------------------------------------------------------------------
+    // Sky-brightness adaptive exposures: global defaults, pushed into the
+    // executor via `sequencerUpdateDefaultAdaptiveExposure` when no active
+    // node carries its own block. Per-ExposureNode overrides win at runtime.
     /// Master switch — when false, the global default adaptive-exposure
     /// is cleared and the executor falls back to nominal duration for
     /// any node without an explicit per-node override.
@@ -147,13 +147,8 @@ abstract class AppSettings with _$AppSettings {
     /// Per-filter maximum exposure overrides (seconds).
     @Default(<String, double>{})
     Map<String, double> adaptiveExposurePerFilterMaxSecs,
-    // -------------------------------------------------------------------
-    // Full-night audit 2026-06-04 follow-up — high-value unattended-night
-    // knobs that previously had NO wire field, so a phone/remote save of
-    // them was rejected by the `_assertKeysRemotable` fail-loud guard. These
-    // round-trip the autofocus / dither / weather-safety / recovery settings
-    // that an operator must be able to tune for an unattended night.
-    // -------------------------------------------------------------------
+    // Autofocus / dither / weather-safety / recovery knobs an operator tunes
+    // for an unattended night.
     /// Weather-safety: when true, the rig parks (not just pauses) when weather
     /// turns unsafe. Mirrors `app_settings` DB key `park_on_unsafe_weather`.
     @Default(true) bool parkOnUnsafeWeather,
@@ -194,13 +189,6 @@ abstract class AppSettings with _$AppSettings {
     /// Recovery: ring the platform alert sound on recovery entry.
     /// DB key `recovery_audible_alert_when_entered`.
     @Default(true) bool recoveryAudibleAlertWhenEntered,
-    // -------------------------------------------------------------------
-    // Full-night audit 2026-06-04 follow-up (long tail) — the remaining
-    // high-value unattended-night knobs that `_applySettingsMap` already
-    // maps into AppSettingsState but which had NO wire field, so a remote
-    // save of them was rejected by the `_assertKeysRemotable` fail-loud
-    // guard. Carrying them here lets a phone-driven night keep them.
-    // -------------------------------------------------------------------
     // Weather-safety / dawn.
     /// Park the mount before astronomical dawn at the end of the night.
     /// DB key `park_before_dawn`.
@@ -223,8 +211,8 @@ abstract class AppSettings with _$AppSettings {
     /// scales makes every dither settle slowly or time out.
     @Default(1.5) double settleThreshold,
 
-    /// Guider settle timeout in seconds. DB key `settle_timeout`. Roomier than
-    /// the historical 30 s so a legitimate settle is not aborted early.
+    /// Guider settle timeout in seconds. DB key `settle_timeout`. Generous so
+    /// a legitimate settle is not aborted early.
     @Default(60) int settleTimeout,
 
     /// Guider settle stabilisation time in seconds — how long the guide error
@@ -271,11 +259,8 @@ abstract class AppSettings with _$AppSettings {
     /// Minimum matching dark frames before the dark library is "covered".
     /// DB key `dark_library_min_coverage`.
     @Default(10) int darkLibraryMinCoverage,
-    // -------------------------------------------------------------------
     // Smart Night defaults — the one-click "plan tonight" builder reads these
-    // when assembling a sequence, so an unattended night planned from a phone
-    // must carry them.
-    // -------------------------------------------------------------------
+    // when assembling a sequence.
     /// Cap a planned session to this many hours. `null` => use the full dark
     /// window. DB key `smart_night_max_session_hours`.
     double? smartNightMaxSessionHours,
@@ -319,15 +304,8 @@ abstract class AppSettings with _$AppSettings {
     /// Target SNR the planner sizes sub-exposures toward.
     /// DB key `smart_night_target_snr`.
     @Default(30.0) double smartNightTargetSnr,
-    // -------------------------------------------------------------------
-    // Full remote-settings parity 2026-06-05 — the remaining setter-reachable
-    // knobs that `_applySettingsMap` already maps into AppSettingsState but
-    // which had NO wire field, so a phone/remote save of them was rejected by
-    // the `_assertKeysRemotable` fail-loud guard. Carrying them here completes
-    // the unattended-night knob set so a phone can edit the whole config.
-    // The defaults mirror AppSettingsState's constructor defaults so the wire
-    // model never injects a different value than local state.
-    // -------------------------------------------------------------------
+    // Defaults from here down mirror AppSettingsState's constructor defaults,
+    // so the wire model never injects a different value than local state.
     // Equipment defaults (camera).
     /// Default camera gain. DB `default_gain`.
     @Default(100) int defaultGain,
@@ -485,14 +463,6 @@ abstract class AppSettings with _$AppSettings {
 
     /// Use system time vs a fixed observing time. DB `use_system_time`.
     @Default(true) bool useSystemTime,
-    // -------------------------------------------------------------------
-    // Settings round-trip gap closure (G5 / G7) — the remaining
-    // setter-reachable knobs that `_applySettingsMap` maps into
-    // AppSettingsState but which had NO wire field, so a phone/remote save
-    // of them was rejected by the `_assertKeysRemotable` fail-loud guard.
-    // Defaults mirror AppSettingsState's constructor defaults so the wire
-    // model never injects a different value than local state.
-    // -------------------------------------------------------------------
     // Sequencer output path default.
     /// User-facing default output directory for saved sequence files. DB
     /// key `sequences_path`.

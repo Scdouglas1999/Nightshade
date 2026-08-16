@@ -15,23 +15,12 @@ import 'backend_provider.dart';
 import 'equipment_provider.dart';
 import 'imaging_provider.dart';
 
-// =============================================================================
-// STRETCHED IMAGE PROVIDER
-// =============================================================================
+// Stretched image provider
 
 /// Provider that applies auto-stretch to the current captured image.
 ///
-/// This is the main provider for displaying stretched images in the UI.
-/// It watches the current image and settings, applying stretch when enabled.
-///
-/// **Important**: The stretched result is for PREVIEW ONLY - original data is
-/// never modified. All stretch operations run in an isolate to avoid blocking
-/// the main UI thread.
-///
-/// Returns null if:
-/// - Auto-stretch is disabled
-/// - No image is available
-/// - Stretch operation fails
+/// The result is PREVIEW ONLY — the original data is never modified — and the
+/// stretch runs in an isolate so it cannot block the UI thread.
 final stretchedImageProvider = FutureProvider.autoDispose<Uint8List?>((
   ref,
 ) async {
@@ -95,7 +84,7 @@ final stretchedImageProvider = FutureProvider.autoDispose<Uint8List?>((
 
 /// Provider for the connected camera device ID.
 ///
-/// This is extracted from the equipment provider to get raw image data.
+/// Separate from the equipment provider so raw image data has one source.
 final connectedCameraIdProvider = Provider<String?>((ref) {
   final cameraState = ref.watch(cameraStateProvider);
   if (cameraState.connectionState == DeviceConnectionState.connected) {
@@ -104,9 +93,7 @@ final connectedCameraIdProvider = Provider<String?>((ref) {
   return null;
 });
 
-// =============================================================================
-// STRETCH IMPLEMENTATION
-// =============================================================================
+// Stretch implementation
 
 /// Applies stretch to raw image data based on settings.
 ///
@@ -206,9 +193,7 @@ Uint8List _stretchedToRgba(Uint8List src, int width, int height, bool isColor) {
   return rgba;
 }
 
-// =============================================================================
-// STF (SCREEN TRANSFER FUNCTION) STRETCH
-// =============================================================================
+// STF (screen transfer function) stretch
 
 /// Applies PixInsight-style Screen Transfer Function stretch.
 ///
@@ -461,9 +446,7 @@ int _applyMtf(double value, _StfParams params) {
   return (stretched * 255).round().clamp(0, 255);
 }
 
-// =============================================================================
-// HISTOGRAM STRETCH
-// =============================================================================
+// Histogram stretch
 
 /// Applies histogram equalization stretch.
 Future<Uint8List> _applyHistogramStretch({
@@ -555,9 +538,7 @@ Uint8List _histogramStretchIsolate(_StretchParams params) {
   }
 }
 
-// =============================================================================
-// ASINH STRETCH
-// =============================================================================
+// Asinh stretch
 
 /// Applies arcsinh (inverse hyperbolic sine) stretch.
 ///
@@ -618,9 +599,7 @@ Uint8List _asinhStretchIsolate(_StretchParams params) {
 
 double _asinh(double x) => math.log(x + math.sqrt(x * x + 1));
 
-// =============================================================================
-// LOG STRETCH
-// =============================================================================
+// Log stretch
 
 /// Applies logarithmic stretch.
 ///
@@ -677,9 +656,7 @@ Uint8List _logStretchIsolate(_StretchParams params) {
   }
 }
 
-// =============================================================================
-// GAMMA STRETCH
-// =============================================================================
+// Gamma stretch
 
 /// Applies simple gamma correction.
 ///

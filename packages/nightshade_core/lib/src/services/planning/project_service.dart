@@ -129,9 +129,7 @@ class ProjectService {
   static int _nowUnix() =>
       DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
 
-  // ---------------------------------------------------------------------------
   // Project CRUD
-  // ---------------------------------------------------------------------------
 
   /// Create a new project. Sets `created_at` / `updated_at` to now, fires the
   /// change stream, and returns the new row id.
@@ -232,9 +230,7 @@ class ProjectService {
     return _rowToProject(row);
   }
 
-  // ---------------------------------------------------------------------------
   // Membership
-  // ---------------------------------------------------------------------------
 
   /// Attach [targetId] to [projectId]. Idempotent: the `UNIQUE(project_id,
   /// target_id)` constraint plus `INSERT OR IGNORE` means re-adding an existing
@@ -331,9 +327,7 @@ class ProjectService {
     return rows.map((r) => r.read<int>('target_id')).toList();
   }
 
-  // ---------------------------------------------------------------------------
   // Progress derivation
-  // ---------------------------------------------------------------------------
 
   /// Build the project-scoped accrued-vs-remaining roll-up.
   ///
@@ -415,9 +409,7 @@ class ProjectService {
   /// hook — consumers re-run [listProjects] / [buildProgress] on each event.
   Stream<void> watchChanges() => _mutations.stream;
 
-  // ---------------------------------------------------------------------------
   // Row mappers
-  // ---------------------------------------------------------------------------
 
   Project _rowToProject(QueryRow row) {
     return Project.fromRow(

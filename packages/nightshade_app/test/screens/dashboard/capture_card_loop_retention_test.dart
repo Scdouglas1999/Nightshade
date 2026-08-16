@@ -1,16 +1,14 @@
 // The Dashboard Capture card's Loop button is a live view, not acquisition.
 //
-// It used to run [ImagingService.captureImage] — the keeper-only entry point
-// (`persistFrame: true`) — so framing from the dashboard wrote every frame
-// full-size into the operator's light-frame folder, indexed each one in
-// `captured_images`, and counted them as session integration: ~27 GB an hour
-// at 5 s subs, from a button that only offers a live view and has no control
-// anywhere on the card to say otherwise.
+// It must NOT run [ImagingService.captureImage], the keeper-only entry point
+// (`persistFrame: true`): that writes every frame full-size into the operator's
+// light-frame folder, indexes it in `captured_images` and counts it as session
+// integration — around 27 GB an hour at 5 s subs, from a button that only
+// offers a live view.
 //
-// These tests pin the card half of the fix. They drive the real widget's real
-// buttons, so cutting the production wiring (looping `_captureImage` again)
-// fails them: the spy separates the two service entry points instead of
-// stubbing only `captureImage`, which is what let the defect survive.
+// These tests drive the real widget's real buttons, so restoring the
+// `_captureImage` wiring fails them. The spy separates the two service entry
+// points rather than stubbing only `captureImage`.
 
 import 'dart:typed_data';
 

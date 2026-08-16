@@ -59,14 +59,10 @@ class CockpitStandby extends ConsumerWidget {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= _wideBreakpoint;
         final liveAstro = constraints.maxWidth >= _liveAstroBreakpoint;
-        // WE-SP-5: the floating "Build tonight's plan?" nudge is painted OVER
-        // this briefing, and at the bottom of the extent it covered the Moon
-        // card's Moonrise value. The reserve for it was originally added to
-        // `DashboardScrollView` — which is the OTHER branch of
-        // dashboard_screen (the zone cockpit shown during a run). Standby
-        // scrolls here, so max scroll was measurably unchanged by that fix.
-        // A floating overlay has to be paid for in the scroll view it floats
-        // above, and this is that scroll view.
+        // The floating "Build tonight's plan?" nudge is painted OVER this
+        // briefing, and a floating overlay has to be paid for in the scroll
+        // view it floats above. Standby scrolls here, not in
+        // `DashboardScrollView`, so the reserve belongs here.
         final promptBand = ref.watch(floatingPromptReservedHeightProvider);
         return SingleChildScrollView(
           padding: const EdgeInsets.all(NightshadeTokens.space2xl).add(

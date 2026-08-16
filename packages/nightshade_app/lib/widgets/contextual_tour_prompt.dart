@@ -48,16 +48,12 @@ class ContextualTourPrompt extends ConsumerStatefulWidget {
   /// Whether to hold a band of the child's height clear for the card.
   ///
   /// Off, because a coach mark is transient chrome and every other overlay in
-  /// this app floats. Reserving the band instead cost each of the seven nudged
-  /// screens ~16% of its height on a fresh install: the Sequencer workspace
-  /// stopped 147px short with the node palette cut through a card, the
-  /// planetarium's sky lost a ~150px strip of flat background, and in Settings
-  /// the whole ADVANCED group sat off-screen until a coach mark that never
-  /// mentions settings was dismissed. The band snapped back the instant the
-  /// card went away, which is what proved it was the cause.
+  /// this app floats. Reserving the band costs a nudged screen a sixth of its
+  /// height for as long as the card is up, which pushes real content — a node
+  /// palette, a settings group — off screen.
   ///
   /// A host whose bottom-right corner carries live, non-scrollable controls can
-  /// still opt in — the trade it makes is losing that band while the nudge is up.
+  /// still opt in, trading that band while the nudge is up.
   final bool reserveSpaceForCard;
 
   const ContextualTourPrompt({
@@ -89,7 +85,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
   Timer? _showDelayTimer;
 
   /// Distance from the prompt card's top edge to the window bottom, declared
-  /// to [TransientBottomInset] so floating snackbars clear the card (WE-EQ-N2).
+  /// to [TransientBottomInset] so floating snackbars clear the card.
   /// Null until the card has been laid out once; nothing is published then, so
   /// a host screen's own declaration is never clobbered by a zero.
   double? _snackBarLift;
@@ -303,13 +299,11 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
 
   /// The largest share of the host's height this nudge may reserve.
   ///
-  /// Without a cap the band is whatever the card measures, and the card's height
-  /// is driven by how far its copy wraps — so on a short viewport it can exceed
-  /// the viewport itself. It did: squeezed to 64px (a landscape phone whose
-  /// shell has handed most of the height to the keyboard) the card measured
-  /// 203px, the child was laid out at zero height, and EVERY control on the
-  /// screen — including the settings search field — stopped hit-testing. A
-  /// dismissible suggestion must never be able to take the screen away.
+  /// A dismissible suggestion must never be able to take the screen away.
+  /// Without a cap the band is whatever the card measures, and the card's
+  /// height is driven by how far its copy wraps — so on a short viewport (a
+  /// landscape phone with the keyboard up) the card can exceed the viewport,
+  /// lay the child out at zero height, and stop every control hit-testing.
   static const double _maxReservedFraction = 0.4;
 
   /// Space held clear for the prompt card on the edge it is anchored to,
@@ -319,7 +313,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
     final height = _promptSize?.height;
     if (height == null) return EdgeInsets.zero;
     // The card is offset from the edge by the alignment offset; leave a small
-    // gap between it and the content it used to overlap.
+    // gap between it and the content behind it.
     final wanted = height + widget.offset.dy.abs() + 8;
     // All-or-nothing, not a partial band. Reserving *some* of what the card
     // needs is the worst of both worlds: the card still overlaps content AND
@@ -359,14 +353,12 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
         child: SlideTransition(
           position: _slideAnimation,
           child: MeasuredBottomInsetReporter(
-            // WE-EQ-N2: two Wave D fixes met in the same 150 px band — one
-            // reserved the bottom-right corner for this card, the other lifted
-            // every floating snackbar into exactly that corner, and the toast
-            // covered the card's only two controls (Maybe Later / Start Tour).
-            // The snackbar helper already honours a declared bottom inset; the
-            // card now declares one, measured from its own top edge to the
-            // window bottom, so the toast clears it the same way it clears the
-            // Imaging screen's control strip.
+            // This card and every floating snackbar want the same bottom-right
+            // 150 px band, and a toast landing there covers the card's only two
+            // controls (Maybe Later / Start Tour). The snackbar helper honours
+            // a declared bottom inset, so the card declares one measured from
+            // its own top edge to the window bottom, and the toast clears it
+            // the same way it clears the Imaging screen's control strip.
             onHeight: (lift) {
               if (!mounted || _snackBarLift == lift) return;
               setState(() => _snackBarLift = lift);

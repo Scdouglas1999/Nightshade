@@ -1,14 +1,12 @@
-// SEQ-18, fifth look — the completed-node card, driven by the REAL event
-// sequence the waveF run produced, through the REAL provider write path.
+// The completed-node card, driven by a REAL event sequence through the REAL
+// provider write path.
 //
-// The four earlier fixes all aimed at the reader: the node's status, a 20 s
-// retention window, a second string wording, a structured-detail fallback.
-// Every one of them passed its own test and changed nothing on screen, because
-// the number was already gone from the provider before any reader ran.
+// Nothing on the reader side can save this card — the node's status, a 20 s
+// retention window, a second string wording, a structured-detail fallback — if
+// the number is already gone from the provider before any reader runs.
 //
-// This test replays the events verbatim from
-// /tmp/ns-audit/waveE-stop-pipeline/app.log (the waveF stop-pipeline drive),
-// including the two that destroyed the count:
+// This test replays the events verbatim from a stop-pipeline run, including the
+// two that destroy the count:
 //
 //   04:10:05.978189  Child 'Take Exposures' completed with status: Success
 //   04:10:05.978204  NodeStarted            node=9617e5f0…   (the NEXT node)
@@ -17,8 +15,8 @@
 //   04:10:05.978320  NodeProgress node=9617e5f0… instruction=AdaptiveExposure    0%
 //
 // The IntegrationBudget payload lands in the SAME per-node slot the exposure
-// progress used, so node 1's card read "0 / 4 frames" with four empty boxes,
-// and node 2 — which captured nothing — read the identical "0 / 4 frames".
+// progress uses, so node 1's card reads "0 / 4 frames" with four empty boxes,
+// and node 2 — which captured nothing — reads the identical "0 / 4 frames".
 //
 // Note the NodeStarted for node 2 is logged 53 µs BEFORE node 1's final frame
 // progress: any counter that attributes a frame to "the run's current node"
@@ -53,8 +51,8 @@ NightshadeEvent _nodeStarted(String nodeId) =>
 /// `detail_json` is **jsonEncode**d because that is the wire: the native side
 /// does `payload.to_string()` (api/sequencer/event_translation.rs) into
 /// `detail_json: String`, and `event_mapping.dart` copies that String onto
-/// `event.data`. Feeding a ready-made Map here is what let the previous
-/// version of this test pass while the tally read nothing on a real host.
+/// `event.data`. Feeding a ready-made Map here would let this test pass while
+/// the tally reads nothing on a real host.
 NightshadeEvent _structured(
   String nodeId,
   String instruction,
@@ -156,7 +154,7 @@ void main() {
       const node2Id = '9617e5f0-ba43-466c-b83b-0bf6dedd6c86';
       await _pumpTree(tester, container, [node1]);
 
-      // --- node 1 runs its four frames -----------------------------------
+      // node 1 runs its four frames
       _pump(container, _nodeStarted(node1.id));
       _pump(container, _adaptiveExposure(node1.id));
       for (var frame = 1; frame <= 4; frame++) {
@@ -169,7 +167,7 @@ void main() {
         reason: 'the four frames the run captured must be on the card',
       );
 
-      // --- the burst ends, in the order the log recorded ------------------
+      // the burst ends, in the order the log recorded
       _pump(container, _nodeStarted(node2Id));
       _pump(container, _exposureProgress(node1.id, 4, 4));
       _pump(container, _integrationBudget(node1.id));

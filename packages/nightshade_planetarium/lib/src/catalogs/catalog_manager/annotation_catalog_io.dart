@@ -1,10 +1,6 @@
 part of '../catalog_manager.dart';
 
 extension CatalogManagerAnnotationIo on CatalogManager {
-  // =========================================================================
-  // ANNOTATION CATALOG (GLADE+) METHODS
-  // =========================================================================
-
   /// Check if annotation catalog is installed
   Future<CatalogStatus> _getAnnotationCatalogStatus() async {
     if (!isInitialized) return CatalogStatus.notInstalled();

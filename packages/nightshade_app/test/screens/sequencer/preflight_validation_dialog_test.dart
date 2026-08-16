@@ -402,10 +402,9 @@ void main() {
     expect(container.read(sessionHandoffIgnoreUnavailableOnceProvider), isTrue);
   });
 
-  // WD-SCI-N3: the green primary of the pre-flight dialog was a bare
-  // GestureDetector, so the live tree printed `panel: Start Anyway` — no role,
-  // no state — right beside its own siblings `button: Re-check` and
-  // `button: Cancel`, and it could not be reached from the keyboard at all.
+  // A bare GestureDetector for the green primary prints `panel: Start Anyway` —
+  // no role, no state — right beside its own siblings `button: Re-check` and
+  // `button: Cancel`, and cannot be reached from the keyboard at all.
   testWidgets('Start Anyway announces itself as an enabled button',
       (tester) async {
     final handle = tester.ensureSemantics();
@@ -434,11 +433,11 @@ void main() {
     handle.dispose();
   });
 
-  // WF-SCI-N3: the counter-input to the fix above. With an ERROR on the board
-  // the same button is inert, and an AT-SPI probe of the live dialog read
-  // `Start Sequence` with `sensitive` and no `enabled` — the blocked primary
-  // was indistinguishable from a live one and carried no reason, while
-  // clicking it produced no dialog change, no run, no toast and no log line.
+  // The counter-case to the above: with an ERROR on the board the same button
+  // is inert, and an undeclared one probes as `Start Sequence` with `sensitive`
+  // and no `enabled` — a blocked primary indistinguishable from a live one,
+  // carrying no reason, while clicking it produces no dialog change, no run, no
+  // toast and no log line.
   testWidgets('a blocked Start announces why it cannot run', (tester) async {
     final handle = tester.ensureSemantics();
     await pumpDialog(

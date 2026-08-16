@@ -594,10 +594,9 @@ void main() {
 
     test('a title too wide for the smallest font is ellipsized, not sliced by '
         'the card edge', () {
-      // 115 characters: wider than a 512 px card even at arial14, so the
-      // font ladder cannot rescue it and the caption used to be handed to
-      // drawString whole — which painted glyphs at full brightness across
-      // the right padding and off the edge mid-word.
+      // 115 characters: wider than a 512 px card even at arial14, so the font
+      // ladder cannot rescue it. Handing the caption to drawString whole paints
+      // glyphs across the right padding and off the edge mid-word.
       const longTitle =
           'NGC 7000 North America Nebula and the Pelican, Panel 3 of 9, '
           'Ha 3nm 300s, wide field mosaic from the back garden';

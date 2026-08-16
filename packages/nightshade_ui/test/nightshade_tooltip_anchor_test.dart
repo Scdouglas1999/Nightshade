@@ -5,17 +5,16 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// A tooltip must be drawn ON the control it describes, and only one may be on
 /// screen at a time.
 ///
-/// Regression 1 (anchor): the anchor was measured in SCREEN coordinates with
-/// `localToGlobal(Offset.zero)`, but the overlay child is laid out in the host
-/// Overlay's coordinate space. Wherever that overlay is inset from the window,
-/// the tooltip was displaced by exactly the inset — observed on the planetarium
-/// toolbar, where the `Layers` label drew 176 px right and 79 px below its
-/// button, out over the star field next to a different control.
+/// Anchor: measuring the anchor in SCREEN coordinates with
+/// `localToGlobal(Offset.zero)` misplaces it, because the overlay child is laid
+/// out in the host Overlay's coordinate space. Wherever that overlay is inset
+/// from the window the tooltip is displaced by exactly the inset — on the
+/// planetarium toolbar the `Layers` label lands 176 px right and 79 px below
+/// its button, out over the star field next to a different control.
 ///
-/// Regression 2 (lifecycle): each tooltip owned an independent
-/// `OverlayPortalController` with no arbitration, so opening a second one left
-/// the first alive. Several stale labels floating over a dark star field read
-/// as sky annotations.
+/// Lifecycle: a tooltip owning an independent `OverlayPortalController` with no
+/// arbitration leaves the first one alive when a second opens. Several stale
+/// labels floating over a dark star field read as sky annotations.
 void main() {
   const trigger = Key('trigger');
 

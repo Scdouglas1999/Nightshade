@@ -1,4 +1,4 @@
-// Collaborative Sky (6.0) WS1 — [SharedCalibrationClient] transport.
+// [SharedCalibrationClient] transport.
 //
 // Locks in the ASCII-safe provenance header: a Provenance whose attribution /
 // notes carry non-Latin-1 characters (CJK, emoji) must be transported in a form

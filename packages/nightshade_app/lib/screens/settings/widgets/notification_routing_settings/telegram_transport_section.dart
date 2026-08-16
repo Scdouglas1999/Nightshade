@@ -121,4 +121,4 @@ class _TelegramTransportSectionState
   }
 }
 
-// ---- Discord (routing-aware) ------------------------------------------------
+// Discord (routing-aware)

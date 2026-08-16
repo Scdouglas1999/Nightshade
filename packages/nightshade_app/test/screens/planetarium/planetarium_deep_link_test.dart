@@ -34,6 +34,11 @@ Future<(ProviderContainer, GoRouter)> _pumpPlanetarium(
   });
 
   final container = ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+  // The zenith — and so the sky view's home pose — is only defined for an
+  // observer, so these cases need a site on record.
+  container
+      .read(observerLocationProvider.notifier)
+      .setLocation(latitude: 40.0, longitude: -105.0);
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
@@ -102,7 +107,7 @@ void main() {
     final (container, router) =
         await _pumpPlanetarium(tester, initialLocation: '/planetarium');
     // The untouched default pose is the zenith, not RA 0h / Dec 0.
-    final (homeRa, _) = container.read(skyViewHomeCenterProvider);
+    final homeRa = container.read(skyViewHomeCenterProvider)!.$1;
     expect(
       container.read(skyViewStateProvider).centerRA,
       closeTo(homeRa, 0.02),
@@ -152,7 +157,7 @@ void main() {
 
     // The bogus hand-off must leave the view exactly where it opened — the
     // zenith — rather than move it anywhere.
-    final (homeRa, homeDec) = container.read(skyViewHomeCenterProvider);
+    final (homeRa, homeDec) = container.read(skyViewHomeCenterProvider)!;
     final view = container.read(skyViewStateProvider);
     expect(view.centerRA, closeTo(homeRa, 0.02));
     expect(view.centerDec, closeTo(homeDec, 1e-9));

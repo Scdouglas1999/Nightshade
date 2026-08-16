@@ -22,7 +22,7 @@ import '../../../widgets/geolocation_consent.dart';
 /// being waved through with its red error still on screen.
 final onboardingSiteEntryErrorProvider = StateProvider<String?>((ref) => null);
 
-/// The approximate-location lookup used to *offer* a starting point. Injected so
+/// The approximate-location lookup that *offers* a starting point. Injected so
 /// tests exercise the suggestion UI without reaching the network.
 typedef ApproximateLocationLookup = Future<(double, double, String?)?>
     Function();
@@ -43,36 +43,26 @@ final onboardingDeviceLocationProvider = Provider<ApproximateLocationLookup>(
 ///
 /// The rest of the wizard builds an equipment profile; this step captures the
 /// one piece of setup that is not equipment — where the user observes from.
-/// Without it `AppSettingsState.latitude/longitude` sit at 0/0 ("null island")
-/// and every location-driven surface (Tonight's one-tap pick, the planner's
-/// visibility / dark windows, meridian-flip timing, the weather radar) falls
-/// back to its "your location is not set" apology state.
+/// With no site on record every location-driven surface falls back to its
+/// "your location is not set" state.
 ///
 /// Unlike the device steps this writes straight through to app settings via
 /// [appSettingsProvider] rather than the onboarding draft: the coordinates are
-/// global observer settings, not per-profile, so persisting them here means the
-/// location-driven surfaces light up immediately and the summary/next-steps
-/// screens can read them back from settings. The step is optional — a user
-/// setting up indoors during the day can skip it and be nudged to fill it in
-/// from the next-steps screen.
+/// global observer settings, not per-profile. The step is optional — a user
+/// setting up indoors during the day can skip it and be nudged from the
+/// next-steps screen.
 ///
 /// Two rules keep a site the user never chose out of the database:
 ///
 ///  * **An unusable entry reverts to what the step started with.** Typing "100"
-///    transits the in-range prefixes "1" and "10"; persisting each keystroke
-///    left a rejected latitude showing 100 in the field while 10°N sat on record
-///    as the site. Whenever the pair is incomplete or out of range the step puts
-///    back the coordinates it was seeded with, so a typo can neither invent a
-///    site nor destroy the one already saved. Reverting synchronously rather
-///    than debouncing the write also means there is no window in which Next
-///    arrives before the commit does.
-///  * **An IP estimate is a suggestion, never a default.** Free IP-geolocation
-///    services resolve to the ISP's egress point, disagree with each other by
-///    tens of kilometres, and can be wrong by far more. The estimate is offered
-///    as a labelled starting point the user accepts explicitly; it is never
-///    written to settings behind their back, because an unconfirmed site
-///    silently skews every twilight, transit, and meridian-flip time the app
-///    computes with no outward sign that anything is approximate.
+///    transits the in-range prefixes "1" and "10", so persisting each keystroke
+///    would put 10°N on record. Whenever the pair is incomplete or out of range
+///    the step puts back the coordinates it was seeded with — synchronously, so
+///    Next cannot arrive before the commit — and a typo can neither invent a
+///    site nor destroy the one already saved.
+///  * **An IP estimate is a suggestion, never a default.** It is offered as a
+///    labelled starting point the user accepts explicitly, never written to
+///    settings behind their back; `location_sync_service.dart` owns why.
 class OnboardingSiteStep extends ConsumerStatefulWidget {
   const OnboardingSiteStep({super.key});
 
@@ -137,21 +127,18 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _publishBlockingReason();
     });
-    // Deliberately NO lookup here. Merely arriving on this step used to post a
-    // frame callback that sent the machine's public IP to ipapi.co (falling
-    // back to plain-HTTP ip-api.com) — the app's first outbound request, on
-    // its first run, with no click and nothing on screen saying so. Nightshade
-    // is routinely installed on isolated observatory networks. The offer is
-    // still made; it now waits for [_lookUpIpEstimate].
+    // Deliberately NO lookup here. Nightshade is routinely installed on
+    // isolated observatory networks, so arriving on this step makes no outbound
+    // request: the offer waits for an explicit [_lookUpIpEstimate].
   }
 
   /// True when the coordinate fields hold a usable pair, so the "no site on
   /// record" offer has been answered.
   ///
-  /// Derived rather than latched at seed time: the offer used to be a one-shot
-  /// flag, so after "Use my current location" filled the fields in the banner
-  /// directly above them still read "No site on record yet" and still offered
-  /// to estimate one — the screen denying the thing it had just done.
+  /// Derived rather than latched at seed time: a one-shot flag would leave the
+  /// banner directly above the fields reading "No site on record yet", and
+  /// still offering to estimate one, after "Use my current location" filled
+  /// them in.
   bool get _siteEntered =>
       _validateLatitude(_latController.text.trim()) == null &&
       _validateLongitude(_lonController.text.trim()) == null &&
@@ -314,8 +301,8 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
 
   /// Resolve this machine's position and write the coordinates, mirroring
   /// Settings → Location's "Detect Location" affordance — including its two
-  /// rules, which this step used to skip. It asks before the request leaves
-  /// the machine (the underlying service falls back to a third-party IP lookup
+  /// rules. It asks before the request leaves the machine (the underlying
+  /// service falls back to a third-party IP lookup
   /// on every desktop), and it refuses to leave a stored elevation attached to
   /// a position it does not belong to. Guards the async gap with a
   /// backend-authority check so a host switch mid-read never applies the

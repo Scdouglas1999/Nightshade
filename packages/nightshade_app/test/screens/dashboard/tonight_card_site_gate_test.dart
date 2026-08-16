@@ -9,8 +9,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
-/// With no site set the observer providers fall back to 0°N 0°E, so the card
-/// used to print an equatorial dusk and a ~9h dark window right next to its own
+/// With no site set the observer providers fall back to 0°N 0°E, which yields a
+/// complete equatorial dusk and a ~9h dark window — beside the card's own
 /// "Location needed" row.
 class _SiteSettings extends AppSettingsNotifier {
   _SiteSettings(this.latitude, this.longitude);

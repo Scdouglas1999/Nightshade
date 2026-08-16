@@ -646,7 +646,7 @@ class ImportSequenceFlow {
 
   /// Build a human-readable summary of nodes dropped during import, for
   /// persisting into the sequence description. Returns an empty string
-  /// when nothing was dropped. [ImportResult.droppedNodes] already
+  /// when nothing is dropped. [ImportResult.droppedNodes] already
   /// includes unsupported nodes (re-filed with [DropReason.unsupported]),
   /// so we summarize that single list to avoid double-counting.
   static String _buildDroppedNodesSummary(ImportResult result) {

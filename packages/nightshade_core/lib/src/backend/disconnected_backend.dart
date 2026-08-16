@@ -21,8 +21,8 @@ part 'disconnected_backend/profile_and_image.dart';
 /// A backend implementation that represents a disconnected state.
 ///
 /// This is the default state for the mobile app. It throws clear, user-friendly
-/// exceptions for all operations, ensuring that the app never attempts to
-/// execute local logic (like FFI) when it should be acting as a thin client.
+/// exceptions for all operations, so no local logic (like FFI) runs while the
+/// app should be acting as a thin client.
 class DisconnectedBackend
     with _DisconnectedBackendProfileAndImage
     implements NightshadeBackend {
@@ -268,7 +268,6 @@ class DisconnectedBackend
     _throwNotConnected();
   }
 
-  // =========================================================================
   // Filter Wheel Control
 
   @override
@@ -408,9 +407,7 @@ class DisconnectedBackend
     _throwNotConnected();
   }
 
-  // =========================================================================
   // Generic Guiding (driver-agnostic abstraction)
-  // =========================================================================
 
   @override
   Future<void> guiderStartGuiding({
@@ -552,6 +549,11 @@ class DisconnectedBackend
 
   @override
   Future<void> sequencerSetSimulationMode(bool enabled) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<bool> sequencerIsSimulationMode() async {
     _throwNotConnected();
   }
 
@@ -725,9 +727,7 @@ class DisconnectedBackend
     _throwNotConnected();
   }
 
-  // =========================================================================
-  // Recovery Mode
-  // =========================================================================
+  // Recovery mode
 
   @override
   Future<void> recoveryTryNow() async {
@@ -751,19 +751,21 @@ class DisconnectedBackend
   }
 
   @override
-  Future<String?> getCurrentRecoveryJson() async => null;
+  Future<String?> getCurrentRecoveryJson() async {
+    _throwNotConnected();
+  }
 
   @override
-  Future<String> getRecoveryHistoryJson() async => '[]';
+  Future<String> getRecoveryHistoryJson() async {
+    _throwNotConnected();
+  }
 
   @override
   Future<SequencerStatus> sequencerGetStatus() async {
     _throwNotConnected();
   }
 
-  // =========================================================================
   // Checkpoint / Crash Recovery
-  // =========================================================================
 
   @override
   Future<void> sequencerSetCheckpointDir(String path) async {
@@ -818,9 +820,7 @@ class DisconnectedBackend
     _throwNotConnected();
   }
 
-  // =========================================================================
-  // Equipment Status
-  // =========================================================================
+  // Equipment status
 
   @override
   Future<CameraStatus> getCameraStatus(String deviceId) async {
@@ -847,9 +847,7 @@ class DisconnectedBackend
     _throwNotConnected();
   }
 
-  // =========================================================================
-  // Device Capabilities
-  // =========================================================================
+  // Device capabilities
 
   @override
   Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
@@ -923,9 +921,7 @@ class DisconnectedBackend
     _throwNotConnected();
   }
 
-  // =========================================================================
-  // Dome Control
-  // =========================================================================
+  // Dome control
 
   @override
   Future<void> domeOpenShutter(String deviceId) async {
@@ -962,9 +958,7 @@ class DisconnectedBackend
     _throwNotConnected();
   }
 
-  // =========================================================================
-  // Cover Calibrator Control
-  // =========================================================================
+  // Cover calibrator control
 
   @override
   Future<void> coverOpen(String deviceId) async {

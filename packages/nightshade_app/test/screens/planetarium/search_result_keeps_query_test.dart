@@ -1,13 +1,13 @@
-// Regression: picking a search result must not silently re-run the search on
-// the picked object's name.
+// Picking a search result must not silently re-run the search on the picked
+// object's name.
 //
-// Found live. Typed "6720" into the plan panel's search field: "175 results",
-// "Deep Sky Objects (6)" = M57, NGC7107, IC728, NGC7112, IC5118, IC59. Clicking
-// the M57 row recentred the chart correctly, but the list underneath became
-// M57, M7, M47, 57 Cygnus, 57 Gemini, ... — matches for "M57", not for "6720" —
-// while the text field still read "6720", and the result count and section
-// headers vanished. Stable, not transient: still wrong 90 seconds later. So
-// backing out of a wrong pick landed the user in a list they never asked for.
+// Type "6720" into the plan panel's search field: "175 results", "Deep Sky
+// Objects (6)" = M57, NGC7107, IC728, NGC7112, IC5118, IC59. Clicking the M57
+// row recentres the chart correctly; re-running the search turns the list
+// underneath into M57, M7, M47, 57 Cygnus, 57 Gemini, ... — matches for "M57",
+// not for "6720" — while the text field still reads "6720" and the result count
+// and section headers vanish. Backing out of a wrong pick then lands the user in
+// a list they never asked for.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/planetarium/widgets/search_header.dart';

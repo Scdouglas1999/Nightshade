@@ -1,9 +1,8 @@
-// Synthetic-perf test for F5-CATALOG-OVERLAY. Runs the catalog query
-// against a fake source containing 13_000 DSOs (~OpenNGC size) plus
-// 120_000 stars (~HYG size) and asserts that a single FOV query
-// completes in a few hundred milliseconds even when every object is
-// inside the bounding box. This is not a regression check on absolute
-// wall-clock — it's a guard against quadratic accidents in the
+// Synthetic-perf test for the catalog overlay. Runs the catalog query against a
+// fake source containing 13_000 DSOs (~OpenNGC size) plus 120_000 stars (~HYG
+// size) and asserts that a single FOV query completes in a few hundred
+// milliseconds even when every object is inside the bounding box. This is not a
+// check on absolute wall-clock — it guards against quadratic accidents in the
 // projection loop.
 
 import 'package:flutter_test/flutter_test.dart';

@@ -1,19 +1,19 @@
-// WF-STOP-N4 — what the progress bar promises while the run is standing still.
+// What the progress bar promises while the run is standing still.
 //
-// The waveF run: the meridian flip's plate solve failed after frame 4 and the
-// executor entered its retry ladder —
+// A meridian flip whose plate solve fails after frame 4 sends the executor into
+// its retry ladder —
 //
 //   04:10:43.815  ✗ Plate solving and centering FAILED: Plate solve failed
 //   04:10:43.815  Retry 2/4 scheduled in 60 seconds...
 //   04:11:51.795  Retry 3/4 scheduled in 120 seconds...
 //
-// — and for two and a half minutes this bar read `~1m 8s · done ~00:12:13`,
-// still unchanged at 00:12:53 and again at 00:13:24. The promised finish time
-// came and went while no frame had been captured. The estimate is fed by
-// completed frames, so a run that stops capturing keeps its last one forever.
+// — and for two and a half minutes the bar reads `~1m 8s · done ~00:12:13`,
+// unchanged at 00:12:53 and again at 00:13:24: a promised finish time that comes
+// and goes while no frame is captured. The estimate is fed by completed frames,
+// so a run that stops capturing keeps its last one forever.
 //
-// The counter-input encoded here is the refuter's: the run is *nominally*
-// running, its status is healthy, and only the passage of time without progress
+// The input encoded here is the hard one: the run is *nominally* running, its
+// status is healthy, and only the passage of time without progress
 // distinguishes it from a run that is working.
 
 import 'package:flutter/material.dart';
@@ -106,8 +106,8 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      // 6 x 600 s subs: 20 minutes of silence between frames is normal here,
-      // and calling that a stall would be its own cry-wolf.
+      // 6 x 600 s subs: 20 minutes of silence between frames is normal here, so
+      // a stall warning would fire on a healthy run.
       const longSubs = SequenceProgress(
         state: SequenceExecutionState.running,
         currentNodeId: 'node-1',

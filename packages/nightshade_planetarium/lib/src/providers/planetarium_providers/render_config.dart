@@ -1,8 +1,6 @@
 part of '../planetarium_providers.dart';
 
-// ============================================================================
-// HUD Toggle Providers
-// ============================================================================
+// HUD toggle providers
 
 /// Whether to show the compass HUD
 final showCompassHudProvider = StateProvider<bool>((ref) => true);
@@ -33,9 +31,7 @@ final showFovRingsProvider = StateProvider<bool>((ref) => false);
 /// handling and draw the measurement overlay.
 final measurementModeProvider = StateProvider<bool>((ref) => false);
 
-// ============================================================================
-// Sky Render Config Provider
-// ============================================================================
+// Sky render config provider
 
 class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
   /// Nullable so existing tests that construct the notifier bare keep working;
@@ -209,9 +205,7 @@ final effectiveSkyRenderConfigProvider = Provider<SkyRenderConfig>((ref) {
   return config.copyWith(showGroundPlane: showGroundPlane);
 });
 
-// ============================================================================
-// Render Quality Provider
-// ============================================================================
+// Render quality provider
 
 /// Notifier for managing render quality settings
 class RenderQualityNotifier extends StateNotifier<RenderQualityConfig> {
@@ -379,48 +373,36 @@ RenderQualityConfig _lodAdaptedQuality(
   }
 }
 
-/// Computed magnitude limits based on current FOV and sky brightness.
-/// Returns (starMagLimit, dsoMagLimit)
+/// How many magnitudes of limiting depth the current sky brightness costs, from
+/// the Sun's altitude:
 ///
-/// As the user zooms in (narrower FOV), fainter objects become visible.
-/// When the sun is above the horizon (daylight) or in twilight, the limiting
-/// magnitude is reduced to reflect sky brightness — but conservatively,
-/// because the planetarium is a PLANNING TOOL, not a live view. Users need
-/// to see Messier objects during the day to plan tonight's session.
+///   > 0 deg (daylight): 6.0
+///   -6 to 0 (civil twilight): 3.0 to 6.0
+///   -12 to -6 (nautical twilight): 1.5 to 3.0
+///   -18 to -12 (astronomical twilight): 0 to 0.5
+///   < -18 (full darkness): 0
 ///
-/// Sky brightness penalty (based on sun altitude):
-///   Sun above 0 deg (daylight): penalty = 6.0 mag (Messier objects visible to ~mag 6-8)
-///   Sun at  -6 deg (civil twilight): penalty = 3.0 mag
-///   Sun at -12 deg (nautical twilight): penalty = 1.5 mag
-///   Sun at -18 deg (astronomical twilight): penalty = 0.5 mag
-///   Below -18 deg (full dark): penalty = 0
-/// How many magnitudes of limiting depth the current sky brightness costs.
-///
-/// Penalties are intentionally modest because the planetarium is a planning
-/// tool — users want to see Messier/NGC objects during the day to plan
-/// tonight's imaging session. A penalty of 6 during daylight still leaves DSOs
-/// to about magnitude 6-8 visible (all 110 Messier objects plus bright NGCs).
-/// This is NOT meant to simulate naked-eye visibility.
-///
-/// Sun altitude thresholds (standard astronomical definitions):
-///   > 0 deg: daylight — penalty 6.0
-///  -6 to 0: civil twilight — 3.0 to 6.0
-/// -12 to -6: nautical twilight — 1.5 to 3.0
-/// -18 to -12: astronomical twilight — 0 to 0.5
-///   < -18: full darkness — no penalty
+/// The penalties are modest on purpose: the planetarium is a planning tool, so
+/// a daylight penalty of 6 still leaves every Messier object and the bright
+/// NGCs on screen. It does not model naked-eye visibility.
 ///
 /// Separate from [dynamicMagnitudeLimitsProvider] because it depends only on
-/// the minute and the observing site. Folded into that provider it re-ran an
-/// iterative sun-altitude solve on every single zoom frame, for a value that
-/// cannot have changed.
+/// the minute and the observing site; folded in there, the iterative
+/// sun-altitude solve re-runs on every zoom frame for a value that cannot have
+/// changed.
+///
+/// With no site on record the Sun's altitude is unknown, so no penalty is
+/// applied: this is a rendering depth knob, and the alternative is dimming the
+/// chart on a guess about where the observer is standing.
 final _skyBrightnessPenaltyProvider = Provider<double>((ref) {
-  final location = ref.watch(observerLocationProvider);
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return 0.0;
   final time = ref.watch(_currentMinuteProvider);
 
   final sunAlt = AstronomyCalculations.sunAltitude(
     dt: time,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
+    latitudeDeg: site.latitude,
+    longitudeDeg: site.longitude,
   );
 
   if (sunAlt >= 0) return 6.0;
@@ -431,6 +413,11 @@ final _skyBrightnessPenaltyProvider = Provider<double>((ref) {
   return 0.0;
 });
 
+/// Magnitude limits for the current field and sky brightness, as
+/// (starMagLimit, dsoMagLimit).
+///
+/// Zooming in raises the limits; the sky-brightness penalty from
+/// [_skyBrightnessPenaltyProvider] lowers them.
 final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   // Read the base limits from the USER's tier, not from
   // [fovAdaptiveQualityProvider]. The adaptive provider applies the limits this

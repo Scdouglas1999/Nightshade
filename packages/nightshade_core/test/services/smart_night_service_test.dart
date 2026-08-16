@@ -533,7 +533,7 @@ void main() {
           .whereType<ExposureNode>()
           .where((n) => n.frameType == FrameType.flat);
       expect(flatExposures, isNotEmpty);
-      // None of them is the old blind 3.0s exposure.
+      // None of them is a blind 3.0s exposure: each comes from a calibration.
       expect(flatExposures.every((n) => n.durationSecs != 3.0), isTrue);
     });
 
@@ -1128,7 +1128,7 @@ void main() {
       expect(result.sequence.nodes.values.whereType<ParkNode>(), isNotEmpty);
     });
 
-    // ---------------- Audit item #9: auto-schedule missing darks --------
+    // Auto-schedule missing darks
 
     SmartNightContext darkGapContext({
       List<DarkFrameRequirement> requirements = const [],
@@ -1441,7 +1441,7 @@ void main() {
       expect(restored.settings.darkFramesPerRequirement, 12);
     });
 
-    // --- P1: guide-RMS threading into the tracking-limited ceiling --------
+    // Guide-RMS threading into the tracking-limited ceiling
 
     SmartNightExposureContext guidedExposureContext({
       double? guideRmsArcsec,
@@ -1561,7 +1561,7 @@ void main() {
       );
     });
 
-    // --- P1: pixel size must not silently fall back to 3.76um ------------
+    // Pixel size must not silently fall back to 3.76um
 
     test('build() fails loud when pixel size is unknown (no exposure context '
         'and camera not in catalog)', () {

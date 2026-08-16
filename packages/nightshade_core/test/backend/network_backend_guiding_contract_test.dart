@@ -75,8 +75,8 @@ void main() {
     test(
       'a master without the probe endpoint does not invent a version',
       () async {
-        // The 404 degrade must not become "PHD2 answered": the old endpoint only
-        // ever answered the port question.
+        // The 404 degrade must not become "PHD2 answered": a host without the
+        // probe endpoint has reported nothing about PHD2's version.
         final oldHost = FakeNetworkClient()
           ..setResponse(
             '/api/phd2/probe',

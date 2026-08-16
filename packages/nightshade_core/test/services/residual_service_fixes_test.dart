@@ -558,8 +558,8 @@ void main() {
             'equipmentProfiles': <Object?>[],
             'sequences': <Object?>[],
             'targets': <Object?>[],
-            // Reached after core tables have already been applied. This used to
-            // be skipped while restore still returned success.
+            // Reached after core tables have already been applied: skipping
+            // it while still returning success is the failure under test.
             'darkLibrary': [42],
           }),
         );

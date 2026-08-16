@@ -1,8 +1,8 @@
-// SET-1: on step 3 of the first run, the backend row rendered a green
-// "Native (0)" beside a bare red warning chip for Alpaca and another for INDI —
-// no count, no message, nothing clickable, and the accessibility tree carried
-// only "panel: Alpaca", so the alarm was invisible to a screen reader too. Two
-// unexplained red warnings on the third screen of the product.
+// Step 3 of the first run must explain a failed backend. A green "Native (0)"
+// beside bare red warning chips for Alpaca and INDI — no count, no message,
+// nothing clickable, and an accessibility tree carrying only "panel: Alpaca" —
+// puts two unexplained alarms on the third screen of the product, invisible to
+// a screen reader as well.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -243,13 +243,9 @@ class _AdaptiveTabBarState extends State<AdaptiveTabBar> {
 
         if (!_canScrollLeft && !_canScrollRight) return strip;
 
-        // WD-SCI-N4: the chevrons used to be `Positioned` over the strip in a
-        // Stack, so at 900 px the right chevron painted ON TOP of the Science
-        // tab and it rendered as `S › ce`; after a nudge the left one covered
-        // History (`Hi ‹ y`) and the right clipped Diagnostics. A hint that
-        // eats the label it is hinting about is worse than no hint. Laying
-        // them out beside the strip reserves the width instead of borrowing
-        // it, so no glyph is ever painted over.
+        // The chevrons are laid out BESIDE the strip, not `Positioned` over
+        // it: over the strip they reserve no width and paint on top of the tab
+        // labels they are hinting about, clipping them mid-word.
         //
         // Stable by construction: showing a chevron narrows the viewport,
         // which can only make the strip MORE scrollable; hiding one at an end
@@ -307,9 +303,9 @@ class _EdgeAffordance extends StatelessWidget {
     // So the InkWell fills [_kMinTapTarget] of width with the chip centred
     // inside it as pure decoration.
     return ConstrainedBox(
-      // Width AND height: laid out in a Row the affordance no longer inherits
-      // the strip's height from a `Positioned`, and a 48x30 target fails the
-      // Android 48 dp rule (`mobile_tap_target_test`).
+      // Width AND height: laid out in a Row the affordance does not inherit the
+      // strip's height, and a 48x30 target fails the Android 48 dp rule
+      // (`mobile_tap_target_test`).
       constraints: const BoxConstraints(
         minWidth: _kMinTapTarget,
         maxWidth: _kMinTapTarget,
@@ -319,9 +315,8 @@ class _EdgeAffordance extends StatelessWidget {
         button: true,
         // `Semantics` only publishes SemanticsFlag.isEnabled when `enabled` is
         // given. A button declared without it carries no enabled flag at all,
-        // and AT-SPI reads the absence as "not sensitive" — so assistive tech
-        // announces a live control as disabled. See the note on the tab button
-        // below, where this was measured.
+        // and AT-SPI reads the absence as "not sensitive", so assistive tech
+        // announces a live control as disabled.
         enabled: true,
         label: isLeading ? 'Scroll tabs left' : 'Scroll tabs right',
         child: Tooltip(

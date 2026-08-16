@@ -45,7 +45,7 @@ class _ConstellationContributeSheetState
   ConstellationPrivacy _privacy = ConstellationPrivacy.sums;
   bool _consented = false;
 
-  /// The license the user shares this contribution under (WS4 consent contract).
+  /// The license the user shares this contribution under.
   /// The hub requires an explicit shareable license + records consent before any
   /// bytes are stored; the client pre-validates this against the hub's
   /// advertised `supportedLicenses`. Defaults to the attribution-required CC-BY.
@@ -199,7 +199,7 @@ class _ConstellationContributeSheetState
                   'delete, not a clean subtraction.',
             ),
           const SizedBox(height: NightshadeTokens.spaceMd),
-          // WS4 consent contract: choose the license this contribution is shared
+          // Consent contract: choose the license this contribution is shared
           // under. The hub advertises the licenses it accepts; offer only those
           // (falling back to the full shareable set for an older hub). The hub
           // re-validates and records the consent before storing any bytes.

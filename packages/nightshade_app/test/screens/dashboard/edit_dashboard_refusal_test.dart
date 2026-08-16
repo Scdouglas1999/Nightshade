@@ -1,19 +1,18 @@
-// WD-EQ-4: "Edit Dashboard" is silently inert in the standby briefing.
+// "Edit Dashboard" must not be silently inert in the standby briefing: with 0
+// devices connected and the Dashboard showing TONIGHT'S BRIEFING, clicking it
+// changes nothing, so the control has to say why.
 //
-// Wave D evidence: 0 devices connected, Dashboard showing TONIGHT'S BRIEFING,
-// click Edit Dashboard — the page does not change and nothing explains why.
-//
-// Wave E, second strike: the D-fix's `Semantics(hint:)` passed a widget test
-// but the LIVE AT-SPI probe of that node came back
+// A `Semantics(hint:)` cannot carry that. It passes a widget test while the
+// LIVE AT-SPI probe of the node reads
 //   button: 'Edit Dashboard\nEdit Dashboard'  desc=''
 //   states=['sensitive','showing','visible']
-// — enabled, no description, and byte-identical to the same button when it is
-// genuinely enabled. Two things were wrong: a descendant re-published
-// `isEnabled`, and the Linux bridge does not carry `hint`.
+// — enabled, undescribed, byte-identical to the genuinely-enabled button —
+// because a descendant re-publishes `isEnabled` and the Linux bridge does not
+// carry `hint`.
 //
-// So these tests pin the refuter's exact counter-checks: the node must be the
-// ONLY one for the control (no doubled label), it must not be enabled, and the
-// reason must be in the accessible NAME, which the bridge demonstrably exports.
+// So these tests pin the counter-checks: the node must be the ONLY one for the
+// control (no doubled label), it must not be enabled, and the reason must be in
+// the accessible NAME, which the bridge demonstrably exports.
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';

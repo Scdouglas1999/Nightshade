@@ -277,18 +277,27 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
     // trig. The snapshots stay in lock-step with the 30s ticker; a separate
     // provider would add cache-coordination work for no real benefit at this
     // list size (<= 50 targets typically).
+    //
+    // Altitude and rise/set are readings against a horizon, so with no site on
+    // record there is nothing to compute: the cache is emptied and the rows
+    // render without visibility rather than against a default observer.
+    final site = observer.site;
     final tickBucket = now.millisecondsSinceEpoch ~/ 30000;
-    final signature = '$tickBucket|${observer.latitude}|'
-        '${observer.longitude}|$horizonDeg';
-    if (_visibilityCacheSignature != signature) {
+    final signature = site == null
+        ? 'no-site'
+        : '$tickBucket|${site.latitude}|${site.longitude}|$horizonDeg';
+    if (site == null) {
+      _visibilityCache.clear();
+      _visibilityCacheSignature = signature;
+    } else if (_visibilityCacheSignature != signature) {
       _visibilityCache
         ..clear()
         ..addEntries(queue.targets.map((t) => MapEntry(
               t.id,
               _computeVisibility(
                 coords: t.coordinates,
-                latitude: observer.latitude,
-                longitude: observer.longitude,
+                latitude: site.latitude,
+                longitude: site.longitude,
                 now: now,
                 effectiveHorizonDeg: horizonDeg,
               ),
@@ -302,8 +311,8 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
           t.id,
           () => _computeVisibility(
             coords: t.coordinates,
-            latitude: observer.latitude,
-            longitude: observer.longitude,
+            latitude: site.latitude,
+            longitude: site.longitude,
             now: now,
             effectiveHorizonDeg: horizonDeg,
           ),
@@ -418,9 +427,7 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
   }
 }
 
-// ============================================================================
 // Header / sort & filter bar
-// ============================================================================
 
 class _Header extends StatelessWidget {
   final NightshadeColors colors;
@@ -603,9 +610,7 @@ class _Dropdown<T> extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Empty / no-match states
-// ============================================================================
 
 class _EmptyState extends ConsumerWidget {
   final NightshadeColors colors;
@@ -672,9 +677,7 @@ class _NoMatchesState extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Single queue row + draggable
-// ============================================================================
 
 class _QueueRow extends ConsumerWidget {
   final NightshadeColors colors;

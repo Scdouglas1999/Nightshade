@@ -144,10 +144,9 @@ class NightshadeApp extends ConsumerWidget {
                     _calculateUiScaleFactor(context, uiScaleSetting);
                 final combinedTextScale = textScaleFactor * uiScaleFactor;
 
-                // Apply text scaling for UI accessibility
-                // Note: We only scale text, not the entire UI widget tree.
-                // Flutter handles DPI scaling natively on most platforms.
-                // The previous Transform.scale approach caused rendering artifacts.
+                // Scale text only. Flutter handles DPI scaling for the widget
+                // tree natively, and a Transform.scale over the whole tree
+                // causes rendering artifacts.
                 final appChild = child ?? const SizedBox.shrink();
                 Widget scaledChild = appChild;
 

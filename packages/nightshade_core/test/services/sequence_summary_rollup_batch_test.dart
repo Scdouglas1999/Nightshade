@@ -3,9 +3,9 @@
 // `runSummaryForSequence(row.id)` at a time inside a collection-`for` — a
 // 40-sequence library cost 41 serialized round trips on the library screen.
 //
-// The roll-up is now one grouped query. These tests pin the batched result
-// against the per-sequence method it replaced, so a regression that changes
-// what the library reports (not just how fast) fails here.
+// The roll-up is one grouped query. These tests pin the batched result against
+// the per-sequence method, so a change to what the library reports (not just
+// how fast) fails here.
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';

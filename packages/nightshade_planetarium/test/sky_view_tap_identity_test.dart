@@ -1,10 +1,9 @@
-// Regression test for tap-to-select identity.
+// Tap-to-select hands out the identity that was hit.
 //
-// Tapping a star glyph used to hand the caller the coordinate reconstructed
-// from the tap pixel, not the catalogue coordinate of the object that was hit.
-// Every downstream action (popup readout, Slew, Framing, Sequencer, Add to
-// List) consumed that coordinate, so a named object could be slewed to a
-// position degrees away from where it actually is.
+// Handing the caller the coordinate reconstructed from the tap pixel instead of
+// the catalogue coordinate of the object hit corrupts every downstream action
+// (popup readout, Slew, Framing, Sequencer, Add to List): a named object gets
+// slewed to a position degrees away from where it actually is.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +39,11 @@ void main() {
         ),
       ],
     );
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     container
         .read(skyViewStateProvider.notifier)
         .setCenter(_capella.coordinates.ra, _capella.coordinates.dec);

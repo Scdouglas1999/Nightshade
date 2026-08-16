@@ -17,9 +17,9 @@ import 'package:http/http.dart' as http;
 import 'package:nightshade_core/nightshade_core.dart';
 
 /// Seam that records every exportDelta tileId so the cone test can assert which
-/// tiles the index-backed selection actually chose. The `coverage` action is the
-/// OLD full-scan fallback; here we seed the DB index instead, so it should never
-/// be consulted for an atlas that has folded tiles.
+/// tiles the index-backed selection chose. `coverage` is the full-scan
+/// fallback; these tests seed the DB index, so it must never be consulted for
+/// an atlas that has folded tiles.
 class _RecordingSeam implements SkyAtlasSeam {
   final List<int> exportedTileIds = [];
   var coverageScanned = false;

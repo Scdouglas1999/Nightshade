@@ -246,11 +246,11 @@ void main() {
   });
 
   // Drain the serialised feed chain + microtasks the auto-feed schedules.
-  // Awaits the executor's real feed-chain tail instead of sleeping a
-  // wall-clock margin: the old fixed 150 ms loop raced slow CI runners,
-  // where a still-running feed outlived the test body and failed it
-  // "after completion". The trailing zero-delay turns flush work the
-  // teardown path schedules off the chain (broadcast deactivate).
+  // Awaits the executor's real feed-chain tail rather than a wall-clock
+  // margin, which races a slow runner and lets a still-running feed outlive
+  // the test body ("failed after completion"). The trailing zero-delay turns
+  // flush work the teardown path schedules off the chain (broadcast
+  // deactivate).
   Future<void> settle(SequenceExecutor executor) async {
     await executor.liveStackingFeedSettledForTest;
     for (var i = 0; i < 3; i++) {

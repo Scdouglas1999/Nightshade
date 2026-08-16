@@ -1,8 +1,8 @@
-// SET-12: the Dashboard Tour narrated nine panels the default dashboard layout
-// does not contain — Live Image Preview, Quick Capture, Session Progress and
-// six more — each with the card floating in mid-screen, no spotlight and
-// nothing highlighted, because their target keys resolve to widgets that were
-// never built.
+// The Dashboard Tour must not narrate panels the default dashboard layout does
+// not contain — Live Image Preview, Quick Capture, Session Progress and six more
+// — each with the card floating in mid-screen, no spotlight and nothing
+// highlighted, because their target keys resolve to widgets that are never
+// built.
 //
 // The walk that decides where such a step sends the operator is pinned here.
 
@@ -95,12 +95,11 @@ void main() {
     );
   });
 
-  // Wave E, SET-12 second strike. The D-fix made the walk hop ONE step per
-  // call and re-enter itself from the next build, 450 ms apart, so the live
-  // dump caught the tour parked on — and announcing — "step 6 of 12: Weather
-  // Status" and "step 11 of 12: Active Sequence" on a dashboard that carries
-  // neither panel. The refuter's exact counter-input: the real 12-step
-  // dashboard tour with `dashboard_edit_button` as the only live target.
+  // A walk that hops ONE step per call and re-enters itself from the next
+  // build, 450 ms apart, parks the tour on — and announces — "step 6 of 12:
+  // Weather Status" and "step 11 of 12: Active Sequence" on a dashboard that
+  // carries neither panel. The input here is the real 12-step dashboard tour
+  // with `dashboard_edit_button` as the only live target.
   test('a run of absent panels is passed over in ONE jump', () {
     final dashboard =
         TutorialDefinitions.getStepsForCategory(TutorialCategory.dashboardTour);

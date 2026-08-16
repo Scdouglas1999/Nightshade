@@ -1,10 +1,10 @@
 // Tests for the remote switch-control request shapes on [NetworkBackend].
 //
-// Regression guard for the bug where the per-channel switch UI was dead over
-// the network: the server's `POST /api/switch/set` REQUIRES a `deviceId`
-// (apps/desktop/.../auxiliary_handlers.dart) but `setSwitch` omitted it, and
-// `getSwitchStatus` sent no `deviceId` so it returned the all-devices summary
-// instead of the single-device `switches` shape the UI needs. All HTTP is
+// The per-channel switch UI is dead over the network without them: the server's
+// `POST /api/switch/set` REQUIRES a `deviceId`
+// (apps/desktop/.../auxiliary_handlers.dart), and `getSwitchStatus` without a
+// `deviceId` returns the all-devices summary instead of the single-device
+// `switches` shape the UI needs. All HTTP is
 // served by the MockClient-backed FakeNetworkClient — no real server needed.
 
 import 'dart:convert';

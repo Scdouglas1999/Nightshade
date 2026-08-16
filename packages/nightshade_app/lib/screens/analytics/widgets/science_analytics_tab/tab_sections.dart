@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../science_analytics_tab.dart -- extracted for maintainability.
-//
 // Navigation helpers, session bar, paired cards and science-data state sections.
 part of '../science_analytics_tab.dart';
 
@@ -36,13 +34,9 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
   /// Rung 2's 'Pick a target', and the photometry destination on the empty
   /// branch.
   ///
-  /// Analytics has nowhere to pick a photometry target: the only control that
-  /// sets one is the science HUD over the live frame. Rung 2 used to be
-  /// answered with a scroll to the PHOTOMETRY charts (populated branch) or with
-  /// the photometric calibration wizard (empty branch) — a button reading 'Pick
-  /// a target' that opened a star-field calibration dialog. Send the operator
-  /// to the control instead, with the HUD already open so it is on screen when
-  /// they arrive.
+  /// The only control that sets a photometry target is the science HUD over
+  /// the live frame, so this sends the operator there with the HUD already
+  /// open — Analytics itself has nowhere to pick one.
   void _goPickPhotometryTarget(BuildContext context) {
     final mode = ref.read(scienceModeStateProvider);
     if (!mode.scienceHudVisible) {
@@ -112,10 +106,10 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
                     .copyWith(color: colors.textPrimary),
                 onChanged: (id) {
                   // periodAnalysisProvider is a single global result with no
-                  // session key, so a period searched on the previous night
-                  // stayed on screen for this one — and fed hasPeriodResult,
-                  // marking the guide's "Analyse the period" rung done for a
-                  // session that had never been searched.
+                  // session key, so a period searched on another session would
+                  // stay on screen here and feed hasPeriodResult, marking the
+                  // guide's "Analyse the period" rung done for a session that
+                  // was never searched.
                   ref.read(periodAnalysisProvider.notifier).clear();
                   setState(() {
                     _selectedSessionId = id;

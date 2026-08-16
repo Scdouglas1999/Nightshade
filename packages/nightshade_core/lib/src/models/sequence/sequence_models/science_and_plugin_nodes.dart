@@ -2,8 +2,6 @@
 
 part of '../sequence_models.dart';
 
-// =============================================================================
-
 /// Per-frame photometric quality gates. Mirrors the Rust
 /// `PhotometryQualityGates` struct one-to-one. Frames failing any gate
 /// are routed to the Image Grading reject folder and their
@@ -309,7 +307,7 @@ abstract class TransparencyBackupPlan with _$TransparencyBackupPlan {
   bool get isEmpty => backupFilter == null && backupTargetId == null;
 }
 
-/// Audit §11 — Plugin-contributed sequence instruction.
+/// Plugin-contributed sequence instruction.
 ///
 /// Holds the metadata required to identify a plugin-authored node in the
 /// sequence tree (`pluginId`, `nodeTypeId`) and the opaque plugin-authored

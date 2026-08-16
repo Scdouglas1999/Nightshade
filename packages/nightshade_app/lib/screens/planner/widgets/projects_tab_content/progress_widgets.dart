@@ -1,8 +1,6 @@
 part of '../projects_tab_content.dart';
 
-// =============================================================================
 // Active project progress: targets + accrued-vs-remaining roll-up.
-// =============================================================================
 
 class _ActiveProjectProgress extends ConsumerWidget {
   final NightshadeColors colors;

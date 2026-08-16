@@ -1,4 +1,4 @@
-// Parse-layer regression for RemoteDirectoryListing / RemoteDirectoryEntry.
+// Parse-layer cover for RemoteDirectoryListing / RemoteDirectoryEntry.
 //
 // The picker feeds whatever the host returns straight through fromJson. A lazy
 // `.cast<Map<String, dynamic>>()` over `directories` would throw at iteration

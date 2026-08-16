@@ -1,7 +1,4 @@
-// =============================================================================
-// hfr_sparkline_test.dart — one HFR sparkline, drawn the same way up on every
-// Run-dashboard surface.
-// =============================================================================
+// One HFR sparkline, drawn the same way up on every Run-dashboard surface.
 //
 // The dashboard carried two `_HfrSparklinePainter` classes — one in
 // `quality_panel.dart`, one in `live_frame_panel.dart` — with the same name and

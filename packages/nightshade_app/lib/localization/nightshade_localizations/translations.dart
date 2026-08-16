@@ -1,5 +1,3 @@
-// Part of ../nightshade_localizations.dart -- extracted for maintainability.
-//
 // Built-in English and Spanish application strings.
 part of '../nightshade_localizations.dart';
 
@@ -572,7 +570,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'firstNightWizardShowNextLaunch': 'Show on next launch',
     'firstNightWizardStepLabel': 'Step {current} of {total}',
     'firstNightWizardShowMeOnScreen': 'Show me on the {screen} screen',
-    // Tour prompts for screens that previously hard-coded their copy.
+    // Tour prompts.
     'equipmentTourTitle': 'Equipment Tour',
     'equipmentTourDescription':
         'Learn how to connect and manage your astrophotography equipment.',
@@ -603,7 +601,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabFraming': 'Framing',
     'plannerTabPlanetarium': 'Planetarium',
     'plannerTabDiscover': 'Discover',
-    // Settings catalog section labels that were previously hard-coded.
+    // Settings catalog section labels.
     'settingsFilesStorage': 'Files & Storage',
     'settingsAdaptiveExposure': 'Adaptive Exposure',
     'settingsImageGrading': 'Image Grading',
@@ -661,13 +659,11 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Remote access API is running, but the dashboard files are unavailable',
     'statusDashboardOff': 'Remote access is not running',
 
-    // ---------------------------------------------------------------------
     // Dashboard "Tonight's Briefing" — the idle Dashboard body, i.e. the
     // landing screen. The language picker's own scope claim was "app chrome"
     // while the first screen a Spanish user ever sees was 100% English, which
     // made the picker read as broken rather than partial. These keys put the
     // landing screen inside the scope the setting claims.
-    // ---------------------------------------------------------------------
     'dbBriefingOverline': "TONIGHT'S BRIEFING",
     'dbNoRunActive': 'No run active',
     'dbImageTonight': 'Image tonight',
@@ -1320,7 +1316,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'firstNightWizardShowNextLaunch': 'Mostrar al iniciar de nuevo',
     'firstNightWizardStepLabel': 'Paso {current} de {total}',
     'firstNightWizardShowMeOnScreen': 'Muéstrame en la pantalla {screen}',
-    // Tour prompts for screens that previously hard-coded their copy.
+    // Tour prompts.
     'equipmentTourTitle': 'Tour de equipo',
     'equipmentTourDescription':
         'Aprende a conectar y administrar tu equipo de astrofotografía.',
@@ -1353,7 +1349,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabFraming': 'Encuadre',
     'plannerTabPlanetarium': 'Planetario',
     'plannerTabDiscover': 'Descubrir',
-    // Settings catalog section labels that were previously hard-coded.
+    // Settings catalog section labels.
     'settingsFilesStorage': 'Archivos y almacenamiento',
     'settingsAdaptiveExposure': 'Exposición adaptativa',
     'settingsImageGrading': 'Clasificación de imágenes',

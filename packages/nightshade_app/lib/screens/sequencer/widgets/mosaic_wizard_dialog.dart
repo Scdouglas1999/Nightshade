@@ -80,27 +80,21 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   late double _centerRa;
   late double _centerDec;
 
-  /// One panel = one camera field. These are seeded from the rig in
-  /// [initState] and are only a PLACEHOLDER until then: 60' × 40' is not
-  /// anyone's camera, it was just the field initialiser, and the wizard used
-  /// to quote it as "Panel size: 1.00° × 0.67°" and plan the whole mosaic
-  /// from it on a machine with no equipment profile at all. [_panelSizeSource]
-  /// records where the numbers came from so the UI can say "unknown" and the
-  /// build actions can refuse, instead of inventing a field of view — the
-  /// same rule the framing dialog already follows.
+  /// One panel = one camera field. Seeded from the rig in [initState]; until
+  /// then these are a PLACEHOLDER — 60' × 40' is nobody's camera, just the
+  /// field initialiser. [_panelSizeSource] records where the numbers came from
+  /// so the UI can say "unknown" and the build actions can refuse, rather than
+  /// planning a mosaic from an invented field of view.
   double _panelWidthArcmin = 60.0;
   double _panelHeightArcmin = 40.0;
   _PanelSizeSource _panelSizeSource = _PanelSizeSource.unknown;
 
   /// Which of the two dimensions the user has actually supplied.
   ///
-  /// WD-COL-N3: a single `user` source for both meant typing a panel WIDTH
-  /// declared the whole panel size known, so the height field — until then
-  /// empty — was force-filled from the 60×40 placeholder nobody chose (live:
-  /// width 50 typed, height appeared as `40.0`, and the plan summary quoted
-  /// `0.83° × 0.67°`). It also unlocked the footer actions on half-invented
-  /// geometry. A dimension is known only when it was measured from the rig or
-  /// typed by the user.
+  /// A dimension is known only when it was measured from the rig or typed by
+  /// the user. Tracked per dimension: one shared flag makes typing a WIDTH
+  /// declare the whole panel size known, which fills the height from the
+  /// placeholder and unlocks the footer actions on half-invented geometry.
   bool _userSuppliedWidth = false;
   bool _userSuppliedHeight = false;
 
@@ -633,6 +627,4 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   }
 }
 
-// ============================================================================
 // Configuration widgets
-// ============================================================================

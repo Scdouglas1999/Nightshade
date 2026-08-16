@@ -233,14 +233,13 @@ void main() {
     expect(container.read(selectedPresetIdProvider), kUnityGainPresetId);
   });
 
-  // C8 connect-edge wiring: the production runtime behavior is the
+  // Connect-edge wiring: the production runtime behaviour is the
   // `cameraPresetsSeedOnConnectProvider` listener, NOT a direct call to
   // seedFromRecommended. These tests drive a disconnected -> connected
-  // transition through cameraStateProvider with that provider read (exactly
-  // as the desktop bootstrap does) and assert the unity preset is seeded.
-  // Without the bootstrap `container.read(cameraPresetsSeedOnConnectProvider)`
-  // these would fail because the listener would never attach — which is the
-  // regression that prompted this test.
+  // transition through cameraStateProvider with that provider read (exactly as
+  // the desktop bootstrap does) and assert the unity preset is seeded. Without
+  // the bootstrap `container.read(cameraPresetsSeedOnConnectProvider)` the
+  // listener never attaches and nothing is seeded.
   group('cameraPresetsSeedOnConnectProvider connect-edge', () {
     setUpAll(registerMocktailFallbackValues);
 

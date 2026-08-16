@@ -112,9 +112,9 @@ class AllSkyTargetReticle extends StatelessWidget {
   /// measured yet. Positive = mechanical pole east of true pole (rotate
   /// azimuth bolt westward).
   ///
-  /// Nullable on purpose: callers used to substitute zero, which made an
-  /// unmeasured axis indistinguishable from a perfectly aligned one and let
-  /// the idle screen claim "Within acceptance" before a single frame existed.
+  /// Nullable on purpose: substituting zero makes an unmeasured axis
+  /// indistinguishable from a perfectly aligned one, and lets the idle screen
+  /// claim "Within acceptance" before a single frame exists.
   final double? azimuthErrorArcsec;
 
   /// Current altitude error in arcseconds, or null when nothing has been
@@ -334,8 +334,7 @@ class _ReticlePainter extends CustomPainter {
     _drawCardinal(canvas, center, maxRadius, 'W', Alignment.centerLeft);
 
     // No marker without a measurement: a dot on the bullseye is a claim of
-    // perfect alignment, and drawing one from a null-coalesced 0 is how the
-    // idle screen used to assert it.
+    // perfect alignment, which a null-coalesced 0 would assert while idle.
     final az = azimuthErrorArcsec;
     final alt = altitudeErrorArcsec;
     if (waitingForFirstFrame || az == null || alt == null) {

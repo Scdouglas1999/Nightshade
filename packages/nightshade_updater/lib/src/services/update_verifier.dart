@@ -70,12 +70,12 @@ class UpdateVerifier {
   /// Whether this verifier has at least one trusted Ed25519 public key that
   /// is compiled in and not revoked.
   ///
-  /// Used by entry points like the LAN push receiver to refuse to start
-  /// when no key is available (§7A.7) — without a key, signature
-  /// verification cannot run and an attacker on the LAN could push an
-  /// unsigned manifest. Returning false here means "this build cannot
-  /// authenticate any update; do not accept update bytes." Revoking every
-  /// trusted key id deliberately drops this to false (kill switch).
+  /// Entry points like the LAN push receiver refuse to start when no key
+  /// is available — without a key, signature verification cannot run and an
+  /// attacker on the LAN could push an unsigned manifest. False here means
+  /// "this build cannot authenticate any update; do not accept update
+  /// bytes." Revoking every trusted key id drops this to false, which is
+  /// the kill switch.
   bool get hasTrustedPublicKey =>
       _trustedKeys.any((key) => !_revokedKeyIds.contains(key.keyId));
 
@@ -209,17 +209,17 @@ class UpdateVerifier {
       return false;
     }
 
-    // SEC-001: signature verification is MANDATORY for every staged update.
-    // A correct SHA-256 only proves the bytes match the manifest we were
-    // handed; it says nothing about whether that manifest came from the
+    // Signature verification is MANDATORY for every staged update. A
+    // correct SHA-256 only proves the bytes match the manifest as handed
+    // over; it says nothing about whether that manifest came from the
     // vendor. A self-referential manifest (attacker-supplied package +
     // attacker-supplied matching hash) would otherwise pass on hash alone.
-    // We therefore never return true on hash agreement: the manifest must
-    // carry an Ed25519 signature that verifies against the trusted key
+    // Hash agreement therefore never returns true on its own: the manifest
+    // must carry an Ed25519 signature that verifies against the trusted key
     // compiled into this build. [verifyManifestSignature] returns false
     // when this build has no trusted key or the manifest is unsigned, so
-    // both of those cases fail closed here — mirroring the LAN push
-    // receiver, which refuses to start without a trusted key.
+    // both of those cases fail closed here, matching the LAN push receiver,
+    // which refuses to start without a trusted key.
     return verifyManifestSignature(manifest);
   }
 

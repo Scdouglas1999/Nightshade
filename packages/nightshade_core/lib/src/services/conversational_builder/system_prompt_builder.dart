@@ -41,9 +41,7 @@ class SystemPromptBuilder {
     return buf.toString();
   }
 
-  // -------------------------------------------------------------------------
-  // §1 Persona
-  // -------------------------------------------------------------------------
+  // Persona
 
   void _writePersona(StringBuffer buf) {
     buf.writeln('# Role');
@@ -96,9 +94,7 @@ class SystemPromptBuilder {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // §2 Rig context
-  // -------------------------------------------------------------------------
+  // Rig context
 
   void _writeRigContext(StringBuffer buf, ConversationalBuilderContext ctx) {
     final profile = ctx.profile;
@@ -202,9 +198,7 @@ class SystemPromptBuilder {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // §3 Node schema reference
-  // -------------------------------------------------------------------------
+  // Node schema reference
 
   void _writeNodeSchema(StringBuffer buf) {
     buf.writeln('# Sequence JSON schema');
@@ -359,9 +353,7 @@ class SystemPromptBuilder {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // §4 Few-shot examples
-  // -------------------------------------------------------------------------
+  // Few-shot examples
 
   void _writeExamples(StringBuffer buf) {
     buf.writeln('# Examples');
@@ -382,9 +374,7 @@ class SystemPromptBuilder {
     buf.writeln('```');
   }
 
-  // -------------------------------------------------------------------------
-  // §5 Final instructions
-  // -------------------------------------------------------------------------
+  // Final instructions
 
   void _writeFinalInstructions(StringBuffer buf) {
     buf.writeln('# Output');
@@ -396,9 +386,7 @@ class SystemPromptBuilder {
     );
   }
 
-  // -------------------------------------------------------------------------
   // Helpers
-  // -------------------------------------------------------------------------
 
   String _durationLabel(DateTime start, DateTime end) {
     final hours = end.difference(start).inMinutes / 60.0;

@@ -1,8 +1,5 @@
-// =============================================================================
-// node_summary_inline_edit_test.dart — WIDGET round-trip tests for the inline
-// quick-edit affordance wired into the sequencer tree (C3 editors + C4 summary
-// line + C5 tree wiring).
-// =============================================================================
+// WIDGET round-trip tests for the inline quick-edit affordance wired into the
+// sequencer tree: editors, summary line and tree wiring.
 //
 // These pin the END-TO-END inline-edit contract through the real SequenceTree:
 //   * Tapping an editable summary chip opens its anchored editor and committing
@@ -174,11 +171,11 @@ void main() {
   testWidgets(
     'the count stepper keeps incrementing on repeated + taps',
     (tester) async {
-      // Regression: the popup was built from the node SNAPSHOT captured when
-      // the chip was tapped, so every '+' recomputed `snapshot.count + 1`.
-      // Live on the desktop build, a stepper opened on 4 went 4 -> 5 and then
-      // eight more '+' taps changed nothing while the popup still read '4'.
-      // One tap could never catch this, which is why the test above did not.
+      // Building the popup from the node SNAPSHOT captured when the chip was
+      // tapped makes every '+' recompute `snapshot.count + 1`: a stepper opened
+      // on 4 goes 4 -> 5 and then eight more '+' taps change nothing while the
+      // popup still reads '4'. One tap cannot catch this, which is why the test
+      // above does not.
       final container = _container();
 
       await _pumpTreeWithNode(

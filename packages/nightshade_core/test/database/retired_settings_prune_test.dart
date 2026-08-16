@@ -4,17 +4,15 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// `auto_save_sequences` was seeded `'true'` by every build that ever created
-/// a profile, while the toggle the operator sees (and the value
-/// `AutoSaveService` obeys) is `autosave.sequence_enabled`, default `false`.
-/// Nothing wrote the old key and nothing read it for behaviour — but
-/// `BackupService._exportSettings` dumps the whole `app_settings` table into
-/// every `.nsbackup`, so each export claimed sequence auto-save was ON while
-/// the app had it OFF.
+/// A retired settings key keeps its seeded value forever: nothing writes it,
+/// but `BackupService._exportSettings` dumps the whole `app_settings` table
+/// into every `.nsbackup`, so the stale row is exported as if it were
+/// configuration. `auto_save_sequences` (seeded `'true'`) contradicts
+/// `autosave.sequence_enabled` (default `false`), the key the toggle shows and
+/// `AutoSaveService` obeys.
 ///
-/// Dropping it from the seed map only helps profiles that do not exist yet.
-/// The profiles carrying the contradiction are the ones already on disk, so
-/// the row has to be removed when the database is opened.
+/// Dropping a key from the seed map only helps profiles that do not exist yet,
+/// so the row is removed when the database is opened.
 void main() {
   late Directory tempDir;
   late File dbFile;
@@ -43,7 +41,7 @@ void main() {
   test(
     'a profile written by an older build has the row removed on open',
     () async {
-      // An existing profile: the old build's seed row is present.
+      // An existing profile carrying the retired seed row.
       final first = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
       await first.settingsDao.setSetting('auto_save_sequences', 'true');
       await first.settingsDao.setSetting('autosave.sequence_enabled', 'false');
@@ -69,7 +67,7 @@ void main() {
   // caller and no reader that acted on it. Whether the cooler runs on connect
   // is a per-profile decision (`equipment_profiles.cool_on_connect`), so every
   // settings snapshot, .nsbackup and /api/settings payload announced automatic
-  // cooling the app never performed.
+  // cooling that nothing performed.
   test('cooling_behavior is not seeded into a fresh profile', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     addTearDown(db.close);

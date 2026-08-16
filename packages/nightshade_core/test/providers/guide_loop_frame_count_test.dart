@@ -1,10 +1,10 @@
-// IMG-9 — `Frame Count` read `0` for the whole of a Loop Exposures run.
+// `Frame Count` counts the loop's own frames during a Loop Exposures run.
 //
-// Observed on the running build with the built-in guider: the guide-star badge
-// and the SNR / Star Mass rows updated on every loop frame while `Frame Count`
-// beneath them stayed at `0`, because `frameCount` counts guide STEPS and a
-// loop takes no corrections. The owner's call: while looping, the row counts
-// the loop's own frames, and each new loop counts again from one.
+// `frameCount` counts guide STEPS, and a loop takes no corrections, so a
+// step-only counter leaves the row at `0` for a whole run while the guide-star
+// badge and the SNR / Star Mass rows above it update on every frame. While
+// looping, the row counts the loop's frames, and each new loop counts again
+// from one.
 //
 // The looping guider publishes exactly one `GuideStats` event per captured
 // frame (bridge/src/builtin_guider/loop_runner.rs, `publish_star_measurement`),

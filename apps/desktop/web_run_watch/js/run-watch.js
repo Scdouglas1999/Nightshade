@@ -276,6 +276,7 @@ function applySnapshot(data) {
   const sequencer = data.sequencer || {};
   const progress = sequencer.progress || {};
   const state = (progress.state || sequencer.state || 'idle').toLowerCase();
+  const unknown = state === 'unknown';
   const badge = $('state-badge');
   badge.textContent = state;
   badge.className = 'badge';
@@ -283,16 +284,21 @@ function applySnapshot(data) {
   else if (state === 'paused') badge.classList.add('badge-paused');
   else if (state === 'recovering') badge.classList.add('badge-recovering');
   else if (state === 'error' || state === 'failed') badge.classList.add('badge-error');
+  else if (unknown) badge.classList.add('badge-error');
   else badge.classList.add('badge-idle');
 
-  $('seq-name').textContent = progress.currentTarget || sequencer.currentNodeName || 'Idle';
+  // state 'unknown' means the server's read failed. Never fall back to
+  // 'Idle' there — the run may well still be going.
+  $('seq-name').textContent =
+    progress.currentTarget || sequencer.currentNodeName ||
+    (unknown ? (progress.message || 'Status unavailable') : 'Idle');
 
   // Active target
   const target = data.activeTarget;
   if (target) {
-    $('target-state').textContent = progress.currentFilter
-      ? ('filter: ' + progress.currentFilter)
-      : '';
+    $('target-state').textContent = target.unavailable
+      ? (target.message || 'Target unavailable')
+      : (progress.currentFilter ? ('filter: ' + progress.currentFilter) : '');
     $('target-name').textContent = target.name || '--';
     $('target-coords').textContent = formatRaDec(target.raHours, target.decDegrees);
     $('target-alt').textContent = formatDeg(target.altitudeDeg);
@@ -311,12 +317,15 @@ function applySnapshot(data) {
 
   // Progress
   const pct = (progress.progressPercent != null ? Math.round(progress.progressPercent * 100) : 0);
-  $('progress-pct').textContent = pct + '%';
+  $('progress-pct').textContent = progress.progressPercent != null ? pct + '%' : '--';
   $('progress-bar').style.width = pct + '%';
   const ariaBar = $('progress-bar-aria');
   if (ariaBar) ariaBar.setAttribute('aria-valuenow', String(pct));
-  $('progress-frames').textContent =
-    (progress.completedExposures || 0) + ' / ' + (progress.totalExposures || 0);
+  const framesKnown =
+    progress.completedExposures != null && progress.totalExposures != null;
+  $('progress-frames').textContent = framesKnown
+    ? progress.completedExposures + ' / ' + progress.totalExposures
+    : '--';
   $('progress-integration').textContent =
     formatDurationSecs(progress.completedIntegrationSecs) + ' / ' +
     formatDurationSecs(progress.totalIntegrationSecs);
@@ -478,7 +487,8 @@ function formatDuration(secs) {
 }
 
 function formatDurationSecs(secs) {
-  if (secs == null) return '0s';
+  // null means the server could not read the value, which is not zero.
+  if (secs == null) return '--';
   return formatDuration(secs) === 'now' ? '0s' : formatDuration(secs);
 }
 

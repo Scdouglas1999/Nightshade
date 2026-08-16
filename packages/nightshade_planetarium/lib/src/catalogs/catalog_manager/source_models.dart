@@ -9,9 +9,9 @@ part of '../catalog_manager.dart';
 /// * A stalled connection delivers no event, so there is no chunk to notice it
 ///   on. [idleTimeout] bounds the gap between chunks and raises
 ///   [CatalogDownloadStalled] when it is exceeded.
-/// * The cancellation token used to be read only inside the chunk handler, so
-///   on a stalled transfer the Cancel button was inert and the progress bar sat
-///   frozen forever. [cancelPollInterval] drives an independent poll.
+/// * A cancellation token read only inside the chunk handler is never reached
+///   on a stalled transfer, which makes Cancel inert. [cancelPollInterval]
+///   drives an independent poll.
 ///
 /// Both terminate the transfer by erroring the returned stream, which unwinds
 /// the caller's existing candidate/cleanup handling unchanged.
@@ -192,10 +192,8 @@ enum CatalogPackage {
 
   /// Roughly how many HYG stars this package installs.
   ///
-  /// A field rather than a doc comment because the setup dialog used to print
-  /// the [complete] figure ("~120,000 stars") above a selector that defaults to
-  /// [standard], so two of the three choices were advertised as delivering
-  /// three to thirteen times what they actually do.
+  /// A field rather than a doc comment so the setup dialog quotes the SELECTED
+  /// package's own figure; the packages differ by up to 13x.
   final int approximateStarCount;
 
   /// Roughly how many OpenNGC deep-sky objects this package installs. Same
@@ -230,13 +228,11 @@ String formatCatalogCount(int count) {
 /// third-party upstreams (Codeberg, raw.githubusercontent) are only used as a
 /// fallback when a release asset is unreachable.
 ///
-/// Overridable two ways, so a self-hoster/fleet operator can repoint downloads
-/// without waiting on a new upstream:
-///   * at build time via `--dart-define=NIGHTSHADE_CATALOG_BASE_URL=<url>`, and
-///   * at runtime via [CatalogManager.setCatalogBaseUrl] (persisted, no rebuild),
-///     mirroring [DeepStarCatalogManager.getBaseUrl]/[setBaseUrl].
+/// Repointable by a self-hoster at build time via
+/// `--dart-define=NIGHTSHADE_CATALOG_BASE_URL=<url>` or at runtime via
+/// [CatalogManager.setCatalogBaseUrl] (persisted).
 ///
-/// A GitHub release asset's full URL is `<base>/<CatalogSource.githubAssetName>`.
+/// A release asset's full URL is `<base>/<CatalogSource.githubAssetName>`.
 const String kCatalogReleaseBaseUrl = String.fromEnvironment(
   'NIGHTSHADE_CATALOG_BASE_URL',
   defaultValue:
@@ -264,7 +260,8 @@ class CatalogSource {
   /// sources this is the DECOMPRESSED file, not the downloaded `.gz`.
   final String fileName;
 
-  /// File names this catalog used to be materialized under, newest first.
+  /// Superseded file names this catalog may already be materialized under,
+  /// newest first.
   ///
   /// An install made before a rename still has the old file on disk. Status,
   /// load and delete all accept these so an upgrade does not orphan a catalog

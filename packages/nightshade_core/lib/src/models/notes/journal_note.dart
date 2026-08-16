@@ -118,10 +118,9 @@ class JournalNote extends Equatable {
         return decoded.whereType<String>().toList(growable: false);
       }
     } on FormatException {
-      // Fall through to the empty fallback. Per project policy we do
-      // not silently absorb logic errors, but a non-JSON tags column is
-      // visibly empty in the UI — which is "errors are a feature" for
-      // the journal view (the user sees no tags rather than a crash).
+      // Fall through to the empty fallback: a non-JSON tags column renders as
+      // visibly no tags, which the user can see and fix, rather than taking
+      // the notes panel down.
     }
     return const <String>[];
   }

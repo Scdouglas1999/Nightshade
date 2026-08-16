@@ -422,9 +422,8 @@ class ProfileSidebar extends ConsumerWidget {
                 color: colors.textSecondary,
               ),
               const SizedBox(width: 8),
-              // Names what the star actually controls. "Set as Default" read
-              // as "use this one", which is why it was the only route anyone
-              // found to switching rigs — and it silently rewrote startup.
+              // Names what the star actually controls: which profile loads at
+              // startup, not which one is active now.
               Expanded(
                 child: Text(
                   profile.isDefault
@@ -510,13 +509,11 @@ class ProfileSidebar extends ConsumerWidget {
           'Delete Profile',
           style: TextStyle(color: colors.textPrimary),
         ),
-        // Say what actually happens. The delete raises a 6-second Undo that
-        // restores the profile in full, so "This cannot be undone" was simply
-        // false — and it named nothing but the profile name, which is not
-        // unique, so with two rigs called "My First Rig" the dialog could not
-        // say which one it was about to destroy. The subtitle (telescope +
-        // camera, or the device count) is exactly what the sidebar rows are
-        // distinguished by.
+        // Say what actually happens: the delete raises a 6-second Undo that
+        // restores the profile in full, so "This cannot be undone" would be
+        // false. Profile names are not unique, so the confirm carries the
+        // subtitle (telescope + camera, or the device count) — the same thing
+        // the sidebar rows are distinguished by.
         content: Text(
           'Delete "${profile.name}" (${profile.subtitle})?\n\n'
           'You can undo this from the message that appears, for a few seconds.',

@@ -1,4 +1,3 @@
-// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../polar_alignment_screen.dart';
@@ -6,12 +5,9 @@ part of '../polar_alignment_screen.dart';
 /// Which measurement point the published status is talking about.
 ///
 /// `state.currentPoint` is the point that has been MEASURED — the run only
-/// advances it once the next point's frame is in hand — so during the move it
-/// still reads the point behind. The status text names the destination
-/// ("Slewing to point 2..."), so the headline built from `currentPoint` read
-/// "Slewing to point 1 of 3" beside a detail line reading "Slewing to point
-/// 2...", and the headline was the one that was wrong: the mount was moving to
-/// point 2. When the status names a point, that number wins.
+/// advances it once the next point's frame is in hand — so during a move it
+/// still reads the point behind, while the status text names the destination.
+/// When the status names a point, that number wins.
 int _effectiveRunPoint(String status, int point) {
   final match = RegExp(r'point\s+(\d+)', caseSensitive: false).firstMatch(
     status,
@@ -23,10 +19,9 @@ int _effectiveRunPoint(String status, int point) {
 
 /// The activity line beside the spinner in the measuring panel.
 ///
-/// It used to read "Capturing Point N" for the whole point — including the
-/// plate solve that follows the exposure — so the panel stated two different
-/// current activities at once, one of them minutes stale. Deriving it from the
-/// status the run publishes means the two lines cannot disagree.
+/// Derived from the status the run publishes, so the two lines on the panel
+/// cannot disagree. A fixed "Capturing Point N" spans the plate solve that
+/// follows the exposure and goes minutes stale.
 String _runActivityLabel(String status, int point) {
   final phrase = status.toLowerCase();
   final at = _effectiveRunPoint(status, point);

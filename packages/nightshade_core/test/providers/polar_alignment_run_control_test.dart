@@ -217,7 +217,7 @@ void main() {
         .swapTo(newBackend);
     await _pump();
 
-    // Event from the OLD backend after the swap must be ignored.
+    // An event from the superseded backend after the swap must be ignored.
     oldEvents.add(_errorEvent(total: 42));
     await _pump();
     expect(container.read(polarAlignmentStateProvider).currentError, isNull);
@@ -254,8 +254,8 @@ void main() {
       expect(switchedState.phase, PolarAlignPhase.error);
       expect(switchedState.errorMessage, contains('previous host'));
 
-      // The old run no longer owns this controller. Stop is therefore a
-      // local no-op, never a command redirected to the newly connected rig.
+      // The superseded run no longer owns this controller, so Stop is a local
+      // no-op and never a command redirected to the newly connected rig.
       await notifier.stopAlignment();
       verifyNever(() => newBackend.stopPolarAlignment());
 

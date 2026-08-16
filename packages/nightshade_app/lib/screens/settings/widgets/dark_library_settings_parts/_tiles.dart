@@ -1,5 +1,3 @@
-// Part of ../dark_library_settings.dart -- extracted for maintainability.
-//
 // Stat cards, action buttons and dark-library group/entry tiles.
 part of '../dark_library_settings.dart';
 

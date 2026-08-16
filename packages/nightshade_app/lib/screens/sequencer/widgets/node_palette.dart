@@ -376,8 +376,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
             // node is the insert parent" rule is no longer invisible.
             _AddTargetIndicator(colors: widget.colors),
 
-            // Category color legend so the palette is self-describing
-            // (the legend previously lived only in the tree header).
+            // Category color legend so the palette is self-describing.
             _PaletteColorLegend(colors: widget.colors),
 
             // Help tip
@@ -565,7 +564,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
   bool _isHovered = false;
 
   void _addNode() {
-    // Trust-patch §B: refuse the click while the executor owns the
+    // Refuse the click while the executor owns the
     // tree. Editor still throws SequenceLockedException as a last line
     // of defense; this just keeps the affordance honest.
     if (!ref.read(canEditSequenceProvider)) return;
@@ -797,9 +796,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                       ),
                     ),
                     // Always-visible add button: a single tap adds the node
-                    // (drag still works on the surrounding tile). Previously
-                    // the only click-to-add affordance was a hidden
-                    // double-tap, which was undiscoverable.
+                    // (drag still works on the surrounding tile).
                     Tooltip(
                       message: 'Add to sequence',
                       child: GestureDetector(

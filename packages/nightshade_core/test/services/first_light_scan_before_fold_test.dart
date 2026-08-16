@@ -1,20 +1,16 @@
-// Pillar B ("First Light") — Wave 1 self-subtraction fix at the solve-persist
-// hook.
+// Pillar B ("First Light") — difference-before-fold at the solve-persist hook.
 //
-// THE BUG: the production solve hook (imaging_records_repository.dart
-// onSolvedFrameFold) used to fold the freshly-solved frame into the per-tile
-// `.nst` atlas sidecars FIRST, then run the First Light difference scan. The
-// diff reads its comparison template from those SAME sidecars, so folding first
-// averaged the new frame's own flux into the template it was differenced
-// against (weight ~1/(N+1)). Every transient self-suppressed; a faint SNR~5-6
-// source dropped below the persist gate and silently vanished.
+// The diff reads its comparison template from the per-tile `.nst` atlas
+// sidecars, so folding the freshly-solved frame in FIRST averages that frame's
+// own flux into the template it is differenced against (weight ~1/(N+1)). Every
+// transient self-suppresses; a faint SNR~5-6 source drops below the persist gate
+// and vanishes.
 //
-// THE FIX: run the scan BEFORE the fold (difference-before-fold). The template
-// then reflects history (all PRIOR frames only); the fold deepens it for the
-// NEXT frame. This test lifts the production hook order verbatim into
-// `solveHook` and proves the difference seam is dispatched BEFORE the fold seam
-// — the ordering invariant the fix pins. A regression that reorders fold above
-// scan re-introduces self-subtraction and flips this assertion.
+// The scan therefore runs BEFORE the fold: the template reflects history (all
+// PRIOR frames only) and the fold deepens it for the NEXT frame. This test lifts
+// the production hook order verbatim into `solveHook` and proves the difference
+// seam is dispatched BEFORE the fold seam. Reordering fold above scan
+// re-introduces self-subtraction and flips this assertion.
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';

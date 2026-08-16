@@ -77,14 +77,10 @@ class _EquipmentStatsTab extends ConsumerWidget {
         ),
       ),
       data: (images) {
-        // CON-45: this was the one Analytics tab with no empty state at all —
-        // a fresh profile got a grid of zeroes and "No data" and no hint that
-        // it was reading a night that had never happened.
-        // Gated on runs and sessions too, and on their having actually
-        // resolved: meridian flips and autofocus counts come from those rows
-        // rather than from frames, and a load that failed or is still in
-        // flight is not an empty history — claiming it is would be the same
-        // class of untruth CON-45 is about.
+        // Gated on runs and sessions as well as frames, and on their having
+        // actually resolved: meridian flips and autofocus counts come from
+        // those rows rather than from frames, and a load that failed or is
+        // still in flight is not an empty history.
         if (images.isEmpty &&
             (runsAsync.valueOrNull?.isEmpty ?? false) &&
             (sessionsAsync.valueOrNull?.isEmpty ?? false)) {

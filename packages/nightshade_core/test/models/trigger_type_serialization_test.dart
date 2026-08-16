@@ -6,7 +6,7 @@
 // `native/nightshade_native/sequencer/src/lib.rs::TriggerType`. Each Rust
 // variant has a corresponding case in
 // `RecoveryNode.toRustTriggerConfig()`; this file exercises every case so a
-// regression in either direction is caught at `flutter test` time.
+// break in either direction is caught at `flutter test` time.
 
 import 'dart:convert';
 
@@ -57,9 +57,9 @@ void main() {
       );
       final encoded = node.toRustTriggerConfig() as Map<String, dynamic>;
       final payload = encoded['AutofocusInterval'] as Map<String, dynamic>;
-      // Rust expects u32 — Dart `int` is the only correct mapping. A
-      // regression that emits a double would fail the Rust serde
-      // deserializer; assert the type here so we catch it at test time.
+      // Rust expects u32, so Dart `int` is the only correct mapping: a double
+      // fails the Rust serde deserializer. The type assertion catches it at
+      // test time.
       expect(payload['every_n_frames'], 7);
       expect(payload['every_n_frames'], isA<int>());
     });

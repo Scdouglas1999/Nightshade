@@ -174,8 +174,8 @@ void main() {
     await tester.pumpWidget(wrap(container));
     await tester.pump(); // _arm starts, stays armed.
 
-    // Advance well past the 10s diagnostic timeout — the OLD launcher would
-    // have consumed the one shot and skipped forever here.
+    // Advance well past the 10s diagnostic timeout: it must NOT consume the one
+    // shot and skip forever.
     await tester.pump(const Duration(seconds: 11));
     expect(callCount(container), 0);
 

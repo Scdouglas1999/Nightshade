@@ -135,11 +135,9 @@ void main() {
     expect(await runsDao.latestSnapshotForSequenceName('NEVER RAN'), isNull);
   });
 
-  /// Why the recovery must run BEFORE the resume flips the executor to
-  /// `running`: the editor locks itself during a run, so a later
-  /// `loadSequence` throws and the recovered tree is silently dropped. This is
-  /// exactly how the first version of the fix failed on a live resume — the
-  /// snapshot was found and parsed, then discarded by the lock.
+  /// The recovery runs BEFORE the resume flips the executor to `running`: the
+  /// editor locks itself during a run, so a later `loadSequence` throws and the
+  /// recovered tree is dropped — found and parsed, then discarded by the lock.
   test('the editor refuses a load once the run is marked running', () {
     final container = buildContainer();
     final sequence = SequenceFileService().parseFromMap(

@@ -1,13 +1,13 @@
-// Regression for a live defect: the Settings › Equipment Profiles inline editor
-// validated optics only against `<= 0`, so a focal length of 999999999 mm with
-// an aperture of 0.0001 mm was accepted and rendered as f/9999999990000.00.
-// Focal length is written to the FITS `FOCALLEN` card and drives plate-solve
-// field-of-view estimation and arcsec/px image scale, so an implausible value
-// silently corrupts astrometry for that rig.
+// Validating optics only against `<= 0` accepts a focal length of 999999999 mm
+// with an aperture of 0.0001 mm and renders f/9999999990000.00. Focal length is
+// written to the FITS `FOCALLEN` card and drives plate-solve field-of-view
+// estimation and arcsec/px image scale, so an implausible value silently
+// corrupts astrometry for that rig.
 //
-// This is the third of the three surfaces that persist an optical train (the
-// other two being the equipment `ProfileEditorDialog` and `POST /api/profiles`);
-// all three now go through `ProfileValidator` / `OpticalTrainLimits`.
+// The Settings › Equipment Profiles inline editor is the third of the three
+// surfaces that persist an optical train (the others being the equipment
+// `ProfileEditorDialog` and `POST /api/profiles`); all three go through
+// `ProfileValidator` / `OpticalTrainLimits`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

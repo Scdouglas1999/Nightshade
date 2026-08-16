@@ -74,10 +74,8 @@ final narratorEventsDaoProvider = Provider<NarratorEventsDao>((ref) {
   return NarratorEventsDao(ref.watch(databaseProvider));
 });
 
-// ============================================================================
 // Convenience providers for watching data
 // Note: These use the database entity types (prefixed with db.)
-// ============================================================================
 
 /// Watch all equipment profiles
 final allProfilesProvider = StreamProvider<List<db.EquipmentProfile>>((ref) {
@@ -248,15 +246,11 @@ db.EquipmentProfile _equipmentProfileFromRemote(
 /// Polls [fetch] every [interval], emitting the first value and thereafter
 /// ONLY when the value actually changes (per [unchanged]).
 ///
-/// The remote list/profile providers below are backed by these polls. They
-/// previously re-emitted an identical payload on every 10s tick. Because the
-/// planner's `tonightSuggestionsProvider` awaits these streams, every redundant
-/// emission reloaded the whole suggestion pipeline and BLANKED the Plan Tonight
-/// Recommendation tab — with targets/sessions/profiles/active-profile all on
-/// staggered 10s timers that produced a full reload every few seconds. It also
-/// multiplied REST traffic against the host (a contributor to the slave's
-/// connection churn and momentary hangs). The change-guard makes a quiet host
-/// emit exactly once, so the UI settles.
+/// The remote list/profile providers below are backed by these polls, and the
+/// planner's `tonightSuggestionsProvider` awaits those streams: an emission
+/// that carries no change still reloads the whole suggestion pipeline and
+/// blanks the Plan Tonight tab. The change-guard makes a quiet host emit
+/// exactly once.
 Stream<T> _pollRemote<T>(
   Future<T> Function() fetch,
   bool Function(T a, T b) unchanged, {

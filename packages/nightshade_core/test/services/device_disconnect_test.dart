@@ -278,8 +278,8 @@ void main() {
           .read(cameraStateProvider)
           .copyWith(lastSuccessfulCommunication: oldTimestamp);
 
-      // Create a new notifier with the old state for testing
-      // This is a bit hacky, but demonstrates the health check logic
+      // A snapshot with a stale last-communication timestamp, which is what
+      // the health check reads.
       expect(
         oldState.lastSuccessfulCommunication!
                 .difference(DateTime.now())
@@ -644,9 +644,7 @@ void main() {
 
       // Emit a stale disconnect for camera-B (a previously disconnected
       // camera). Both the polling teardown AND the notifier wipe must be
-      // skipped: this used to assert only "no crash", with a comment conceding
-      // that "the state provider has no concept of device-id-scoped events", so
-      // camera-A silently lost its identity while its driver stayed open.
+      // skipped, or camera-A loses its identity while its driver stays open.
       eventStreamController.add(
         NightshadeEvent(
           timestamp: DateTime.now().millisecondsSinceEpoch,

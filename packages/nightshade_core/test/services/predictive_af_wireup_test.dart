@@ -1,16 +1,15 @@
-// Pins the predictive-AF RUNTIME LOOP that the autofocus controls now drive
-// (P1: predictive-AF was a dead subsystem — trained/consulted by no runtime
-// path). `DeviceService._runAutofocus` now performs exactly this sequence on
-// every Dart-driven autofocus run:
+// Pins the predictive-AF RUNTIME LOOP the autofocus controls drive: without it
+// the subsystem is trained and consulted by no runtime path at all.
+// `DeviceService._runAutofocus` performs exactly this sequence on every
+// Dart-driven autofocus run:
 //
 //   1. evaluateForFilter()        — pre-sweep consultation (advisory)
 //   2. recordAutofocusOutcome()   — train on the converged result
 //   3. recordPredictionVsActual() — feed drift tracking
 //
-// These tests exercise that train→consult→drift loop end-to-end against a
-// real in-memory DB, so a regression that silently breaks the wiring (e.g.
-// dropping the training call) fails here even though `_runAutofocus` itself
-// needs hardware.
+// These tests exercise that train→consult→drift loop end-to-end against a real
+// in-memory DB, so silently breaking the wiring (e.g. dropping the training
+// call) fails here even though `_runAutofocus` itself needs hardware.
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';

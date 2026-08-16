@@ -2,23 +2,14 @@
 ///
 /// ## Why this is shared rather than reimplemented per surface
 ///
-/// WD-EQ-3 survived two waves of fixes because each wave fixed a different
-/// place. One failed connect of the built-in guider produces the same refusal
-/// from two paths — the Dart connect path via `ErrorService.log` and the
-/// backend's error event via `errorNotificationBridgeProvider` — and they differ
-/// by ONE character:
-///
-///   Built-in guider requires an active profile with a guide focal length
-///   Built-in guider requires an active profile with a guide focal length.
-///
-/// F-fix taught [NotificationRouter] to normalize that away. But in-app toasts
-/// never pass through the router: both producers call
-/// `UiNotificationNotifier.showError` directly, and the toast overlay collapsed
-/// on the EXACT strings. So the recipe was right and the surface was wrong, and
-/// live the operator still read one refusal twice (Wave G, waveG-01/02/03).
-///
-/// The rule now lives in one place and every surface that asks "have I already
-/// said this?" calls it.
+/// One happening reaches the operator from several producers whose copy differs
+/// only cosmetically — a failed connect of the built-in guider is rendered both
+/// by the Dart connect path via `ErrorService.log` and by the backend's error
+/// event via `errorNotificationBridgeProvider`, one of them with a trailing
+/// full stop. Not every surface goes through [NotificationRouter]: in-app
+/// toasts are published directly through `UiNotificationNotifier.showError`.
+/// So the rule lives here, and every surface that asks "have I already said
+/// this?" calls it.
 library;
 
 final RegExp _whitespaceRun = RegExp(r'\s+');

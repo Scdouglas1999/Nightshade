@@ -1,10 +1,10 @@
 // Regression guard for: "All-Sky reticle labels collide: the error marker, the
 // az/alt caption and the 'Dn' compass label are drawn on top of each other".
 //
-// The caption used to be Positioned(bottom: 8) INSIDE the reticle Stack, the
-// bottom compass label was painted at radius + 4 (running a pixel past the
-// bottom edge), and an altitude-dominated error pinned the marker to the bottom
-// of the rim — three elements in the same ~30px band by construction.
+// A caption at Positioned(bottom: 8) INSIDE the reticle Stack, a bottom compass
+// label painted at radius + 4, and an altitude-dominated error pinning the
+// marker to the bottom of the rim put three elements in the same ~30px band by
+// construction.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

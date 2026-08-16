@@ -11,11 +11,10 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// `test_fixtures/wcs_conformance/` at the repo root and are read by BOTH this
 /// suite and
 /// `native/nightshade_native/imaging/src/platesolve_wcs_conformance_tests.rs`.
-/// The two `.wcs` parsers drifted apart once already — the Rust side card-split
-/// a terminator-free FITS header while the Dart side still split on newlines, so
-/// every successful ASTAP solve was reported as a failure and took the run with
-/// it. This fixture is what turns the next drift into a red build instead of a
-/// lost night.
+/// The two `.wcs` parsers drift apart easily: a Rust side that card-splits a
+/// terminator-free FITS header while the Dart side splits on newlines reports
+/// every successful ASTAP solve as a failure and takes the run with it. This
+/// fixture turns that drift into a red build instead of a lost night.
 ///
 /// Divergences between the two parsers are recorded in each case's `divergence`
 /// field rather than papered over — see the fixture README.
@@ -86,8 +85,7 @@ void main() {
     }
 
     test('a terminator-free header splits to the same cards as a CRLF one', () {
-      // The C1 regression, stated as an invariant instead of an anecdote: the
-      // separator a solver happens to use must not change a single card.
+      // The separator a solver happens to use must not change a single card.
       final stream = fitsHeaderCardsForTest(
         File(
           '${fixtureRoot.path}/cases/astap_card_stream.wcs',

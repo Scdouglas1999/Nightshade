@@ -1,13 +1,12 @@
 // Where the desktop GUI keeps its sequence-recovery checkpoint.
 //
-// Regression cover for a live finding: a Nightshade started against an empty
-// database was shown "Recover Sequence? A previous sequence was interrupted…
-// Sequence: AUDIT SEQ" — a run that had no row in the database it had open.
-// The checkpoint was anchored to the platform application-support folder,
-// which every Nightshade on the machine shares, so a second instance pointed
-// at its own database found the first one's file. The modal's only dismissal
-// is Discard, which deletes the checkpoint AND its .bak, so getting past it
-// destroyed the other instance's recovery state.
+// Anchoring the checkpoint to the platform application-support folder shares it
+// with every Nightshade on the machine, so a second instance pointed at its own
+// database finds the first one's file: a Nightshade started against an empty
+// database is shown "Recover Sequence? A previous sequence was interrupted…
+// Sequence: AUDIT SEQ" for a run with no row in the database it has open. The
+// modal's only dismissal is Discard, which deletes the checkpoint AND its .bak,
+// so getting past it destroys the other instance's recovery state.
 //
 // The shell must therefore ask the backend to write checkpoints beside the
 // OPEN DATABASE. These tests drive the real `AppShell` (not the helper) so

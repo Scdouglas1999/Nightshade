@@ -199,9 +199,8 @@ extension _TargetWarnings on TargetScoringService {
         ),
       ];
     } else if (moonIllumination >= 65) {
-      // Wide separation but a bright moon: previously nothing fired at all, so
-      // a full-moon night presented exactly like a new-moon night. Moonlight
-      // raises the sky background everywhere, not just near the moon.
+      // Wide separation but a bright moon still warns: moonlight raises the
+      // sky background everywhere, not just near the moon.
       return [
         TargetWarning(
           type: WarningType.moonProximity,

@@ -3,16 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// True after the mobile app has finished requesting Android notification
-/// permissions and confirmed they are granted. Defaults to `true` so we
-/// don't flash the banner before the request has actually run (a freshly
-/// constructed provider has no decision yet — the banner is only useful as
-/// a *post-denial* nag). Mobile code flips this off when
-/// `requestNotificationsPermission()` returns false on Android 13+, and
-/// back on if the user toggles the permission in system settings and the
-/// app refreshes the state on resume.
+/// permissions and confirmed they are granted.
 ///
-/// Desktop builds never flip this off (the banner is gated on Android in
-/// [AndroidNotificationsBanner.build]).
+/// Defaults to `true` because a freshly constructed provider has no decision
+/// yet and the banner is only useful as a POST-DENIAL nag. Mobile code flips it
+/// off when `requestNotificationsPermission()` returns false on Android 13+.
 final androidNotificationsAuthorizedProvider = StateProvider<bool>((_) => true);
 
 /// Persistent advisory shown across all screens on Android when

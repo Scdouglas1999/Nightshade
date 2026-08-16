@@ -214,8 +214,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   }
 }
 
-// =============================================================================
-// PER-STAR TRACKED-STAR PROVIDER (built-in multi-star guider)
+// Per-star tracked-star provider (built-in multi-star guider)
 //
 // The internal guider tracks up to 8 reference stars natively, but only its
 // aggregate PHD2-shaped stats reached Dart — so its star-list UI rendered empty.
@@ -223,7 +222,6 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
 // JSON array) while the built-in guider is active and exposes the per-star list
 // so the guider panel can show per-star SNR + lock + residual alongside the same
 // CompactGuidingGraph the PHD2 path drives.
-// =============================================================================
 
 /// Per-star tracked-star list from the built-in multi-star guider.
 ///

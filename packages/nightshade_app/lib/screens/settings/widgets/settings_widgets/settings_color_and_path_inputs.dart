@@ -164,13 +164,13 @@ class _SettingsColorPickerState extends State<SettingsColorPicker> {
 
 /// Path input with browse button for file/directory selection.
 ///
-/// The box only LOOKS like a text field when [onPathEntered] is supplied. It
-/// used to look like one always: a bordered, filled box with a muted "Not set"
-/// empty-state label that swallowed every keystroke, because it was a [Text]. On a
-/// real rig the typed path is often the only way in — a UNC share, a NAS mount
-/// that is not up yet, a folder on the imaging host — so the two storage rows
-/// now accept one, and the rows that genuinely cannot (a solver executable the
-/// app has to verify) render a plain label instead of inviting the attempt.
+/// The box only LOOKS like a text field when [onPathEntered] is supplied.
+/// A bordered, filled box that is really a [Text] swallows every keystroke.
+///
+/// On a real rig the typed path is often the only way in — a UNC share, a NAS
+/// mount that is not up yet, a folder on the imaging host — so the storage rows
+/// accept one, and the rows that genuinely cannot (a solver executable the app
+/// has to verify) render a plain label rather than inviting the attempt.
 class SettingsPathInput extends StatefulWidget {
   final String path;
 

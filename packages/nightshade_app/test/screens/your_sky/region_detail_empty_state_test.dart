@@ -1,11 +1,11 @@
-// Regression: a newly created region opened on a blank rectangle.
+// A newly created region must not open on a blank rectangle.
 //
-// The hero cutout was a free 3:2 AspectRatio, so on a 1600x900 desktop window
-// it rendered ~1030px tall — taller than the viewport. Everything that says
-// anything (the coordinates, "Contributing frames", the deepening chart) sat
-// below the fold, and the only thing on screen was flat background with one
-// small grey glyph and no words. The parent Your Sky screen handles the same
-// state with a sentence and a next step; this screen said nothing at all.
+// A free 3:2 AspectRatio for the hero cutout renders ~1030px tall on a 1600x900
+// desktop window — taller than the viewport — so everything that says anything
+// (the coordinates, "Contributing frames", the deepening chart) sits below the
+// fold and the screen is flat background with one small grey glyph and no words.
+// The parent Your Sky screen handles the same state with a sentence and a next
+// step.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

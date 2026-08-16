@@ -7,8 +7,7 @@ import '../tables/coimaging_sessions.dart';
 
 part 'coimaging_sessions_dao.g.dart';
 
-/// Data access for [CoImagingSessions] (Collaborative Sky WS3 — live
-/// co-imaging session membership).
+/// Data access for [CoImagingSessions] — live co-imaging session membership.
 ///
 /// One membership row per `(hubKey, sessionId)`. Writers funnel through
 /// [_upsert], which keys on the unique `(hubKey, sessionId)` index and only

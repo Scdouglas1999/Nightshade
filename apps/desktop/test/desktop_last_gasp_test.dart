@@ -1,10 +1,9 @@
-// EQP-23 — the desktop GUI died with six devices connected and left nothing
-// behind: the log's last line was an unrelated frame-timeout warning, there was
-// no shutdown record, and no device was safed on the way out. An unattended
-// imager must never end that quietly.
+// A desktop GUI that dies with devices connected must not leave nothing
+// behind — no shutdown record, no safed device, a log whose last line is an
+// unrelated warning. An unattended imager must never end that quietly.
 //
-// These tests pin the death path itself (the timeout that triggered it may be
-// environmental; the silence was not):
+// These tests pin the death path itself, independently of whatever triggers
+// it:
 //   * the record is on disk BEFORE any device command is sent, because a safing
 //     call that hangs must still leave evidence;
 //   * safing runs, is time-bounded, and a failure to park never stops the
@@ -176,8 +175,8 @@ void main() {
 
       lastGasp.noteError('FlutterError: Timed out waiting for OpenGL frame');
 
-      // Nothing else happens — the process is gone. This is exactly the EQP-23
-      // shape, and it is now diagnosable at the next launch.
+      // Nothing else happens — the process is gone. That silent death is
+      // diagnosable at the next launch.
       final record = DesktopSessionRecord.tryParse(
         recordFile.readAsStringSync(),
       )!;

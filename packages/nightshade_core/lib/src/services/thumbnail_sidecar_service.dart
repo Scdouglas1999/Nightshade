@@ -10,11 +10,9 @@
 // handlers consult the sidecar first and only fall back to the FFI when
 // the file is missing.
 //
-// Failed sidecar writes are logged at warning severity — not error,
-// because the captured image is fully usable without a sidecar; the
-// cold-read fallback handles missing sidecars. The warning IS real
-// ("errors are a feature; silent fallbacks hide bugs for
-// months"); we surface every failure rather than swallowing it.
+// Failed sidecar writes are logged at warning severity — not error, because
+// the captured image is fully usable without a sidecar and the cold-read
+// fallback handles missing ones. Every failure is logged; none is swallowed.
 
 import 'dart:async';
 import 'dart:io';

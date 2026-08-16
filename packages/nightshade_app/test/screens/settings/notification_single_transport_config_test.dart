@@ -1,15 +1,14 @@
-// Regression coverage: the Notifications page must expose exactly ONE Discord
-// configuration and ONE Pushover configuration.
+// The Notifications page exposes exactly ONE Discord configuration and ONE
+// Pushover configuration.
 //
-// Observed live (2026-08-01): the page rendered a legacy `app_settings`-backed
-// "Discord" section near the top AND a keyring-backed "Discord (routing
-// matrix)" section ~2000px lower. Saving a webhook into the routing-matrix one
-// left the top section's field empty, and its "Test Discord" answered "Please
-// enter a Discord webhook URL" — one page contradicting itself about whether
-// Discord was configured. Identical duplication for Pushover.
+// Two sections — an `app_settings`-backed "Discord" near the top and a
+// keyring-backed "Discord (routing matrix)" far below — contradict each other:
+// saving a webhook into the routing-matrix one leaves the top section's field
+// empty, and its "Test Discord" answers "Please enter a Discord webhook URL".
+// Same for Pushover.
 //
-// The fix makes the keyring-backed section the single local configuration and
-// has it adopt (and keep in step) the legacy plaintext keys the pre-router
+// The keyring-backed section is the single local configuration, and it adopts
+// (and keeps in step) the legacy plaintext keys the pre-router
 // `NotificationService` still sends from.
 
 import 'package:flutter/material.dart';

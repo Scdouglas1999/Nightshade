@@ -163,8 +163,8 @@ extension _MosaicPanelIntegration on MosaicProjectService {
       // FITS/preview/rejmap) before linking the new one, so a re-run never
       // leaves an orphan. Skip if the panel happens to re-link the same id.
       //
-      // Remediation 2026-06-09 (findings #1/#3): supersession must be PATH-AWARE,
-      // not just id-aware. The per-panel master FITS is written to a DURABLE
+      // Supersession is PATH-AWARE, not just id-aware. The per-panel master
+      // FITS is written to a DURABLE
       // DETERMINISTIC path (`project_<id>/panel_<i>[_<filter>].fits`) that is
       // IDENTICAL across re-runs, so the freshly-written master and the prior
       // master share a path. An id-only skip guard would then delete the prior
@@ -243,11 +243,10 @@ extension _MosaicPanelIntegration on MosaicProjectService {
   /// had no prior master, or when the prior master IS the freshly-produced one
   /// ([keepMasterId]) — the per-filter integration may reuse a master row.
   ///
-  /// PATH-AWARE (remediation 2026-06-09, findings #1/#3): [keepPaths] holds the
-  /// on-disk paths owned by the freshly-produced master(s). Any prior path that
-  /// equals a kept path is NOT deleted — on the durable deterministic path the
-  /// new master FITS shares the prior master's path, and an id-only guard would
-  /// otherwise delete the live, just-written file.
+  /// [keepPaths] holds the on-disk paths owned by the freshly-produced
+  /// master(s). A prior path that equals a kept path is NOT deleted: on the
+  /// deterministic path the new master FITS shares the prior master's path, and
+  /// an id-only guard would delete the live, just-written file.
   Future<void> _supersedePreviousMaster(
     MosaicProjectPanel panel, {
     required int keepMasterId,
@@ -267,7 +266,7 @@ extension _MosaicPanelIntegration on MosaicProjectService {
   ///
   /// Any path in [keepPaths] is SKIPPED — it belongs to the freshly-produced
   /// master(s) (same durable deterministic path), so deleting it would destroy
-  /// a live, just-written file (remediation 2026-06-09, findings #1/#3).
+  /// a live, just-written file.
   Future<void> _deleteMasterArtifactsOnDisk(
     IntegratedMaster master, {
     Set<String> keepPaths = const <String>{},

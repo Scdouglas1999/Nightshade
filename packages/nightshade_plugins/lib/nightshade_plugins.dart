@@ -11,9 +11,11 @@
 ///
 /// ## Plugin Types
 ///
-/// - [UiPlugin] - Add custom UI panels and widgets
-/// - [DevicePlugin] - Support additional hardware devices
 /// - [SequencePlugin] - Add custom automation sequence nodes
+///
+/// Sequence nodes are the extension point the host consumes: devices are the
+/// Rust bridge's alone, and the UI has no host-side surface a plugin can render
+/// into.
 ///
 /// ## Example Usage
 ///

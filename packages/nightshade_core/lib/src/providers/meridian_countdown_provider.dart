@@ -25,10 +25,9 @@ import 'settings_provider.dart' show appSettingsProvider;
 ///   the banner can recompute on its own 15-second cadence regardless of
 ///   whether standalone monitoring is even enabled.
 ///
-/// Honesty contract (this project treats silent fallbacks as bugs): when the
-/// countdown is *not* armed, [disabledReason] always carries an operator-facing
-/// explanation. The banner never implies the user must act manually — the flip
-/// is always handled automatically, either by the Rust `meridian_flip` trigger
+/// When the countdown is *not* armed, [disabledReason] always carries an
+/// operator-facing explanation. The banner never implies the user must act
+/// manually: the flip is handled either by the Rust `meridian_flip` trigger
 /// (always-on watchdog) or, during a sequence, by the in-sequence flip node.
 class MeridianCountdownState extends Equatable {
   /// Whether a meaningful countdown is currently being tracked.
@@ -151,7 +150,7 @@ MeridianCountdownState computeMeridianCountdown({
     );
   }
 
-  // === Arming preconditions (mirror MeridianFlipStandaloneMonitor) ===
+  // Arming preconditions (mirror MeridianFlipStandaloneMonitor)
   if (!enabled) {
     return notArmed('Auto meridian flip is turned off');
   }
@@ -175,7 +174,7 @@ MeridianCountdownState computeMeridianCountdown({
     return notArmed('Set your location in Settings');
   }
 
-  // === Tracking-limit methods are Rust-owned — explicitly skip the Dart math ===
+  // Tracking-limit methods are Rust-owned — explicitly skip the Dart math
   // The minutes-before-limit and on-tracking-limit-hit decisions depend on
   // mount-advertised tracking-limit state that only the Rust trigger evaluator
   // (triggers.rs) carries. Compute HA for display but emit no numeric countdown.
@@ -199,7 +198,7 @@ MeridianCountdownState computeMeridianCountdown({
     );
   }
 
-  // === Hour-angle-based methods — a real numeric countdown ===
+  // Hour-angle-based methods — a real numeric countdown
   // Threshold expressed in hours of HA at which the flip should occur:
   //   minutesPastMeridian:  threshold = minutesPastMeridian / 60
   //   hourAngleThreshold:   threshold = hourAngleThreshold (already in hours)
@@ -263,12 +262,11 @@ MeridianCountdownState computeMeridianCountdown({
 /// edit, and the `appSettingsProvider` AsyncLoading→data transition). It never
 /// re-runs the standalone monitor, so it has no side effects.
 ///
-/// It deliberately holds NO timer. The wall-clock "ticking" — so the remaining
-/// readout counts down between input changes — is driven by the banner widget's
-/// own lifecycle-bound [kMeridianCountdownTick] timer, which invalidates this
-/// provider each tick. Keeping the timer in the widget (whose `State.dispose`
-/// cancels it synchronously during teardown) is what prevents the leaked-timer
-/// assertion that an autoDispose periodic stream caused in widget tests.
+/// It holds NO timer. The wall-clock ticking between input changes is driven
+/// by the banner widget's lifecycle-bound [kMeridianCountdownTick] timer, which
+/// invalidates this provider each tick. The timer belongs to the widget because
+/// `State.dispose` cancels it synchronously during teardown; an autoDispose
+/// periodic stream here leaks a timer past the end of a widget test.
 ///
 /// `autoDispose` so the projection is dropped the moment no banner is mounted.
 final meridianCountdownProvider = Provider.autoDispose<MeridianCountdownState>((

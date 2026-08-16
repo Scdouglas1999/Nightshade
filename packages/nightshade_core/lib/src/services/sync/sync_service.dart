@@ -47,9 +47,7 @@ import 's3_sync_target.dart';
 import 'sync_target.dart';
 import 'webdav_sync_target.dart';
 
-// ---------------------------------------------------------------------------
 // Settings keys (app_settings table) — non-secret config + sync state.
-// ---------------------------------------------------------------------------
 
 class SyncSettingsKeys {
   static const provider = 'cloud_sync_provider';
@@ -81,9 +79,8 @@ enum SyncProvider {
 
   final String key;
 
-  /// Back-compat hinge: a null / unknown / absent persisted value maps to
-  /// [SyncProvider.webdav], so a pre-existing WebDAV install (which never
-  /// wrote a provider key) loads as a fully working WebDAV config.
+  /// A null, unknown or absent persisted value maps to [SyncProvider.webdav],
+  /// so a config written before the provider key existed still loads.
   static SyncProvider fromKey(String? raw) =>
       raw == SyncProvider.s3.key ? SyncProvider.s3 : SyncProvider.webdav;
 }
@@ -103,9 +100,7 @@ String sanitizeSyncEndpointForDisplay(String raw) {
   return sanitizeEndpointForDisplay(raw);
 }
 
-// ---------------------------------------------------------------------------
 // Config / manifest models
-// ---------------------------------------------------------------------------
 
 /// Non-secret sync configuration (the per-provider secret — the WebDAV
 /// password or the S3 secret key — is read separately from the
@@ -377,9 +372,7 @@ class SyncStatus {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Service
-// ---------------------------------------------------------------------------
 
 class SyncService {
   /// Keyring field (via [SecretsStore]) holding the WebDAV password.
@@ -480,9 +473,7 @@ class SyncService {
     }
   }
 
-  // -------------------------------------------------------------------
   // Config
-  // -------------------------------------------------------------------
 
   Future<SyncConfig> loadConfig() async {
     // Absent provider key -> webdav (back-compat hinge for installs that
@@ -629,9 +620,7 @@ class SyncService {
     }
   }
 
-  // -------------------------------------------------------------------
   // Push
-  // -------------------------------------------------------------------
 
   String _machineDir(SyncConfig config) =>
       '$kSyncRemoteRoot/${sanitizeMachineName(config.machineName)}';
@@ -775,9 +764,7 @@ class SyncService {
     }
   }
 
-  // -------------------------------------------------------------------
   // Pull / restore
-  // -------------------------------------------------------------------
 
   /// List machine directories under `nightshade-sync/` on the remote.
   Future<List<SyncRemoteMachine>> listRemoteMachines() async {
@@ -912,9 +899,7 @@ class SyncService {
     }
   }
 
-  // -------------------------------------------------------------------
   // Internals
-  // -------------------------------------------------------------------
 
   Future<SyncManifest?> _readManifest(SyncTarget target, String dir) async {
     try {
@@ -948,9 +933,7 @@ class SyncService {
       t.toUtc().toIso8601String().replaceAll(':', '-').replaceAll('.', '-');
 }
 
-// ---------------------------------------------------------------------------
 // Providers
-// ---------------------------------------------------------------------------
 
 final syncServiceProvider = Provider<SyncService>((ref) {
   return SyncService(

@@ -1,7 +1,4 @@
-// =============================================================================
-// app_shell_settings_rebuild_test.dart — an unrelated settings write must not
-// rebuild the whole app.
-// =============================================================================
+// An unrelated settings write must not rebuild the whole app.
 //
 // `AppShell` is the root of every routed screen: its build produces the gear
 // strip, the side/bottom navigation, the status bar, the mini-player and the

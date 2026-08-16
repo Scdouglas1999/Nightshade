@@ -1,8 +1,6 @@
 part of '../science_analytics_tab.dart';
 
-// =============================================================================
-// Science Info Explanations
-// =============================================================================
+// Science info explanations
 
 const _kCalibrationInfo = '''
 Photometric calibration is the process of converting raw pixel values in your images into standardized astronomical magnitudes. This lets you make scientifically meaningful brightness measurements rather than working with arbitrary intensity numbers.
@@ -193,8 +191,7 @@ class _SeriesChartCard extends StatelessWidget {
   final List<_ChartPoint> points;
   final Color color;
   // Optional inline button that opens the consolidated export hub with the
-  // matching dataset pre-selected. Replaces the old per-card CSV writer so
-  // there is one canonical export surface (audit §4.14).
+  // matching dataset pre-selected, so there is one canonical export surface.
   final Widget? hubExportButton;
 
   const _SeriesChartCard({

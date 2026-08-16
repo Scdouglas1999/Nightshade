@@ -172,13 +172,10 @@ class TargetScoreRow extends StatelessWidget {
     );
   }
 
-  /// WD-SEQ-N4 (third strike): this method used to carry its own copy of the
-  /// engine's reason ladder, and its copy won on screen — a target at +9.8°
-  /// under a 30° site minimum got the chip "Below horizon" beside its own
-  /// correct sentence. The ladder now lives once, in nightshade_core's
-  /// `rejection_labels.dart`; render the reason we were given, do not
-  /// re-interpret it here. `target_score_row_status_test.dart` fails if a
-  /// second ladder reappears in this file.
+  /// Render the reason the engine gave; do not re-interpret it here. The reason
+  /// ladder lives once, in nightshade_core's `rejection_labels.dart` — a second
+  /// copy in this file wins on screen and contradicts the sentence beside it.
+  /// `target_score_row_status_test.dart` fails if one reappears.
   String _statusLabel() {
     if (score.hardConstraintFailed) {
       if (score.rejectionReasons.isEmpty) return 'Rejected';

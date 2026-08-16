@@ -18,12 +18,9 @@ final sequencerDefaultsProvider =
 /// pre-flight simulation all share ONE overhead model instead of divergent
 /// sets of literals.
 ///
-/// The app constructs both `SequenceTimeEstimator(overhead: <this>)` and the
-/// rollup from this provider so the node chip, the timeline, and the
-/// run-dashboard total agree. Only the fields the user actually configures in
-/// Sequencer Settings (dither settle time, per-frame download overhead) are
-/// mapped from defaults; the remaining fields keep the
-/// [SequenceOverheadConfig] field defaults.
+/// Only the fields the user actually configures in Sequencer Settings (dither
+/// settle time, per-frame download overhead) are mapped from defaults; the
+/// remaining fields keep the [SequenceOverheadConfig] field defaults.
 final sequencerOverheadConfigProvider = Provider<SequenceOverheadConfig>((ref) {
   final defaults = ref.watch(sequencerDefaultsProvider);
   return SequenceOverheadConfig(
@@ -69,8 +66,7 @@ class SequencerDefaults {
   /// ETA per-frame sample alongside the real exposure duration. Not user-
   /// editable today (no Settings surface persists it), but exposed as a
   /// field so the ETA smoother and the overhead estimator share one
-  /// constant instead of two divergent literals. Matches the estimator's
-  /// historical 2.0s download assumption.
+  /// constant instead of two divergent literals.
   final double frameDownloadOverheadSecs;
 
   // LiveStacking defaults (palette + properties editor)

@@ -2,10 +2,9 @@
 /// actually goes.
 ///
 /// Kept in a leaf library (no imports) so every surface that states the
-/// catalog's depth can reference the same number: the catalog-package "Depth"
-/// chip, the Layers panel subtitle, the deep-star tier copy and the
-/// HYG/deep-tier merge seam. Three of those used to disagree — 15.0, 11.5 and
-/// 9.0 — on the same screen.
+/// catalog's depth quotes the same number: the catalog-package "Depth" chip,
+/// the Layers panel subtitle, the deep-star tier copy and the HYG/deep-tier
+/// merge seam.
 library;
 
 /// Magnitude to which the bundled HYG catalog is COMPLETE.

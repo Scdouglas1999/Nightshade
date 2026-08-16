@@ -1,8 +1,8 @@
-// Regression: Settings › Logs › Export wrote straight to the ROOT of the
-// user's Documents folder with no picker, no scope choice and no size notice.
-// A support request for "the log" produced an 18.8 MB file of every rotated
-// log the machine had kept, dropped next to the operator's personal documents
-// and not in the `exports/` directory every other in-app export uses.
+// Settings › Logs › Export must offer a picker, a scope choice and a size
+// notice. Writing straight to the ROOT of the user's Documents folder turns a
+// support request for "the log" into an 18.8 MB file of every rotated log the
+// machine has kept, dropped next to the operator's personal documents rather
+// than in the `exports/` directory every other in-app export uses.
 
 import 'dart:io';
 

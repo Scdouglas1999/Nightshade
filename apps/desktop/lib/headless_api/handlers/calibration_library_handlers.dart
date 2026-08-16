@@ -24,12 +24,11 @@ class CalibrationLibraryHandlers {
 
   /// Map a hub-transport failure onto its wire status.
   ///
-  /// Without this every hub fault on the share paths fell through to the
-  /// generic trap as a 500 `internal_error` — so "your hub is switched off"
-  /// was reported to the operator as "the appliance is broken", and a remote
-  /// client had no way to tell a retryable outage from a request it must fix.
-  /// Deliberately identical to `MosaicHandlers` / `CoImagingHandlers`: one
-  /// feature must not answer three different codes for one cause.
+  /// A hub fault on the share paths must not reach the generic trap as a 500
+  /// `internal_error`: "your hub is switched off" would read as "the appliance
+  /// is broken", and a remote client could not tell a retryable outage from a
+  /// request it must fix. Identical to `MosaicHandlers` / `CoImagingHandlers`
+  /// — one feature must not answer three different codes for one cause.
   static int _hubStatusFor(ConstellationErrorKind kind) => switch (kind) {
     // No answer from the hub at all — this appliance is the gateway.
     ConstellationErrorKind.network => 502,
@@ -64,6 +63,9 @@ class CalibrationLibraryHandlers {
   CalibrationLibraryService get _service =>
       container.read(calibrationLibraryServiceProvider);
 
+  /// Largest page [handleList] will return in one response.
+  static const int _maxListLimit = 1000;
+
   /// GET /api/calibration-library — list masters, newest first.
   ///
   /// Query params (all optional): `type` (dark|bias|flat|defectMap),
@@ -71,12 +73,10 @@ class CalibrationLibraryHandlers {
   /// (with `exposureTolSecs`), `tempMin`, `tempMax`, and `mastersOnly`
   /// (default true).
   ///
-  /// Pagination (both optional; omitted → the full set, preserving existing
-  /// remote clients that expect every master): `offset` (rows to skip) and
-  /// `limit` (max rows to return, 1–1000). The response carries
+  /// Pagination is optional and omitting it returns the full set, so a remote
+  /// client that expects every master still gets one: `offset` (rows to skip)
+  /// and `limit` (rows to return, 1–[_maxListLimit]). The response carries
   /// `total` (matches before paging) alongside `count` (rows in this page).
-  static const int _maxListLimit = 1000;
-
   Future<Response> handleList(Request request) async {
     _logger.info(
       '[API] GET /api/calibration-library',
@@ -139,7 +139,7 @@ class CalibrationLibraryHandlers {
   /// filter?, binX?, binY?, cameraId?, opticalTrainId?, sensorWidth?,
   /// sensorHeight?}`.
   ///
-  /// `cameraId` and `sensorWidth`/`sensorHeight` feed the WS1 quality gate: a
+  /// `cameraId` and `sensorWidth`/`sensorHeight` feed the quality gate: a
   /// REMOTE shared master is folded into the ranking only when it was shot on the
   /// same camera and sensor geometry, so omitting them refuses every remote
   /// candidate (the gate fails closed).
@@ -170,7 +170,7 @@ class CalibrationLibraryHandlers {
 
   /// POST /api/calibration-library/accept — download a REMOTE shared master
   /// surfaced by a prior `/match` and merge it into the appliance's local
-  /// library (WS1 download-on-accept, consent + quality gates re-applied).
+  /// library on accept, with the consent + quality gates re-applied.
   ///
   /// Body is the REMOTE `CalibrationMasterRecord` JSON from the match result
   /// (must carry `remoteId`). Returns the acceptance outcome: `merged` (with the
@@ -228,7 +228,7 @@ class CalibrationLibraryHandlers {
   }
 
   /// POST /api/calibration-library/publish — publish a LOCAL appliance master to
-  /// the configured hub under an explicit consent/license (WS1 share).
+  /// the configured hub under an explicit consent/license.
   ///
   /// Body: `{type, id, license, attributionName?, shareRawSubframes?,
   /// allowDerivatives?, allowRedistribution?, darkCurrent?}`.
@@ -294,8 +294,8 @@ class CalibrationLibraryHandlers {
   }
 
   /// POST /api/calibration-library/retract — retract (un-share) a LOCAL
-  /// appliance master the user previously published to the hub (WS1 owner-scoped
-  /// retract). Body: `{type, id}`.
+  /// appliance master the user published to the hub. Owner-scoped.
+  /// Body: `{type, id}`.
   Future<Response> handleRetract(Request request) async {
     _logger.info(
       '[API] POST /api/calibration-library/retract',
@@ -399,7 +399,7 @@ class CalibrationLibraryHandlers {
     return jsonOk({'status': 'deleted', 'type': typeRaw, 'id': id});
   }
 
-  // --- param helpers ---------------------------------------------------------
+  // param helpers
 
   CalibrationMasterType _requireType(String? raw) {
     final type = _typeParam(raw);

@@ -516,10 +516,9 @@ class LabelLayoutManager {
   /// be shown without overlapping something already placed.
   ///
   /// Candidates radiate outward from [preferred] in eight directions at two
-  /// distances. Each candidate is first *nudged* inside the canvas rather than
-  /// rejected for crossing an edge: the old version required the box to be
-  /// fully in bounds, which silently dropped every label near a screen edge
-  /// even when there was free space a few pixels inward.
+  /// distances. Each candidate is nudged inside the canvas rather than rejected
+  /// for crossing an edge; requiring the box to be fully in bounds drops every
+  /// label near a screen edge even when free space sits a few pixels inward.
   Offset? findPlacement(Offset preferred, Size labelSize, Size canvasSize) {
     for (final offset in _candidates(preferred)) {
       final clamped = _clampIntoBounds(offset, labelSize, canvasSize);

@@ -80,9 +80,7 @@ void main() {
     container.dispose();
   });
 
-  // ---------------------------------------------------------------------------
   // Helper: build a DeviceInfo for a given type
-  // ---------------------------------------------------------------------------
   DeviceInfo deviceInfo(DeviceType type, String id, String name) => DeviceInfo(
     id: id,
     name: name,
@@ -92,9 +90,7 @@ void main() {
     driverVersion: '1.0',
   );
 
-  // ---------------------------------------------------------------------------
-  // Camera Connection Lifecycle
-  // ---------------------------------------------------------------------------
+  // Camera connection lifecycle
   group('Camera Connection Lifecycle', () {
     test(
       'connectCamera sets state to connected and starts heartbeat',
@@ -203,9 +199,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Mount Connection Lifecycle
-  // ---------------------------------------------------------------------------
+  // Mount connection lifecycle
   group('Mount Connection Lifecycle', () {
     test('connectMount sets state to connected with initial status', () async {
       const deviceId = TestFixtures.mountId;
@@ -284,9 +278,7 @@ void main() {
     );
   });
 
-  // ---------------------------------------------------------------------------
-  // Focuser Connection Lifecycle
-  // ---------------------------------------------------------------------------
+  // Focuser connection lifecycle
   group('Focuser Connection Lifecycle', () {
     test('connectFocuser sets state with hardware capabilities', () async {
       const deviceId = TestFixtures.focuserId;
@@ -348,9 +340,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // Event Routing: Equipment Events
-  // ---------------------------------------------------------------------------
   group('Event Routing', () {
     test('CameraTemperatureChanged event updates camera state', () async {
       // Pre-connect camera so state accepts updates
@@ -569,9 +559,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Disconnect Event Routing
-  // ---------------------------------------------------------------------------
+  // Disconnect event routing
   group('Disconnect Event Routing', () {
     test(
       'Camera disconnect event resets camera state and attempts reconnect',
@@ -642,9 +630,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Temperature Polling
-  // ---------------------------------------------------------------------------
+  // Temperature polling
   group('Temperature Polling', () {
     test(
       'connectCamera starts temperature polling that updates state',
@@ -852,9 +838,7 @@ void main() {
     );
   });
 
-  // ---------------------------------------------------------------------------
   // Auto-Reconnect Behavior
-  // ---------------------------------------------------------------------------
   group('Auto-Reconnect', () {
     test(
       'disconnect event does not attempt reconnect when auto-reconnect is disabled',
@@ -888,22 +872,17 @@ void main() {
       },
     );
 
-    // -------------------------------------------------------------------------
-    // Auto-reconnect plumbed through every device type.
+    // Auto-reconnect is plumbed through every device type, not just
+    // [DeviceType.camera]: a device that ignores the toggle reconnects
+    // regardless of user preference. These pin every device type's behaviour:
+    //   - the default is `true`, so an upgrader is never silently disabled;
+    //   - `setAutoReconnect(false)` short-circuits the reconnect path.
     //
-    // Before, only [DeviceType.camera] honored the toggle. Mount,
-    // focuser, etc. silently reconnected regardless of user preference.
-    // These regression tests pin every device type's behavior:
-    //   - default is `true` so we never silently disable for upgraders;
-    //   - flipping `setAutoReconnect(false)` actually short-circuits the
-    //     reconnect path so the user can opt out.
-    //
-    // The reconnect path schedules a 5s+ backoff Timer which is too slow
-    // to drive synchronously in CI, so we assert the boolean wiring + the
-    // negative case (no backend call) rather than waiting for a positive
-    // call. The positive case is covered by the existing camera reconnect
-    // test above which exercises the same _attemptReconnect entrypoint.
-    // -------------------------------------------------------------------------
+    // The reconnect path schedules a 5s+ backoff Timer, too slow to drive
+    // synchronously in CI, so these assert the boolean wiring and the negative
+    // case (no backend call). The positive case is covered by the camera
+    // reconnect test above, which exercises the same _attemptReconnect
+    // entrypoint.
 
     test('mount auto-reconnect defaults to true', () {
       final state = container.read(mountStateProvider);
@@ -1115,10 +1094,9 @@ void main() {
     );
 
     test('setDisconnected preserves autoReconnectEnabled across drops', () {
-      // Regression test: the original camera implementation reset the
-      // entire snapshot, silently flipping autoReconnectEnabled back to
-      // true on every disconnect. We now preserve it for every device
-      // type so the toggle remains a stable user preference.
+      // Resetting the entire snapshot on disconnect flips
+      // autoReconnectEnabled back to true; it is preserved for every device
+      // type so the toggle stays a stable user preference.
       final mountNotifier = container.read(mountStateProvider.notifier);
       mountNotifier.setConnecting('mount-3', 'Mount 3');
       mountNotifier.setConnected();
@@ -1141,9 +1119,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Device Discovery
-  // ---------------------------------------------------------------------------
+  // Device discovery
   group('Device Discovery', () {
     test('discoverDevices delegates to backend', () async {
       final expectedDevices = [
@@ -1177,9 +1153,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Sequencer Event Routing
-  // ---------------------------------------------------------------------------
+  // Sequencer event routing
   group('Sequencer Event Routing', () {
     test('SequenceStarted event updates execution state', () async {
       eventStreamController.add(
@@ -1256,9 +1230,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Camera Cooling
-  // ---------------------------------------------------------------------------
+  // Camera cooling
   group('Camera Cooling', () {
     test('setCameraCooling throws when camera not connected', () async {
       final service = container.read(deviceServiceProvider);
@@ -1296,9 +1268,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Mount Park Events
-  // ---------------------------------------------------------------------------
+  // Mount park events
   group('Mount Park Events', () {
     test(
       'MountParkCompleted sets parked, stops slewing and tracking',
@@ -1350,9 +1320,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Rotator Events
-  // ---------------------------------------------------------------------------
+  // Rotator events
   group('Rotator Events', () {
     test('RotatorMoveCompleted updates position and stops moving', () async {
       final rotNotifier = container.read(rotatorStateProvider.notifier);
@@ -1378,9 +1346,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // Error Handling in Temperature Polling
-  // ---------------------------------------------------------------------------
   group('Temperature Polling Error Handling', () {
     test('polling continues after a transient error', () async {
       const deviceId = TestFixtures.cameraId;
@@ -1443,7 +1409,6 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // Typed exception for disconnecting an already-disconnected device
   //
   // Replaces a fragile `e.toString().contains('not connected')` filter in
@@ -1451,7 +1416,6 @@ void main() {
   // must throw [DeviceNotConnectedException] when invoked with no device in
   // the matching state provider, so callers can distinguish "nothing to do"
   // from "actual disconnect failure".
-  // ---------------------------------------------------------------------------
   group('DeviceNotConnectedException on already-disconnected', () {
     test('disconnectCamera throws DeviceNotConnectedException when no '
         'camera state is present', () async {

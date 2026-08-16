@@ -253,13 +253,10 @@ final dismissedSessionInsightsProvider =
 /// Retrospective post-session insights for the given session id.
 ///
 /// Computes [SessionInsight]s from the persisted [SessionReport] plus any
-/// altitude traces produced at runtime. Today we cannot reliably
-/// reconstruct per-second altitude history from the captured frames
-/// alone (the database does not record sub-minute timestamps on every
-/// frame), so the trace list is empty until a future provider populates
-/// it from a session-altitude log table. The optimizer's other insight
-/// kinds (autofocus frequency, filter overhead, rejection rate, guiding,
-/// efficiency) still produce useful output without that trace data.
+/// altitude traces produced at runtime. The trace list is empty: the database
+/// records no sub-minute frame timestamps, so per-second altitude history
+/// cannot be reconstructed, and the trace-dependent insights are simply not
+/// produced.
 final sessionInsightsProvider = FutureProvider.autoDispose
     .family<List<SessionInsight>, int>((ref, sessionId) async {
       final report = await ref.watch(sessionReportProvider(sessionId).future);

@@ -1,9 +1,5 @@
 part of '../transient_alert_provider.dart';
 
-// =============================================================================
-// Transient Alert States Provider
-// =============================================================================
-
 /// Storage key prefix for alert states in the database
 const String _alertStateKeyPrefix = 'transient_alert_state_';
 
@@ -244,9 +240,7 @@ TransientAlertState resolveTransientAlertState(
   return overrides[alert.id] ?? alert.state;
 }
 
-// =============================================================================
-// Unacknowledged Alert Count Provider
-// =============================================================================
+// Unacknowledged alert count provider
 
 /// Provider that computes the count of unacknowledged alerts.
 ///

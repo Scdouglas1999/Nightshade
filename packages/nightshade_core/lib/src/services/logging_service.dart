@@ -148,11 +148,9 @@ class LoggingService {
   /// `/api/logs/tail` SSE endpoint) can observe the live log feed without
   /// re-reading the on-disk file.
   ///
-  /// Why broadcast: the headless API supports multiple concurrent SSE
-  /// clients (operator phone + dashboard tab + mobile companion). A
-  /// single-subscriber controller would force them to share via another
-  /// hop; using a broadcast controller lets each subscriber listen
-  /// independently with zero coupling.
+  /// Broadcast because the headless API serves several concurrent SSE clients
+  /// (operator phone, dashboard tab, mobile companion), each listening
+  /// independently.
   final StreamController<LogEntry> _logEntryController =
       StreamController<LogEntry>.broadcast();
   bool _disposed = false;

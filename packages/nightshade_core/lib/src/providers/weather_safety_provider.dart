@@ -138,10 +138,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       return;
     }
     _subscribeToAlerts();
-    // Hardware connection and telemetry changes must update the consolidated
-    // verdict promptly. Previously only alert changes and the five-minute
-    // timer triggered evaluation, so a newly connected weather/safety device
-    // could remain labelled "unavailable" for minutes.
+    // Hardware connection and telemetry changes are evaluation triggers, not
+    // just alert changes and the five-minute timer: a newly connected
+    // weather/safety device would otherwise read "unavailable" for minutes.
     // The environment poll re-reports these every 5 seconds, refreshing only
     // `lastUpdated`/`lastChecked`. Evaluating on a bare freshness bump would
     // re-run the whole safety assessment and re-push the verdict over FFI all
@@ -165,10 +164,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       }
       _scheduleSourceChangeEvaluation();
     });
-    // Configuration changes are safety inputs too. Persisting
-    // weatherSafetyEnabled/failMode previously updated Drift and the settings
-    // UI but left this notifier's verdict unchanged until the five-minute
-    // timer (or an unrelated device event) fired.
+    // Configuration changes are safety inputs too: persisting
+    // weatherSafetyEnabled/failMode has to move this notifier's verdict, not
+    // wait for the five-minute timer or an unrelated device event.
     _ref.listen<AsyncValue<WeatherSettings>>(weatherSettingsDataProvider, (
       _,
       __,
@@ -585,10 +583,10 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     _snoozeTimer = null;
 
     // Clear the acknowledgement immediately and fail closed while fresh
-    // conditions are being fetched. Merely clearing `snoozeUntil` used to
-    // leave `status == snoozed` until an asynchronous evaluation completed,
-    // so the Cancel Snooze button appeared to do nothing and a stalled remote
-    // refresh could leave the client snoozed indefinitely.
+    // conditions are being fetched. Clearing `snoozeUntil` alone leaves
+    // `status == snoozed` until an asynchronous evaluation completes, so the
+    // button reads as doing nothing and a stalled remote refresh leaves the
+    // client snoozed indefinitely.
     state = state.copyWith(
       status: WeatherSafetyStatus.unsafe,
       actions: const WeatherSafetyActions(
@@ -669,10 +667,10 @@ final weatherSafetyProvider =
 
 /// The single read/write path for the consolidated [SafetyConfig].
 ///
-/// Consolidation (Phase 2, 2026-06-22): the one logical safety config used to
-/// be split across `weatherSettingsDao`, `appSettings`, and `settingsDao`.
-/// [SafetyConfigStore] owns the field→store routing so callers no longer fan
-/// writes across stores themselves. See [SafetyConfigStore] for the field map.
+/// The one logical safety config spans `weatherSettingsDao`, `appSettings` and
+/// `settingsDao`. [SafetyConfigStore] owns the field→store routing so callers
+/// never fan writes across stores themselves. See [SafetyConfigStore] for the
+/// field map.
 final safetyConfigStoreProvider = Provider<SafetyConfigStore>((ref) {
   return SafetyConfigStore(ref.watch(databaseProvider));
 });

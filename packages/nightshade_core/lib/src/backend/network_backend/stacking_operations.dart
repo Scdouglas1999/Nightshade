@@ -29,7 +29,7 @@ mixin _NetworkBackendStackingOperations on _NetworkBackendTransport {
     'demosaicQuality': c.demosaicQuality,
   };
 
-  // --- Strict field decoders --------------------------------------------------
+  // Strict field decoders
   //
   // Each helper requires the field to be present with the correct type and
   // fails with a message naming the endpoint and field. Nothing is defaulted,
@@ -402,7 +402,7 @@ mixin _NetworkBackendStackingOperations on _NetworkBackendTransport {
     return samples;
   }
 
-  // --- Endpoints --------------------------------------------------------------
+  // Endpoints
 
   /// Start (or arm) live stacking on the host. With [referencePath] (a host
   /// path) the stack starts immediately from that frame; without it the host

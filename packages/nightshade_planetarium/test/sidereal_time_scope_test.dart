@@ -1,19 +1,10 @@
-// Regression (D-1): the planetarium's time transport must not redefine the
-// sidereal time the rest of the app states as fact.
+// The planetarium's time transport must not redefine the sidereal time the
+// rest of the app states as fact.
 //
-// Live evidence, reproduced three times on the desktop build with the site set
-// to 40.7128 N / -74.0060 W: stepping the planetarium forward six hours left
-// the shell's bottom-right status strip showing a real wall clock beside a
-// SIMULATED sidereal time, ~15 px apart, with nothing marking the difference:
-//
-//   wall 18:39:24 -> status bar `18:39:23` / `LST 11:15`  (true LST 15:12)
-//   wall 18:40:11 -> status bar `18:40:10` / `LST 21:14`  (true LST 15:14)
-//   wall 18:49:43 -> status bar `18:49:43` / `LST 21:24`  (true LST 15:22)
-//
-// The status bar and the dashboard header read `localSiderealTimeProvider`;
-// that provider used to be keyed on the observation clock, so a preview control
-// on one screen silently rewrote a number an imager plans by. Worse, a held
-// clock stops publishing at all, which is why the wrong value then froze.
+// The status bar and the dashboard header read `localSiderealTimeProvider`, so
+// it has to follow the wall clock: keyed on the observation clock, a preview
+// control on one screen rewrites a number an imager plans by, and a held clock
+// stops publishing at all, freezing the wrong value beside a live wall clock.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/src/astronomy/astronomy_calculations.dart';
@@ -47,7 +38,7 @@ void main() {
       _longitude,
     );
     expect(
-      container.read(localSiderealTimeProvider),
+      container.read(localSiderealTimeProvider)!,
       closeTo(truth, 0.01),
       reason: 'baseline: the chip agrees with now',
     );
@@ -58,7 +49,7 @@ void main() {
       notifier.fastForward(const Duration(hours: 1));
     }
 
-    final scrubbed = container.read(observationSiderealTimeProvider);
+    final scrubbed = container.read(observationSiderealTimeProvider)!;
     expect(
       _siderealGap(scrubbed, truth),
       greaterThan(5.5),
@@ -66,7 +57,7 @@ void main() {
     );
 
     expect(
-      container.read(localSiderealTimeProvider),
+      container.read(localSiderealTimeProvider)!,
       closeTo(truth, 0.01),
       reason: 'the shell status bar states a fact about now, not a preview',
     );
@@ -82,7 +73,7 @@ void main() {
       DateTime.now(),
       _longitude,
     );
-    expect(container.read(localSiderealTimeProvider), closeTo(truth, 0.01));
+    expect(container.read(localSiderealTimeProvider)!, closeTo(truth, 0.01));
   });
 
   test('the real LST tracks the site, not the observation clock', () {
@@ -90,14 +81,14 @@ void main() {
         .read(observationTimeProvider.notifier)
         .fastForward(const Duration(hours: 3));
 
-    final east = container.read(localSiderealTimeProvider);
+    final east = container.read(localSiderealTimeProvider)!;
     container
         .read(observerLocationProvider.notifier)
         .setLocation(
           latitude: _latitude,
           longitude: _longitude + 15.0, // one hour of longitude
         );
-    final west = container.read(localSiderealTimeProvider);
+    final west = container.read(localSiderealTimeProvider)!;
 
     expect(_siderealGap(east, west), closeTo(1.0, 0.02));
   });

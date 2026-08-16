@@ -1,9 +1,8 @@
-/// /  regression tests.
+/// Connect-path contracts.
 ///
-/// Connect methods no longer run a precondition `discoverDevices`
-///   sweep. Well-formed device ids are accepted directly; malformed ids
-///   throw [InvalidDeviceIdException] up front; backend errors still
-///   propagate.
+/// Connect methods run no precondition `discoverDevices` sweep. Well-formed
+///   device ids are accepted directly; malformed ids throw
+///   [InvalidDeviceIdException] up front; backend errors propagate.
 ///
 /// `connectAllFromProfile` connects every configured device in
 ///   parallel and emits a [DeviceConnectProgress] stream so the UI can
@@ -77,9 +76,7 @@ void main() {
     container.dispose();
   });
 
-  // -------------------------------------------------------------------------
   // Pure helper: format validator
-  // -------------------------------------------------------------------------
   group('isValidDeviceIdFormat', () {
     test('accepts every known driver prefix', () {
       expect(isValidDeviceIdFormat('ascom:ASCOM.ZWO.Camera'), isTrue);
@@ -110,9 +107,7 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
   // Connect methods reject malformed ids without doing discovery.
-  // -------------------------------------------------------------------------
   group('connect format check', () {
     test('connectCamera with malformed id throws InvalidDeviceIdException '
         'and never calls discoverDevices/connectDevice', () async {
@@ -135,10 +130,8 @@ void main() {
         'discoverDevices call', () async {
       const deviceId = 'native:zwo:0';
 
-      // Critically: we do NOT stub discoverDevices. The previous
-      // implementation would have called it as a precondition and failed
-      // with "Camera not found". After we go straight to
-      // connectDevice.
+      // discoverDevices is deliberately NOT stubbed: connect goes straight to
+      // connectDevice, so a discovery precondition would fail this test.
       when(
         () => mockBackend.connectDevice(DeviceType.camera, deviceId),
       ).thenAnswer((_) async {});
@@ -262,9 +255,7 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
   // ConnectAllFromProfile streams per-device progress events.
-  // -------------------------------------------------------------------------
   group('connectAllFromProfile', () {
     EquipmentProfileModel buildProfile({
       String? cameraId,

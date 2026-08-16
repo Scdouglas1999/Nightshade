@@ -1,10 +1,8 @@
-// Regression: the search affordance advertised a key the keyboard does not
-// have.
+// The search affordance must not advertise a key the keyboard does not have.
 //
-// The planetarium search field and the command bar's Search control both drew a
-// hardcoded '⌘K' chip on every platform, so a Linux or Windows rig told the
-// operator to press the Apple Command key. The handler itself has always
-// accepted Meta OR Control — only the label was wrong.
+// A hardcoded '⌘K' chip on the planetarium search field and the command bar's
+// Search control tells a Linux or Windows operator to press the Apple Command
+// key. The handler accepts Meta OR Control; only the label can be wrong.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

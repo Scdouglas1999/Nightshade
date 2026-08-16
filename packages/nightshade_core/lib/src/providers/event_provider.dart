@@ -16,33 +16,8 @@ import 'ui_notification_provider.dart';
 
 /// Provider for the global event stream from the Rust native layer
 ///
-/// This stream delivers all events from the sequencer, devices, imaging,
-/// guiding, and safety systems. UI components should subscribe to this
-/// stream to react to backend state changes and display notifications.
-///
-/// Events include:
-/// - ExposureStarted, ExposureCompleted, ExposureCancelled
-/// - DeviceConnected, DeviceDisconnected, DeviceError
-/// - SequenceStarted, SequenceCompleted, SequencePaused
-/// - GuidingStarted, GuidingStopped, DitherCompleted
-/// - SafetyAlert, WeatherUnsafe, EmergencyStop
-/// - And many more...
-///
-/// Example usage:
-/// ```dart
-/// ref.listen(nightshadeEventsProvider, (previous, next) {
-///   next.when(
-///     data: (event) {
-///       // Handle event
-///       if (event.category == EventCategory.Imaging) {
-///         // Handle imaging events
-///       }
-///     },
-///     loading: () {},
-///     error: (error, stack) => print('Event stream error: $error'),
-///   );
-/// });
-/// ```
+/// Every sequencer, device, imaging, guiding and safety event arrives here.
+/// UI components subscribe to this stream to react to backend state changes.
 final nightshadeEventsProvider = StreamProvider<NightshadeEvent>((ref) {
   final backend = ref.watch(backendProvider);
 
@@ -182,15 +157,14 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
   StreamSubscription<core.NightshadeEvent>? subscription;
 
   // Coalesce identical toasts that arrive in a tight burst. A mass event such
-  // as "Disconnect All" makes every device emit a Disconnected/Error event
-  // (often repeated as each driver tears down), and previously every one of
-  // those raised its own toast. Hundreds-to-thousands of toasts in a single
-  // event-loop turn flood the notification overlay and the Windows platform
-  // task runner ("Failed to post message to main thread"). Suppressing a repeat
-  // of the *same* (severity+title+message) toast within this window collapses a
-  // driver's teardown chatter to a single visible toast while still surfacing
-  // the first occurrence of every distinct error (errors-are-a-feature: nothing
-  // distinct is ever silently dropped).
+  // as "Disconnect All" makes every device emit a Disconnected/Error event,
+  // often repeated as each driver tears down, and every one of those would
+  // raise its own toast — hundreds-to-thousands in a single event-loop turn
+  // flood the notification overlay and the Windows platform task runner
+  // ("Failed to post message to main thread"). Suppressing a repeat of the
+  // *same* (severity+title+message) toast within this window collapses a
+  // driver's teardown chatter to one visible toast; the first occurrence of
+  // every distinct error still shows.
   const dedupeWindow = Duration(seconds: 3);
   final lastShownAt = <String, DateTime>{};
 
@@ -210,13 +184,11 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
     (event) {
       if (event.severity == core.EventSeverity.info) return;
 
-      // PRODUCER 4 of the stop pipeline. Every other producer asks
-      // `isSequenceCancelledNotice` before calling a deliberate Stop a fault;
-      // this one did not, and it is the one the operator actually reads. It
-      // takes no part in the NotificationRouter, so neither the router's
-      // classification nor its content dedupe could ever reach it — which is
-      // why Wave F recorded the red card as gone and Wave G found it back
-      // (WF-N4 / WF-STOP-N3, shots/waveG-sequencer/g15-toasts.png).
+      // PRODUCER 4 of the stop pipeline, and the one the operator actually
+      // reads. Like every other producer it asks `isSequenceCancelledNotice`
+      // before calling a deliberate Stop a fault. It takes no part in the
+      // NotificationRouter, so neither the router's classification nor its
+      // content dedupe can reach it — the check has to live here.
       if (_isOperatorStopNotice(event)) {
         developer.log(
           '[$kStopClassificationLogTag] error_notification_bridge: sequencer '

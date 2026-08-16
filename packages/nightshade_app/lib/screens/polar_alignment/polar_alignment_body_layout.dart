@@ -234,10 +234,9 @@ class _CompactTabLayoutState extends ConsumerState<_CompactTabLayout>
   /// into the provider from inside build — which Riverpod asserts on
   /// ("Tried to modify a provider while the widget tree was building").
   ///
-  /// Nothing outside this widget used to move the tab, so the guard above
-  /// (`index != index`) always short-circuited and the re-entrancy could not
-  /// happen. The header's History toggle now selects the Settings tab, which
-  /// is exactly that outside writer.
+  /// Reachable because the tab moves from OUTSIDE this widget: the header's
+  /// History toggle selects the Settings tab, so the guard above
+  /// (`index != index`) no longer short-circuits every time.
   bool _applyingExternalIndex = false;
 
   @override

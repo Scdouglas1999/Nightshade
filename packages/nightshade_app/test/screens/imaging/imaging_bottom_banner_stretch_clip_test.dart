@@ -1,20 +1,14 @@
-// With auto-stretch ON the trailing display cluster grows by a method dropdown
-// plus the advanced-settings icon button. The banner's wide/scroll decision used
-// a hand-picked dp threshold for both states, so above it the fixed children
-// overflowed the wide Row and the advanced-settings button was hard-clipped — a
-// sliver that also swallowed clicks, with no scroll to recover it.
+// The banner MEASURES its natural width and scrolls only when it genuinely does
+// not fit. No dp threshold can be right: with auto-stretch ON the trailing
+// cluster grows by a method dropdown plus the advanced-settings icon button, and
+// whether the intrinsically-sized children fit depends on runtime content (stats
+// text, filter names, locale, text scale). Above a wrong threshold the fixed
+// children overflow the wide Row and the advanced-settings button is
+// hard-clipped to a sliver that still swallows clicks, with no scroll to recover
+// it.
 //
-// Raising that constant (720 -> 880 when stretch is on) did NOT fix the class, it
-// moved which widths broke: measured afterwards, the wide branch still overflowed
-// by 86 dp at a 1280x800 window with stretch on, and by 36 dp at 820 dp with
-// stretch OFF. No constant can be right, because whether the intrinsically-sized
-// children fit depends on runtime content (stats text, filter names, locale, text
-// scale). The threshold is now gone: the banner measures its natural width and
-// scrolls only when it genuinely does not fit.
-//
-// The original widths below (740-816) sat BELOW the old threshold, i.e. already in
-// the scrolling branch, so they could not have caught the defect. The sweep that
-// follows covers the widths that actually overflowed.
+// The sweep below covers the widths that actually overflow; widths already in
+// the scrolling branch cannot catch this.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/widgets/imaging_bottom_banner.dart';

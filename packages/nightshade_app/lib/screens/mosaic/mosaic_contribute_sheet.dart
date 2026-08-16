@@ -18,14 +18,14 @@ typedef MosaicUploadConsentChoice = ({
 /// for the kind of data that leaves the device. Both variants persist to (and
 /// read from) the SAME [MosaicUploadConsent] record, so a rig honours ONE
 /// consent contract (license + attribution + unattended auto-upload) across
-/// mosaic panel masters (WS2) and live co-imaging subs (WS3): granting it from
+/// mosaic panel masters and live co-imaging subs: granting it from
 /// either entry point enables the other, and the unattended auto-upload opt-in
 /// gates both the poller and the co-imaging auto-contribute egress.
 enum CollaborativeContributeContext {
-  /// A full-resolution integrated mosaic panel master (WS2).
+  /// A full-resolution integrated mosaic panel master.
   mosaicPanel,
 
-  /// This rig's live co-imaging subs folding into a shared target (WS3).
+  /// This rig's live co-imaging subs folding into a shared target.
   coImagingSubs,
 }
 
@@ -36,8 +36,8 @@ final mosaicUploadConsentProvider =
   return resolveMosaicUploadConsent(ref.watch(settingsDaoProvider));
 });
 
-/// Present the WS4 consent contract for a collaborative contribution and return
-/// the chosen [MosaicUploadConsentChoice], or null if the user cancelled.
+/// Present the consent contract for a collaborative contribution and return the
+/// chosen [MosaicUploadConsentChoice], or null if the user cancelled.
 ///
 /// A panel master is full-resolution integrated data — and a co-imaging sub is
 /// raw pixels — so, exactly like the Constellation contribute flow, the user

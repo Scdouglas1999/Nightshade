@@ -205,7 +205,7 @@ class _FirstLightCancelled implements Exception {
 /// Chains the existing imaging, auto-stretch, plate-solve and annotation
 /// services into a single guided "first light" flow.
 ///
-/// Design rules (errors are a feature here):
+/// Design rules:
 ///  * Every stage either advances the flow or surfaces its real error. There
 ///    are no silent fallbacks that fake success.
 ///  * The only stage allowed to "succeed without doing its work" is plate
@@ -288,15 +288,11 @@ class FirstLightOrchestrator {
     _emit(state);
 
     try {
-      // ---------------------------------------------------------------------
       // STAGE 1 — verify the camera is connected.
-      // ---------------------------------------------------------------------
       _requireCameraConnected();
 
-      // ---------------------------------------------------------------------
       // STAGE 2 — expose (snapshot) via the same imaging service the imaging
       // screen's snapshot button uses.
-      // ---------------------------------------------------------------------
       final captured = await _expose(exposureSeconds);
       final imageId = _deriveImageId(captured);
       state = state.copyWith(
@@ -305,9 +301,7 @@ class FirstLightOrchestrator {
       );
       _emit(state);
 
-      // ---------------------------------------------------------------------
       // STAGE 3 — auto-stretch the frame for a punchy first look.
-      // ---------------------------------------------------------------------
       state = state.copyWith(phase: FirstLightPhase.stretching);
       _emit(state);
       await _autoStretch(captured);
@@ -315,13 +309,11 @@ class FirstLightOrchestrator {
       state = state.copyWith(stretched: true);
       _emit(state);
 
-      // ---------------------------------------------------------------------
       // STAGE 4 — plate solve, only when a usable solver is configured.
       //
       // Gate on whether the user's selected solver can actually run. Auto may
       // use either engine; an explicit broken ASTAP selection must not be
       // masked by an unrelated astrometry.net install.
-      // ---------------------------------------------------------------------
       final plateSolve = _ref.read(plateSolveServiceProvider);
       final detection = await _detect(plateSolve);
       _throwIfCancelled();
@@ -353,9 +345,7 @@ class FirstLightOrchestrator {
       state = state.copyWith(solveResult: solveResult);
       _emit(state);
 
-      // ---------------------------------------------------------------------
       // STAGE 5 — build annotations from the successful solve.
-      // ---------------------------------------------------------------------
       state = state.copyWith(phase: FirstLightPhase.annotating);
       _emit(state);
       await _annotate(captured, solveResult);
@@ -396,9 +386,7 @@ class FirstLightOrchestrator {
 
   void _emit(FirstLightState state) => _onState(state);
 
-  // ---------------------------------------------------------------------------
   // Stage implementations.
-  // ---------------------------------------------------------------------------
 
   void _requireCameraConnected() {
     final camera = _ref.read(cameraStateProvider);

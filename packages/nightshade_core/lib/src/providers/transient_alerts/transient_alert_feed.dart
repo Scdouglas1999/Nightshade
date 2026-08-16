@@ -1,8 +1,6 @@
 part of '../transient_alert_provider.dart';
 
-// =============================================================================
-// Active Transient Alerts Provider
-// =============================================================================
+// Active transient alerts provider
 
 /// Polling interval for fetching alerts (15 minutes)
 const Duration _alertPollingInterval = Duration(minutes: 15);

@@ -490,9 +490,7 @@ void main() {
   });
 }
 
-// ============================================================================
 // Helper functions that replicate private parsing logic for testing
-// ============================================================================
 
 /// Builds a minimal HYG v3.8 CSV line with 30 columns
 String _buildHygLine({

@@ -539,9 +539,7 @@ void main() {
       },
     );
 
-    // ---------------------------------------------------------------
     // Post-session analyze() insights
-    // ---------------------------------------------------------------
 
     test('analyze surfaces altitudeWindow insight from trace data', () {
       final report = _fakeReport(

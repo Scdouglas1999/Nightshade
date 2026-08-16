@@ -371,9 +371,8 @@ class _StretchSettingsDialog extends StatefulWidget {
 
 class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
   /// Settings as the user is editing them in this dialog. Held locally so
-  /// Close discards changes and Apply explicitly commits them — required by
-  /// audit §4.11 (the previous "Done" button silently kept whatever was
-  /// already pushed live, with no way to back out).
+  /// Close discards changes and Apply explicitly commits them, so there is a
+  /// way to back out of a live-pushed preview.
   late AutoStretchSettings _localSettings;
 
   /// Snapshot of the provider settings at dialog open, so Close can restore
@@ -469,7 +468,7 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
               onSettingsChanged: _updateLocalSettings,
             ),
 
-            // Footer: explicit Close + Apply (audit §4.11). Apply is
+            // Footer: explicit Close + Apply. Apply is
           ],
         ),
       ),

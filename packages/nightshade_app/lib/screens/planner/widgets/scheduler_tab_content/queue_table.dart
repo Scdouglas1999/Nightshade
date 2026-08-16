@@ -62,10 +62,9 @@ class _QueueTable extends ConsumerWidget {
       _showAuthorityChanged(context);
       return;
     }
-    // Take it OUT OF THE QUEUE, not merely off its goals: a goal-less target
-    // is still an eligible free-form candidate, so deleting the rows below is
-    // what used to let the autopilot re-pick the target the operator had just
-    // removed (WF-N2).
+    // Take it OUT OF THE QUEUE, not merely off its goals: a goal-less target is
+    // still an eligible free-form candidate, so deleting only the goal rows
+    // below lets the autopilot re-pick the target the operator just removed.
     await queueSvc.remove(targetId);
     await goalsSvc.deleteForTarget(targetId);
     await constraintsSvc.deleteForTarget(targetId);

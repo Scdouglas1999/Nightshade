@@ -201,9 +201,7 @@ class MountStateNotifier extends StateNotifier<MountState>
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Position polling
-  // ---------------------------------------------------------------------------
 
   void _startPositionPolling() {
     _stopPositionPolling();

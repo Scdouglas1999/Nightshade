@@ -188,11 +188,10 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   String? _lastBrowsedHostPath;
 
   /// True once the host has accepted and persisted an output path in this
-  /// session. The Stepper tick is drawn from this, never from "the operator
-  /// tapped ahead": tapping step 2 in the sidebar used to mark step 1 complete,
-  /// so a wizard that had saved nothing displayed a green check against "Image
-  /// output path" and the first capture of the night failed with nowhere to
-  /// write.
+  /// session. The Stepper tick is drawn from this, never from navigation: a
+  /// green check against "Image output path" that only means the operator
+  /// tapped ahead sends the first capture of the night somewhere that does not
+  /// exist.
   bool _outputPathCommitted = false;
 
   // Step 1 state.

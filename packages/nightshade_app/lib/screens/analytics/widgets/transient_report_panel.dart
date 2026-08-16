@@ -227,16 +227,12 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
   /// The network the panel should be sitting on for [d].
   ///
   /// Keeps whatever is selected as long as that network can actually be used,
-  /// and otherwise moves to one that can. The panel used to open hard-coded on
-  /// TNS, so an observer with an AAVSO observer code but no TNS bot credentials
-  /// met a disabled 'Submit to TNS' and a blocker notice while a working
-  /// 'Export report' sat one unmentioned click away. When nothing is usable the
-  /// selection is left alone so the blocker shown belongs to the network the
-  /// panel is naming.
+  /// and otherwise moves to one that can, so the panel opens on a network the
+  /// observer can actually use. When nothing is usable the selection is left
+  /// alone so the blocker shown belongs to the network the panel is naming.
   ///
-  /// The ORDER is the shipped preference (TNS first for a transient), not a new
-  /// opinion: this only changes which network is shown when the preferred one
-  /// is blocked.
+  /// The ORDER is the shipped preference (TNS first for a transient); this
+  /// only changes which network is shown when the preferred one is blocked.
   TransientReportFormat _resolveFormat(
     TransientDetectionRow d,
     ScienceSettings settings,

@@ -268,9 +268,7 @@ void main() {
             'surface any uncaught exceptions.');
   });
 
-  // ===========================================================================
-  // W10-DEEPER: behavior tests beyond the smoke pumps above.
-  // ===========================================================================
+  // Behavior tests beyond the smoke pumps above.
 
   testWidgets(
       'error_state_shows_disconnected_preview: camera in error state renders the '
@@ -690,7 +688,6 @@ void main() {
             'through dark/flat/bias subtraction.');
   });
 
-  // ===========================================================================
   // MOBILE-RESPONSIVE STANDARD: no overflow + primary capture reachable at the
   // three reference phone sizes, in BOTH orientations.
   //
@@ -699,7 +696,6 @@ void main() {
   // so the snapshot button is enabled (its enabled state is part of "primary
   // capture reachable") and pump a real captured frame so the preview chrome
   // and toolbar (resolution/zoom readouts) render at their full width.
-  // ===========================================================================
 
   /// The reference phone sizes from the standard (portrait), each also exercised
   /// rotated to landscape below.

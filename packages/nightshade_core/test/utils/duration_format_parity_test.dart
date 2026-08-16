@@ -1,13 +1,13 @@
-// Parity pins for the Wave C2 `format-duration` consolidation.
+// Parity pins for the `format-duration` consolidation.
 //
-// Every `_ref*` function below is a VERBATIM copy of one of the ~30 private
-// `_formatDuration` helpers that `DurationFormat` retired. The sweeps assert
-// the canonical reproduces them byte-for-byte, and each documented exception
-// is pinned on its own so a divergence cannot be introduced silently.
+// Every `_ref*` function below is a VERBATIM copy of one of the private
+// `_formatDuration` helpers `DurationFormat` retired. The sweeps assert the
+// canonical reproduces them byte-for-byte, and each documented exception is
+// pinned on its own so a divergence cannot be introduced silently.
 //
-// The one intended difference is GUI finding SEQ-20: the minute-only copies
-// rendered "0m" for a sub-minute duration. All four styles render seconds
-// below a minute now, so "0m" is unreachable.
+// The one intended difference: minute-only copies render "0m" for a sub-minute
+// duration. All four styles render seconds below a minute, so "0m" is
+// unreachable.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -312,7 +312,7 @@ void main() {
 
     test('reproduces the floor-based double copies at or above a minute', () {
       for (final s in _sweep) {
-        if (s < 60) continue; // SEQ-20 region, pinned separately
+        if (s < 60) continue; // sub-minute region, pinned separately
         expect(
           DurationFormat.seconds(
             s.toDouble(),
@@ -435,7 +435,7 @@ void main() {
     });
   });
 
-  group('SEQ-20 — the "0m" class is unreachable', () {
+  group('the "0m" class is unreachable', () {
     test('every style renders seconds below one minute', () {
       for (final style in DurationStyle.values) {
         for (final s in const [1, 12, 20, 30, 45, 59]) {
@@ -471,7 +471,7 @@ void main() {
       expect(_refCompactFloorDouble(20), '0m');
       expect(_refCompactRoundedTotalDouble(20), '0m');
       expect(_refCompactTrimmedRoundedMinutes(20), '0m');
-      // 4 x 3 s, the exact SEQ-20 repro.
+      // 4 x 3 s — a 12-second run.
       expect(_refCompactRoundedTotalDouble(12), '0m');
       expect(DurationFormat.seconds(12, style: DurationStyle.compact), '12s');
     });

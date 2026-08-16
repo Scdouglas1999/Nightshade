@@ -2,30 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
-import '../theme/nightshade_tokens.dart';
 import '../utils/adaptive_dialog_constraints.dart';
 
-/// Fractional panel sizing and viewport-capped dialog widths.
+/// A panel width that tracks the available space: [fraction] of [available],
+/// clamped between [min] and [max].
 ///
-/// ## When to use this library vs [NightshadeTokens] breakpoints
-///
-/// Use the functions in this file when sizing should **track available space**
-/// continuously (percent of parent, min/max clamps, dialog width caps).
-///
-/// Use [NightshadeTokens.breakpointMobile] … [breakpointUltraWide] with
-/// [Responsive] (from `breakpoints.dart`) or [BreakpointTokens] when the UI
-/// should **switch layout modes** at fixed widths (e.g. one column vs two,
-/// bottom nav vs side rail, toolbar overflow). Breakpoints answer “which layout?”;
-/// [panelWidthFromFraction] and [dialogMaxWidth] answer “how wide in this
-/// layout?”.
-///
-/// Shell chrome heights and nav-vs-bottom thresholds live in
-/// [ShellChromeMetrics], not here.
-///
-/// Not to be confused with [AdaptiveDialogConstraints.clampPanelWidth], which
-/// answers a different question — it reads the viewport off a [BuildContext]
-/// and caps a *design* width, where this takes the available width and a
-/// fraction of it.
+/// Breakpoints answer "which layout?"; this answers "how wide in this layout?".
+/// Not [AdaptiveDialogConstraints.clampPanelWidth], which reads the viewport off
+/// a [BuildContext] and caps a *design* width.
 double panelWidthFromFraction(
   double available, {
   required double fraction,

@@ -1,5 +1,3 @@
-// Part of ../framing_controls.dart -- extracted for maintainability.
-//
 // Preview FOV slider, presets and equipment FOV overlay controls.
 part of '../framing_controls.dart';
 

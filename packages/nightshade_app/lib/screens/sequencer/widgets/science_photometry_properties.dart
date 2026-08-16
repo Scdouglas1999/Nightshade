@@ -154,10 +154,9 @@ class _SciencePhotometryPropertiesState
     notifier.updateNode(mutate(widget.node));
   }
 
-  /// PHASE-5: SciencePhotometryNode.copyWith now uses plain
-  /// `?? this.gain` / `?? this.offset` semantics, so a null arg no
-  /// longer clears. Clearing back to "use device default" requires
-  /// rebuilding a fresh node.
+  /// `SciencePhotometryNode.copyWith` uses plain `?? this.gain` /
+  /// `?? this.offset` semantics, so a null arg does not clear. Clearing back to
+  /// "use device default" requires rebuilding a fresh node.
   void _clearGainOrOffset({bool clearGain = false, bool clearOffset = false}) {
     final n = widget.node;
     ref.read(currentSequenceProvider.notifier).updateNode(

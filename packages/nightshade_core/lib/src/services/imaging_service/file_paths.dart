@@ -12,10 +12,9 @@ extension _ImagingServiceFilePaths on ImagingService {
   /// directory. This matches the convention implemented by the Rust
   /// `FilenameGenerator` in `native/nightshade_native/imaging/src/naming.rs`.
   ///
-  /// All `$VARIABLE` tokens are validated against [_patternVariables]; any
-  /// unknown token raises an [Exception] (errors are a feature here:
-  /// silently leaving e.g. `$BANANA` in the filename would hide a typo in the
-  /// user's pattern for weeks).
+  /// All `$VARIABLE` tokens are validated against [_patternVariables]; an
+  /// unknown token raises an [Exception] rather than leaving `$BANANA` in the
+  /// filename, where a typo in the operator's pattern would go unnoticed.
   ///
   /// Date/time substitutions (`$DATE`, `$TIME`, `$DATETIME`) use **UTC** so
   /// the path matches the FITS `DATE-OBS` keyword written by the Rust

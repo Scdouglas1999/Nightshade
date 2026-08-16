@@ -334,12 +334,11 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    // Scrub against the track's own width. The drag used to be
-                    // measured off the whole control row and corrected with a
-                    // hardcoded 100/200px for the transport buttons, which is
-                    // only ever an estimate — the speed selector is optional
-                    // and its label width varies — so the frame you landed on
-                    // never matched the thumb you dragged.
+                    // Scrub against the TRACK's own width. Measuring off the
+                    // whole control row needs a hardcoded correction for the
+                    // transport buttons, which is only ever an estimate — the
+                    // speed selector is optional and its label width varies —
+                    // so the frame landed on would not match the thumb dragged.
                     final trackWidth = constraints.maxWidth;
                     return GestureDetector(
                       onHorizontalDragStart: (_) {

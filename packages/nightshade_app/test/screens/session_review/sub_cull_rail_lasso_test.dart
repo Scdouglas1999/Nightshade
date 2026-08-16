@@ -2,10 +2,10 @@
 //
 // The lasso selects subs by computing the grid geometry analytically and must
 // match the real GridView's SliverGridDelegateWithMaxCrossAxisExtent layout
-// exactly — otherwise a rubber-band drag rejects the wrong frames. The previous
-// formula added `+ spacing` to the numerator and produced one extra column at
-// widths near an exact multiple of (maxExtent + spacing). This asserts the
-// rail's column count equals Flutter's delegate at those boundary widths.
+// exactly — otherwise a rubber-band drag rejects the wrong frames. Adding
+// `+ spacing` to the numerator produces one extra column at widths near an exact
+// multiple of (maxExtent + spacing), so this asserts the rail's column count
+// equals Flutter's delegate at those boundary widths.
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,7 +60,8 @@ void main() {
       flutterColumns(boundary),
       reason: 'column count must match Flutter at the exact boundary width',
     );
-    // Flutter lays out 2 columns at 432 (ceil(432/216)); the old formula gave 3.
+    // Flutter lays out 2 columns at 432 (ceil(432/216)); a `+ spacing` in the
+    // numerator gives 3.
     expect(SubCullRail.lassoGridColumns(boundary), 2);
   });
 

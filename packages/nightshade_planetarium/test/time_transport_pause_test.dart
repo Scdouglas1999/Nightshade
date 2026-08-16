@@ -1,12 +1,11 @@
-// Regression: SKY-1 — the transport's pause said "paused" and the clock kept
-// running.
+// The transport's pause stops the clock.
 //
-// Found live: clicked pause at 08:52:23 and 112 s later the readout said
-// 08:54:15, still showing the play glyph — exactly 1x wall rate. The time model
-// advances by `speedMultiplier` seconds per tick whenever it is not following
-// the wall clock, and pause only cleared `isRealTime`, leaving the multiplier
-// at 1.0. So every altitude, framing decision and screenshot taken while
-// "paused" was against a moving sky.
+// Pausing at 08:52:23 must not leave the readout at 08:54:15 112 s later, still
+// showing the play glyph — exactly 1x wall rate. The time model advances by
+// `speedMultiplier` seconds per tick whenever it is not following the wall
+// clock, so clearing only `isRealTime` leaves the multiplier at 1.0 and every
+// altitude, framing decision and screenshot taken while "paused" is against a
+// moving sky.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

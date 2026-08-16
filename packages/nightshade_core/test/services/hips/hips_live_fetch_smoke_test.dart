@@ -44,11 +44,10 @@
 // (`HttpOverrides.global = null`, restored in tearDown), letting the real
 // platform [HttpClient] back in. Nothing changes when the gate is closed.
 //
-// Errors are a feature: a live endpoint that is unreachable, returns a non-200,
-// or serves an undecodable body throws a typed [HipsFetchException] out of C5
-// and fails this test loudly — which is the whole point of running it. There is
-// no silent skip-on-network-error fallback; if you asked for the live check you
-// get a real pass/fail.
+// A live endpoint that is unreachable, returns a non-200, or serves an
+// undecodable body throws a typed [HipsFetchException] and fails this test.
+// There is no skip-on-network-error fallback: an opt-in live check gives a real
+// pass or fail.
 @Tags(['live-network'])
 library;
 
@@ -243,23 +242,20 @@ void main() {
       }
     });
 
-    test(
-      'a missing tile surfaces a typed HTTP error (errors are a feature)',
-      () async {
-        final props = await fetcher.fetchProperties(baseUrl);
-        final format = props.preferredFormat;
+    test('a missing tile surfaces a typed HTTP error', () async {
+      final props = await fetcher.fetchProperties(baseUrl);
+      final format = props.preferredFormat;
 
-        // Address a tile one order *beyond* the published maximum. The pyramid
-        // has no such order, so the live server must answer non-200 and C5 must
-        // surface it as a typed [HipsFetchHttpException] — never a silent blank.
-        final missingOrder = props.hipsOrder + 1;
-        final id = HipsTileId(survey: surveyId, norder: missingOrder, npix: 0);
+      // Address a tile one order *beyond* the published maximum. The pyramid
+      // has no such order, so the live server must answer non-200 and C5 must
+      // surface it as a typed [HipsFetchHttpException] — never a silent blank.
+      final missingOrder = props.hipsOrder + 1;
+      final id = HipsTileId(survey: surveyId, norder: missingOrder, npix: 0);
 
-        await expectLater(
-          fetcher.fetchTile(id, baseUrl, format),
-          throwsA(isA<HipsFetchHttpException>()),
-        );
-      },
-    );
+      await expectLater(
+        fetcher.fetchTile(id, baseUrl, format),
+        throwsA(isA<HipsFetchHttpException>()),
+      );
+    });
   }, skip: skipReason);
 }

@@ -1,12 +1,12 @@
 // A "successful" solve with no usable geometry is not a solution.
 //
-// Live finding IMG-4: the Annotate chip went "Searching catalogs…" →
-// "Found 0 objects" in the green success treatment on a frame the solver had
-// not solved — no .wcs on disk, the viewport's own sky readout still "Sky --".
-// "Found 0 objects" is a statement about the sky; a user who trusts it concludes
-// their field is empty rather than that solving is broken. The pipeline only
-// checked the success flag, so a result carrying no field scale still became a
-// catalog search over a field of zero size, which of course returns nothing.
+// Checking only the success flag lets the Annotate chip go "Searching
+// catalogs…" → "Found 0 objects" in the green success treatment on a frame the
+// solver did not solve — no .wcs on disk, the viewport's own sky readout still
+// "Sky --". "Found 0 objects" is a statement about the sky; a user who trusts it
+// concludes their field is empty rather than that solving is broken. A result
+// carrying no field scale becomes a catalog search over a field of zero size,
+// which returns nothing.
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -165,14 +165,12 @@ void main() {
     expect(state.objectsFound, greaterThan(0));
   });
 
-  // Wave D re-drive of IMG-4: the chip still read a green "Found 0 objects"
-  // over a frame the app would not put on the sky. The remaining hole was the
-  // FIELD SIZE, not the centre or the scale: the local ASTAP/astrometry
-  // parsers recover position and scale only and leave the field at zero, and
-  // the catalog search radius is derived from the field — so a solve with a
-  // perfectly good centre searched a cone of radius ZERO and returned nothing.
-  // "Found 0 objects" then described the operator's sky rather than the app's
-  // arithmetic.
+  // The FIELD SIZE is the other half, separate from the centre and the scale:
+  // the local ASTAP/astrometry parsers recover position and scale only and leave
+  // the field at zero, and the catalog search radius is derived from the field,
+  // so a solve with a perfectly good centre searches a cone of radius ZERO and
+  // returns nothing. "Found 0 objects" then describes the operator's sky rather
+  // than the app's arithmetic.
   test(
     'a solve with a scale but no field size still finds its objects',
     () async {

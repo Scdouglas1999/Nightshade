@@ -9,14 +9,12 @@ import '../../equipment/mount_state_provider.dart';
 import '../../settings_provider.dart';
 import '../sequence_validation.dart';
 
-// =============================================================================
 // Sky-readiness rules — will this run, started right now, actually see sky?
-// =============================================================================
 //
-// Every rule here answers a question pre-flight was silently getting wrong: the
-// dialog said "Ready with Warnings" for runs the engine refuses categorically
-// (daylight), for runs it judges against Null Island (no observing site), and
-// for runs that expose at whatever the mount happened to be pointing at.
+// Without them, pre-flight reports "Ready with Warnings" for runs the engine
+// refuses categorically (daylight), for runs it judges against Null Island (no
+// observing site), and for runs that expose at whatever the mount happens to be
+// pointing at.
 
 /// The Sun altitude above which the executor refuses on-sky light frames.
 ///

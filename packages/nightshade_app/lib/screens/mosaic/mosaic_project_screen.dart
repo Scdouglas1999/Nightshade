@@ -17,7 +17,7 @@ import 'mosaic_format.dart';
 import 'mosaic_project_controller.dart';
 import 'widgets/mosaic_panel_grid.dart';
 
-/// Present the WS4 consent sheet (license + anonymity opt-in) and, if the user
+/// Present the consent sheet (license + anonymity opt-in) and, if the user
 /// confirms, upload either one panel ([panelIndex] set) or every
 /// integrated-but-unuploaded panel under the chosen license/attribution. A
 /// cancelled sheet ships nothing — no panel master leaves the device without an
@@ -79,9 +79,8 @@ Future<void> _confirmForceRelease(
 /// Resolves the DURABLE per-app base directory for mosaic artifacts —
 /// `<applicationSupport>/nightshade_mosaic`. Panel masters and the stitched
 /// mosaic FITS/PNG land under a per-project subfolder of this so they SURVIVE
-/// reboots and OS temp-dir sweeps (the old `Directory.systemTemp` default was a
-/// data-loss footgun: panel masters and the stitched mosaic could vanish the
-/// moment the OS cleaned temp).
+/// reboots and OS temp-dir sweeps — under `Directory.systemTemp` they can
+/// vanish the moment the OS cleans temp.
 ///
 /// Bounded: a platform channel that never answers must become a visible error
 /// on the screen, not a spinner that outlives the session.
@@ -348,17 +347,17 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                   panels: state.panels,
                   panelMasters: state.panelMasters,
                   cols: project.cols,
-                  // WS2 — surface per-panel claim/upload once the project is a
+                  // Surface per-panel claim/upload once the project is a
                   // published collaborative mosaic and a hub service is wired.
                   collaborative: controller.canCollaborate && state.isPublished,
                   collaborativeBusy: state.isBusy,
                   onClaimPanel: controller.claimPanel,
-                  // WS2 self-release: whoever holds the baton hands it back
+                  // Self-release: whoever holds the baton hands it back
                   // themselves. Not gated on role and not confirm-guarded — it
                   // is reversible (re-claim) and the hub only accepts it from
                   // the claim's own account.
                   onReleasePanel: controller.releasePanel,
-                  // WS2 owner/admin recovery: evict a squatting claim or a
+                  // Owner/admin recovery: evict a squatting claim or a
                   // poisoned upload back to pending. Only the owner path gets the
                   // callback (the grid hides the button when it is null), so a
                   // non-owner never sees an always-failing destructive action; a
@@ -366,7 +365,7 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                   onForceReleasePanel: state.project?.collabRole == 'owner'
                       ? (idx) => _confirmForceRelease(context, controller, idx)
                       : null,
-                  // WS4: route the per-panel upload through the consent sheet
+                  // Route the per-panel upload through the consent sheet
                   // rather than calling the service with a silent default.
                   onUploadPanel: (idx) => _uploadMosaicWithConsent(
                     context,
@@ -412,12 +411,10 @@ class _BackBar extends StatelessWidget {
     // promise "Mosaic projects" in the one case where it really goes there:
     // an empty stack, where _leave falls back to context.go('/mosaic').
     final label = Navigator.of(context).canPop() ? 'Back' : 'Mosaic projects';
-    // NEW-E1: this was an IconButton followed by a bare Text in a Row, so the
-    // WORD was not part of the control — clicking it did nothing (twice, with
-    // 6 s and 10 s settles), only the 24 px chevron popped — and the a11y tree
-    // published `panel: Back` with no role while the projects list one route
-    // below published `button: Back`. One control, label included: the larger
-    // target is now the affordance it looks like.
+    // ONE tap target covering the whole affordance, label included. An
+    // IconButton beside a bare Text leaves the WORD outside the control, so
+    // only the 24 px chevron responds and the a11y tree publishes a role-less
+    // panel where the neighbouring route publishes a button.
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceSm,
@@ -502,10 +499,9 @@ class MosaicProjectHeader extends StatelessWidget {
   /// The panel-count claim, counted from the panels that actually EXIST.
   ///
   /// `project.totalPanels` is `rows * cols`, but a project created with cells
-  /// disabled in the wizard persists a sparse panel set — so the header used to
-  /// announce "9 panels" directly above a grid of 8 and an action row reading
-  /// "3 of 8 panels integrated". When the two disagree, say both: the grid is
-  /// still NxM, but only some of its cells are planned.
+  /// disabled in the wizard persists a sparse panel set, so the two can differ.
+  /// When they do, say both: the grid is still NxM, but only some of its cells
+  /// are planned.
   static String _panelCountLabel(
     MosaicProject project,
     List<MosaicProjectPanel> panels,
@@ -650,8 +646,8 @@ class MosaicProjectActions extends StatelessWidget {
   }
 }
 
-/// Collaborative Sky WS2 — the distributed-mosaic lifecycle card on the owner /
-/// participant project view. It surfaces the whole publish → claim → upload →
+/// The distributed-mosaic lifecycle card on the owner / participant project
+/// view. It surfaces the whole publish → claim → upload →
 /// assemble → download loop by invoking the already-wired
 /// [MosaicProjectController] collaborative actions; it owns no hub logic of its
 /// own.

@@ -62,11 +62,10 @@ extension _StackRunHelpers on StackAndShareService {
   /// selector offered.
   ///
   /// [StackSelectionSummary.totalIntegrationSecs] is fixed before the engine
-  /// runs, so it counts subs the stacker went on to refuse. Now that a refused
-  /// sub is skipped instead of killing the run, quoting it would overstate the
-  /// integration on every stack that rejected anything — on the result screen,
-  /// in the AstroBin sidecar, and on the Share Card the user posts publicly.
-  /// The claim has to describe the master that was built.
+  /// runs, so it counts subs the stacker went on to refuse. Quoting it would
+  /// overstate the integration on every stack that rejected anything — on the
+  /// result screen, in the AstroBin sidecar, and on the Share Card the operator
+  /// posts publicly. The claim has to describe the master that was built.
   ///
   /// Identical to the selection-wide total when nothing is rejected: both sum
   /// the same per-frame exposure over the same frames.
@@ -128,8 +127,8 @@ extension _StackRunHelpers on StackAndShareService {
   ///
   /// For `sensorMode == 'osc'` an unresolvable pattern is a hard [StateError]:
   /// debayering with a guessed pattern would scramble the colour mosaic, so the
-  /// run refuses rather than silently producing a wrong-colour stack ("errors
-  /// are a feature"). For `auto`, leaving the pattern null is fine — the native
+  /// run refuses rather than silently producing a wrong-colour stack. For
+  /// `auto`, leaving the pattern null is fine — the native
   /// engine only debayers when the frame actually carries Bayer geometry and
   /// otherwise treats the frame as mono. For `mono`, no resolution is needed.
   Future<LiveStackingConfig> _resolveStackingConfig({

@@ -2,10 +2,6 @@
 
 part of '../../sequence_models.dart';
 
-// =============================================================================
-// COVER CALIBRATOR / FLAT PANEL NODES
-// =============================================================================
-
 /// Open cover instruction - opens a motorized dust cover / flat panel cover
 class OpenCoverNode extends SequenceNode {
   final int timeoutSecs;
@@ -226,9 +222,7 @@ class CalibratorOffNode extends SequenceNode {
   List<Object?> get props => [...super.props, timeoutSecs];
 }
 
-// =============================================================================
 // TargetScheduler — dynamic target picker
-// =============================================================================
 
 /// Brightness tier hint mirrored from
 /// `crate::scheduling::adaptive_swap::BrightnessTier`. Used by

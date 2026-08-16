@@ -10,9 +10,8 @@ import 'package:nightshade_core/src/services/science/narrator/narrator_service.d
 /// Service-level wiring test: builds a [NarratorService] over a
 /// [ProviderContainer] whose pull-sources are overridden with synthetic data,
 /// and asserts that [NarratorService.buildContextForTest] surfaces each pulled
-/// input into the [NarratorContext]. This is the regression guard that the
-/// detectors actually receive real data (the bug that motivated the rewrite:
-/// `lightCurve`, `diagnostics`, and `filterIntegration` were hardcoded empty).
+/// input into the [NarratorContext], so the detectors receive real data rather
+/// than a hardcoded-empty `lightCurve`, `diagnostics` or `filterIntegration`.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

@@ -91,12 +91,10 @@ class SequencerRunVitals {
   final int ditherCount;
   final List<String> warningMessages;
 
-  /// Errors recorded against the live run.
-  ///
-  /// The wire shape used to carry warnings only, so a remote/headless operator
-  /// could not see that (for example) a meridian flip had failed — the run read
-  /// as healthy right up to the terminal event. Defaulted to `const []` so an
-  /// older master that omits the key still deserializes.
+  /// Errors recorded against the live run, so a remote/headless operator sees
+  /// a failure (a meridian flip, say) before the terminal event rather than
+  /// reading the run as healthy. Defaults to `const []` so an older master
+  /// that omits the key still deserializes.
   final List<String> errorMessages;
 
   const SequencerRunVitals({

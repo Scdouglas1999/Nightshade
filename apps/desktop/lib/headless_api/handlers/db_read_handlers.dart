@@ -56,7 +56,7 @@ import 'package:shelf/shelf.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
 
-/// read handlers for tables previously invisible to the phone.
+/// Read handlers for the DB tables the phone reads directly.
 class DbReadHandlers {
   /// Default page size. Same value as the science / calibration read
   /// surfaces use, so phone callers can apply one batching policy.
@@ -107,9 +107,7 @@ class DbReadHandlers {
     return double.tryParse(raw);
   }
 
-  // =========================================================================
   // Sequence run history
-  // =========================================================================
 
   Future<Response> handleListSequenceRuns(Request request) async {
     _logInfo('[API] GET /api/sequence-runs');
@@ -144,14 +142,12 @@ class DbReadHandlers {
     };
   }
 
-  // =========================================================================
   // Notes journal (observation_logs)
   //
   // The task spec said "?sessionId=" — but the underlying observation_logs
   // table is per-equipment-profile, not per-imaging-session. We expose
   // the actual column (equipmentProfileId) so the phone gets a filter
   // that matches reality instead of a silent no-op on a fake key.
-  // =========================================================================
 
   Future<Response> handleListNotesJournal(Request request) async {
     _logInfo('[API] GET /api/notes-journal');
@@ -263,9 +259,7 @@ class DbReadHandlers {
     };
   }
 
-  // =========================================================================
   // Guide-RMS history
-  // =========================================================================
 
   Future<Response> handleListGuideRmsHistory(Request request) async {
     _logInfo('[API] GET /api/guide-rms-history');
@@ -309,9 +303,7 @@ class DbReadHandlers {
     };
   }
 
-  // =========================================================================
   // Polar alignment history
-  // =========================================================================
 
   Future<Response> handleListPolarAlignmentHistory(Request request) async {
     _logInfo('[API] GET /api/polar-alignment-history');
@@ -352,13 +344,11 @@ class DbReadHandlers {
     };
   }
 
-  // =========================================================================
   // Journal notes (notes_journal — the operator's per-target / per-run
   // notes). Distinct from /api/notes-journal, which despite its name serves
   // the observation_logs table. The notes_journal table lives outside
   // @DriftDatabase and is read through NotesService's raw SQL, so we serve
   // it here with the same JournalNote.toJson shape the slave decodes.
-  // =========================================================================
 
   Future<Response> handleListJournalNotes(Request request) async {
     _logInfo('[API] GET /api/db/notes');
@@ -456,9 +446,7 @@ class DbReadHandlers {
     return jsonOk({'status': 'deleted', 'id': id});
   }
 
-  // =========================================================================
   // Dark library (paginated read)
-  // =========================================================================
 
   Future<Response> handleListDarkLibrary(Request request) async {
     _logInfo('[API] GET /api/db/dark-library');
@@ -511,9 +499,7 @@ class DbReadHandlers {
     };
   }
 
-  // =========================================================================
   // Flat history (paginated read)
-  // =========================================================================
 
   Future<Response> handleListFlatHistory(Request request) async {
     _logInfo('[API] GET /api/db/flat-history');
@@ -564,9 +550,7 @@ class DbReadHandlers {
     };
   }
 
-  // =========================================================================
   // Replay scrubber endpoints (single run + per-run events/frames).
-  // =========================================================================
 
   /// Parse a path-segment integer with translation to a structured 400.
   /// The existing `_parseOptionalInt` returns null for invalid input,

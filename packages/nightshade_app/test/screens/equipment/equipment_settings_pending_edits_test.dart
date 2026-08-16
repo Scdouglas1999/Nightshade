@@ -1,16 +1,13 @@
-// Equipment Settings mixes two save models in one dialog and used to give the
-// operator no way to tell them apart.
-//
-// Live finding: Camera / Mount / Focuser save on edit; the Built-in Guider
-// block alone has Reset + Apply. Its Apply looked identical whether or not
-// anything was waiting to be sent, so eight hand-typed numbers could be
-// abandoned by closing the dialog with nothing on screen having said so.
+// Equipment Settings mixes two save models in one dialog, so the difference has
+// to be structural: Camera / Mount / Focuser save on edit, while the Built-in
+// Guider block alone has Reset + Apply.
 //
 // The guider genuinely cannot save on edit — it pushes eight interdependent
-// values to a guider that may be running right now, and a half-typed max-pulse
-// reaching a live mount is exactly what atomic Apply prevents. So the fix makes
-// the difference structural: Apply is live only while something is pending, and
-// a pending state says so.
+// values to a guider that may be running, and a half-typed max-pulse reaching a
+// live mount is what atomic Apply prevents. So Apply is live ONLY while
+// something is pending, and the pending state says so; otherwise eight
+// hand-typed numbers can be abandoned by closing the dialog with nothing on
+// screen having said so.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';

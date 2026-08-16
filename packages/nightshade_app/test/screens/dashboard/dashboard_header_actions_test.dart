@@ -1,13 +1,11 @@
-// Regression: "Edit Dashboard" must not offer to arrange a dashboard the user
-// cannot see.
+// "Edit Dashboard" must not offer to arrange a dashboard the user cannot see.
 //
 // With zero devices connected the dashboard shows the standby briefing —
 // TONIGHT'S BRIEFING, the twilight bar, Tonight's targets, Readiness, Last run,
-// Moon. Pressing Edit Dashboard replaced all of it with a different set of six
-// cockpit tiles (Target, Live frame, Guiding, Equipment, Safety, Recent events),
-// none of which were on the page, and offered to arrange those. Pressing Done
-// brought the briefing back. So in that state there was no way to configure any
-// tile the dashboard actually showed.
+// Moon. Swapping that for the six cockpit tiles (Target, Live frame, Guiding,
+// Equipment, Safety, Recent events) on Edit offers to arrange a set that is not
+// on the page, and leaves no way to configure any tile the dashboard actually
+// shows.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/dashboard_header_actions.dart';

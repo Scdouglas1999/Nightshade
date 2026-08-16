@@ -11,26 +11,17 @@ enum FrameQualityDisposition { keep, review, autoReject }
 
 /// How the assessor should treat its own "auto-reject" recommendation.
 ///
-/// Background (audit ): the previous `mlConfidence` value was a
-/// hand-tuned logistic with hardcoded coefficients masquerading as a
-/// trained model. It silently flipped frames to `autoReject` at
-/// score >= 0.88. There is no model, no labelled training data, no
-/// per-camera calibration. To stop misrepresenting that signal, the
-/// service now exposes the score as `heuristicScore` and the disposition
-/// is gated on this mode.
+/// The score behind the recommendation is a hand-tuned heuristic, not a
+/// trained model (see [FrameQualityAssessmentService.computeHeuristicScore]),
+/// so escalating it to a rejection is the operator's choice:
 ///
-/// Modes:
-/// - [off]      The heuristic is computed and surfaced, but never escalates
-///              the disposition beyond `keep` / `review`. Use when the user
-///              wants to do their own grading.
-/// - [advisory] (default) Frames flagged by the heuristic are surfaced as
-///              `review` with a reason explaining why, but the disposition
-///              never becomes `autoReject`. The user (or a sequencer rule)
-///              makes the actual reject decision.
-/// - [auto]    Legacy behaviour: heuristic score >= 0.88 (or severe issues
-///              plus a very low advisory score) flips the disposition to
-///              `autoReject`. Existing users that opted into this behaviour
-///              keep it; new installs default to [advisory].
+/// - [off]      The heuristic is computed and surfaced but never escalates the
+///              disposition beyond `keep` / `review`.
+/// - [advisory] (default) Flagged frames are surfaced as `review` with a
+///              reason; the disposition never becomes `autoReject`. The user
+///              or a sequencer rule makes the reject decision.
+/// - [auto]     Heuristic score >= 0.88 (or severe issues plus a very low
+///              advisory score) flips the disposition to `autoReject`.
 enum FrameGradingMode { off, advisory, auto }
 
 /// Result of quality assessment for a single frame.
@@ -136,10 +127,9 @@ class FrameQualitySummary {
 /// does not change frame acceptance flags.
 class FrameQualityAssessmentService {
   /// How aggressively the service is allowed to escalate its own
-  /// recommendation. Defaults to [FrameGradingMode.advisory] (audit
-  /// ): the heuristic is shown but the user owns the reject
-  /// decision. Existing users that explicitly chose [FrameGradingMode.auto]
-  /// keep the legacy behaviour.
+  /// recommendation. Defaults to [FrameGradingMode.advisory]: the heuristic is
+  /// shown but the user owns the reject decision. A user who explicitly chooses
+  /// [FrameGradingMode.auto] gets automatic grading.
   final FrameGradingMode gradingMode;
 
   const FrameQualityAssessmentService({
@@ -381,12 +371,11 @@ class FrameQualityAssessmentService {
 
   /// Compute a heuristic quality score in [0, 1] for a frame.
   ///
-  /// IMPORTANT (audit ): this is NOT a trained model. It is a
-  /// hand-tuned logistic with hardcoded coefficients, identical across
-  /// all cameras and all telescopes. It was previously misrepresented as
-  /// `mlConfidence`. There is no labelled training data, no per-camera
-  /// calibration, and no fit procedure behind the coefficients - they
-  /// were picked by hand to roughly track "this frame looks bad".
+  /// This is NOT a trained model: it is a hand-tuned logistic with hardcoded
+  /// coefficients, identical across all cameras and telescopes. There is no
+  /// labelled training data, no per-camera calibration, and no fit procedure
+  /// behind the coefficients — they were picked by hand to roughly track "this
+  /// frame looks bad".
   ///
   /// Inputs (with fallbacks when the metric is missing):
   ///   - HFR ratio       = hfr / referenceHfr (or hfr / 2.6 px baseline)
@@ -434,13 +423,11 @@ class FrameQualityAssessmentService {
   }
 }
 
-// ============================================================================
 // Image Grading: structured runtime decisions surfaced from the
 // Rust sequencer's per-frame grading. The advisory `FrameQualityAssessment`
 // above remains for post-capture review; these structures carry the
 // real-time accept/reject signal that the Run Dashboard quality panel
 // listens for.
-// ============================================================================
 
 /// Outcome of a runtime image-grading decision.
 enum FrameGradeDecision {
@@ -454,12 +441,10 @@ enum FrameGradeDecision {
 /// Real-time grading event payload emitted by the sequencer after each
 /// frame is graded.
 ///
-/// The previous implementation parsed `InstructionProgress.detail`
-/// with regex (`tryParseDetail`). That helper has been removed — events
-/// are now constructed directly from the typed `SequencerEvent_FrameAccepted`
-/// / `SequencerEvent_FrameRejected` payloads via [FrameGradeEvent.fromTypedData].
-/// HFR / eccentricity / star count / consecutive-rejects survive the
-/// boundary instead of being silently dropped by the old format string.
+/// Built from the typed `SequencerEvent_FrameAccepted` /
+/// `SequencerEvent_FrameRejected` payloads via [FrameGradeEvent.fromTypedData],
+/// never by parsing `InstructionProgress.detail`, so HFR, eccentricity, star
+/// count and consecutive-rejects survive the boundary.
 class FrameGradeEvent {
   /// 1-based frame index within the current TakeExposure burst.
   final int frame;
@@ -533,8 +518,7 @@ class FrameGradeEvent {
           reason: '',
           // Surface the on-disk save_path for accepted
           // frames the same way `reject_path` already worked for
-          // rejected frames. Empty / missing falls back to null so
-          // legacy emit sites keep their old behaviour.
+          // rejected frames. Empty or missing means null.
           path: () {
             final raw = data['save_path'] as String?;
             return (raw == null || raw.isEmpty) ? null : raw;

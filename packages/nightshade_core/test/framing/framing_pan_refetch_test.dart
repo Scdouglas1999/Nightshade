@@ -202,14 +202,13 @@ void main() {
 
     test('threshold uses the DRAWN canvas width, not the native image pixel '
         'width (small cutout on a large canvas does not over-trigger)', () async {
-      // Regression guard for the old canvas-independent fallback, which divided
-      // the pan by the native image pixel width: a tiny cached cutout drawn
-      // large would then over-count pan by ~(drawnWidth / nativeWidth) and
-      // re-center almost immediately. Here a 100px-wide cutout (4deg FOV) is
-      // drawn fit-to-canvas onto a 960x720 canvas, so it is rendered at 720px
-      // wide => 180 px/deg. A 50px pan is therefore 0.278deg — far under the
-      // 35% * 4deg = 1.4deg threshold — even though the SAME 50px on the
-      // native 100px image would have been a (wrong) 2.0deg under the old math.
+      // A canvas-independent fallback that divides the pan by the native image
+      // pixel width over-counts pan by ~(drawnWidth / nativeWidth) for a tiny
+      // cached cutout drawn large, and re-centers almost immediately. Here a
+      // 100px-wide cutout (4deg FOV) is drawn fit-to-canvas onto a 960x720
+      // canvas, so it renders 720px wide => 180 px/deg. A 50px pan is therefore
+      // 0.278deg — far under the 35% * 4deg = 1.4deg threshold — even though
+      // the SAME 50px on the native 100px image would read as 2.0deg.
       const raHours = 5.0;
       const decDegrees = 0.0;
       const fovWidthDeg = 4.0;

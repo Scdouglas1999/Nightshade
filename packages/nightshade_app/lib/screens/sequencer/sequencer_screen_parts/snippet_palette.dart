@@ -10,12 +10,11 @@ class _SnippetPaletteContent extends ConsumerWidget {
     return SnippetPalette(
       colors: colors,
       onSnippetTap: (snippet) {
-        // Trust-patch §B: insertSnippet can throw
-        // SnippetDeserializationException for unknown node types and
-        // SequenceLockedException while a run is in flight. Both must
-        // be caught with user-visible feedback — pre-patch they would
-        // pop a red Flutter error overlay. The mutator helper handles
-        // both as a structured dialog + snackbar.
+        // insertSnippet can throw SnippetDeserializationException for
+        // unknown node types and SequenceLockedException while a run is in
+        // flight. Uncaught, either pops a red Flutter error overlay, so both
+        // are caught with user-visible feedback: the mutator helper renders a
+        // structured dialog + snackbar.
         withSequenceMutation(
           context,
           ref,

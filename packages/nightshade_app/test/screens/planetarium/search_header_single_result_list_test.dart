@@ -1,12 +1,11 @@
-// Regression: SKY-7 — the planetarium search drew two result lists at once.
+// The planetarium search must not draw two result lists at once.
 //
-// Found live. Typing M31 produced a narrow floating panel ("74 results / Deep
-// Sky Objects (25) / M31 / M41 / ...") painted on top of a wider list whose
-// rows showed through the right edge as clipped fragments and continued below
-// it; the front list's last visible row was cut mid-row. The accessibility tree
-// carried both at once. Cause: `SearchHeader` opens its own typeahead overlay
-// while the plan panel it sits above renders the same results in its Search
-// tab.
+// `SearchHeader` opens its own typeahead overlay while the plan panel it sits
+// above renders the same results in its Search tab, so typing M31 gives a narrow
+// floating panel ("74 results / Deep Sky Objects (25) / M31 / M41 / ...")
+// painted on top of a wider list whose rows show through the right edge as
+// clipped fragments and continue below it, with the front list's last visible
+// row cut mid-row and the accessibility tree carrying both.
 //
 // The coordinate branch has no equivalent below it and must survive: it is the
 // only way to fly to a typed RA/Dec.

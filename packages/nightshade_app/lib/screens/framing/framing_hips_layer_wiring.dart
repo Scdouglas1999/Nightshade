@@ -94,11 +94,10 @@ class FramingHipsLayerWiring extends ConsumerWidget {
               .select((snapshot) => snapshot.hasAnyImagery),
         );
 
-    // The credit is shown whenever THIS SURVEY'S IMAGERY IS ON SCREEN, by either
-    // delivery path. It used to be gated on the tile layer being ACTIVE, so
-    // selecting 2MASS / SDSS / WISE / DSS2 IR streamed publisher imagery with no
-    // credit anywhere on the canvas — this widget returned SizedBox.shrink()
-    // before it ever looked at whether imagery was visible.
+    // The credit is shown whenever THIS SURVEY'S IMAGERY IS ON SCREEN, by
+    // either delivery path. Gating it on the tile layer being ACTIVE instead
+    // would stream publisher imagery (2MASS / SDSS / WISE / DSS2 IR) with no
+    // credit anywhere on the canvas.
     final hasImagery = hasTileImagery || hasCutoutImagery;
 
     // Contribute nothing at all when there is neither an active tile layer nor

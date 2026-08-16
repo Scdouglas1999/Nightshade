@@ -51,9 +51,7 @@ class SessionHandlers {
     return id;
   }
 
-  // ===========================================================================
-  // Polar Alignment
-  // ===========================================================================
+  // Polar alignment
 
   Future<Response> handleStartPolarAlignment(Request request) async {
     _logInfo('[API] POST /api/polar-alignment/start');
@@ -168,9 +166,7 @@ class SessionHandlers {
     return jsonOk({"status": "started"});
   }
 
-  // ===========================================================================
-  // Session Images
-  // ===========================================================================
+  // Session images
 
   Future<Response> handleGetSessionImages(
     Request request,

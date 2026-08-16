@@ -51,12 +51,11 @@ class _SessionReplayScreenState extends ConsumerState<SessionReplayScreen> {
     final override = widget.dataSourceOverride;
     if (override != null) return override;
     if (backend is! NetworkBackend) {
-      // The picker screen guards against this before opening the
-      // replay screen, so reaching here means a backend swap happened
-      // mid-navigation. Surface as a runtime error rather than
-      // silently faking a data source, errors are a
-      // feature, and replay on the FFI backend is genuinely not
-      // implemented.
+      // The picker screen guards against this before opening the replay
+      // screen, so reaching here means a backend swap happened mid-navigation.
+      // Throw rather than fake a data source: replay on the FFI backend is
+      // genuinely not implemented, and an empty timeline would read as a
+      // session with no frames.
       throw StateError(
         'Session replay requires NetworkBackend; got ${backend.runtimeType}',
       );

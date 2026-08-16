@@ -40,18 +40,15 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // mid-run: a crash, a force quit, or the power cut at 3am that this
         // kind of software has to expect.
         //
-        // Nothing ever cleared them, so they were permanent. Observed live:
-        // the run list reported 13 runs "running", the oldest 17 hours old,
-        // while /api/status simultaneously reported the sequencer `idle` —
-        // the app contradicting itself about whether it was imaging. A stale
-        // row is also what previously blocked the next run from starting.
+        // Left alone, such a row is permanent: the run list keeps reporting
+        // a run "running" while /api/status reports the sequencer idle, and a
+        // stale row blocks the next run from starting.
         //
-        // `ended_at` is deliberately left NULL. We do not know when the run
-        // actually stopped, and stamping "now" would invent a duration
-        // spanning the entire downtime. An unknown end time is the truth.
-        // 'paused' is a LIVE status too — written while an executor holds the
-        // run — so a process that died mid-pause leaves exactly the same
-        // permanently-stale row as one that died mid-exposure.
+        // `ended_at` stays NULL. When the run actually stopped is unknown,
+        // and stamping "now" would invent a duration spanning the whole
+        // downtime. 'paused' is a LIVE status too — written while an executor
+        // holds the run — so a process that died mid-pause leaves the same
+        // stale row as one that died mid-exposure.
         final interrupted = await customUpdate(
           "UPDATE sequence_runs SET status = 'interrupted' "
           "WHERE status IN ('running', 'paused')",
@@ -75,22 +72,18 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // is safely in `captured_images` with the right `session_id`.
         //
         // Analytics sums those counters, so the loss is user-visible and
-        // permanent. Observed live: 63 of 65 sessions sat at 0, and the
-        // summary reported 16 exposures / 48s of integration when the frames
-        // on record were 116 exposures / 374s — under-reporting total
-        // integration time, the headline number of the whole hobby, by 87%.
+        // permanent without this rebuild.
         //
         // `successful_exposures` is rebuilt alongside the total because it is
-        // what the Analytics HISTORY view counts: fixing only the total left
-        // every historical night still reading "0 frames / 0.0h" there.
+        // what the Analytics history view counts; rebuilding only the total
+        // leaves every historical night reading "0 frames / 0.0h" there.
         //
         // Only sessions that under-report AND demonstrably have frames are
-        // touched, so this can never overwrite a correctly-written richer
-        // count (a clean session's total legitimately also counts FAILED
-        // exposures, which leave no image row and must not be clobbered).
-        // `failed_exposures` is deliberately left alone — a failure writes no
-        // frame, so the rows on disk cannot tell us how many there were, and
-        // inventing a number would be its own falsehood.
+        // touched, so a correctly-written richer count is never overwritten (a
+        // clean session's total legitimately also counts FAILED exposures,
+        // which leave no image row). `failed_exposures` is left alone — a
+        // failure writes no frame, so the rows on disk cannot say how many
+        // there were.
         final rebuilt = await customUpdate(
           'UPDATE imaging_sessions SET '
           'total_exposures = (SELECT COUNT(*) FROM captured_images c '

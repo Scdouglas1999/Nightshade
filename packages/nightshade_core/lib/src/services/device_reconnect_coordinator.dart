@@ -22,12 +22,11 @@ import 'notification_service.dart';
 ///   * suppress-during-backend-swap state,
 ///   * the post-reconnect "should I resume a paused sequence?" check.
 ///
-/// Extracted from `DeviceService` ( + ) because the
-/// reconnect state machine had no business being inlined alongside the
-/// connect/disconnect command layer. DeviceService now drives this
-/// coordinator from its device-event handlers; the coordinator never
-/// reaches back into DeviceService's internals — sequencer pause/resume
-/// is the one place a callback is required and is injected explicitly.
+/// Separate from `DeviceService` so the reconnect state machine is not inlined
+/// alongside the connect/disconnect command layer. DeviceService drives this
+/// coordinator from its device-event handlers; the coordinator never reaches
+/// back into DeviceService's internals — sequencer pause/resume is the one
+/// place a callback is required and is injected explicitly.
 class DeviceReconnectCoordinator {
   DeviceReconnectCoordinator({
     required Ref ref,
@@ -308,9 +307,10 @@ class DeviceReconnectCoordinator {
     _reconnectionAttempts[reconnectKey] = attemptCount + 1;
 
     // Surface the "reconnecting" indicator for this Dart-owned device the
-    // moment we commit to an attempt, so the card reads "Reconnecting…"
-    // through the backoff window instead of falling back to gray
-    // "unknown" (the native HeartbeatReconnecting event is never emitted).
+    // moment an attempt is committed to, so the card reads "Reconnecting…"
+    // through the backoff window instead of falling back to gray "unknown".
+    // Nothing else covers it: the native HeartbeatReconnecting event is never
+    // emitted for these devices.
     _surfaceReconnecting(
       deviceId,
       attempt: attemptCount + 1,

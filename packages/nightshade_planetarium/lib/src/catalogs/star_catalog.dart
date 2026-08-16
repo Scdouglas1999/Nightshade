@@ -91,8 +91,7 @@ class HygStarCatalog extends Catalog<Star> {
   Future<List<Star>> loadObjects() async {
     final cached = _cachedStars;
     if (cached != null) return cached;
-    // One shared future rather than a poll loop: concurrent callers used to
-    // race, and whichever lost read _cachedStars at an arbitrary moment.
+    // One shared future so concurrent callers cannot race the cache.
     final inFlight = _inFlight;
     if (inFlight != null) return inFlight;
 
@@ -125,10 +124,8 @@ class HygStarCatalog extends Catalog<Star> {
       return _cachedStars = stars;
     } catch (e) {
       // A catalog file that will not parse is a broken install, not an empty
-      // sky. Returning [] here left the chart black while isUsingFallback
-      // stayed false, so nothing on screen said anything was wrong — and
-      // because nothing was cached, every rebuild re-ran the whole parse to
-      // fail again. Serve the built-in list and record why.
+      // sky: serve the built-in list, record why, and cache it so the failing
+      // parse is not re-run on every rebuild.
       developer.log(
         '[Catalog] Error loading stars in isolate: $e',
         name: 'StarCatalog',

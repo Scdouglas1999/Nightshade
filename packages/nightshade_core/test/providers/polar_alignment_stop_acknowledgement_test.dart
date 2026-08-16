@@ -1,12 +1,11 @@
 // Pressing Stop on a polar-alignment run must be answered on screen.
 //
-// Live finding IMG-12: with the run at "Plate solving point 1/3…", Stop
-// produced no change of any kind — same status, same button, elapsed counter
-// still climbing — and the run then ended in the error state with the solver's
-// own 30 s timeout, so the screen blamed the solver for a run the user had
-// stopped. The teardown itself is bounded (the backend stop awaits real
-// termination), but a bounded teardown with no acknowledgement is
-// indistinguishable from a click that was dropped.
+// Unacknowledged, Stop at "Plate solving point 1/3…" produces no change of any
+// kind — same status, same button, elapsed counter still climbing — and the run
+// then ends in the error state on the solver's own 30 s timeout, so the screen
+// blames the solver for a run the user stopped. The teardown itself is bounded
+// (the backend stop awaits real termination), but a bounded teardown with no
+// acknowledgement is indistinguishable from a click that was dropped.
 import 'dart:async';
 
 import 'package:drift/native.dart';

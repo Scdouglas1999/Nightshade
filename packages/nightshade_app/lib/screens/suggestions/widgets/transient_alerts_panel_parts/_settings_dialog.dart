@@ -1,11 +1,7 @@
-// Part of ../transient_alerts_panel.dart -- extracted for maintainability.
-//
 // Transient settings dialog and source labels.
 part of '../transient_alerts_panel.dart';
 
-// =============================================================================
-// Settings Dialog
-// =============================================================================
+// Settings dialog
 
 class _TransientSettingsDialog extends ConsumerStatefulWidget {
   @override
@@ -74,9 +70,10 @@ class _TransientSettingsDialogState
                         ),
                       ),
                     TransientSource.manual => null,
-                    // Ticking a source this build cannot poll used to look
-                    // exactly like subscribing to it, and then reported "No
-                    // active alerts" from a feed nobody ever asked.
+                    // A source this build cannot poll must not present as
+                    // subscribable: ticking it would look like a subscription
+                    // and then report "No active alerts" from a feed nobody
+                    // ever asked.
                     _ when !kFetchableTransientSources.contains(source) => Text(
                         'Not polled — this build has no live feed for it; '
                         'alerts from it can still be entered by hand',
@@ -211,13 +208,10 @@ class _TransientSettingsDialogState
                     color: colors.textPrimary,
                   ),
                 ),
-                // COL2-13: with the switch OFF this row still asserted a
-                // number — "brighter than mag 10" — while the control that
-                // sets it was hidden and the Magnitude Threshold slider two
-                // rows above read 8.0. The app was claiming it auto-queues
-                // objects two magnitudes fainter than the ones it will show.
-                // Off states the behaviour; on states the number, beside the
-                // slider that owns it.
+                // Off states the BEHAVIOUR; on states the number, beside the
+                // slider that owns it. Asserting a threshold while the control
+                // that sets it is hidden claims an auto-queue depth that need
+                // not match the Magnitude Threshold slider above.
                 subtitle: Text(
                   settings.autoQueueBright
                       ? 'Automatically adds transients brighter than mag '

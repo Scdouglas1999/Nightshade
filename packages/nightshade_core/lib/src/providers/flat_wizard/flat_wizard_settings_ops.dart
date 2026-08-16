@@ -3,9 +3,9 @@
 part of '../flat_wizard_provider.dart';
 
 /// Settings, filter-list and one-line state operations for
-/// [FlatWizardNotifier]. Split out of the notifier file verbatim.
+/// [FlatWizardNotifier].
 extension FlatWizardSettingsOps on FlatWizardNotifier {
-  // --- Mode Management ---
+  // Mode management
 
   void setMode(FlatWizardMode mode) {
     state = state.copyWith(mode: mode);
@@ -15,7 +15,7 @@ extension FlatWizardSettingsOps on FlatWizardNotifier {
     state = state.copyWith(twilightMode: mode);
   }
 
-  // --- Global Settings ---
+  // Global settings
 
   void updateGlobalSettings(FlatWizardGlobalSettings settings) {
     _settingsRevision++;
@@ -145,7 +145,7 @@ extension FlatWizardSettingsOps on FlatWizardNotifier {
     );
   }
 
-  // --- Filter Management ---
+  // Filter management
 
   /// Load filters from connected filter wheel
   Future<void> loadFiltersFromWheel() async {
@@ -331,7 +331,7 @@ extension FlatWizardSettingsOps on FlatWizardNotifier {
     state = state.copyWith(filterSettings: sorted);
   }
 
-  // --- Visualization Toggles ---
+  // Visualization toggles
 
   void toggleAduGraph(bool show) {
     state = state.copyWith(showAduGraph: show);
@@ -398,7 +398,7 @@ extension FlatWizardSettingsOps on FlatWizardNotifier {
     );
   }
 
-  // --- ADU History ---
+  // ADU history
 
   void addAduMeasurement(double exposure, double adu) {
     final measurement = AduMeasurement(
@@ -413,21 +413,20 @@ extension FlatWizardSettingsOps on FlatWizardNotifier {
     state = state.copyWith(aduHistory: []);
   }
 
-  // --- Image Preview ---
+  // Image preview
 
   /// Publish the frame the preview panel should show.
   ///
   /// Typed on purpose. The panel needs the frame's dimensions to render it, so
-  /// bare display bytes are unrenderable and were silently dropped: the largest
-  /// element on the wizard read "No flat captured yet" for an entire run while
-  /// frames were landing on disk. `lastImageData` is `Object?` on the state
-  /// (it is runtime-only and never serialised), so the type has to be enforced
-  /// here.
+  /// bare display bytes are unrenderable and get dropped silently: the largest
+  /// element on the wizard then reads "No flat captured yet" for an entire run
+  /// while frames land on disk. `lastImageData` is `Object?` on the state (it
+  /// is runtime-only and never serialised), so the type is enforced here.
   void setLastImage(String? path, CapturedImageResult? imageData) {
     state = state.copyWith(lastImagePath: path, lastImageData: imageData);
   }
 
-  // --- Filter Progress ---
+  // Filter progress
 
   /// Internal run-progress update: advances the "current filter" as the run
   /// loop walks its queue. Unguarded on purpose — the run OWNS this while it

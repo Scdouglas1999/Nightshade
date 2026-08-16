@@ -1,5 +1,3 @@
-// Part of ../session_review_controller.dart -- extracted for maintainability.
-//
 // Value/model types for the Session Review surface.
 part of '../session_review_controller.dart';
 

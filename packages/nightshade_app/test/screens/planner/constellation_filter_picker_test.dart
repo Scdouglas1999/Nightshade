@@ -1,11 +1,9 @@
 // The constellation filter must be usable by someone who does not have the
 // IAU abbreviation table memorised.
 //
-// It used to be a bare DropdownButton listing up to 88 rows of "Constellation:
-// And", "Constellation: Aql", "Constellation: CVn" — abbreviations only, the
-// words "Constellation: " repeated on every row eating the width, and no
-// type-ahead. Now it is a searchable dialog showing the full name with the
-// abbreviation in tow, so both spellings match.
+// It is a searchable dialog showing the full name with the abbreviation in tow,
+// so both spellings match. A bare DropdownButton lists up to 88 abbreviation-
+// only rows with no type-ahead.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/planner/planner_screen.dart';

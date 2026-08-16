@@ -1,13 +1,12 @@
-// Regression: "tonight" must mean the night in progress, not the calendar day.
+// "Tonight" means the night in progress, not the calendar day.
 //
-// Found live at 40N / 105W. The planetarium's "Best Targets Tonight" card fed
-// AstronomyCalculations.calculateObjectVisibility the astronomical-dusk
-// TIMESTAMP as its `date`. calculateObjectVisibility scans local noon of that
-// date to the following noon, and at this site dusk falls at 00:00-00:02 local
-// — already tomorrow's calendar day — so the whole list described the NEXT
-// night and every transit time was one sidereal day (~4 min) out. The sidebar
-// contradicted itself on the same screen: the Info tab reported NGC6685
-// transiting at 00:52 while the Best Targets card two tabs away said 00:48.
+// Feeding AstronomyCalculations.calculateObjectVisibility the astronomical-dusk
+// TIMESTAMP as its `date` scans local noon of THAT date to the following noon,
+// and at 40N / 105W dusk falls at 00:00-00:02 local — already tomorrow's
+// calendar day — so the whole "Best Targets Tonight" list describes the NEXT
+// night with every transit time one sidereal day (~4 min) out. The sidebar then
+// contradicts itself on the same screen: the Info tab reports NGC6685
+// transiting at 00:52 while the Best Targets card two tabs away says 00:48.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -84,8 +83,8 @@ void main() {
     );
     expect(visibility!.transitTime, expected.transitTime);
 
-    // The night AFTER this one is what the calendar-day anchor used to report,
-    // and it is a whole sidereal day away.
+    // The night AFTER this one is what a calendar-day anchor reports, and it is
+    // a whole sidereal day away.
     final nextNight = AstronomyCalculations.calculateObjectVisibility(
       raDeg: _ngc6685.raDegrees,
       decDeg: _ngc6685.dec,
@@ -120,8 +119,8 @@ void main() {
       container
           .read(observerLocationProvider.notifier)
           .setLocation(latitude: _lat, longitude: _lon);
-      // Astronomical dusk at this site in August lands just after local midnight,
-      // which is the case the old code got wrong.
+      // Astronomical dusk at this site in August lands just after local
+      // midnight — the case a calendar-day anchor gets wrong.
       container
           .read(observationTimeProvider.notifier)
           .setTime(DateTime(2026, 8, 3, 2, 0));
@@ -129,7 +128,7 @@ void main() {
           .read(selectedObjectProvider.notifier)
           .selectCoordinates(_ngc6685);
 
-      final best = await container.read(bestTargetsProvider.future);
+      final best = (await container.read(bestTargetsProvider.future))!;
       expect(best, hasLength(1));
 
       final infoTab = container.read(selectedObjectVisibilityProvider);

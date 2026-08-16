@@ -1,8 +1,6 @@
 part of '../integrations_settings.dart';
 
-// ---------------------------------------------------------------------------
 // Configuration dialogs
-// ---------------------------------------------------------------------------
 
 /// Pushover credentials dialog. Writes apiToken + userKey through the plugin's
 /// public [PushoverNotificationPlugin.configureCredentials] (which persists to

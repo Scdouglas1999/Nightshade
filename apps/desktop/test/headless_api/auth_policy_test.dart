@@ -169,10 +169,10 @@ void main() {
   });
 
   group('coarse → grant back-compat bridge (no privilege drift)', () {
-    // The keystone WS6 invariant: a grant produced by HeadlessAuthGrant
-    // .fromCoarse(scope) MUST permit EXACTLY the endpoints the legacy coarse
-    // rank check allowed — no silent gain or loss of access — for every
-    // endpoint in the authoritative catalog.
+    // The keystone invariant: a grant produced by HeadlessAuthGrant
+    // .fromCoarse(scope) MUST permit EXACTLY the endpoints the coarse rank
+    // check allows — no silent gain or loss of access — for every endpoint in
+    // the authoritative catalog.
     test('fromCoarse(scope).permits == legacy allows over every endpoint', () {
       final endpoints = availableHeadlessEndpoints();
       expect(endpoints, isNotEmpty);
@@ -299,7 +299,7 @@ void main() {
 
     test('collaborative-sky resources are mutually isolated (scope-denial '
         'matrix)', () {
-      // The WS4 fine-grained isolation guarantee for the collaborative surface:
+      // The fine-grained isolation guarantee for the collaborative surface:
       // a token scoped to ONE collaborative resource must not reach any other,
       // and none of them leaks in via a `system` grant. Rows = grant spec,
       // columns = a representative endpoint on each collaborative resource.

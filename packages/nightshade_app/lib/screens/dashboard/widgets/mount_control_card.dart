@@ -323,10 +323,8 @@ class MountControlCard extends ConsumerWidget {
 
 /// Hold-to-jog pad (N/S/E/W) plus its speed selector.
 ///
-/// It used to fire a single 500 ms `pulseGuide` per tap: about four arcseconds,
-/// invisible on the coordinate readout, and a 2 s press-and-hold produced
-/// exactly one pulse. An arrow pad on a mount card has to slew while held and
-/// stop on release, which is what [MountJogMode.slew] does through MoveAxis.
+/// An arrow pad on a mount card has to slew while held and stop on release,
+/// which is what [MountJogMode.slew] does through MoveAxis.
 /// Mounts whose driver has no MoveAxis fall back to REPEATED guide pulses and
 /// the pad says so, so the operator can read what the arrows actually do.
 @visibleForTesting
@@ -555,8 +553,8 @@ class _MountJogControlsState extends ConsumerState<MountJogControls> {
     final inert = _inertReason;
     return Tooltip(
       key: mountJogButtonKey(direction),
-      // The tooltip carries the REASON when the pad is inert. "Hold to slew E"
-      // over an arrow that cannot move is the lie the audit pressed.
+      // The tooltip carries the REASON when the pad is inert: "Hold to slew E"
+      // over an arrow that cannot move would be false.
       message: inert ??
           switch (_mode) {
             MountJogMode.slew =>

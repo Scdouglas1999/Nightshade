@@ -1,5 +1,3 @@
-// Part of ../calibration_section.dart -- extracted for maintainability.
-//
 // Defect-map status blocks, bucket chips and status lines.
 part of '../calibration_section.dart';
 
@@ -84,8 +82,8 @@ class _StatusBlock extends ConsumerWidget {
 /// (camera, sensor, temperature bucket) tuple. Falls back to scanning
 /// neighbouring temperature buckets so the user is offered the nearest
 /// existing map as a one-click alternative — this covers the common
-/// case where the cooler set-point drifted by 5C from the temperature
-/// the user originally captured darks at.
+/// case where the cooler set-point sits 5C away from the temperature the
+/// darks were captured at.
 class _NoMapForBucketBlock extends ConsumerWidget {
   /// Range of buckets to probe around the current temperature when
   /// looking for an existing map at a neighbouring set-point. 9 buckets

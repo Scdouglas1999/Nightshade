@@ -57,8 +57,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   ///
   /// A run that silently keeps 1 of 9 subs and presents the result as a
   /// finished master loses a night's data with no signal anywhere in the UI:
-  /// the master card only ever showed the frame count it *did* integrate, and
-  /// the outcome's `framesRejected` was never rendered on the manual path. Both
+  /// the master card shows only the frame count it *did* integrate, and the
+  /// outcome's `framesRejected` has no other rendering on the manual path. Both
   /// the toast and the persistent workbench banner read this.
   ///
   /// Pure so the sentence can be asserted without a running integration.
@@ -161,7 +161,7 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   /// Also RE-COMPUTES the Night Doctor verdict rather than re-reading the
   /// persisted one: the operator pressing Refresh on a screen showing a
   /// verdict they disagree with is the one moment where "use the cached
-  /// answer" is certainly wrong (WF-SCI-N2).
+  /// answer" is certainly wrong.
   Future<void> refresh() => _load(recomputeNightReport: true);
 
   /// Replace the working integration settings (panel edits). Not persisted as
@@ -286,9 +286,7 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     }
   }
 
-  // ===========================================================================
-  // Smart Morning Report (Pillar 5) — data backbone + finishing actions
-  // ===========================================================================
+  // Smart morning report (Pillar 5) — data backbone + finishing actions
 
   /// Load (or refresh) the smart-report backbone the narrative + workbench
   /// panels read: the Night Doctor [NightReport], the reviewed master's

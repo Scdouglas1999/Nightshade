@@ -315,9 +315,7 @@ class ElementRefreshService {
   String get _metaPath =>
       path.join(_directory, 'element_refresh_metadata.json');
 
-  // -------------------------------------------------------------------
   // Config + metadata
-  // -------------------------------------------------------------------
 
   /// Load the persisted refresh config.
   ///
@@ -410,9 +408,7 @@ class ElementRefreshService {
     return elapsed.isNegative || elapsed >= autoRetryCooldown;
   }
 
-  // -------------------------------------------------------------------
   // Load / refresh
-  // -------------------------------------------------------------------
 
   /// Load the cached element sets from disk. Never touches the network;
   /// returns an empty set when nothing is cached.

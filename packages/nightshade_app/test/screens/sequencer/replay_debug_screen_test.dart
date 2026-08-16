@@ -5,17 +5,15 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
 
-/// NEW-E3. The Replay header read **"1 of 2 decisions"** while exactly one row
-/// rendered, with the `All` filter selected and the time-range slider at its
-/// full extent (`Time range: 20:53:44 — 20:54:01`). Nothing on screen accounted
-/// for the second decision: the scrub window was pinned to the run's
-/// `started_at`/`ended_at`, so any decision written outside that window — the
-/// completion decision persisted a beat after the run row was closed is the
-/// common one — was unreachable at *every* slider position while still being
-/// counted in the denominator.
+/// The Replay header must not read **"1 of 2 decisions"** while exactly one row
+/// renders, with the `All` filter selected and the time-range slider at its full
+/// extent. Pinning the scrub window to the run's `started_at`/`ended_at` makes
+/// any decision written outside that window — the completion decision persisted
+/// a beat after the run row was closed is the common one — unreachable at
+/// *every* slider position while still counted in the denominator.
 ///
-/// The timestamps below are the live run's (20:53:44 start, 20:54:01 end) with
-/// the second decision landing 120 ms past `ended_at`.
+/// The timestamps below are a real run's (20:53:44 start, 20:54:01 end) with the
+/// second decision landing 120 ms past `ended_at`.
 ReplayDecision _decision(
   int id,
   DateTime timestamp,

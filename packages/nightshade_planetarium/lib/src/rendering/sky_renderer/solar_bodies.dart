@@ -107,8 +107,8 @@ extension _SkyCanvasPainterSolarBodies on SkyCanvasPainter {
       // The phase is drawn in a local frame whose +x axis is the bright limb,
       // then rotated so that limb faces the Sun. Without the rotation the lune
       // is pinned to one screen side and is simply wrong for most of the month.
-      // Falls back to the historical left-lit orientation when the Sun position
-      // is unknown or the local sky frame cannot be probed.
+      // Falls back to a left-lit orientation when the Sun position is unknown
+      // or the local sky frame cannot be probed.
       final limbAngle = moonBrightLimbScreenAngle(size) ?? math.pi;
 
       canvas.save();

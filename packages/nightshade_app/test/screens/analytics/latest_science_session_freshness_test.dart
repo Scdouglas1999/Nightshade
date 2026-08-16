@@ -1,15 +1,13 @@
-// WF-SCI-N1: after a run completed, Analytics ▸ Session kept reviewing the
-// PREVIOUS night.
+// After a run completes, Analytics ▸ Session must review the NEW night, not the
+// previous one.
 //
-// Live evidence: two completed runs on disk (Aug 13 20:53, Aug 14 00:20). The
-// Session tab opened on the older one — "Reviewing New Sequence · Aug 13, 2026
-// 20:53 · 4 frames" — with the newer run one row up in its own dropdown.
-// Picking the newer night worked and then reverted after navigating away and
-// back (three times). Stopping and restarting the app opened the SAME screen on
-// the newer night, which is the signature of a cached answer rather than a
-// wrong query: `latestScienceSessionProvider` was a plain FutureProvider,
-// computed on first read and never invalidated again for the life of the
-// process.
+// With two completed runs on disk the tab opens on the older one — "Reviewing
+// New Sequence · Aug 13, 2026 20:53 · 4 frames" — with the newer run one row up
+// in its own dropdown. Picking the newer night works and then reverts on
+// navigating away and back, while restarting the app opens the SAME screen on
+// the newer night: the signature of a cached answer rather than a wrong query.
+// A plain FutureProvider computes `latestScienceSession` on first read and is
+// never invalidated again for the life of the process.
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

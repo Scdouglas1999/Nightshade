@@ -42,8 +42,8 @@ class TutorialStepWidget extends StatelessWidget {
 
   /// Map the model's icon name (a string, to keep nightshade_core free of
   /// Flutter imports) to the actual lucide IconData. Throws for unknown
-  /// names — errors are a feature; a typo here should fail loud at
-  /// runtime, not silently render a generic placeholder.
+  /// names: a typo must fail loudly rather than render a generic placeholder
+  /// that looks like a deliberate icon choice.
   IconData _resolveIcon(String iconName) {
     switch (iconName) {
       case 'sparkles':

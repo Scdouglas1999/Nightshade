@@ -1,17 +1,15 @@
-// WD-EQ-1: System Health could age exactly one device.
+// System Health ages every device, not just the camera.
 //
-// Live evidence (waveD-equipment-shell.md): with Camera, Mount, Focuser,
-// Filter Wheel, Dome and Weather Station all connected, only the camera ever
-// showed an age ("OK - 0s ago"); the other five read "OK - last contact
-// unknown" permanently while the panel above them said "100/100 — All metrics
-// within normal ranges". `deviceHealthSnapshotsProvider` only ever filled
-// `lastSuccessfulCommunication` from `cameraStateProvider`; every other device
-// went through `addBasic`, which never passed one.
+// Filling `lastSuccessfulCommunication` from `cameraStateProvider` alone —
+// every other device going through `addBasic`, which passes none — leaves a rig
+// with Camera, Mount, Focuser, Filter Wheel, Dome and Weather Station all
+// connected showing an age only for the camera ("OK - 0s ago"). The other five
+// read "OK - last contact unknown" permanently while the panel above them says
+// "100/100 — All metrics within normal ranges".
 //
-// At HEAD, `container.read(deviceHealthSnapshotsProvider)` for a connected
-// mount returns a snapshot with `lastSuccessfulTimestampMs == 0` no matter
-// what the backend knows, which is exactly what the panel renders as
-// "last contact unknown".
+// The observable is `deviceHealthSnapshotsProvider`: a connected mount whose
+// snapshot carries `lastSuccessfulTimestampMs == 0` is what the panel renders
+// as "last contact unknown".
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/providers/device_last_contact_provider.dart';
@@ -150,8 +148,8 @@ void main() {
       final mountSnapshot = snapshots.firstWhere(
         (s) => s.deviceId == 'sim_mount_1',
       );
-      // The regression: this was 0 for every non-camera device, which the
-      // panel renders as "OK - last contact unknown".
+      // A 0 here — the value every non-camera device gets without the
+      // heartbeat wiring — renders as "OK - last contact unknown".
       expect(mountSnapshot.lastSuccessfulTimestampMs, 1754000000000);
       expect(mountSnapshot.isHealthy, isTrue);
     });

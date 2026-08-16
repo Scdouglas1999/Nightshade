@@ -4,8 +4,8 @@ import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/models/sequence/template_snippet.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
-/// Trust-patch coverage: every behaviour the report flagged should be
-/// asserted here so the silent-fallback regressions can't sneak back in.
+/// Coverage for the editor's fail-loud behaviours, so a silent fallback cannot
+/// creep back in.
 
 ProviderContainer _newContainer() {
   final container = ProviderContainer();
@@ -139,10 +139,10 @@ void main() {
     });
 
     test('undo throws when sequence is running', () {
-      // Load-bearing gate: Ctrl+Z mid-run used to roll back
-      // Dart state while Rust kept executing the old tree (split-brain).
-      // The notifier itself must refuse, even though the UI also gates
-      // Ctrl+Z and the undo button via canEditSequenceProvider.
+      // Load-bearing gate: an undo mid-run rolls back Dart state while Rust
+      // keeps executing the old tree (split-brain). The notifier itself must
+      // refuse, even though the UI also gates Ctrl+Z and the undo button via
+      // canEditSequenceProvider.
       final c = _newContainer();
       _notifier(c).createSequence();
       _notifier(c).setName('baseline');
@@ -223,7 +223,7 @@ void main() {
       } on NoActiveSequenceException {
         // expected
       }
-      // Previously this would have silently created a "New Sequence".
+      // Without the guard this silently creates a "New Sequence".
       expect(c.read(currentSequenceProvider), isNull);
     });
   });

@@ -1,7 +1,7 @@
-// WE-SP-5: the floating "Build tonight's plan?" nudge is drawn OVER the
-// dashboard, and at the bottom of the scroll extent it covered the Moon card —
-// the Moonrise row's value was hidden while "Moonset 20:34" stayed visible
-// (live frame: nudge x 537-920 / y 537-645 over a Moon card at x 258-722).
+// The floating "Build tonight's plan?" nudge is drawn OVER the dashboard, so at
+// the bottom of the scroll extent it can cover the Moon card — the Moonrise
+// row's value hidden while "Moonset 20:34" stays visible (nudge x 537-920 /
+// y 537-645 over a Moon card at x 258-722).
 //
 // A floating overlay has to be paid for in the scroll view it floats above:
 // while the prompt is up, the dashboard's scroll extent keeps its band clear so

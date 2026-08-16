@@ -1,13 +1,13 @@
-// Regression: the object popup half-followed the selection.
+// The object popup must not half-follow the selection.
 //
-// Live repro: click Deneb on the chart, leave the popup open, then pick M57
-// from the search panel. The popup kept Deneb's name, HIP id, magnitude,
-// spectral type and RA/Dec, but its "Current Position" row switched to M57's
-// altitude and azimuth to 0.1 deg and flagged a red "Below Horizon" while
-// Deneb was 11.5 deg up. Pressing TONIGHT produced the mirror image: a green
-// "Excellent" badge, under Deneb's name, for a star 2.8 deg BELOW the horizon.
+// Click Deneb on the chart, leave the popup open, then pick M57 from the search
+// panel: the popup keeps Deneb's name, HIP id, magnitude, spectral type and
+// RA/Dec while its "Current Position" row switches to M57's altitude and azimuth
+// to 0.1 deg and flags a red "Below Horizon" with Deneb 11.5 deg up. TONIGHT
+// gives the mirror image: a green "Excellent" badge, under Deneb's name, for a
+// star 2.8 deg BELOW the horizon.
 //
-// Two assertions, matching the two halves of the fix:
+// Two assertions, matching the two halves of the remedy:
 //   * the horizon block is computed from the object the popup is HEADED BY;
 //   * a selection that moves off that object closes the popup outright, rather
 //     than leaving a true-looking sentence about the wrong star on screen.

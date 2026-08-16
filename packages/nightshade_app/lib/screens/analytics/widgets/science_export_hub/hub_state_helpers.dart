@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../science_export_hub.dart -- extracted for maintainability.
-//
 // Date-filter, export and report helpers of _ScienceExportHubState.
 part of '../science_export_hub.dart';
 
@@ -392,9 +390,7 @@ extension _ScienceExportHubStateHelpers on _ScienceExportHubState {
     }
   }
 
-  // =========================================================================
   // CSV row builders
-  // =========================================================================
 
   bool _withinDateRange(DateTime timestamp) {
     if (_startDate != null && timestamp.isBefore(_startDate!)) return false;
@@ -405,12 +401,10 @@ extension _ScienceExportHubStateHelpers on _ScienceExportHubState {
   /// Standalone (session-less) rows for an export.
   ///
   /// Reads the `sessionless*ExportProvider` family, which returns the COMPLETE
-  /// dataset locally — the CSV builders used to read the `sessionless*Provider`
-  /// UI preview feeds, whose row caps (200 photometry / 50 frame-quality / 500
-  /// PSF tiles …) silently dropped a large fraction of the user's science data
-  /// while the confirmation reported the truncated count as the export size.
-  /// In remote mode the rows still arrive in the host's windowed science bundle,
-  /// so that case is flagged for the UI to disclose.
+  /// dataset locally. The `sessionless*Provider` UI preview feeds carry row
+  /// caps (200 photometry / 50 frame-quality / 500 PSF tiles …) that an export
+  /// must not inherit. In remote mode the rows still arrive in the host's
+  /// windowed science bundle, so that case is flagged for the UI to disclose.
   Future<List<T>> _standaloneRows<T>(
     ProviderListenable<Future<List<T>>> export,
   ) {

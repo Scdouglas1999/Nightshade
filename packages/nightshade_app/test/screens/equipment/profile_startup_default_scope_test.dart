@@ -18,10 +18,10 @@ import 'package:nightshade_core/src/models/equipment_profile.dart'
 import '../../harness/harness.dart';
 import '../../harness/provider_teardown.dart';
 
-/// Local activation still write-throughs to the native executor store; with no
-/// real backend that throws, so stand in a no-op writer. Crucially this makes
-/// the PRE-FIX path SUCCEED, so the test goes red on the behaviour under test
-/// (the active rig moved) rather than on an incidental failure.
+/// Local activation write-throughs to the native executor store; with no real
+/// backend that throws, so stand in a no-op writer. This keeps the write path
+/// succeeding, so the test goes red on the behaviour under test (the active rig
+/// moved) rather than on an incidental failure.
 class _NoopProfileSettingsBackend implements ProfileSettingsBackend {
   @override
   Future<void> loadProfile(String id) async {}

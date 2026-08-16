@@ -52,9 +52,9 @@ extension _WeatherSafetyRemote on WeatherSafetyNotifier {
       final rawAlertLevel = response['currentAlertLevel'];
       final alertLevel = AlertLevel.values.firstWhere(
         (candidate) => candidate.name == rawAlertLevel,
-        // Compatibility with pre-parity hosts: their aggregate response did
-        // not carry severity, so retain the old conservative unsafe=warning
-        // projection rather than treating an unknown value as clear.
+        // A host whose aggregate response carries no severity projects
+        // conservatively: unsafe maps to warning, never an unknown value to
+        // clear.
         orElse: () => isSafe ? AlertLevel.clear : AlertLevel.warning,
       );
       final lastEvaluationRaw = response['lastEvaluation'];

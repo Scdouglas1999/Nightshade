@@ -1,11 +1,7 @@
-// Part of ../settings_screen.dart -- extracted for maintainability.
-//
 // Desktop search field, grouped list and search-result widgets.
 part of '../settings_screen.dart';
 
-// =============================================================================
 // Search field
-// =============================================================================
 
 class _SearchField extends StatelessWidget {
   const _SearchField({
@@ -59,9 +55,7 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // Desktop: grouped, collapsible sidebar
-// =============================================================================
 
 class _DesktopGroupedList extends StatelessWidget {
   const _DesktopGroupedList({
@@ -213,9 +207,7 @@ class _GroupHeaderState extends State<_GroupHeader> {
   }
 }
 
-// =============================================================================
 // Desktop: flat search results
-// =============================================================================
 
 class _DesktopSearchResults extends StatelessWidget {
   const _DesktopSearchResults({

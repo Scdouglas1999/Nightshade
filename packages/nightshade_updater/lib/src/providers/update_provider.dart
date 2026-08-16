@@ -24,12 +24,10 @@ typedef UpdateApplySafetyReader = T Function<T>(ProviderListenable<T> provider);
 /// Provider for the update state.
 ///
 /// Reads the running app's version from `nightshade_core`'s
-/// [appVersionProvider]. That provider throws if it has not been
-/// overridden at app startup; we let the error bubble out instead of
-/// substituting a hardcoded default. A wrong default here silently
-/// breaks update polling (the server uses this string to decide whether
-/// to advertise a newer build); errors are a feature here, so
-/// we refuse to start rather than ship a 2.0.0 fallback.
+/// [appVersionProvider], and lets that provider's error bubble when it has not
+/// been overridden at startup: the update server decides whether to advertise a
+/// newer build from this string, so a substituted default breaks update polling
+/// with nothing on screen to say so.
 final updateProvider = StateNotifierProvider<UpdateNotifier, UpdateState>((
   ref,
 ) {
@@ -129,6 +127,18 @@ Future<void> defaultUpdateApplySafetyCheck(Ref ref) {
   return defaultUpdateApplySafetyCheckWithReader(ref.read);
 }
 
+/// The apply gate used when a notifier is built without one.
+///
+/// Applying swaps the binary out from under a running session, so a notifier
+/// with no gate cannot see the sequencer or camera state it would have to check.
+/// It refuses rather than assume the rig is idle.
+Future<void> _denyUnwiredUpdateApply() async {
+  throw UpdateException(
+    'Cannot apply an update: no safety check is wired into this update '
+    'notifier, so imaging state cannot be verified.',
+  );
+}
+
 /// Notifier for managing update state
 class UpdateNotifier extends StateNotifier<UpdateState> {
   final UpdateService _updateService;
@@ -153,7 +163,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
              currentVersion: currentVersion,
              currentBuildNumber: currentBuildNumber,
            ),
-       _applySafetyCheck = applySafetyCheck ?? (() async {}),
+       _applySafetyCheck = applySafetyCheck ?? _denyUnwiredUpdateApply,
        super(
          UpdateState(
            currentVersion: currentVersion,
@@ -429,7 +439,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   }
 
   /// Pop the most recent one-shot UI banner queued by the underlying
-  /// [UpdateService] (e.g. corrupted-marker recovery in Â§7A.12). Returns
+  /// [UpdateService] (e.g. corrupted-marker recovery). Returns
   /// null if no notice is pending. Subsequent calls return null until a
   /// new notice is queued.
   UpdateNotice? takePendingNotice() => _updateService.takePendingNotice();

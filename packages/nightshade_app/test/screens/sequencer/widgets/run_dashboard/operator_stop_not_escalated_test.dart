@@ -1,16 +1,14 @@
-// WD-SEQ-N1 — producer 3: the run-dashboard critical-event bridge.
+// The run-dashboard critical-event bridge must not escalate an operator Stop.
 //
-// Pressing Stop at 20:47:53 produced, at that same second:
-//   * a red "Critical · Sequencer / Sequence cancelled" toast,
-//   * a full-width red Dashboard banner "Sequencer — Sequencer error",
-//   * a RECENT EVENTS row "Sequencer error — Sequence cancelled",
-// while the Session Report the operator opened next was titled
-// "New Sequence — Stopped (resumable)" and listed no errors at all.
-//
-// The cause is that the native executor ends a cancelled run with
+// The native executor ends a cancelled run with
 // `SequencerEvent.Error(message: "Sequence cancelled")`, and that payload
-// variant is on the `isCriticalEvent` allow-list. This bridge is the producer
-// of all three surfaces above, so it is where the classification has to happen.
+// variant is on the `isCriticalEvent` allow-list — so one press of Stop produces
+// a red "Critical · Sequencer / Sequence cancelled" toast, a full-width red
+// Dashboard banner "Sequencer — Sequencer error" and a RECENT EVENTS row
+// "Sequencer error — Sequence cancelled", while the Session Report opened next
+// is titled "New Sequence — Stopped (resumable)" and lists no errors at all.
+// This bridge produces all three surfaces, so it is where the classification
+// belongs.
 //
 // The counter-case is pinned too: a fault whose text merely CONTAINS
 // "cancelled" must still page the operator.

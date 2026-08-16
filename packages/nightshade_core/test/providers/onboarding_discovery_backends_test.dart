@@ -1,12 +1,12 @@
 // The onboarding driver step's answer has to survive the wizard.
 //
-// Live finding: step 2 ("Which drivers should we scan?") pre-checks Native,
-// Alpaca and INDI, the user accepts, finds their camera over INDI, finishes the
-// wizard — and Settings → Equipment → Connection then shows "Query INDI on
-// startup" and "Query Alpaca on startup" both OFF, because the draft's
-// `selectedDrivers` steered only the wizard's own discovery passes and was
-// wiped with the draft. Two screens asking the same question and giving
-// opposite answers, with the one the user actually answered losing.
+// Step 2 ("Which drivers should we scan?") pre-checks Native, Alpaca and INDI;
+// the user accepts, finds their camera over INDI and finishes the wizard. A
+// draft `selectedDrivers` that steers only the wizard's own discovery passes
+// dies with the draft, so Settings → Equipment → Connection then shows "Query
+// INDI on startup" and "Query Alpaca on startup" both OFF — two screens asking
+// the same question and giving opposite answers, with the one the user actually
+// answered losing.
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

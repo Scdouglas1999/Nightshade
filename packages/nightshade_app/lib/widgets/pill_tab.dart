@@ -3,12 +3,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// A filled icon-over-label pill button used for sidebar / panel sub-tabs.
 ///
-/// This is the shared, de-duplicated implementation of the pill styling that
-/// originally lived as a private `_PanelTab` in the imaging panel. It renders a
-/// centered [Icon] above a small [label], with an animated selected/hover
-/// surface that matches the rest of the Nightshade design system.
+/// The one implementation of the pill styling, shared with the imaging panel.
+/// It renders a centered [Icon] above a small [label], with an animated
+/// selected/hover surface that matches the rest of the Nightshade design
+/// system.
 ///
-/// The visual contract (kept byte-for-byte identical to the imaging panel):
+/// The visual contract:
 ///  * 180ms `easeOutCubic` animated container
 ///  * padding `EdgeInsets.symmetric(horizontal: 6, vertical: 8)`
 ///  * selected => [NightshadeDecorations.selectedSurface] with `fillAlpha: 0.16`

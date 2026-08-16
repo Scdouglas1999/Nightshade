@@ -119,7 +119,7 @@ class _TiltDirectionPainter extends CustomPainter {
       arrowColor != old.arrowColor;
 }
 
-// --- Collimation Card ---
+// Collimation card
 
 class _CollimationCard extends StatelessWidget {
   final OpticalTrainDiagnostics diagnostics;
@@ -297,4 +297,4 @@ class _CollimationPainter extends CustomPainter {
       score != old.score || statusColor != old.statusColor;
 }
 
-// --- PSF Field Map Card ---
+// PSF field map card

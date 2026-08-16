@@ -1,10 +1,11 @@
-// Regression: a catalog download that never finished left its `<name>.partial`
-// on disk forever. The cleanup only runs in the download's own `finally`, so a
-// crash, a kill or a power cut during the multi-hundred-megabyte GLADE+ fetch
-// stranded the whole thing — observed in the wild as a 407 MiB
-// glade_plus_galaxies.csv.partial six weeks old, with the Catalogs page showing
-// GLADE+ as "not installed" and offering a fresh download beside it. Nothing
-// ever deleted it and nothing ever mentioned it. Startup now reclaims it.
+// Startup reclaims a `<name>.partial` left by a download that never finished.
+//
+// The download's own cleanup runs only in its `finally`, so a crash, a kill or
+// a power cut during the multi-hundred-megabyte GLADE+ fetch strands the whole
+// file — seen in the wild as a 407 MiB glade_plus_galaxies.csv.partial six
+// weeks old, with the Catalogs page showing GLADE+ as "not installed" and
+// offering a fresh download beside it, nothing deleting it and nothing
+// mentioning it.
 
 import 'dart:io';
 

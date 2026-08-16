@@ -3,19 +3,16 @@
 include: ../../analysis_options.yaml
 
 analyzer:
-  # CQ-W14-CONST-CONSTRUCTORS:4 (audit-dart §10 #3)
   # Generated code (freezed *.freezed.dart, json_serializable *.g.dart) is
-  # already excluded at workspace-root, but pin it again here to make the
-  # intent explicit on this package's heavier widget surface.
+  # also excluded at workspace-root; pinning it again here makes the intent
+  # explicit on this package's heavy widget surface.
   exclude:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
 
-# CQ-W14-CONST-CONSTRUCTORS:4 (audit-dart §10 #3)
-# Slice 4 of the per-package rollout. Planetarium was originally the heaviest
-# offender (~2,101 findings predicted in the W5 lint upgrade audit). The
-# W-DECOMP screen splits already added a large amount of `const` so the
-# remaining count is much smaller — `dart fix` mops up the tail here.
+# The workspace-root config disables these two rules globally;
+# nightshade_planetarium enables them here, with generated paths excluded
+# above.
 linter:
   rules:
     prefer_const_constructors: true

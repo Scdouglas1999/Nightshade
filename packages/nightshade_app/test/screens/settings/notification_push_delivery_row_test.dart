@@ -68,7 +68,7 @@ void main() {
       // The row is still there (the preference remains settable)…
       expect(find.text('Push critical alerts to mobile'), findsOneWidget);
 
-      // …but the old intent-only copy that implied it worked is gone.
+      // …and no intent-only copy that implies delivery works.
       expect(
         find.textContaining('Forward critical events to paired phones'),
         findsNothing,

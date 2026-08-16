@@ -26,16 +26,22 @@ class TopOverlay extends ConsumerWidget {
     final settingsAsync = ref.watch(appSettingsProvider);
 
     // Get location name from settings if available
+    // A coordinate pair here is a claim about where the operator is, so with
+    // no site on record the chip says so rather than printing 0/0.
     String locationLabel;
     final settings = settingsAsync.valueOrNull;
+    final site = location.site;
     if (settings != null &&
         (settings.latitude != 0.0 || settings.longitude != 0.0)) {
       locationLabel = CoordinateFormatUtils.formatLatLon(
           settings.latitude, settings.longitude);
+    } else if (location.locationName != null) {
+      locationLabel = location.locationName!;
+    } else if (site != null) {
+      locationLabel =
+          CoordinateFormatUtils.formatLatLon(site.latitude, site.longitude);
     } else {
-      locationLabel = location.locationName ??
-          CoordinateFormatUtils.formatLatLon(
-              location.latitude, location.longitude);
+      locationLabel = 'No site set';
     }
 
     return Column(
@@ -153,7 +159,11 @@ class TopOverlay extends ConsumerWidget {
     );
   }
 
-  String _formatHours(double hours) {
+  /// Sidereal time needs a site. `--:--` rather than a number for a longitude
+  /// nobody gave: LST is exactly what an observer reads to decide what is
+  /// transiting.
+  String _formatHours(double? hours) {
+    if (hours == null) return '--:--';
     final h = hours.floor();
     final m = ((hours - h) * 60).floor();
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';

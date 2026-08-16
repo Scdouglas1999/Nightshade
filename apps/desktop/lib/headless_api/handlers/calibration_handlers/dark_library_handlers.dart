@@ -1,9 +1,7 @@
 part of '../calibration_handlers.dart';
 
 extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
-  // ===========================================================================
   // Calibration settings
-  // ===========================================================================
 
   Future<Map<String, dynamic>> _calibrationSettingsJson() async {
     final stored = await container.read(settingsDaoProvider).getAllSettings();
@@ -119,9 +117,7 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
     return value;
   }
 
-  // ===========================================================================
   // Dark library
-  // ===========================================================================
 
   Future<Map<String, dynamic>> _darkSettingsJson() async {
     final stored = await container.read(settingsDaoProvider).getAllSettings();

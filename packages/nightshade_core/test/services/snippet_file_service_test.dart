@@ -174,9 +174,9 @@ void main() {
     test('parseEncoded surfaces every schema problem at once', () {
       final service = SnippetFileService();
 
-      // Deliberately malformed: wrong kind, missing required strings,
-      // bad nodeData entry. The importer must list ALL issues so the
-      // user can fix the file in one pass (audit: errors are a feature).
+      // Deliberately malformed: wrong kind, missing required strings, bad
+      // nodeData entry. The importer must list ALL issues so the user can fix
+      // the file in one pass.
       final bad = jsonEncode({
         'schemaVersion': 1,
         'kind': 'something.else',

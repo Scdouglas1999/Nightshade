@@ -209,9 +209,7 @@ class FocusPositionHistoryNotifier extends StateNotifier<List<int>> {
   }
 }
 
-// =============================================================================
-// Autofocus Result Provider
-// =============================================================================
+// Autofocus result provider
 
 /// Provider for the last autofocus result
 /// This stores the most recent autofocus run result for display in the UI

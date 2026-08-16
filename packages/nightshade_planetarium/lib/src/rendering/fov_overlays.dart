@@ -4,8 +4,8 @@ import '../coordinate_system.dart';
 // [SkyFovProjector] is declared in a part of the interactive sky view library
 // because Dart part files cannot declare their own imports, so that is the only
 // place all three FOV overlays can share one projection from. Reaching for it
-// here is deliberate: a second, parallel projection is exactly the bug this
-// overlay used to have.
+// here is deliberate: a second, parallel projection drifts from the one the
+// sky view draws with.
 import '../widgets/interactive_sky_view.dart';
 import 'sky_renderer.dart';
 
@@ -218,9 +218,9 @@ class FOVOverlayPainter extends CustomPainter {
 
     // Place the indicators with the exact projection the sky painter uses, so
     // the drawn footprint always agrees with the star field. A flat
-    // `(ra - centerRA) * 15 * scale` offset — what this used to do — mirrors
-    // the sky in RA, drops the cos(dec) foreshortening, and flings the glyphs
-    // off-canvas at the 0h/24h seam.
+    // `(ra - centerRA) * 15 * scale` offset mirrors the sky in RA, drops the
+    // cos(dec) foreshortening, and flings the glyphs off-canvas at the 0h/24h
+    // seam.
     final projector = SkyFovProjector.forSize(_viewState, size);
     final scale = projector.pixelsPerDegree;
 

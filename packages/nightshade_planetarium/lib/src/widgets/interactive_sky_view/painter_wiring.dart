@@ -18,7 +18,7 @@ extension _SkyViewPainterWiring on _InteractiveSkyViewState {
     required List<DeepSkyObject> dsos,
     required List<ConstellationData> constellations,
     required DateTime observationMinute,
-    required PlanetariumObserver location,
+    required ({double latitude, double longitude}) location,
     required SelectedObjectState selectedObject,
     required MountPositionState mountPosition,
     required (double, double) sunPos,

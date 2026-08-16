@@ -7,16 +7,14 @@ import 'package:nightshade_app/screens/settings/settings_search_index.g.dart';
 /// Typing a setting's own visible name into the Settings search box must find
 /// the page that setting lives on.
 ///
-/// Regression, measured on the running app: the index was a hand-written
-/// `keywords` list, and 243 of 496 rendered setting rows (49%) could not be
-/// found by their own title. The queries below are the exact ones observed
-/// returning "No settings match your search" while the setting was visibly
-/// present on screen.
+/// A hand-written `keywords` index cannot hold that: measured on the running
+/// app, 243 of 496 rendered setting rows (49%) were unfindable by their own
+/// title. The queries below are ones that return "No settings match your search"
+/// while the setting is visibly present on screen.
 ///
-/// The worst of them was not the silence but the misdirection: "thumbnail"
-/// returned only Captured Images, even though the Sequencer page has a "Default
-/// thumbnail size" row — so the search actively sent you to the wrong page and
-/// implied that was the only match.
+/// Worse than silence is misdirection: "thumbnail" returning only Captured
+/// Images, when the Sequencer page has a "Default thumbnail size" row, sends the
+/// reader to the wrong page and implies it is the only match.
 void main() {
   Future<List<SettingsSectionDef>> allSections(WidgetTester tester) async {
     late List<SettingsGroupDef> groups;

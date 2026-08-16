@@ -74,7 +74,7 @@ class ConstellationService {
        _order = order;
 
   /// The atlas HEALPix order this client federates at. Mirrors
-  /// `ATLAS_HEALPIX_ORDER` / the contract's single source of truth (§6).
+  /// `ATLAS_HEALPIX_ORDER`, the contract's single source of truth.
   static const int defaultHealpixOrder = 9;
 
   final SkyAtlasService _atlas;
@@ -92,8 +92,8 @@ class ConstellationService {
 
   /// Per-(hubKey, tileId) federation receipt store: the contribution anchor +
   /// remote id (true-delta export, Retract) and the pulled high-water (re-pull
-  /// idempotency). Null only in legacy/test wirings that predate the table; the
-  /// service degrades to the old whole-tile/epoch behaviour when absent.
+  /// idempotency). Null in test wirings; the service then exports whole tiles
+  /// from epoch and re-pulls unconditionally.
   final ConstellationContributionsDao? _contributions;
 
   /// Per-pillar retention bookkeeping for the swarm-blob sweep ([sweepSwarmBlobs]).
@@ -121,7 +121,7 @@ class ConstellationService {
   /// Targets the user has joined on the hub (targetId -> hub target row).
   final Map<int, SharedTarget> _joined = {};
 
-  // --- Account / sign-in --------------------------------------------------
+  // Account / sign-in
 
   /// Verify connectivity + tiling against the configured hub. Throws on a
   /// HEALPix-order mismatch so the UI can refuse to federate with an
@@ -179,7 +179,7 @@ class ConstellationService {
     }
   }
 
-  // --- Browse / join ------------------------------------------------------
+  // Browse / join
 
   /// List the shared targets the swarm is collecting on the configured hub.
   Future<List<SharedTarget>> browseSharedTargets() async {
@@ -300,7 +300,7 @@ class ConstellationService {
   /// Inverse of [_joinRowKey].
   static int _targetIdFromJoinRow(int rowTileId) => -rowTileId - 1;
 
-  // --- Contribute ---------------------------------------------------------
+  // Contribute
 
   /// Contribute the local atlas tiles covering a joined target to the hub.
   ///
@@ -426,11 +426,10 @@ class ConstellationService {
             instrument: instrumentFingerprint,
             solver: solver,
           );
-          // Only treat the contribution as accepted when the hub's quality gate
-          // actually accepted it. A 200 response carrying accepted=false means
-          // the frames were offered but rejected; the old code unconditionally
-          // inserted the receipt into `accepted` and counted the frames as
-          // pushed, silently reporting a rejection as success.
+          // A 200 response carrying accepted=false is a rejection: the
+          // frames were offered and refused by the hub's quality gate. Only
+          // an accepted receipt may enter `accepted` or count towards the
+          // pushed frame totals.
           if (receipt.accepted) {
             accepted[tile.tileId] = receipt;
             framesPushed += export.framesInDelta;
@@ -625,7 +624,7 @@ class ConstellationService {
     }
   }
 
-  // --- Pull / blend -------------------------------------------------------
+  // Pull / blend
 
   /// Pull the fused community co-add for a joined target's tiles and cache them
   /// under the atlas `swarm/` directory for blending into "Your Sky".
@@ -857,7 +856,7 @@ class ConstellationService {
     return receipt;
   }
 
-  // --- Follow-the-night ---------------------------------------------------
+  // Follow-the-night
 
   /// Ask the hub which joined targets are dark + available for this user now and
   /// turn them into deepen-the-thinnest-first suggestions, ranked by how shallow
@@ -889,13 +888,12 @@ class ConstellationService {
     }
     try {
       final locals = await _localTargetsResolver();
-      // Index locals by NAME (case-folded), never by id: a local `Target.id` is
-      // a private autoincrement that is NOT a hub `shared_targets.id`. Unioning
-      // local ids into the hub-id query set (the old behaviour) let a local id
-      // collide with a DIFFERENT hub target's id and take/query the baton for
-      // the WRONG sky — the exact double-collect this feature exists to prevent.
-      // Names line up by construction: `proposeTarget` seeds the hub target from
-      // a local field's name, and the hub is idempotent on name/centre.
+      // Index locals by NAME (case-folded), never by id: a local `Target.id`
+      // is a private autoincrement, not a hub `shared_targets.id`, so a local
+      // id in the hub-id query set can collide with a DIFFERENT hub target and
+      // take the baton for the wrong sky. Names line up by construction:
+      // `proposeTarget` seeds the hub target from a local field's name, and the
+      // hub is idempotent on name/centre.
       final byName =
           <
             String,
@@ -981,7 +979,7 @@ class ConstellationService {
     }
   }
 
-  // --- Retention ----------------------------------------------------------
+  // Retention
 
   /// Reclaim accumulated swarm `.nst`/`.fits` pull/delta blobs under the atlas
   /// `swarm/<order>/` tree, bounded by age (and optionally total bytes).

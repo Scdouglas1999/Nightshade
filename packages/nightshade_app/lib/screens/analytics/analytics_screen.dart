@@ -178,11 +178,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           bottom: false,
           child: Column(
             children: [
-              // Title + sub-tabs share ONE row (the screen title previously had
-              // no row of its own here — the outer nav named the screen). Fold
-              // the title inline to the left of the tab strip — icon-only on a
-              // phone. AdaptiveTabBar scrolls horizontally (and collapses to
-              // icons on a compact phone) instead of overflowing the six tabs.
+              // Title + sub-tabs share ONE row: the title folds inline to the
+              // left of the tab strip — icon-only on a phone. AdaptiveTabBar
+              // scrolls horizontally (and collapses to icons on a compact
+              // phone) instead of overflowing the six tabs.
               Container(
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,

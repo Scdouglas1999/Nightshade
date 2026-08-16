@@ -3,8 +3,8 @@
 //
 // The panel must not invent a travel ceiling. When the driver reports a real
 // maximum it shows "current / max"; when the max is absent (null) or bogus
-// (negative) it shows an honest unknown marker and never the old fabricated
-// 50000 nor an impossible 0..-1 range.
+// (negative) it shows an honest unknown marker, never a fabricated ceiling nor
+// an impossible 0..-1 range.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,7 +57,7 @@ void main() {
 
     expect(find.text('1234'), findsOneWidget);
     expect(find.text(' / 20000'), findsOneWidget);
-    // The old fabricated ceiling must never appear.
+    // A fabricated ceiling must never appear.
     expect(find.textContaining('50000'), findsNothing);
   });
 

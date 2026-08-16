@@ -1,25 +1,25 @@
-// Regression tests for the ground plane / horizon layers.
+// The ground plane / horizon layers.
 //
 // Two contracts live here, one per view frame.
 //
 // HORIZONTAL — "the sky from where I stand". The ground is real terrain and
 // must actually appear when the view is pointed at it.
-// [AstronomyCalculations.equatorialToHorizontal] returns (alt, az), and the
-// horizon layers once destructured it as `(_, centerAlt)`, binding the AZIMUTH
-// into the altitude slot: because azimuth is always in [0, 360) the computed
-// horizon line sat below the canvas for almost every pose, so a view pointed
-// straight at the ground rendered as clean sky.
+// [AstronomyCalculations.equatorialToHorizontal] returns (alt, az), so
+// destructuring it as `(_, centerAlt)` binds the AZIMUTH into the altitude
+// slot: because azimuth is always in [0, 360) the computed horizon line sits
+// below the canvas for almost every pose and a view pointed straight at the
+// ground renders as clean sky.
 //
 // EQUATORIAL — a star atlas. It paints NO ground fill, and its background must
 // not depend on which way the view is pointed. The ground fill is a horizontal
 // screen band whose Y comes from the view centre's altitude, which only
-// describes the horizon where screen-up is altitude; drawn in this frame it had
+// describes the horizon where screen-up is altitude; drawn in this frame it has
 // three completely different whole-screen regimes (no fill / a gradient band /
-// the entire canvas flooded with opaque ground once the centre dropped below
-// the horizon), so panning or rotating flipped the sky between a night-sky
-// gradient and flat brown-black. Composing a session around a target that has
-// not risen yet is a first-class use of this frame, so the chart also has to
-// stay legible whichever way it points.
+// the entire canvas flooded with opaque ground once the centre drops below the
+// horizon), so panning or rotating flips the sky between a night-sky gradient
+// and flat brown-black. Composing a session around a target that has not risen
+// yet is a first-class use of this frame, so the chart also has to stay legible
+// whichever way it points.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 

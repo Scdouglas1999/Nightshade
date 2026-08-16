@@ -1,11 +1,11 @@
-// Regression: the desktop app could never tell you a new version existed.
+// The desktop app has to be able to tell you a new version exists.
 //
-// Searching Settings for "update" returned About (no update control at all) and
-// "Appliance Updates", which is about a REMOTE rig and off-network rendered one
-// sentence claiming "The local desktop app updates itself through its own
-// installer" — untrue of every shipped build (nothing calls
-// UpdateNotifier.configure on desktop, so the bundled updater never issues a
-// version request, and the Linux build is a tarball with no installer).
+// Without a check here, searching Settings for "update" returns About (no update
+// control at all) and "Appliance Updates", which is about a REMOTE rig and
+// off-network renders one sentence claiming "The local desktop app updates
+// itself through its own installer" — untrue of every shipped build: nothing
+// calls UpdateNotifier.configure on desktop, so the bundled updater never issues
+// a version request, and the Linux build is a tarball with no installer.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

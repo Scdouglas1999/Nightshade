@@ -1,15 +1,12 @@
-// =============================================================================
-// live_frame_history_tile_key_test.dart — capturing one frame must not refetch
-// every thumbnail already on screen.
-// =============================================================================
+// Capturing one frame must not refetch every thumbnail already on screen.
 //
 // The history column renders `images.reversed` (newest-first), so every frame
 // that lands shifts each tile's index by one. With no `key` on the tile,
-// Flutter reuses elements by POSITION: tile 0 keeps the element that used to
-// show frame N and `didUpdateWidget` sees a different `image.id`, so it re-runs
-// `_loadBytes()`. One capture therefore costs up to 24 `getImageThumbnail`
-// calls — over HTTP on a remote/Pi session, which is exactly the burst shape
-// that trips request timeouts.
+// Flutter reuses elements by POSITION: tile 0 keeps the element holding the
+// previous frame and `didUpdateWidget` sees a different `image.id`, so it
+// re-runs `_loadBytes()`. One capture then costs up to 24 `getImageThumbnail`
+// calls — over HTTP on a remote/Pi session, the burst shape that trips request
+// timeouts.
 //
 // The assertion is on the BACKEND CALL COUNT, not on the widget tree, because
 // the call count is the cost the operator actually pays.

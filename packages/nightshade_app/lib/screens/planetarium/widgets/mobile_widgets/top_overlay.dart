@@ -94,7 +94,10 @@ class MobileTopOverlay extends ConsumerWidget {
     );
   }
 
-  String _formatHours(double hours) {
+  /// Sidereal time needs a site: `--:--` rather than a number for a longitude
+  /// nobody gave.
+  String _formatHours(double? hours) {
+    if (hours == null) return '--:--';
     final h = hours.floor();
     final m = ((hours - h) * 60).floor();
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';

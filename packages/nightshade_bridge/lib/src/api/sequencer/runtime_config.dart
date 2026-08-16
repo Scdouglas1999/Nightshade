@@ -149,7 +149,7 @@ Future<void> apiSequencerUpdateFilterOffsets({
 /// is wrong for both very-short (5 s) and very-long (5 min) subs, so the UI
 /// must let the user override it. `every_n_frames == 0` is rejected because
 /// the trigger evaluator disables the periodic AF when the cadence is zero,
-/// which would silently turn AF off ("errors are a feature").
+/// which would silently turn AF off.
 Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
     RustLib.instance.api
         .crateApiSequencerRuntimeConfigApiSequencerUpdateAutofocusInterval(
@@ -158,12 +158,11 @@ Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
 
 /// Push the operator's autofocus settings so trigger-fired refocus uses them.
 ///
-/// The only source of trigger-autofocus tuning used to be an Autofocus node
-/// inside the sequence. A sequence without one — which is exactly the sequence
-/// whose interval trigger fires unattended — therefore ran every refocus on
-/// library defaults, ignoring the operator's step size, exposure, backlash,
-/// failure tolerance and failure action. An Autofocus node still wins at
-/// `start()`: a node is a per-sequence decision, this is a global one.
+/// A sequence without an Autofocus node — which is exactly the sequence whose
+/// interval trigger fires unattended — otherwise refocuses on library defaults,
+/// ignoring the operator's step size, exposure, backlash, failure tolerance and
+/// failure action. An Autofocus node still wins at `start()`: a node is a
+/// per-sequence decision, this is the global one.
 ///
 /// Takes the same JSON shape the sequence's Autofocus node carries, so the
 /// Dart side has exactly one serializer to keep correct.
@@ -205,11 +204,10 @@ Future<void> apiSequencerUpdateRejectFolderPath({String? path}) => RustLib
       path: path,
     );
 
-/// push observer / equipment identification to the executor so
-/// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
-/// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
-/// headless / no-profile runs we'd rather omit the keyword than emit a
-/// sentinel — silent fallbacks are bugs.
+/// Push observer / equipment identification to the executor so the next FITS
+/// save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME,
+/// SITEELEV). Every field is optional so a headless / no-profile run omits the
+/// keyword instead of emitting a sentinel.
 Future<void> apiSequencerUpdateObserverProfile({
   String? observerName,
   double? siteElevationM,

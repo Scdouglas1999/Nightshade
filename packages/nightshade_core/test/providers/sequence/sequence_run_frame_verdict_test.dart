@@ -27,19 +27,15 @@ const _cameraId = 'simulator:test-camera-1';
 
 /// What the run record says about the frames a night actually produced.
 ///
-/// Three separate claims used to be structurally impossible to make truthfully:
+/// Three claims the record must be able to make truthfully:
 ///
-///  1. `framesRejected` was always 0. The only caller of
-///     `SequenceRunStats.recordFrame` passed `accepted: true` unconditionally,
-///     so a night the grader rejected frames on — writing `captured_images`
-///     rows with `runtime_grade='reject'` to prove it — still reported "0
-///     rejected" in the Session Report, the cockpit vitals and the morning
-///     recap.
-///  2. `ditherCount` was always 0. `recordDither()` had no call site at all.
-///  3. Every sequenced frame triggered TWO full last-image fetches over the
-///     bridge, and one of them stamped the preview with literals (2 s, gain 0,
-///     bin 1) because the imaging `ExposureComplete` payload carries no
-///     capture metadata — so a 300 s sub could be labelled "2 s, gain 0".
+///  1. `framesRejected` counts the frames the grader rejected — the same
+///     frames that carry `runtime_grade='reject'` in `captured_images`.
+///  2. `ditherCount` counts the dithers that actually settled.
+///  3. The preview published for a frame is stamped from that frame's own
+///     capture payload, never from literals: the imaging `ExposureComplete`
+///     payload carries no capture metadata, so a preview sourced from it
+///     labels a 300 s sub "2 s, gain 0".
 void main() {
   setUpAll(registerMocktailFallbackValues);
 

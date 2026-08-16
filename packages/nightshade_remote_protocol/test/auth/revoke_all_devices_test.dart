@@ -1,4 +1,4 @@
-// SET-17 (revoke-all) — "take my rig off the network now" is one decision.
+// Revoke-all: "take my rig off the network now" is one decision.
 //
 // A pairing store inherited from an earlier install can hold a dozen phones,
 // tablets and browsers, several with `control` or `admin` scope. Revoking them

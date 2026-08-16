@@ -575,8 +575,7 @@ extension _DeviceServiceAutofocusControls on DeviceService {
         'confidence=${decision.confidence?.toStringAsFixed(3) ?? "n/a"})',
         source: 'DeviceService',
       );
-      // Surface the consultation for the focus UI — the model used to
-      // train and predict entirely silently.
+      // Surface the consultation for the focus UI.
       _ref
           .read(lastPredictiveAfStatusProvider.notifier)
           .state = PredictiveAfStatus(

@@ -1,7 +1,7 @@
 // Deterministic, fake-backend coverage for the full flat-capture lifecycle
 // driven by `FlatWizardNotifier.runCapture`.
 //
-// What these pin down (the capture-lifecycle bugs the rewrite fixes):
+// What these pin down:
 //   * Stable per-filter indexing — quick mode with a nonzero current filter
 //     and batch mode with disabled leading filters update the RIGHT rows.
 //   * A save failure is a capture failure — no false "complete", no history
@@ -159,7 +159,7 @@ void main() {
           reason: 'the selected row (2) must be the one marked complete',
         );
         expect(filters[2].capturedCount, 2);
-        // The old bug wrote to row 0; these must be untouched.
+        // Only the selected row may be written; these stay untouched.
         expect(filters[0].status, FilterCalibrationStatus.pending);
         expect(filters[0].capturedCount, 0);
         expect(filters[1].status, FilterCalibrationStatus.pending);
@@ -180,8 +180,8 @@ void main() {
         await notifier.runCapture();
 
         final filters = container.read(flatWizardProvider).filterSettings;
-        // The disabled leading filter (row 0) stays untouched — the old bug
-        // shifted the subset onto it.
+        // The disabled leading filter (row 0) stays untouched: the subset
+        // must not shift onto it.
         expect(filters[0].status, FilterCalibrationStatus.pending);
         expect(filters[0].capturedCount, 0);
         expect(filters[1].status, FilterCalibrationStatus.complete);

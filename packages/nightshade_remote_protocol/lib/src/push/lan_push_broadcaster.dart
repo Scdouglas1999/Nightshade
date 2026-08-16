@@ -1,8 +1,6 @@
 // LAN UDP push broadcaster.
 //
-// =========================================================================
 // Threat model
-// =========================================================================
 //
 // PushNotificationService fires critical alerts (weather unsafe, sequence
 // failed, guiding lost, mount runaway) over the headless WebSocket. A phone
@@ -46,9 +44,7 @@
 //     close it. If confidentiality matters, the operator should use a
 //     wired/VPN LAN.
 //
-// =========================================================================
 // Wire format (frame layout)
-// =========================================================================
 //
 //   offset    bytes   field
 //   --------  ------  ----------------------------------------------------
@@ -63,9 +59,7 @@
 // The HMAC key is `sha256("nightshade-push-v1:" + serverFingerprint)`.
 // Both sides derive it identically, so no extra key exchange is required.
 //
-// =========================================================================
 // Port assignments
-// =========================================================================
 //
 //   45679  UDP — existing discovery (NightshadeDiscovery)
 //   45680  TCP — existing OTA push receiver (nightshade_updater)
@@ -169,10 +163,10 @@ class PushNotificationFrame {
     required this.serverFingerprint,
   });
 
-  /// Severity code as written into the wire byte. Unknown labels collapse
-  /// to `info` because the receiver MUST still be able to decode and
-  /// display the message (the audit's "errors are a feature" rule applies
-  /// to silent drops; an unknown severity is not a security failure).
+  /// Severity code as written into the wire byte. An unknown label collapses to
+  /// `info` rather than dropping the frame: the receiver must still be able to
+  /// decode and display the message, and an unrecognised severity is not a
+  /// security failure.
   int get severityCode {
     switch (severity) {
       case 'critical':
@@ -729,12 +723,10 @@ class _RawSocketSink implements LanPushDatagramSink {
       socket.send(bytes, address, port);
     } catch (e) {
       // Per-send transport errors (interface lost, no route to host) are
-      // expected during sleep/wake. We don't have access to the host
-      // logger from here; the broadcaster's outer logger sees the bind
-      // path, and a regression where send always fails will show up as a
-      // missing notification on the client side. We deliberately do not
-      // rethrow — losing one frame on one socket must not abort the fan-
-      // out to the remaining sinks.
+      // expected across sleep/wake. The host logger is not reachable here;
+      // a socket that always fails surfaces as a missing notification on
+      // the client. Nothing rethrows — losing one frame on one socket must
+      // not abort the fan-out to the remaining sinks.
       developer.log(
         'LanPush datagram send failed: $e',
         name: 'LanPushBroadcaster',

@@ -2,8 +2,8 @@ import 'package:uuid/uuid.dart';
 
 import '../db/hub_database.dart';
 
-/// Consent + license ledger (Collaborative Sky WS4, concern 1 — every publish /
-/// contribute records a consent row + license; retraction marks it revoked).
+/// Consent + license ledger: every publish / contribute records a consent row
+/// + license, and a retraction marks it revoked.
 ///
 /// A consent record is the durable proof that, BEFORE any bytes were stored, the
 /// contributor named a license and the per-action rights (raw-subframe sharing,
@@ -93,7 +93,7 @@ class ConsentService {
   /// The number of still-live (un-revoked) consent records for a shared artifact
   /// `(artifactType, artifactRef)`. Zero once every record for it has been
   /// revoked (e.g. after the artifact is retracted), so a moderation / audit
-  /// surface — and the WS4 tests — can confirm a share is currently consented.
+  /// surface can confirm a share is currently consented.
   int liveConsentCount(String artifactType, String artifactRef) {
     final rows = _db.db.select(
       'SELECT COUNT(*) AS n FROM consent_records '

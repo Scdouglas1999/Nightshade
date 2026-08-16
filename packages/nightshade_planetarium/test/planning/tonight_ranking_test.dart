@@ -36,7 +36,7 @@ void main() {
     );
 
     // Index 0: transits at 10:00 with dec == latitude, i.e. straight through
-    // the zenith — the exact shape the old sort maximised (transit alt ~90°).
+    // the zenith — the shape a transit-altitude sort maximises (~90°).
     // Index 1: transits in the middle of the dark window, and lower (~70°).
     final ranked = rankTonightTargets(
       raDeg: [raThatTransitsAt(daylight), raThatTransitsAt(darkMid)],
@@ -54,7 +54,8 @@ void main() {
           'the target usable during darkness must outrank the zenith '
           'object that culminates at 10:00',
     );
-    // And the old key genuinely disagrees, so this is not a no-op assertion.
+    // A transit-altitude sort genuinely disagrees here, so this is not a
+    // no-op assertion.
     expect(ranked.first.visibility.transitAltitude, lessThan(85));
   });
 
@@ -251,12 +252,12 @@ void main() {
     });
   });
 
-  // Regression: the panel shipped a tooltip saying it ranked on "the same score
-  // the planner uses" while 30% of the key was a catalog-fit term
-  // TargetScoringService has never heard of. The list could therefore put a row
-  // with FEWER usable dark hours and a LOWER planner score above the row under
-  // it, on a card whose own headline number is those hours. Keep the blend, but
-  // the words shown to the operator have to match it.
+  // A tooltip saying the panel ranks on "the same score the planner uses" is
+  // false while 30% of the key is a catalog-fit term TargetScoringService has
+  // never heard of: the list then puts a row with FEWER usable dark hours and a
+  // LOWER planner score above the row under it, on a card whose own headline
+  // number is those hours. The blend stays; the words shown to the operator
+  // match it.
   group('the ranking key and the words shown for it agree', () {
     test('catalog fit can outrank a clearly better night score', () {
       // A (index 0): transits mid-darkness at dec == latitude, but faint.

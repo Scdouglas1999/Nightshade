@@ -187,9 +187,8 @@ class _Step3Review extends StatelessWidget {
             'Only image $targetName between ${_fmt(timeWindow.startMinutes)} and ${_fmt(timeWindow.endMinutes)} local time.';
         break;
       case TargetConstraintKind.moonIlluminationMax:
-        // Must match the Step 1 card title. 'Moon avoidance' was the name
-        // when illumination was the ONLY moon constraint; with a separation
-        // sibling in the list it no longer identifies which of the two is
+        // Must match the Step 1 card title. Two moon constraints exist —
+        // illumination and separation — so the title has to name which one is
         // about to be saved.
         typeLabel = 'Moon illumination';
         summary =

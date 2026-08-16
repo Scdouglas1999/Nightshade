@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // "Schedule" tab: the seven-night forecast strip pinned above the dynamic
 // target-queue scheduler. The former "This Week" + "Target Queue" tabs are
 // unified here — the forecast answers *which* upcoming nights to run the queue,

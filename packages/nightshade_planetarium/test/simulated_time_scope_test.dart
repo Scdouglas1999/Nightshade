@@ -1,12 +1,12 @@
-// Regression: SKY-5 — the planetarium's clock rewrote the Dashboard's.
+// The planetarium's clock never rewrites the Dashboard's.
 //
-// Found live. Stepping the planetarium transport ~20 h forward and returning
-// to the Dashboard left its header reading 17:43 (Aug 14) labelled "Local"
-// against a real 09:20 (Aug 13), LST 14:21:12 against 05:52, "Dark in 3h 54m"
-// against 12h 19m and a 6% moon against 1% — with the app's status bar showing
-// the true clock two inches away. Pressing NOW in the planetarium restored
-// every value, which is what named the cause. "Dark in" is the number a user
-// plans the evening around, and nothing said it was fictional.
+// A simulated time that escapes its scope leaves the Dashboard header reading
+// 17:43 (Aug 14) labelled "Local" against a real 09:20 (Aug 13), LST 14:21:12
+// against 05:52, "Dark in 3h 54m" against 12h 19m and a 6% moon against 1% —
+// with the app's status bar showing the true clock two inches away — after
+// stepping the planetarium transport ~20 h forward and returning. "Dark in" is
+// the number a user plans the evening around, and nothing on that card says it
+// is fictional.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,12 +1,9 @@
-/// SEQ-13: the scheduler kept evaluating a target at the coordinates it had
-/// when it was FIRST run.
+/// Re-pointing a target must move the `targets` row the scheduler evaluates.
 ///
 /// A builder-typed target gets its `targets` row lazily at run start, keyed by
-/// name. Re-pointing the same target in the builder and running it again found
-/// the existing row and returned its id unchanged, so the row — the only thing
-/// the autopilot ever reads — still held the old RA/Dec. The Schedule tab then
-/// rejected a target sitting at the zenith as "altitude -19.8° below site
-/// minimum", matching the OLD coordinates to 0.02°, all night.
+/// name. Resolving that row on a later run must also REFRESH its RA/Dec:
+/// returning the existing id unchanged leaves the autopilot — which reads only
+/// that row — scoring the coordinates the operator replaced.
 library;
 
 import 'dart:async';

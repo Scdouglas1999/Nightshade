@@ -22,9 +22,7 @@ import '../utils/json_validation.dart';
 part 'quick_start_service/quick_start_models.dart';
 part 'quick_start_service/quick_start_providers.dart';
 
-// =============================================================================
 // QuickStartService - Service for quick session resumption
-// =============================================================================
 
 /// Service for capturing and restoring session state for quick resumption.
 ///

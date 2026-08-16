@@ -1,19 +1,17 @@
-// Regression: the shared angle-filter sheet must not apply a value the user
-// never chose.
+// The shared angle-filter sheet must not apply a value the user never chose.
 //
-// The moon chip read "Moon: any" (the filter was unset) while the sheet opened
-// with its slider parked at 30° and its readout showing "30°" —
-// `initial: value ?? 30.0`. Pressing Apply without touching anything therefore
-// committed 30°: observed live, the chip flipped to "Moon ≥ 30" and the candidate
-// count dropped from 1202 to 1174 on a limit nobody set. A filter that silently
-// narrows results is the worst form of this defect, because the targets it removes
-// look like they simply are not up tonight.
+// With the filter unset the moon chip reads "Moon: any" while
+// `initial: value ?? 30.0` opens the sheet with its slider parked at 30° and its
+// readout showing "30°", so Apply without touching anything commits 30°: the
+// chip flips to "Moon ≥ 30" and the candidate count drops from 1202 to 1174 on a
+// limit nobody set. A filter that silently narrows results is the worst form of
+// this, because the targets it removes look like they simply are not up tonight.
 //
-// The sheet keeps 30° as the slider's starting POSITION (a genuinely useful hint,
-// and for the altitude chip it is derived from the horizon profile) but now reads
-// "Any" and disables Apply until the slider moves, so a limit can only be
-// committed deliberately. The altitude chip shares this sheet and had the same
-// flaw, which is why the fix lives in the sheet rather than in one call site.
+// The sheet keeps 30° as the slider's starting POSITION (a genuinely useful
+// hint, and for the altitude chip it is derived from the horizon profile) but
+// reads "Any" and disables Apply until the slider moves, so a limit can only be
+// committed deliberately. The altitude chip shares this sheet, which is why the
+// rule lives in the sheet rather than in one call site.
 //
 // Driven through the sheet directly rather than through PlannerScreen: the planner
 // runs a 1 s periodic sky clock, so `pumpAndSettle` never returns there and a

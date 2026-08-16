@@ -1,6 +1,5 @@
-// Part of ../disconnected_backend.dart -- extracted for maintainability.
-//
-// Fail-closed profile, settings, image, polar-alignment, and heartbeat overrides.
+// Fail-closed profile, settings, image, polar-alignment, and heartbeat
+// overrides.
 part of '../disconnected_backend.dart';
 
 mixin _DisconnectedBackendProfileAndImage on Object
@@ -113,9 +112,7 @@ mixin _DisconnectedBackendProfileAndImage on Object
     _throwNotConnected();
   }
 
-  // =========================================================================
-  // Polar Alignment
-  // =========================================================================
+  // Polar alignment
 
   final _polarAlignController =
       StreamController<Map<String, dynamic>>.broadcast();

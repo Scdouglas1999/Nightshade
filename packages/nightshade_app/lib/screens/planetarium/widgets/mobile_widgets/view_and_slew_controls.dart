@@ -63,8 +63,14 @@ class MobileViewControls extends ConsumerWidget {
               // Home = the observer's zenith, not the fixed point RA 0h/Dec 0
               // (which is usually below the horizon). See
               // [skyViewHomeCenterProvider].
-              final (ra, dec) = ref.read(skyViewHomeCenterProvider);
-              ref.read(skyViewStateProvider.notifier).setCenter(ra, dec);
+              // Null with no site on record: the zenith is the point over the
+              // observer, so the equatorial centre is left where it is.
+              final home = ref.read(skyViewHomeCenterProvider);
+              if (home != null) {
+                ref
+                    .read(skyViewStateProvider.notifier)
+                    .setCenter(home.$1, home.$2);
+              }
               ref
                   .read(skyViewStateProvider.notifier)
                   .setHorizontalCenter(0, 90);

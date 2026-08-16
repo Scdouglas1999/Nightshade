@@ -7,9 +7,9 @@ import 'package:flutter/services.dart';
 /// Thrown when the caller invokes the Live Activity service on a platform
 /// that does not (and cannot) support it.
 ///
-/// We intentionally throw rather than no-op so a regression that calls into
-/// this service from desktop or Android code becomes a visible failure
-/// instead of a silent fallback (repo policy: errors are a feature).
+/// Thrown rather than no-op so a caller reaching this service from desktop or
+/// Android code fails visibly instead of silently believing it started a Live
+/// Activity.
 class LiveActivityUnsupportedPlatformException implements Exception {
   LiveActivityUnsupportedPlatformException(this.message);
 

@@ -621,14 +621,12 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
       _emitSnapshot();
     } catch (e) {
       if (!mounted || loadGeneration != _loadGeneration) return;
-      // : errors are a feature. Surface loudly with the
-      // cause and a human message; the UI renders the failure as a
-      // distinct screen state with a "Retry" button rather than a
-      // silent empty timeline. We do NOT re-throw or escalate to
-      // Zone.handleUncaughtError here because doing so would crash
-      // the test harness even though the state machine has captured
-      // the failure correctly — the SessionReplayError state IS the
-      // load-failure surface.
+      // Surface the cause and a human message: the UI renders this as a
+      // distinct screen state with a "Retry" button, where a swallowed failure
+      // would render an empty timeline that looks like a quiet run. Do NOT
+      // re-throw or escalate to Zone.handleUncaughtError — the
+      // SessionReplayError state IS the load-failure surface, and escalating
+      // crashes the test harness on a failure already captured.
       state = SessionReplayError(
         runId: runId,
         message: 'Failed to load replay: $e',

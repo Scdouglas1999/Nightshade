@@ -1,44 +1,21 @@
 part of '../device_handlers.dart';
 
 extension CameraDeviceHandlers on DeviceHandlers {
-  // ===========================================================================
-  // Camera Control
-  // ===========================================================================
+  // Camera control
 
   /// Reject exposure parameters the camera has told us it cannot honour.
   ///
-  /// Why: vendor SDKs clamp out-of-range requests instead of failing, and
-  /// the app then reported the *requested* value back as the camera's live
-  /// setting. Observed on the live rig against a real ZWO ASI1600MM-Cool
-  /// whose own `/api/equipment/camera/capabilities` reports
-  /// `gainMax: 600`, `offsetMax: 100`, `maxBinX/Y: 4`,
-  /// `canAsymmetricBin: false`, `maxWidth/Height: 4656x3520`:
+  /// Vendor SDKs clamp an out-of-range request instead of failing it, and the
+  /// app then echoes the *requested* value back as the camera's live setting —
+  /// gain 99999 reported on a sensor that never left 600, a subframe origin
+  /// silently relocated to somewhere else on the sensor. A wrong number the
+  /// operator cannot see is worse than a rejected request, so a parameter
+  /// outside the advertised capabilities becomes a 400 naming the range.
   ///
-  ///  * `{"gain": 601 | 1000 | 99999}` -> 200, and
-  ///    `/api/equipment/camera/status` then reported `gain: 99999`. The
-  ///    frames were byte-for-byte indistinguishable from gain 600
-  ///    (read noise stddev 1486 / 1457 / 1472 / 1478 across
-  ///    600/601/1000/99999), proving the sensor never left 600.
-  ///  * `{"offset": 101 | 500 | 5000}` -> 200 with identical pedestals
-  ///    (mean 1430.60 / 1430.28 / 1430.52 / 1430.45), proving the sensor
-  ///    never left offset 100, while status reported `offset: 5000`.
-  ///  * `{"binX": 9}` and `{"binX": 2, "binY": 1}` -> HTTP 500
-  ///    `internal_error`, even though the advertised capabilities already
-  ///    say 4 is the maximum and asymmetric binning is unsupported.
-  ///  * `{"x": 4600, "width": 512}` -> 200 with a 512x512 frame taken from
-  ///    x=4144, and `{"y": 3400, "height": 512}` -> 200 with a frame taken
-  ///    from y=3008. The requested origin does not exist on the sensor, so
-  ///    the driver silently relocated the subframe and the response never
-  ///    said so. Subframes are used for autofocus and guide-star crops, so
-  ///    a silently moved ROI returns pixels from the wrong part of the sky.
-  ///
-  /// A wrong number the operator cannot see is worse than a rejected
-  /// request, so each of these becomes a 400 naming the advertised range.
-  ///
-  /// A failed capability read skips the guard rather than failing the
-  /// request: this exists to stop unhonourable parameters, not to add a new
-  /// way for a valid exposure to fail. Same contract as the cooling-target
-  /// range check in [handleCameraSetCooling].
+  /// A failed capability read skips the guard rather than failing the request:
+  /// this stops unhonourable parameters, it does not add a new way for a valid
+  /// exposure to fail. Same contract as the cooling-target range check in
+  /// [handleCameraSetCooling].
   Future<void> _validateExposureAgainstCapabilities({
     required DeviceBackend backend,
     required String deviceId,
@@ -65,8 +42,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
       // No capabilities AND not connected means the caller named a device
       // that does not exist. The exposure path flattens the driver's typed
       // `DeviceNotFound` into a plain string on its way up, so it lands in
-      // the error middleware's `orElse` and became a 500. Observed on the
-      // live rig:
+      // the error middleware's `orElse` and becomes a 500:
       //   POST /api/camera/expose {"deviceId":"native:zwo:9"}
       //   -> 500 {"error":"internal_error",
       //           "message":"Exposure failed: Device native:zwo:9 not found"}
@@ -214,18 +190,13 @@ extension CameraDeviceHandlers on DeviceHandlers {
 
     // Refuse to start a second exposure on a camera that is already exposing.
     //
-    // Why: the second request reprograms ROI / binning / gain on the sensor
-    // mid-exposure and destroys BOTH frames. Observed on the live rig against
-    // a real ZWO ASI1600MM-Cool — a 5 s full-frame light was in flight
-    // (`/api/equipment/camera/status` reporting `state: "exposing"`) when a
-    // 512x512 subframe request arrived at t=1.5 s:
-    //   second -> 500 {"error":"internal_error","message":"Failed to check
-    //             exposure status: SDK error: ZWO camera reported a failed
-    //             exposure"}
-    //   first  -> 500, same message, after 4.25 s
+    // The second request reprograms ROI / binning / gain on the sensor
+    // mid-exposure and destroys BOTH frames: a subframe request arriving
+    // during a full-frame light fails the in-flight exposure and its own, and
+    // the SDK reports only "ZWO camera reported a failed exposure" for each.
     // Two collaborating clients (the desktop UI and a phone, or the sequencer
-    // and a live-view poller) can therefore silently destroy a long exposure,
-    // and both are told only "internal error". The app already knows an
+    // and a live-view poller) would therefore silently destroy a long
+    // exposure, both told only "internal error". The app already knows an
     // exposure is running, so the honest answer is 409 naming the state.
     //
     // This is a guard, not a lock: a request that arrives inside the window
@@ -367,9 +338,9 @@ extension CameraDeviceHandlers on DeviceHandlers {
 
     final backend = container.read(deviceBackendProvider);
 
-    // Fail SAFE, not merely honest: if the state read fails we still issue the
-    // abort. Refusing to abort because we could not confirm an exposure was
-    // running would turn a diagnostic into a safety regression.
+    // Issue the abort even when the state read fails. Refusing to abort
+    // because the exposure state could not be confirmed would turn a failed
+    // diagnostic into a failed safety action.
     var wasRunning = true;
     try {
       final status = await backend.getCameraStatus(deviceId);
@@ -841,7 +812,5 @@ extension CameraDeviceHandlers on DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  // ===========================================================================
-  // Mount Control
-  // ===========================================================================
+  // Mount control
 }

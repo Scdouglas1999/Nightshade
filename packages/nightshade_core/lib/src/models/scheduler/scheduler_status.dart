@@ -110,10 +110,9 @@ class SchedulerConfig extends Equatable {
   ///
   /// This is THE site minimum altitude for the whole product: the sequence
   /// builder and the planner's altitude charts read it through
-  /// `siteMinimumAltitudeDegProvider` rather than carrying their own number.
-  /// They used to, and the two disagreed — the scheduler admitted a target at
-  /// 27° that the sequence builder then refused for being under 30°, so the
-  /// autopilot would happily queue something the operator could not build.
+  /// `siteMinimumAltitudeDegProvider` and never re-derive their own number. A
+  /// second threshold anywhere lets the scheduler admit a target the builder
+  /// then refuses.
   final double minAltitudeDegrees;
 
   /// Maximum moon separation penalty radius (degrees). Targets within this
@@ -136,11 +135,9 @@ class SchedulerConfig extends Equatable {
     this.tickInterval = const Duration(seconds: 60),
     this.hysteresisRatio = 1.20,
     // 30°, matching SmartNightSettings.minAltitudeDeg, the `targets`
-    // table's min_altitude column and the planner's altitude threshold.
-    // This used to be 25, which is the direction that BREAKS: the scheduler
-    // promised a target the builder would then refuse. Raising it only makes
-    // the unattended engine stricter, and the operator can still lower it —
-    // that choice now flows out to the builder and the charts as well.
+    // table's min_altitude column and the planner's altitude threshold. The
+    // default must not be looser than the builder's threshold, or the
+    // scheduler promises a target the builder refuses.
     this.minAltitudeDegrees = 30.0,
     this.moonAvoidanceRadiusDegrees = 60.0,
     this.maxSunAltitudeDegrees = -12.0,
@@ -244,11 +241,10 @@ class SchedulerStatus extends Equatable {
   /// True while [state] is [SchedulerState.paused] BECAUSE somebody outside
   /// the autopilot ended the run it had dispatched — the operator's Stop.
   ///
-  /// The autopilot used to notice the free rig on its next tick and dispatch
-  /// the same target again ~44 s later, silently overruling the person who had
-  /// just stopped it. It now stands down and says so: this flag is what lets
-  /// the scheduler surface offer "Autopilot paused — resume?" instead of
-  /// rendering an ordinary operator-commanded pause.
+  /// Without it the next tick would see a free rig and re-dispatch the same
+  /// target, overruling the person who just stopped it. It also lets the
+  /// scheduler surface offer "Autopilot paused — resume?" instead of an
+  /// ordinary operator-commanded pause.
   final bool pausedByOperatorStop;
 
   const SchedulerStatus({

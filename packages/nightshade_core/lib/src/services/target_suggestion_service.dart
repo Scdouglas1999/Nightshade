@@ -621,10 +621,10 @@ class TargetSuggestionService {
 
     final fillRatio = targetSizeArcmin / fovShortAxisArcmin;
 
-    // === Sweet spot ===
+    // Sweet spot
     if (fillRatio >= 0.40 && fillRatio <= 0.60) return 100;
 
-    // === Above sweet spot (tight side, gentle dropoff) ===
+    // Above sweet spot (tight side, gentle dropoff)
     if (fillRatio > 0.60 && fillRatio <= 0.75) {
       // 100→80
       return 100 - ((fillRatio - 0.60) / 0.15) * 20;
@@ -638,7 +638,7 @@ class TargetSuggestionService {
       return 70 - ((fillRatio - 0.90) / 0.10) * 10;
     }
 
-    // === Overflow side (gentle — large targets are still great) ===
+    // Overflow side (gentle — large targets are still great)
     if (fillRatio > 1.0 && fillRatio <= 2.0) {
       // 60→50
       return 60 - ((fillRatio - 1.0) / 1.0) * 10;
@@ -648,7 +648,7 @@ class TargetSuggestionService {
       return 50;
     }
 
-    // === Below sweet spot (steeper penalty — small targets) ===
+    // Below sweet spot (steeper penalty — small targets)
     if (fillRatio >= 0.30 && fillRatio < 0.40) {
       // 85→100
       return 85 + ((fillRatio - 0.30) / 0.10) * 15;
@@ -666,7 +666,7 @@ class TargetSuggestionService {
       return 20 + ((fillRatio - 0.05) / 0.05) * 25;
     }
 
-    // === Tiny speck ===
+    // Tiny speck
     // 1→20
     return 1 + (fillRatio / 0.05) * 19;
   }

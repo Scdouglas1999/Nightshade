@@ -32,12 +32,11 @@ extension _PlanetariumShell on _PlanetariumScreenState {
 
         // Canvas width the right-docked panel takes away, 0 when none is open.
         //
-        // The bottom chrome used to be laid out across the FULL stack while the
-        // drawer floated over its right end. At 900 px that put the drawer over
-        // the time transport: the clock read `18:46:` with the seconds behind
-        // the panel and the fast-forward button could not be clicked at all.
         // Insetting the overlays by the drawer's width is what makes "docked"
-        // true — the panel takes space rather than covering controls.
+        // true — the panel takes space rather than covering controls. Laid out
+        // across the FULL stack the bottom chrome runs under the drawer, which
+        // at 900 px puts it over the time transport: seconds hidden behind the
+        // panel, fast-forward unclickable.
         final dockedWidth = !isPhone && (_layersPanelOpen || _planPanelOpen)
             ? _shellPanelWidth(constraints.maxWidth)
             : 0.0;
@@ -63,7 +62,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
               child: Stack(
                 key: _skyViewKey,
                 children: [
-                  // --- Sky canvas (fills) ---
+                  // Sky canvas (fills)
                   Positioned.fill(
                     child: GestureDetector(
                       onSecondaryTapUp: (details) =>
@@ -125,7 +124,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     ),
                   ),
 
-                  // --- FOV reference rings ---
+                  // FOV reference rings
                   Positioned.fill(
                     child: Consumer(
                       builder: (context, ref, _) {
@@ -144,7 +143,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     ),
                   ),
 
-                  // --- Multi-rig FOV framing presets (interactive) ---
+                  // Multi-rig FOV framing presets (interactive)
                   if (_showFOV)
                     Positioned.fill(
                       child: Consumer(
@@ -160,7 +159,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                       ),
                     ),
 
-                  // --- Star catalog fallback warning + depth notice ---
+                  // Star catalog fallback warning + depth notice
                   // Mutually exclusive by construction (the depth notice stands
                   // down while the fallback is up), so they share one slot.
                   Positioned(
@@ -178,7 +177,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     ),
                   ),
 
-                  // --- Sky-survey imagery credit ---
+                  // Sky-survey imagery credit
                   // A licence obligation, not chrome: CDS and the survey
                   // publishers require the credit whenever their imagery is on
                   // screen. Top-centre is the one free band (the fallback
@@ -196,7 +195,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     ),
                   ),
 
-                  // --- Performance HUD (debug / opt-in) ---
+                  // Performance HUD (debug / opt-in)
                   if (kDebugMode || ref.watch(showPerfHudProvider))
                     Positioned(
                       top: 12,
@@ -204,7 +203,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                       child: _PerfHud(colors: colors),
                     ),
 
-                  // --- Compass HUD ---
+                  // Compass HUD
                   Positioned(
                     left: AdaptiveSizing.of(context).edgePadding,
                     bottom: 56,
@@ -214,10 +213,13 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                           return const SizedBox.shrink();
                         }
                         final sizing = AdaptiveSizing.of(context);
-                        final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                        // Alt/az is a reading against a horizon, so the HUD has
+                        // nothing to show until a site is on record.
+                        final altAz = ref.watch(viewCenterAltAzProvider);
+                        if (altAz == null) return const SizedBox.shrink();
                         return CompassHud(
-                          azimuth: az,
-                          altitude: alt,
+                          azimuth: altAz.$1,
+                          altitude: altAz.$2,
                           size: sizing.compassSize,
                           showAltitude: !sizing.useCondensedHud,
                         );
@@ -225,7 +227,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     ),
                   ),
 
-                  // --- Mini-map ---
+                  // Mini-map
                   Positioned(
                     right: AdaptiveSizing.of(context).edgePadding + dockedWidth,
                     bottom: 56,
@@ -235,24 +237,31 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                           return const SizedBox.shrink();
                         }
                         final sizing = AdaptiveSizing.of(context);
-                        final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                        // The minimap plots the view against the horizon, which
+                        // needs a site.
+                        final altAz = ref.watch(viewCenterAltAzProvider);
+                        if (altAz == null) return const SizedBox.shrink();
                         final viewState = ref.watch(skyViewStateProvider);
                         return SkyMinimap(
-                          azimuth: az,
-                          altitude: alt,
+                          azimuth: altAz.$1,
+                          altitude: altAz.$2,
                           fieldOfView: viewState.fieldOfView,
                           rotation: viewState.rotation,
                           size: sizing.minimapSize,
                           onTap: (tapAz, tapAlt) {
-                            final location = ref.read(observerLocationProvider);
+                            // Unreachable without a site — the minimap above
+                            // returns early — but the conversion needs one.
+                            final site =
+                                ref.read(observerLocationProvider).site;
+                            if (site == null) return;
                             final time = ref.read(observationTimeProvider);
                             final lst = AstronomyCalculations.localSiderealTime(
-                                time.time, location.longitude);
+                                time.time, site.longitude);
                             final (ra, dec) =
                                 AstronomyCalculations.horizontalToEquatorial(
                               altDeg: tapAlt,
                               azDeg: tapAz,
-                              latitudeDeg: location.latitude,
+                              latitudeDeg: site.latitude,
                               lstHours: lst,
                             );
                             ref
@@ -264,7 +273,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     ),
                   ),
 
-                  // --- Time-travel panel (bottom-center) ---
+                  // Time-travel panel (bottom-center)
                   PlanetariumTransportSlot(
                     colors: colors,
                     compact: isPhone,
@@ -272,7 +281,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     stackWidth: constraints.maxWidth,
                   ),
 
-                  // --- Info bar (slim, bottom) ---
+                  // Info bar (slim, bottom)
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -280,7 +289,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     child: BottomInfoBar(colors: colors),
                   ),
 
-                  // --- Right-docked panels (desktop only) ---
+                  // Right-docked panels (desktop only)
                   if (!isPhone && _layersPanelOpen)
                     Positioned(
                       top: 0,
@@ -314,7 +323,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                       ),
                     ),
 
-                  // --- Object info popup (on selection) ---
+                  // Object info popup (on selection)
                   if (_showPopup && _popupObject != null)
                     ObjectInfoPopup(
                       colors: colors,
@@ -459,11 +468,10 @@ extension _PlanetariumShell on _PlanetariumScreenState {
 
   /// Command-bar "Search ⌘K" (and the Ctrl/Cmd+K shortcut).
   ///
-  /// On desktop this used to only open the panel — on whatever tab it was last
-  /// left on — and stop, so the caret was never in the field and the keystrokes
-  /// that followed the shortcut went nowhere. Bumping [_searchFocusToken] is
-  /// what makes the panel select the Search tab and focus the field; the phone
-  /// sheet already autofocuses its own field.
+  /// The shortcut opens the panel AND focuses the field: bumping
+  /// [_searchFocusToken] is what makes the panel select the Search tab and put
+  /// the caret in it, so the keystrokes after the shortcut land somewhere. The
+  /// phone sheet autofocuses its own field.
   void _openPlanPanelOnSearch(
       {required bool isPhone, required NightshadeColors colors}) {
     if (isPhone) {
@@ -735,8 +743,11 @@ class _PerfHud extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final monitor = ref.watch(performanceMonitorProvider);
     final refreshRate = ref.watch(displayRefreshRateProvider);
+    // Null until the first frame timing lands, so the HUD reads "--" rather
+    // than a nominal rate the monitor has not measured.
     final fps = monitor.estimatedFps;
-    final cappedFps = fps > refreshRate ? refreshRate : fps;
+    final cappedFps =
+        fps == null ? null : (fps > refreshRate ? refreshRate : fps);
     final buildMs = monitor.averageBuildTime;
     final rasterMs = monitor.averageRasterTime;
 
@@ -759,7 +770,8 @@ class _PerfHud extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'FPS ${cappedFps.toStringAsFixed(1)} / ${refreshRate.toStringAsFixed(0)}Hz',
+                'FPS ${cappedFps?.toStringAsFixed(1) ?? '--'}'
+                ' / ${refreshRate.toStringAsFixed(0)}Hz',
               ),
               const SizedBox(height: 2),
               Text(

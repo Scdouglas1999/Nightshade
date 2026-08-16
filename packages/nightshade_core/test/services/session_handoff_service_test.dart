@@ -40,9 +40,7 @@ void main() {
     });
   });
 
-  // -----------------------------------------------------------------
   // Multi-night carry-over detection
-  // -----------------------------------------------------------------
   group('SessionHandoffService.detectCarryOver', () {
     late NightshadeDatabase db;
     late SessionsDao sessionsDao;
@@ -193,21 +191,26 @@ void main() {
       },
     );
 
-    test('returns empty list when DAOs are not provided', () async {
-      const noDb = SessionHandoffService();
-      final header = TargetHeaderNode(
-        targetName: 'M31',
-        raHours: 0.7,
-        decDegrees: 41.3,
-      );
-      final sequence = Sequence.create(
-        name: 'tonight',
-        nodes: {header.id: header},
-        rootNodeId: header.id,
-      );
-      final out = await noDb.detectCarryOver(sequence: sequence);
-      expect(out, isEmpty);
-    });
+    test(
+      'reports unavailable, not empty, when no data source exists',
+      () async {
+        const noDb = SessionHandoffService();
+        final header = TargetHeaderNode(
+          targetName: 'M31',
+          raHours: 0.7,
+          decDegrees: 41.3,
+        );
+        final sequence = Sequence.create(
+          name: 'tonight',
+          nodes: {header.id: header},
+          rootNodeId: header.id,
+        );
+        expect(
+          () => noDb.detectCarryOver(sequence: sequence),
+          throwsA(isA<SessionCarryOverUnavailable>()),
+        );
+      },
+    );
 
     test(
       'detects carry-over from host-backed snapshots without DAOs',

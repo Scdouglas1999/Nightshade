@@ -4,9 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/sequence/sequence_models.dart';
 import 'sequence_editor.dart';
 
-// =============================================================================
-// SEQUENCE EDITOR STATE
-// =============================================================================
+// Sequence editor state.
 
 /// Current sequence being edited.
 ///
@@ -19,9 +17,7 @@ final currentSequenceProvider =
       return CurrentSequenceNotifier(ref: ref);
     });
 
-// =============================================================================
-// SELECTED NODE
-// =============================================================================
+// Selected node.
 
 /// Currently selected node ID
 final selectedNodeIdProvider = StateProvider<String?>((ref) => null);
@@ -35,9 +31,7 @@ final selectedNodeProvider = Provider<SequenceNode?>((ref) {
   return sequence.nodes[selectedId];
 });
 
-// =============================================================================
-// MULTI-SELECT
-// =============================================================================
+// Multi-select.
 
 /// Set of currently multi-selected node IDs.
 final multiSelectedNodeIdsProvider =
@@ -127,12 +121,9 @@ class MultiSelectNotifier extends StateNotifier<Set<String>> {
 
   /// Delete all selected nodes.
   ///
-  /// Pre-filters the selection to only top-level *ancestors* before
-  /// iterating, so a selection that contains both a parent and one of its
-  /// descendants doesn't double-remove (which previously either threw
-  /// "node not found" from the executor's remove path or — worse — left
-  /// the descendant in a partial tombstone state because `removeNode` had
-  /// already wiped it via the parent's recursive subtree delete).
+  /// Pre-filters the selection to only top-level *ancestors* before iterating:
+  /// `removeNode` deletes a node's whole subtree, so a selection holding both a
+  /// parent and one of its descendants must not remove the descendant twice.
   void deleteSelected() {
     if (state.isEmpty) return;
     final sequence = ref.read(currentSequenceProvider);

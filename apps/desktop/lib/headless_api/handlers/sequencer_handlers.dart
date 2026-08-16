@@ -39,8 +39,7 @@ class SequencerHandlers {
   /// map therefore holds *instructions*, not observations: "use this camera",
   /// not "this camera happened to be connected last time". Feeding wiring
   /// results back in would let a camera the operator has since unplugged
-  /// survive as a phantom assignment, and the whole point of the pre-flight is
-  /// to refuse that run at Start.
+  /// survive as a phantom assignment.
   final Map<DeviceType, String?> _explicitlyAssignedDeviceIds = {};
 
   LoggingService get _logger => container.read(loggingServiceProvider);

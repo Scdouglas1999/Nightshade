@@ -1,15 +1,13 @@
 // Unset target coordinates must never read as a settled pointing.
 //
 // A Target node is created at RA 0h / Dec +0° because TargetHeaderNode has no
-// nullable coordinate. Typing "M31" into Target Name used to leave that
-// placeholder untouched while every downstream builder surface rendered it as
-// a real sky position: the tree card printed `RA 00h 00m 00s`, and the Slew
-// editor confirmed in green that it "Will use target: M31". A run built that
-// way tracks a random patch of Pisces all night.
+// nullable coordinate. Typing "M31" into Target Name must not leave that
+// placeholder untouched while downstream surfaces render it as a real sky
+// position — a run built that way tracks a random patch of Pisces all night.
 //
-// These tests pin the three halves of the fix: the Slew/Center confirmation
-// refuses to go green, the tree card says "Not set", and the target editor
-// both warns and offers a working name -> coordinates lookup.
+// These tests pin three halves: the Slew/Center confirmation refuses to go
+// green, the tree card says "Not set", and the target editor both warns and
+// offers a working name -> coordinates lookup.
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';

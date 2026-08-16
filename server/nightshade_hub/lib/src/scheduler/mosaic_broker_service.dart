@@ -7,7 +7,7 @@ import '../collab/consent_service.dart';
 import '../db/hub_database.dart';
 
 /// Per-panel claim broker + assembly coordinator for collaborative mosaics
-/// (Collaborative Sky WS2 — distributed panel capture).
+/// (distributed panel capture).
 ///
 /// A published [CollaborativeMosaicRow] holds its `rows × cols` panel grid as
 /// claimable work items. The broker re-uses [HandoffService]'s single-holder
@@ -37,7 +37,7 @@ class MosaicBrokerService {
 
   final HubDatabase _db;
 
-  /// Optional WS4 consent ledger. When present, [recordUpload] revokes the
+  /// Optional consent ledger. When present, [recordUpload] revokes the
   /// consent row a PREVIOUS uploader recorded for the same panel before
   /// overwriting the panel's single `consent_id`, so a panel that changes hands
   /// (force-release + re-claim + re-upload) leaves exactly one live consent row
@@ -299,9 +299,9 @@ class MosaicBrokerService {
   /// Record an uploaded panel master: flip the panel to `uploaded`, persist the
   /// stored [path] + generated [masterId], and stamp the authoritative
   /// [accountId] / [rigId] provenance. The [consentId] / [license] /
-  /// [attributionConsent] that gated the upload (WS4 consent) are persisted onto
-  /// the panel so the finalize attribution can honour the named-vs-anonymous
-  /// choice + license, and a force-release can revoke the matching consent.
+  /// [attributionConsent] that gated the upload are persisted onto the panel so
+  /// the finalize attribution can honour the named-vs-anonymous choice +
+  /// license, and a force-release can revoke the matching consent.
   ///
   /// CLAIM-GUARDED / SELF-HEALING: the handler resolves consent and reads the
   /// (potentially large) master body BEFORE calling this, yielding the isolate
@@ -383,7 +383,7 @@ class MosaicBrokerService {
     return _panelRowTyped(mosaicId, panelIndex)!;
   }
 
-  /// The recorded consent id of an uploaded panel (the WS4 share consent the
+  /// The recorded consent id of an uploaded panel (the share consent the
   /// uploader granted), or null when the panel has not been uploaded under a
   /// recorded consent. Used by a force-release to revoke that consent.
   String? panelConsentId(String mosaicId, int panelIndex) {
@@ -678,7 +678,7 @@ class CollaborativeMosaicPanelRow {
   final String? uploadedMasterId;
   final String? claimExpiresAt;
 
-  /// The WS4 share license + named-vs-anonymous choice recorded at panel upload.
+  /// The share license + named-vs-anonymous choice recorded at panel upload.
   /// `attribution_consent` defaults to credited (true) for a row written before
   /// the column existed; the finalize attribution renders the contributor
   /// anonymously when it is false.

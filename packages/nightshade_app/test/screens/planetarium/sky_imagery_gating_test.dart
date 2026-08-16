@@ -6,7 +6,7 @@
 //   * Network. The app's normal deployment is an observatory laptop on an
 //     isolated LAN. The layer must be OFF until the user asks for it, and must
 //     ask for nothing at wide fields where the star chart is the better view.
-//     A regression here is invisible locally and costs a user their bandwidth
+//     Breaking this is invisible locally and costs a user their bandwidth
 //     (and a pile of failing requests) in the field.
 //   * Attribution. CDS and the survey publishers require the `obs_copyright`
 //     credit while their imagery is displayed. Dropping it is a licence

@@ -1,11 +1,11 @@
 // Correcting a rejected capture folder must clear the rejection.
 //
-// Live finding IMG-1: onboarding step 10 rejected a path that did not exist,
-// and then kept saying "That folder does not exist." under a path the user had
-// replaced with a real one. The verdict was computed on submit/focus-loss only,
-// so retyping — the natural recovery — never re-ran the validator, and Next
-// stayed dead. Back-then-Next remounted the step and accepted the very same
-// text, which is what proved the check was right and only its result was stale.
+// Computing the verdict on submit/focus-loss only leaves onboarding step 10
+// saying "That folder does not exist." under a path the user has already
+// replaced with a real one: retyping — the natural recovery — never re-runs the
+// validator, and Next stays dead. Back-then-Next remounts the step and accepts
+// the very same text, which shows the check is right and only its result is
+// stale.
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

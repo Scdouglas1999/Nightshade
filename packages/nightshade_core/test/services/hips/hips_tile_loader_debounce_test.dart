@@ -11,10 +11,9 @@
 //   * DEDUP: a given tile id is fetched at most once even when two recomputes
 //     both need it; an in-flight request is shared, not re-issued, and a resident
 //     (cached) tile is never re-fetched.
-//   * CANCEL: when a newer viewport supersedes an older generation, the old
-//     generation's [HipsFetchToken] is cancelled so its in-flight requests abort
-//     and never thrash; the superseded generation's late completions do not
-//     surface as errors.
+//   * CANCEL: when a newer viewport supersedes a generation, that
+//     generation's [HipsFetchToken] is cancelled so its in-flight requests
+//     abort and never thrash; its late completions do not surface as errors.
 //
 // Driving: a [_FakeClock] makes the debounce wall-clock-free; a [_CountingServer]
 // (MockClient) counts GETs per URL so "fetch invoked once per tile" and
@@ -37,9 +36,7 @@ import 'package:nightshade_core/src/services/hips/hips_tile_cache.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_fetcher.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_loader.dart';
 
-// ---------------------------------------------------------------------------
 // Test doubles
-// ---------------------------------------------------------------------------
 
 /// A manually-driven clock: scheduled callbacks fire only when [fireAll] is
 /// called, so the debounce window is fully deterministic with no wall-clock wait.
@@ -132,9 +129,7 @@ Uint8List _png({int size = 8}) {
   return Uint8List.fromList(img.encodePng(image));
 }
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 const String _surveyId = 'CDS/P/DSS2/red';
 const String _baseUrl = 'https://alasky.cds.unistra.fr/DSS/DSS2Merged';
@@ -481,7 +476,7 @@ void main() {
         await _settle();
 
         expect(sink.failures, isEmpty);
-        // Using the disposed loader surfaces a StateError (errors are a feature).
+        // Using a disposed loader surfaces a StateError.
         expect(() => loader.requestTiles(_viewport()), throwsStateError);
       },
     );

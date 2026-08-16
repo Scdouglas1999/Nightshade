@@ -1,11 +1,11 @@
-// Regression: the Regions header must say what it counts.
+// The Regions header must say what it counts.
 //
-// Found live on a fresh profile with no captures at all: naming a region
-// (Your Sky > Name a region > Custom RA/Dec) made the header read
-// "1 region imaged" — directly above that region's own card reading "0s /
-// 0 tiles", and directly below an Atlas coverage strip reading 0s integration /
-// 0 tiles / 0 frames. The DB agreed: sky_atlas_regions = 1, sky_tiles = 0,
-// captured_images = 0. Naming a patch of sky is not imaging it.
+// On a fresh profile with no captures, naming a region (Your Sky > Name a region
+// > Custom RA/Dec) must not make the header read "1 region imaged" — directly
+// above that region's own card reading "0s / 0 tiles", and directly below an
+// Atlas coverage strip reading 0s integration / 0 tiles / 0 frames, with
+// sky_atlas_regions = 1, sky_tiles = 0, captured_images = 0 in the database.
+// Naming a patch of sky is not imaging it.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -66,12 +66,9 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   /// Wall clock for the present-tense readouts.
   ///
   /// [_calculateData] runs on mount and on a ra/dec (or settings) change only,
-  /// so the chips labelled "Alt:" and "Airmass:" — present tense, no timestamp
-  /// — froze at whatever the sky looked like when the card first built and then
-  /// kept stating it as current. On the planner's hero card that meant 14.7° /
-  /// airmass 3.88 still on screen seventeen minutes later, and the list card
-  /// for the same object disagreeing with it purely because scrolling had
-  /// recycled it through initState again.
+  /// so without a tick the chips labelled "Alt:" and "Airmass:" — present
+  /// tense, no timestamp — keep stating whatever the sky looked like when the
+  /// card first built.
   ///
   /// Only the "now" quantities are recomputed on the tick. The night curve and
   /// the twilight window are properties of the night, not of the minute, so
@@ -495,7 +492,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
             getDrawingHorizontalLine: (value) {
               // The site minimum is drawn as an explicit HorizontalLine below
               // (it is rarely a multiple of the 30° grid step), so the grid
-              // itself no longer pretends 30 is special.
+              // does not imply 30 is special.
               return FlLine(
                 color: colors.border.withValues(alpha: 0.3),
                 strokeWidth: 0.5,
@@ -606,14 +603,11 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           extraLinesData: ExtraLinesData(
             verticalLines: [
               // Current time indicator — ONLY when now actually falls inside
-              // the plotted window. This used to be `nowX.clamp(0,
-              // totalMinutes)`, which pinned a confident "Now" line to the
-              // chart's left edge for the whole daytime (the chart plots
-              // tonight's sunset→sunrise window). The marker then sat at an
-              // altitude the target will reach hours later, flatly
-              // contradicting the "Alt:" readout printed directly above it.
-              // With no marker the axis times still say what window is
-              // plotted, and the Alt chip remains the truth about right now.
+              // the plotted window, which is tonight's sunset→sunrise. Clamping
+              // it to the edge would pin a confident "Now" line at an altitude
+              // the target reaches hours later, contradicting the "Alt:"
+              // readout above it. With no marker the axis times still say what
+              // window is plotted, and the Alt chip remains the truth about now.
               if (nowX >= 0 && nowX <= totalMinutes)
                 VerticalLine(
                   x: nowX,

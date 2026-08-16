@@ -1,23 +1,23 @@
-// SEQ-18 / SEQ-19 — what the exposure node's card says once its frames are on
-// disk, driven through the real SequenceTree rather than the panel widget.
+// What the exposure node's card says once its frames are on disk, driven
+// through the real SequenceTree rather than the panel widget.
 //
-// Wave D refuted the first SEQ-18 fix. That fix keyed "this node finished" off
-// `nodeStatus == NodeStatus.success` and its test pumped exactly that, but in
-// the running app the per-node progress entries are GONE by the time the
-// operator reads the card: a 4x15s run whose Session Report said "Frames
-// accepted 4/4" left the node reading "Exposure: No Filter - 0 / 4 frames"
-// with four empty boxes above four R-labelled thumbnails, and a 12-frame run
-// did the same. A run STOPPED at frame 1 still read "1 / 4", which is what
-// made the zeroing look specific to the success path.
+// Keying "this node finished" off `nodeStatus == NodeStatus.success` passes a
+// test that pumps exactly that, and still reads zero in the running app: the
+// per-node progress entries are GONE by the time the operator reads the card, so
+// a 4x15s run whose Session Report says "Frames accepted 4/4" leaves the node
+// reading "Exposure: No Filter - 0 / 4 frames" with four empty boxes above four
+// R-labelled thumbnails. A run STOPPED at frame 1 still reads "1 / 4", which
+// makes the zeroing look specific to the success path.
 //
-// So the counter-input these tests encode is the one the refuter observed: the
-// card is still on screen (the panel deliberately persists for 20s after the
-// node stops running) while the progress maps no longer hold anything for it.
+// So the input these tests encode is the real one: the card is still on screen
+// (the panel deliberately persists for 20s after the node stops running) while
+// the progress maps no longer hold anything for it.
 //
-// SEQ-19 is the same card's other half: the node carries no filter of its own,
-// but the run imaged through R and said so everywhere else — telemetry strip,
-// thumbnails, FITS filenames, session report — while this header alone said
-// "No Filter", two rows under a target rollup reading "R 180s".
+// The card's other half is the filter: the node carries none of its own, but the
+// run images through R and says so everywhere else — telemetry strip,
+// thumbnails, FITS filenames, session report — so this header must not be the
+// one place saying "No Filter", two rows under a target rollup reading
+// "R 180s".
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

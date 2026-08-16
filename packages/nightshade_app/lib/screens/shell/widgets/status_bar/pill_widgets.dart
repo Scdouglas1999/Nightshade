@@ -11,17 +11,15 @@ class _StatusPillButton extends StatefulWidget {
   /// Narrow-desktop density: keeps the desktop pill's height, but shows only
   /// ONE of the two words — whichever one is not the same on every pill.
   ///
-  /// Dropping the label unconditionally was worse than the crowding it fixed:
-  /// with nothing connected, the value of the Camera, Mount and Guider pills is
-  /// the identical word "Disconnected", so a 900 px window read
-  /// "Disconnected  Disconnected  Disconnected" and the only thing telling the
-  /// three apart was a 12 px monochrome glyph. Disconnected is already carried
-  /// by the dot and by the muted icon, so the device NAME is what earns the
-  /// space; once a device is connected its value (profile name, focuser
-  /// position, Guiding/Ready) is the part that changes and it wins instead.
+  /// Whichever word differs is the one that earns the space. With nothing
+  /// connected the Camera, Mount and Guider pills all read "Disconnected", so
+  /// the device NAME wins — the disconnected state is already carried by the
+  /// dot and the muted icon. Once a device is connected its value (profile
+  /// name, focuser position, Guiding/Ready) is the part that changes, so that
+  /// wins instead.
   ///
-  /// This is not [compact]: that variant is sized for touch (44 px minimum) and
-  /// would overflow the 36 px desktop status bar, and it hides all text.
+  /// This is not [compact]: that variant is sized for touch (44 px minimum),
+  /// would overflow the 36 px desktop status bar, and hides all text.
   final bool dense;
 
   const _StatusPillButton({
@@ -41,7 +39,7 @@ class _StatusPillButton extends StatefulWidget {
 class _StatusPillButtonState extends State<_StatusPillButton> {
   bool _isHovered = false;
 
-  /// Widest a dense pill's value may be (WE-EQ-N5).
+  /// Widest a dense pill's value may be.
   ///
   /// Chosen so four device pills plus the sequence indicator, the equipment
   /// indicator and the save-path chip fit a 1000 px bar without the strip
@@ -131,14 +129,14 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                       ],
                       ConstrainedBox(
                         constraints: BoxConstraints(
-                          // WE-EQ-N5: at 1000 px the pill strip overflows and
-                          // the scroll viewport's fade cut a pill THROUGH its
+                          // Uncapped at 1000 px the pill strip overflows and
+                          // the scroll viewport's fade cuts a pill THROUGH its
                           // value — "Simulate" dissolving into the next pill's
                           // icon, with no ellipsis and the state dot lost off
-                          // the edge. An ellipsis inside the pill is a truncation
-                          // the reader can see; a viewport slice is not. The
-                          // dense cap is tight enough that the whole strip fits
-                          // at that width, so the cut stops happening at all.
+                          // the edge. An ellipsis inside the pill is a
+                          // truncation the reader can see; a viewport slice is
+                          // not. The dense cap is tight enough that the whole
+                          // strip fits at that width.
                           maxWidth: widget.dense
                               ? _denseValueMaxWidth
                               : ShellChromeMetrics
@@ -211,20 +209,19 @@ class _InfoChip extends StatelessWidget {
 /// The "there is more equipment this way" control at the right edge of the
 /// scrolling pill group.
 ///
-/// WD-COL-N4: at 900 px the group scrolled silently. The last visible pill was
-/// cut mid-word against the temperature chip and Mount / Guider / Focus simply
-/// were not there, with nothing on screen saying they existed — a disconnected
-/// mount and no mount at all looked identical. The 24 px alpha fade was the
-/// only hint, and a fade is not a control: with a mouse there was nothing to
-/// click. This is.
+/// Without it the group scrolls silently: at 900 px the last visible pill is
+/// cut mid-word against the temperature chip and Mount / Guider / Focus are
+/// simply absent, with nothing on screen saying they exist — a disconnected
+/// mount and no mount at all look identical. The 24 px alpha fade is the only
+/// hint, and a fade is not a control: with a mouse there is nothing to click.
+/// This is.
 /// The truncation mark drawn where the pill strip is cut by its viewport.
 ///
-/// WE-EQ-N5 residual: the E-fix capped a dense pill's value so "the strip fits
-/// a 1000 px bar". It does not — Wave F drove exactly 1000x800 with four
-/// devices connected and the strip still scrolled, with the pill at the cut
-/// reading "Si", sliced mid-word and dissolved by the edge fade. A viewport
-/// slice is not a truncation the reader can recognise; an ellipsis is, and it
-/// is what every other truncation in this app uses.
+/// Capping a dense pill's value is not enough on its own: at 1000x800 with four
+/// devices connected the strip still scrolls, with the pill at the cut reading
+/// "Si", sliced mid-word and dissolved by the edge fade. A viewport slice is
+/// not a truncation the reader can recognise; an ellipsis is, and it is what
+/// every other truncation in this app uses.
 ///
 /// It lives OUTSIDE the scroll viewport, flush against its right edge: inside,
 /// it would scroll away with the very text it describes. Decorative for

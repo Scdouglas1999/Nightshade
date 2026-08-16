@@ -18,8 +18,7 @@ import 'backend_provider.dart';
 /// together with the terminal artifacts of the most recent run: the persisted
 /// [StackAndShareResult] provenance record (with its DB id), the auto-stretched
 /// RGBA display buffer, and the integrated raw u16 mono buffer. A failed run
-/// surfaces its cause in [errorMessage] (per project policy errors are never
-/// swallowed) while leaving the buffers null.
+/// surfaces its cause in [errorMessage] and leaves the buffers null.
 ///
 /// This is a plain immutable value class (const constructor + [copyWith]),
 /// matching the style of [LiveStackingState] in `live_stacking_provider.dart`.
@@ -266,10 +265,9 @@ final stackAndShareProvider =
 /// Loads a single persisted [StackAndShareResult] by its database id for the
 /// result viewer.
 ///
-/// Throws [StateError] when no row matches [id] rather than returning a
-/// fabricated empty result — a stale / deleted id is a real error the viewer
-/// should surface, not silently render as a blank stack (errors are a feature,
-/// ).
+/// Throws [StateError] when no row matches [id] rather than returning an empty
+/// result: a stale or deleted id must surface as an error, not render as a
+/// blank stack.
 final stackResultViewerProvider =
     FutureProvider.family<StackAndShareResult, int>((ref, id) async {
       final backend = ref.watch(backendProvider);

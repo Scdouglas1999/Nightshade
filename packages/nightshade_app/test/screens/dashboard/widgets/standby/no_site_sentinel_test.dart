@@ -1,12 +1,12 @@
-// Regression: the dashboard must not present Null Island as the user's sky.
+// The dashboard must not present Null Island as the user's sky.
 //
 // lat/lon both 0.0 is the "no site on record" sentinel. The sun and moon really
 // do rise and set at 0°N 0°E, so the astronomy providers return a complete,
 // plausible set of times for a spot in the Gulf of Guinea. Every widget that
-// states a location-derived time therefore needs to check the sentinel itself —
-// a null-field check only catches polar day/night, which is why a first-run user
-// with no location used to read a stranger's sunset, astro-dark countdown, and
-// moonrise as their own.
+// states a location-derived time therefore has to check the sentinel ITSELF —
+// a null-field check only catches polar day/night, so a first-run user with no
+// location would read a stranger's sunset, astro-dark countdown and moonrise as
+// their own.
 //
 // Phase and illumination are global, so those stay visible without a site.
 

@@ -310,19 +310,13 @@ Future<bool> addPlanTonightTargetToSequencer({
 /// When the framing screen has mosaic mode enabled with a generated panel
 /// grid (`FramingState.mosaicEnabled` && `mosaicPanels.isNotEmpty`), this
 /// dispatches to [_addFramedMosaicToSequencer] instead of the single-target
-/// path. That ensures a 2x3 (or any) mosaic designed in the framing screen
-/// reaches the sequencer as a mosaic — previously only the central target
-/// was sequenced and the panels were silently dropped.
+/// path, so a mosaic designed in the framing screen reaches the sequencer as a
+/// mosaic rather than as its central target alone.
 ///
-/// Mosaic + Smart Night per-panel multi-filter composition is a tracked
-/// feature, not a quick fix: it needs a multi-filter mosaic exposure model
-/// (MosaicExposureSettings carrying a per-filter plan list) plus
-/// MosaicService.createMosaicSequence emitting per-panel multi-filter capture
-/// subtrees — a nightshade_core model/service change coordinated with the
-/// engine owner (audit item #16 / modelChangeRequests). Until then the mosaic
-/// path here uses the Smart Night-derived single-filter exposure
-/// recommendation per panel via [smartNightMosaicExposureSettings], matching
-/// the existing `MosaicWizardDialog` behaviour.
+/// The mosaic path applies ONE filter per panel — the Smart Night-derived
+/// single-filter recommendation from [smartNightMosaicExposureSettings],
+/// matching `MosaicWizardDialog`. Per-panel multi-filter composition would need
+/// a multi-filter mosaic exposure model in nightshade_core.
 Future<bool> addFramedTargetToSequencer({
   required BuildContext context,
   required WidgetRef ref,

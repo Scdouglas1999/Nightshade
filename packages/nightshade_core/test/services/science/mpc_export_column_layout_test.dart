@@ -1,12 +1,11 @@
-// Column-layout regression tests for the MPC 80-column optical-observation
-// export.
+// Column-layout cover for the MPC 80-column optical-observation export.
 //
 // The MPC optical format (https://www.minorplanetcenter.net/iau/info/
 // OpticalObs.html) puts the OBSERVATION TYPE in Note 2 (column 15); Note 1
-// (column 14) is a program/publication note. Nightshade shipped 'C' in column
-// 14 and a blank in column 15, so every submitted record reached the MPC with
-// no observation type at all and a non-standard Note 1 — a silently malformed
-// submission that the 80-character length check could not catch.
+// (column 14) is a program/publication note. Putting 'C' in column 14 and a
+// blank in column 15 sends every record to the MPC with no observation type at
+// all and a non-standard Note 1 — a malformed submission the 80-character
+// length check cannot catch.
 
 import 'package:flutter_test/flutter_test.dart';
 

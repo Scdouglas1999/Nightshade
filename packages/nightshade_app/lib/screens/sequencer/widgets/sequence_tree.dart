@@ -161,9 +161,8 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   bool _userScrolledManually = false;
 
   /// GlobalKey registry for auto-scroll: maps node IDs to their GlobalKeys.
-  /// Scoped to this state so it's torn down with the screen — the previous
-  /// module-level map leaked GlobalKeys across hot-reload and screen
-  /// transitions.
+  /// Scoped to this state so it is torn down with the screen: a module-level
+  /// map leaks GlobalKeys across hot reload and screen transitions.
   final Map<String, GlobalKey> _nodeKeyRegistry = <String, GlobalKey>{};
 
   /// The sequence id we last reconciled the key registry against. Used by
@@ -426,8 +425,8 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
             builder: (context, constraints) {
               // A modal IME can reduce the already-covered backing route to a
               // few pixels after the shared shell consumes its inset. The
-              // fixed sequence header cannot be useful there and previously
-              // painted a yellow overflow stripe through the dialog scrim.
+              // fixed sequence header cannot be useful there and would paint an
+              // overflow stripe through the dialog scrim.
               if (constraints.hasBoundedHeight && constraints.maxHeight < 80) {
                 return const SizedBox.expand();
               }

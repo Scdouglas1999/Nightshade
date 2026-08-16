@@ -201,11 +201,10 @@ class _ReportBody extends ConsumerWidget {
             _muted('You stopped this run. Everything captured before the stop '
                 'is saved.'),
           ],
-          // Surface the live warningMessages we accumulated during
-          // the run. Pre-patch these were collected by the
-          // executor but never rendered anywhere post-session —
-          // "filter HÎ± could not be matched 14 times" used to be
-          // invisible the moment the run ended.
+          // Surface the warningMessages the executor accumulated during
+          // the run. They are collected whether or not anything renders
+          // them, so without this a warning like "filter Ha could not be
+          // matched 14 times" vanishes the moment the run ends.
           if (report.warningMessages.isNotEmpty) ...[
             const SizedBox(height: 20),
             _SectionTitle(

@@ -25,14 +25,12 @@
 // All providers are constructed with a `http.Client` so tests can inject a
 // `MockClient` (see `test/services/conversational_builder/`). The base URL
 // and model name are *always* configurable — there are no hard-coded
-// endpoints (one of the production-finished requirements).
+// endpoints.
 //
-// Errors are a feature here: every provider raises an
-// [LlmProviderException] with the failing status code + response body when
-// the upstream returns non-2xx. The conversational builder service catches
-// these and surfaces them through the dialog UI so the user can tell the
-// difference between "the model gave invalid JSON" and "your API key is
-// expired".
+// Every provider raises an [LlmProviderException] carrying the failing status
+// code + response body when the upstream returns non-2xx. The conversational
+// builder service surfaces it through the dialog UI, so "the model gave invalid
+// JSON" and "your API key is expired" read differently.
 
 import 'dart:async';
 import 'dart:convert';
@@ -216,8 +214,8 @@ abstract class LlmProvider {
   /// history table.
   String get name;
 
-  /// The provider kind — used to round-trip the user's choice through
-  /// settings storage without coupling settings to a class hierarchy.
+  /// The provider kind, which round-trips the user's choice through settings
+  /// storage without coupling settings to a class hierarchy.
   LlmProviderKind get kind;
 
   /// True iff the provider has every credential / endpoint it needs to
@@ -331,10 +329,8 @@ class LlmProviderFactory {
   }
 }
 
-// ---------------------------------------------------------------------------
 // OpenAI-compatible (OpenAI, OpenRouter, LM Studio, anything else that
 // speaks `POST /v1/chat/completions` with the standard schema).
-// ---------------------------------------------------------------------------
 
 class OpenAiCompatibleProvider implements LlmProvider {
   final LlmProviderConfig config;
@@ -487,9 +483,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
   void close() => _http.close();
 }
 
-// ---------------------------------------------------------------------------
 // Anthropic (`POST /v1/messages`).
-// ---------------------------------------------------------------------------
 
 class AnthropicProvider implements LlmProvider {
   final LlmProviderConfig config;
@@ -638,9 +632,7 @@ class AnthropicProvider implements LlmProvider {
   void close() => _http.close();
 }
 
-// ---------------------------------------------------------------------------
 // Ollama (native `POST /api/chat`).
-// ---------------------------------------------------------------------------
 //
 // Ollama returns NDJSON streaming chunks by default. We pass `stream:false`
 // so we get a single JSON object back — simpler to parse and matches the
@@ -774,9 +766,7 @@ class OllamaLocalProvider implements LlmProvider {
   void close() => _http.close();
 }
 
-// ---------------------------------------------------------------------------
 // Internal helpers
-// ---------------------------------------------------------------------------
 
 String _joinUrl(String baseUrl, String path) {
   final trimmedBase = baseUrl.endsWith('/')

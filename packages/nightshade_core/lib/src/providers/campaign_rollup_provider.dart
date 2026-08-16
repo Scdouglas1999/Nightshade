@@ -30,10 +30,6 @@ final campaignRollupProvider = FutureProvider.autoDispose
 
 /// Bulk campaign rollups for the entire target catalog.
 ///
-/// Used by the Targets tab to render the "Total integration: 24h Lum,
-/// 8h Ha across 6 sessions" column and by the History tab to derive a
-/// per-target campaign badge for each run.
-///
 /// Returns rollups keyed by target id. Targets with no captures still
 /// appear in the map (with empty filter / session lists) so the UI
 /// can render "no captures yet" tiles.
@@ -53,16 +49,9 @@ final campaignRollupAllTargetsProvider =
 /// campaign badge can join across the two surfaces without re-querying
 /// the database for every row.
 ///
-/// Honors the [AppSettingsState.campaignRollupGroupingMode] setting:
-///   * `by_target_name` (default) — match on `rollup.targetName` lowercased.
-///     The catalog id is also accepted because that's what's commonly
-///     embedded in display strings ("M31", "NGC 7000").
-///   * `by_target_id` — strict match on `rollup.targetId.toString()`. The
-///     UI calls this when it has the Drift id at hand.
-///   * `by_user_tag` — name match plus a tag prefix; today we treat this
-///     as a synonym for `by_target_name` because the targets table does
-///     not yet have a tags column. The branch is kept so the setting has
-///     a real switch point.
+/// Honors the [AppSettingsState.campaignRollupGroupingMode] setting.
+/// `by_user_tag` resolves the same as `by_target_name`: the targets table
+/// carries no tags column, so there is nothing further to match on.
 final campaignRollupByNameProvider = FutureProvider.autoDispose
     .family<CampaignRollup?, String>((ref, targetName) async {
       final lookup = targetName.trim().toLowerCase();

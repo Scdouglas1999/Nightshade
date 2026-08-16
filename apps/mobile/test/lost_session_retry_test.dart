@@ -1,17 +1,17 @@
-// Regression: losing the host must not be terminal.
+// Losing the host must not be terminal.
 //
-// Observed live on an Android 15 emulator paired to a headless host at
-// 192.168.1.20:8080. Airplane mode was enabled; after the 30 s grace period the
-// app correctly tore the session down and showed "Connection to server lost.
-// Please reconnect." Airplane mode was then disabled — and 4 minutes later the
-// app was STILL sitting on that screen. Nothing was retrying: the grace timer's
-// callback was the end of the line. A cold start reconnected instantly from the
-// same saved server and token, proving the credentials were never the problem.
+// When the network drops, the app tears the session down after the 30 s grace
+// period and shows "Connection to server lost. Please reconnect." Getting back
+// from there is the retry path's job: the grace timer's callback is otherwise
+// the end of the line, and the app sits on that screen even once the network
+// returns — a cold start reconnects instantly from the same saved server and
+// token, so the credentials are never what is missing.
 //
-// The fix re-arms the same `_autoConnect()` entry point a cold start uses, on
-// the backoff pinned below. These cases lock the schedule's shape: it must ramp
-// (so a blip recovers in seconds), it must cap (so it never busy-polls), and it
-// must never terminate (so an overnight outage still re-attaches).
+// The retry path re-arms the same `_autoConnect()` entry point a cold start
+// uses, on the backoff pinned below. These cases lock the schedule's shape: it
+// must ramp (so a blip recovers in seconds), it must cap (so it never
+// busy-polls), and it must never terminate (so an overnight outage still
+// re-attaches).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_mobile/main.dart';
 

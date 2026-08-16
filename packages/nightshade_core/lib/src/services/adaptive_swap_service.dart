@@ -128,11 +128,10 @@ class AdaptiveSwapService {
     ConditionsScoreWeights weights = const ConditionsScoreWeights(),
   }) : _weights = weights;
 
-  /// Compose a [ConditionsScore] from the live inputs. Returns `null`
-  /// when no axis has data — the executor then treats the score as
-  /// "telemetry missing" and falls back to the ordinary scheduler
-  /// ranking (no silent fallbacks here: we'd rather report
-  /// `null` than a fake 50).
+  /// Compose a [ConditionsScore] from the live inputs. Returns `null` when no
+  /// axis has data — the executor then treats the score as "telemetry missing"
+  /// and falls back to the ordinary scheduler ranking. `null` is the honest
+  /// answer; a fabricated 50 is not.
   ConditionsScore? compose(AdaptiveSwapInputs inputs, {DateTime? now}) {
     if (!inputs.hasAnyAxis) return null;
 
@@ -186,7 +185,7 @@ class AdaptiveSwapService {
     );
   }
 
-  // ---- Per-axis 0..=100 scorers ----
+  // Per-axis 0..=100 scorers
 
   /// Transparency: 1.0 => 100, 0.0 => 0. Linear in the operationally
   /// relevant 0..=1 band; values > 1.0 (rare but possible from photometric

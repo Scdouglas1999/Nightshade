@@ -1,14 +1,14 @@
-// Regression guard for MOBILE-001: non-idempotent hardware command POSTs
-// (relative focuser/rotator moves, mount move-axis/pulse-guide, camera expose) must NOT be
-// auto-retried by the transient-failure retry wrapper. A single user-issued
-// relative move / exposure must result in at most ONE hardware actuation, even
-// when the first request times out on a slow remote link — otherwise an
-// impatient transport retry double-actuates the rig.
+// Non-idempotent hardware command POSTs (relative focuser/rotator moves, mount
+// move-axis/pulse-guide, camera expose) must NOT be auto-retried by the
+// transient-failure retry wrapper. A single user-issued relative move /
+// exposure must result in at most ONE hardware actuation, even when the first
+// request times out on a slow remote link — otherwise an impatient transport
+// retry double-actuates the rig.
 //
 // Two complementary checks:
 //   1. Real loopback HttpServer that delays the FIRST response past the client
-//      request timeout, then succeeds — the literal "slow link" scenario. We
-//      assert the server received exactly one request (one actuation).
+//      request timeout, then succeeds — the literal "slow link" scenario. The
+//      server must receive exactly one request (one actuation).
 //   2. Deterministic FakeNetworkClient transient-5xx check that pins
 //      maxAttempts==1 for these helpers (parity with connectDevice) while
 //      proving the idempotent GET path still fires its 3 retries.

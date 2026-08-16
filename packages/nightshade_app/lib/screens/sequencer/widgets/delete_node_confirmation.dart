@@ -5,38 +5,19 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Canonical confirmation + delete helper for sequencer nodes.
 ///
-/// Every user-initiated delete path in the sequencer (Properties-panel
-/// "Delete Node" button, targets-tab trash icon, tree row trash icon,
-/// tree right-click "Delete", screen-level Delete keyboard shortcut)
-/// MUST funnel through this helper so the confirmation policy stays
-/// consistent. Prior to consolidation each surface had its own policy
-/// (some prompted, some didn't, descendant counts varied), and a
-/// misclick on the Properties-panel button could nuke an entire target
-/// subtree silently.
+/// Every user-initiated delete path in the sequencer MUST funnel through this
+/// helper so the confirmation policy stays consistent: it always prompts, even
+/// on leaves, and the wording adapts to the descendant count. Without it a
+/// misclick can take an entire target subtree silently.
 ///
-/// Behaviour:
-///   * Reads the current sequence and the target node. Returns `false`
-///     immediately if either is missing (e.g. a stale callback for a
-///     node that was already removed).
-///   * Always prompts the user — even on leaves — so the surfaces feel
-///     identical. The wording adapts to the descendant count.
-///   * On confirm, removes the node via [CurrentSequenceNotifier.removeNode].
-///     If the editor throws (e.g. [SequenceLockedException] while the
-///     sequence is running, or any other failure inside the editor),
-///     the helper surfaces the error via a SnackBar — never silently
-///     swallowed. Errors are a feature.
-///   * Clears [selectedNodeIdProvider] when the removed node was the
-///     active selection so the Properties panel doesn't keep rendering
-///     stale fields.
+/// Returns `true` iff the user confirmed AND the underlying remove completed
+/// without throwing.
 ///
-/// Returns `true` iff the user confirmed AND the underlying remove
-/// completed without throwing.
-///
-/// IMPORTANT: this helper is for USER-INITIATED deletes only. Do not
-/// call it from programmatic flows (import dialogs rejecting a node,
-/// undo/redo, executor cleanup, etc.) — those should call
-/// [CurrentSequenceNotifier.removeNode] directly so they don't bounce
-/// the user through an irrelevant prompt.
+/// IMPORTANT: this helper is for USER-INITIATED deletes only. Do not call it
+/// from programmatic flows (import dialogs rejecting a node, undo/redo,
+/// executor cleanup, …) — those should call
+/// [CurrentSequenceNotifier.removeNode] directly so they don't bounce the user
+/// through an irrelevant prompt.
 Future<bool> confirmAndDeleteSequenceNode({
   required BuildContext context,
   required WidgetRef ref,
@@ -102,10 +83,10 @@ Future<bool> confirmAndDeleteSequenceNode({
   try {
     ref.read(currentSequenceProvider.notifier).removeNode(nodeId);
   } catch (error) {
-    // Errors are a feature: surface the failure rather than swallowing.
-    // SequenceLockedException is the expected case here (sequence
-    // started running between dialog open and confirm); other editor
-    // errors are equally important to expose.
+    // Surface the failure rather than swallowing it: the node stays in the
+    // tree, so a silent catch leaves the user believing it was deleted.
+    // SequenceLockedException is the expected case (the sequence started
+    // running between dialog open and confirm).
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

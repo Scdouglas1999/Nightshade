@@ -385,9 +385,7 @@ final errorServiceProvider = Provider<ErrorService>((ref) {
   return service;
 });
 
-// =============================================================================
 // User-Friendly Error Messages
-// =============================================================================
 
 /// Maps technical error messages to user-friendly messages
 class UserFriendlyError {

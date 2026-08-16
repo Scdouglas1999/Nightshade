@@ -1,14 +1,13 @@
-// Regression: sunrise/sunset must not count atmospheric refraction twice.
+// Sunrise/sunset counts atmospheric refraction once.
 //
-// The dashboard night-timeline strip for 40.0N/-75.0W on 2026-08-01 reported
-// Sunset 20:17 and Sunrise 05:55 local while the two twilight labels either
-// side of them (astro dark 22:01, astro dawn 04:11) were right to the minute.
-// The crossing searches evaluate APPARENT altitude, but the rise/set target
-// (-0.8333 deg = -34' refraction - 16' semi-diameter) is a GEOMETRIC
-// sun-centre altitude that already spends 34' on refraction, so ~34' was
-// applied twice and the app invented 7.5 minutes of daylight per day. The
-// twilight angles escaped because Sæmundsson refraction is suppressed below
-// -2 deg.
+// The dashboard night-timeline strip for 40.0N/-75.0W on 2026-08-01 otherwise
+// reports Sunset 20:17 and Sunrise 05:55 local while the two twilight labels
+// either side of them (astro dark 22:01, astro dawn 04:11) stay right to the
+// minute. The crossing searches evaluate APPARENT altitude, but the rise/set
+// target (-0.8333 deg = -34' refraction - 16' semi-diameter) is a GEOMETRIC
+// sun-centre altitude that already spends 34' on refraction, so applying ~34'
+// twice invents 7.5 minutes of daylight per day. The twilight angles escape
+// because Sæmundsson refraction is suppressed below -2 deg.
 //
 // Ground truth below is an independent NOAA solar-position solve on a 30 s
 // grid with 50-step bisection against a geometric sun-centre altitude of
@@ -89,10 +88,8 @@ void main() {
       expect(minutesFrom(vis.setTime, expectedSunsetUtc), lessThan(2));
       // Rise/transit/set describe ONE pass of the sky, so the sunrise here is
       // the one that opened the day of [date] — NOT the following morning that
-      // `calculateTwilightTimes` pairs with this sunset. That pairing is the
-      // night, and asking this function for it used to return a sunrise a full
-      // day AFTER the transit it reported. Use calculateTwilightTimes for the
-      // dusk -> dawn span.
+      // `calculateTwilightTimes` pairs with this sunset. Use
+      // calculateTwilightTimes for the dusk -> dawn span.
       expect(vis.riseTime!.isBefore(vis.transitTime!), isTrue);
       expect(vis.setTime!.isAfter(vis.transitTime!), isTrue);
       expect(

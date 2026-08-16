@@ -77,9 +77,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   }
 
-  // COL2-1: the card promised MPCORB (1.4 M objects) and delivered the Minor
-  // Planet Center's Bright Minor Planets file (312 bodies), so an observer who
-  // could not find their asteroid concluded the search was broken.
+  // The card must not promise MPCORB (1.4 M objects) and deliver the Minor
+  // Planet Center's Bright Minor Planets file (312 bodies), leaving an observer
+  // who cannot find their asteroid to conclude the search is broken.
   testWidgets('the card names the source it actually fetches', (tester) async {
     await pumpCard(tester, _FakeService());
 
@@ -87,8 +87,8 @@ void main() {
     expect(find.textContaining('not the full MPCORB'), findsOneWidget);
   });
 
-  // COL2-2: pressing "Refresh Now" produced no completion feedback the operator
-  // would notice — only a date buried in a small status line.
+  // "Refresh Now" must produce completion feedback the operator notices, not
+  // just a date buried in a small status line.
   testWidgets('a completed refresh is acknowledged with its counts',
       (tester) async {
     await pumpCard(tester, _FakeService());

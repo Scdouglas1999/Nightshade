@@ -1,8 +1,7 @@
 // All-zero score weights are not a readability preference: AdaptiveSwapService
 // .compose returns null at `weightTotal <= 0`, the driver pushes that null to
-// the executor, and every swap decision becomes ConditionsUnknown. The page
-// used to accept the all-zero config and describe it with the generic
-// "the composer renormalizes available axes at runtime" copy.
+// the executor, and every swap decision becomes ConditionsUnknown — so the page
+// must reject the all-zero config rather than describe it as a renormalisation.
 
 import 'dart:convert';
 

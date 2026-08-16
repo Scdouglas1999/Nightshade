@@ -5,12 +5,10 @@ import 'package:nightshade_core/src/services/equipment_health_service.dart';
 /// A user with too little history must not be told their rig is degrading.
 ///
 /// `analyze()` compares the last 5 sessions against sessions 6..15. For anyone
-/// with five or fewer sessions that baseline is EMPTY, and the old code ran the
-/// empty mean (0.0) through `.clamp(0.1, 100.0)` — inventing a 0.1 arcsec
-/// guiding baseline and a 0.1 px HFR baseline. Any real rig beats those by a
-/// factor of five or more, so both degradation triggers fired on every new
-/// user's first night and deducted 32 of 100 points, with a message quoting a
-/// concrete multiple ("7.00x the historical baseline") derived from nothing.
+/// with five or fewer sessions that baseline is EMPTY, and a clamped mean of
+/// nothing is a floor value (0.1 arcsec guiding, 0.1 px HFR) that any real rig
+/// beats by a factor of five — firing both degradation triggers on a first
+/// night and quoting a concrete multiple derived from no data.
 ImagingSession _session(int id, {double? guiding, double? hfr}) =>
     ImagingSession(
       id: id,

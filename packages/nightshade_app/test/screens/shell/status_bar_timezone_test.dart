@@ -1,13 +1,12 @@
-// Regression: the clock the operator always has on screen must follow
-// Settings → Location → Timezone.
+// The clock the operator always has on screen must follow Settings → Location →
+// Timezone.
 //
-// Live evidence: with "Use system time" OFF and a site offset chosen, the
-// status-bar clock and the Dashboard header clock both stayed on the host's
-// wall time — the setting persisted, the row's subtitle updated, and nothing
-// else in the app moved. Both chips formatted `DateTime.now()` (status bar) /
-// `observationTimeProvider.time` (header) directly instead of asking
-// `clockProvider`, so a remote-observatory operator read their laptop's time
-// while the UI claimed the site's zone.
+// Formatting `DateTime.now()` (status bar) or `observationTimeProvider.time`
+// (header) directly instead of asking `clockProvider` leaves both chips on the
+// host's wall time with "Use system time" OFF and a site offset chosen — the
+// setting persists, the row's subtitle updates, and nothing else in the app
+// moves, so a remote-observatory operator reads their laptop's time while the UI
+// claims the site's zone.
 //
 // The offsets here are derived from the HOST offset at run time, so the
 // expected reading always differs from host-local by a known five hours no

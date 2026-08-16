@@ -1,10 +1,9 @@
-// Characterization + regression tests for [ServerError.tryFromJson], the
-// single converged parser for the headless error envelope (NAME-001).
+// Characterization tests for [ServerError.tryFromJson], the single converged
+// parser for the headless error envelope.
 //
-// The headless server historically emitted contradictory error shapes. This
-// parser must accept ALL of them — the canonical {code, message}, the unified
-// {error, code, message} transition envelope, and the legacy prose-only
-// {error} bodies — while never regressing a shape it previously parsed.
+// The headless server emits several error shapes. This parser accepts ALL of
+// them — the canonical {code, message}, the unified {error, code, message}
+// transition envelope, and the legacy prose-only {error} bodies.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -53,7 +52,7 @@ void main() {
 
     test('parses the legacy prose-only {error} shape — treating error as the '
         'message and synthesizing a non-empty code from the status', () {
-      // This is the shape that previously returned null for ~225 bodies.
+      // The bare prose `{error: ...}` shape, with no code field to read.
       final err = ServerError.tryFromJson({
         'error': 'region 7 not found',
       }, httpStatus: 404);

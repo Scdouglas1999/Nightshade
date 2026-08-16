@@ -628,22 +628,11 @@ class MobileSequenceHooks {
   }
 }
 
-/// Provider for mobile sequence hooks
-///
-/// Why the explicit `unawaited(... .catchError(...))`: a bare
-/// `hooks.initialize()` returns a `Future<void>` that the Dart runtime
-/// silently discards if it throws. The foreground service, notifications,
-/// and power management may then fail without surfacing any signal — the
-/// classic audit fire-and-forget bug. We route the error through
-/// [LoggingService.error] so it lands in the on-disk log and through
-/// `developer.log` at level 1000 so it appears in DevTools.
-///
-/// Note: we do not currently expose the initialisation failure to UI.
-/// Doing so cleanly requires turning this into an async provider, which
-/// would force every consumer to handle AsyncValue. Since the consumers
-/// are mostly `ref.watch(... )` for side-effects, surfacing through the
-/// log + a downstream timeout in [MobileSequenceHooks.waitUntilInitialized]
-/// is the right balance.
+/// `initialize()` is fire-and-forget here, so its failures are routed
+/// explicitly to [LoggingService.error] and `developer.log` — a bare
+/// `hooks.initialize()` would let the foreground service, notifications and
+/// power management fail with no signal at all. Consumers see the failure
+/// through [MobileSequenceHooks.waitUntilInitialized]'s timeout.
 final mobileSequenceHooksProvider = Provider<MobileSequenceHooks>((ref) {
   final hooks = MobileSequenceHooks(ref);
 

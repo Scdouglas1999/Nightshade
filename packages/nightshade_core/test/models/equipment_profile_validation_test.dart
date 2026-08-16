@@ -478,9 +478,9 @@ void main() {
       );
     });
 
-    // Regression for the live defect: `POST /api/profiles` returned 200 and
-    // persisted focalLength 999999999 with aperture 0.0001, which read back as
-    // f/9999999990000.00 and would have gone into the FITS FOCALLEN card.
+    // Unvalidated, `POST /api/profiles` answers 200 and persists focalLength
+    // 999999999 with aperture 0.0001, which reads back as f/9999999990000.00
+    // and lands in the FITS FOCALLEN card.
     test('implausible optics are rejected on the wire', () {
       expect(
         ProfileValidator.validateWireProfile(

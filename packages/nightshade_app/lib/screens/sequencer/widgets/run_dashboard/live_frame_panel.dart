@@ -20,8 +20,7 @@ part 'live_frame_panel_parts/_inspect_dialog.dart';
 ///
 /// Layout: the current sub-exposure fills the main area on the left, with a
 /// vertical, scrollable column of recent-capture thumbnails pinned to the
-/// right. This keeps the main image near-square (instead of the old wide/short
-/// band that the horizontal history strip forced) while still surfacing the
+/// right. This keeps the main image near-square while still surfacing the
 /// session's frame history at a glance.
 ///
 /// Interaction model (see [_LiveFrameViewer]):

@@ -358,11 +358,9 @@ void main() {
 
         final profile =
             (await dstDb.equipmentProfilesDao.getAllProfiles()).single;
-        // Identity is the profile NAME, not the source row id. This assertion
-        // used to read `expect(profile.id, 47)`, which pinned the very
-        // behaviour that lost profiles on restore: ids are local autoincrement
-        // values, so re-using the bundle's id meant a restore into a database
-        // that had already handed that id out silently dropped the row.
+        // Identity is the profile NAME, not the source row id: ids are local
+        // autoincrement values, so re-using the bundle's id drops the row when
+        // restoring into a database that has already handed that id out.
         expect(profile.name, 'Production Rig');
         expect(profile.isDefault, isTrue);
         expect(profile.isActive, isTrue);

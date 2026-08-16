@@ -48,10 +48,10 @@ final filePathSettingsPickerProvider =
 /// row cannot drift from the directory the backups land in.
 ///
 /// Automatic backups default to ON with a 24 h interval, and "Maximum backups"
-/// DELETES the oldest bundles from this folder. Until this row existed the
-/// Files & Storage page named neither: it listed Image output and Sequences,
-/// said application data was "managed automatically", and left a retention
-/// policy pruning files in a directory the app never disclosed.
+/// DELETES the oldest bundles from this folder. Without this row the Files &
+/// Storage page names neither: it lists Image output and Sequences, says
+/// application data is "managed automatically", and leaves a retention policy
+/// pruning files in an undisclosed directory.
 final backupDirectoryPathProvider = FutureProvider<String>((ref) async {
   final directory = await ref.watch(backupServiceProvider).getBackupDirectory();
   return directory.path;
@@ -59,11 +59,10 @@ final backupDirectoryPathProvider = FutureProvider<String>((ref) async {
 
 /// Where the database, logs and crash reports actually are.
 ///
-/// Files & Storage used to answer "Database and logs" with the sentence
-/// "Managed automatically in Nightshade's application data folder" — no path,
-/// no copy button, nothing. Attaching a log to a bug report, backing the
-/// database up by hand, or checking which data directory a headless launch
-/// picked all began with hunting for a folder the app knew and would not say.
+/// Attaching a log to a bug report, backing the database up by hand, and
+/// checking which data directory a headless launch picked all start with
+/// knowing the path, so the page states it rather than saying it is "managed
+/// automatically".
 final applicationDataPathProvider = FutureProvider<String>((ref) async {
   final databaseFile = await resolveDefaultDatabaseFile();
   return databaseFile.parent.path;
@@ -426,8 +425,8 @@ class _AppDataFolderRow extends ConsumerWidget {
         'nightshade.db and any recovered or quarantined database files.';
     // The logs are NOT under the database folder — different resolver,
     // different root — so they get their own line and their own button. A
-    // bug-report instruction that points at one folder containing both would
-    // be a fresh untruth in place of the old "managed automatically".
+    // bug-report instruction pointing at one folder containing both would be
+    // false.
     final logsLine = switch (logPathAsync) {
       AsyncData(:final value) => 'Logs: $value',
       AsyncError(:final error) => 'Could not resolve the logs folder: $error',

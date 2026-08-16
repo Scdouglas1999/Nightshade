@@ -134,13 +134,13 @@ class FramingEquipmentWarningCard extends StatelessWidget {
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 12),
-            // CON-55: this navigates to Equipment exactly like Plan Tonight →
-            // Recommendation's "Open Settings", but a bare GestureDetector
-            // publishes an action with no role, so assistive tech read one as
-            // `button: Open Settings` and this one as `panel: Edit Profile` —
-            // the same kind of control, one focusable and one not. Semantics +
-            // InkWell give it the button role, keyboard focus and the ink the
-            // sibling already had.
+            // This navigates to Equipment exactly like Plan Tonight →
+            // Recommendation's "Open Settings", so it must announce the same
+            // way. A bare GestureDetector publishes an action with no role, so
+            // assistive tech reads the sibling as `button: Open Settings` and
+            // this one as `panel: Edit Profile` — the same kind of control, one
+            // focusable and one not. Semantics + InkWell give it the button
+            // role, keyboard focus and the ink the sibling has.
             Semantics(
               button: true,
               enabled: true,

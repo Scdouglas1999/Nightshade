@@ -194,9 +194,9 @@ void main() {
     final screenId = nextUsePromptScreenId(step.id);
     expect(await dao.isPromptDismissedForScreen(screenId), isFalse);
 
-    // The inline ghost button retires the step for good, so it must not be
-    // labelled as a deferral. It used to read "Not now", which promises the
-    // step will come back — it does not: the dismissal row below is permanent.
+    // The inline ghost button retires the step for good — the dismissal row it
+    // writes is permanent — so it must not be labelled as a deferral like
+    // "Not now", which promises the step comes back.
     expect(find.text('Not now'), findsNothing);
     expect(find.text('Skip this step'), findsOneWidget);
 

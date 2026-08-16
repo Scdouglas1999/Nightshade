@@ -149,23 +149,13 @@ extension CatalogManagerUnifiedApi on CatalogManager {
   /// `name` must be one of the keys in [CatalogManager.knownCatalogs]. Throws
   /// [ArgumentError] otherwise.
   ///
-  /// Implementation:
-  ///   1. Stream the bytes into a temp file inside the catalog
-  ///      directory (NOT into the final destination — a partial file
-  ///      would otherwise overwrite a previously-working install).
-  ///   2. Decompress when [CatalogDescriptor.isGzipped] is true.
-  ///   3. Compute SHA-256 over the final (decompressed) bytes.
-  ///   4. Atomically rename into place.
-  ///   5. Write the metadata sidecar with the recorded hash.
-  ///   6. Invalidate any cached loaders so subsequent searches pick up
-  ///      the new file immediately.
-  ///   7. Emit [CatalogEvent] start/progress/complete entries.
+  /// The bytes land in a temp file inside the catalog directory and are only
+  /// renamed into place once the hash is recorded, so a partial download can
+  /// never overwrite a working install.
   ///
-  /// [onProgress] is invoked with `(downloadedBytes, totalBytes)` —
-  /// totalBytes may be -1 when the server does not send
-  /// `Content-Length` (rare for our manifests but possible for VizieR
-  /// TAP). [cancel], when supplied, is polled on every chunk; throws
-  /// [CatalogCancelled] when the operator cancels mid-download.
+  /// [onProgress] is invoked with `(downloadedBytes, totalBytes)`; totalBytes is
+  /// -1 when the server sends no `Content-Length`. [isCancelled], when supplied,
+  /// is polled on every chunk and throws [CatalogCancelled] mid-download.
   Future<CatalogInstallResult> _downloadAndInstallCatalog(
     String name, {
     String? jobId,
@@ -371,8 +361,9 @@ extension CatalogManagerUnifiedApi on CatalogManager {
         try {
           await tempFile.delete();
         } catch (_) {
-          // Errors are a feature here — log loudly so the
-          // operator can clean up manually if needed.
+          // The partial file is now the operator's to clean up, so say so
+          // loudly rather than leaving stale bytes in the catalog directory
+          // unmentioned.
           developer.log(
             '[Catalog] downloadAndInstall($name): failed to delete partial after error',
             name: 'CatalogManager',

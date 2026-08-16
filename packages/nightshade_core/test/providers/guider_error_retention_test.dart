@@ -1,12 +1,11 @@
-/// Regression test: a guider that DIED must keep its reason.
+/// A guider that DIED keeps its reason.
 ///
 /// The built-in guider's task can fail asynchronously ("Calibration star match
 /// failed"). That path emits a guiding `Disconnected` event, which lands in
-/// `setDisconnected()` — and that used to rebuild the state object from scratch,
-/// wiping the `lastError` the accompanying device-error event had just set. The
-/// imaging Guiding panel was then left with nothing and fell back to "No guider
-/// connected", pointing the operator at cables for a calibration problem.
-/// Reproduced end-to-end against the built-in guider on the simulator camera.
+/// `setDisconnected()`; rebuilding the state object from scratch there wipes
+/// the `lastError` the accompanying device-error event just set, leaving the
+/// imaging Guiding panel with nothing and falling back to "No guider
+/// connected" — pointing the operator at cables for a calibration problem.
 library;
 
 import 'package:flutter_test/flutter_test.dart';

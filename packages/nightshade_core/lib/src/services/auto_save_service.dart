@@ -797,24 +797,15 @@ final autoSaveServiceProvider = Provider<AutoSaveService>((ref) {
   return service;
 });
 
-/// Provider for auto-save status stream
 /// Auto-save status for the UI, with `lastBackup` backfilled from the persisted
 /// timestamp whenever the live service instance does not know it.
 ///
-/// Why the backfill: [autoSaveServiceProvider] `ref.watch`es
-/// [backendProvider], so it is REBUILT when the backend swaps during boot
-/// (placeholder -> real FFI backend). The rebuilt instance is a fresh
-/// `AutoSaveService` whose `_status.lastBackup` is null and which the
-/// hydrating [autoSaveLifecycleProvider] may already have run against the
-/// PREVIOUS instance. The Backup & Restore screen then reported "Last Full
-/// Backup: Never" on a machine whose `autosave.last_backup_at` had been written
-/// hours earlier, with the backup files still on disk (reproduced on the Linux
-/// desktop build).
-///
-/// Reading the same key the writer uses keeps this truthful — it never invents
-/// a timestamp, it only surfaces one that was actually recorded — and it stays
-/// correct whichever service instance the UI happens to observe. The underlying
-/// rebuild-on-backend-swap remains worth addressing on its own.
+/// [autoSaveServiceProvider] watches [backendProvider], so a backend swap
+/// during boot rebuilds it with a fresh `AutoSaveService` whose
+/// `_status.lastBackup` is null even though a backup was recorded against the
+/// previous instance. Reading the same settings key the writer uses surfaces
+/// only timestamps that were actually recorded, whichever instance the UI
+/// observes.
 final autoSaveStatusProvider = StreamProvider<AutoSaveStatus>((ref) async* {
   final dao = ref.watch(settingsDaoProvider);
   DateTime? persistedLastBackup;

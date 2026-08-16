@@ -471,9 +471,7 @@ class PairingScreen extends ConsumerWidget {
 
   // The primary pairing path (mobile_pairing_service.pairWithCode) sends
   // `defaultTargetPlatform.name`, so real rows carry 'android' / 'iOS' /
-  // 'windows' / 'macOS' / 'linux' — none of which used to be handled. Every
-  // Android phone therefore appeared as a desktop monitor labelled "Browser or
-  // device". Only the lanClaim fallback sends 'mobile'.
+  // 'windows' / 'macOS' / 'linux'. Only the lanClaim fallback sends 'mobile'.
   IconData _getDeviceIcon(String deviceType) {
     switch (deviceType.toLowerCase()) {
       case 'mobile':
@@ -743,9 +741,9 @@ class PairingScreen extends ConsumerWidget {
 /// Copy-the-pairing-code control.
 ///
 /// A named button (so assistive tech can find and press it) that acknowledges
-/// itself where the operator is looking. The snack bar stays for the screen
-/// reader announcement, but it is no longer the only feedback: the label swaps
-/// to "Copied" for a few seconds, which is what a silent click needed.
+/// itself where the operator is looking: the label swaps to "Copied" for a few
+/// seconds. The snack bar stays for the screen-reader announcement, but it is
+/// not the only feedback.
 class _CopyCodeButton extends StatefulWidget {
   const _CopyCodeButton({required this.code});
 
@@ -799,11 +797,10 @@ class _CopyCodeButtonState extends State<_CopyCodeButton> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         // Filled, not ghost. A ghost button paints no fill until hover, so its
-        // `textSecondary` label sat straight on the card's `primaryContainer`
-        // and measured 1.15:1 — the one affordance for the credential read as
-        // a disabled ghost (WF-SS-N1). A filled variant carries its own
-        // background, so the label's contrast no longer depends on whatever
-        // card it is dropped onto.
+        // label's contrast depends on whatever card it is dropped onto — on
+        // `primaryContainer` a `textSecondary` label measures 1.15:1 and the
+        // one affordance for the credential reads as disabled. A filled variant
+        // carries its own background.
         NightshadeButton(
           label: label,
           icon: _copied ? NightshadeIcons.success : NightshadeIcons.copy,

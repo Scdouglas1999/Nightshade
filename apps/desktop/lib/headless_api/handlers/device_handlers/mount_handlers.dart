@@ -131,8 +131,8 @@ extension MountDeviceHandlers on DeviceHandlers {
     // Resolve the target mount. When the caller omits `deviceId` (the common
     // case for a tablet that just wants "the" mount), fall back to the single
     // connected mount instead of passing an empty id straight to the backend,
-    // which previously produced an opaque 500 ("Device not found:"). Only when
-    // no mount is connected do we surface a clean 400.
+    // which the backend answers with an opaque 500 ("Device not found:"). Only
+    // when no mount is connected do we surface a clean 400.
     var deviceId = request.url.queryParameters['deviceId'] ?? '';
     if (deviceId.isEmpty) {
       final connected = await backend.getConnectedDevices();
@@ -216,6 +216,4 @@ extension MountDeviceHandlers on DeviceHandlers {
 
     return jsonOk({'status': 'finding_home'});
   }
-
-  // ===========================================================================
 }

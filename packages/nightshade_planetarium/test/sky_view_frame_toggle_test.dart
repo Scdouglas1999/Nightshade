@@ -1,12 +1,12 @@
-// Regression: switching the sky view between the equatorial and horizontal
-// frames is a change of GRID, not of target.
+// Switching the sky view between the equatorial and horizontal frames is a
+// change of GRID, not of target.
 //
-// Found live: with the chart centred on M57 at a 2.0 deg imaging field, one
-// click on the command bar's Alt/Az toggle recentred it on RA 4h42m52s /
+// With the chart centred on M57 at a 2.0 deg imaging field, one click on the
+// command bar's Alt/Az toggle otherwise recentres it on RA 4h42m52s /
 // Dec +39d59' — hour angle 0 at declination = the 40 deg site latitude, i.e.
-// the zenith. setViewMode only flipped SkyViewState.viewMode, and because the
-// two frames keep independent centres the horizontal one still held the
-// (az 0, alt 90) the last reset had left there.
+// the zenith. Flipping only SkyViewState.viewMode leaves the two frames on
+// their independent centres, and the horizontal one still holds the
+// (az 0, alt 90) the last reset left there.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -100,7 +100,7 @@ void main() {
       final observer = container.read(observerLocationProvider);
 
       // Anti-zenith of the instant above: guaranteed under the horizon.
-      final zenith = skyViewHomeCenterAt(observer, instant);
+      final zenith = skyViewHomeCenterAt(observer, instant)!;
       view.setCenter((zenith.$1 + 12) % 24, -zenith.$2);
 
       view.setViewMode(

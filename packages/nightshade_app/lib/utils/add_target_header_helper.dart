@@ -6,12 +6,11 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Shared helper for adding a target header to the current sequence.
 ///
-/// `CurrentSequenceNotifier.addTargetHeader` throws
-/// [NoActiveSequenceException] when no sequence is loaded — previously it
-/// silently created one named "New Sequence", which hid a real UX failure
-/// (the user didn't realize the sequencer wasn't open). This helper centralises
-/// the prompt-then-create dance so every entry point that adds a target
-/// (planner, planetarium, framing, annotation overlay) behaves identically.
+/// `CurrentSequenceNotifier.addTargetHeader` THROWS
+/// [NoActiveSequenceException] when no sequence is loaded, rather than quietly
+/// creating one the user did not ask for. This helper centralises the
+/// prompt-then-create dance so every entry point that adds a target (planner,
+/// planetarium, framing, annotation overlay) behaves identically.
 ///
 /// Returns `true` if the target was actually added, `false` if the user
 /// declined the prompt or the editor refused (e.g. a sequence is running).

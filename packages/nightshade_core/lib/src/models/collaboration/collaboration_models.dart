@@ -24,8 +24,8 @@ import 'dart:convert';
 ///
 /// All fields are nullable: provenance is best-effort and forward-compatible.
 /// The calibration-specific fields ([frameCount], [darkCurrent], [sensorWidth],
-/// [sensorHeight]) are what WS1's quality gate surfaces; the identity fields
-/// ([accountId], [displayName], [rigId]) drive attribution across all of WS1-3.
+/// [sensorHeight]) are what the calibration quality gate surfaces; the identity
+/// fields ([accountId], [displayName], [rigId]) drive attribution everywhere.
 ///
 /// SECURITY — the identity fields are SELF-REPORTED and NOT authenticated. They
 /// are producer-controlled and a malicious/buggy uploader can name a different
@@ -72,11 +72,11 @@ class Provenance {
   final int? frameCount;
 
   /// Measured dark-current statistic (e- / px / s) for a shared dark — the
-  /// trust signal WS1 surfaces before download.
+  /// trust signal surfaced before download.
   final double? darkCurrent;
 
-  /// Sensor dimensions in pixels (used by WS1's quality gate to refuse masters
-  /// whose geometry does not match the puller's sensor).
+  /// Sensor dimensions in pixels (used by the calibration quality gate to
+  /// refuse masters whose geometry does not match the puller's sensor).
   final int? sensorWidth;
   final int? sensorHeight;
 
@@ -229,8 +229,8 @@ enum ContributionLicense {
 }
 
 /// The explicit consent a contributor grants when publishing an artifact: the
-/// license plus the fine-grained "what may be done with my data" flags WS4
-/// requires before anything is shared publicly.
+/// license plus the fine-grained "what may be done with my data" flags
+/// required before anything is shared publicly.
 class ContributionConsent {
   const ContributionConsent({
     this.license = ContributionLicense.ccBy,
@@ -261,8 +261,8 @@ class ContributionConsent {
   /// When consent was given (audit trail).
   final DateTime? consentedAt;
 
-  /// Whether this consent permits any public sharing at all. WS4 gates every
-  /// publish path on this being true.
+  /// Whether this consent permits any public sharing at all. Every publish path
+  /// is gated on this being true.
   bool get permitsSharing => license.isShareable;
 
   /// The fail-closed consent returned when a stored/received consent record is
@@ -390,26 +390,26 @@ enum CollaborativeRole {
 }
 
 /// The fine-grained actions a scoped grant may permit, beyond the coarse role.
-/// These are the "contribute to this mosaic, not delete it" verbs WS4 needs.
+/// These are the "contribute to this mosaic, not delete it" verbs.
 /// The wire name is the stable string embedded in a scoped token; keep it in
 /// lock-step with the hub's `CollabAction`.
 enum CollaborativeAction {
-  // Shared calibration libraries (WS1).
+  // Shared calibration libraries.
   calibrationPublish('calibration.publish'),
   calibrationDownload('calibration.download'),
 
-  // Collaborative mosaics (WS2).
+  // Collaborative mosaics.
   mosaicPublish('mosaic.publish'),
   mosaicClaim('mosaic.claim'),
   mosaicUpload('mosaic.upload'),
   mosaicDownload('mosaic.download'),
   mosaicAssemble('mosaic.assemble'),
 
-  // Live co-imaging (WS3).
+  // Live co-imaging.
   coimagingJoin('coimaging.join'),
   coimagingContribute('coimaging.contribute'),
 
-  // Cross-cutting (WS4).
+  // Cross-cutting.
   retract('retract'),
   attributionRead('attribution.read'),
   tokenMint('token.mint'),
@@ -461,8 +461,8 @@ enum CollaborativeAction {
 
 /// A scoped permission grant: a base [role], optionally narrowed to a single
 /// [deviceId] (per-device scope) and/or to an explicit [actions] allow-list
-/// (per-action scope). This is the client mirror of the hub's `ScopedGrant`,
-/// and is the concrete realization of WS4's "fine-grained scoped roles".
+/// (per-action scope). This is the client mirror of the hub's `ScopedGrant` and
+/// the concrete realization of fine-grained scoped roles.
 ///
 /// Semantics:
 ///   * [actions] == null  → all actions the [role] permits by default.

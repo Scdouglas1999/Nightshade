@@ -5,9 +5,9 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
 /// Injectable seam over the `api_sky_atlas*` FFI surface.
 ///
-/// **Why this exists.** The sky-atlas native entry points are free functions on
-/// the generated bridge that take a single JSON string and return a JSON string
-/// (`docs/nightshade_5_0_contracts.md` §2.1). Calling them directly from
+/// The sky-atlas native entry points are free functions on the generated
+/// bridge that take a single JSON string and return a JSON string
+/// (`docs/nightshade_5_0_contracts.md`). Calling them directly from
 /// [SkyAtlasService] would make the service's orchestration — region bookkeeping,
 /// DAO persistence, per-tile rollups — only exercisable with the Rust dynamic
 /// library loaded. This seam mirrors the sibling [PostSessionSeam] injection

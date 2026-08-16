@@ -12,8 +12,8 @@
 /// readiness rules exhaustively unit-testable and makes the fail-closed
 /// contract auditable in one place. The rules below are intentionally
 /// conservative — a device that is genuinely disconnected must never resolve
-/// to [ReadinessLevel.ready]. Errors are a feature here: a missing critical
-/// device surfaces as [ReadinessLevel.blocked], it does not silently degrade.
+/// to [ReadinessLevel.ready]; a missing critical device resolves to
+/// [ReadinessLevel.blocked] rather than degrading to a softer level.
 library;
 
 /// Severity of a single readiness check, and of the report overall.
@@ -517,8 +517,8 @@ ReadinessItem _buildProfileDevices({
 /// Observing location.
 ///
 /// BLOCKED when no location is set: an unknown site makes altitude/visibility,
-/// meridian flips, and slew safety meaningless, so we refuse to call the rig
-/// ready. Routes to Settings → Location.
+/// meridian flips, and slew safety meaningless, so the rig is not ready.
+/// Routes to Settings → Location.
 ReadinessItem _buildLocation({required bool locationSet}) {
   if (!locationSet) {
     return const ReadinessItem(

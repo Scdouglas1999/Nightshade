@@ -14,7 +14,7 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
     // Endpoints that don't require authentication. Pairing endpoints are
     // public because the dashboard has no bearer token until the user
     // completes the first pairing flow; the 6-digit code shown on the
-    // desktop console is the out-of-band trust factor (§2.1).
+    // desktop console is the out-of-band trust factor.
     const publicPaths = {
       '/api/info',
       '/api/pairing/start',
@@ -38,21 +38,18 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
       // client-side, so an operator can pair from any LAN browser without the
       // mobile app or terminal access.
       '/pair',
-      // Site root. Typing the host into a browser used to return
-      // `{"error":"Authentication required"}` as raw JSON (401), or
-      // `Route not found` once authenticated — machine output shown to a human
-      // who has no way to know `/dashboard` exists. It only ever redirects an
-      // HTML client to the (already-public) dashboard, so exempting it exposes
-      // nothing.
+      // Site root. It only redirects an HTML client to the already-public
+      // dashboard or answers a JSON pointer, so exempting it exposes nothing
+      // and keeps a browser off a raw 401 body.
       '/',
-      // Browsers request this unprompted on every page load, and a 401 per load
-      // both spammed the console and logged an auth failure for a file we do
-      // not even serve.
+      // Browsers request this unprompted on every page load, so a 401 here
+      // would spam the console and log an auth failure per page view for a
+      // file this server does not serve.
       '/favicon.ico',
     };
 
-    // WebSocket paths that support query-param auth (legacy ?token=) or the
-    // single-use ?ticket= flow added in §2.28.
+    // WebSocket paths that support query-param auth: the legacy ?token= form
+    // or the single-use ?ticket= form.
     //
     // /ws/live-view participates in the same query-param auth flow
     // because browser/WS clients can't always set custom headers on the
@@ -62,14 +59,14 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
 
     return (innerHandler) {
       return (request) {
-        // FAIL CLOSED when unconfigured. Historically this short-circuited
-        // EVERY request when no tokens were configured, which served a fresh
-        // appliance wide open. We now only take that path behind the explicit
+        // FAIL CLOSED when unconfigured. Short-circuiting every request
+        // because no tokens are configured would serve a fresh appliance wide
+        // open, so that path is reachable only behind the explicit
         // `--allow-unauthenticated` / NIGHTSHADE_ALLOW_UNAUTHENTICATED opt-in
         // (a prominent warning is logged at startup, see server_lifecycle).
         //
-        // Without the opt-in we deliberately fall through to the public-path
-        // allowlist below: an unconfigured server still exposes only the
+        // Without the opt-in the request falls through to the public-path
+        // allowlist below: an unconfigured server exposes only the
         // pairing/discovery/dashboard bootstrap surface so the appliance can be
         // onboarded, while every privileged endpoint requires a bearer token
         // and returns 401 until a token is configured or a device pairs.
@@ -94,17 +91,16 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
         }
 
         // For WebSocket paths, accept either the legacy ?token=<bearer> (with
-        // a deprecation warning) or the §2.28 one-shot ?ticket= which is
-        // consumed and invalidated here so it cannot be reused.
+        // a deprecation warning) or the one-shot ?ticket=, which is consumed
+        // and invalidated here so it cannot be reused.
         if (webSocketPaths.contains(path)) {
           final queryTicket = request.url.queryParameters['ticket'];
           if (queryTicket != null && queryTicket.isNotEmpty) {
-            // ws_ticket_manager.consume now returns the digest of
-            // the token that was used to mint the ticket, NOT the raw
-            // token. That digest IS the authenticated identity for the
-            // upcoming WS — stash it on the context so the upgrade
-            // handler can bind it to the socket as the canonical viewer
-            // id.
+            // ws_ticket_manager.consume returns the digest of the token
+            // that minted the ticket, NOT the raw token. That digest IS
+            // the authenticated identity for the upcoming WS — stash it
+            // on the context so the upgrade handler can bind it to the
+            // socket as the canonical viewer id.
             final ticketIdentity = _wsTicketManager.consume(queryTicket);
             if (ticketIdentity != null) {
               return innerHandler(
@@ -135,12 +131,12 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
 
           final queryToken = request.url.queryParameters['token'];
           if (queryToken != null && queryToken.isNotEmpty) {
-            // HTTP-004: route the legacy ?token= path through the SAME bearer-
-            // token failure limiter as the Authorization-header path (720-757).
-            // Without this, failed/garbage WS token attempts were unthrottled
-            // and each one drove the O(N*L) constant-time _scopeForToken scan
-            // pre-auth. Check the limiter BEFORE the scan; record a failure when
-            // the token resolves to no/disallowed scope; clear on success.
+            // The legacy ?token= path goes through the SAME bearer-token
+            // failure limiter as the Authorization-header path. Unthrottled,
+            // each garbage WS token attempt drives the O(N*L) constant-time
+            // _scopeForToken scan pre-auth. Check the limiter BEFORE the scan;
+            // record a failure when the token resolves to no/disallowed scope;
+            // clear on success.
             final wsClientKey = _rateLimitClientKey(request);
             if (_tokenResolver.isRateLimited(wsClientKey)) {
               _logWarning(
@@ -197,7 +193,7 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
         // Resolve credentials. Acceptable forms:
         //  1. `Authorization: Bearer <token>` header (mobile clients, API
         //     consumers, the dashboard's pre-cookie path).
-        //  2. The §2.5 long-form `nightshade_session` HttpOnly cookie set by
+        //  2. The `nightshade_session` HttpOnly cookie set by
         //     `POST /api/auth/cookie` after a successful pairing. Cookie
         //     requests additionally require a matching CSRF token on every
         //     state-changing method.
@@ -303,9 +299,9 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
 
         final clientKey = _rateLimitClientKey(request);
         // Why pre-check: the constant-time loop is O(N*L) over the token
-        // table; an attacker spamming bad tokens could make it a CPU-burn
-        // vector (§2.22). The resolver tracks per-client failure counts and
-        // we shed load with 429 once the bucket fills.
+        // table, so an attacker spamming bad tokens turns it into a CPU-burn
+        // vector. The resolver tracks per-client failure counts and sheds load
+        // with 429 once the bucket fills.
         if (_tokenResolver.isRateLimited(clientKey)) {
           _logWarning(
             '[AUTH][$requestId] Rate-limited token comparisons from $clientKey on $path',
@@ -514,7 +510,7 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
   ///
   /// Why constant-time + full-iteration: a naive Map[token] short-circuits on
   /// hash mismatch, leaking per-character timing of the bearer token to a
-  /// network attacker (§2.22). The resolver iterates the entire map and uses
+  /// network attacker. The resolver iterates the entire map and uses
   /// XOR-based comparison so timing is independent of which entry matches. The
   /// paired-session sweep below mirrors that property — we do NOT branch on the
   /// static-table outcome before completing the paired scan, so the choice

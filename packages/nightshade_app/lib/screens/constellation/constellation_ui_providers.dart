@@ -39,7 +39,8 @@ Future<void> clearConstellationCredentials(SettingsDao settings) {
     constellationHubTokenSettingKey: '',
     constellationAccountIdSettingKey: '',
     // Mint a fresh per-install identity on the next connection instead of
-    // colliding with the public key still registered on the old hub account.
+    // colliding with the public key still registered on the hub account being
+    // replaced.
     constellationPublicKeySettingKey: '',
   });
 }
@@ -76,15 +77,13 @@ enum ConstellationPrivacy {
 /// Whether the host-owned Constellation actions (Contribute, Pull & Blend,
 /// Retract, Share-my-targets) are enabled on this device.
 ///
-/// Those actions all read the LOCAL atlas + the LOCAL contribution receipts and
-/// write the hub. On a SLAVE (the backend is a [NetworkBackend]) the local atlas
-/// and receipt table are empty — the host owns them — so these buttons would
-/// silently no-op. We disable them on a slave and surface a host-only notice
-/// rather than presenting fake-functional controls. Browse/Join/Follow-the-night
-/// stay enabled everywhere (read-only is honest on a slave).
+/// They read the LOCAL atlas and contribution receipts, which are empty on a
+/// SLAVE (the backend is a [NetworkBackend]) because the host owns them — so on
+/// a slave they are disabled behind a host-only notice rather than presented as
+/// working controls. Browse/Join/Follow-the-night stay enabled everywhere.
 ///
-/// Gating lives in this ONE provider so the detail screen, the share CTA, and
-/// the contribute sheet all agree on slave detection.
+/// Gated in this ONE provider so the detail screen, the share CTA and the
+/// contribute sheet all agree on slave detection.
 final isConstellationHostActionEnabledProvider = Provider<bool>((ref) {
   final backend = ref.watch(backendProvider);
   return backend is! NetworkBackend && backend is! DisconnectedBackend;

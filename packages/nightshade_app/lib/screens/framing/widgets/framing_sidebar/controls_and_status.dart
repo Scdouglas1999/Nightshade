@@ -31,9 +31,7 @@ class FramingControlsSection extends ConsumerWidget {
         const SizedBox(height: 12),
 
         // Rotation (only useful with equipment). Slider + exact numeric entry +
-        // ±1/±90 steps — see [FramingRotationField]: as a bare slider this was
-        // ~3.1° per pixel with a read-only label, so a specific PA was
-        // unreachable.
+        // ±1/±90 steps — see [FramingRotationField].
         FramingRotationField(
           key: FramingTutorialKeys.rotation,
           value: framingState.rotation,

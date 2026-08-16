@@ -89,9 +89,7 @@ void main() {
       );
     }
 
-    // =====================================================================
     // GET /api/calibration/darks
-    // =====================================================================
 
     test('GET darks lists all entries with metadata', () async {
       final f1 = await writeDarkFile('a.fits');
@@ -159,9 +157,7 @@ void main() {
       expect((body['dark'] as Map)['fileSize'], isNull);
     });
 
-    // =====================================================================
     // POST /api/calibration/darks
-    // =====================================================================
 
     test('POST register dark with existing file returns 201', () async {
       final f = await writeDarkFile('register.fits');
@@ -210,9 +206,7 @@ void main() {
       expect(responseBody['error'], 'dark_file_not_found');
     });
 
-    // =====================================================================
     // POST /api/calibration/darks/upload
-    // =====================================================================
 
     test('POST upload writes file and inserts row', () async {
       final payload = List<int>.generate(256, (i) => i % 256);
@@ -268,9 +262,7 @@ void main() {
       expect(responseBody['maxBytes'], backupUploadMaxRequestBodyBytes);
     });
 
-    // =====================================================================
     // DELETE /api/calibration/darks/{id}
-    // =====================================================================
 
     test('DELETE removes row but keeps file by default', () async {
       final f = await writeDarkFile('keep.fits');
@@ -328,9 +320,7 @@ void main() {
       expect(response.statusCode, HttpStatus.notFound);
     });
 
-    // =====================================================================
     // POST /api/calibration/darks/find-match
-    // =====================================================================
 
     test('POST find-match returns closest matching dark', () async {
       final f1 = await writeDarkFile('m1.fits');
@@ -392,9 +382,7 @@ void main() {
       expect(body['error'], 'no_matching_dark');
     });
 
-    // =====================================================================
     // POST /api/calibration/darks/backfill-sizes
-    // =====================================================================
 
     test('POST backfill-sizes returns coverage report', () async {
       final f1 = await writeDarkFile('present.fits');
@@ -573,9 +561,7 @@ void main() {
       expect(body['field'], 'outputPath');
     });
 
-    // =====================================================================
     // Flat history endpoints
-    // =====================================================================
 
     test('POST flats then GET returns the row', () async {
       final response = await translateHandlerErrors(
@@ -677,9 +663,7 @@ void main() {
       expect(body['reason'], 'no_matching_history');
     });
 
-    // =====================================================================
     // Defect map endpoints
-    // =====================================================================
 
     test('defect-map status, clear, and sequencer apply run on host', () async {
       const status = DefectMapStatus(
@@ -1048,9 +1032,7 @@ void main() {
     });
   });
 
-  // =======================================================================
   // Scope assignments — route_metadata
-  // =======================================================================
 
   group('CalibrationHandlers — route metadata scopes', () {
     test('GET calibration endpoints are view scope', () {

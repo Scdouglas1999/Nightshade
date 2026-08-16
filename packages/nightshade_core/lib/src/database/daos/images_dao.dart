@@ -296,7 +296,6 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
-  // ============================================================================
   // Thumbnail sidecar bookkeeping.
   //
   // The `thumbnail_path` column lives off-table (raw DDL, see
@@ -304,7 +303,6 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
   // through `customStatement` / `customSelect`. Nullable column — null
   // means no sidecar yet; the GET handler falls back to a cold-read and
   // self-heals by writing the sidecar then stamping the column.
-  // ============================================================================
 
   /// Read the sidecar JPEG path for [imageId], or null if no sidecar has
   /// been written. Doesn't probe the filesystem — callers must stat the
@@ -497,7 +495,6 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     return counts;
   }
 
-  // ============================================================================
   // Thumbnail — producing-node provenance
   //
   // The columns producing_node_id / producing_run_id / runtime_grade /
@@ -505,7 +502,6 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
   // (see database.dart). They are NOT declared on the [CapturedImages] Drift
   // Table to keep the .g.dart codegen surface unchanged; the helpers below
   // therefore go through `customSelect` / `customStatement`.
-  // ============================================================================
 
   /// Stamp the producing-node provenance on an already-persisted image row.
   ///

@@ -119,8 +119,8 @@ HipsProperties fixtureProperties() =>
 /// work, so the loader's supersede-on-pan path is exercised faithfully.
 ///
 /// A tile / Allsky id with no committed bytes surfaces a [HipsFetchHttpException]
-/// (a 404 stand-in) rather than silently returning a blank — errors are a
-/// feature, and the loader records the failure into the snapshot.
+/// (a 404 stand-in) rather than silently returning a blank, so the loader
+/// records the failure into the snapshot.
 class FixtureTileFetcher extends HipsTileFetcher {
   /// Tile ids whose fetch should be delayed until [releaseDelayed] is called,
   /// so a test can hold a generation's fetches in flight to exercise cancel /

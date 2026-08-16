@@ -9,8 +9,8 @@ import '../mosaic/mosaic_contribute_sheet.dart';
 import '../sequencer/widgets/target_node_properties.dart'
     show TargetCoordinateMatch, targetCoordinateLookupProvider;
 
-/// Open the "Start a live co-imaging session" sheet (Collaborative Sky WS3) and
-/// return the created [CoImagingSession], or null if the user cancelled.
+/// Open the "Start a live co-imaging session" sheet and return the created
+/// [CoImagingSession], or null if the user cancelled.
 ///
 /// The session-defining fields (target name + centre + radius) can be prefilled
 /// from whatever surface launched the sheet — the current framing target on the
@@ -109,11 +109,9 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
   /// does not open pre-scolded; live invalid-format errors show as soon as a
   /// non-empty field cannot parse.
   ///
-  /// This is why "Start session" stays pressable on an incomplete form: gating
-  /// the button on the form already validating made [_create] — the only thing
-  /// that sets this flag — unreachable, so pressing the primary action on an
-  /// empty sheet did nothing at all and none of the "required" messages could
-  /// ever render.
+  /// "Start session" therefore stays pressable on an incomplete form: [_create]
+  /// is the only thing that sets this flag, so gating the button on validation
+  /// would keep the required messages from ever rendering.
   bool _submitted = false;
   bool _busy = false;
   String? _error;

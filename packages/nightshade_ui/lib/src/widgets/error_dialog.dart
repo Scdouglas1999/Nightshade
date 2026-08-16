@@ -27,17 +27,6 @@ class ErrorDialog extends StatefulWidget {
   });
 
   /// Show the error dialog in the given context.
-  ///
-  /// Example:
-  /// ```dart
-  /// ErrorDialog.show(
-  ///   context,
-  ///   title: 'Connection Failed',
-  ///   message: 'Could not connect to the device. Please check your connection and try again.',
-  ///   technicalDetails: 'Timeout after 30s: $exception',
-  ///   onRetry: () => _reconnect(),
-  /// );
-  /// ```
   static Future<void> show(
     BuildContext context, {
     required String title,

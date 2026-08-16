@@ -7,22 +7,18 @@ part of '../sequencer_screen.dart';
 /// and collapse their labels to icon-only on a compact phone (`< 480`). The
 /// strip drives the screen's [TabController] so the existing keyboard
 /// shortcuts, provider sync and tutorial flow keep working.
-///
-/// The Targets tab was removed (its planning lives in the Planner screen) and
-/// the old standalone "Samples" tab was merged into "Templates" as a built-in
-/// Starters section.
 class _SequencerTabBar extends StatelessWidget {
   final NightshadeColors colors;
   final TabController controller;
 
-  /// The run's live state, not a boolean. The chip used to be driven by an
-  /// `isRunning` flag that was true for BOTH running and paused, so a paused
-  /// run showed a green "Sequence Running" chip one row above the toolbar's
-  /// amber "Paused 75%" — the app's most prominent run indicator contradicting
-  /// the one beside it about whether the rig was exposing.
+  /// The run's live STATE, not a boolean. An `isRunning` flag is true for both
+  /// running and paused, so a paused run would show a green "Sequence Running"
+  /// chip a row above the toolbar's amber "Paused" — the app's most prominent
+  /// run indicator contradicting the one beside it about whether the rig is
+  /// exposing.
   final SequenceExecutionState executionState;
 
-  /// Form-factor decision computed once at the screen level (§17) so the
+  /// Form-factor decision computed once at the screen level so the
   /// strip and the builder body agree on phone-vs-desktop.
   final bool isPhone;
 
@@ -34,7 +30,7 @@ class _SequencerTabBar extends StatelessWidget {
   });
 
   /// Tutorial keys keyed by tab so the strip stays in sync with the
-  /// [SequencerTab] enum that drives the controller (§3).
+  /// [SequencerTab] enum that drives the controller.
   static Key? _buttonKeyFor(SequencerTab tab) {
     switch (tab) {
       case SequencerTab.builder:
@@ -49,11 +45,11 @@ class _SequencerTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // §3: derive the strip from the single SequencerTab enum so adding a tab
-    // there updates the controller length and this strip in one edit.
-    // §4: on desktop the keyboard accelerators (Alt+1..4) are surfaced in the
-    // tab's tooltip/semantics so they are discoverable; phones have no
-    // keyboard so the hint is omitted.
+    // Derive the strip from the single SequencerTab enum so adding a tab
+    // there updates the controller length and this strip in one edit. On
+    // desktop the keyboard accelerators (Alt+1..4) are surfaced in the tab's
+    // tooltip/semantics so they are discoverable; phones have no keyboard so
+    // the hint is omitted.
     final tabs = <AdaptiveTab>[
       for (final tab in SequencerTab.values)
         AdaptiveTab(
@@ -80,7 +76,7 @@ class _SequencerTabBar extends StatelessWidget {
     // On phone the running state is surfaced by the playback bar, so the
     // trailing run chip is desktop/tablet only.
     final trailing = <Widget>[
-      // §4: a discoverable entry point to the full keyboard-shortcut
+      // A discoverable entry point to the full keyboard-shortcut
       // cheat-sheet. Keyboard-only, so desktop/tablet just like the
       // accelerator hints above.
       if (!isPhone)
@@ -207,7 +203,7 @@ class _SequencerTabBar extends StatelessWidget {
 }
 
 /// A read-only cheat-sheet listing every sequencer keyboard binding, opened
-/// from the strip's keyboard icon (§4). Mirrors the [CallbackShortcuts]
+/// from the strip's keyboard icon. Mirrors the [CallbackShortcuts]
 /// bindings declared in `sequencer_screen.dart` and the toolbox Ctrl+T toggle
 /// — keep this list in sync when adding a shortcut.
 class _SequencerShortcutsSheet {

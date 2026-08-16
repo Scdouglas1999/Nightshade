@@ -1,15 +1,14 @@
 part of '../database.dart';
 
 extension _NightshadeDatabaseMigrationV55 on NightshadeDatabase {
-  /// Version 55 (Living Sky — Wave 3, "scale/retention hardening"): the shared
-  /// DB substrate that turns the three pillars' hot full-scans into index seeks
-  /// and gives their maintenance sweeps a durable resume point. Purely additive
-  /// — no destructive drops; every change makes reads faster, never different.
+  /// Version 55: turns the hot full-scans into index seeks and gives the
+  /// maintenance sweeps a durable resume point. Purely additive — no drops;
+  /// every change makes reads faster, never different.
   ///
-  ///   * New `living_sky_retention` table — per-pillar "where did the last
-  ///     prune get to" markers (Pillar B transient age-out, Pillar A cutout/delta
-  ///     cache sweep, Pillar C swarm-blob sweep) so a maintenance pass is
-  ///     incremental instead of re-scanning all history.
+  ///   * New `living_sky_retention` table — per-scope "where did the last
+  ///     prune get to" markers (transient age-out, cutout/delta cache sweep,
+  ///     swarm-blob sweep) so a maintenance pass is incremental instead of
+  ///     re-scanning all history.
   ///   * INDEXES that turn the documented full-scans into seeks:
   ///       - `idx_transient_detections_dismissed (dismissed, tile_id)` — the
   ///         per-frame dismissed-suppression lookup, now scoped to the covered

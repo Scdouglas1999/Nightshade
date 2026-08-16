@@ -25,10 +25,9 @@ class _NightshadeCheckboxState extends State<NightshadeCheckbox> {
 
     void toggle() => widget.onChanged!(!widget.value);
 
-    // See the note in nightshade_switch.dart: this was a bare GestureDetector,
-    // so the control reported no checked state and could not be focused. A
-    // checkbox that a keyboard cannot reach is a checkbox that some users simply
-    // do not have.
+    // A checkbox must publish its checked state and be focusable: a bare
+    // GestureDetector reports neither, and a control a keyboard cannot reach is
+    // a control some users do not have.
     return Semantics(
       checked: widget.value,
       enabled: !isDisabled,

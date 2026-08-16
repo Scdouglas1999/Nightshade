@@ -1,13 +1,12 @@
 // Mobile SnackBar helper that knows how to render the headless server's
 // structured error envelope.
 //
-// Before this helper existed, every catch block in the mobile app called
-// `Text('$e')`, which exposed opaque exception strings like
-// "Exception: 502 status code from /api/x" to the operator. Now that
-// [NetworkBackend] decodes the {code, message} envelope into a typed
-// [ServerError], this helper formats both halves into a SnackBar with a
-// severity-appropriate tint so the operator immediately understands
-// which failures are recoverable (amber 4xx) versus broken (red 5xx).
+// A catch block must route through here rather than rendering `Text('$e')`,
+// which shows the operator an opaque string like "Exception: 502 status code
+// from /api/x". [NetworkBackend] decodes the {code, message} envelope into a
+// typed [ServerError]; this helper renders both halves with a
+// severity-appropriate tint, so recoverable (amber 4xx) reads differently from
+// broken (red 5xx).
 //
 // Usage pattern:
 //

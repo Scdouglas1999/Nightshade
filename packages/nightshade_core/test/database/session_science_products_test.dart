@@ -1,10 +1,9 @@
 // Which sessions actually carry a science product.
 //
-// The Science tab used to open on the newest session holding LIGHT frames,
-// which is a different question: two test frames shot after a 120-frame
-// photometry night are lights, so the tab opened on them and reported
-// "0 of 2 solved", "Warming up" and its never-started empty state while the
-// night of real measurements sat one row down in a dropdown.
+// "Newest session holding LIGHT frames" is a different question: two test
+// frames shot after a 120-frame photometry night are lights, so a Science tab
+// opening on them reports "0 of 2 solved" and its never-started empty state
+// while the night of real measurements sits one row down in a dropdown.
 
 import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';

@@ -115,8 +115,8 @@ void main() {
     expect(find.text('0 or greater'), findsOneWidget);
     expect(find.textContaining('50000'), findsNothing);
 
-    // A value larger than the old hard-coded 50000 is accepted when the real
-    // max is unknown.
+    // With the real max unknown, a large value is accepted rather than clamped
+    // to an invented ceiling.
     await tester.enterText(find.byType(TextField), '999999');
     await tester.tap(find.text('Go'));
     await tester.pumpAndSettle();

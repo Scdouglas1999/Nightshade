@@ -1,15 +1,14 @@
-// Regression tests for the safety fail mode the executor pushes to Rust.
+// The safety fail mode the executor pushes to Rust.
 //
 // The Rust safety poll fail-closes when there is no safety-monitor / weather
 // device on the rig, and the in-sequencer `WeatherUnsafe` trigger is ALWAYS
 // armed. So pushing `fail_closed` on a rig where the operator has weather
-// safety switched off parks the mount and aborts the sequence within ~100 ms
-// of start, reporting only "Sequence cancelled".
+// safety switched off parks the mount and aborts the sequence within ~100 ms of
+// start, reporting only "Sequence cancelled".
 //
-// `start()` guarded against that. `resumeFromCheckpoint()` did not — it pushed
-// `settings.safetyFailMode` raw — so the "Recover Sequence?" -> Resume button
-// aborted instantly on every rig without a safety monitor, which is the
-// default rig. The mid-run settings watcher had the same hole.
+// Pushing `settings.safetyFailMode` raw from any call site does exactly that:
+// the "Recover Sequence?" -> Resume button then aborts instantly on every rig
+// without a safety monitor, which is the default rig.
 //
 // These tests pin all three call sites to the one shared
 // `_effectiveSafetyFailMode` computation.

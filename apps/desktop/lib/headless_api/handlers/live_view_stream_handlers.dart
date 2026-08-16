@@ -301,9 +301,9 @@ class LiveViewStreamHub {
 
   void _onMessage(Object socket, Object? raw) {
     if (raw is! String) {
-      // Binary frames from the client are not part of the protocol — log
-      // and drop. errors are a feature; we surface this loud
-      // enough that protocol drift is visible.
+      // Binary frames from the client are not part of the protocol. Logged at
+      // warning rather than dropped silently, so protocol drift is visible
+      // instead of showing up as a client that mysteriously receives nothing.
       _logger.warning(
         '/ws/live-view: received non-text frame (${raw.runtimeType}); ignoring',
         source: 'LiveViewStreamHub',

@@ -1,12 +1,11 @@
 // Where "Create dump" opens its save dialog.
 //
-// Regression cover for a live finding: the picker opened inside the running
-// application bundle (`…/build/linux/x64/release/bundle`, `C:\Program
-// Files\…`) because `chooseExportTarget` was called with no
-// `initialDirectory` and `file_selector` forwards null straight through, so
-// the platform picker starts at the process working directory. In an
-// installed build that folder is read-only — the first thing a user filing a
-// bug report saw was somewhere they could not save.
+// `chooseExportTarget` with no `initialDirectory` hands `file_selector` a null
+// it forwards straight through, so the platform picker starts at the process
+// working directory — inside the running application bundle
+// (`…/build/linux/x64/release/bundle`, `C:\Program Files\…`). In an installed
+// build that folder is read-only, so the first thing a user filing a bug report
+// sees is somewhere they cannot save.
 //
 // The test drives the real screen and inspects what reached the file_selector
 // platform channel, so dropping the argument at the call site fails it.

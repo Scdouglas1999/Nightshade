@@ -10,27 +10,11 @@ import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
-/// Live-rig L6 (2026-08-09), reproduced verbatim against the appliance on the
-/// owner's Windows laptop:
-///
-/// ```
-/// GET  /api/profiles          -> {"profiles":[]}
-/// POST /api/sequencer/load    -> {"status":"loaded"}
-/// POST /api/sequencer/start   -> {"status":"started"}
-/// GET  /api/sequencer/status  -> {"state":"recovering","currentNodeId":"e1",
-///                                "message":"Recovering: Device disconnected",
-///                                "progress":0.0}      ... for 60s+, 0 frames
-/// GET  /api/devices/connected -> camera ascom:ASCOM.ASICamera2.Camera, ...
-/// ```
-///
-/// The executor called the camera disconnected while the device manager listed
-/// it connected. The cause was NOT the equipment profile (profiles stayed `[]`
-/// through the successful control run): the headless `load -> start` path
-/// simply never called `sequencerSetDevices`, so the native executor's
-/// `camera_id` stayed null. Pushing the id by hand and re-running the identical
-/// sequence — profile still empty — reached
-/// `{"state":"completed","progress":1.0}` and wrote a real 32,783,040-byte
-/// 4656x3520 frame.
+/// The headless `load -> start` path must call `sequencerSetDevices`. Without
+/// it the native executor's `camera_id` stays null and the run sits in
+/// `recovering / "Device disconnected"` capturing nothing, while
+/// `/api/devices/connected` lists the camera. No equipment profile is
+/// involved: the ids come from the connected-device list.
 class _MockSequencerBackend extends Mock implements SequencerBackend {}
 
 class _MockDeviceBackend extends Mock implements DeviceBackend {}

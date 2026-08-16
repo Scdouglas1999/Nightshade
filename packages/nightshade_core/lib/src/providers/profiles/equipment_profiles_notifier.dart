@@ -1,9 +1,5 @@
 part of '../profiles_provider.dart';
 
-// ============================================================================
-// Equipment Profiles Notifier
-// ============================================================================
-
 /// State class for equipment profiles
 class EquipmentProfilesState {
   final List<EquipmentProfileModel> profiles;
@@ -67,8 +63,8 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       }
     }
     // A name is not an identity. The compatibility fallback for older hosts
-    // is only safe when exactly one previously unseen row matches; otherwise
-    // fail loudly instead of selecting an arbitrary same-name profile.
+    // is only safe when exactly one unseen row matches; otherwise fail loudly
+    // instead of selecting an arbitrary same-name profile.
     return candidates.length == 1 ? candidates.single : null;
   }
 

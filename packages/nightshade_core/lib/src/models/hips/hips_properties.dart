@@ -83,11 +83,11 @@ enum HipsTileFormat {
 /// Raised when a HiPS `properties` document cannot be parsed into a valid
 /// [HipsProperties] value.
 ///
-/// This is an explicit, surfaced failure: per project policy malformed or
-/// missing-required HiPS metadata is an error, never a silent default. The
+/// Malformed or missing-required HiPS metadata raises this rather than
+/// defaulting: the survey's geometry and tile format cannot be guessed. The
 /// [key] (when known) identifies the offending property line.
 class HipsPropertiesParseException implements Exception {
-  /// Human-readable description of what was wrong.
+  /// Human-readable description of the failure.
   final String message;
 
   /// The property key that triggered the failure, if a single key is at fault.
@@ -162,8 +162,8 @@ class HipsProperties extends Equatable {
   /// absent (logged).
   final int tileWidth;
 
-  /// Whether [tileWidth] came from [defaultTileWidth] because the key was
-  /// missing. Exposed so callers/tests can assert the fallback path was taken.
+  /// Whether [tileWidth] came from [defaultTileWidth] because the key is
+  /// absent. Exposed so callers/tests can assert the fallback path ran.
   final bool tileWidthWasDefaulted;
 
   /// Recognised tile encodings in publisher-preferred order

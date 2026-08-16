@@ -18,16 +18,15 @@ extension _NetworkBackendEventTracking on _NetworkBackendTransport {
   /// event. Detects three conditions:
   ///
   /// 1. A gap (received seq > expected seq + 1) — log a warning so the
-  ///    operator and tests can see that events were lost. The cursor still
-  ///    advances to the received seq so we don't wedge waiting for the
+  ///    operator and tests can see that events are missing. The cursor still
+  ///    advances to the received seq so nothing wedges waiting for the
   ///    missing ones.
   ///
   /// 2. An instance-id change (server restarted mid-WS, which is rare
   ///    because the WS dies when the server dies) — log, reset the
   ///    cursor, emit BackendReconnected so providers refetch.
   ///
-  /// 3. The first time we see a serverInstanceId — adopt it as our
-  ///    attachment cursor.
+  /// 3. The first serverInstanceId seen — adopted as the attachment cursor.
   void _trackEventSeq(NightshadeEvent event, {required bool isReplay}) {
     if (isReplay) {
       developer.log(

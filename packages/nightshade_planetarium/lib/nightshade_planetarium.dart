@@ -2,7 +2,6 @@
 library;
 
 // Core models
-export 'src/sky_view.dart';
 export 'src/celestial_object.dart';
 export 'src/coordinate_system.dart';
 

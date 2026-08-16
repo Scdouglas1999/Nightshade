@@ -112,17 +112,17 @@ class CanonicalNodeMapper {
     );
   }
 
-  /// Returns the id of the newly-created node, or `null` if the node was
-  /// dropped. Children of dropped nodes are still walked (so we account for
-  /// them in the totals) but are attached to the dropped node's parent.
+  /// Returns the id of the newly-created node, or `null` when the node is
+  /// dropped. Children of a dropped node are still walked (so the totals
+  /// account for them) but attach to the dropped node's parent.
   ///
   /// [insideIndeterminateLoop] is `true` when any ancestor of [node] is a
   /// container that iterates an unknowable number of times (loop-forever /
   /// loop-until-time / loop-until-altitude). When such a container wraps a
-  /// `TakeExposure` that carries no count of its own, the parser couldn't
-  /// propagate a frame count down and the exposure maps to a single frame —
-  /// almost never what the source author meant. We emit a warning into
-  /// [issues] for that case.
+  /// `TakeExposure` that carries no count of its own, no frame count can be
+  /// propagated down and the exposure maps to a single frame — almost never
+  /// what the source author meant, so that case emits a warning into
+  /// [issues].
   String? _mapNode(
     CanonicalSequenceNode node, {
     required String? parentId,
@@ -543,9 +543,9 @@ class CanonicalNodeMapper {
           parentId: parentId,
           orderIndex: orderIndex,
           minutesPastMeridian: _readDouble(a['minutesPastMeridian']) ?? 5.0,
-          // Why: imported sequences (e.g., NINA) ship explicit per-node values;
-          // honor them rather than overlaying Sequencer Settings on top
-          // (audit §1.2). Users can opt into globals later via the node panel.
+          // Imported sequences (e.g. NINA) ship explicit per-node values, so
+          // they are honoured rather than overlaid with Sequencer Settings.
+          // Users can opt into globals later via the node panel.
           useGlobalDefaults: false,
         );
       case CanonicalKind.park:

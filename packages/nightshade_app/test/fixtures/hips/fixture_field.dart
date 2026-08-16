@@ -287,13 +287,11 @@ String readPropertiesText() {
   return file.readAsStringSync();
 }
 
-// ---------------------------------------------------------------------------
 // Self-validating fixture-integrity + real-data render-verify suite.
 //
 // Reached only when this file is executed as a test entrypoint:
 //   flutter test test/fixtures/hips/fixture_field.dart
 // Importing the descriptor as a library never runs any of this.
-// ---------------------------------------------------------------------------
 
 /// Decodes encoded image [bytes] into a [ui.Image] through the exact production
 /// path the framing provider and HiPS fetcher use (`ui.decodeImageFromList`),

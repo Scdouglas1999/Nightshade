@@ -476,9 +476,9 @@ void main() {
       settings.push(const AppSettingsState(latitude: 41.0, longitude: -75.0));
       await pumpEvents();
 
-      // The push was fire-and-forget, so this failure used to be an unhandled
-      // async error in the zone and the operator was told nothing — the run
-      // kept using the old location for its altitude and flip maths.
+      // A failed mid-run push must reach the operator through the run's
+      // warnings: fire-and-forget makes it an unhandled zone error, and the
+      // run goes on using the stale location for its altitude and flip maths.
       expect(
         c.read(liveSequenceStatsProvider)!.warningMessages,
         contains(

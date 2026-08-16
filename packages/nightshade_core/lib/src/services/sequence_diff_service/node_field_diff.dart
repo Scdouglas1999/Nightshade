@@ -1,9 +1,7 @@
 part of '../sequence_diff_service.dart';
 
 extension _SequenceDiffNodeFields on SequenceDiffService {
-  // ---------------------------------------------------------------------
   // Per-node field comparison
-  // ---------------------------------------------------------------------
 
   /// Diff two nodes that share an id. The exhaustive switch ensures
   /// every node type contributes its own field comparisons; adding a
@@ -13,7 +11,7 @@ extension _SequenceDiffNodeFields on SequenceDiffService {
   List<FieldChange> _diffNodes(SequenceNode a, SequenceNode b) {
     final out = <FieldChange>[];
 
-    // ---- Common base-class fields first ----
+    // Common base-class fields first
     if (a.name != b.name) {
       out.add(FieldChange('Name', a.name, b.name));
     }
@@ -45,7 +43,7 @@ extension _SequenceDiffNodeFields on SequenceDiffService {
       return out;
     }
 
-    // ---- Type-specific comparisons. Sealed switch ensures exhaustiveness. ----
+    // Type-specific comparisons. Sealed switch ensures exhaustiveness.
     switch (a) {
       case ExposureNode():
         final na = a, nb = b as ExposureNode;
@@ -723,7 +721,7 @@ extension _SequenceDiffNodeFields on SequenceDiffService {
           equalIf: na.referenceStars.join(',') == nb.referenceStars.join(','),
         );
         break;
-      // Audit §11 — plugin-contributed instruction. Diff the plugin
+      // Plugin-contributed instruction. Diff the plugin
       // identity AND the opaque config JSON; either changing is a
       // meaningful edit the user wants surfaced in the diff dialog.
       case PluginInstructionNode():

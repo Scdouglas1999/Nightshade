@@ -180,9 +180,7 @@ class NightAnalysisService {
       sub.fwhm != null ||
       sub.eccentricity != null;
 
-  // ---------------------------------------------------------------------------
   // Detector registry
-  // ---------------------------------------------------------------------------
 
   late final List<List<NightFinding> Function(NightData)> _detectors = [
     _detectFocusDrift,
@@ -194,9 +192,7 @@ class NightAnalysisService {
     _detectGraderPoorNight,
   ];
 
-  // ---------------------------------------------------------------------------
   // Data loading
-  // ---------------------------------------------------------------------------
 
   Future<NightData> _load({int? sessionId, int? targetId}) async {
     List<NightSub> subs;
@@ -301,8 +297,8 @@ class NightAnalysisService {
   }
 
   /// Per-sub SNR from the science `ScienceFrameQualityMetrics` table, keyed by
-  /// `capturedImageId`. Fail-soft: returns empty when the science pipeline never
-  /// ran for this session (the common case) or the table is unreadable.
+  /// `capturedImageId`. Fail-soft: returns empty when the science pipeline did
+  /// not run for this session (the common case) or the table is unreadable.
   ///
   /// The `snr` column is non-nullable with a `0.0` default (science.dart:171), so
   /// a row the pipeline wrote without ever computing SNR reads back as `0.0` —
@@ -348,9 +344,7 @@ class NightAnalysisService {
     }
   }
 
-  // ===========================================================================
   // Scoring + headline
-  // ===========================================================================
 
   /// Per-finding penalties. Monotone in severity (critical > warn > info), so
   /// the night score is monotone w.r.t. the worst finding's severity. Penalties

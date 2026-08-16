@@ -1,10 +1,10 @@
 // Pillar C ("Constellation") — pull-and-blend path test.
 //
-// Pins the regression where "Pull & blend into Your Sky" downloaded a community
-// tile but never folded it into the local atlas: the UI-reachable pull must
-// request the additive `.nst` accumulator (`finalized: false`) so the service
-// actually calls SkyAtlasService.mergeSwarmDelta. The finalized FITS pull is a
-// display-only blob with no consumer and must NOT be merged.
+// "Pull & blend into Your Sky" has to fold the downloaded community tile into
+// the local atlas: the UI-reachable pull requests the additive `.nst`
+// accumulator (`finalized: false`) so the service calls
+// SkyAtlasService.mergeSwarmDelta. The finalized FITS pull is a display-only
+// blob with no consumer and must NOT be merged.
 
 import 'dart:io';
 

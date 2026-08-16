@@ -4,8 +4,8 @@
 // StackAndShareService, so the real run() body — the busy guard, the
 // reference-first ordering, the per-frame accept/reject accounting, the
 // calibration-on vs calibration-off path split, and the always-release
-// `finally` — was previously never executed by any test. This file drives the
-// REAL StackAndShareService end-to-end against:
+// `finally` — is only reached from here. This file drives the REAL
+// StackAndShareService end-to-end against:
 //
 //   * a fake [StackingEngineSeam] (injected directly) standing in for the
 //     native stacker singleton + raw FITS / stretch bridge calls;
@@ -453,8 +453,8 @@ void main() {
           ),
           throwsA(isA<LiveStackBusyException>()),
         );
-        // The guard fires before any engine work and before any stop — we must
-        // not touch a singleton owned by the live session we refused to clobber.
+        // The guard fires before any engine work and before any stop: nothing
+        // touches a singleton owned by the live session it refused to clobber.
         expect(engine.calls, isEmpty);
         expect(engine.stopCount, 0);
       },
@@ -1348,8 +1348,8 @@ void main() {
     // `parse_sensor_mode` + OSC-without-pattern hard error, so the default
     // `auto` mono run (and its calibration-on twin) is proven to produce a
     // config the *real* backend accepts — not just one the lenient default fake
-    // ignores. This is the regression guard for the auto/osc collapse that used
-    // to brick every default mono Stack-and-Share run against FfiBackend.
+    // ignores. An auto/osc collapse here bricks every default mono
+    // Stack-and-Share run against FfiBackend.
     test('default config (auto) on a mono frame starts as mono, not an error '
         '(calibration off → file path)', () async {
       final engine =

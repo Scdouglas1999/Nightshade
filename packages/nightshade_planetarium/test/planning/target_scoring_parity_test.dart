@@ -294,14 +294,9 @@ void main() {
     });
 
     test('real Dart scorer matches the Rust score_moon_distance source', () {
-      // The second cross-language canary, and the reason it exists: the Rust
-      // twin kept the pre-fix `return 100.0` for the "far enough from the moon"
-      // branch long after this Dart copy was corrected, so a FULL moon at 120 deg
-      // scored a perfect 100.0 in the native scheduler while a NEW moon at the
-      // same separation scored 96.7 — it preferred the worse night. The existing
-      // canary above only parsed `fn score_altitude`, so nothing detected it,
-      // even though scoring.rs's own header states the two must agree. That
-      // scorer is on a live path: `score_targets` picks the next target mid-run.
+      // The moon factor needs its own cross-language canary: a canary that
+      // parses only `fn score_altitude` cannot see the two scorers disagree
+      // about moonlight, and `score_targets` picks the next target mid-run.
       final candidates = [
         File(
           '../../native/nightshade_native/sequencer/src/scheduling/scoring.rs',

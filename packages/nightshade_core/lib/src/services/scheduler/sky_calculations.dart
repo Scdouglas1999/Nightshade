@@ -45,28 +45,19 @@ class SkyCalculations {
   /// Julian Date for the given DateTime (converted to UTC first).
   ///
   /// Meeus' Gregorian form. This is the one Julian Date every scheduler,
-  /// planner, DAO and co-imaging surface in `nightshade_core` uses; the
-  /// copies that used to live in `scheduler_service.dart`,
-  /// `night_analysis_service.dart`, `targets_dao.dart`,
-  /// `coimaging_session_service.dart` and `scheduler_engine/astronomy_helpers`
-  /// all call through here now.
+  /// planner, DAO and co-imaging surface in `nightshade_core` uses.
   ///
-  /// [includeMilliseconds] selects the day fraction the retired copies used,
-  /// and it is a real numeric choice rather than a style knob:
+  /// [includeMilliseconds] selects the day fraction, and it is a numeric
+  /// choice rather than a style knob:
   ///
-  /// * `true` (default) — `day + h/24 + m/1440 + s/86400 + ms/86400000`, the
-  ///   form `targets_dao`, `coimaging_session_service` and the original
-  ///   `SkyCalculations.julianDate` used.
-  /// * `false` — stops at whole seconds, the form `scheduler_service`,
-  ///   `night_analysis_service` and the scheduler engine's lunar ephemeris
-  ///   used.
+  /// * `true` (default) — `day + h/24 + m/1440 + s/86400 + ms/86400000`.
+  /// * `false` — stops at whole seconds, which is what the scheduler and the
+  ///   lunar ephemeris use.
   ///
-  /// The two differ by up to 999 ms / 86 400 000 ≈ 1.2e-8 d, which is
-  /// astronomically nothing but is NOT bit-identical, and the schedulers'
-  /// numbers are pinned by golden tests. So the flag reproduces each retired
-  /// copy exactly instead of quietly moving one of them: when
-  /// `includeMilliseconds` is false the sub-second term becomes a literal
-  /// `0`, and `x + 0` is exact for every finite double.
+  /// The two differ by up to 999 ms / 86 400 000 ≈ 1.2e-8 d — astronomically
+  /// nothing, but not bit-identical, and the scheduler's numbers are pinned by
+  /// golden tests. With `includeMilliseconds` false the sub-second term is a
+  /// literal `0`, and `x + 0` is exact for every finite double.
   static double julianDate(DateTime dt, {bool includeMilliseconds = true}) {
     final utc = dt.toUtc();
     int y = utc.year;
@@ -176,14 +167,10 @@ class SkyCalculations {
   /// Local Sidereal Time in hours [0, 24) for `time` (treated as UTC) at the
   /// given observer longitude (degrees, east positive).
   ///
-  /// This is the single shared implementation behind both the dynamic
-  /// scheduler engine (`SchedulerEngine._localSiderealTime`) and the
-  /// standalone meridian-flip monitor. The arithmetic mirrors the scheduler
-  /// engine — the authoritative live path — exactly: the day fraction is
-  /// built from day/hour/minute/second WITHOUT the sub-second term, so the
-  /// scheduler's numbers are bit-for-bit unchanged. (The monitor previously
-  /// added a `millisecond/86_400_000` term, a sub-millisecond LST difference
-  /// that is astronomically negligible; it now matches the scheduler.)
+  /// The single shared implementation behind both the dynamic scheduler engine
+  /// and the standalone meridian-flip monitor. The day fraction is built from
+  /// day/hour/minute/second WITHOUT the sub-second term, which is what the
+  /// scheduler's golden-pinned numbers assume.
   static double localSiderealTimeHours(DateTime time, double longitudeDegrees) {
     final jd = julianDate(time, includeMilliseconds: false);
     var gmst = gmstDegreesRaw(jd);

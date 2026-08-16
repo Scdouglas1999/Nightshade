@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../centering_dialog.dart -- extracted for maintainability.
-//
 // Header, preview, coordinate, exposure, status, result and history section builders.
 part of '../centering_dialog.dart';
 
@@ -35,8 +33,8 @@ extension _CenteringDialogSectionBuilders on _CenteringDialogState {
             ],
           ),
         ),
-        // Footer Abort/Close handles dismissal; the header X used to be the
-        // *only* exit but was disabled mid-run, trapping users. Drop it.
+        // The footer Abort/Close owns dismissal. No header X: as the only exit
+        // it is disabled mid-run, which traps the user.
       ],
     );
   }

@@ -58,9 +58,7 @@ class PairingDatabase extends _$PairingDatabase {
     );
   }
 
-  // ============================================================================
-  // Paired Devices Operations
-  // ============================================================================
+  // Paired devices operations
 
   /// Get all active paired devices
   Future<List<PairedDevice>> getActivePairedDevices() async {
@@ -112,7 +110,7 @@ class PairingDatabase extends _$PairingDatabase {
   /// auth middleware. May be `null` only for callers that explicitly opt out
   /// (test fixtures); the production pairing flow always populates it.
   /// [authGrantSpec] is opaque to this storage package and defaults to the
-  /// historical `control` grant. The headless host validates it before use.
+  /// `control` grant. The headless host validates it before use.
   Future<void> addPairedDevice({
     required String deviceId,
     required String deviceName,
@@ -206,9 +204,7 @@ class PairingDatabase extends _$PairingDatabase {
     await deletePushPrefsForDevice(deviceId);
   }
 
-  // ============================================================================
-  // Pairing Sessions Operations
-  // ============================================================================
+  // Pairing sessions operations
 
   /// Create a new pairing session
   Future<int> createPairingSession({
@@ -312,9 +308,7 @@ class PairingDatabase extends _$PairingDatabase {
     return query.get();
   }
 
-  // ============================================================================
-  // Device Push Token Operations (Phase D)
-  // ============================================================================
+  // Device push token operations
 
   /// Insert-or-update a device's cellular-push token for a platform.
   ///
@@ -387,9 +381,7 @@ class PairingDatabase extends _$PairingDatabase {
     )..where((tbl) => tbl.token.equals(token))).go();
   }
 
-  // ============================================================================
-  // Device Push Preferences Operations (Phase D)
-  // ============================================================================
+  // Device push preferences operations
 
   /// The per-device preferences row, or `null` when the device has never set
   /// one. A null result means "all categories enabled" (the delivery's

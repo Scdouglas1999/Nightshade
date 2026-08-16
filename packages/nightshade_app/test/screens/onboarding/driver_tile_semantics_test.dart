@@ -27,8 +27,8 @@ void main() {
     final native = find.textContaining('Direct SDK connection');
     expect(native, findsWidgets, reason: 'the driver list should be on screen');
 
-    // The row's own node, not the inner checkbox: the fix moved the semantics
-    // to the container and excluded the child, so the ancestor is what AT sees.
+    // The row's own node, not the inner checkbox: the semantics live on the
+    // container with the child excluded, so the ancestor is what AT sees.
     final rowSemantics = tester.getSemantics(native.first);
     expect(rowSemantics.label, contains('Native'));
     expect(

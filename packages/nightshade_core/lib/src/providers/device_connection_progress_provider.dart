@@ -44,8 +44,8 @@ class DeviceConnectionProgressState {
   ///
   /// The strip outlives the sweep by design (it is how a failure is reviewed),
   /// so it MUST be able to date itself: an undated chip reading `camera
-  /// Connected` sat next to a live "No devices connected" empty state after a
-  /// Disconnect All and was read as current truth.
+  /// Connected` sits next to a live "No devices connected" empty state after a
+  /// Disconnect All and reads as current truth.
   final DateTime? finishedAt;
 
   const DeviceConnectionProgressState({

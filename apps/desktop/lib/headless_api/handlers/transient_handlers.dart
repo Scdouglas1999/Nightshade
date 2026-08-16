@@ -51,9 +51,7 @@ class TransientHandlers {
     );
   }
 
-  // ===========================================================================
-  // Get Active Transients
-  // ===========================================================================
+  // Get active transients
 
   Future<Response> handleGetActiveTransients(Request request) async {
     _logInfo('[API] GET /api/transients');
@@ -87,9 +85,7 @@ class TransientHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Transient Settings
-  // ===========================================================================
+  // Get transient settings
 
   Future<Response> handleGetSettings(Request request) async {
     _logInfo('[API] GET /api/transients/settings');
@@ -107,18 +103,16 @@ class TransientHandlers {
     });
   }
 
-  // ===========================================================================
-  // Update Transient Settings
-  // ===========================================================================
+  // Update transient settings
 
   Future<Response> handleUpdateSettings(Request request) async {
     _logInfo('[API] POST /api/transients/settings');
     final payload = await readJsonObject(request);
 
-    // Why: enabledSources / typesToMonitor are accepted as either an array
+    // enabledSources / typesToMonitor are accepted as either an array
     // (replacement) or omitted entirely (keep existing). Unknown enum names
-    // are filtered silently — that mirrors the historical behaviour and is
-    // safer than 400-ing on a single unrecognised source name.
+    // are filtered out rather than 400-ing the whole update on a single
+    // unrecognised source name.
     final current = await _readSettings();
     Set<TransientSource> enabledSources = current.enabledSources;
     final rawSources = optionalList<String>(payload, 'enabledSources');
@@ -174,9 +168,7 @@ class TransientHandlers {
     });
   }
 
-  // ===========================================================================
-  // Queue Transient For Observation
-  // ===========================================================================
+  // Queue transient for observation
 
   Future<Response> handleQueueTransient(Request request, String id) async {
     _logInfo('[API] POST /api/transients/$id/queue');
@@ -191,9 +183,7 @@ class TransientHandlers {
     });
   }
 
-  // ===========================================================================
-  // Dismiss Transient
-  // ===========================================================================
+  // Dismiss transient
 
   Future<Response> handleDismissTransient(Request request, String id) async {
     _logInfo('[API] POST /api/transients/$id/dismiss');
@@ -248,9 +238,7 @@ class TransientHandlers {
     return jsonOk({'status': 'cleared'});
   }
 
-  // ===========================================================================
-  // Refresh Alerts (Clear Cache)
-  // ===========================================================================
+  // Refresh alerts (clear cache)
 
   Future<Response> handleRefreshAlerts(Request request) async {
     _logInfo('[API] POST /api/transients/refresh');
@@ -260,9 +248,7 @@ class TransientHandlers {
     return jsonOk({"status": "cache_cleared"});
   }
 
-  // ===========================================================================
-  // Get Queued Transients
-  // ===========================================================================
+  // Get queued transients
 
   Future<Response> handleGetQueued(Request request) async {
     _logInfo('[API] GET /api/transients/queued');
@@ -288,9 +274,7 @@ class TransientHandlers {
     });
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   TransientSource? _parseSource(String value) {
     final normalized = value.trim().toLowerCase();

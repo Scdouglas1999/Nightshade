@@ -7,9 +7,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_updater/nightshade_updater.dart';
 // Why still imported: UpdatePushDiscovery (LAN update-push responder) lives in
-// nightshade_remote_protocol/discovery.dart. The server (NightshadeWebServer)
-// is gone in §2.2 but discovery primitives remain. Package was renamed from
-// nightshade_webrtc → nightshade_remote_protocol in AUDIT-FIX-5A (§4.2).
+// nightshade_remote_protocol/discovery.dart. The package carries no server of
+// its own; only the discovery primitives are used here.
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -21,12 +20,10 @@ const String _logSource = 'DesktopBootstrap';
 
 /// Start background services for mobile/remote access.
 ///
-/// Why this delegates to [HeadlessApiServer]: pre-§2.2 the desktop GUI used a
-/// separate `NightshadeWebServer` (~4700 LoC with its own handler wiring) while
-/// headless mode used the modular `HeadlessApiServer`. Mobile/web clients saw
-/// different endpoint sets depending on which mode was running. Consolidating
-/// onto a single server eliminates that schism and gives the GUI the modular
-/// handlers, pairing flow, scoped tokens, and middleware stack for free.
+/// Why this delegates to [HeadlessApiServer]: the GUI and headless mode serve
+/// mobile/web clients from ONE server, so a client sees the same endpoint set
+/// whichever mode is running. The GUI gets the modular handlers, pairing flow,
+/// scoped tokens, and middleware stack for free.
 void startBackgroundServices(
   ProviderContainer container, {
   required String appVersion,

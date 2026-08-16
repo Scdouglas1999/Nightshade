@@ -47,10 +47,9 @@ dependencies:
   sqlite3: ">=3.3.2 <3.4.0"
   path_provider: ^2.1.2
   path: ^1.8.3
-  # Why direct dep: DiagnosticDumpService bundles logs/profile/sequence/system
-  # info into a single zip via package:archive (audit-observe §4c). Same minor
-  # series already used by nightshade_updater so transitive resolution is a
-  # no-op.
+  # Direct dep: DiagnosticDumpService bundles logs/profile/sequence/system
+  # info into a single zip via package:archive. The minor series matches
+  # nightshade_updater so transitive resolution is a no-op.
   archive: ^3.4.10
   # Snippet share/import/export uses SHA-256 over the canonical-encoded
   # snippet body as a tamper-evidence checksum so re-imports of a
@@ -104,7 +103,6 @@ dependencies:
 
 dev_dependencies:
   # Pinned across all 10 workspace packages to prevent mixed-version drift.
-  # Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE (audit-dart §10 #3).
   flutter_lints: ^5.0.0
   build_runner: ^2.4.15
   freezed: ^3.2.0

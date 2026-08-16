@@ -4,12 +4,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// A chip the operator cannot choose has to look like one.
 ///
-/// Found live in the Submit-discovery dialog: the AAVSO and MPC network chips
-/// were rendered with a null `onTap` and were otherwise pixel-identical to an
-/// unselected TNS chip, so three dead chips read as three available choices —
-/// and the panel's explanation of WHY they were blocked sat under controls that
-/// gave no sign of being blocked. A screen reader was told nothing at all,
-/// because a null `onTap` also dropped the button role.
+/// In the Submit-discovery dialog the AAVSO and MPC network chips carry a null
+/// `onTap` and are otherwise pixel-identical to an unselected TNS chip, so
+/// three dead chips read as three available choices — and the panel's
+/// explanation of WHY they are blocked sits under controls that give no sign of
+/// being blocked. A null `onTap` also drops the button role, so a screen reader
+/// is told nothing at all.
 Widget _wrap(Widget child) => MaterialApp(
   theme: NightshadeTheme.dark,
   home: Scaffold(body: Center(child: child)),

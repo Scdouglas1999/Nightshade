@@ -1,11 +1,9 @@
 // Notification routing categories and per-transport configuration models.
 //
-// Why this file exists: wired the critical-event push path
-// (PushNotificationService), but only a fixed set of toggles. Users need
-// per-event-type routing across multiple transports (the "NINA Ground
-// Station" UX): "send target-complete to Pushover, send weather-unsafe to
-// Telegram + Discord, send disk-low to email". This file is the
-// vocabulary all those routing rules speak.
+// PushNotificationService carries the critical-event push path, but only a
+// fixed set of toggles. Routing per event type across multiple transports
+// ("send target-complete to Pushover, send weather-unsafe to Telegram +
+// Discord, send disk-low to email") is what this vocabulary exists for.
 //
 // Single source of truth: `NotificationCategory` is the canonical enum
 // everything else keys off. Adding a new category here surfaces a switch
@@ -24,7 +22,7 @@ import '../backend/event_types.dart';
 /// the raw [NightshadeEvent] stream onto these finer-grained categories;
 /// users see only these labels in the settings UI.
 enum NotificationCategory {
-  // ----- Sequence lifecycle ------------------------------------------------
+  // Sequence lifecycle
   sequenceStarted('Sequence Started'),
   sequenceCompleted('Sequence Completed'),
   sequenceFailed('Sequence Failed'),
@@ -32,49 +30,50 @@ enum NotificationCategory {
   sequencePaused('Sequence Paused'),
   sequenceResumed('Sequence Resumed'),
 
-  // ----- Target lifecycle --------------------------------------------------
+  // Target lifecycle
   targetStarted('Target Started'),
   targetCompleted('Target Completed'),
 
-  // ----- Mount / hardware milestones ---------------------------------------
+  // Mount / hardware milestones
   meridianFlipPerformed('Meridian Flip Performed'),
   autofocusCompleted('Autofocus Completed'),
   autofocusFailed('Autofocus Failed'),
 
   /// The interval-autofocus trigger failed to converge and the run CONTINUES
-  /// on the restored last-good focus (owner decision 10, 2026-08-14). Info,
-  /// not error: the night goes on slightly soft — an alarm would cry wolf.
+  /// on the restored last-good focus. Info, not error: the night goes on
+  /// slightly soft, and an error here would train the operator to ignore the
+  /// alerts that do end a run.
   autofocusContinued('Autofocus Continued'),
 
-  // ----- Imaging -----------------------------------------------------------
+  // Imaging
   frameCaptured('Frame Captured'),
   frameRejected('Frame Rejected'),
   exposureFailed('Exposure Failed'),
 
-  // ----- Recovery / executor health ----------------------------------------
+  // Recovery / executor health
   recoveryStarted('Recovery Started'),
   recoveryRecovered('Recovery Recovered'),
   recoveryGaveUp('Recovery Gave Up'),
 
-  // ----- Guiding -----------------------------------------------------------
+  // Guiding
   guidingLost('Guiding Lost'),
   guidingRecovered('Guiding Recovered'),
 
-  // ----- Weather / safety --------------------------------------------------
+  // Weather / safety
   weatherUnsafe('Weather Unsafe'),
   weatherSafeAgain('Weather Safe Again'),
   cloudArriving('Cloud Arriving'),
   cloudOpening('Cloud Clearing'),
 
-  // ----- Astronomical discovery (First Light / Pillar B) -------------------
+  // Astronomical discovery (First Light / Pillar B)
   transientDiscovered('Transient Discovered'),
 
-  // ----- System / operational ----------------------------------------------
+  // System / operational
   diskSpaceLow('Disk Space Low'),
   equipmentDisconnected('Equipment Disconnected'),
   triggerFired('Sequencer Trigger Fired'),
 
-  // ----- Custom (user-script / NotificationNode-defined) -------------------
+  // Custom (user-script / NotificationNode-defined)
   custom('Custom');
 
   final String label;
@@ -440,14 +439,13 @@ class NotificationRoutingMatrix extends Equatable {
   /// Built-in defaults: in-app for everything; the categories the mobile
   /// push feed escalates also opt into systemPush.
   ///
-  /// After the architecture-unification collapse the [SystemPushTransport] is
-  /// the single mobile-push producer, so the default matrix must route to
-  /// systemPush every category the (now demoted) PushNotificationService used
-  /// to push — otherwise the collapse would silently drop pushes. That is the
-  /// 8 critical-by-default categories PLUS the three non-critical completion
-  /// milestones the legacy feed pushed (sequenceCompleted, targetCompleted,
-  /// meridianFlipPerformed). The per-event toggle still gates each of those
-  /// inside the transport via [PushNotificationConfig].
+  /// [SystemPushTransport] is the single mobile-push producer, so the default
+  /// matrix routes every push-worthy category to systemPush or that category
+  /// silently stops reaching phones. That is the 8 critical-by-default
+  /// categories PLUS the three non-critical completion milestones
+  /// (sequenceCompleted, targetCompleted, meridianFlipPerformed). The
+  /// per-event toggle still gates each of those inside the transport via
+  /// [PushNotificationConfig].
   factory NotificationRoutingMatrix.defaults() {
     const inApp = [NotificationTransportKind.inApp];
     const inAppPush = [

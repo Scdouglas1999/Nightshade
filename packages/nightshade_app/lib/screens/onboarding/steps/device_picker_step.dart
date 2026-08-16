@@ -262,13 +262,9 @@ final RegExp _debugDebrisPattern = RegExp(
 
 /// What to tell the operator about a backend that did not answer.
 ///
-/// The raw string here is a driver/transport error, and on the third screen of
-/// a first run it was rendered verbatim: four wrapped red lines reading
-/// `NightshadeError.connectionFailed(deviceId: localhost:11111, reason: Failed
-/// to connect to Alpaca server: error sending request for url (...): error
-/// trying to connect: tcp connect error: Connection refused (os error 111))`,
-/// twice over. An enum dump, a URL, a Rust error chain and an errno are not
-/// copy; they are what the log file is for.
+/// The raw string here is a driver/transport error — an enum dump, a URL, a
+/// Rust error chain and an errno — which is what the log file is for, not copy
+/// for the third screen of a first run.
 ///
 /// So the raw text is never shown. Recognised transports get the sentence that
 /// says what to DO about them, keeping the endpoint (the one part of the dump
@@ -346,9 +342,9 @@ class _BackendStatusRow extends StatelessWidget {
       IconData icon;
       Color color;
       String label = driver.shortLabel;
-      // What a screen reader is told. The chips used to publish only their
-      // driver name, so two red alarm chips on the third screen of the first
-      // run were, to assistive tech, indistinguishable from the green one.
+      // What a screen reader is told. A chip that publishes only its driver
+      // name is indistinguishable from every other chip to assistive tech, so
+      // the state goes in the description.
       String description;
 
       if (state == null) {

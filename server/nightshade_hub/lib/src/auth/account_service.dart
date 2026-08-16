@@ -53,12 +53,12 @@ class AccountService {
   /// A throwaway hash, computed once at the hasher's own iteration count, that
   /// [login] verifies against when no account matches the public key. This makes
   /// the unknown-key path spend the same PBKDF2 work as the wrong-password path,
-  /// closing the credential-validity timing oracle (SEC-003). It never matches a
-  /// real account.
+  /// closing the credential-validity timing oracle. It never matches a real
+  /// account.
   late final String _decoyHash = _hasher.hash('');
 
-  /// Default trust assigned to a brand-new contributor (contract §5 `/v1/info`
-  /// example shows `0.5`). Earned upward / downward by [recordGrade].
+  /// Default trust assigned to a brand-new contributor; `/v1/info` advertises
+  /// it. Earned upward / downward by [recordGrade].
   static const double defaultTrust = 0.5;
 
   /// Create a new account and issue its first `contribute`-scoped token.
@@ -127,7 +127,7 @@ class AccountService {
     );
     if (rows.isEmpty) {
       // Spend the same PBKDF2 work as a wrong-password attempt so the unknown-
-      // key path is not faster, then fail closed (SEC-003).
+      // key path is not faster, then fail closed.
       _hasher.verify(password, _decoyHash);
       return null;
     }

@@ -1,20 +1,20 @@
 /// The ONE vocabulary for an exposure node's per-frame progress line.
 ///
-/// SEQ-18 (three strikes) lived in the gap between two producers and one
-/// parser. The sequencer writes a node's progress detail from two different
-/// events, in two different wordings:
+/// The gap between two producers and one parser is where this goes wrong. The
+/// sequencer writes a node's progress detail from two different events, in two
+/// different wordings:
 ///
 ///   * `ExposureStarted`   -> "Frame 3/4 (R)"      — frame 3 is in flight
 ///   * `ExposureCompleted` -> "Completed 3/4"      — frame 3 is done
 ///
-/// The run-dashboard card that renders those frames only ever understood the
-/// FIRST wording. On the success path the last thing written for the node is
-/// the second, so a run that captured every frame parsed as "no frames at all"
-/// and the card read "0 / 4 frames" with four empty boxes — directly above the
-/// four thumbnails it had just captured. A run STOPPED mid-frame ended on an
-/// `ExposureStarted` line, parsed fine, and read "2 / 4" — which is exactly why
-/// the defect looked specific to success and survived two fixes aimed at the
-/// node's status instead of at the string on screen.
+/// A run-dashboard card that understands only the FIRST wording misreads every
+/// completed run: on the success path the last thing written for the node is
+/// the second wording, so a run that captured every frame parses as "no frames
+/// at all" and the card reads "0 / 4 frames" with four empty boxes — directly
+/// above the four thumbnails it just captured. A run STOPPED mid-frame ends on
+/// an `ExposureStarted` line, parses fine, and reads "2 / 4", which is why the
+/// failure looks specific to success and survives fixes aimed at the node's
+/// status instead of at the string on screen.
 ///
 /// Producers call the formatters here, the card calls
 /// [parseExposureProgressDetail], and

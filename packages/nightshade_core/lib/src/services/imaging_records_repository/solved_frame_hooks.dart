@@ -9,9 +9,9 @@ typedef SolvedFrameFoldHook = Future<void> Function(int capturedImageId);
 
 /// Repository provider — local DAOs or remote host API.
 ///
-/// The Pillar A ("Your Sky") fold-dedup gate, factored out of the local
-/// solve-persist hook so the production path and its regression test exercise
-/// the SAME logic instead of a re-implementation.
+/// The Pillar A ("Your Sky") fold-dedup gate, separate from the local
+/// solve-persist hook so the production path and its test exercise the SAME
+/// logic instead of a re-implementation.
 ///
 /// Contract: fold the freshly-solved [image] into the personal sky atlas only
 /// when it has not already been folded ([db.CapturedImage.atlasFoldedAt] is
@@ -41,8 +41,8 @@ Future<AtlasFoldSummary?> applyAtlasFoldDedup({
   return summary;
 }
 
-/// Collaborative Sky WS3 Gap 2 — drive the live co-imaging auto-contribute for a
-/// freshly-folded light frame. For every active co-imaging membership whose
+/// Drive the live co-imaging auto-contribute for a freshly-folded light frame.
+/// For every active co-imaging membership whose
 /// session target this frame's solved centre covers, fold the same sub into the
 /// shared-target tile and advance the COMBINED accounting via
 /// [CoImagingSessionService.recordCompletedSub] (which itself fuses, then

@@ -62,8 +62,8 @@ void main() {
 
   testWidgets('a long session keeps hours, minutes and seconds',
       (tester) async {
-    // 1.2h = 1h 12m 0s. The old formatter said "1.2 hours", which the run
-    // cards and history tab never used.
+    // 1.2h = 1h 12m 0s, the h/m/s shape the run cards and history tab use — not
+    // "1.2 hours".
     await tester.pumpWidget(_host(_context(integrationHours: 1.2)));
     await tester.pumpAndSettle();
 

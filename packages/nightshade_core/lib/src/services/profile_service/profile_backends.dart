@@ -180,12 +180,10 @@ extension _ProfileServiceBackends on ProfileService {
   /// Connect devices from a profile model (local FFI or remote host).
   ///
   /// Reuses the canonical [DeviceService.connectAllFromProfile] progress path:
-  /// every configured device is dispatched (in parallel) and each device
-  /// reports its own outcome, so one offline device can no longer abort the
-  /// sweep and silently strand the rest — the historical bug where the loop
-  /// stopped on the first device error. Per-device failures are aggregated and,
-  /// if any occurred, surfaced as a [ProfileAutoConnectException] so the caller
-  /// can log/notify rather than pretend everything connected.
+  /// every configured device is dispatched (in parallel) and reports its own
+  /// outcome, so one offline device cannot abort the sweep and strand the rest.
+  /// Per-device failures are aggregated and, if any occurred, surfaced as a
+  /// [ProfileAutoConnectException] rather than read as a clean connect-all.
   Future<void> _connectProfileDevicesFromModel(
     EquipmentProfileModel profile, {
     String progressSource = 'Profile connect',

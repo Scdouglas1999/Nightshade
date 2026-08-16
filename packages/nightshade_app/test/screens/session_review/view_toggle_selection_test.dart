@@ -1,13 +1,14 @@
-// SCI-44: on Session Review the SELECTED tab rendered as a grey chip with
-// dimmed text while the unselected one kept bright text — the state read
-// inverted against every other tab strip in the app. Measured off the evidence
-// crop: the selected chip painted #212630 (surfaceHover) over its #5B9EC4
-// primary fill, because the app theme sets an OPAQUE `hoverColor`, and the
-// pointer rests on whichever chip was just clicked. The symmetry the report
-// noted ("with Workbench open, Workbench is the dim one") is that pointer.
+// On Session Review the SELECTED tab must not render as a grey chip with dimmed
+// text while the unselected one keeps bright text — inverted against every other
+// tab strip in the app.
 //
-// The same nodes were exposed to assistive tech as `panel: Workbench` with no
-// selected state, so neither the pixels nor the tree said which tab was live.
+// The app theme sets an OPAQUE `hoverColor`, and the pointer rests on whichever
+// chip was just clicked, so the selected chip paints #212630 (surfaceHover) over
+// its #5B9EC4 primary fill. That is why the dim one is always the open one.
+//
+// The same nodes must not expose to assistive tech as `panel: Workbench` with no
+// selected state either, or neither the pixels nor the tree says which tab is
+// live.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;

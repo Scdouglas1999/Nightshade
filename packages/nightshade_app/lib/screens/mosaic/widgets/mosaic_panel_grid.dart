@@ -21,35 +21,34 @@ class MosaicPanelGrid extends StatelessWidget {
   /// Grid columns (panels per row).
   final int cols;
 
-  /// Collaborative Sky WS2 — when true (the project is published to a hub and a
-  /// collaborative service is wired) each tile renders per-panel distributed
+  /// When true (the project is published to a hub and a collaborative service
+  /// is wired) each tile renders per-panel distributed
   /// affordances: 'Claim' on an unclaimed panel, 'Release' on one this rig
   /// holds, and 'Upload' on an integrated-but-not-yet-uploaded panel. Off by
   /// default so a local-only project shows the plain grid.
   final bool collaborative;
 
-  /// Invoked with a panel's index to take the hub claim baton for it (WS2).
+  /// Invoked with a panel's index to take the hub claim baton for it.
   final void Function(int panelIndex)? onClaimPanel;
 
-  /// Invoked with a panel's index to upload its integrated master to the hub
-  /// (WS2).
+  /// Invoked with a panel's index to upload its integrated master to the hub.
   final void Function(int panelIndex)? onUploadPanel;
 
   /// Invoked with a panel's index to hand THIS device's own claim back to the
-  /// pool (WS2). Surfaced on a panel this rig holds a live claim on, for owner
+  /// pool. Surfaced on a panel this rig holds a live claim on, for owner
   /// and participant alike — without it a contributor cannot undo their own
   /// claim and the panel stays locked until the hub TTL expires or the owner
   /// force-releases it one panel at a time.
   final void Function(int panelIndex)? onReleasePanel;
 
-  /// Owner/admin recovery (WS2): invoked with a panel's index to force-release a
+  /// Owner/admin recovery: invoked with a panel's index to force-release a
   /// squatting claim or a poisoned upload back to `pending` on the hub. Only
   /// surfaced on a claimed or uploaded panel; the hub enforces owner/admin
   /// ownership. Null on a rig that is not the mosaic owner path.
   final void Function(int panelIndex)? onForceReleasePanel;
 
   /// Disables the per-panel collaborative buttons while any collaborative
-  /// action is in flight, so a tap cannot stack a second hub call (WS2).
+  /// action is in flight, so a tap cannot stack a second hub call.
   final bool collaborativeBusy;
 
   const MosaicPanelGrid({
@@ -143,7 +142,7 @@ class _PanelTile extends StatelessWidget {
     final preview = master?.previewPngPath;
     final hasThumb = preview != null && _exists(preview);
 
-    // WS2 per-panel distributed affordances. Claim a still-unclaimed panel;
+    // Per-panel distributed affordances. Claim a still-unclaimed panel;
     // upload an integrated panel whose master has not yet reached the hub. A
     // claimed-but-not-integrated panel shows neither (it is being captured), and
     // an already-uploaded panel shows neither (its work is done).
@@ -153,7 +152,7 @@ class _PanelTile extends StatelessWidget {
         panel.isIntegrated &&
         !panel.isUploaded;
 
-    // WS2 self-release: a live claim on the LOCAL mirror is only ever written by
+    // Self-release: a live claim on the LOCAL mirror is only ever written by
     // this device's own successful claim, so `isClaimed` here means "this rig
     // holds the baton" — exactly the case the hub's per-account release accepts.
     // An uploaded panel is past the point of release (the hub refuses it), so
@@ -163,7 +162,7 @@ class _PanelTile extends StatelessWidget {
         panel.isClaimed &&
         !panel.isUploaded;
 
-    // WS2 owner/admin recovery: a claimed or already-uploaded panel can be
+    // Owner/admin recovery: a claimed or already-uploaded panel can be
     // evicted back to `pending` to break a squatting claim or clear a poisoned
     // upload. Only meaningful in those two states — a pending panel is already
     // free. The hub enforces owner/admin ownership on the call itself.
@@ -171,7 +170,7 @@ class _PanelTile extends StatelessWidget {
         onForceRelease != null &&
         (panel.isClaimed || panel.isUploaded);
 
-    // WS2 attribution: once a panel is claimed, show which rig/user owns it so
+    // Attribution: once a panel is claimed, show which rig/user owns it so
     // the distributed capture has visible provenance on the grid.
     final assignedLabel = collaborative ? panel.assignedLabel : null;
 

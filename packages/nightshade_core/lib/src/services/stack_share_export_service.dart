@@ -43,9 +43,9 @@ typedef SaveRgbaJpeg =
 /// length does not match `width * height * 4`.
 ///
 /// A length mismatch is an upstream programming error (wrong stride, truncated
-/// buffer). Per project policy we surface it loudly here — at the Dart boundary,
-/// with the offending dimensions — rather than handing a corrupt buffer to the
-/// encoder, which would write a plausible-looking but garbage image.
+/// buffer), surfaced here at the Dart boundary with the offending dimensions
+/// rather than handed to the encoder, which would write a plausible-looking but
+/// garbage image.
 class ShareExportBufferException implements Exception {
   /// Human-readable explanation suitable for direct display.
   final String message;
@@ -242,8 +242,7 @@ class StackShareExportService {
   /// Throws [ShareExportBufferException] when [rgba] is shorter than
   /// `width * height * 4`, [ArgumentError] when [format] is
   /// [ShareExportFormat.shareCard] but no [cardSpec] is supplied, and
-  /// [RangeError] when [jpegQuality] is outside `[1, 100]`. Errors are never
-  /// swallowed.
+  /// [RangeError] when [jpegQuality] is outside `[1, 100]`.
   Future<String> exportImage({
     required StackAndShareResult result,
     required Uint8List rgba,
@@ -460,9 +459,7 @@ class StackShareExportService {
     return primaryPath;
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   void _validateBuffer({
     required Uint8List rgba,

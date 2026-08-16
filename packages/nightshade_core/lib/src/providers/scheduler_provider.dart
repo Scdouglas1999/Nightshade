@@ -68,7 +68,7 @@ part 'scheduler/scheduler_remote_and_goals.dart';
 
 /// Stream that pushes engine trigger events derived from the native bridge.
 /// Hooks weather / guiding / mount events into the engine without
-/// introducing new event types (per the W6-SCHED coordination note).
+/// introducing new event types.
 final schedulerTriggerStreamProvider = Provider<Stream<SchedulerTriggerEvent>>((
   ref,
 ) {

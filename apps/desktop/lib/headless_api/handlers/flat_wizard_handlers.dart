@@ -16,9 +16,7 @@ class FlatWizardHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'FlatWizardHandlers');
 
-  // ===========================================================================
-  // Calibrate Single Filter
-  // ===========================================================================
+  // Calibrate single filter
 
   Future<Response> handleCalibrateFilter(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/calibrate');
@@ -57,9 +55,7 @@ class FlatWizardHandlers {
     return jsonOk({'result': _flatResultToJson(result)});
   }
 
-  // ===========================================================================
-  // Calibrate Multiple Filters
-  // ===========================================================================
+  // Calibrate multiple filters
 
   Future<Response> handleCalibrateMultipleFilters(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/calibrate-multi');
@@ -97,9 +93,7 @@ class FlatWizardHandlers {
     });
   }
 
-  // ===========================================================================
   // Generate Sequence from Calibrations
-  // ===========================================================================
 
   Future<Response> handleGenerateSequence(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/generate-sequence');
@@ -222,9 +216,7 @@ class FlatWizardHandlers {
     return jsonOk({'sequence': _sequenceToJson(sequence)});
   }
 
-  // ===========================================================================
-  // Quick Calibrate
-  // ===========================================================================
+  // Quick calibrate
 
   Future<Response> handleQuickCalibrate(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/quick-calibrate');
@@ -257,7 +249,6 @@ class FlatWizardHandlers {
     return jsonOk({'result': _flatResultToJson(result)});
   }
 
-  // ===========================================================================
   // Validation helpers
   //
   // Shared by all four endpoints so their limits cannot drift. The limits below
@@ -282,7 +273,6 @@ class FlatWizardHandlers {
   //   * [_maxSequenceNameLength] — the `sequences.name` column is
   //     `text().withLength(min: 1, max: 200)`, so a longer name would fail on
   //     save; reject it here instead.
-  // ===========================================================================
 
   static const double _maxSupportedAdu = 4294967295.0; // (1 << 32) - 1
   static const double _maxExposureSeconds = 3600.0;
@@ -485,9 +475,7 @@ class FlatWizardHandlers {
     return cleaned;
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   (int, int) _resolveGainOffset(Map<String, dynamic> payload) {
     // Client-supplied values are already floored at 0 here, so a negative can

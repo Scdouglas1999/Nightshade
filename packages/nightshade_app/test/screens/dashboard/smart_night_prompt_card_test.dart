@@ -208,10 +208,10 @@ void main() {
   });
 
   testWidgets('the published band follows a text-scale rewrap', (tester) async {
-    // Wave J refutation J1: a text-scale bump rewraps the card taller
-    // WITHOUT re-running the positioning builder (nothing up there depends
-    // on the scaler), so the band must be republished from a size-change
-    // notification, not only from the builder.
+    // A text-scale bump rewraps the card taller WITHOUT re-running the
+    // positioning builder (nothing up there depends on the scaler), so the band
+    // must be republished from a size-change notification, not only from the
+    // builder.
     final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
     var now = DateTime(2026, 8, 3, 21);
     final container = ProviderContainer(
@@ -281,10 +281,10 @@ void main() {
   });
 
   testWidgets('a same-frame remount keeps the live band claim', (tester) async {
-    // Wave J refutation J2: post-frame publishes run inside the frame,
-    // dispose microtasks after it — so a replacement instance claims first
-    // and the OLD instance's stale release must then be a no-op, or the
-    // reserve collapses to 0 under a card that is still floating.
+    // Post-frame publishes run inside the frame and dispose microtasks after
+    // it, so a replacement instance claims first and the outgoing instance's
+    // stale release must be a no-op — otherwise the reserve collapses to 0
+    // under a card that is still floating.
     final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
     var now = DateTime(2026, 8, 3, 21);
     final container = ProviderContainer(
@@ -330,7 +330,7 @@ void main() {
     expect(
         container.read(floatingPromptReservedHeightProvider), greaterThan(0));
 
-    // Re-key: the old State disposes and a fresh one mounts in one frame.
+    // Re-key: the outgoing State disposes and a fresh one mounts in one frame.
     await tester.pumpWidget(shell(const ValueKey('b')));
     await tester.pumpAndSettle();
 
@@ -345,10 +345,10 @@ void main() {
   testWidgets(
       'unmounting the showing card mid-frame releases its band claim '
       'without a modify-during-build error', (tester) async {
-    // Wave I refutation I5: element unmount runs inside finalizeTree, where
-    // a synchronous provider write trips riverpod's modify-during-build
-    // guard. The release must land after the frame — and the claim must not
-    // leak (the reserve would stick under a card that is gone).
+    // Element unmount runs inside finalizeTree, where a synchronous provider
+    // write trips riverpod's modify-during-build guard. The release must land
+    // after the frame — and the claim must not leak, or the reserve sticks
+    // under a card that is gone.
     final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
     var now = DateTime(2026, 8, 3, 21);
     final container = ProviderContainer(
@@ -412,9 +412,9 @@ void main() {
   testWidgets('shows the prompt once the equipment-ready grace has elapsed',
       (tester) async {
     final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
-    // A MOVING clock. The card used to read a cached `Provider<DateTime>`, so
-    // the measured elapsed time was pinned at zero and the grace never expired
-    // no matter how long the operator waited.
+    // A MOVING clock. Against a cached `Provider<DateTime>` the measured
+    // elapsed time is pinned at zero and the grace never expires, however long
+    // the operator waits.
     var now = DateTime(2026, 8, 3, 21);
     final container = ProviderContainer(
       overrides: [
@@ -464,11 +464,11 @@ void main() {
     expect(find.text('Plan Tonight'), findsOneWidget);
     expect(container.read(smartNightAutoPromptShowingProvider), isTrue);
 
-    // Wave I refutation I6: the reserve must be the band the SHOWING card
-    // actually occupies — its rendered height plus the inset it floats
-    // above — no constant can cover a 108px card, a ~200px card, and a
-    // phone nav inset at once. Settled, the card sits flush above its
-    // inset, so the band equals viewport bottom minus the card's top edge.
+    // The reserve must be the band the SHOWING card actually occupies — its
+    // rendered height plus the inset it floats above — because no constant can
+    // cover a 108px card, a ~200px card, and a phone nav inset at once.
+    // Settled, the card sits flush above its inset, so the band equals viewport
+    // bottom minus the card's top edge.
     final cardTop = tester.getTopLeft(find.byType(DashboardGlassCard)).dy;
     final viewportBottom =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
@@ -479,10 +479,9 @@ void main() {
 
     // Nothing in this test connects a device — the gate is optics-only, which
     // is deliberate (planning indoors before the gear is powered on is a real
-    // use). So the card must not claim otherwise. It used to headline
-    // "Hardware ready", which on 2026-08-10 was rendered directly beside a
-    // Readiness panel reading Camera/Mount/Guider Disconnected and a 0/5
-    // device count.
+    // use). So the card must not claim otherwise: a "Hardware ready" headline
+    // renders directly beside a Readiness panel reading Camera/Mount/Guider
+    // Disconnected and a 0/5 device count.
     expect(
       find.textContaining('Hardware', findRichText: true),
       findsNothing,

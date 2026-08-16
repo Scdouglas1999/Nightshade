@@ -73,8 +73,8 @@ void main() {
       expect(cameraSensorSpecsFromOpticalConfig(null), isNull);
       expect(
         cameraSensorSpecsFromOpticalConfig(
-          // Profile with optics but no camera connected: this is the case that
-          // used to be papered over with a fabricated 4096x2731 sensor.
+          // Profile with optics but no camera connected: no sensor is known,
+          // so no sensor may be invented.
           const OpticalConfig(focalLength: 480, telescopeName: 'ED80'),
         ),
         isNull,

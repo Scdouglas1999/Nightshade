@@ -4,12 +4,11 @@
 // the running counts, HFR, eccentricity, star count, reject reason, and
 // consecutive-reject counter straight off the typed event.
 //
-// Why a typed-payload test: previously the same data
-// flowed through `InstructionProgress.detail` strings parsed by
-// `FrameGradeEvent.tryParseDetail`. That regex parser silently dropped
-// HFR / ecc / star count fields when the format string didn't match.
-// The parser is now deleted; this test pins the typed contract so a
-// future refactor that breaks the typed pipeline fails loudly here.
+// Why a typed-payload test: routing the same data through
+// `InstructionProgress.detail` strings and a regex parser silently drops
+// HFR / ecc / star count fields whenever the format string does not match. This
+// pins the typed contract, so a refactor that reintroduces string parsing fails
+// loudly here.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -225,10 +224,8 @@ void main() {
 
         container.read(runDashboardQualitySummaryProvider);
 
-        // Push a legacy-shaped event. Previously, `tryParseDetail` would
-        // have picked this up; the typed pipeline deliberately drops it on
-        // the floor so the panel can NEVER silently fall back to the lossy
-        // regex path (errors are a feature).
+        // Push a legacy-shaped event. The typed pipeline deliberately drops it,
+        // so the panel can NEVER silently fall back to the lossy regex path.
         backend.emitEvent(NightshadeEvent(
           timestamp: DateTime.now().millisecondsSinceEpoch,
           severity: EventSeverity.info,

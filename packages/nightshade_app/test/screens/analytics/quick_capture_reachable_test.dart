@@ -1,17 +1,10 @@
-// WD-SCI-N1: once one sequence run exists, the quick captures must still be
-// reachable from Analytics ▸ Session and ▸ Science.
+// Once one sequence run exists, the quick captures must STILL be reachable from
+// Analytics ▸ Session and ▸ Science: History's own Quick captures card tells the
+// operator to open Analytics ▸ Session to review them frame by frame.
 //
-// Live evidence (Wave D, 2026-08-13): with 37 loop frames and one completed
-// 4-frame run on record, the "Reviewing" selector read "Quick captures (no
-// session selected)" but its menu held exactly one entry — the run. Selecting
-// it, leaving the tab and coming back never brought the 37 frames' charts,
-// captured-image grid, photometry or field-quality products back; History's own
-// Quick captures card meanwhile instructs the operator to "open Analytics ▸
-// Session to review them frame by frame". Diagnostics already offered the
-// entry, so the picker — not the data — was the whole defect.
-//
-// The counter-input these pins encode is the one the live drive used: standalone
-// frames AND a session, with the auto-pick resolving to the session.
+// The counter-input these pin is standalone frames AND a session, with the
+// auto-pick resolving to the session — the case where the picker can strand the
+// loose frames.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -170,7 +163,7 @@ void main() {
     expect(
       find.text(kQuickCaptureSessionLabel),
       findsOneWidget,
-      reason: 'SCI-46 landed in one picker of three; Science was the second',
+      reason: 'every session picker must offer the quick-capture session',
     );
   });
 }

@@ -154,10 +154,9 @@ class SystemHandlers {
   }
 
   /// `GET /api/system/disk-space` — free/total bytes for the host's capture
-  /// directory. Paired clients render their dashboard storage/readiness
-  /// lines from this; they cannot sample it themselves — the host's capture
-  /// path does not exist on the phone's filesystem, so the previous
-  /// client-local `df` could only ever fail ("Disk query failed").
+  /// directory. Paired clients render their dashboard storage/readiness lines
+  /// from this; they cannot sample it themselves, because the host's capture
+  /// path does not exist on the phone's filesystem.
   Future<Response> handleDiskSpace(Request request) async {
     await container.read(appSettingsProvider.future);
     final settings = container.read(appSettingsProvider).valueOrNull;

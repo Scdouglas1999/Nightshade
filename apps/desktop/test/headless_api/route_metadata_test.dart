@@ -37,9 +37,9 @@ void main() {
     });
 
     test('collaborative-sky routes map to their own resource, not system', () {
-      // Regression: these previously fell through to `system`, conflating
-      // collaborative access with admin (a fine-grained token had to hold
-      // `system`, and any `system` token gained collaborative access).
+      // Falling through to `system` would conflate collaborative access with
+      // admin: a fine-grained token would have to hold `system`, and any
+      // `system` token would gain collaborative access.
       expect(
         resourceKeyForEndpoint(
           method: 'POST',

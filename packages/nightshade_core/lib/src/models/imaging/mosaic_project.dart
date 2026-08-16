@@ -98,7 +98,7 @@ class MosaicProject {
   final DateTime updatedAt;
 
   /// The hub mosaic id once this project has been published as a collaborative
-  /// mosaic (WS2), or null for a local-only project. The handle the panel claim
+  /// mosaic, or null for a local-only project. The handle the panel claim
   /// broker / upload / assemble endpoints act on.
   final String? hubMosaicId;
 
@@ -258,18 +258,18 @@ class MosaicProjectPanel {
   /// Lifecycle status.
   final MosaicPanelStatus status;
 
-  /// The hub rig fingerprint this panel is assigned to (WS2 distributed
-  /// capture), or null when unclaimed. Free-text provenance only.
+  /// The hub rig fingerprint this panel is assigned to for distributed capture,
+  /// or null when unclaimed. Free-text provenance only.
   final String? assignedRigId;
 
-  /// The hub account id this panel is assigned to (WS2), or null when unclaimed.
+  /// The hub account id this panel is assigned to, or null when unclaimed.
   final String? assignedUserId;
 
-  /// The hub-issued claim baton token held for this panel (WS2), or null.
+  /// The hub-issued claim baton token held for this panel, or null.
   final String? claimToken;
 
   /// The local `integrated_masters.id` of the panel master uploaded to the hub
-  /// for this panel (WS2), or null until uploaded.
+  /// for this panel, or null until uploaded.
   final int? uploadedMasterId;
 
   const MosaicProjectPanel({
@@ -294,8 +294,8 @@ class MosaicProjectPanel {
   /// True once this panel's master has been uploaded to the hub.
   bool get isUploaded => uploadedMasterId != null;
 
-  /// A short provenance label for the rig/user this panel is assigned to (WS2
-  /// distributed capture), or null when unassigned. Prefers the hub account id
+  /// A short provenance label for the rig/user this panel is assigned to for
+  /// distributed capture, or null when unassigned. Prefers the hub account id
   /// (the human who claimed it), falling back to the rig fingerprint, so the
   /// grid can attribute each claimed panel.
   String? get assignedLabel {

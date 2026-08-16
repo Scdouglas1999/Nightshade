@@ -1,9 +1,7 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
-  // =========================================================================
-  // Equipment Profiles
-  // =========================================================================
+  // Equipment profiles
 
   @override
   Future<List<EquipmentProfile>> getProfiles() async {
@@ -71,9 +69,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     );
   }
 
-  // =========================================================================
   // Settings & Location
-  // =========================================================================
 
   /// `GET /api/system/disk-space` — the HOST's capture-directory disk
   /// telemetry. Deliberately not part of [NightshadeBackend]: local backends
@@ -189,9 +185,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     await _post('settings/location', {'location': location?.toJson()});
   }
 
-  // =========================================================================
-  // Image Processing
-  // =========================================================================
+  // Image processing
 
   @override
   Future<List<StarCrop>> getStarCropsFromLastImage(
@@ -411,9 +405,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     );
   }
 
-  // =========================================================================
-  // Polar Alignment
-  // =========================================================================
+  // Polar alignment
 
   @override
   Stream<Map<String, dynamic>> get polarAlignmentEvents =>
@@ -477,9 +469,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     });
   }
 
-  // =========================================================================
   // Image Download (for Mobile)
-  // =========================================================================
 
   @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
@@ -1024,9 +1014,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     }
   }
 
-  // =========================================================================
-  // Device Health Monitoring
-  // =========================================================================
+  // Device health monitoring
 
   @override
   Future<void> startDeviceHeartbeat({
@@ -1054,9 +1042,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     return (lastComm, isHealthy);
   }
 
-  // =========================================================================
-  // Raw Image Data
-  // =========================================================================
+  // Raw image data
 
   @override
   Future<List<int>> getLastRawImageData(String deviceId) async {

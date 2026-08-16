@@ -1,9 +1,9 @@
 // The guide target display must not mark a reading it does not have.
 //
-// Live finding IMG-16 (the Guiding twin of the polar bullseye): a red × sat
-// pinned at 0,0 in the Target Display while the guider was Stopped with no data
-// at all — the absent error was coalesced to 0 on the way into the painter, so
-// "nothing measured" rendered as "perfectly guided".
+// Coalescing an absent error to 0 on the way into the painter pins a red × at
+// 0,0 in the Target Display while the guider is Stopped with no data at all, so
+// "nothing measured" renders as "perfectly guided". Same shape as the polar
+// bullseye.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

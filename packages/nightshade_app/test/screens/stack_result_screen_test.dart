@@ -449,8 +449,8 @@ void main() {
 
       // There is deliberately no stretch-*method* dropdown: the run stretches
       // the in-memory u16 result via the engine's STF path only, so a method
-      // knob would be a silent fallback (every method yielding the same STF
-      // output) — which project policy forbids. See StackAndShareConfig.
+      // knob would offer choices that all yield the same output. See
+      // StackAndShareConfig.
       expect(find.text('Stretch method'), findsNothing);
 
       // Start action present.

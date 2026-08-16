@@ -17,7 +17,7 @@ class FilterSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Tokenized surface so Red Night theme stays red instead of falling
-    // back to neutral grey — see audit §4.15.
+    // back to neutral grey.
     final colors = NightshadeColors.of(context);
     final expandedWidth = AdaptiveDialogConstraints.clampPanelWidth(
       context,

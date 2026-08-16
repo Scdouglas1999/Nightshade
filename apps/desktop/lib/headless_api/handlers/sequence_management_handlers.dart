@@ -166,9 +166,7 @@ class SequenceManagementHandlers {
     }
   }
 
-  // ===========================================================================
   // Full sequence documents (remote companion sync)
-  // ===========================================================================
 
   /// GET /api/sequence-management/list-full
   ///
@@ -239,10 +237,9 @@ class SequenceManagementHandlers {
     // bare FormatException/TypeError on any shape it dislikes, which the
     // top-level guard turns into `500 internal_error`. A caller sending the
     // wrong node encoding is a client error, and a 500 reads as a server fault
-    // that clients are entitled to retry. Verified against the live rig: a
-    // sequence whose `nodes` was a JSON list answered
-    // `500 internal_error: FormatException: Sequence field "nodes" must be a
-    // JSON object, got List<dynamic>`.
+    // that clients are entitled to retry — a sequence whose `nodes` is a JSON
+    // list would answer `500 internal_error: FormatException: Sequence field
+    // "nodes" must be a JSON object, got List<dynamic>`.
     var sequence = (() {
       try {
         return fileService.parseFromMap(Map<String, dynamic>.from(sequenceMap));
@@ -360,9 +357,9 @@ class SequenceManagementHandlers {
 
   /// POST `/api/sequence-management/<id>/versions`
   ///
-  /// Version rows are explicit save points. The debounced remote editor uses
-  /// `save-full` only and therefore no longer floods this capped history every
-  /// 1.5 seconds; the Save dialog calls this route after its meaningful save.
+  /// Version rows are explicit save points. The debounced remote editor saves
+  /// through `save-full`, so it does not consume version rows every 1.5
+  /// seconds; the Save dialog calls this route after a meaningful save.
   Future<Response> handleSnapshotVersion(Request request, String id) async {
     final sequenceId = _parsePathId(id, 'id');
     _logInfo('[API] POST /api/sequence-management/$sequenceId/versions');
@@ -425,9 +422,7 @@ class SequenceManagementHandlers {
     return jsonOk({'version': _versionToJson(version)});
   }
 
-  // ===========================================================================
-  // Get All Sequences
-  // ===========================================================================
+  // Get all sequences
 
   Future<Response> handleGetAllSequences(Request request) async {
     _logInfo('[API] GET /api/sequence-management/list');
@@ -439,9 +434,7 @@ class SequenceManagementHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get All Templates
-  // ===========================================================================
+  // Get all templates
 
   Future<Response> handleGetAllTemplates(Request request) async {
     _logInfo('[API] GET /api/sequence-management/templates');
@@ -453,9 +446,7 @@ class SequenceManagementHandlers {
     });
   }
 
-  // ===========================================================================
   // Get Sequence By ID
-  // ===========================================================================
 
   Future<Response> handleGetSequenceById(Request request, String id) async {
     _logInfo('[API] GET /api/sequence-management/$id');
@@ -470,9 +461,7 @@ class SequenceManagementHandlers {
     return jsonOk({'sequence': _sequenceToJson(sequence)});
   }
 
-  // ===========================================================================
-  // Get Nodes For Sequence
-  // ===========================================================================
+  // Get nodes for sequence
 
   Future<Response> handleGetNodesForSequence(Request request, String id) async {
     _logInfo('[API] GET /api/sequence-management/$id/nodes');
@@ -483,9 +472,7 @@ class SequenceManagementHandlers {
     return jsonOk({'nodes': nodes.map((n) => _nodeToJson(n)).toList()});
   }
 
-  // ===========================================================================
-  // Create Sequence
-  // ===========================================================================
+  // Create sequence
 
   Future<Response> handleCreateSequence(Request request) async {
     _logInfo('[API] POST /api/sequence-management');
@@ -511,9 +498,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'created', 'id': id});
   }
 
-  // ===========================================================================
-  // Update Sequence
-  // ===========================================================================
+  // Update sequence
 
   Future<Response> handleUpdateSequence(Request request, String id) async {
     _logInfo('[API] PUT /api/sequence-management/$id');
@@ -554,9 +539,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'updated'});
   }
 
-  // ===========================================================================
-  // Delete Sequence
-  // ===========================================================================
+  // Delete sequence
 
   Future<Response> handleDeleteSequence(Request request, String id) async {
     _logInfo('[API] DELETE /api/sequence-management/$id');
@@ -574,9 +557,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'deleted'});
   }
 
-  // ===========================================================================
-  // Duplicate Sequence
-  // ===========================================================================
+  // Duplicate sequence
 
   Future<Response> handleDuplicateSequence(Request request, String id) async {
     _logInfo('[API] POST /api/sequence-management/$id/duplicate');
@@ -603,9 +584,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'duplicated', 'id': newId});
   }
 
-  // ===========================================================================
-  // Create Node
-  // ===========================================================================
+  // Create node
 
   Future<Response> handleCreateNode(Request request, String sequenceId) async {
     _logInfo('[API] POST /api/sequence-management/$sequenceId/nodes');
@@ -645,9 +624,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'created', 'id': id});
   }
 
-  // ===========================================================================
-  // Update Node
-  // ===========================================================================
+  // Update node
 
   Future<Response> handleUpdateNode(Request request, String nodeId) async {
     _logInfo('[API] PUT /api/sequence-management/nodes/$nodeId');
@@ -696,9 +673,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'updated'});
   }
 
-  // ===========================================================================
-  // Delete Node
-  // ===========================================================================
+  // Delete node
 
   Future<Response> handleDeleteNode(Request request, String nodeId) async {
     _logInfo('[API] DELETE /api/sequence-management/nodes/$nodeId');
@@ -721,9 +696,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'deleted'});
   }
 
-  // ===========================================================================
-  // Reorder Nodes
-  // ===========================================================================
+  // Reorder nodes
 
   Future<Response> handleReorderNodes(
     Request request,
@@ -745,9 +718,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'reordered'});
   }
 
-  // ===========================================================================
-  // Set Node Enabled
-  // ===========================================================================
+  // Set node enabled
 
   Future<Response> handleSetNodeEnabled(Request request, String nodeId) async {
     _logInfo('[API] POST /api/sequence-management/nodes/$nodeId/enabled');
@@ -769,9 +740,7 @@ class SequenceManagementHandlers {
     return jsonOk({'status': 'updated'});
   }
 
-  // ===========================================================================
-  // Get Child Nodes
-  // ===========================================================================
+  // Get child nodes
 
   Future<Response> handleGetChildNodes(
     Request request,
@@ -791,9 +760,7 @@ class SequenceManagementHandlers {
     return jsonOk({'nodes': nodes.map((n) => _nodeToJson(n)).toList()});
   }
 
-  // ===========================================================================
   // Helper: Convert Sequence to JSON
-  // ===========================================================================
 
   Map<String, dynamic> _sequenceToJson(Sequence sequence) {
     return {
@@ -838,9 +805,7 @@ class SequenceManagementHandlers {
     'createdAt': version.createdAt.toIso8601String(),
   };
 
-  // ===========================================================================
   // Helper: Convert SequenceNode to JSON
-  // ===========================================================================
 
   Map<String, dynamic> _nodeToJson(SequenceNode node) {
     return {

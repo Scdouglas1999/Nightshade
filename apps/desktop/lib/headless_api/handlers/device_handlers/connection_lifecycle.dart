@@ -1,14 +1,11 @@
 part of '../device_handlers.dart';
 
 extension DeviceConnectionHandlers on DeviceHandlers {
-  // ===========================================================================
   // Connection lifecycle
   //
-  // Audit the previous headless implementation called
-  // `backend.connectDevice` / `backend.disconnectDevice` directly. That
-  // shipped a "connected" response to remote clients while skipping the
-  // full per-device-type connect flow that the desktop UI runs through
-  // `DeviceService`:
+  // Every connect routes through `DeviceService.connect<Type>`, never
+  // `backend.connectDevice` directly. The service is what runs the
+  // per-device-type flow:
   //
   //   * cameras: cool-on-connect, target-temp seeding, recommended-gain
   //     auto-apply, temperature polling, heartbeat monitoring
@@ -19,15 +16,9 @@ extension DeviceConnectionHandlers on DeviceHandlers {
   //     from active profile / session
   //   * guiders: PHD2 handshake when applicable
   //
-  // It also left the per-device-type StateNotifier (`cameraStateProvider`,
-  // `mountStateProvider`, ...) untouched, so any local UI listening to the
-  // Riverpod state still believed nothing was connected — exactly the same
-  // failure mode we just fixed for sequencer start (audit C3).
-  //
-  // The fix routes every connect through `DeviceService.connect<Type>` so
-  // remote clients are first-class consumers of the same code path the
-  // desktop UI uses.
-  // ===========================================================================
+  // It also populates the per-device-type StateNotifier
+  // (`cameraStateProvider`, `mountStateProvider`, ...), without which local UI
+  // listening to Riverpod state still believes nothing is connected.
 
   /// POST /api/devices/connect
   ///
@@ -130,17 +121,15 @@ extension DeviceConnectionHandlers on DeviceHandlers {
   /// different device than they think they are.
   ///
   /// When the notifier does NOT agree with the request, the DRIVER REGISTRY is
-  /// consulted before refusing. The registry (`backend.getConnectedDevices`, the
-  /// same source `GET /api/devices/connected` renders and the source every
+  /// consulted before refusing. The registry (`backend.getConnectedDevices`,
+  /// the same source `GET /api/devices/connected` renders and the source every
   /// driver command dispatches through) is the authority on what is actually
-  /// open; the notifier is a UI mirror of it. A notifier that has lost the
-  /// device — e.g. wiped by a stale `Disconnected` event for a different device
-  /// of the same type — used to make this endpoint answer
-  /// `device_not_connected` for a device that `/api/devices/connected` still
-  /// listed and whose `status` still returned live values, leaving the driver
-  /// releasable only by restarting the process. So: if the registry holds the
-  /// requested device, release it and report success; only a device that neither
-  /// surface knows about is a 409.
+  /// open; the notifier is a UI mirror of it, and can lose a device to a stale
+  /// `Disconnected` event for a different device of the same type. Refusing on
+  /// the mirror alone would strand an open driver — released only by
+  /// restarting the process — while `/api/devices/connected` still listed it.
+  /// So: if the registry holds the requested device, release it and report
+  /// success; only a device neither surface knows about is a 409.
   Future<Response> handleDisconnectDevice(Request request) async {
     _logInfo('[API] POST /api/devices/disconnect');
     final payload = await readJsonObject(request);
@@ -175,9 +164,9 @@ extension DeviceConnectionHandlers on DeviceHandlers {
           'status': 'disconnected',
           'deviceId': deviceId,
           'deviceType': deviceType.name,
-          // Truthfulness: the caller asked for a device the equipment state did
-          // not know about. Say so rather than pretending it was a normal
-          // teardown, so a dashboard can surface the divergence.
+          // The caller asked for a device the equipment state did not know
+          // about. Say so rather than reporting a normal teardown, so a
+          // dashboard can surface the divergence.
           'releasedFromDriverRegistry': true,
         });
       }

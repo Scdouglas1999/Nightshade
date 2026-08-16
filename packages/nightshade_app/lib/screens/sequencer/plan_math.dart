@@ -1,8 +1,5 @@
-// =============================================================================
-// plan_math.dart — one walk that answers "what does this subtree actually
-// plan to capture?" for every sequencer surface that quotes a frame count or
-// an integration time.
-// =============================================================================
+// One walk that answers "what does this subtree actually plan to capture?" for
+// every sequencer surface that quotes a frame count or an integration time.
 //
 // WHY THIS EXISTS: the target header card and the library card's preview each
 // grew their own recursive walk. Both drifted from the model's own counting

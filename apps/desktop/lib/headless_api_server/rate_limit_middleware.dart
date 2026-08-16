@@ -4,7 +4,7 @@ part of '../headless_api_server.dart';
 /// `x-forwarded-for` / `x-real-ip` forwarding headers (and only when the
 /// socket peer is loopback).
 ///
-/// HTTP-001: OFF by default. In the direct-bind deployment those headers are
+/// OFF by default. In the direct-bind deployment those headers are
 /// attacker-controlled, so the lockout/limiter key is derived from the real TCP
 /// socket peer instead. Set `NIGHTSHADE_TRUST_PROXY=true` (or `1`/`yes`) ONLY
 /// when the appliance runs behind the loopback nginx reverse proxy documented
@@ -183,7 +183,7 @@ extension _HeadlessApiServerRateLimitMiddleware on HeadlessApiServer {
 
   /// Stable key for the rate limiter and the pairing brute-force lockout.
   ///
-  /// HTTP-001: this MUST derive from the real TCP socket peer rather than the
+  /// This MUST derive from the real TCP socket peer rather than the
   /// client-supplied `x-forwarded-for` / `x-real-ip` headers. In the default
   /// direct-bind deployment those headers are attacker-controlled, so keying
   /// off them lets a client rotate the header to evade both the pairing

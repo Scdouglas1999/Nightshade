@@ -3,18 +3,12 @@ part of '../centering_service.dart';
 /// Right ascension returned by the plate solver, in **degrees**, converted
 /// to the app-canonical **hours** the rest of the centering pipeline uses.
 ///
-/// This is the fix for the 2026-06-04 full-night-audit "slew & center never
-/// converges" bug. `PlateSolveResult.ra` arrives in degrees: the Rust
-/// `PlateSolveResult.ra` is documented "Solved RA in degrees" and reads FITS
-/// `CRVAL1` (degrees) verbatim, and the network host forwards that same
-/// value unchanged. Every other RA in this service is in hours — the slew
-/// target (`slewMountToCoordinates` expects hours), the mount sync
-/// (`syncMountToCoordinates` expects hours), `mountState.ra` (ASCOM
-/// `RightAscension`, hours) and the `CenteringStatus.solvedRa` contract
-/// ("hours"). Normalising once here keeps the offset math, the sync-to-
-/// solved-position slew, and the status display all consistent. Without
-/// this, the solved RA was 15× the target RA's frame, so the offset never
-/// fell below tolerance and the loop ran out its iterations.
+/// `PlateSolveResult.ra` is degrees (the native solver reads FITS `CRVAL1`
+/// verbatim and the network host forwards it unchanged). Every other RA in
+/// this service is hours: the slew target, the mount sync, `mountState.ra`
+/// (ASCOM `RightAscension`) and the `CenteringStatus.solvedRa` contract.
+/// Normalising once here is what keeps the offset math, the sync slew and the
+/// status display in one unit.
 double _solvedRaHours(double solvedRaDegrees) {
   return solvedRaDegrees / 15.0;
 }

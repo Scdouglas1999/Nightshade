@@ -1,16 +1,14 @@
-// WF-N1 (half a) — the scheduler's own diagnostics were unreadable in the
-// shipping build.
+// The scheduler's own diagnostics are readable in the shipping build.
 //
-// Every SchedulerEngine diagnostic went to `dart:developer`, which in a release
-// Flutter build has no destination anyone can reach: the rolling
-// `nightshade.log.<date>` is written by the Rust tracing appender and carried 0
+// A SchedulerEngine diagnostic that only reaches `dart:developer` has no
+// destination anyone can get to in a release Flutter build: the rolling
+// `nightshade.log.<date>` is written by the Rust tracing appender and carries 0
 // SchedulerEngine lines, while Settings > Advanced > Logs (fed by
-// LoggingService's in-memory ring) offered only `SequenceExecutor` in its
-// source dropdown.
+// LoggingService's in-memory ring) offers only `SequenceExecutor` in its source
+// dropdown.
 //
-// The line that matters most is the reconcile line — the E-fix's stated
-// two-implementations guard, the ONE piece of evidence that says WHICH engine
-// instance re-armed the autopilot. It could not be checked by anyone.
+// The line that matters most is the reconcile line — the ONE piece of evidence
+// that says WHICH engine instance re-armed the autopilot.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

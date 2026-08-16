@@ -526,7 +526,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       );
     }
 
-    // Finishing-artifact output paths (previously written then discarded).
+    // Finishing-artifact output paths.
     if (!await _columnExists(
       'integrated_masters',
       'background_extracted_path',
@@ -619,7 +619,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       'REFERENCES integrated_masters(id) ON DELETE SET NULL,'
       'created_at INTEGER NOT NULL,'
       'updated_at INTEGER NOT NULL,'
-      // v56 (Collaborative Sky WS2): when an owner publishes this project to the
+      // v56: when an owner publishes this project to the
       // hub as a collaborative mosaic, `hub_mosaic_id` is the hub mosaic id (the
       // handle claim/upload/assemble act on), `collab_role` is owner|participant,
       // and `collab_status` mirrors the hub lifecycle (published|assembling|
@@ -655,7 +655,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       'REFERENCES integrated_masters(id) ON DELETE SET NULL,'
       'captured_count INTEGER NOT NULL DEFAULT 0,'
       "status TEXT NOT NULL DEFAULT 'pending',"
-      // v56 (Collaborative Sky WS2): distributed-capture panel claim. When a
+      // v56: distributed-capture panel claim. When a
       // mosaic is published to the hub, a panel is claimed by a rig/user (the
       // hand-off baton pattern), and its uploaded panel master is tracked here.
       // `assigned_rig_id` / `assigned_user_id` carry the hub identities,
@@ -693,11 +693,11 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       "tags_json TEXT NOT NULL DEFAULT '[]',"
       'notes TEXT,'
       'camera_id TEXT,'
-      // v56 (Collaborative Sky WS1): sharing / provenance. `shared_by` is the
+      // v56: sharing / provenance. `shared_by` is the
       // sharer's hub account id, `shared_at` an epoch-seconds timestamp,
       // `license` a `ContributionLicense` wire name, and `provenance_json` a
       // serialized [Provenance]. `published_remote_id` is the hub master id this
-      // LOCAL master was published under (the WS1 owner-scoped retract handle);
+      // LOCAL master was published under (the owner-scoped retract handle);
       // null until the master is shared, cleared again on retract. All nullable —
       // a master is local-only until shared. Retrofitted onto pre-v56 DBs by the
       // v56 onUpgrade branch.

@@ -1,16 +1,9 @@
-// WF-STOP-N5 — operator copy still carried a machine token.
-//
-// The stop toast read
-//
-//   Sequence stopped by request at 2026-08-14T00:13:25.206940.
+// Operator copy carries a clock time, never a machine token.
 //
 // A raw ISO-8601 microsecond timestamp is a wire format, not something an
-// operator reads off a toast at 2am. Every built-in notification body that
-// names a time now renders a plain local clock time.
-//
-// The same change is what makes the WF-N4 collapse possible at all: three
-// producers of one Stop rendered three DIFFERENT bodies because each captured
-// its own microsecond, so no content key could ever have matched.
+// operator reads off a toast at 2am, and it also defeats content dedup: three
+// producers of one Stop each capture their own microsecond, so no content key
+// can match.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 

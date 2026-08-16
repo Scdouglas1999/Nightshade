@@ -1,10 +1,9 @@
-// WD-EQ-6: snackbars painted over the entire global status bar.
+// Snackbars must not paint over the global status bar.
 //
-// Live evidence (waveD-equipment-shell.md): toggling Glance mode at 1600x900
-// put a bar full-bleed across all 1600 px at the window bottom, covering the
-// status bar — connection chips, save path and clock — for its whole lifetime.
-// The floating snackbar anchors to the shell Scaffold, and nothing lifted it
-// off the 36 dp status bar the shell pins inside that same Scaffold.
+// The floating snackbar anchors to the shell Scaffold, and unless something
+// lifts it off the 36 dp status bar the shell pins inside that same Scaffold, a
+// toast at 1600x900 goes full-bleed across all 1600 px at the window bottom,
+// covering the connection chips, save path and clock for its whole lifetime.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';

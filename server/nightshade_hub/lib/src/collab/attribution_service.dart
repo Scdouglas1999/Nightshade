@@ -3,9 +3,8 @@ import 'package:uuid/uuid.dart';
 import '../auth/account_service.dart';
 import '../db/hub_database.dart';
 
-/// Attribution materialization (Collaborative Sky WS4, concern 4 — materialize
-/// per-account identities into credited attribution for a finished
-/// collaborative artifact).
+/// Attribution materialization: per-account identities become credited
+/// attribution for a finished collaborative artifact.
 ///
 /// Where `tile_index.contributors` is only a COUNT, this produces the ordered
 /// per-contributor credit list a finished co-add / mosaic / co-imaging session

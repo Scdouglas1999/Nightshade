@@ -63,7 +63,7 @@ const List<AboutLink> kAboutLinks = [
 
 /// The licence this build ships under, verbatim from the repository's LICENSE
 /// file. Settings search sends both `license` and `credits` to About, so the
-/// page has to actually carry them; it used to carry neither.
+/// page has to actually carry them.
 const String kNightshadeLicenseName =
     'Nightshade Source-Available License v1.2';
 const String kNightshadeCopyright = 'Copyright (c) 2025 Sean Douglas';
@@ -315,11 +315,10 @@ class SupportFact {
 
 /// What "System Information" reports.
 ///
-/// The card used to list Platform / OS Version / Dart Version and nothing else
-/// — none of which distinguishes two installs of the same release. A support
-/// conversation opens by asking for the build number, which host the app is
-/// driving and what schema its data is on, so those are gathered here and the
-/// whole block is copyable in one action.
+/// A support conversation opens by asking for the build number, which host the
+/// app is driving and what schema its data is on — none of which Platform / OS
+/// Version / Dart Version answer — so those are gathered here and the whole
+/// block is copyable in one action.
 ///
 /// Deliberately synchronous: About must render its facts on the first frame,
 /// never behind a spinner. The one fact that cannot be resolved synchronously
@@ -517,13 +516,13 @@ class _LicenseCard extends ConsumerWidget {
 
 /// Manual "is there a newer Nightshade?" check.
 ///
-/// Settings had no local update surface at all: searching it for "update"
-/// returned only About and the appliance OTA page (which is about a REMOTE rig
-/// and rendered a single sentence off-network). The in-app updater never ran
-/// because nothing configures its server URL on desktop. An astrophotographer
-/// needs to know a fix landed before the night, not after, so this asks the
-/// published releases feed on demand and says exactly what it found — it never
-/// downloads or installs anything.
+/// This is the only local update surface Settings has: searching it for
+/// "update" otherwise returns About and the appliance OTA page, which is about
+/// a REMOTE rig and renders a single sentence off-network. The in-app updater
+/// cannot answer either — nothing configures its server URL on desktop. An
+/// astrophotographer needs to know a fix landed before the night, not after, so
+/// this asks the published releases feed on demand and says exactly what it
+/// found. It never downloads or installs anything.
 class _SoftwareUpdateCard extends ConsumerStatefulWidget {
   final bool isMobile;
 

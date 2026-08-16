@@ -132,10 +132,10 @@ void main() {
       expect(saved.focalRatio, closeTo(5.0, 1e-9));
     });
 
-    // Regression: the editor validated optics only against `> 0`, so a custom
-    // telescope preset could carry 999999999 mm at 0.0001 mm (f/9999999990000).
-    // A preset prefills the equipment profile editor and drives the planetarium
-    // FOV overlay, so it needs the same bounds a profile has.
+    // Validating optics only against `> 0` lets a custom telescope preset carry
+    // 999999999 mm at 0.0001 mm (f/9999999990000). A preset prefills the
+    // equipment profile editor and drives the planetarium FOV overlay, so it
+    // needs the same bounds a profile has.
     testWidgets('rejects an implausible focal length / aperture pair',
         (tester) async {
       final db = _newDb();

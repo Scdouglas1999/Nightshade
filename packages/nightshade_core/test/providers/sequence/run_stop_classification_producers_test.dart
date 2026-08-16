@@ -1,8 +1,7 @@
-// WD-SEQ-N1, third strike on the two-implementations trap.
+// The two-implementations trap, on the stop path.
 //
 // An operator Stop reaches Dart as a sequencer `Error` carrying "Sequence
-// cancelled". FIVE producers turned that into an error message, and each fix
-// wave patched one of them:
+// cancelled". FIVE producers can turn that into an error message:
 //
 //   1. NotificationEventClassifier          -> "Sequence failed" toast + push
 //   2. SequenceExecutor._handleSequencerEvent -> rollup "Error: …", red node
@@ -11,10 +10,10 @@
 //   3. runDashboardCriticalEventsBridge      -> "Critical · Sequencer" toast,
 //       Dashboard banner, RECENT EVENTS row
 //
-// Producer 2 and 2b are the pair that made the last fix invisible: the
-// executor's handler was corrected while the DeviceService-driven pump — which
-// is subscribed from app start and handles the identical event — kept writing
-// "Error: Sequence cancelled" into the same provider the target rollup reads.
+// Producers 2 and 2b are the pair that hides a partial fix: correcting the
+// executor's handler alone leaves the DeviceService-driven pump — subscribed
+// from app start, handling the identical event — writing "Error: Sequence
+// cancelled" into the same provider the target rollup reads.
 //
 // This file pins the behaviour of 2b directly and, for the handlers that need a
 // whole executor to exercise, asserts structurally that every `case 'Error'` in
@@ -87,7 +86,7 @@ void main() {
         contains('isSequenceCancelledNotice('),
         reason:
             '$path handles a sequencer Error without asking whether it is '
-            'the operator\'s Stop. That is the defect WD-SEQ-N1 keeps '
+            'the operator\'s Stop. That is the defect this file keeps '
             'reopening: one producer fixed, the other still crying wolf.',
       );
     }

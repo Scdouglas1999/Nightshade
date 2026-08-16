@@ -1,5 +1,3 @@
-// Part of ../location_settings.dart -- extracted for maintainability.
-//
 // UTC-offset timezone tables and site-angle parsing helpers.
 part of '../location_settings.dart';
 
@@ -7,8 +5,8 @@ part of '../location_settings.dart';
 ///
 /// `clockProvider` builds its [FixedOffsetClock] from these labels, so every
 /// entry here changes the clock when "Use system time" is off. Offsets rather
-/// than IANA zones because Nightshade carries no timezone database; naming
-/// cities we cannot resolve is what made the old picker inert.
+/// than IANA zones because Nightshade carries no timezone database: a city name
+/// it cannot resolve makes the picker inert.
 const List<String> kUtcOffsetTimezones = [
   'UTC-12:00',
   'UTC-11:00',
@@ -51,8 +49,8 @@ const List<String> kUtcOffsetTimezones = [
 ];
 
 /// Standard-time offset for each IANA label the previous picker could store.
-/// Standard, not summer, time: a fixed offset cannot follow a DST rule, and
-/// pretending otherwise for half the year would be the same class of lie.
+/// Standard, not summer, time: a fixed offset cannot follow a DST rule, so a
+/// summer-time value would be wrong for half the year.
 const Map<String, String> kLegacyIanaUtcOffsets = {
   'America/New_York': 'UTC-05:00',
   'America/Chicago': 'UTC-06:00',

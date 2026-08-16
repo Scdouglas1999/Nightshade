@@ -1,5 +1,3 @@
-// Part of ../guiding_screen.dart -- extracted for maintainability.
-//
 // Mobile tab layout and compact guiding controls.
 part of '../guiding_screen.dart';
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io' show Directory, File, Platform;
 
 import 'package:flutter/material.dart';
@@ -354,15 +355,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
 
-    // -1 = nothing highlighted, and that is the correct answer for every route
-    // no rail destination hosts: Settings (+ its plate-solving child), Polar
+    // -1 = nothing highlighted, which is the correct answer for every route no
+    // rail destination hosts: Settings (+ its plate-solving child), Polar
     // Alignment, Tonight, the Flat Wizard, the mosaic / session-review /
-    // stack-result viewers and /diagnostics/dump. Defaulting to 0 lit up
-    // Dashboard on all of them, so the rail confidently claimed the operator was
-    // on a screen they were not — the strongest signal the shell gives about
-    // where you are was simply wrong. Sub-routes still resolve to their host
-    // (/imaging/preview/:id lights Imaging), which the old exact-match default
-    // also got wrong.
+    // stack-result viewers and /diagnostics/dump. Defaulting to 0 lights
+    // Dashboard on all of them, so the rail claims the operator is on a screen
+    // they are not. Sub-routes resolve to their HOST (/imaging/preview/:id
+    // lights Imaging).
     return ShellNavigation.primaryIndexForLocation(location);
   }
 
@@ -371,8 +370,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (route == null) return;
     try {
       context.go(route);
-    } catch (e) {
-      // Router might not be available yet, ignore
+    } catch (e, stack) {
+      // A tab that does not move is indistinguishable from a tab that moved
+      // and rendered the same thing, so the failure is logged rather than
+      // absorbed: without this the only symptom is an unresponsive tab.
+      developer.log(
+        '[AppShell] Tab $index could not navigate to $route: $e',
+        name: 'AppShell',
+        level: 900,
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
@@ -406,9 +414,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Otherwise target/goals/constraint edits made elsewhere can stop waking
     // the scheduler once the operator navigates away from that tab.
     ref.watch(schedulerAutoReevalProvider);
-    // Collaborative Sky WS3 Gap 3: keep the longitude-baton scheduler mounted for
-    // the shell's lifetime so a co-imaging session hands the night east on the
-    // rise/set even while the operator is on another tab. Lazy otherwise, so this
+    // Keep the longitude-baton scheduler mounted for the shell's lifetime so a
+    // co-imaging session hands the night east on the rise/set even while the
+    // operator is on another tab. Lazy otherwise, so this
     // read is what makes it tick in the GUI (the headless host eager-reads it in
     // main_headless). No-op until a session is joined and a site is configured.
     ref.watch(coImagingBatonSchedulerProvider);
@@ -451,15 +459,11 @@ class _AppShellState extends ConsumerState<AppShell> {
           });
         }
 
-        // The first-launch tour is replay-only (C13): OnboardingTourReplayLauncher
+        // The first-launch tour is replay-only: OnboardingTourReplayLauncher
         // watches firstLaunchTourStatusProvider and overlays OnboardingOverlay on
         // top of the whole shell when the user re-runs it from Settings → Help.
         // Mounted at the shell level so the spotlight cutouts can target the
         // live side-navigation TutorialKeys.
-        //
-        // The progressive first-launch "coach" popup was removed (it was an
-        // intrusive readiness nudge whose info is reachable from the Equipment
-        // "Ready to image" panel).
         final Widget shell = OnboardingTourReplayLauncher(
           child: TutorialOverlay(
             child: Scaffold(
@@ -485,7 +489,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   // compact status-bar connection indicator.
                   if (!useBottomNav) const DisconnectedBackendBanner(),
 
-                  // iOS background-monitoring advisory (audit §3.2). Renders
+                  // iOS background-monitoring advisory. Renders
                   // above the weather banner so it's the first thing the
                   // operator sees while a sequence is running on iOS.
                   const IosBackgroundBanner(),
@@ -496,7 +500,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   // wake them and points to System Settings.
                   const AndroidNotificationsBanner(),
 
-                  // Stale-connection advisory (audit §3.6). Visible during
+                  // Stale-connection advisory. Visible during
                   // the WS reconnect grace window so the operator knows
                   // controls may be momentarily out of date.
                   const ConnectionStaleBanner(),
@@ -569,9 +573,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   child: widget.child,
                                 ),
                                 // Mobile sequence overlay (only on mobile and
-                                // sequencer screen). §14: gated on the shared
-                                // route constant instead of a literal string so
-                                // the router and this check stay in sync. The
+                                // sequencer screen). Gated on the shared route
+                                // constant instead of a literal string so the
+                                // router and this check stay in sync. The
                                 // app-wide running-sequence mini-player (run
                                 // controls reachable off the sequencer route)
                                 // lives in the bottom chrome below as
@@ -619,8 +623,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                             onRouteSelected: (route) {
                               try {
                                 context.go(route);
-                              } catch (_) {
-                                // Router might not be available yet, ignore.
+                              } catch (e, stack) {
+                                developer.log(
+                                  '[AppShell] Bottom nav could not navigate '
+                                  'to $route: $e',
+                                  name: 'AppShell',
+                                  level: 900,
+                                  error: e,
+                                  stackTrace: stack,
+                                );
                               }
                             },
                           ),

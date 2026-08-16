@@ -359,16 +359,14 @@ void main() {
         },
       );
 
-      // ---- RA-unit regression (full-night audit 2026-06-04) ---------------
+      // RA units
       //
-      // `PlateSolveResult.ra` is in DEGREES (Rust `PlateSolveResult.ra` reads
-      // FITS CRVAL1 verbatim; the network host forwards it unchanged). The
-      // centering target (`targetRa`), the slew/sync calls and the mount frame
-      // are all in HOURS. The old code multiplied BOTH the target RA and the
-      // solved RA by 15, so on the real solver path the solved RA landed 15×
-      // away from the target's frame, the haversine offset never fell below
-      // tolerance, and slew-and-center burned all its iterations without ever
-      // converging. These tests pin the corrected unit handling.
+      // `PlateSolveResult.ra` is in DEGREES (the Rust solver reads FITS CRVAL1
+      // verbatim; the network host forwards it unchanged). The centering target
+      // (`targetRa`), the slew/sync calls and the mount frame are all in HOURS.
+      // Rescaling both puts the solved RA 15× from the target's frame, so the
+      // haversine offset never falls below tolerance and slew-and-center burns
+      // its iterations without converging. These tests pin the unit handling.
 
       // Helper: build a CapturedImageData with a given file path.
       CapturedImageData raUnitFixture(String path) {
@@ -1665,14 +1663,14 @@ void main() {
         },
       );
 
-      // ---- Post-slew polling escalation (audit ) ------------------
+      // Post-slew polling escalation
       //
       // The centering service runs a settle-poll loop after each slew. If the
       // mount stops answering `getMountStatus` for too long, the loop must
       // escalate to a typed failure instead of dragging out the full 60s
       // wall-clock cap. The four tests below cover the contract:
-      //   1. Healthy mount  -> normal proceed (regression).
-      //   2. ONE transient blip -> recovers, do not escalate (regression).
+      //   1. Healthy mount  -> normal proceed.
+      //   2. ONE transient blip -> recovers, do not escalate.
       //   3. 6 consecutive failures -> abort with the typed exception.
       //   4. Failure then success -> counter resets, polling continues.
 

@@ -96,7 +96,7 @@ public struct NightshadeWatchTimelineProvider: TimelineProvider {
     ///     loudly via NSLog so the developer sees it during setup),
     ///   * no snapshot has ever been written,
     ///   * the snapshot fails to decode (host/extension contract drift —
-    ///     also surfaced via NSLog; repo policy is errors-are-a-feature).
+    ///     also surfaced via NSLog).
     private func readEntry() -> NightshadeWatchComplicationEntry? {
         guard let defaults = UserDefaults(suiteName: nightshadeWatchAppGroupSuite) else {
             // Loud failure: the App Group entitlement is missing on the

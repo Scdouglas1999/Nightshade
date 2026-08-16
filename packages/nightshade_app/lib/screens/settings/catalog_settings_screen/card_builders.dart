@@ -1,5 +1,3 @@
-// Part of ../catalog_settings_screen.dart -- extracted for maintainability.
-//
 // Shared installed-catalog card and status-chip presentation helpers.
 part of '../catalog_settings_screen.dart';
 

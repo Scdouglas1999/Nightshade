@@ -1,12 +1,11 @@
-// Loop is a live-view mode. It used to run the identical save-and-index
-// pipeline as Snapshot with no control anywhere in the capture banner to say
-// so, so framing for an hour at 5 s subs wrote ~27 GB of full-size
-// `Unknown_NoFilter_*` lights into the operator's light-frame folder and
-// counted every one of them in the session's frame / integration totals.
+// Loop is a LIVE-VIEW mode. Running Snapshot's save-and-index pipeline with no
+// control in the capture banner to say so writes around 27 GB of full-size
+// `Unknown_NoFilter_*` lights an hour at 5 s subs into the operator's
+// light-frame folder, and counts every one in the session's frame and
+// integration totals.
 //
-// These tests pin the screen half of the fix: the banner exposes the choice,
-// it defaults to OFF, and whatever it says is what the imaging service is
-// asked for.
+// These tests pin the screen half: the banner exposes the choice, it defaults
+// to OFF, and whatever it says is what the imaging service is asked for.
 
 import 'dart:async';
 import 'dart:typed_data';

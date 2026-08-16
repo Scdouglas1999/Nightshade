@@ -1,7 +1,7 @@
-// SEQ-18's shape: two producers wrote an exposure node's progress line in two
-// wordings, and the card that renders it understood only one of them. This pins
-// the round trip — everything a formatter emits, the parser reads back — so a
-// third wording cannot be added on one side alone.
+// Two producers write an exposure node's progress line, and a card that
+// understands only one wording misreads the other. This pins the round trip —
+// everything a formatter emits, the parser reads back — so a third wording
+// cannot be added on one side alone.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/providers/sequence/exposure_progress_vocabulary.dart';

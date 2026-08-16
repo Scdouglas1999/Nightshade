@@ -49,7 +49,7 @@ class HandoffService {
   bool release({required int targetId, required String accountId}) =>
       _releaseRaw('handoff_claims', 'target_id', targetId, accountId);
 
-  // --- Session-scoped baton (co-imaging WS3) ---------------------------------
+  // --- Session-scoped baton (co-imaging) -------------------------------------
   //
   // A LIVE co-imaging session's "who is imaging now" baton is a property of the
   // SESSION, not of the bare shared target: two distinct sessions that cone-merge

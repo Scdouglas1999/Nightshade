@@ -365,9 +365,9 @@ void main() {
     });
   });
 
-  // The control for the fix above: with NO run id on either side, time is all
-  // there is, so a late Stopped still opens its own episode and pushes. This
-  // pins that identity-joining did not silently widen into time-blindness.
+  // The control for the case above: with NO run id on either side, time is all
+  // there is, so a late Stopped still opens its own episode and pushes.
+  // Identity-joining must not widen into time-blindness.
   test('an id-less Stopped past the window still pushes (time is the only '
       'evidence left)', () {
     fakeAsync((async) {

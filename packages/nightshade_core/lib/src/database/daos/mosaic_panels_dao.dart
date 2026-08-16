@@ -18,9 +18,8 @@ import '../database.dart';
 /// `@DriftAccessor`.
 ///
 /// `UNIQUE(project_id, panel_index)` makes `(project, panel)` the panel
-/// identity; [upsert] keys on that pair so regenerating a project's panels never
-/// duplicates rows. Per project policy this DAO never silently swallows
-/// failures: SQLite errors propagate.
+/// identity; [upsert] keys on that pair so regenerating a project's panels
+/// never duplicates rows. SQLite errors propagate.
 class MosaicPanelsDao {
   MosaicPanelsDao(this._db);
 
@@ -29,7 +28,7 @@ class MosaicPanelsDao {
   static const String _columns =
       'id, project_id, panel_index, center_ra, center_dec, target_id, '
       'integrated_master_id, captured_count, status, '
-      // v56 (Collaborative Sky WS2): distributed-capture claim + upload.
+      // v56: distributed-capture claim + upload.
       'assigned_rig_id, assigned_user_id, claim_token, uploaded_master_id';
 
   /// Insert or update a panel keyed on `(project_id, panel_index)`.
@@ -131,7 +130,7 @@ class MosaicPanelsDao {
     );
   }
 
-  /// Persist a hub panel claim onto a panel (WS2): the hub-issued [claimToken]
+  /// Persist a hub panel claim onto a panel: the hub-issued [claimToken]
   /// baton and the authoritative [accountId] / [rigId] the panel is assigned to.
   /// Returns the number of rows changed.
   Future<int> setClaim(
@@ -153,7 +152,7 @@ class MosaicPanelsDao {
     );
   }
 
-  /// Drop a hub panel claim from a panel (WS2 release): clears the claim baton
+  /// Drop a hub panel claim from a panel: clears the claim baton
   /// and the assignment it granted, so local state stops advertising a hold the
   /// hub has already given back to the pool. Returns rows changed.
   Future<int> clearClaim(int panelId) {
@@ -166,7 +165,7 @@ class MosaicPanelsDao {
   }
 
   /// Record the local `integrated_masters.id` of the panel master uploaded to
-  /// the hub for this panel (WS2). Returns the number of rows changed.
+  /// the hub for this panel. Returns the number of rows changed.
   Future<int> setUploaded(int panelId, int uploadedMasterId) {
     return _db.customUpdate(
       'UPDATE mosaic_panels SET uploaded_master_id = ? WHERE id = ?',

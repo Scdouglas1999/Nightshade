@@ -14,10 +14,10 @@ import 'hfr_sparkline.dart';
 /// `FrameAccepted` / `FrameRejected` payloads produced by the typed
 /// bridge dispatch (`SequencerEvent::FrameAccepted` / `FrameRejected`).
 ///
-/// Previously this code parsed `InstructionProgress.detail` strings with
-/// regex. That parser has been deleted — every metric the panel needs
-/// (HFR, eccentricity, star count, reject reason, consecutive-reject
-/// counter) now arrives as typed data via [FrameGradeEvent.fromTypedData].
+/// Every metric the panel needs (HFR, eccentricity, star count, reject reason,
+/// consecutive-reject counter) arrives as typed data via
+/// [FrameGradeEvent.fromTypedData]; nothing here parses
+/// `InstructionProgress.detail` strings.
 ///
 /// Hidden when grading is disabled in settings AND no events have arrived
 /// (an idle dashboard stays clean).
@@ -345,9 +345,7 @@ class _GradeRow extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Provider — accumulates grading events into a per-run summary.
-// ============================================================================
 
 /// Maximum recent events retained for the dashboard. Older events scroll
 /// off the bottom of the list; the totals stay accurate.
@@ -392,9 +390,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
       state = FrameGradeRunSummary.empty;
       return;
     }
-    // Only the typed grading variants drive the panel. We no
-    // longer parse `InstructionProgress.detail` strings — the regex
-    // pipeline has been removed entirely.
+    // Only the typed grading variants drive the panel.
     if (event.eventType != 'FrameAccepted' &&
         event.eventType != 'FrameRejected') {
       return;
@@ -457,9 +453,7 @@ final runDashboardQualitySummaryProvider =
   return _QualityNotifier(ref);
 });
 
-// ============================================================================
 // Sky-brightness adaptive exposure surface
-// ============================================================================
 //
 // Mirrors the `_QualityNotifier` pattern: subscribe to the active backend
 // event stream, watch for `ExposureAdjusted`, and expose the most recent

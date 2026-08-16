@@ -82,11 +82,10 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
   /// Carry-over integration, in the one h/m/s shape the rest of the app uses
   /// (see `formatIntegrationSeconds`).
   ///
-  /// This used to round to whole minutes, so a real 12-second prior session
-  /// rendered as "0m" — right next to its own accepted-frame count, which is
-  /// the same "the run captured nothing" lie the Continue Session dialog
-  /// told. Sub-minute carry-overs are exactly the ones a handoff decision is
-  /// least obvious for, so they must not read as zero.
+  /// Rounding to whole minutes renders a real 12-second prior session as "0m",
+  /// beside its own non-zero accepted-frame count. Sub-minute carry-overs are
+  /// exactly the ones a handoff decision is least obvious for, so they must not
+  /// read as zero.
   String _formatHours(double seconds) => formatIntegrationSeconds(seconds);
 
   String _formatDate(DateTime dt) =>

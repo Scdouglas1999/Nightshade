@@ -50,7 +50,7 @@ class DeviceDiscoveryHandlers {
   /// `GET /api/devices` — discover every supported device type, optionally
   /// filtered by `?deviceType=`. Per-driver failures are surfaced in
   /// `discoveryErrors` so the dashboard can render an actionable warning
-  /// per category (was previously silently swallowed; see §2.26).
+  /// per category.
   Future<Response> handleGetDevices(Request request) async {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/devices');
@@ -60,21 +60,19 @@ class DeviceDiscoveryHandlers {
 
       // If no device type specified, discover all device types.
       List<DeviceInfo> allDevices = [];
-      // Why surfaced: silent catch_(_) hid persistent driver failures (e.g.
-      // missing TouptekSdk DLL, INDI server unreachable) for months because
-      // the UI saw an empty discovery list and shrugged (§2.26). Per-type
-      // errors now bubble up to the response so the dashboard can render an
-      // actionable warning per category.
+      // Per-type errors travel in the response rather than being swallowed: a
+      // persistent driver failure (missing TouptekSdk DLL, INDI server
+      // unreachable) is otherwise indistinguishable from an empty rig, and the
+      // dashboard needs the difference to warn per category.
       final discoveryErrors = <String, String>{};
       if (deviceTypeStr != null) {
         final deviceType = parseDeviceType(deviceTypeStr);
-        // A type this endpoint cannot parse used to fall straight through to
-        // `allDevices = []` and return 200 {"devices":[]} — telling the caller
-        // authoritatively that the rig has no such hardware when the truth was
-        // that the word was not understood. Found live: `?deviceType=switch`
-        // reported zero switches on a rig with six, because the enum member is
-        // `switch_` (Dart reserves `switch`). Every sibling handler already
-        // rejects an unparseable type; this one now matches them.
+        // An unparseable type is refused, never answered with 200
+        // {"devices":[]} — that would tell the caller authoritatively that the
+        // rig has no such hardware when the truth is that the word was not
+        // understood. `?deviceType=switch` is the live case: the enum member is
+        // `switch_` because Dart reserves `switch`, so a rig with six switches
+        // would report zero. Every sibling handler rejects the same way.
         if (deviceType == null) {
           throw BadRequestError(
             field: 'deviceType',
@@ -129,14 +127,13 @@ class DeviceDiscoveryHandlers {
 
   /// Single-flight wrapper around [_discoverAllTypes].
   ///
-  /// A full sweep probes every vendor SDK once per [DeviceType]; the native
-  /// layer serialises those probes (the ASCOM STA worker, INDI sockets, etc.).
-  /// Under concurrent `/api/devices` load each caller used to launch its own
-  /// fan-out, so N callers triggered N×(type-count) probes that piled up and
-  /// timed out (B13). Coalescing caps it at ONE sweep at a time: late callers
-  /// await the in-flight future. Freshness is preserved because the slot is
-  /// cleared on completion — the next call after a sweep finishes runs a brand
-  /// new discovery (no stale cache), so hot-plug changes are still picked up.
+  /// A full sweep probes every vendor SDK once per [DeviceType] and the native
+  /// layer serialises those probes (the ASCOM STA worker, INDI sockets), so
+  /// concurrent `/api/devices` callers must coalesce: N independent fan-outs
+  /// would queue N×(type-count) probes behind each other until they time out.
+  /// One sweep runs at a time and late callers await the in-flight future. The
+  /// slot is cleared on completion, so the next call after a sweep finishes
+  /// runs a fresh discovery and hot-plug changes are still picked up.
   Future<({List<DeviceInfo> devices, Map<String, String> errors})>
   _fullDiscoveryCoalesced(String requestId) async {
     final existing = _inFlightFullDiscovery;
@@ -162,7 +159,7 @@ class DeviceDiscoveryHandlers {
   /// rather than the sum. Correctness is order-independent: results reduce into
   /// an id-keyed map (a single physical device reported under multiple type
   /// sweeps collapses to one entry). Per-type failures map to `errors[dt.name]`
-  /// so persistent driver faults surface instead of being swallowed (§2.26).
+  /// so persistent driver faults surface instead of being swallowed.
   /// `errors` writes from the per-future catch blocks need no lock — Dart's
   /// event loop runs each catch body as one atomic turn.
   Future<({List<DeviceInfo> devices, Map<String, String> errors})>

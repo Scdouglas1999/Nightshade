@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -6,6 +8,9 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../utils/user_facing_error.dart';
+
 part 'notes_panel/target_notes_dialog.dart';
 part 'notes_panel/note_tile.dart';
 part 'notes_panel/note_editor_dialog.dart';
@@ -25,15 +30,14 @@ part 'notes_panel/global_notes_dialog.dart';
 ///     pre-fills body from the just-finished run stats.
 ///
 /// Why one file: every UI surface here renders the same `JournalNote`
-/// record with the same affordances (markdown body, tag chips,
-/// timestamp, edit/delete). Keeping the layout primitives co-located
-/// means a future tweak to the markdown renderer or tag chip styling
-/// only has one place to land.
+/// record with the same affordances (markdown body, tag chips, timestamp,
+/// edit/delete), so a tweak to the markdown renderer or tag-chip styling has
+/// one place to land.
 
 /// Shared "delete this note?" confirmation used by every notes surface
 /// (target section, run section, target dialog, editor). Standardizes on
-/// [NightshadeDialog] and the single delete-on-confirm path so the
-/// previously copy-pasted variants can't drift. Returns whether the note
+/// [NightshadeDialog] and the single delete-on-confirm path so the four notes
+/// surfaces cannot drift. Returns whether the note
 /// was actually deleted (false on cancel) so callers like the editor can
 /// decide whether to also dismiss themselves.
 Future<bool> confirmDeleteNote(
@@ -76,9 +80,7 @@ Future<bool> confirmDeleteNote(
   return false;
 }
 
-// =============================================================================
 // Section widgets (embedded in TargetHeaderCard / SessionReportDialog / HistoryTab)
-// =============================================================================
 
 /// Notes section for a specific target. Shows the two newest notes
 /// inline, plus a "View all" link that opens [TargetNotesDialog] with
@@ -308,11 +310,24 @@ class RunNotesSection extends ConsumerWidget {
         onDelete: (n) => confirmDeleteNote(context, ref, n),
       ),
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Text(
-        'Notes are temporarily unavailable.',
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11, color: colors.error),
-      ),
+      // The reason is carried through instead of being called "temporary": a
+      // corrupt journal table or a denied database path does not clear on its
+      // own, and telling the operator to wait for it hides the one fact that
+      // would let them fix it.
+      error: (e, stack) {
+        developer.log(
+          '[NotesPanel] Journal notes query failed: $e',
+          name: 'NotesPanel',
+          level: 1000,
+          error: e,
+          stackTrace: stack,
+        );
+        return Text(
+          'Notes unavailable: ${userFacingError(e)}',
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11, color: colors.error),
+        );
+      },
     );
   }
 
@@ -445,9 +460,7 @@ class _NotesPanelLayout extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // "View all" dialog
-// =============================================================================
 
 /// Modal that lists every note for a target chronologically with
 /// search + tag filter and an "Add note" affordance.

@@ -4,7 +4,6 @@ part of '../profile_editor_dialog.dart';
 
 extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
   // Section 4: Filters
-  // ============================================================================
 
   Widget _buildFiltersSection(NightshadeColors colors, ThemeData theme) {
     final filterWheelState = ref.watch(filterWheelStateProvider);
@@ -128,9 +127,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
     );
   }
 
-  // ============================================================================
-  // Section 5: Camera Defaults
-  // ============================================================================
+  // Section 5: camera defaults
 
   Widget _buildCameraDefaultsSection(NightshadeColors colors, ThemeData theme) {
     return _SectionCard(
@@ -321,9 +318,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
     );
   }
 
-  // ===========================================================================
   // Auto-detect recommended camera gain/offset
-  // ===========================================================================
 
   /// Build the auto-detect button row.
   ///

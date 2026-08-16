@@ -98,9 +98,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     );
   }
 
-  // ---------------------------------------------------------------------
   // Step body
-  // ---------------------------------------------------------------------
 
   Widget _buildStepBody(NightshadeColors colors) {
     switch (_step) {
@@ -121,7 +119,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     }
   }
 
-  // ---------- Step 1: window -------------------------------------------
+  // Step 1: window
 
   Widget _buildWindowStep(NightshadeColors colors) {
     _ensureWindowInitialised();
@@ -251,7 +249,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     );
   }
 
-  // ---------- Step 2: equipment ----------------------------------------
+  // Step 2: equipment
 
   Widget _buildEquipmentStep(NightshadeColors colors) {
     final profile = ref.watch(activeEquipmentProfileProvider);
@@ -371,7 +369,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     );
   }
 
-  // ---------- Step 3: targets ------------------------------------------
+  // Step 3: targets
 
   Widget _buildTargetsStep(NightshadeColors colors) {
     final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
@@ -571,7 +569,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     return _selectedTargetIds.where(upIds.contains).length;
   }
 
-  // ---------- Step 4: strategy -----------------------------------------
+  // Step 4: strategy
 
   Widget _buildStrategyStep(NightshadeColors colors) {
     final profile = ref.watch(activeEquipmentProfileProvider);
@@ -693,7 +691,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     );
   }
 
-  // ---------- Step 5: preview ------------------------------------------
+  // Step 5: preview
 
   Widget _buildPreviewStep(NightshadeColors colors) {
     if (_preview == null && _previewError == null) {
@@ -788,7 +786,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     );
   }
 
-  // ---------- Step 6: accept -------------------------------------------
+  // Step 6: accept
 
   Widget _buildAcceptStep(NightshadeColors colors) {
     final plan = _preview;
@@ -901,7 +899,5 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     );
   }
 
-  // ---------------------------------------------------------------------
   // Wiring + helpers
-  // ---------------------------------------------------------------------
 }

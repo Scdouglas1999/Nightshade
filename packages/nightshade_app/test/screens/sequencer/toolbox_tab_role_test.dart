@@ -1,16 +1,15 @@
-// NEW-C2's third site — the Sequencer palette tabs are role-less.
+// The Sequencer palette tabs must publish a role, not just an enabled state.
 //
-// Wave D (WD-SEQ-N3) fixed the missing enabled state; Wave F re-read the tree
-// and found the node still says `panel: Nodes / Tab 1 of 3`. Flutter's TabBar
-// does set `role: SemanticsRole.tab`, but on an ANCESTOR node — the node that
-// carries the label, and therefore the node an AT-SPI client reads, is the
-// merged one built by `_ToolboxPanel._tabLabel`.
+// Flutter's TabBar does set `role: SemanticsRole.tab`, but on an ANCESTOR node.
+// The node that carries the label — and therefore the node an AT-SPI client
+// reads — is the merged one built by `_ToolboxPanel._tabLabel`, which otherwise
+// dumps as `panel: Nodes / Tab 1 of 3`.
 //
 // `_ToolboxPanel` is private to SequencerScreen and cannot be pumped on its
 // own, and pumping the whole screen for a semantics flag is not a trade worth
 // making, so this guard reads the widget's source. It is deliberately narrow:
 // it asserts that the ONE builder every palette tab goes through declares both
-// a role and an enabled state, which is exactly what the live tree was missing.
+// a role and an enabled state.
 
 import 'dart:io';
 
@@ -32,12 +31,12 @@ void main() {
     expect(
       body,
       contains('button: true'),
-      reason: 'NEW-C2: the tree read `panel: Nodes / Tab 1 of 3` — no role',
+      reason: 'without it the tree reads `panel: Nodes / Tab 1 of 3` — no role',
     );
     expect(
       body,
       contains('enabled: true'),
-      reason: 'WD-SEQ-N3: and before that, no enabled state either',
+      reason: 'the tab must publish an enabled state',
     );
     expect(
       body,

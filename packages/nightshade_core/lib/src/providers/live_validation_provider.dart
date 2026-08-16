@@ -11,24 +11,21 @@ import 'profiles_provider.dart';
 import 'sequence_provider.dart';
 import 'settings_provider.dart';
 
-// =============================================================================
-// LIVE VALIDATION PROVIDER
-// =============================================================================
+// Live validation provider
 //
 // Watches the current sequence + equipment state and runs the synchronous
 // portion of the unified validation engine ([SequenceValidatorService.validateSync])
 // on a 500ms debounce.
 //
-// We deliberately do NOT run the async disk-space check here — it would
-// fire on every keystroke. The pre-flight dialog runs the full async stack
-// via [SequenceValidatorService.validate].
+// The async disk-space check deliberately does NOT run here — it would fire on
+// every keystroke. The pre-flight dialog runs the full async stack via
+// [SequenceValidatorService.validate].
 //
 // The state exposed below ([LiveValidationState]) wraps a [ValidationResult].
-// It used to also carry an `isValidating` flag for a debounce spinner; no UI
-// surface ever consumed it (the pre-flight dialog tracks its own local flag),
-// so the field was removed during dead-data cleanup. The wrapper
-// stays because the per-node helpers ([worstSeverityForNode] etc.) are part
-// of the public live-validation API that the sequence tree depends on.
+// The wrapper carries no debounce flag (the pre-flight dialog tracks its own
+// local one); it exists because the per-node helpers ([worstSeverityForNode]
+// etc.) are part of the public live-validation API the sequence tree depends
+// on.
 
 /// Aggregated live validation state for tree-border colouring and the
 /// header counts.
@@ -55,16 +52,8 @@ class LiveValidationState {
       result.worstSeverityForNode(nodeId);
 }
 
-/// Provider that runs live validation on the current sequence, debounced 500ms.
-///
-/// Watches:
-/// - currentSequenceProvider (sequence structure changes)
-/// - filterWheelStateProvider (connected filters)
-/// - guiderStateProvider (guider connection)
-/// - rotatorStateProvider (rotator connection)
-/// - mountStateProvider (mount connection)
-/// - cameraStateProvider (camera connection)
-/// - focuserStateProvider (focuser connection)
+/// Runs live validation on the current sequence, debounced 500ms so a burst of
+/// edits or device-state ticks revalidates once.
 final liveValidationProvider =
     StateNotifierProvider<LiveValidationNotifier, LiveValidationState>((ref) {
       return LiveValidationNotifier(ref);

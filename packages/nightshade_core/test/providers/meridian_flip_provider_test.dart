@@ -114,11 +114,11 @@ void main() {
 
   group('MeridianFlipNode useGlobalDefaults data-model contract', () {
     // The sticky-override UX heuristic ("user edited a config field → flip
-    // useGlobalDefaults off") used to live in copyWith; it now lives in the
-    // editor-layer helper `applyMeridianFlipEdit(...)`. These tests pin what
-    // the data model itself does: a vanilla field-replace copyWith that
-    // honours an explicit `useGlobalDefaults:` argument and leaves the flag
-    // alone otherwise.
+    // useGlobalDefaults off") lives in the editor-layer helper
+    // `applyMeridianFlipEdit(...)`, not in copyWith. These tests pin what the
+    // data model itself does: a vanilla field-replace copyWith that honours an
+    // explicit `useGlobalDefaults:` argument and leaves the flag alone
+    // otherwise.
     test('vanilla copyWith on a meridian field does NOT auto-flip the flag', () {
       final fresh = MeridianFlipNode();
       expect(fresh.useGlobalDefaults, isTrue);
@@ -624,10 +624,9 @@ void main() {
     );
   });
 
-  // The standalone monitor's LST/HA math used to be an acknowledged copy of
-  // SchedulerEngine._localSiderealTime. Both now delegate to the single
-  // SkyCalculations implementation. These pin that the monitor's public
-  // free-function entry points are exact aliases and carry no behaviour delta.
+  // The standalone monitor and SchedulerEngine both delegate their LST/HA math
+  // to SkyCalculations. These pin that the monitor's public free-function entry
+  // points are exact aliases of it, with no behaviour of their own.
   group('LST/HA helpers share one implementation', () {
     test(
       'computeLocalSiderealTimeHours == SkyCalculations.localSiderealTimeHours',

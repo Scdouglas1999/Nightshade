@@ -1,9 +1,7 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
-  // =========================================================================
-  // Sequencer Control
-  // =========================================================================
+  // Sequencer control
 
   @override
   Future<void> sequencerStart() async {
@@ -70,6 +68,11 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   @override
   Future<void> sequencerSetSimulationMode(bool enabled) async {
     await bridge.NativeBridge.sequencerSetSimulationMode(enabled);
+  }
+
+  @override
+  Future<bool> sequencerIsSimulationMode() async {
+    return bridge.NativeBridge.isSimulationMode();
   }
 
   @override
@@ -348,9 +351,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     await bridge_api.apiSequencerClearDefaultAdaptiveExposure();
   }
 
-  // =========================================================================
-  // Recovery Mode
-  // =========================================================================
+  // Recovery mode
   //
   // The Rust bridge exposes:
   //   * `sequencer_recovery_try_now()` -> Result<(), NightshadeError>
@@ -408,8 +409,9 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   Future<SequencerStatus> sequencerGetStatus() async {
     final dynamic status = await bridge.NativeBridge.sequencerGetStatus();
 
-    // FRB now returns SequencerState (no progress); bridge_stub returns SequencerStatus (with progress).
-    // Support both to keep mobile stubs working.
+    // FRB returns SequencerState (no progress); bridge_stub returns
+    // SequencerStatus (with progress). Both shapes are accepted so the mobile
+    // stub keeps working.
     if (status is bridge.SequencerState) {
       final progress = status.state.toLowerCase() == 'completed'
           ? 1.0
@@ -450,9 +452,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     );
   }
 
-  // =========================================================================
   // Checkpoint / Crash Recovery
-  // =========================================================================
 
   @override
   Future<void> sequencerSetCheckpointDir(String path) async {

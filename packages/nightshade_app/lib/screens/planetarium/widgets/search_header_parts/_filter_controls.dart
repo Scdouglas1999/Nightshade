@@ -1,5 +1,3 @@
-// Part of ../search_header.dart -- extracted for maintainability.
-//
 // Search filter controls and the search category header.
 part of '../search_header.dart';
 

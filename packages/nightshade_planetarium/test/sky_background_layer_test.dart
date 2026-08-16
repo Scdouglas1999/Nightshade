@@ -137,6 +137,11 @@ void main() {
               ),
             ],
           );
+      // The sky is drawn from the observer's site; without one the view renders
+      // its no-site state instead.
+      container
+          .read(observerLocationProvider.notifier)
+          .setLocation(latitude: 40.0, longitude: -74.0);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(

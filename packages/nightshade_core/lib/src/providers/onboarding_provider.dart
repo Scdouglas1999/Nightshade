@@ -15,21 +15,9 @@ import '../providers/settings_provider.dart';
 import '../providers/tutorial_provider.dart';
 import '../services/hardware_presets/hardware_presets_service.dart';
 
-/// Riverpod plumbing for the equipment-onboarding wizard (F4).
-///
-/// Splits responsibilities:
-///   * [shouldRunEquipmentOnboardingProvider] — bootstrap gate read by the
-///     `EquipmentOnboardingLauncher` widget on app launch. Resolves true
-///     only when there are zero equipment profiles AND the
-///     `equipmentOnboarding` row is absent or unfinished. We do not want
-///     to nag users with profiles — those are returning users.
-///   * [onboardingDraftProvider] — current draft state. The notifier
-///     hydrates from the JSON blob in `app_settings`, mutates in memory
-///     via copyWith, and writes back on every commit so the user can
-///     close the wizard mid-step and resume on next launch.
-///   * [OnboardingNotifier] — methods used by the UI to advance, skip,
-///     persist device picks, and finalize (write the EquipmentProfile,
-///     mark tutorial_progress, clear the draft).
+/// Bootstrap gate read by the `EquipmentOnboardingLauncher` widget on app
+/// launch. Resolves true only when there are zero equipment profiles AND the
+/// `equipmentOnboarding` row is absent or unfinished.
 final shouldRunEquipmentOnboardingProvider = FutureProvider<bool>((ref) async {
   // Don't nag returning users — any existing profile means they already
   // got past onboarding (either through this wizard or the original
@@ -424,10 +412,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       defaultCoolingTemp: draft.defaultCoolingTempC,
       // Cool-on-connect stays OPT-IN — a set-point alone never arms the TEC,
       // because a setup done in the middle of a summer day must not pin the
-      // cooler at full power for hours. What changed is that the wizard now
-      // ASKS ("Start cooling when the camera connects", off by default) instead
-      // of hardcoding a no: the operator who ticked it in the wizard used to
-      // get an uncooled sensor all night and had to find the same checkbox
+      // cooler at full power for hours. The wizard asks ("Start cooling when
+      // the camera connects", off by default) and its answer is carried here,
+      // so an operator who ticked it does not have to find the same checkbox
       // again in Equipment > Edit Profile > Camera Defaults.
       coolOnConnect: draft.coolOnConnect,
       filterNames: draft.filterNames,
@@ -485,13 +472,11 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
   /// Two of them:
   ///   * the capture directory, so the imaging service writes frames where the
   ///     user said from day one;
-  ///   * the discovery backends ticked at the driver step. That answer used to
-  ///     steer only the wizard's own discovery passes and was then wiped with
-  ///     the draft, while Settings → Equipment → Connection asked the same
-  ///     question again through "Query INDI/Alpaca on startup" — which default
-  ///     to off. A user who found their camera over INDI during onboarding got
-  ///     an app that never looked at INDI again at launch. The wizard is where
-  ///     the user actually answered, so its answer is the stored one.
+  ///   * the discovery backends ticked at the driver step. These are the same
+  ///     question Settings → Equipment → Connection asks as "Query INDI/Alpaca
+  ///     on startup", and the wizard is where the user actually answered, so
+  ///     its answer is the stored one — otherwise a camera found over INDI
+  ///     during onboarding is never looked for again at launch.
   ///
   /// Both flags are written, not just the true ones: unticking INDI in the
   /// wizard has to be able to turn an inherited `true` back off, or "the wizard

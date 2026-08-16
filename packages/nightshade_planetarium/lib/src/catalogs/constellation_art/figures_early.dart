@@ -1,5 +1,3 @@
-// Part of ../constellation_art.dart -- extracted for maintainability.
-//
 // Orion through Lyra constellation-art payloads and the aggregate list.
 part of '../constellation_art.dart';
 
@@ -9,13 +7,11 @@ final List<ConstellationArtData> _figures = [
 ];
 
 final List<ConstellationArtData> _earlyConstellationArtFigures = [
-  // ================================================================
   // ORION — The Hunter
   // Anchor stars: Betelgeuse (5.92, 7.41), Bellatrix (5.42, 6.35),
   //   Mintaka (5.53, -0.30), Alnilam (5.60, -1.20), Alnitak (5.68, -1.94),
   //   Rigel (5.24, -8.20), Saiph (5.80, -9.67)
   // Figure: upright human figure — head, shoulders, belt, legs, raised arm
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Ori',
     segments: [
@@ -80,13 +76,11 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // URSA MAJOR — The Great Bear
   // Anchor stars: Dubhe (11.06, 61.75), Merak (11.03, 56.38),
   //   Phecda (11.90, 53.69), Megrez (12.26, 57.03), Alioth (12.90, 55.96),
   //   Mizar (13.40, 54.93), Alkaid (13.79, 49.31)
   // Figure: bear body with long tail (the dipper handle)
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'UMa',
     segments: [
@@ -151,12 +145,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // CASSIOPEIA — The Queen (seated on throne)
   // Anchor stars: Caph (0.15, 59.15), Schedar (0.68, 56.54),
   //   Navi (0.95, 60.72), Ruchbah (1.43, 60.24), Segin (1.91, 63.67)
   // Figure: seated woman with arms raised, W-shape suggests throne back
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Cas',
     segments: [
@@ -219,12 +211,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // LEO — The Lion
   // Anchor stars: Regulus (10.14, 11.97), Algieba (10.12, 23.77),
   //   Zosma (10.28, 26.01), Denebola (11.82, 14.57), Chertan (11.24, 20.52)
   // Figure: crouching lion facing right, sickle = mane
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Leo',
     segments: [
@@ -295,12 +285,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // SCORPIUS — The Scorpion
   // Anchor stars: Dschubba (16.01, -22.62), Antares (16.49, -26.43),
   //   Shaula (17.56, -37.10), Lesath (17.71, -39.03)
   // Figure: scorpion with pincers, body, and curving tail with stinger
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Sco',
     segments: [
@@ -398,12 +386,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // CYGNUS — The Swan
   // Anchor stars: Deneb (20.69, 45.28), Albireo (19.51, 27.96),
   //   Sadr (20.37, 40.26), Gienah Cygni (19.75, 45.13)
   // Figure: swan with outstretched wings, long neck
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Cyg',
     segments: [
@@ -470,12 +456,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // GEMINI — The Twins
   // Anchor stars: Castor (7.58, 31.89), Pollux (7.76, 28.03),
   //   Alhena (6.63, 16.40), Mebsuta (7.07, 20.57), Wasat (7.19, 16.54)
   // Figure: two standing figures side by side
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Gem',
     segments: [
@@ -534,12 +518,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // SAGITTARIUS — The Archer (Teapot)
   // Anchor stars: Kaus Australis (18.40, -34.38), Kaus Media (18.35, -29.83),
   //   Kaus Borealis (18.23, -25.42), Nunki (18.92, -26.30), Ascella (19.04, -29.88)
   // Figure: centaur archer drawing a bow
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Sgr',
     segments: [
@@ -607,12 +589,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // TAURUS — The Bull
   // Anchor stars: Aldebaran (4.60, 16.51), Elnath (5.44, 28.61),
   //   Zeta Tau (5.63, 21.14)
   // Figure: bull head and shoulders with horns
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Tau',
     segments: [
@@ -672,12 +652,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // CANIS MAJOR — The Great Dog
   // Anchor stars: Sirius (6.75, -16.72), Mirzam (6.38, -17.96),
   //   Wezen (7.14, -26.39), Adhara (6.98, -28.97), Furud (6.61, -32.51)
   // Figure: sitting dog facing left
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'CMa',
     segments: [
@@ -741,12 +719,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // LYRA — The Lyre (harp)
   // Anchor stars: Vega (18.62, 38.78), Sheliak (18.83, 33.36),
   //   Sulafat (18.91, 33.36)
   // Figure: small harp/lyre shape
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Lyr',
     segments: [

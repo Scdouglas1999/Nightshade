@@ -848,8 +848,8 @@ class _ScienceCameraAutoRowState extends ConsumerState<_ScienceCameraAutoRow> {
 /// the field without a hand-rolled post-frame resync.
 ///
 /// The parse/clamp stays here rather than moving to [SettingsNumberInput]:
-/// these rows have to *say* why an entry was refused, and a digits-only
-/// formatter would swallow the offending text before the row ever saw it.
+/// these rows have to *say* why an entry is refused, and a digits-only
+/// formatter would swallow the offending text before the row ever sees it.
 class _ScienceCameraValueRow extends ConsumerStatefulWidget {
   final bool isMobile;
   final String settingKey;

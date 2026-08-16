@@ -19,11 +19,10 @@ AnimatedContainer _trackOf(WidgetTester tester) {
 }
 
 void main() {
-  // These pin the behaviour that was missing entirely: measured on the running
-  // app, the whole Settings screen exposed ZERO checkable accessibility nodes
-  // and only five focusable ones, so no switch could be read by a screen reader
-  // or reached by a keyboard. Asserting the rendered visuals is not enough --
-  // the control looked perfect the whole time it was unusable.
+  // These pin behaviour the rendered visuals cannot show. Measured on the
+  // running app, a Settings screen can expose ZERO checkable accessibility
+  // nodes and only five focusable ones, so no switch is readable by a screen
+  // reader or reachable by a keyboard while every control looks perfect.
   group('NightshadeSwitch accessibility', () {
     testWidgets('reports its on/off state to assistive technology', (
       tester,
@@ -98,8 +97,8 @@ void main() {
         _wrap(NightshadeSwitch(value: value, onChanged: (v) => value = v)),
       );
 
-      // Tab must land on the switch: before the fix nothing in the subtree was
-      // focusable, so traversal skipped straight past it.
+      // Tab must land on the switch: with nothing focusable in the subtree,
+      // traversal skips straight past it.
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pumpAndSettle();
       expect(

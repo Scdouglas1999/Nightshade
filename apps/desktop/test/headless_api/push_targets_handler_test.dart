@@ -6,9 +6,8 @@
 // device could not receive them. On Android in a stock build none ever can —
 // `apps/mobile/android/app/google-services.json` is absent, so the client logs
 // `FCM not configured (no google-services.json); push registration dormant`
-// and never registers a token. There was no endpoint that could tell the UI
-// that, so this one exists to make the setting stop asserting a capability the
-// system does not have.
+// and never registers a token. This endpoint is what lets the UI say so,
+// instead of the setting asserting a capability the system does not have.
 
 import 'dart:convert';
 import 'dart:io';
@@ -25,13 +24,13 @@ void main() {
   group('GET /api/push/targets', () {
     late PairingDatabase database;
     late PairingService pairingService;
-    var cloudConfigured = false;
+    var channel = PushDeliveryChannel.none;
     late PushHandlers handlers;
 
     setUp(() {
       database = PairingDatabase.forTesting(NativeDatabase.memory());
       pairingService = PairingService(database: database);
-      cloudConfigured = false;
+      channel = PushDeliveryChannel.none;
       handlers = PushHandlers(
         ensurePairingService: () => pairingService,
         logger: LoggingService(
@@ -39,7 +38,7 @@ void main() {
           nativeInit: () {},
           currentLogFileProvider: () => null,
         ),
-        cloudDeliveryConfigured: () => cloudConfigured,
+        deliveryChannel: () => channel,
       );
     });
 
@@ -104,7 +103,7 @@ void main() {
     );
 
     test('reports a deliverable target once both halves are true', () async {
-      cloudConfigured = true;
+      channel = PushDeliveryChannel.cloud;
       await pairDevice('phone-1');
       await database.upsertPushToken(
         deviceId: 'phone-1',
@@ -118,8 +117,33 @@ void main() {
       expect(PushDeliveryTargets.fromJson(body).blockedReason, isNull);
     });
 
+    test('a would-send mock is not a delivery channel', () async {
+      channel = PushDeliveryChannel.mock;
+      await pairDevice('phone-1');
+      await database.upsertPushToken(
+        deviceId: 'phone-1',
+        platform: 'fcm',
+        token: 'fcm-token-value',
+      );
+
+      final body = await targets();
+      expect(body['registeredDeviceCount'], 1);
+      // A MockRemotePushDelivery records what it would have sent and reaches
+      // no phone, so it must not read as a configured channel.
+      expect(body['deliveryChannel'], 'mock');
+      expect(body['cloudDeliveryConfigured'], isFalse);
+      expect(body['canDeliver'], isFalse);
+      expect(PushDeliveryTargets.fromJson(body).blockedReason, isNotNull);
+    });
+
+    test('names the channel on every answer', () async {
+      expect((await targets())['deliveryChannel'], 'none');
+      channel = PushDeliveryChannel.cloud;
+      expect((await targets())['deliveryChannel'], 'cloud');
+    });
+
     test('counts devices, not tokens, and splits by platform', () async {
-      cloudConfigured = true;
+      channel = PushDeliveryChannel.cloud;
       await pairDevice('phone-1');
       await pairDevice('phone-2');
       // One device registered on both platforms — still ONE device.
@@ -146,7 +170,7 @@ void main() {
     });
 
     test('never returns token values or device identifiers', () async {
-      cloudConfigured = true;
+      channel = PushDeliveryChannel.cloud;
       await pairDevice('phone-secret');
       await database.upsertPushToken(
         deviceId: 'phone-secret',
@@ -174,7 +198,7 @@ void main() {
         );
 
         expect((await targets())['canDeliver'], isFalse);
-        cloudConfigured = true;
+        channel = PushDeliveryChannel.cloud;
         expect((await targets())['canDeliver'], isTrue);
       },
     );

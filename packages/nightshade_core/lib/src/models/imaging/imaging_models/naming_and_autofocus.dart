@@ -208,18 +208,6 @@ class AutofocusSettings extends Equatable {
   final String autofocusFilterName;
   final Map<String, FilterAutofocusConfig> filterSettings;
 
-  /// The curve-fitting strategies the app can actually solve a sweep with.
-  ///
-  /// Single source of truth for every surface that offers the choice (the
-  /// Settings > Autofocus row and the imaging Focus panel). They previously
-  /// carried two different hard-coded vocabularies — Settings offered
-  /// 'Trend Lines' while the Focus panel offered 'V-Curve' for the same
-  /// algorithm — which is how the Focus panel ended up rendering blank for a
-  /// perfectly valid saved value.
-  ///
-  /// These strings are the persisted values of `AppSettings.afCurveFitting`
-  /// and are mapped onto the native curve enum by
-  /// `autofocusCurveMethodForNativeBridge`.
   /// What the operator sees for each `failureAction` wire value, and back.
   ///
   /// The wire values are what the native `AutofocusFailureAction` enum
@@ -245,6 +233,14 @@ class AutofocusSettings extends Equatable {
   static String failureActionLabel(String action) =>
       failureActionLabels[action] ?? failureActionLabels['AbortAndPark']!;
 
+  /// The curve-fitting strategies the app can solve a sweep with, and the
+  /// single source of truth for every surface that offers the choice (the
+  /// Settings > Autofocus row, the imaging Focus panel) — a surface with its
+  /// own vocabulary renders blank for a valid saved value.
+  ///
+  /// These strings are the persisted values of `AppSettings.afCurveFitting`
+  /// and are mapped onto the native curve enum by
+  /// `autofocusCurveMethodForNativeBridge`.
   static const List<String> curveFittingOptions = [
     'Hyperbolic',
     'Parabolic',

@@ -1,16 +1,16 @@
-// Regression guard for the export destination contract.
+// The export destination contract.
 //
-// The bug: every "export" in the app asked `file_selector` for a save
-// location. `file_selector_android` never implements `getSavePath`, so on a
-// phone the platform interface's base method threw
-// `UnimplementedError: getSavePath() has not been implemented.` and the export
-// died before writing a byte. Observed live on an API 35 emulator: exporting a
-// sequence produced "Failed to export: UnimplementedError: getSavePath() has
-// not been implemented."
+// `file_selector_android` never implements `getSavePath`, so asking
+// `file_selector` for a save location on a phone reaches the platform
+// interface's base method and throws
+// `UnimplementedError: getSavePath() has not been implemented.`, killing the
+// export before it writes a byte — on an API 35 emulator, exporting a sequence
+// reads "Failed to export: UnimplementedError: getSavePath() has not been
+// implemented."
 //
-// These tests pin both halves of the fix: desktop still gets the native
-// dialog (including its cancel semantics), and no code path may reach
-// `getSaveLocation` on a touch platform.
+// These tests pin both halves: desktop gets the native dialog (including its
+// cancel semantics), and no code path may reach `getSaveLocation` on a touch
+// platform.
 import 'dart:io';
 
 import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
@@ -74,8 +74,8 @@ void main() {
   });
 
   group('touch platforms', () {
-    // Forced rather than skipped-unless-on-a-phone: the touch branch is the
-    // one that was broken, so it is the one CI has to run.
+    // Forced rather than skipped-unless-on-a-phone: the touch branch is the one
+    // that carries the failure, so it is the one CI has to run.
     setUp(() {
       TestWidgetsFlutterBinding.ensureInitialized();
       debugIsTouchPlatformOverride = true;
@@ -88,8 +88,8 @@ void main() {
     });
     tearDown(() => debugIsTouchPlatformOverride = null);
 
-    // The heart of the regression: reaching `getSaveLocation` at all on
-    // Android is the bug, because that call is what throws.
+    // Reaching `getSaveLocation` at all on Android is the failure, because that
+    // call is what throws.
     test('never reach the save dialog', () async {
       final selector = _RecordingFileSelector(savePath: '/tmp/unused');
       FileSelectorPlatform.instance = selector;

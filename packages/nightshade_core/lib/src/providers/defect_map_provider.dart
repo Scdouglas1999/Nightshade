@@ -462,7 +462,6 @@ final defectMapNotifierProvider =
       return DefectMapNotifier(ref);
     });
 
-// ===========================================================================
 // Per-camera defect-map auto-apply settings.
 //
 // These are NOT part of the legacy app_settings freezed model because they
@@ -471,7 +470,6 @@ final defectMapNotifierProvider =
 // section already uses. The dedicated provider centralises the keys + the
 // load/save logic so the settings UI doesn't have to know about the storage
 // layout.
-// ===========================================================================
 
 /// User-facing settings for per-frame defect-map application during
 /// capture. Independent of whether a map exists on disk — those are

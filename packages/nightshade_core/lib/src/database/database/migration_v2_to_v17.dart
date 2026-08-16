@@ -187,13 +187,10 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
       );
     }
 
-    // Version 3: Add sequence checkpointing table.
-    // BUG (fixed in v18): The original v3 migration claimed Drift would
-    // automatically recreate tables with updated FK constraints, but Drift
-    // does NOT do that — SQLite requires explicit table recreation. The FK
-    // cascade changes for captured_images, image_metadata, and
-    // sequence_nodes were never applied to databases upgraded through v3.
-    // Version 18 retroactively applies these FK fixes.
+    // Version 3: Add sequence checkpointing table. Drift does not recreate
+    // tables to pick up changed FK constraints — SQLite requires explicit
+    // recreation — so the FK cascade changes for captured_images,
+    // image_metadata and sequence_nodes are applied by version 18 instead.
     if (from < 3) {
       await m.createTable(sequenceCheckpoints);
     }

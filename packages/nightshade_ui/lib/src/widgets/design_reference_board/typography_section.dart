@@ -1,9 +1,5 @@
 part of '../design_reference_board.dart';
 
-// ===========================================================================
-// Full typography scale
-// ===========================================================================
-
 class _TypographyScale extends StatelessWidget {
   const _TypographyScale({required this.colors});
 

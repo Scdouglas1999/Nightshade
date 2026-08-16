@@ -429,8 +429,8 @@ hips_frame        = equatorial
       // equatorial RA/Dec is fed straight into HEALPix. A galactic- or
       // ecliptic-framed survey would be addressed with the wrong pixels and the
       // mesh sky points reprojected as if equatorial — total misregistration
-      // with no error. Until a frame->equatorial rotation exists, such a survey
-      // must fail loudly here (errors are a feature), not be silently consumed.
+      // with no error. Until a frame->equatorial rotation exists, such a
+      // survey must fail here rather than be consumed.
       for (final frame in const ['galactic', 'ecliptic']) {
         final props = HipsProperties.parse('''
 hips_order        = 9

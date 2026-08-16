@@ -230,7 +230,7 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
     if (widget.awaitingFirstEval) return _EmptyQueueCause.awaitingFirstEval;
 
     // Project scope is checked first: it is the only cause that can hide a
-    // fully-populated catalog, and it is the one the old copy never named.
+    // fully-populated catalog.
     if (activeProjectId != null &&
         activeProject != null &&
         activeProject.project.id == activeProjectId &&

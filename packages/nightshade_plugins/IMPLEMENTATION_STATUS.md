@@ -23,10 +23,7 @@
 - `PluginEvent` data class for event representation
 - `PluginException` for error handling
 - Specialized plugin types:
-  - `UiPlugin` - Add custom UI panels
-  - `DevicePlugin` - Hardware device support
   - `SequencePlugin` - Custom automation nodes
-  - `UiExtensionPoint` - UI extension configuration
   - `SequenceNodeDefinition` - Sequence node metadata
 
 **Quality:**
@@ -109,17 +106,7 @@
    - All lifecycle hooks
    - Public API methods
 
-2. **ExampleUiPlugin** - UI extensions
-   - Equipment panel extension
-   - Status bar widget
-   - Extension point configuration
-
-3. **ExampleDevicePlugin** - Hardware support
-   - Camera and focuser types
-   - SDK initialization pattern
-   - Device scanning pattern
-
-4. **ExampleSequencePlugin** - Automation extensions
+2. **ExampleSequencePlugin** - Automation extensions
    - Custom wait node
    - Notification node
    - Node definitions with metadata

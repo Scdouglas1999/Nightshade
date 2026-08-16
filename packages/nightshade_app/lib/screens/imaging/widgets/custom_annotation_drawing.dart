@@ -6,10 +6,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../utils/preview_transform.dart';
 
-// ---------------------------------------------------------------------------
 // Delete mode provider — separate from the annotation type tool since
 // "delete" is not a CustomAnnotationType value.
-// ---------------------------------------------------------------------------
 
 /// Whether the delete-annotation tool is active.
 final _deleteToolActiveProvider = StateProvider<bool>((ref) => false);
@@ -48,9 +46,7 @@ void toggleAnnotationDrawPalette(WidgetRef ref) {
   ref.read(annotationDrawPaletteOpenProvider.notifier).state = !open;
 }
 
-// ---------------------------------------------------------------------------
 // Custom annotation painter
-// ---------------------------------------------------------------------------
 
 /// Renders all user-drawn custom annotations on the image overlay.
 ///
@@ -349,9 +345,7 @@ class CustomAnnotationPainter extends CustomPainter {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Drawing gesture layer
-// ---------------------------------------------------------------------------
 
 /// Transparent overlay that captures drawing gestures when a tool is active.
 ///
@@ -390,7 +384,7 @@ class _CustomAnnotationDrawingLayerState
 
   String _nextId() => 'custom_${DateTime.now().microsecondsSinceEpoch}';
 
-  // --- Circle drawing ---
+  // Circle drawing
 
   void _onCirclePanStart(DragStartDetails details) {
     final center = _toImage(details.localPosition);
@@ -428,7 +422,7 @@ class _CustomAnnotationDrawingLayerState
     _showLabelDialog(annotation);
   }
 
-  // --- Arrow drawing ---
+  // Arrow drawing
 
   void _onArrowPanStart(DragStartDetails details) {
     final start = _toImage(details.localPosition);
@@ -471,7 +465,7 @@ class _CustomAnnotationDrawingLayerState
     _showLabelDialog(annotation);
   }
 
-  // --- Text tool ---
+  // Text tool
 
   void _onTextTapDown(TapDownDetails details) {
     final pos = _toImage(details.localPosition);
@@ -484,7 +478,7 @@ class _CustomAnnotationDrawingLayerState
     _showLabelDialog(annotation, required: true);
   }
 
-  // --- Delete tool ---
+  // Delete tool
 
   void _onDeleteTapDown(TapDownDetails details) {
     final tapImage = _toImage(details.localPosition);
@@ -546,7 +540,7 @@ class _CustomAnnotationDrawingLayerState
     return math.sqrt(px * px + py * py);
   }
 
-  // --- Label dialog ---
+  // Label dialog
 
   Future<void> _showLabelDialog(
     CustomAnnotation annotation, {
@@ -558,12 +552,9 @@ class _CustomAnnotationDrawingLayerState
       CustomAnnotationType.arrow => 'Arrow Label',
       CustomAnnotationType.text => 'Text Note',
     };
-    // Built on NightshadeDialog like every other dialog on this screen. It was
-    // previously a stock Material AlertDialog with a hardcoded #1A1A2E navy
-    // surface and Material's greenAccent (#00E676) on both the focused
-    // underline and the confirm action — the brightest, most saturated thing on
-    // a dark-adapted display at 2 a.m., and the only place in the app where the
-    // primary action is not the Nightshade accent.
+    // Built on NightshadeDialog like every other dialog on this screen, so the
+    // primary action is the Nightshade accent rather than Material's saturated
+    // greenAccent — the brightest thing on a dark-adapted display at 2 a.m.
     final label = await showDialog<String>(
       context: context,
       barrierDismissible: !required,
@@ -690,9 +681,7 @@ class _CustomAnnotationDrawingLayerState
   }
 }
 
-// ---------------------------------------------------------------------------
 // Drawing toolbar
-// ---------------------------------------------------------------------------
 
 /// A small floating toolbar for selecting annotation drawing tools.
 ///

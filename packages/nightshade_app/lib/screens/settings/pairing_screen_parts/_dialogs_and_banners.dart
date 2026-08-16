@@ -1,5 +1,3 @@
-// Part of ../pairing_screen.dart -- extracted for maintainability.
-//
 // Rename dialog, access badge, paired confirmation and error banner.
 part of '../pairing_screen.dart';
 

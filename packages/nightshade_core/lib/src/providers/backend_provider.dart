@@ -386,9 +386,7 @@ final isRemoteModeProvider = Provider<bool>((ref) {
   return backend is NetworkBackend;
 });
 
-// ---------------------------------------------------------------------------
 // Role-specific providers
-// ---------------------------------------------------------------------------
 // Each role provider exposes the active backend narrowed to the role
 // interface it owns. New consumers SHOULD depend on the smallest role they
 // need so the migration toward per-role consumers can proceed
@@ -466,20 +464,13 @@ final networkBackendConnectionStateProvider =
 /// Whether the active backend can actually carry a command to an executor
 /// right now.
 ///
-/// Three cases, and they are NOT the same question as
-/// [networkBackendConnectionStateProvider] (which reports `disconnected` for a
-/// perfectly healthy local host):
+/// Not the same question as [networkBackendConnectionStateProvider], which
+/// reports `disconnected` for a perfectly healthy local host. A remote
+/// controller whose host has gone away still holds a `NetworkBackend`
+/// instance, so backend *type* alone cannot answer it either.
 ///
-///  * [DisconnectedBackend] — nothing to command. False.
-///  * [NetworkBackend] — only while its WebSocket session is actually
-///    [BackendConnectionState.connected]. A remote controller whose host has
-///    gone away still holds a `NetworkBackend` instance, so backend *type*
-///    alone cannot answer this.
-///  * anything else (the local FFI host) — the executor is in-process. True.
-///
-/// Exists so run-control surfaces can refuse to present an affordance that
-/// cannot possibly work. A Start button offered against an unreachable host is
-/// the app asserting a capability it does not have.
+/// Run-control surfaces read this to avoid offering a Start button against an
+/// unreachable host.
 final backendCanCommandProvider = Provider<bool>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is DisconnectedBackend) return false;

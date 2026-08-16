@@ -26,7 +26,7 @@ part 'sequence_editor/tree_editing.dart';
 ///
 /// Declared here (alongside the notifier) so the notifier can update it through
 /// its owning [Ref] without a circular import. Defaults to
-/// [ActivePlanOwner.manual] — the historical behavior before ownership existed.
+/// [ActivePlanOwner.manual].
 final activePlanOwnerProvider = StateProvider<ActivePlanOwner>(
   (ref) => ActivePlanOwner.manual,
 );
@@ -138,13 +138,6 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   /// and [loadSequence] to refuse to clobber unsaved work, and exposed
   /// publicly via [isDirty] so the UI can show a "*" on the title bar.
   ///
-  /// Why a separate flag instead of comparing the current sequence to the
-  /// last-saved snapshot: snapshots would have to be deep copies (Sequence
-  /// is immutable but its nodes map is a fresh Map each mutation), and
-  /// would double the editor's memory footprint for a feature the user
-  /// experiences as a binary. A flag is also robust against renames /
-  /// reorderings that produce structurally-different sequences that the
-  /// user considers "saved" (because they just hit Save).
   bool _dirty = false;
 
   /// Whether the in-editor sequence has unsaved changes since the last
@@ -295,8 +288,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     _syncTargetsAfterSnapshotSwap(outgoing, state);
   }
 
-  /// Re-apply the last undone mutation. Same trust-patch reasoning as
-  /// [undo] — see that doc.
+  /// Re-apply the last undone mutation. Same reasoning as [undo] — see that
+  /// doc.
   void redo() {
     _ensureEditable('redo');
     if (_redoStack.isEmpty) return;
@@ -339,12 +332,11 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     // sequence; the next mutation will dirty it again.
     _dirty = false;
     // Same reclaim [loadSequence] performs: building a new plan is a
-    // manual-owner action. Without it the slot stayed marked "autopilot" for
-    // the rest of the session after a single dispatch, and every question that
-    // asks WHO owns the plan answered for the scheduler — including the
-    // pre-flight warning that exists to say the scheduler is holding the rig,
-    // which then stayed silent in exactly the two-owner case it is for
-    // (WE-SEQ-N3).
+    // manual-owner action. Without it the slot stays marked "autopilot" for the
+    // rest of the session after a single dispatch, and every question that asks
+    // WHO owns the plan answers for the scheduler — including the pre-flight
+    // warning that exists to say the scheduler is holding the rig, which then
+    // stays silent in exactly the two-owner case it is for.
     _reclaimManualOwnership();
   }
 
@@ -456,22 +448,16 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   /// subsystems treat a node's UUID as its durable identity:
   ///
   ///  * [SequenceRepository.saveSequence] upserts incrementally, partitioning
-  ///    nodes into update/insert/delete BY ID. Re-keying on open emptied the
-  ///    update set, so every save deleted and re-inserted every node row of the
-  ///    sequence being edited.
-  ///  * [SequenceDiffService] matches nodes by ID to produce "modified" entries.
-  ///    With fresh IDs on every load, the run-history and pre-flight diffs could
-  ///    never report a field change — an untouched sequence re-run reported every
-  ///    node as removed AND added ("+2 -2" with identical labels on both sides),
-  ///    and a real edit (60s -> 300s) showed as a remove/add pair instead of
-  ///    "Exposure duration: 60.0s -> 300.0s".
+  ///    nodes into update/insert/delete BY ID. Re-keying on open empties the
+  ///    update set, turning every save into a full delete-and-reinsert.
+  ///  * [SequenceDiffService] matches nodes by ID to produce "modified"
+  ///    entries. With fresh IDs the run-history and pre-flight diffs cannot
+  ///    report a field change at all — every edit renders as a remove/add pair.
   ///
-  /// This method previously re-keyed, reasoning that editing must not "alias the
-  /// persisted node IDs — two copies could collide". That does not apply: the
-  /// copy deliberately points at the SAME row, so sharing identity with it is
-  /// the intent, not a collision. Producing a genuinely independent sequence is
-  /// duplication, which is [SequencesDao.duplicateSequence]'s job and does mint
-  /// new UUIDs.
+  /// Sharing node identity with the source row is the intent, not a collision:
+  /// the copy points at the SAME row. Producing a genuinely independent
+  /// sequence is duplication, which is [SequencesDao.duplicateSequence]'s job
+  /// and does mint new UUIDs.
   ///
   /// Nodes are immutable, so rebuilding the map is copy enough — nothing the
   /// editor does afterwards can write through to [source].

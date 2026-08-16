@@ -6,11 +6,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// The single presentation of a [TransientType]: one glyph, one severity
 /// colour, one name.
 ///
-/// Four screens used to carry their own switch over this enum and they
-/// disagreed — a gamma-ray burst was a 'Gamma-Ray Burst' on the Observing
-/// Alerts card and a 'GRB Afterglow' in the suggestions panel; a variable star
-/// was drawn in the success, warning and accent colours on three surfaces at
-/// once. Every alert surface reads this class instead.
+/// Every alert surface reads this class, so one type cannot be named or
+/// coloured two ways across screens.
 ///
 /// ## The severity palette
 ///

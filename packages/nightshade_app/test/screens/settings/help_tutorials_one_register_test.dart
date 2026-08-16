@@ -1,20 +1,17 @@
-// CON-62 — Help & Tutorials showed one page speaking two dialects.
+// Help & Tutorials speaks ONE dialect. Beyond the verb (every row starts
+// something, so every button says "Start"), two splits are easy to reintroduce:
 //
-// The E-fix closed the VERB split (Start / Re-run / Open -> Start). Wave F
-// re-drove the page and found two halves still open:
-//
-//   (a) the row titles mix Title Case and sentence case in one list —
+//   (a) row titles mixing Title Case and sentence case in one list —
 //       "First Night Walkthrough", "Capture your first light",
 //       "Re-run equipment setup", "Re-run onboarding tour",
-//       "Generate Diagnostic Dump" (44-help.png);
-//   (b) the treatment split MOVED rather than vanished: the five Tutorial
-//       Tours rows render FILLED BLUE "Start" buttons directly beneath the
-//       five OUTLINE "Start" buttons of Guided Flows, so one page still
-//       shows two treatments for one verb (45-help2.png).
+//       "Generate Diagnostic Dump";
+//   (b) two button treatments for that one verb — the five Tutorial Tours rows
+//       rendering FILLED BLUE "Start" buttons directly beneath the five OUTLINE
+//       "Start" buttons of Guided Flows.
 //
-// Both are asserted here on the RENDERED page, and (a) is additionally
-// guarded mechanically over the widget's own source so a new row cannot
-// reintroduce the split by adding a sixth Title Case title.
+// Both are asserted on the RENDERED page, and (a) is additionally guarded
+// mechanically over the widget's own source so a new row cannot reintroduce the
+// split by adding a sixth Title Case title.
 
 import 'dart:io';
 
@@ -147,7 +144,7 @@ void main() {
       expect(
         find.text(shouted),
         findsNothing,
-        reason: 'CON-62: "$shouted" is the second register',
+        reason: '"$shouted" is a second register',
       );
     }
   });
@@ -172,7 +169,7 @@ void main() {
     expect(
       variants,
       hasLength(1),
-      reason: 'CON-62(b): the Tutorial Tours "Start" rendered filled-primary '
+      reason: 'the Tutorial Tours "Start" must not render filled-primary '
           'directly beneath the outline "Start" of Guided Flows',
     );
     expect(variants.single, ButtonVariant.outline);

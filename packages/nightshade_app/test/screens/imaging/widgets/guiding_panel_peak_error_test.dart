@@ -1,19 +1,13 @@
-// Widget test for the imaging GuidingPanel's per-axis PEAK guide-error
-// readout (Phase G quick win).
+// Widget test for the imaging GuidingPanel's per-axis PEAK guide-error readout.
 //
-// Background: peak RA/Dec are already tracked in the rolling guide stats
-// (Phd2GuideStats.peakRa/peakDec) but, before this change, only the three RMS
-// tiles were surfaced. The panel now renders a second stat row showing the
-// per-axis peak excursion alongside the RMS figures.
+// Peak RA/Dec are tracked in the rolling guide stats
+// (Phd2GuideStats.peakRa/peakDec) and rendered as a second stat row beside the
+// RMS figures. Drives the panel with a guideStatsProvider seeded to known peak
+// values and asserts the formatted tiles render.
 //
-// Scope: drive the panel with a guideStatsProvider seeded to known peak values
-// and assert the formatted tiles render.
-//
-// The tiles used to carry an arcsecond suffix "matching the existing RMS
-// tiles"; both were wrong. `Phd2GuideStats` residuals are guide-camera PIXELS
-// (PHD2's RADistanceRaw), so the suffix is px unless a real pixel scale is
-// known — the same rule guiding_no_measurement_readouts_test.dart pins for the
-// Guiding screen.
+// `Phd2GuideStats` residuals are guide-camera PIXELS (PHD2's RADistanceRaw), so
+// the suffix is px unless a real pixel scale is known — the same rule
+// guiding_no_measurement_readouts_test.dart pins for the Guiding screen.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

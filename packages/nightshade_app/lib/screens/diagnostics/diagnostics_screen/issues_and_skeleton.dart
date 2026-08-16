@@ -110,7 +110,7 @@ class _IssueRow extends StatelessWidget {
   }
 }
 
-// --- Shared Card Container ---
+// Shared card container
 
 class _DiagCard extends StatelessWidget {
   final NightshadeColors colors;

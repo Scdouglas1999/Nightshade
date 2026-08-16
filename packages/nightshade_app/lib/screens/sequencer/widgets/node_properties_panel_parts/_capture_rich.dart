@@ -407,8 +407,8 @@ class _NotificationProperties extends ConsumerWidget {
             isConfigured: isConfigured,
             onChanged: (next) {
               if (next.isEmpty) {
-                // PHASE-5: NotificationNode.copyWith no longer has
-                // `clearExplicitTransports`; clearing back to the
+                // NotificationNode.copyWith has no
+                // `clearExplicitTransports`, so clearing back to the
                 // matrix default requires constructing a new node
                 // without the `explicitTransports` argument.
                 ref.read(currentSequenceProvider.notifier).updateNode(

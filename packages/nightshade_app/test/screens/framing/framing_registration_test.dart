@@ -1,15 +1,13 @@
 // Registration / regression guard for the survey-backed framing canvas.
 //
-// THE BUG THIS GUARDS (component C9 of the Survey-backed Framing Wizard):
-// the equipment FOV reticle must be drawn at the *same* astrometric plate
-// scale as the survey background image. Historically the framing subsystem
-// carried three divergent scales (a fit-to-canvas survey draw rect, a
-// hardcoded `60px/deg` FOV reticle, and a third gesture mapping), so the
-// rectangle a user drew over a patch of sky did not actually correspond to
-// the pixels the survey imagery occupied there. C1 collapsed those into one
-// `FramingPlateScale`; this test proves the wired-up screen still threads
-// that single survey-registered scale into BOTH the background painter and
-// the FOV reticle, so they stay co-registered to the pixel.
+// THE BUG THIS GUARDS: the equipment FOV reticle must be drawn at the *same*
+// astrometric plate scale as the survey background image. Divergent scales — a
+// fit-to-canvas survey draw rect, a hardcoded `60px/deg` FOV reticle, a third
+// gesture mapping — make the rectangle a user draws over a patch of sky
+// correspond to different pixels than the survey imagery occupies there. One
+// `FramingPlateScale` is the single answer; this test proves the wired-up screen
+// threads that survey-registered scale into BOTH the background painter and the
+// FOV reticle, so they stay co-registered to the pixel.
 //
 // Concretely, with a known survey cutout (2.0deg wide, 800x600px) and a
 // known equipment FOV, pumped at a fixed surface size, we assert:
@@ -262,10 +260,10 @@ void main() {
       (tester) async {
     final extracted = await pumpAndExtract(tester, seededState());
 
-    // --- Guard 1: both painters share the survey-published plate scale. ----
-    // This is the heart of the regression: a divergent scale (e.g. a hardcoded
-    // 60px/deg reticle, or a synthetic no-image fallback) would make these
-    // differ. They must both be the exact scale FramingState carried.
+    // Guard 1: both painters share the survey-published plate scale. A
+    // divergent scale (e.g. a hardcoded 60px/deg reticle, or a synthetic
+    // no-image fallback) would make these differ. They must both be the exact
+    // scale FramingState carried.
     expect(extracted.survey.plateScale, equals(_surveyPlateScale),
         reason: 'Survey background painter must draw with the plate scale the '
             'framing provider published for the loaded cutout.');
@@ -276,7 +274,7 @@ void main() {
     expect(extracted.fov.plateScale, equals(extracted.survey.plateScale),
         reason: 'Reticle and background must agree on one astrometric scale.');
 
-    // --- Guard 2: the drawn FOV width equals fovWidthDeg * px-per-deg. ------
+    // Guard 2: the drawn FOV width equals fovWidthDeg * px-per-deg.
     // Replay the real FOV painter into a recording canvas at the measured
     // canvas size to read the actual rounded-rect frame width it draws.
     final recorder = _RRectRecordingCanvas();
@@ -316,7 +314,7 @@ void main() {
         reason: 'Background and reticle must compute the same pixels-per-'
             'degree from the shared scale at the same canvas size.');
 
-    // --- Layout guard: the canvas region excludes the sidebar. -------------
+    // Layout guard: the canvas region excludes the sidebar.
     // FramingScreen now places the controls in an AdaptivePanelLayout. On a
     // desktop surface (1280px) that renders a resizable split: the Expanded
     // canvas, a 10px drag handle, then the 320px secondary panel. Confirm C6's

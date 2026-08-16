@@ -6,17 +6,12 @@ import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/imaging/night_report.dart';
 import 'package:nightshade_core/src/services/night_analysis_service.dart';
 
-/// NEW-E5 / WD-SCI-N5. A four-frame run whose every sub the app itself grades
-/// POOR was reported by the Night Doctor as **100 / 100 — "A clean night, no
-/// problems detected" — 0 findings**, because every session-level detector
-/// looks for a *change* over the night and a night that is uniformly bad has no
-/// change in it. The disclosure row added under the verdict said the two
-/// disagreed; the verdict itself still claimed the night was clean.
+/// A run whose every sub the app itself grades POOR must not score 100 / 100
+/// with no findings: every session-level detector looks for a *change* over the
+/// night, and a night that is uniformly bad has no change in it.
 ///
-/// The numbers here are the live run's own (HFR 5.69–5.74, quality_score
-/// 35.3–35.4 on `captured_images` 13–16, against 2.19–2.22 / 84 for the quick
-/// captures), so this is the refuter's counter-input rather than a synthetic
-/// worst case.
+/// The fixture numbers (HFR 5.69–5.74, quality_score 35.3–35.4, against
+/// 2.19–2.22 / 84 for the quick captures) come from a real run.
 // analyze() is pure over NightData; the DAOs are never queried, so one
 // never-used in-memory DB underneath them is enough — and sharing it avoids
 // drift's "multiple databases" warning.

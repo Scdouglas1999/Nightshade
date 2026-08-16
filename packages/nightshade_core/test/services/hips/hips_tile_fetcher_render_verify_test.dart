@@ -14,7 +14,7 @@
 //        * sample: repo-root `.hips_verify/hips_tile_fetch_decode.png`
 //        * golden: `test/services/hips/goldens/hips_tile_fetch_decode.png`
 //
-// The golden locks the decoded output so a regression in the fetch/decode path
+// The golden locks the decoded output so a break in the fetch/decode path
 // (wrong format handling, channel swap, dimension loss) fails loudly.
 
 import 'dart:io';

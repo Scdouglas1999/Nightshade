@@ -1,5 +1,3 @@
-// Part of ../image_grader_dialog.dart -- extracted for maintainability.
-//
 // Threshold sliders, numeric rows and the rejection list.
 part of '../image_grader_dialog.dart';
 

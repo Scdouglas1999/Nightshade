@@ -1,20 +1,17 @@
-// Regression: the collapsed "Menu" reveal handle must clear the system's
-// bottom inset (gesture home indicator / software nav bar).
+// The collapsed "Menu" reveal handle must clear the system's bottom inset
+// (gesture home indicator / software nav bar).
 //
-// Observed live on an Android 15 emulator (gesture navigation, 48px bottom
-// inset): once the phone shell auto-hid its bottom chrome, the 28px "^ Menu"
-// handle — which IS the only navigation affordance in that state — was drawn
-// flush to the screen edge, *underneath* the gesture home indicator. The white
-// indicator struck through the word "Menu" and the lower half of the handle sat
-// inside the system gesture region, where swipes belong to the OS, not the app.
+// NightshadeBottomNavigation supplies that inset via its own SafeArea, and the
+// hidden branch swaps the whole subtree for a zero-height box, so nothing
+// consumes it. On a phone with gesture navigation (48px bottom inset) the 28px
+// "^ Menu" handle — the only navigation affordance in that state — then draws
+// flush to the screen edge, *underneath* the gesture home indicator: the white
+// indicator strikes through the word "Menu" and the lower half of the handle
+// sits inside the system gesture region, where swipes belong to the OS.
 //
-// Root cause: NightshadeBottomNavigation supplies the bottom inset via its own
-// SafeArea. The hidden branch swaps that whole subtree for a zero-height box,
-// so nothing consumed the inset any more.
-//
-// Both halves are pinned here: simply padding the handle would be a regression
-// if it also stopped the surface colour reaching the screen edge (that would
-// show page content bleeding through behind the gesture bar).
+// Both halves are pinned here: padding the handle alone is wrong if it also
+// stops the surface colour reaching the screen edge, which shows page content
+// bleeding through behind the gesture bar.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/immersive_bottom_chrome.dart';

@@ -33,9 +33,9 @@ Future<Rect> _showAndMeasure(
       ),
     ),
   );
-  // A snackbar left over from an earlier measurement in the same test would be
-  // kept on screen and the new one merely queued, so we would measure the old
-  // one's placement.
+  // A snackbar left over from an earlier measurement in the same test stays on
+  // screen with the new one merely queued, so the measurement would be of the
+  // wrong card.
   ScaffoldMessenger.of(captured).clearSnackBars();
   await tester.pumpAndSettle();
   captured.showErrorSnackBar('Failed to save FITS file');
@@ -54,9 +54,9 @@ void main() {
     final without = await _showAndMeasure(tester, inset: null);
     final with120 = await _showAndMeasure(tester, inset: 120);
 
-    // The undeclared case is no longer flush with the window bottom either:
-    // every snackbar now clears the shell's own 36 dp status bar (WD-EQ-6), so
-    // the extra lift a 120 dp bar buys is the difference between the two.
+    // The undeclared case is not flush with the window bottom either: every
+    // snackbar clears the shell's own 36 dp status bar, so the extra lift a
+    // 120 dp bar buys is the difference between the two.
     expect(
       with120.bottom,
       lessThan(without.bottom - 60),
@@ -85,17 +85,15 @@ void main() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Direction-independence: the defect the mechanism originally missed.
-// ---------------------------------------------------------------------------
+// Direction-independence, the case a pure InheritedWidget lookup misses.
 //
 // `_ImagingScreenActions` is an extension on `_ImagingScreenState`, so the
 // context it raises "Capture failed: …" from is the ImagingScreen ELEMENT — an
-// ancestor of the TransientBottomInset its own build() creates. A pure
-// InheritedWidget lookup only searches ancestors, so it returned null and the
-// toast was placed with no lift at all: measured, 24 px from the screen bottom
-// (over Snapshot/Loop) versus 71 px when raised from a descendant. Publishing to
-// a notifier makes the lookup work from either direction.
+// ancestor of the TransientBottomInset its own build() creates. An
+// ancestors-only lookup returns null there and places the toast with no lift at
+// all: 24 px from the screen bottom (over Snapshot/Loop) versus 71 px when
+// raised from a descendant. Publishing to a notifier makes the lookup work from
+// either direction.
 void _directionIndependenceTests() {
   tearDown(() => TransientBottomInset.currentInset.value = 0);
 

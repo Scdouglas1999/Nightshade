@@ -6,7 +6,7 @@ part of '../coimaging_session_service.dart';
 typedef CoImagingSiteResolver =
     Future<({double latitudeDeg, double longitudeDeg})?> Function();
 
-/// Client-side scheduler tick for the WS3 longitude baton (Gap 3).
+/// Client-side scheduler tick for the longitude baton.
 ///
 /// On a fixed interval it iterates this rig's active co-imaging memberships and
 /// drives [CoImagingSessionService.evaluateBaton] for each at the rig's site:

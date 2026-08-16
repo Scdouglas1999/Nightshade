@@ -11,7 +11,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Difference one plate-solved frame against the atlas, returning residual
-/// transient candidates per the contract §2.2 JSON schema.
+/// transient candidates per the contract JSON schema.
 Future<String> apiDifferenceImage({required String argsJson}) => RustLib
     .instance
     .api

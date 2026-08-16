@@ -59,11 +59,19 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
     final colors = widget.colors;
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final sequence = ref.watch(currentSequenceProvider);
-    // Trust-patch §B: every action that *replaces* or *mutates* the
-    // sequence must be disabled while the executor owns the tree. Save
-    // and "Slew to Target" are NOT edits — they stay enabled even while
-    // running so the user can still write a checkpoint or chase the
-    // current target.
+    // The SIMULATION badge reports what the executor is actually driving, not
+    // what anyone asked for — the backend records simulation only once the
+    // call installing simulated device ops has returned. Reading it here,
+    // rather than off a persisted preference, keeps the badge from claiming
+    // simulated hardware while real mounts and cameras are under the run.
+    // A backend that cannot read the flag leaves the value absent, and an
+    // absent value shows no badge rather than a wrong one.
+    final executorInSimulation =
+        ref.watch(executorSimulationModeProvider).valueOrNull ?? false;
+    // Every action that *replaces* or *mutates* the sequence must be
+    // disabled while the executor owns the tree. Save and "Slew to
+    // Target" are NOT edits — they stay enabled even while running so
+    // the user can still write a checkpoint or chase the current target.
     final canEdit = ref.watch(canEditSequenceProvider);
     // Phone is a device-class fact (short side < 600), so a phone in landscape
     // — where the ~430 px height is at a premium — still takes the compact
@@ -116,8 +124,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
 
           // Build the list of secondary actions once. Each entry knows how
           // to render itself inline (icon button) or as a PopupMenuItem so
-          // the overflow path can't drift from the inline path
-          // (audit §4.8).
+          // the overflow path can't drift from the inline path.
           void openWizard() => showDialog(
                 context: context,
                 builder: (_) => const QuickStartWizardDialog(),
@@ -129,12 +136,10 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                 builder: (_) => const FlatWizardDialog(),
               );
 
-          // Mosaic planner. This dialog (visual planner + grid/overlap/filter
-          // controls + "Create mosaic project") had NO production call site at
-          // all — it was reachable only from its own tests, so the suite
-          // reported the whole surface as covered while no user could open it.
-          // Seeded from the framed target when there is one, so opening it after
-          // framing something lands on that object rather than at 0h/0deg.
+          // Mosaic planner: visual planner + grid/overlap/filter controls +
+          // "Create mosaic project". Seeded from the framed target when there
+          // is one, so opening it after framing something lands on that object
+          // rather than at 0h/0deg.
           void openMosaicWizard() {
             final framedTarget = ref.read(framingProvider).target;
             showDialog<void>(
@@ -154,10 +159,9 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           // affordance in the app.
           void openSmartNight() => showSmartNightDialog(context);
 
-          // Triggers live ON exposure nodes. A sequence with none has nowhere
-          // to store them, and the old flow let the user build a "abort if
-          // guiding RMS > 2"" trigger, press Save, get a success snackbar and
-          // keep nothing — the loop below simply had no nodes to write to.
+          // Triggers live ON exposure nodes, so a sequence with none has
+          // nowhere to store them: the loop below would write to no nodes while
+          // Save still reported success.
           final exposureNodes =
               sequence?.nodes.values.whereType<ExposureNode>().toList() ??
                   const <ExposureNode>[];
@@ -226,7 +230,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               // The editor has unsaved edits; ask the user before
               // throwing them away to start a new sequence. Matches the
               // Open / Import flows above so all three "clobber"
-              // entry-points behave identically (audit §B).
+              // entry-points behave identically.
               if (!context.mounted) return;
               final discard = await showDialog<bool>(
                 context: context,
@@ -391,8 +395,8 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                 );
               }
             } on SequenceValidationFailedException catch (e) {
-              // Trust-patch §B: validation errors deserve a structured
-              // dialog, not a one-line "Failed to save: ..." snackbar.
+              // Validation errors deserve a structured dialog, not a
+              // one-line "Failed to save: ..." snackbar.
               // The user gets the per-issue list with severity icons,
               // category badges, descriptions and resolution hints, plus
               // a "Force Save anyway" escape hatch that re-invokes
@@ -436,10 +440,8 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             }
           }
 
-          // One click used to command a real slew — no confirmation, no
-          // "Slewing" state, and not one line in the log — so the only way to
-          // learn the mount had moved (including to a target below the
-          // horizon) was to open another screen and read the Equipment panel.
+          // A slew is a physical action that can point the mount below the
+          // horizon, so it is confirmed before it is commanded.
           Future<void> slewToTarget() async {
             final target = ref.read(runDashboardActiveTargetProvider);
             if (target == null) {
@@ -498,8 +500,8 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             }
           }
 
-          // §B: every action below that ends up mutating the sequence
-          // tree must respect canEditSequenceProvider. "Export Sequence File"
+          // Every action below that ends up mutating the sequence tree must
+          // respect canEditSequenceProvider. "Export Sequence File"
           // and "Slew to Target" are read-only/runtime operations and
           // stay enabled. "Polar Alignment" navigates to another screen
           // and is also not an edit. The disabled-button visual is
@@ -605,7 +607,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             ),
           ];
 
-          // §4.8: single overflow threshold. Below it, everything that
+          // Single overflow threshold. Below it, everything that
           // isn't the playback controls / time estimate / status badge
           // funnels into a single overflow menu so nothing disappears.
           final isCompact =
@@ -693,46 +695,36 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                   padding: const EdgeInsets.only(right: 12),
                   child: EquipmentStatusWidget(colors: colors),
                 ),
-              if (!isCompact)
-                Consumer(
-                  builder: (context, ref, child) {
-                    final settingsAsync = ref.watch(appSettingsProvider);
-                    final isSimulation = effectiveSimulationMode(
-                      settingsAsync.valueOrNull?.useSimulationMode ?? false,
-                    );
-                    if (!isSimulation) return const SizedBox.shrink();
-
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: NightshadeDecorations.kpiBadge(
-                          colors.warning,
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                          shape: BoxShape.rectangle,
+              if (!isCompact && executorInSimulation)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: NightshadeDecorations.kpiBadge(
+                      colors.warning,
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      shape: BoxShape.rectangle,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.testTube,
+                            size: 14, color: colors.warning),
+                        const SizedBox(width: 6),
+                        Text(
+                          'SIMULATION',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            fontWeight: FontWeight.w600,
+                            color: colors.warning,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(LucideIcons.testTube,
-                                size: 14, color: colors.warning),
-                            const SizedBox(width: 6),
-                            Text(
-                              'SIMULATION',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize11,
-                                fontWeight: FontWeight.w600,
-                                color: colors.warning,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                  ),
                 ),
               _StatusBadge(
                 colors: colors,

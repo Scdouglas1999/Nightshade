@@ -7,9 +7,9 @@
 //   * retained PUBLISHes for discovery configs + states (QoS 0),
 //   * SUBSCRIBE + incoming PUBLISH dispatch for command topics,
 //   * PINGREQ keepalive so the broker doesn't drop us.
-// Same hand-rolled MQTT 3.1.1 subset philosophy as `mqtt_transport.dart`
-// (no external client package); will/subscribe support is added here
-// because that transport's codec intentionally doesn't carry it.
+// Hand-rolled MQTT 3.1.1 subset, like `mqtt_transport.dart` (no external
+// client package); will/subscribe support lives here because that transport's
+// codec does not carry it.
 
 import 'dart:async';
 import 'dart:convert';
@@ -166,9 +166,7 @@ class HaMqttSessionClient {
     await sub?.cancel();
   }
 
-  // -------------------------------------------------------------------------
   // Incoming data
-  // -------------------------------------------------------------------------
 
   void _onData(List<int> bytes) {
     _buffer.addAll(bytes);
@@ -284,9 +282,7 @@ class HaMqttSessionClient {
     }
   }
 
-  // -------------------------------------------------------------------------
   // Frame builders (MQTT 3.1.1)
-  // -------------------------------------------------------------------------
 
   Uint8List _buildConnect() {
     final variable = BytesBuilder()

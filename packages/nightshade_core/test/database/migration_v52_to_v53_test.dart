@@ -1,4 +1,4 @@
-// Migration round-trip test for the v52 -> v53 step (LIM-3 closeout).
+// Migration round-trip test for the v52 -> v53 step.
 //
 // v53 adds two additive columns to `equipment_profiles` so a remote slave can
 // mirror user-friendly display names for the safety monitor and switch (the
@@ -15,8 +15,8 @@
 //      (re-running the block preserves data and does not duplicate columns).
 //
 // Modern SQLite (the version bundled via package:sqlite3 hooks / NativeDatabase
-// in this repo) supports `ALTER TABLE ... DROP COLUMN`, so we can exercise the
-// real ADD path by dropping the columns first.
+// in this repo) supports `ALTER TABLE ... DROP COLUMN`, so dropping the columns
+// first exercises the real ADD path.
 
 import 'dart:io';
 

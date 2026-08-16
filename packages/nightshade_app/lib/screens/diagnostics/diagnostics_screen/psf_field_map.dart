@@ -112,4 +112,4 @@ class _LegendDot extends StatelessWidget {
   }
 }
 
-// --- Residual Vector Card ---
+// Residual vector card

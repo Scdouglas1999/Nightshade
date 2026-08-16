@@ -10,9 +10,7 @@ class _LibraryHeader extends ConsumerStatefulWidget {
 }
 
 /// Width the desktop search field takes. Fixed rather than flexible so the
-/// heading beside it is the control that absorbs the row's slack (WF-EQ-N1);
-/// it is the width the old `maxWidth: 250` box reached at every desktop size
-/// anyway.
+/// heading beside it is the control that absorbs the row's slack.
 const double _searchFieldWidth = 250;
 
 class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
@@ -81,12 +79,10 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
 
     return Row(
       children: [
-        // Title. WF-EQ-N1: this was `Flexible` beside a `Spacer`, so the row's
-        // free space was split three ways and at 1000x800 the heading was left
-        // with "Sequenc…" — the tab no longer named itself. Expanded gives the
-        // heading every pixel the toolbar does not need, and the toolbar's
-        // widths are now fixed rather than competing for a flex share, so the
-        // controls stay right-aligned at any width.
+        // Title. Expanded, not Flexible beside a Spacer: the toolbar's widths
+        // are fixed rather than competing for a flex share, so the heading gets
+        // every pixel the toolbar does not need and cannot be clipped to
+        // "Sequenc…" while the controls stay right-aligned.
         Expanded(child: _buildTitle()),
 
         const SizedBox(width: 16),
@@ -113,7 +109,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
     );
   }
 
-  // CON-52: one shared Sequencer tab heading; see
+  // One shared Sequencer tab heading; see
   // `widgets/sequencer_tab_header.dart` for the rule it enforces.
   Widget _buildTitle() {
     return const SequencerTabTitle(

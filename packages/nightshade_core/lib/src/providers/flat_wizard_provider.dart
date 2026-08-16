@@ -79,14 +79,14 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     unawaited(_hydrateGlobalSettings());
   }
 
-  // --- Capture Control ---
+  // Capture control
 
   bool _startPromptReserved = false;
 
   /// Whether capture startup or a capture run currently owns the wizard.
   bool get isBusy => _running || _startPromptReserved;
 
-  // --- Reset ---
+  // Reset
 
   void reset() {
     // Refuse to wipe state out from under an active run; cancel it instead.

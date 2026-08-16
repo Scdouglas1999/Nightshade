@@ -62,11 +62,9 @@ class _SessionHistoryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
 
-    // A row with no end_time used to accrue `now - startTime` forever, so a
-    // session the app never closed reported days of "elapsed" time — and the
-    // Session tab printed 0s for the very same row. Both surfaces now go
-    // through sessionElapsed(), which only prints wall-clock time for the
-    // session that is genuinely running.
+    // Both surfaces go through sessionElapsed(), which prints wall-clock time
+    // only for the session that is genuinely running: a row with no end_time
+    // would otherwise accrue `now - startTime` without bound.
     final sessionState = ref.watch(sessionStateProvider);
     final isLive =
         sessionState.isActive && sessionState.dbSessionId == session.id;

@@ -1,10 +1,8 @@
-// P1-14 — Remote log retrieval and tail endpoints.
+// Remote log retrieval and tail endpoints.
 //
-// Mobile operators on a Pi/embedded Nightshade host previously had no
-// way to inspect the structured log file short of SSHing into the box.
-// These handlers expose the existing on-disk + in-memory log surface
-// over the headless API so the mobile companion can diagnose issues
-// from across the LAN.
+// Exposes the on-disk + in-memory log surface over the headless API so a
+// mobile operator on a Pi/embedded host can diagnose from across the LAN
+// instead of SSHing into the box.
 //
 // Endpoints (all under /api/logs):
 //
@@ -104,9 +102,7 @@ class LogHandlers {
   /// a max-files knob this becomes the configured cap.
   static const int _retentionDays = 0;
 
-  // ===========================================================================
   // GET /api/logs — listing
-  // ===========================================================================
 
   /// `GET /api/logs` — JSON listing of available log files.
   ///
@@ -131,9 +127,7 @@ class LogHandlers {
     });
   }
 
-  // ===========================================================================
   // GET /api/logs/recent — ring-buffer slice
-  // ===========================================================================
 
   /// `GET /api/logs/recent?limit=N&minSeverity=warning`
   ///
@@ -187,9 +181,7 @@ class LogHandlers {
     });
   }
 
-  // ===========================================================================
   // GET /api/logs/files/{filename}/download — single-file stream
-  // ===========================================================================
 
   /// `GET /api/logs/files/{filename}/download`
   ///
@@ -363,9 +355,7 @@ class LogHandlers {
     );
   }
 
-  // ===========================================================================
   // GET /api/logs/tail — SSE stream
-  // ===========================================================================
 
   /// `GET /api/logs/tail` — Server-Sent Events stream of new log entries.
   ///
@@ -593,9 +583,7 @@ class LogHandlers {
     );
   }
 
-  // ===========================================================================
   // POST /api/logs/clear — delete non-current log files
-  // ===========================================================================
 
   /// `POST /api/logs/clear` — delete all non-current log files.
   /// Admin-scope + audit-logged via the route_metadata table.
@@ -606,9 +594,7 @@ class LogHandlers {
     return jsonResponse(result.toJson(), statusCode: status);
   }
 
-  // ===========================================================================
   // POST /api/logs/test-entry — synthetic log emission
-  // ===========================================================================
 
   /// `POST /api/logs/test-entry` — writes a synthetic log entry at the
   /// requested severity. Admin-scope + audit-logged.
@@ -659,9 +645,9 @@ class LogHandlers {
     // entry for any reason.
     final logs = _logger.getRecentLogs();
     if (logs.length <= beforeCount) {
-      // The buffer didn't grow — likely because the service is in a
-      // bad state. Per CLAUDE.md "errors are a feature" we surface
-      // this loudly rather than swallowing.
+      // The buffer did not grow, so the service rejected the entry. Fail the
+      // request: this endpoint exists to prove the log path works, and a 200
+      // here would certify plumbing that is broken.
       throw HandlerFailure(
         code: 'log_emission_failed',
         message: 'LoggingService did not record the synthetic entry',

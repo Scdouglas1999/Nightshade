@@ -1,11 +1,11 @@
-// Regression tests for the legacy catalog IO path used by the desktop/mobile
+// The legacy catalog IO path used by the desktop/mobile
 // CatalogSettingsScreen: install-status reliability and crash-safe imports.
 //
-// These cover the behaviour fixed alongside the temp-file + atomic-rename
-// rework — a half-written (0-byte) catalog must not masquerade as installed,
-// a failed import must not clobber a good existing catalog, and a successful
-// install must report its on-disk size. The network download path is left to
-// the handler tests (the upstream URLs would make CI flaky).
+// A half-written (0-byte) catalog must not masquerade as installed, a failed
+// import must not clobber a good existing catalog, and a successful install
+// must report its on-disk size — the temp-file + atomic-rename path is what
+// holds all three. The network download path is left to the handler tests (the
+// upstream URLs would make CI flaky).
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

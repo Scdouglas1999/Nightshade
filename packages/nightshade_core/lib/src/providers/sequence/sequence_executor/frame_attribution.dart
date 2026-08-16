@@ -34,9 +34,8 @@ class FrameAttribution {
   /// Sensor gain the frame was taken at, from the producing node's config.
   /// `null` when the node leaves gain to the camera's current value.
   ///
-  /// Sequencer frames used to record NULL gain/offset while the ad-hoc capture
-  /// path recorded both, so master-dark matching (which keys on gain, offset and
-  /// binning) could not pair a sequenced light with its calibration frames.
+  /// Master-dark matching keys on gain, offset and binning, so a frame that
+  /// does not carry them cannot be paired with its calibration frames.
   final int? gain;
 
   /// Sensor offset the frame was taken at. Same rationale as [gain].

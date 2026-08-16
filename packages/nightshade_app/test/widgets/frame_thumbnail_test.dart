@@ -1,6 +1,4 @@
-// =============================================================================
-// frame_thumbnail_test.dart — one preview ladder for every frame surface.
-// =============================================================================
+// One preview ladder for every frame surface.
 //
 // Six surfaces each carried their own copy of "backend thumbnail → local file →
 // placeholder", and they had already drifted: the shared loader decided a path

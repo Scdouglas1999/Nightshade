@@ -2,11 +2,11 @@
 //
 // `GeolocationService` is what Settings → Location's "Detect Location" and the
 // first-run site step both call. On a desktop the GPS attempt always fails, so
-// the IP fallback is the path that actually runs — and it used to end at
-// `http://ip-api.com/json/`, cleartext, because that service answers 403 over
+// the IP fallback is the path that actually runs, and a cleartext endpoint like
+// `http://ip-api.com/json/` is tempting because that service answers 403 over
 // HTTPS on its free tier. The reply becomes the operator's stored
-// latitude/longitude, so a passer-by on the network both saw the public IP go
-// out and could pick where the rig thought it was.
+// latitude/longitude, so a passer-by on the network would both see the public
+// IP go out and get to pick where the rig thinks it is.
 //
 // The assertion is on the SCHEME of every request that leaves, not on a
 // vendor name: swapping providers later must not be able to reintroduce
@@ -31,7 +31,7 @@ void main() {
         requests.add(request.url);
         // Answer the primary the way it answers a rate-limited caller: HTTP
         // 200 with no coordinate. That is what pushes the service onto the
-        // fallback, which is the leg that used to be cleartext.
+        // fallback leg, which must also be HTTPS.
         if (request.url.host.contains('ipapi.co')) {
           return http.Response('{"error":true,"reason":"RateLimited"}', 200);
         }
@@ -67,9 +67,9 @@ void main() {
   );
 
   test('a whole-degree coordinate is not silently dropped', () async {
-    // `latitude: 40` decodes as an int; the old `as double?` cast threw, and
-    // every catch here swallows the throw, so an operator on a round degree
-    // was told no location could be found.
+    // `latitude: 40` decodes as an int, so an `as double?` cast throws — and
+    // every catch here swallows the throw, which would tell an operator on a
+    // round degree that no location could be found.
     GeolocationService.clientFactory = () => MockClient((request) async {
       return http.Response(
         '{"latitude":40,"longitude":-75,"city":"Somewhere"}',

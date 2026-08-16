@@ -148,10 +148,10 @@ class FileSystemHandlers {
 
     final directory = Directory(path);
 
-    // HTTP-005: containment. Like the sibling /api/files/browse, validate must
-    // never stat or write-probe a path outside the allow-listed roots — without
-    // this it doubled as a filesystem existence/writability oracle that created
-    // a probe file at an arbitrary path. Canonicalize and reject out-of-root
+    // Containment. Like the sibling /api/files/browse, validate must never
+    // stat or write-probe a path outside the allow-listed roots — otherwise it
+    // doubles as a filesystem existence/writability oracle that creates a
+    // probe file at an arbitrary path. Canonicalize and reject out-of-root
     // paths with the same `path_not_allowed` 403 browse uses, BEFORE any
     // exists()/write-probe runs. Legitimate not-yet-created save paths under a
     // root canonicalize to a normalized absolute path that still resolves under
@@ -192,8 +192,8 @@ class FileSystemHandlers {
 
   /// Allow-listed roots the caller may browse under.
   ///
-  /// Why: §2.24 — without this restriction the admin-scoped endpoint accepts
-  /// an arbitrary `?path=` and lists the whole readable filesystem, which is
+  /// Without this restriction the admin-scoped endpoint accepts an arbitrary
+  /// `?path=` and lists the whole readable filesystem, which is
   /// far more than the dashboard needs (it only ever points the user at the
   /// image save dir, sequences dir, logs dir, and backups dir). The roots are
   /// computed from the same settings/services the GUI uses, so the headless
@@ -328,9 +328,9 @@ class FileSystemHandlers {
       // that points outside the allow-listed roots — then re-append the
       // not-yet-created tail. A plain normalize here would leave intermediate
       // symlinks unresolved, letting "<root>/symlink-to-outside/newfile" pass
-      // containment and turn validate into an existence/write-probe oracle for
-      // arbitrary out-of-root paths (HTTP-005). We do not log: a
-      // configured-but-missing path is a normal user state, not an error.
+      // containment and turn validate into an existence/write-probe oracle
+      // for arbitrary out-of-root paths. We do not log: a configured-but-
+      // missing path is a normal user state, not an error.
       final absolute = p.normalize(dir.absolute.path);
       final tail = <String>[p.basename(absolute)];
       var ancestor = p.dirname(absolute);

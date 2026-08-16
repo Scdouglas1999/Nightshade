@@ -5,7 +5,7 @@ class CompassCalibrationDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tokenized surface so this dialog respects Red Night theme — audit §4.15.
+    // Tokenized surface so this dialog respects Red Night theme.
     final colors = NightshadeColors.of(context);
     return AlertDialog(
       backgroundColor: colors.surfaceOverlay,

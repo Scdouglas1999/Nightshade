@@ -55,8 +55,8 @@ import 'healpix_nested.dart';
 
 /// Raised when tile selection is asked to do something geometrically
 /// impossible — a degenerate plate scale, an out-of-range subdivision, an order
-/// outside the survey's published range. Errors are a feature: a miswired
-/// caller fails loudly here rather than silently painting a blank or wrong sky.
+/// outside the survey's published range. A miswired caller fails here rather
+/// than painting a blank or wrong sky.
 class HipsTileSelectionError extends ArgumentError {
   /// Creates a tile-selection argument error.
   HipsTileSelectionError(super.message);
@@ -404,24 +404,14 @@ class HipsTileSelection {
   /// Computes the ordered set of visible tiles at [norder] for the current
   /// view, each with its screen-projected mesh.
   ///
-  /// Geometry, end to end:
-  ///
-  ///  1. Build a [FramingSkyProjection] from [plateScale], [framingTarget],
-  ///     [canvasSize], [zoom], [pan] and [rotationDegrees] — the *same*
-  ///     projection the survey background and FOV/mosaic overlays use, so the
-  ///     tiles register to them to the pixel. (C2.)
-  ///  2. Derive the field-of-view angular radius from the canvas: the diagonal
-  ///     half-FOV in degrees, grown by [discRadiusPadFraction]. Using the
-  ///     diagonal (not the width) guarantees the four canvas corners are inside
-  ///     the disc even under field rotation.
-  ///  3. Run [HealpixNested.queryDisc] at [norder] around the FOV center to get
-  ///     the candidate tile indices (ascending, deterministic).
-  ///  4. For each candidate, subdivide its HEALPix footprint into a
-  ///     `subdivisions x subdivisions` mesh of sky points (interpolated on the
-  ///     fractional intra-face lattice via [HealpixNested.xyfToAng], so the mesh
-  ///     edges coincide exactly with [HealpixNested.boundaries] and neighbours
-  ///     share them — seam-free), and forward-project every vertex to the
-  ///     canvas via [FramingSkyProjection.raDecToScreen].
+  /// Tiles are projected through the same [FramingSkyProjection] the survey
+  /// background and the FOV/mosaic overlays use, so they register to the pixel.
+  /// The disc radius is the canvas DIAGONAL half-FOV (grown by
+  /// [discRadiusPadFraction]), which keeps all four corners inside the disc
+  /// under field rotation. Each tile's mesh is interpolated on the fractional
+  /// intra-face lattice via [HealpixNested.xyfToAng], so mesh edges coincide
+  /// with [HealpixNested.boundaries] and neighbouring tiles share them
+  /// seam-free.
   ///
   /// [norder] must lie within the survey's published range
   /// `[hips_order_min, hips_order]` (use [selectNorder] to choose it).
@@ -452,8 +442,8 @@ class HipsTileSelection {
     // the wrong pixel indices and the mesh sky points would be in the survey's
     // frame but reprojected as if equatorial — total misregistration with the
     // equatorial FOV overlay, with no error. Until a frame->equatorial rotation
-    // is implemented, a non-equatorial survey is rejected loudly here (errors
-    // are a feature) rather than silently consumed and mis-projected.
+    // is implemented, a non-equatorial survey is rejected loudly here rather
+    // than silently consumed and mis-projected.
     if (props.frame != HipsFrame.equatorial) {
       throw HipsTileSelectionError(
         'HiPS survey frame ${props.frame.wireValue} is not supported by the '

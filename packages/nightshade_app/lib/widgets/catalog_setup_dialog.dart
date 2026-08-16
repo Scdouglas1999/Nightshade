@@ -204,10 +204,9 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                         style: TextStyle(color: colors.textPrimary),
                       ),
                       const SizedBox(height: 12),
-                      // Both counts follow the SELECTED package. They used to
-                      // be the Complete figures no matter what was selected,
-                      // which advertised 120,000 stars to a user taking the
-                      // Standard default that installs about 40,000.
+                      // Both counts follow the SELECTED package: fixed Complete
+                      // figures would advertise 120,000 stars to a user taking
+                      // the Standard default that installs about 40,000.
                       _buildCatalogInfo(
                         colors,
                         'HYG Star Database',

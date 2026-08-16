@@ -213,8 +213,8 @@ void main() {
         sequenceName: 'edge forced',
       );
 
-      // Errors are a feature: the user must see every unsupported node
-      // they need to recreate by hand, not "and 3 more".
+      // The user must see every unsupported node they have to recreate by
+      // hand, not "and 3 more".
       final unsupportedTypes = result.unsupportedNodes
           .map((u) => u.sourceType)
           .toSet();

@@ -1,6 +1,6 @@
-// WD-EQ-3: one failed connect of the built-in guider raised FOUR statements of
-// one refusal — the same "Guider Error … requires an active profile with a
-// guide focal length" toast TWICE (Dart connect path via ErrorService, plus the
+// One failed connect of the built-in guider raises FOUR statements of one
+// refusal — the same "Guider Error … requires an active profile with a guide
+// focal length" toast TWICE (Dart connect path via ErrorService, plus the
 // backend's error event via event_provider), an "Equipment disconnected" toast
 // for a device that never connected, and the Connection help dialog behind all
 // three.
@@ -48,8 +48,8 @@ void main() {
     addTearDown(container.dispose);
     final notifier = container.read(uiNotificationProvider.notifier);
 
-    // Verbatim from the Wave E repro: the identical toast twice, then the
-    // (different) disconnect toast.
+    // The real sequence: the identical toast twice, then the (different)
+    // disconnect toast.
     notifier.showError(
       _guiderRefusal,
       title: 'Guider Error',
@@ -106,20 +106,18 @@ void main() {
     expect(find.text(_guiderRefusal), findsNothing);
   });
 
-  // WD-EQ-3, Wave G. Still live after two waves, because both earlier fixes
-  // landed somewhere these toasts do not flow: the NotificationRouter's
-  // normalized-key dedupe never sees them (the Dart connect path calls
-  // `ErrorService.log` and the backend event path calls
+  // Neither of the two obvious places collapses this pair. The
+  // NotificationRouter's normalized-key dedupe never sees these toasts (the
+  // Dart connect path calls `ErrorService.log`, the backend event path calls
   // `errorNotificationBridgeProvider`, and BOTH call
-  // `UiNotificationNotifier.showError` directly), while the overlay's own
-  // collapse keyed on the EXACT rendered strings — which the two producers
-  // defeat by one character, a trailing full stop.
+  // `UiNotificationNotifier.showError` directly), and a collapse keyed on the
+  // EXACT rendered strings is defeated by one character — a trailing full stop.
   //
-  // The G trap is in the timing: "a screenshot 3 s after the click shows only
-  // ONE card because the second producer lands between 3 s and 5 s". So this
-  // raises the second copy at +4 s, inside the band the driver measured, at the
-  // production `showError` duration rather than a convenient one.
-  testWidgets('the WD-EQ-3 pair, four seconds apart, is one toast', (
+  // The trap is the timing: a screenshot 3 s after the click shows only ONE card
+  // because the second producer lands between 3 s and 5 s. So this raises the
+  // second copy at +4 s, at the production `showError` duration rather than a
+  // convenient one.
+  testWidgets('the repeated-error pair, four seconds apart, is one toast', (
     tester,
   ) async {
     final container = ProviderContainer(

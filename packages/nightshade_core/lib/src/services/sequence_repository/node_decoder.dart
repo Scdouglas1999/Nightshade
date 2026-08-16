@@ -453,9 +453,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           failureAction: _stringToFlipFailureAction(
             props['failureAction'] as String?,
           ),
-          // Why: legacy DB rows pre-§1.2 have no flag. Treat absence as
-          // `false` (use persisted per-node values verbatim) so existing
-          // user sequences keep behavior they had before the wire-up.
+          // Legacy DB rows carry no flag. Absence means `false` (use the
+          // persisted per-node values verbatim) so an existing user sequence
+          // keeps the behaviour its rows describe.
           useGlobalDefaults: props['useGlobalDefaults'] as bool? ?? false,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
@@ -604,13 +604,12 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           comment: props['comment'] as String?,
         );
 
-      // Audit §11 — plugin-contributed instruction. Persisted node-type
-      // string mirrors the Rust serde tag ("PluginNode"); we also accept
-      // lower / snake-case spellings for resilience against legacy DB
-      // rows. A persisted plugin node with no `pluginId`/`nodeTypeId`
-      // is unusable, but we still rehydrate it (with empty identifiers)
-      // so the editor can surface the broken node to the user rather
-      // than silently dropping it.
+      // Plugin-contributed instruction. The persisted node-type string
+      // mirrors the Rust serde tag ("PluginNode"); lower / snake-case
+      // spellings are also accepted for resilience against legacy DB rows. A
+      // persisted plugin node with no `pluginId`/`nodeTypeId` is unusable but
+      // still rehydrates (with empty identifiers), so the editor can surface
+      // the broken node rather than silently dropping it.
       case 'pluginNode':
       case 'PluginNode':
       case 'plugin_node':

@@ -1,9 +1,9 @@
-// SEQ-18: after a run that captured 4 of 4 frames, the exposure node's
-// progress card read "Exposure: No Filter — 0 / 4 frames" with all four boxes
-// empty, directly above a strip of the four captured thumbnails. The live
-// per-frame detail is cleared on the success path, so the card fell back to
-// frame 0. After a run STOPPED at 2 frames the same card correctly read
-// "2 / 4", which is what made the reset specific to success.
+// After a run that captured 4 of 4 frames, the exposure node's progress card
+// must not read "Exposure: No Filter — 0 / 4 frames" with all four boxes empty,
+// directly above a strip of the four captured thumbnails. The live per-frame
+// detail is cleared on the success path, so a card that depends on it falls back
+// to frame 0 — while a run STOPPED at 2 frames still reads "2 / 4", which makes
+// the reset look specific to success.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,11 +42,10 @@ Future<void> _pumpPanel(
 }
 
 void main() {
-  // The input the D-fix never tried, and the one the live rig actually
-  // produces: the card is handed the LAST progress line a successful run wrote
-  // — "Completed 4/4", from `ExposureCompleted` — while the node's status has
-  // not reached it. The old parser only knew the "Frame n/m" wording, so this
-  // rendered "0 / 4 frames" with four empty boxes above four thumbnails.
+  // The input a real run produces: the card is handed the LAST progress line a
+  // successful run wrote — "Completed 4/4", from `ExposureCompleted` — while
+  // the node's status has not reached it. A parser that only knows the
+  // "Frame n/m" wording renders "0 / 4 frames" above four thumbnails.
   testWidgets('a run that captured every frame never reads 0 / N',
       (tester) async {
     await _pumpPanel(
@@ -72,8 +71,8 @@ void main() {
 
   testWidgets('a completed node reports every frame it captured',
       (tester) async {
-    // The success path clears the per-frame detail — exactly the state that
-    // used to render 0 / 4.
+    // The success path clears the per-frame detail — the state a
+    // detail-derived count reads as 0 / 4.
     await _pumpPanel(tester, status: NodeStatus.success);
 
     expect(find.text('4 / 4 frames'), findsOneWidget);

@@ -119,7 +119,7 @@ class _PlanetariumSkyImageryLayerState
 
   /// Applies the offline circuit breaker to [snapshot].
   ///
-  /// Trips only when a generation produced failures AND left nothing at all on
+  /// Trips only when a generation produces failures AND leaves nothing on
   /// screen. Partial failures with imagery present are normal (a survey does
   /// not publish every tile at every order) and must not stop the layer.
   void _updateBackoff(HipsResidentSnapshot snapshot) {
@@ -231,12 +231,17 @@ class _PlanetariumSkyImageryLayerState
     // one used to place the stars, or the two would drift apart within a
     // minute.
     final observationMinute = ref.watch(observationMinuteProvider);
-    final lstHours = viewState.viewMode == SkyViewMode.horizontal
-        ? AstronomyCalculations.localSiderealTime(
-            observationMinute,
-            location.longitude,
-          )
-        : null;
+    // The alt-az frame is defined against a site. Without one the projection
+    // below resolves to null and the layer paints nothing, which is the same
+    // answer the star chart gives.
+    final site = location.site;
+    final lstHours =
+        viewState.viewMode == SkyViewMode.horizontal && site != null
+            ? AstronomyCalculations.localSiderealTime(
+                observationMinute,
+                site.longitude,
+              )
+            : null;
 
     _updateBackoff(snapshot);
 
@@ -247,7 +252,7 @@ class _PlanetariumSkyImageryLayerState
           final projection = PlanetariumSkyProjection.resolve(
             viewState: viewState,
             canvasSize: canvasSize,
-            latitude: location.latitude,
+            latitude: site?.latitude,
             lstHours: lstHours,
           );
           if (projection == null) return const SizedBox.expand();

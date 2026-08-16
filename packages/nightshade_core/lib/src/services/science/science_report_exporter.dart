@@ -62,7 +62,7 @@ class ScienceReportExporter {
   ///
   /// [period] is the period search the operator ran on the Science tab. It is
   /// UI state, not a stored product, so the caller passes it; null prints
-  /// "Not run for this session", which is true, unlike the previous silence.
+  /// "Not run for this session".
   Future<String> buildMarkdown(
     int sessionId, {
     PeriodAnalysisResult? period,
@@ -231,10 +231,9 @@ class ScienceReportExporter {
 
   /// The differential-photometry time series this session actually produced.
   ///
-  /// The report used to skip `photometry_measurements` entirely: a session with
-  /// 80 measurements exported a document whose only photometry-shaped section
-  /// said "No photometric calibration produced this session", so the light
-  /// curve — the whole product of a variable-star run — was simply absent.
+  /// Read from `photometry_measurements`, so the light curve — the product of
+  /// a variable-star run — is in the report rather than represented by the
+  /// calibration section's absence.
   String _lightCurveSnapshot(List<PhotometryMeasurementRow> rows) {
     if (rows.isEmpty) {
       return '## Light curve\n'

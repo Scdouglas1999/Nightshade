@@ -42,9 +42,7 @@ class BackupService {
   ///
   /// Owned here rather than by the auto-save timer because it answers "when was
   /// this database last backed up", which is equally true of a manual backup.
-  /// It used to be written only by the scheduled path, so the Backup & Restore
-  /// screen kept reporting a stale (or "Never") time directly above the Create
-  /// Backup button the operator had just pressed.
+  /// Every successful backup writes it, scheduled or manual.
   static const String lastBackupSettingKey = 'autosave.last_backup_at';
 
   /// Settings key holding the operator's chosen backup folder, empty/absent
@@ -52,9 +50,7 @@ class BackupService {
   ///
   /// Backups belong on the drive the operator actually backs up: an observatory
   /// PC's system volume is routinely the smallest one on the machine, and the
-  /// default folder follows the database onto it. Until this key existed the
-  /// destination was fixed, undisclosed, and pruned by "Maximum backups" with no
-  /// way to move it.
+  /// default folder follows the database onto it.
   ///
   /// Deliberately excluded from [_exportSettings]: a bundle restored from
   /// another machine would otherwise repoint THIS install's backup folder — and
@@ -234,7 +230,7 @@ class BackupService {
   /// payload is missing its version, isn't a JSON object, has a
   /// wrong-shaped top-level section, or any typed row fails to decode, the
   /// restore aborts with the live data fully intact (`_clearAllData` is
-  /// never reached). Only after validation passes do we clear + import.
+  /// never reached). The clear + import runs only after validation passes.
   Future<RestoreResult> restoreBackup({
     required String filePath,
     bool replaceExisting = false,
@@ -254,10 +250,8 @@ class BackupService {
 
       final jsonString = await file.readAsString();
 
-      // ---------------------------------------------------------------
       // PHASE 1 — Validate & stage. Nothing below this block touches the
       // live database. Any failure returns a non-destructive error.
-      // ---------------------------------------------------------------
       final _ValidatedBackup staged;
       try {
         staged = _validateBackupPayload(jsonString);
@@ -277,11 +271,9 @@ class BackupService {
 
       final backup = staged.backup;
 
-      // ---------------------------------------------------------------
       // PHASE 2 — Apply. The payload is now known to be structurally
       // sound and every typed section decodes, so the destructive clear
       // can run without risking unrecoverable data loss against garbage.
-      // ---------------------------------------------------------------
 
       // Apply every database mutation in one transaction. A malformed late
       // extended-table row or write failure must roll back the earlier clear,
@@ -609,9 +601,7 @@ class BackupService {
     'weatherSettings': _importWeatherSettings,
   };
 
-  // =========================================================================
   // Private utility methods
-  // =========================================================================
 
   Future<String?> _getBackupFilePath() async {
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');

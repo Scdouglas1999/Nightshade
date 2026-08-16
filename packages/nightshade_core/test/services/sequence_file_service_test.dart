@@ -582,10 +582,10 @@ void main() {
 
   test('cover / calibrator / science-photometry nodes survive export/import '
       '(P0 data-loss regression)', () async {
-    // These five node types were serialised by the encoder but had NO
-    // decoder case (and the cover/calibrator config was dropped on encode
-    // too). Any saved sequence containing one became permanently
-    // unloadable — the whole sequence threw on reload. This guards the fix.
+    // Five node types the encoder serialises need matching decoder cases, and
+    // the cover/calibrator config has to survive the encode: without both, a
+    // saved sequence containing one is permanently unloadable and the whole
+    // sequence throws on reload.
     final tempDir = await Directory.systemTemp.createTemp(
       'sequence_file_service_cover_science_',
     );

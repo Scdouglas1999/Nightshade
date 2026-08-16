@@ -1,9 +1,9 @@
-// Regression: a completed restore said "Restored N items. Restart Nightshade
-// before the next run." in a snackbar and nothing else. Once it faded there was
-// nothing on the screen to contradict an app that looks normal but is showing
-// in-memory state that disagrees with the database it just rewrote — and the
-// reason you restore is usually that you are about to observe. The outcome is
-// now a banner that stays until the operator dismisses it.
+// A completed restore leaves a banner that stays until the operator dismisses
+// it. A snackbar saying "Restored N items. Restart Nightshade before the next
+// run." fades, and then nothing on the screen contradicts an app that looks
+// normal while showing in-memory state that disagrees with the database it just
+// rewrote — and the reason you restore is usually that you are about to
+// observe.
 
 import 'dart:io';
 

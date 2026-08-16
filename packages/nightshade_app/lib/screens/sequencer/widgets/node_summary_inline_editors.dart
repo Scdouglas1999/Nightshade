@@ -1,10 +1,8 @@
-// =============================================================================
-// node_summary_inline_editors.dart — anchored, Riverpod-aware inline editors
-// that a tapped [EditableFragment] chip opens.
-// =============================================================================
+// Anchored, Riverpod-aware inline editors that a tapped [EditableFragment]
+// chip opens.
 //
 // This is the WIDGET-layer bridge between the pure summary classifier
-// (`node_summary.dart`, C1) and the canonical node-commit path. A summary chip
+// (`node_summary.dart`) and the canonical node-commit path. A summary chip
 // is structural data only; when the user taps an [EditableFragment] chip the
 // row calls [showInlineNodeEditor], which floats a minimal popup anchored to
 // the chip's on-screen rect and edits exactly one property.
@@ -35,8 +33,8 @@
 //
 // STYLING: every color/spacing/radius/typography value comes from the design
 // tokens. The popup is a floating overlay, so a shadow (`shadowMd`) is allowed
-// per the elevation philosophy (cards use borders; only floating surfaces cast
-// shadows).
+// under the elevation rule: cards use borders, only floating surfaces cast
+// shadows.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -103,10 +101,8 @@ Future<void> showInlineNodeEditor({
   );
 }
 
-// =============================================================================
 // Anchored popup shell — positions [child] against the anchor's rect, tapping
 // outside dismisses (the transparent barrier), and styles the floating surface.
-// =============================================================================
 
 /// The preferred width of the floating editor. Wide enough for a stepper +
 /// label or a comfortable list of filter names, narrow enough to read as a
@@ -183,9 +179,7 @@ class _AnchoredInlineEditor extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // Editor body — dispatches on [InlineEditKind] to the right control.
-// =============================================================================
 
 class _InlineEditorBody extends ConsumerWidget {
   final SequenceNode node;
@@ -265,9 +259,7 @@ T _expect<T extends SequenceNode>(SequenceNode node, InlineEditKind kind) {
   );
 }
 
-// =============================================================================
 // Shared editor chrome — a small titled section the controls slot into.
-// =============================================================================
 
 class _EditorSection extends StatelessWidget {
   final String title;
@@ -306,9 +298,7 @@ class _EditorSection extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // Numeric text-field editor — commits clamped-on-change, reformats on blur.
-// =============================================================================
 
 /// A compact numeric field that commits its clamped value on every change and
 /// reformats (snaps to the clamp + canonical text) when focus leaves.
@@ -429,9 +419,7 @@ class _NumericFieldEditorState extends State<_NumericFieldEditor> {
   }
 }
 
-// =============================================================================
 // Stepper editors (integer count / iterations).
-// =============================================================================
 
 class _ExposureCountEditor extends ConsumerWidget {
   final ExposureNode node;
@@ -483,9 +471,7 @@ class _LoopIterationsEditor extends ConsumerWidget {
   }
 }
 
-// =============================================================================
 // Numeric-field editors (scalars with a sensible clamp range).
-// =============================================================================
 
 class _ExposureDurationEditor extends ConsumerWidget {
   final ExposureNode node;
@@ -624,10 +610,8 @@ class _GainEditor extends ConsumerWidget {
   }
 }
 
-// =============================================================================
 // Menu editors (closed enum / filter picks). A vertical list of tappable rows
 // styled on the elevated surface; the current value is marked with a check.
-// =============================================================================
 
 /// One selectable row in a menu editor.
 class _MenuRow extends StatelessWidget {

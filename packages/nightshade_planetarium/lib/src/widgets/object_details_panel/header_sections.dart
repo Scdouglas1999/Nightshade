@@ -225,9 +225,7 @@ extension _ObjectDetailsPanelHeaderSections on ObjectDetailsPanel {
     return ids.toSet().toList(); // Remove duplicates
   }
 
-  // ============================================================================
-  // Thumbnail Widget
-  // ============================================================================
+  // Thumbnail widget
 
   /// Build a survey thumbnail for DSOs with icon fallback on network/load errors.
   Widget _buildThumbnail(DeepSkyObject dso) {

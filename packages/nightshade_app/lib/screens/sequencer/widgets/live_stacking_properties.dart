@@ -138,10 +138,9 @@ class _LiveStackingPropertiesState
     mutator.updateNode(updated);
   }
 
-  /// PHASE-5: LiveStackingNode.copyWith now uses plain
-  /// `?? this.authToken` semantics, so a null arg means "keep current".
-  /// To make the broadcast PUBLIC (clear the token), we have to rebuild
-  /// a fresh node. Same recipe for clearing the watermark.
+  /// `LiveStackingNode.copyWith` uses plain `?? this.authToken` semantics, so a
+  /// null arg means "keep current". Making the broadcast PUBLIC (clearing the
+  /// token) therefore requires a fresh node. Same recipe for the watermark.
   LiveStackingNode _rebuildWithCleared({
     bool clearAuthToken = false,
     bool clearWatermark = false,

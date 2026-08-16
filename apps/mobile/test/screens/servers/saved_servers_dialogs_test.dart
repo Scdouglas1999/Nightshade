@@ -1,9 +1,8 @@
-// Regression tests for the SavedServersScreen rename / notes / tailscale
-// edit dialogs (UI-003).
+// Tests for the SavedServersScreen rename / notes / tailscale edit dialogs.
 //
-// The fix wraps each dialog's TextEditingController in a try/finally so the
+// Each dialog wraps its TextEditingController in a try/finally so the
 // controller is disposed on every exit path. These tests guard the two ways
-// that change could go wrong:
+// that arrangement can go wrong:
 //   * the controller must still be live while the dialog is open (so the typed
 //     value is read on Save) — i.e. the finally must NOT dispose early; and
 //   * disposal must run cleanly so a second open of the same dialog does not

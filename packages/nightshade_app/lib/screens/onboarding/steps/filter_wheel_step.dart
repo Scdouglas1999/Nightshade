@@ -170,11 +170,10 @@ class _OnboardingFilterWheelStepState
 
   /// Add a slot back, recovering the wheel's own name for that position.
   ///
-  /// Deleting slot 7 ("SII") and adding one back used to produce "Filter 7" — a
-  /// name nobody typed and no wheel reports, which then travelled into FITS
-  /// headers, flat matching and per-filter focus offsets. The connected wheel
-  /// already told us what sits at that position; when it has not, the row opens
-  /// blank so the user names it rather than inheriting a placeholder.
+  /// A placeholder like "Filter 7" is a name nobody typed and no wheel reports,
+  /// and it travels into FITS headers, flat matching and per-filter focus
+  /// offsets. The connected wheel already reports what sits at that position;
+  /// when it has not, the row opens blank so the user names it.
   void _addSlot() {
     final driverNames = ref.read(filterWheelStateProvider).filterNames;
     final index = _controllers.length;
@@ -354,13 +353,11 @@ class _OnboardingFilterWheelStepState
               ],
               // At the cap there is no button at all.
               //
-              // It used to render disabled, which reads as a control — and the
-              // accessibility tree published it as a plain button with a tap
-              // action, so an operator (or a screen-reader user) pressed "Add
-              // slot" on a full 7-position wheel and got no row, no toast and
-              // no message: two tree dumps taken either side of the click were
-              // byte-identical. A wheel with seven positions has no eighth to
-              // add, ever. Say that, and offer nothing to press.
+              // A disabled control still reads as a control, and the
+              // accessibility tree publishes it as a plain button with a tap
+              // action — so pressing "Add slot" on a full wheel gives no row,
+              // no toast and no message. A wheel with seven positions has no
+              // eighth to add, ever. Say that, and offer nothing to press.
               if (atSlotCap)
                 Text(
                   reportedSlots != null

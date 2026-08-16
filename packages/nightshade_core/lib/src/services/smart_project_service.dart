@@ -223,7 +223,7 @@ class _FoldedSub {
   final double exposureSeconds;
 
   /// Per-frame integration weight, or null when the fold record carries no
-  /// weight (e.g. the accumulate path before native weights were surfaced).
+  /// weight (e.g. an accumulate path that surfaces no native weight).
   /// Membership in the growth curve / frame counts / deficit total is decided by
   /// `accepted`, NOT by weight — a null-weight accepted sub still counts. Weight
   /// is consulted only for best-night mean-weight aggregation.
@@ -273,9 +273,7 @@ class SmartProjectService {
   /// frozen reference's mean weight by at least 15% to be recommended.
   static const double defaultReReferenceThreshold = 0.15;
 
-  // ---------------------------------------------------------------------------
   // Growth curve
-  // ---------------------------------------------------------------------------
 
   /// Integration-time growth points for [masterId]: cumulative integration
   /// seconds (and accepted-frame count) per observing night the master grew.
@@ -317,9 +315,7 @@ class SmartProjectService {
     return out;
   }
 
-  // ---------------------------------------------------------------------------
   // Best night
-  // ---------------------------------------------------------------------------
 
   /// The observing night whose accepted subs carried the highest mean
   /// integration weight. Null when the master has no accepted folded subs.
@@ -336,9 +332,7 @@ class SmartProjectService {
     return best;
   }
 
-  // ---------------------------------------------------------------------------
   // Re-reference advisory
-  // ---------------------------------------------------------------------------
 
   /// Advisory re-reference recommendation for an accumulating master.
   ///
@@ -388,9 +382,7 @@ class SmartProjectService {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Target-SNR deficit → scheduler goals (the SAFE write seam)
-  // ---------------------------------------------------------------------------
 
   /// Estimate the integration shortfall to reach [targetSnr] for [masterId] and
   /// write it back to the scheduler by RAISING `integration_goals.frame_count`
@@ -532,9 +524,7 @@ class SmartProjectService {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Internals
-  // ---------------------------------------------------------------------------
 
   /// The master's v42 smart columns (read directly — the typed
   /// [IntegratedMaster] model does not surface them).
@@ -560,14 +550,13 @@ class SmartProjectService {
   /// `captured_images` for capture date / exposure / filter.
   ///
   /// Membership is defined by `accepted = 1` ALONE — every accepted folded sub
-  /// is returned, including ones with a null `weight`. The primary multi-night
-  /// (accumulate) path historically recorded accepted folds with a null weight,
-  /// so dropping null-weight rows here emptied the entire growth curve, best
-  /// night, and scheduler deficit for exactly those masters. A null weight is
-  /// carried through and treated as "absent" only by best-night mean-weight
-  /// aggregation; it never removes a sub from the growth / frame-count / deficit
-  /// totals. (A *rejected* sub is recorded with `accepted = 0` and is excluded by
-  /// the WHERE clause, not by its weight.)
+  /// is returned, including ones with a null `weight`. The multi-night
+  /// (accumulate) path records accepted folds with a null weight, so filtering
+  /// on weight here would empty the growth curve, best night and scheduler
+  /// deficit for exactly those masters. A null weight is treated as "absent"
+  /// only by best-night mean-weight aggregation; it never removes a sub from
+  /// the growth / frame-count / deficit totals. A *rejected* sub is recorded
+  /// with `accepted = 0` and excluded by the WHERE clause, not by its weight.
   Future<List<_FoldedSub>> _foldedSubs(int masterId) async {
     final rows = await _db
         .customSelect(
@@ -689,10 +678,10 @@ class SmartProjectService {
   /// Nights are bucketed noon-to-noon in the observer's local time — the same
   /// rule `TargetProgressService._nightStart` and the forecast planner use — and
   /// labelled with the date the night *started*. Grouping by UTC calendar day
-  /// instead was wrong twice over: west of Greenwich every night is labelled a
-  /// day late (21:00 EDT is 01:00 UTC the next day), and east of Greenwich the
-  /// 00:00 UTC boundary falls in the MIDDLE of the observing night, splitting a
-  /// single continuous run into two "nights" and halving its reported totals.
+  /// fails twice over: west of Greenwich every night is labelled a day late
+  /// (21:00 EDT is 01:00 UTC the next day), and east of Greenwich the 00:00 UTC
+  /// boundary falls in the MIDDLE of the observing night, splitting a single
+  /// continuous run into two "nights" and halving its reported totals.
   static DateTime observingNightOf(int epochSeconds) {
     final local = DateTime.fromMillisecondsSinceEpoch(
       epochSeconds * 1000,

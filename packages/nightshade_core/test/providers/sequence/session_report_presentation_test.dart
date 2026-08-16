@@ -1,10 +1,8 @@
-// WF-N5 — a modal Session Report + "How did this run go? / Write note" prompt
-// after EVERY finished run.
-//
-// With the autopilot armed and its dispatched runs failing fast, that is a
-// modal per minute, appearing over whatever screen the operator is on (the
-// Builder at 00:06:13, Plan Tonight at 00:06:53, History at 00:07:40) and each
-// one swallowing the click aimed at the app underneath.
+// A modal Session Report + "How did this run go? / Write note" prompt after
+// EVERY finished run is a modal per minute with the autopilot armed and its
+// dispatched runs failing fast — appearing over whatever screen the operator is
+// on (the Builder at 00:06:13, Plan Tonight at 00:06:53, History at 00:07:40)
+// and each one swallowing the click aimed at the app underneath.
 //
 // A report the operator asked for by pressing Start is worth a modal. A report
 // for a run the autopilot dispatched while nobody was watching is not — it gets

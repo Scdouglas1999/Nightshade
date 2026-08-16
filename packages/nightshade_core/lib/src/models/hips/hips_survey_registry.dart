@@ -38,11 +38,9 @@ class HipsSurveyEntry {
   /// The survey's publisher acknowledgement, as a STATIC string.
   ///
   /// Attribution is a licence obligation attached to the IMAGERY, so it must
-  /// not depend on a `properties` fetch succeeding — and for the surveys whose
-  /// pyramid is resolved at runtime, no `properties` document is fetched at all
-  /// while their imagery still streams through the hips2fits cutout path. That
-  /// is exactly how six of the eight surveys came to render publisher imagery
-  /// with no credit anywhere on screen.
+  /// not depend on a `properties` fetch succeeding: a survey whose pyramid is
+  /// resolved at runtime fetches no `properties` document at all, while its
+  /// imagery still streams through the hips2fits cutout path.
   ///
   /// A live `properties` document's `obs_copyright` (when one is resolved) is
   /// the more current source and takes precedence; this is the floor that

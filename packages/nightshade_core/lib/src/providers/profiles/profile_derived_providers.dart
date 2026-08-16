@@ -14,9 +14,7 @@ final equipmentProfileListProvider = Provider<List<EquipmentProfileModel>>((
   return state.valueOrNull?.profiles ?? [];
 });
 
-// ============================================================================
-// Optical Configuration Provider
-// ============================================================================
+// Optical configuration provider
 
 /// Provider that computes optical configuration from the active profile and
 /// connected camera capabilities.
@@ -81,9 +79,7 @@ final opticalConfigProvider = Provider<OpticalConfig?>((ref) {
   );
 });
 
-// ============================================================================
-// Profile Filters Provider
-// ============================================================================
+// Profile filters provider
 
 /// Provider that returns the filter names from the active profile.
 ///
@@ -94,9 +90,7 @@ final profileFiltersProvider = Provider<List<String>>((ref) {
   return profile.filterNames;
 });
 
-// ============================================================================
-// Sorted Profiles Provider
-// ============================================================================
+// Sorted profiles provider
 
 /// Provider that returns all profiles sorted by sortOrder field.
 ///

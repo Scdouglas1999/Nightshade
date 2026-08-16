@@ -6,9 +6,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
-/// The Exp/Gain boxes used to commit only on Enter, so a value typed and then
-/// abandoned by Tab (or by clicking Capture, which unfocuses on desktop) stayed
-/// on screen while the rig kept exposing at the old setting.
+/// The Exp/Gain boxes commit on BLUR as well as Enter: committing only on Enter
+/// leaves a value typed and then abandoned by Tab — or by clicking Capture,
+/// which unfocuses on desktop — on screen while the rig exposes at the old one.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -33,7 +33,7 @@ void main() {
 
     await tester.enterText(textFieldFor('Exp'), '7');
     await tester.pump();
-    // Blur without pressing Enter — the exact gesture that used to be lost.
+    // Blur without pressing Enter — the gesture that must still commit.
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
     await tester.pump();

@@ -7,11 +7,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Read-only list of the live validation issues behind the sequence header's
 /// count badges.
 ///
-/// The badges are the only place the builder admits a sequence has problems,
-/// and they used to be inert containers: the sole way to learn what "1 error"
-/// meant was to press Start and read the pre-flight dialog. This shows the
-/// same issues without arming anything, and selects the offending node when
-/// one is named.
+/// The badges are the only place the builder admits a sequence has problems.
+/// This shows what "1 error" means WITHOUT arming a run — the alternative is
+/// pressing Start and reading the pre-flight dialog — and selects the offending
+/// node when one is named.
 class SequenceIssuesDialog extends ConsumerWidget {
   const SequenceIssuesDialog({super.key});
 

@@ -69,9 +69,8 @@
     connectRetryCount: 0,
     targetSearchDebounce: null,
     targetSearchAbort: null,
-    // §2.17 ops-panel state (W5-WEB-OPS-PANELS). Kept under an `ops` namespace
-    // so the parallel W5-WEB-WIZARDS-PLATESOLVE-PA branch (which will likely
-    // add a `wiz` namespace) merges cleanly.
+    // Ops-panel state, namespaced under `ops` so it stays distinct from the
+    // wizard state below.
     ops: {
       sequences: [],
       selectedSequenceId: '',
@@ -90,8 +89,7 @@
       sequenceStartedAt: 0,
     },
 
-    // §2.17 W5-WIZARDS — wizard state
-    // Each wizard tracks its current step index. The HTML carries `data-step`
+    // Wizard state. Each wizard tracks its current step index. The HTML carries `data-step`
     // attributes on .wizard-step + .wizard-dot so step changes are reflected
     // in CSS without rebuilding the DOM.
     wizardStep: {
@@ -142,16 +140,15 @@
     lastPlateSolve: null,
   };
 
-  // Why a panel registry: §2.10 (stale indicators), §2.12 (per-panel enable),
-  // and §2.13 (phone tab routing) all need a mapping from panel id to the
-  // controlling device-type. Define it once.
+  // Stale indicators, per-panel enablement, and phone tab routing all need a
+  // mapping from panel id to the controlling device-type. Define it once.
   const PANEL_DEVICE_TYPES = {
     'panel-camera': 'camera',
     'panel-mount': 'mount',
     'panel-focuser': 'focuser',
     'panel-filter-wheel': 'filterWheel',
     'panel-rotator': 'rotator',
-    // §2.17 ops — dome panel needs a connected dome device to be useful.
+    // The dome panel needs a connected dome device to be useful.
     'ops-dome-panel': 'dome',
   };
 
@@ -159,15 +156,12 @@
   const PHONE_PANELS = ['panel-devices', 'panel-mount', 'panel-camera',
                         'panel-sequencer', 'panel-log'];
 
-  // §2.17 — phone-tab grouping: the new device control panels piggy-back
-  // on existing tabs so the bottom nav stays at five slots. Filter wheel,
-  // focuser, and rotator live in the Devices tab (next to discovery);
-  // camera, mount, and sequencer keep their own dedicated tabs.
-  //
-  // W5-WEB-OPS-PANELS additions (§2.17): the new ops panels join existing
-  // tabs per the brief — Sequencer tab gets sequence-load + checkpoint;
-  // Devices tab gets weather/safety + dome + profile/analytics (a compact
-  // area underneath the device list). Mount/Camera/Log tabs unchanged.
+  // Phone-tab grouping: device control panels piggy-back on existing tabs so
+  // the bottom nav stays at five slots. Filter wheel, focuser, and rotator
+  // live in the Devices tab (next to discovery); camera, mount, and sequencer
+  // keep their own dedicated tabs. The ops panels join the same tabs — the
+  // Sequencer tab carries sequence-load + checkpoint, the Devices tab carries
+  // weather/safety + dome + profile/analytics underneath the device list.
   const PHONE_TAB_EXTRA_PANELS = {
     'panel-devices': [
       'panel-filter-wheel', 'panel-focuser', 'panel-rotator',
@@ -179,18 +173,18 @@
     ],
   };
 
-  // §2.10 — the server heartbeat cadence is 30 s. Allow one complete interval
-  // plus jitter before declaring a quiet socket stale; a 10 s watchdog entered
-  // REST fallback three times per minute on an otherwise healthy connection
-  // and repeatedly cancelled large raw-preview downloads.
+  // The server heartbeat cadence is 30 s. Allow one complete interval plus
+  // jitter before declaring a quiet socket stale: a threshold under the
+  // heartbeat interval drops a healthy connection into REST fallback several
+  // times a minute and cancels large raw-preview downloads mid-flight.
   const WS_FALLBACK_THRESHOLD_MS = 45000;
   // Once the WebSocket itself is stale, surface a badge on any panel whose
   // last successful REST/event update is older than this threshold. A quiet
   // but healthy socket must not make stable equipment look stale.
   const PANEL_STALE_THRESHOLD_MS = 10000;
-  // §2.8 — image-fetch fallback if no exposure_complete event arrives.
+  // Image-fetch fallback if no exposure_complete event arrives.
   const IMAGE_FALLBACK_GRACE_MS = 30000;
-  // §2.11 — cap on base64-decoded image size for display.
+  // Cap on base64-decoded image size for display.
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
   // =========================================================================
@@ -200,9 +194,9 @@
   document.addEventListener('DOMContentLoaded', init);
 
   function init() {
-    // Honour ?debug=1 in the URL to allow manual server URL entry. Why: §2.4
-    // restricts the dashboard to its own origin; manual URL entry is a power-
-    // user escape hatch and is hidden by default.
+    // Honour ?debug=1 in the URL to allow manual server URL entry. The page
+    // CSP restricts the dashboard to its own origin; manual URL entry is a
+    // power-user escape hatch and is hidden by default.
     state.debugMode = new URLSearchParams(window.location.search).get('debug') === '1';
     if (state.debugMode) {
       const urlInput = document.getElementById('server-url');
@@ -211,15 +205,14 @@
       if (label) label.classList.remove('sr-only');
     }
 
-    // Tokens never live in localStorage anymore (§2.5 long-form). The
-    // "remember" path now goes through an HttpOnly `nightshade_session`
-    // cookie that JS cannot read; the unchecked path keeps the bearer in
-    // sessionStorage so it dies when the tab closes. The remember-checkbox
+    // Tokens never live in localStorage. The "remember" path goes through an
+    // HttpOnly `nightshade_session` cookie that JS cannot read; the unchecked
+    // path keeps the bearer in sessionStorage so it dies when the tab closes. The remember-checkbox
     // flag itself is benign metadata and stays in localStorage so the UI
     // state persists across reloads.
     const servedFromServer =
       window.location.protocol === 'http:' || window.location.protocol === 'https:';
-    // §2.4 — initial server URL comes from window.location.origin only.
+    // The initial server URL comes from window.location.origin only.
     // Debug mode allows overriding via localStorage; production cannot.
     let savedUrl = defaultServerUrl();
     if (state.debugMode) {
@@ -231,15 +224,15 @@
     const savedToken = readStoredToken();
     const savedDeviceName = localStorage.getItem('nightshade_device_name') || defaultDeviceName();
     const savedDeviceId = localStorage.getItem('nightshade_device_id') || generateDeviceId();
-    // One-shot scrub of any pre-§2.5-long-form token bytes that may still
-    // sit in localStorage from an older install. We never write here
-    // anymore; leaving the stale bytes would defeat the whole point.
+    // One-shot scrub of token bytes an older install may have left in
+    // localStorage. Nothing writes there; stale bytes left behind would hand
+    // a JS-readable bearer to any script that runs on the page.
     localStorage.removeItem('nightshade_token');
 
     document.getElementById('server-url').value = savedUrl;
     document.getElementById('auth-token').value = savedToken;
     document.getElementById('device-name').value = savedDeviceName;
-    // Default OFF for remember-token (§2.5). The bearer is sessionStorage-only
+    // Default OFF for remember-token. The bearer is sessionStorage-only
     // unless the user opts in.
     document.getElementById('remember-token').checked = rememberToken;
     localStorage.setItem('nightshade_device_id', savedDeviceId);
@@ -273,14 +266,14 @@
     // setpoint before pressing Set.
     document.getElementById('camera-target-temp').addEventListener('input', updateCoolerSliderReadout);
 
-    // Mount controls — press-and-hold d-pad (§2.7).
+    // Mount controls — press-and-hold d-pad.
     setupDpad();
     document.getElementById('btn-mount-stop').addEventListener('click', handleMountStop);
     document.getElementById('btn-mount-park').addEventListener('click', handleMountPark);
     document.getElementById('btn-mount-unpark').addEventListener('click', handleMountUnpark);
     document.getElementById('btn-mount-tracking').addEventListener('click', handleMountToggleTracking);
 
-    // Mount goto / object slew (§2.17)
+    // Mount goto / object slew
     document.getElementById('btn-mount-goto').addEventListener('click', handleMountGoto);
     document.getElementById('btn-mount-goto-abort').addEventListener('click', handleMountGotoAbort);
     document.getElementById('mount-goto-name').addEventListener('input', handleTargetSearchInput);
@@ -341,7 +334,7 @@
     const btnGuidePause = document.getElementById('btn-guide-pause');
     if (btnGuidePause) btnGuidePause.addEventListener('click', handleGuidePauseToggle);
 
-    // §Phase F dashboard-polish — theme toggle + persisted panel collapse.
+    // Theme toggle + persisted panel collapse.
     // Run before the rest of the panel wireup so a restored-collapsed panel
     // never flashes its body open on load.
     setupTheme();
@@ -354,17 +347,15 @@
     // Log controls
     document.getElementById('btn-clear-log').addEventListener('click', clearLog);
 
-    // Phone tabs (§2.13)
+    // Phone tabs
     for (const tab of document.querySelectorAll('.phone-tab')) {
       tab.addEventListener('click', () => activatePhoneTab(tab.dataset.target));
     }
 
-    // §2.17 ops panels (W5-WEB-OPS-PANELS). Setup is broken out so the
-    // wireup stays grouped and easy to merge against the parallel
-    // W5-WEB-WIZARDS-PLATESOLVE-PA branch.
+    // Ops panels. Their wireup lives in one function so it reads as a group.
     setupOpsPanels();
 
-    // ===== §2.17 W5-WIZARDS — Wizard launchers + modals =====
+    // ===== Wizard launchers + modals =====
     setupWizardModals();
     document.getElementById('btn-plate-solve').addEventListener('click', () => handlePlateSolve(false));
     document.getElementById('btn-plate-solve-sync').addEventListener('click', () => handlePlateSolve(true));
@@ -412,11 +403,11 @@
     window.addEventListener('resize', applyResponsiveLayout);
 
     // Default: every action button disabled until we connect & enumerate
-    // devices (§2.12).
+    // devices.
     refreshPanelEnablement();
 
-    // §W7E — SPA additions: hash routing + gallery + logs +
-    // login overlay. setupHashRouting() is idempotent and survives a
+    // SPA surfaces: hash routing + gallery + logs + login overlay.
+    // setupHashRouting() is idempotent and survives a
     // reload because the URL is the source of truth; the gallery and
     // logs surfaces are set up unconditionally because they react to
     // the route hash too (e.g. "logs" auto-subscribes on first visit).
@@ -425,11 +416,10 @@
     setupHashRouting();
     setupLoginOverlay();
 
-    // Auto-connect on load when served from the same origin (§2.4 + §2.16).
-    // §W7E: the login overlay decides whether to gate the auto-connect.
-    // shouldAutoConnect is now a hint, not a command — the overlay
-    // hides itself and dispatches the connect once credentials are
-    // present (token, cookie session, or no-auth host).
+    // Auto-connect on load when served from the same origin. The login
+    // overlay decides whether to gate it: shouldAutoConnect is a hint, not a
+    // command — the overlay hides itself and dispatches the connect once
+    // credentials are present (token, cookie session, or no-auth host).
     if (shouldAutoConnect) {
       bootstrapAuthFlow();
     }
@@ -440,7 +430,7 @@
   // =========================================================================
 
   /**
-   * Run the initial REST handshake with bounded exponential backoff (§2.16).
+   * Run the initial REST handshake with bounded exponential backoff.
    * Three attempts at 250 ms, 1 s, 4 s. WebSocket has its own reconnect logic
    * and is not retried here.
    */
@@ -467,7 +457,7 @@
     // Persist connection preferences; the bearer goes to sessionStorage
     // only — long-form persistence is the HttpOnly cookie path below.
     // Production mode (no debug flag) refuses to remember anything that
-    // would override the same-origin URL (§2.4).
+    // would override the same-origin URL.
     if (state.debugMode) {
       localStorage.setItem('nightshade_url', url);
     } else {
@@ -479,8 +469,8 @@
     api.configure(url, token, deviceId);
     api.setConnectionState(false);
 
-    // §2.5 long-form: if a session cookie is still alive from a previous
-    // visit, asking the server for the CSRF token is what tells JS "you
+    // If a session cookie is still alive from a previous visit, asking the
+    // server for the CSRF token is what tells JS "you
     // are already authenticated, no bearer needed." We do this BEFORE the
     // /api/status round-trip below so the same fetch can ride the cookie.
     // Only meaningful when no bearer was pasted (a fresh paste of a
@@ -503,8 +493,8 @@
     api.removeAllListeners();
     setConnectionStatus('connecting');
 
-    // §2.16 — 3-attempt exponential backoff per audit. Pre-attempt sleeps:
-    // 250 ms, 1 s, 4 s. The total delay budget is ~5 s, which matches the
+    // 3-attempt exponential backoff. Pre-attempt sleeps: 250 ms, 1 s, 4 s.
+    // The total delay budget is ~5 s, which matches the
     // user's mental model of "give it a moment" without making a healthy
     // server feel slow.
     const delays = [250, 1000, 4000];
@@ -551,8 +541,8 @@
         // compact "Auth" chip so panel content gets the viewport back.
         setAuthBarVisible(false);
 
-        // §2.5 long-form: if the user wants to be remembered AND we have a
-        // bearer in hand AND we are not already on the cookie path, exchange
+        // If the user wants to be remembered AND we have a bearer in hand
+        // AND we are not already on the cookie path, exchange
         // the bearer for an HttpOnly cookie so the next page load doesn't
         // need the bearer at all. Why after /api/status: we only commit to
         // a cookie once we've verified the bearer actually works against the
@@ -566,9 +556,9 @@
             sessionStorage.removeItem('nightshade_token');
             addLogEntry('system', 'Upgraded session to HttpOnly cookie (remember-me).');
           } catch (e) {
-            // Surface the failure: silent fallback to the bearer path
-            // would let the user think they were "remembered" when they
-            // weren't — and the house rules prohibit silent fallbacks.
+            // Surface the failure: falling back to the bearer path silently
+            // would let the user think they were "remembered" when the next
+            // page load will ask for the token again.
             addLogEntry('error', 'Cookie upgrade failed: ' + (e && e.message ? e.message : String(e)));
             showToast('Remember-me upgrade failed: ' + (e && e.message ? e.message : 'unknown'), 'error');
           }
@@ -613,7 +603,7 @@
   }
 
   // =========================================================================
-  // Pairing (§2.1)
+  // Pairing
   // =========================================================================
 
   function openPairModal() {
@@ -699,7 +689,7 @@
       showToast('Pairing complete', 'success');
       await handleConnect();
     } catch (e) {
-      // Server error codes per §2.1 brief — surface them as actionable text.
+      // Map the server's error codes to actionable text.
       let msg = e.message || 'Pairing failed';
       if (msg.includes('invalid_pairing_code')) {
         msg = 'Pairing code is not recognised. Check the code on the desktop console.';
@@ -727,9 +717,9 @@
   }
 
   function readStoredToken() {
-    // sessionStorage only (§2.5 long-form). The "remember" path no longer
-    // stashes the bearer in JS-readable storage; it lives in an HttpOnly
-    // cookie on the server side and is never legible to JS again.
+    // sessionStorage only. The "remember" path never stashes the bearer in
+    // JS-readable storage; it lives in an HttpOnly cookie on the server side
+    // and is never legible to JS.
     return sessionStorage.getItem('nightshade_token') || '';
   }
 
@@ -790,14 +780,14 @@
     }
   }
 
-  // This page's CSP is `connect-src 'self' ws: wss:` — deliberately, because a
-  // wildcard let a page served from the dashboard origin relay credentials to
-  // any host on the network. The consequence is that the dashboard can only
-  // ever reach the origin that served it, so a Server URL pointing anywhere
-  // else is unreachable by construction. Detect that here: otherwise the fetch
-  // dies inside the 3-attempt backoff and the operator gets ~6s of silence
-  // followed by a 4s "Connection failed: Failed to fetch" toast that names
-  // neither the cause nor the fix.
+  // This page's CSP is `connect-src 'self' ws: wss:` — deliberately narrow: a
+  // wildcard would let a page served from the dashboard origin relay
+  // credentials to any host on the network. The consequence is that the
+  // dashboard can only ever reach the origin that served it, so a Server URL
+  // pointing anywhere else is unreachable by construction. Detect that here:
+  // otherwise the fetch dies inside the 3-attempt backoff and the operator
+  // gets ~6s of silence followed by a 4s "Connection failed: Failed to fetch"
+  // toast that names neither the cause nor the remedy.
   function isSameOriginServerUrl(url) {
     try {
       return new URL(url, window.location.href).origin === window.location.origin;
@@ -829,7 +819,7 @@
   }
 
   /**
-   * §2.12 — per-panel enable based on the connected-devices payload. Buttons
+   * Per-panel enable based on the connected-devices payload. Buttons
    * inside a panel are only clickable when (a) the dashboard is connected to
    * the server *and* (b) a device of the panel's type is connected.
    *
@@ -848,8 +838,8 @@
 
     // Sequencer/guiding/devices panels: enable iff connected. They don't
     // require a specific device of their own.
-    // §2.17 ops — same treatment for the ops panels that don't bind to a
-    // specific device type (everything except the dome panel).
+    // Same treatment for the ops panels that don't bind to a specific device
+    // type (everything except the dome panel).
     const connectOnlyPanels = [
       'panel-sequencer', 'panel-guiding',
       'ops-seq-load-panel', 'ops-target-panel', 'ops-weather-panel',
@@ -875,7 +865,7 @@
       : 'Connect to the server first');
     const buttons = panelEl.querySelectorAll('button');
     for (const btn of buttons) {
-      // §2.7 — d-pad emergency Stop is always usable when connected even if
+      // The d-pad emergency Stop stays usable whenever connected, even if
       // no mount is currently reported. Better a no-op than a runaway slew
       // that can't be cancelled.
       if (btn.id === 'btn-mount-stop') {
@@ -902,14 +892,14 @@
       case 'mount': return 'Mount';
       case 'focuser': return 'Focuser';
       case 'filterWheel': return 'Filter wheel';
-      // §2.17 ops — keep tooltip wording in sync with the panel title.
+      // Keep tooltip wording in sync with the panel title.
       case 'dome': return 'Dome';
       default: return t;
     }
   }
 
   // =========================================================================
-  // §Phase F dashboard-polish — Theme toggle (light/dark, localStorage)
+  // Theme toggle (light/dark, localStorage)
   // =========================================================================
 
   // Persist key + the two header <meta theme-color> values so the browser
@@ -975,7 +965,7 @@
   }
 
   // =========================================================================
-  // §Phase F dashboard-polish — Persisted panel prefs (collapse state)
+  // Persisted panel prefs (collapse state)
   // =========================================================================
 
   // Persist which panels the operator collapsed so an overnight layout survives
@@ -1045,9 +1035,9 @@
     api.on('ws:connected', () => {
       state.lastWsMessageAt = Date.now();
       addLogEntry('system', 'WebSocket connected');
-      // §2.17 ops — the sequence list is fetched once per connect rather
-      // than every status poll; it changes infrequently and we don't want
-      // to hammer the DB on every WS heartbeat.
+      // The sequence list is fetched once per connect rather than on every
+      // status poll: it changes infrequently, and refetching it on every WS
+      // heartbeat would hammer the DB for nothing.
       fetchOpsSequences();
     });
 
@@ -1067,7 +1057,7 @@
 
   // =========================================================================
   // Polling — WebSocket-driven by default, REST fallback only when stale.
-  // §2.10: drop the unconditional 3 s poll loop.
+  // There is deliberately no unconditional poll loop.
   // =========================================================================
 
   function startPolling() {
@@ -1184,8 +1174,8 @@
       fetchFocuserStatusIfConnected(),
       fetchFilterWheelStatusIfConnected(),
       fetchRotatorStatusIfConnected(),
-      // §2.17 ops panels — each fetch swallows its own errors via addLogEntry
-      // so a failed ops panel doesn't drag the whole dashboard offline.
+      // Each ops fetch swallows its own errors via addLogEntry so a failed
+      // ops panel doesn't drag the whole dashboard offline.
       fetchOpsWeatherAndSafety(),
       fetchOpsDomeStatusIfConnected(),
       fetchOpsCheckpoints(),
@@ -1217,8 +1207,8 @@
       state.rotatorDeviceId = null;
       state.ops.domeDeviceId = null;
 
-      // §2.4 hint: connected-devices may carry discoveryErrors. Surface them
-      // once per call in the log to avoid silent driver failures.
+      // connected-devices may carry discoveryErrors. Surface them once per
+      // call in the log so a driver failure is never silent.
       if (result.discoveryErrors && typeof result.discoveryErrors === 'object') {
         for (const [dt, err] of Object.entries(result.discoveryErrors)) {
           addLogEntry('error', 'Discovery error (' + dt + '): ' + err);
@@ -1236,7 +1226,7 @@
           case 'focuser': state.focuserDeviceId = dev.id; break;
           case 'filterWheel': state.filterWheelDeviceId = dev.id; break;
           case 'rotator': state.rotatorDeviceId = dev.id; break;
-          // §2.17 ops — dome is owned by W5-WEB-OPS-PANELS.
+          // The dome device id lives in the ops namespace.
           case 'dome': state.ops.domeDeviceId = dev.id; break;
         }
       }
@@ -1252,9 +1242,9 @@
       maybeLoadCameraReadoutModes();
       maybeLoadFilterWheelPositions();
     } catch (e) {
-      // §2.10 — surface fetch errors via the panel stale indicator instead of
-      // swallowing them silently. Stale check will pick this up by virtue of
-      // panelLastUpdate.devices not being refreshed.
+      // Surface fetch errors via the panel stale indicator instead of
+      // swallowing them: the stale check picks this up because
+      // panelLastUpdate.devices is not refreshed.
       addLogEntry('error', 'Devices fetch failed: ' + e.message);
     }
   }
@@ -1393,8 +1383,8 @@
 
     addLogEntry(category, message);
 
-    // §2.10 — drive panel state from WS events first; only fall back to
-    // REST when an event is too coarse to update the panel.
+    // Drive panel state from WS events first; only fall back to REST when an
+    // event is too coarse to update the panel.
     if (category === 'camera' || category === 'imaging') {
       const eventType = data.eventType || data.event || '';
       // For temperature/cooling updates we still need a REST round-trip
@@ -1403,8 +1393,8 @@
           || eventType === 'ExposureStarted' || eventType === 'ExposureStartedWithFrame') {
         fetchCameraStatusIfConnected();
       }
-      // §2.8 — image fetch is *only* driven by completion events. The legacy
-      // setTimeout((exposureTime+2)*1000) fallback has been removed.
+      // Image fetch is *only* driven by completion events; a duration-based
+      // timer would fire against exposures that never completed.
       if (isExposureCompleteEvent(eventType)) {
         cancelPendingImageFetch();
         fetchLastImage();
@@ -1437,9 +1427,8 @@
       fetchRotatorStatusIfConnected();
     } else if (category === 'sequencer') {
       fetchSequencerStatus();
-      // §2.17 ops — checkpoint state and analytics surface change in lock
-      // step with sequencer events. Cheap GETs so refreshing on every event
-      // is fine.
+      // Checkpoint state and analytics change in lock step with sequencer
+      // events. Both are cheap GETs, so refreshing on every event is fine.
       fetchOpsCheckpoints();
       fetchOpsAnalyticsSummary();
     } else if (category === 'dome') {
@@ -1451,10 +1440,9 @@
       fetchOpsProfiles();
     } else if (category === 'guiding' || category === 'phd2') {
       const eventType = data.eventType || data.event || '';
-      // §2.14 — canonical field names for guide-step coordinates are raPx
-      // / decPx. The server emitter now publishes these alongside legacy
-      // names; we accept either so we work across server versions during
-      // the deployment transition.
+      // The canonical field names for guide-step coordinates are raPx /
+      // decPx. The server emitter publishes these alongside legacy names;
+      // accept either so the dashboard works across server versions.
       const payload = data.data || data;
       const guide = extractGuideStep(payload);
       if (guide) {
@@ -1484,8 +1472,8 @@
         fetchDevices();
       }
     } else if (category === 'polarAlignment' || category === 'polar_alignment') {
-      // §2.17 W5-WIZARDS — polar alignment progress feed. Three event types
-      // come through the polarAlignment category:
+      // Polar alignment progress feed. Three event types come through the
+      // polarAlignment category:
       //   PolarAlignment          — drift/error update (azArcmin, altArcmin, totalArcmin)
       //   PolarAlignmentStatus    — phase + statusMessage
       //   PolarAlignmentImage     — solver image preview (ignored here; the
@@ -1503,7 +1491,7 @@
 
   function extractGuideStep(payload) {
     if (!payload || typeof payload !== 'object') return null;
-    // Canonical (§2.14): raPx, decPx.
+    // Canonical: raPx, decPx.
     if (payload.raPx !== undefined && payload.decPx !== undefined) {
       return { raPx: Number(payload.raPx), decPx: Number(payload.decPx) };
     }
@@ -1516,8 +1504,7 @@
         decPx: Number(payload.DECDistanceRaw),
       };
     }
-    // Legacy camelCase that the dashboard *thought* it was receiving (§2.14
-    // root cause). Keep accepting for backward compatibility.
+    // Legacy camelCase names. Keep accepting for backward compatibility.
     if (payload.raDistance !== undefined && payload.decDistance !== undefined) {
       return {
         raPx: Number(payload.raDistance),
@@ -1582,9 +1569,8 @@
           ' @ ' + subframe.x + ',' + subframe.y + ')' : ''));
       showToast('Exposure started');
 
-      // §2.8 — replace the unconditional setTimeout((exposureTime+2)*1000)
-      // image fetch with an event-driven one. We arm a single fallback timer
-      // for (exposureTime + IMAGE_FALLBACK_GRACE_MS) so a missing
+      // The image fetch is event-driven. Arm a single fallback timer for
+      // (exposureTime + IMAGE_FALLBACK_GRACE_MS) so a missing
       // exposure_complete event doesn't strand the operator with no preview.
       scheduleImageFetchFallback(exposureTime);
     } catch (e) {
@@ -1778,7 +1764,7 @@
   }
 
   // =========================================================================
-  // Mount Controls — press-and-hold d-pad (§2.7)
+  // Mount Controls — press-and-hold d-pad
   // =========================================================================
 
   function setupDpad() {
@@ -1793,16 +1779,16 @@
       btn.addEventListener('pointercancel', onDpadPointerStop);
       // Why prevent click: pointerdown already starts the slew. Letting the
       // browser fire a synthetic click on touch devices would re-issue a
-      // mountMoveAxis(...rate) with no matching stop and re-create the §2.7
-      // runaway-slew bug.
+      // mountMoveAxis(...rate) with no matching stop, leaving the mount
+      // slewing with nothing to cancel it.
       btn.addEventListener('click', (e) => e.preventDefault());
       // Stop touch from scrolling the page when the user holds a button.
       btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
     }
 
-    // §2.15 — keyboard arrow keys move the axis while the d-pad container
-    // has focus. We require explicit focus (tabindex on the container) to
-    // avoid hijacking page-wide scrolling.
+    // Keyboard arrow keys move the axis while the d-pad container has focus.
+    // Explicit focus (tabindex on the container) is required so arrow keys
+    // don't hijack page-wide scrolling.
     dpad.addEventListener('keydown', onDpadKeyDown);
     dpad.addEventListener('keyup', onDpadKeyUp);
     dpad.addEventListener('focus', () => dpad.classList.add('dpad-keyboard-active'));
@@ -2067,7 +2053,7 @@
   }
 
   // =========================================================================
-  // Camera Extended Controls (§2.17)
+  // Camera Extended Controls
   // =========================================================================
 
   // Mirror the live camera status into the gain/offset inputs so the user
@@ -2263,7 +2249,7 @@
   }
 
   // =========================================================================
-  // Filter Wheel Controls (§2.17)
+  // Filter Wheel Controls
   // =========================================================================
 
   async function handleFilterWheelRotateTo(position) {
@@ -2341,7 +2327,7 @@
       row.disabled = !!moving;
       // Why click and not pointerdown: a filter wheel rotation is a discrete
       // one-shot command, not a press-and-hold motion. The press-and-hold
-      // pattern from §2.7 applies only to streaming motion APIs.
+      // pattern applies only to streaming motion APIs.
       row.addEventListener('click', () => handleFilterWheelRotateTo(slot.position));
 
       const idxSpan = document.createElement('span');
@@ -2367,7 +2353,7 @@
   }
 
   // =========================================================================
-  // Focuser Controls (§2.17)
+  // Focuser Controls
   // =========================================================================
 
   async function handleFocuserMoveTo() {
@@ -2496,7 +2482,7 @@
   }
 
   // =========================================================================
-  // Rotator Controls (§2.17)
+  // Rotator Controls
   // =========================================================================
 
   async function handleRotatorMoveTo() {
@@ -2539,7 +2525,8 @@
         'Rotator synced to image PA ' + state.lastImagePositionAngle.toFixed(2) + '°');
       showToast('Rotator synced');
     } catch (e) {
-      // Surface the failure honestly per "errors are a feature".
+      // Surface the failure: a silent no-op leaves the operator believing the
+      // rotator is synced to the image PA when it is not.
       showToast('Rotator sync failed: ' + e.message, 'error');
     }
   }
@@ -2590,7 +2577,7 @@
   }
 
   // =========================================================================
-  // Mount Goto / Object Slew (§2.17)
+  // Mount Goto / Object Slew
   // =========================================================================
 
   // Parse HH:MM:SS or HH.hhh to decimal hours. Accepts negative values for
@@ -2948,7 +2935,7 @@
   }
 
   /**
-   * §2.11 — validate a base64 string, enforce 2 MiB cap, and decode to a Blob
+   * Validate a base64 string, enforce the 2 MiB cap, and decode to a Blob
    * so createImageBitmap can run off the main thread. Returns null when the
    * data is missing, malformed, or too large.
    */
@@ -3080,7 +3067,7 @@
       slewEl.classList.toggle('hidden-inline', !ms.isSlewing);
     }
 
-    // Pier side — §2.9 centralised formatter.
+    // Pier side — centralised formatter.
     const pierEl = document.getElementById('mount-pier');
     if (pierEl && ms.sideOfPier !== undefined) {
       pierEl.textContent = formatPierSide(ms.sideOfPier);
@@ -3094,7 +3081,7 @@
   }
 
   /**
-   * §2.9 — map ASCOM PierSide integer to human label. Backend returns:
+   * Map the ASCOM PierSide integer to a human label. Backend returns:
    *   1  → pierEast    (counterweight points west; tube points east)
    *   0  → pierWest    (counterweight points east; tube points west)
    *  -1  → pierUnknown
@@ -3209,9 +3196,9 @@
       progressBarContainer.setAttribute('aria-valuenow', String(Math.round(progress)));
     }
     if (progressText) progressText.textContent = progress.toFixed(0) + '%';
-    // §2.17 ops — keep the ops sequencer load/run panel in lock step with
-    // the legacy sequencer panel. They read the same state but render
-    // different field sets.
+    // Keep the ops sequencer load/run panel in lock step with the main
+    // sequencer panel. They read the same state but render different
+    // field sets.
     renderOpsSequencerLoadPanel();
   }
 
@@ -3445,7 +3432,7 @@
   }
 
   // =========================================================================
-  // Phone Layout (§2.13)
+  // Phone Layout
   // =========================================================================
 
   function applyResponsiveLayout() {
@@ -3467,7 +3454,7 @@
   }
 
   // All panels that participate in the phone-tab visibility toggle: the
-  // primary tab panels plus their grouped "extra" panels (§2.17).
+  // primary tab panels plus their grouped "extra" panels.
   function allPhonePanelIds() {
     const ids = [...PHONE_PANELS];
     for (const extras of Object.values(PHONE_TAB_EXTRA_PANELS)) {
@@ -3527,9 +3514,9 @@
     return s.length < 2 ? '0' + s : s;
   }
 
-  // §2.18 — escapeHtml has been removed. Every rendering site uses textContent
-  // / appendChild instead, which DOM-escapes automatically. Keeping a dead
-  // helper around invites future contributors to reach for innerHTML.
+  // There is deliberately no escapeHtml helper. Every rendering site uses
+  // textContent / appendChild, which DOM-escapes automatically; a helper here
+  // would invite reaching for innerHTML.
 
   function clearElement(el) {
     while (el.firstChild) {
@@ -3594,16 +3581,14 @@
   }
 
   // ===========================================================================
-  // §2.17 ops panels (W5-WEB-OPS-PANELS)
+  // Ops panels
   // ===========================================================================
   //
   // All handlers/renderers below own the seven ops panels: sequence load,
   // target catalog, weather + safety, dome, checkpoint resume, profile +
   // analytics. The setup() entry point wires DOM listeners; the fetchOps*
   // functions are called from fetchAllStatus and from the WS event handler.
-  //
-  // Coordination with W5-WEB-WIZARDS-PLATESOLVE-PA: all ids/classes here use
-  // the `ops-` prefix; that branch will use `wiz-` so the merge is mechanical.
+  // Every id/class in this section carries the `ops-` prefix.
 
   function setupOpsPanels() {
     // --- Sequence load + start --------------------------------------------
@@ -4594,7 +4579,7 @@
   }
 
   // ===========================================================================
-  // §2.17 W5-WIZARDS — Shared wizard modal infrastructure
+  // Shared wizard modal infrastructure
   // ===========================================================================
 
   function setupWizardModals() {
@@ -4606,7 +4591,7 @@
     }
     // Escape closes any open wizard. Why per-modal listener: each modal
     // already has its own close button; this gives keyboard parity with the
-    // existing pairing modal (§2.15 a11y).
+    // pairing modal.
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       for (const id of Object.keys(state.wizardStep)) {
@@ -4737,7 +4722,7 @@
   }
 
   // ===========================================================================
-  // §2.17 W5-WIZARDS — Plate solve
+  // Plate solve
   // ===========================================================================
 
   async function handlePlateSolve(syncMount) {
@@ -4844,7 +4829,7 @@
   }
 
   // ===========================================================================
-  // §2.17 W5-WIZARDS — Polar alignment
+  // Polar alignment
   // ===========================================================================
 
   function updatePolarAlignmentFieldsForMode() {
@@ -4969,7 +4954,7 @@
   }
 
   // ===========================================================================
-  // §2.17 W5-WIZARDS — Flat wizard
+  // Flat wizard
   // ===========================================================================
 
   function openFlatWizard() {
@@ -5132,7 +5117,7 @@
   }
 
   // ===========================================================================
-  // §2.17 W5-WIZARDS — Mosaic planner
+  // Mosaic planner
   // ===========================================================================
 
   async function openMosaicWizard() {
@@ -5351,7 +5336,7 @@
   }
 
   // ===========================================================================
-  // §2.17 W5-WIZARDS — Framing assistant
+  // Framing assistant
   // ===========================================================================
 
   async function openFramingWizard() {
@@ -5682,7 +5667,7 @@
   }
 
   // ===========================================================================
-  // §2.17 W5-WIZARDS — Misc helpers
+  // Misc helpers
   // ===========================================================================
 
   function formatDurationSecs(secs) {
@@ -5833,7 +5818,7 @@
   }
 
   // ===========================================================================
-  // §W7E — SPA additions
+  // SPA surfaces
   //
   // Hash routing: #/run, #/devices, #/gallery, #/logs map to "active
   // panel" focus on a single-page grid. We do NOT hide the off-route
@@ -5939,7 +5924,7 @@
   }
 
   // =========================================================================
-  // §W7E — Image gallery
+  // Image gallery
   // =========================================================================
 
   const gallery = {
@@ -6224,7 +6209,7 @@
   }
 
   // =========================================================================
-  // §W7E — Server log tail (SSE)
+  // Server log tail (SSE)
   // =========================================================================
 
   const logTail = {
@@ -6381,7 +6366,7 @@
   }
 
   // =========================================================================
-  // §W7E — Login overlay + bootstrap
+  // Login overlay + bootstrap
   // =========================================================================
 
   function setupLoginOverlay() {

@@ -21,8 +21,7 @@ import 'weather_state_provider.dart';
 /// the profile sidebar surfaces as connection dots and a `connected/total`
 /// count. The remaining five (dome → cover calibrator) are auxiliary devices
 /// that only participate in the equipment-screen mismatch banner. [isCore]
-/// distinguishes the two groups so each consumer reads exactly the rollup it
-/// historically computed.
+/// distinguishes the two groups so each consumer reads the rollup it needs.
 enum ProfileDeviceSlot {
   camera('Camera', isCore: true),
   mount('Mount', isCore: true),
@@ -39,8 +38,7 @@ enum ProfileDeviceSlot {
   const ProfileDeviceSlot(this.displayName, {required this.isCore});
 
   /// The human-readable device label used by the sidebar tooltip and the
-  /// mismatch banner's device list. Matches the strings the old inline
-  /// derivations hard-coded.
+  /// mismatch banner's device list.
   final String displayName;
 
   /// Whether this slot is part of the imaging-chain "core" set surfaced by the
@@ -51,10 +49,9 @@ enum ProfileDeviceSlot {
 
 /// The computed status of a single device slot for one profile.
 ///
-/// This is the per-cell of the "is device X connected for profile Y" matrix
-/// that used to be re-derived in four places. Every id comparison routes
-/// through `device_id.dart` (canonical PHD2 collapse + the legacy fuzzy
-/// fallback); nothing here re-implements matching.
+/// This is the per-cell of the "is device X connected for profile Y" matrix.
+/// Every id comparison routes through `device_id.dart` (canonical PHD2
+/// collapse + the legacy fuzzy fallback); nothing here re-implements matching.
 class ProfileDeviceConnection {
   const ProfileDeviceConnection({
     required this.slot,
@@ -83,8 +80,8 @@ class ProfileDeviceConnection {
   /// Whether the connected device is the one the profile assigned, using the
   /// canonical fuzzy + PHD2-collapse matcher ([deviceIdsMatch]).
   ///
-  /// This mirrors the historical `profile_sidebar` matching: a connected
-  /// device that drifted in id format still counts as the assigned device.
+  /// A connected device whose id drifted in format still counts as the
+  /// assigned device.
   bool get matchesProfile {
     final pid = profileId;
     final cid = connectedId;
@@ -153,7 +150,7 @@ class ProfileConnectionStatus {
   ProfileDeviceConnection operator [](ProfileDeviceSlot slot) =>
       connections.firstWhere((c) => c.slot == slot);
 
-  // --- Sidebar rollups (core slots only) ---------------------------------
+  // Sidebar rollups (core slots only)
 
   /// Number of assigned core slots (the denominator of the sidebar's
   /// `connected/total` badge).
@@ -183,9 +180,8 @@ class ProfileConnectionStatus {
   /// Whether any assigned core slot is not currently a matched, `connected`
   /// device. Drives the sidebar footer's "Connect All" affordance.
   ///
-  /// Mirrors the old `_getProfileDeviceStatus`: an assigned slot that is
-  /// connecting, errored, mismatched, or absent all count as "disconnected"
-  /// for the purpose of offering Connect All.
+  /// An assigned slot that is connecting, errored, mismatched, or absent all
+  /// count as "disconnected" for the purpose of offering Connect All.
   bool get hasDisconnectedCore => connections.any(
     (c) =>
         c.slot.isCore &&
@@ -200,7 +196,7 @@ class ProfileConnectionStatus {
       if (c.slot.isCore && c.isAssigned) c.slot: c.profileState,
   };
 
-  // --- Banner rollups (all slots) ----------------------------------------
+  // Banner rollups (all slots)
 
   /// The display names of every slot flagged as a mismatch by the banner
   /// rule, in [ProfileDeviceSlot] declaration order.
@@ -322,17 +318,13 @@ final profileConnectionStatusProvider =
 ///
 /// These connections are session-only: nothing writes them to
 /// `equipment_profiles`, so the next launch reconnects only the profile devices
-/// and the rest are silently gone. Observed: nine devices connected from
-/// Discovery, header reading "9 connected", every card rendering identically to
-/// the profile devices — then a restart brought back four with no notice. The
-/// consequence is worst for the dome and safety monitor, where a user who set up
-/// at dusk reasonably assumes the rig is configured.
+/// and the rest are gone without notice — which the operator cannot see from a
+/// card that renders identically to a profile device.
 ///
-/// Empty when there is no active profile. With no profile NOTHING can have been
-/// saved, but "no equipment profile is set up yet" is already a BLOCKED readiness
-/// item — repeating it as a per-card warning on every device would be noise, not
-/// information. This provider answers the narrower, more useful question: which
-/// devices did the operator connect *outside* the profile they are running.
+/// Empty when there is no active profile: "no equipment profile is set up yet"
+/// is already a BLOCKED readiness item, and repeating it per device card would
+/// be noise. This answers the narrower question of which devices the operator
+/// connected *outside* the profile they are running.
 final sessionOnlyConnectedSlotsProvider = Provider<Set<ProfileDeviceSlot>>((
   ref,
 ) {
@@ -350,11 +342,9 @@ final sessionOnlyConnectedSlotsProvider = Provider<Set<ProfileDeviceSlot>>((
 /// The ACTIVE profile's assigned device slots, in canonical slot order.
 ///
 /// Distinct from [offlineProfileDeviceNamesProvider], which reports only the
-/// assigned slots that are DOWN. Readiness needs the assignment set itself in
-/// order to tell "every assigned device is connected" apart from "this profile
-/// assigns nothing at all" — the two are indistinguishable from an empty
-/// offline list, and conflating them produced a green all-connected readiness
-/// row on a profile with zero devices.
+/// assigned slots that are DOWN: an empty offline list cannot tell "every
+/// assigned device is connected" apart from "this profile assigns no device",
+/// and readiness must not read the second as a green row.
 ///
 /// Empty when there is no active profile.
 final assignedProfileDeviceSlotsProvider = Provider<List<ProfileDeviceSlot>>((
@@ -372,12 +362,10 @@ final assignedProfileDeviceSlotsProvider = Provider<List<ProfileDeviceSlot>>((
 /// Display names of the ACTIVE profile's assigned device slots that are not
 /// currently connected, in canonical slot order.
 ///
-/// This is the "what did the profile promise that the rig has not got" signal.
-/// It exists because both readiness and equipment health were blind to it: a
-/// profile device that never connected has no heartbeat and no session history,
-/// so the degradation score deducted nothing and the rig scored
-/// `100 - Excellent` while its guider had silently failed to come up. A device
-/// in `connecting`, `error`, or `disconnected` — or a slot occupied by a
+/// This is the "what did the profile promise that the rig has not got" signal:
+/// a profile device that never connected has no heartbeat and no session
+/// history, so nothing else in readiness or equipment health deducts for it. A
+/// device in `connecting`, `error`, or `disconnected` — or a slot occupied by a
 /// DIFFERENT device than the profile assigned — all count as offline here,
 /// matching the fail-closed rule the rest of readiness uses.
 ///

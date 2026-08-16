@@ -116,7 +116,7 @@ void main() {
         .length;
     expect(all, sessions.length);
 
-    // The old behaviour — matching the session's own name — is gone.
+    // The filter matches TARGET names, never the session's own name.
     expect(
       sessions.any(
         (s) => sessionMatchesTargetFilter(s, 'Audit Session M42', byId),

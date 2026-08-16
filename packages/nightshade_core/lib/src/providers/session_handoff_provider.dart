@@ -49,9 +49,9 @@ final sessionCarryOverProvider =
 /// Resolves the authoritative [AppSettingsState.sessionHandoffAutoPrompt]
 /// toggle for pre-flight.
 ///
-/// Loading or settings-store failure must remain loading/error. Defaulting to
-/// `true` here used to open a carry-over prompt even when the operator had
-/// explicitly disabled it, simply because they pressed Start during startup.
+/// Loading or a settings-store failure must remain loading/error: a `true`
+/// default would open the carry-over prompt on a Start pressed during startup
+/// even for an operator who disabled it.
 final sessionHandoffAutoPromptProvider = FutureProvider<bool>((ref) async {
   final settings = await ref.watch(appSettingsProvider.future);
   return settings.sessionHandoffAutoPrompt;

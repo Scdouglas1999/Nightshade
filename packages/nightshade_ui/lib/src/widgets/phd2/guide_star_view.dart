@@ -277,21 +277,16 @@ class _GuideStarViewState extends State<GuideStarView> {
     return _cachedImage!;
   }
 
+  /// The SNR badge's text. A guider only reports an SNR once it has MEASURED
+  /// one, so a non-positive value is an absence of data, not a reading of
+  /// zero — it renders as an em dash. On a badge whose colours run
+  /// red-amber-green a fabricated `0.0` is the worst reading in the sky, and
+  /// the guiding screen's own readout rule agrees.
+  String get _snrLabel => widget.snr > 0 ? widget.snr.toStringAsFixed(1) : '—';
+
   /// Traffic-light colour for the SNR badge. A non-positive SNR means no star
   /// has been measured yet — that is an absence of data, not a bad star, so it
   /// gets the neutral muted colour instead of error red.
-  /// The SNR badge's text. A guider only reports an SNR once it has MEASURED
-  /// one, so a non-positive value is an absence of data, not a reading.
-  ///
-  /// WF-SN-N3: stop the loop, Deselect, Auto Select — the panel drew a bright,
-  /// just-selected star (chosen out of 107 detections) with crosshairs on it,
-  /// and badged it `SNR: 0.0`. The same panel read `SNR: 445.9` while looping
-  /// and `SNR: 70.6` within 12 s of restarting it. Either the SNR of the frame
-  /// the star was selected from or a blank is truthful; 0.0 is a fabricated
-  /// measurement, and on a badge whose colours run red-amber-green it is the
-  /// worst possible one. Matches the guiding screen's own readout rule.
-  String get _snrLabel => widget.snr > 0 ? widget.snr.toStringAsFixed(1) : '—';
-
   Color _getSnrColor(NightshadeColors colors) {
     if (widget.snr <= 0) return colors.textMuted;
     if (widget.snr >= 10) return colors.success;

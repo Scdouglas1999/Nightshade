@@ -10,12 +10,11 @@ import 'database_provider.dart';
 /// Push the SQLite-active profile into the native (Rust) executor store so the
 /// executor's `load_and_set_profile` side effects run.
 ///
-/// SQLite is the single source of truth for profile READS on both master types
-/// (desktop GUI + Pi-headless), but the Rust executor still resolves the active
-/// profile from its OWN native store. Whenever the active profile changes from
-/// the GUI (NOT via the REST `handleLoadProfile`, which already write-throughs),
-/// the new active row must be pushed to the native store or headless sequencing
-/// would keep stale (or empty) active-profile context.
+/// SQLite is the source of truth for profile READS, but the Rust executor
+/// resolves the active profile from its OWN native store, so an activation
+/// made from the GUI must be pushed across or sequencing keeps stale (or
+/// empty) active-profile context. The REST `handleLoadProfile` path already
+/// write-throughs.
 ///
 /// Host/desktop-only: in remote (slave) mode the backend is a `NetworkBackend`,
 /// which has no native store — callers must gate on `isRemoteModeProvider` (or,

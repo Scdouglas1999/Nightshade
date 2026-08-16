@@ -2,9 +2,8 @@ part of '../sequence_toolbar.dart';
 
 /// A single toolbar action. `isDivider == true` represents a visual
 /// separator between groups (inline) or the start of a new section in
-/// the overflow menu. Keeping both renderings driven by the same data
-/// is what audit §4.8 asks for so a hidden button never silently
-/// disappears.
+/// the overflow menu. Both renderings are driven by the same data so a hidden
+/// button never silently disappears.
 class _ToolbarAction {
   final IconData? icon;
   final String? label;
@@ -26,7 +25,7 @@ class _ToolbarAction {
 
 /// Single overflow popup that subsumes every secondary action below the
 /// compact breakpoint. PopupMenuItems are disabled-but-visible when an
-/// action's `onPressed` is null, matching inline behaviour (audit §4.8).
+/// action's `onPressed` is null, matching inline behaviour.
 class _ToolbarOverflowMenu extends StatelessWidget {
   final NightshadeColors colors;
   final List<_ToolbarAction> actions;
@@ -166,9 +165,8 @@ class _SequenceTimeEstimate extends ConsumerWidget {
           // Icons and their gaps cannot shrink, so a `Flexible` text alone
           // does NOT stop this row overflowing: below ~66 px the icons alone
           // exceed the box. Measure each segment up front and drop the ones
-          // that do not fit, rather than painting a half-clipped icon with
-          // no number next to it (which is what a crowded 1440-wide toolbar
-          // used to show).
+          // that do not fit, rather than painting a half-clipped icon with no
+          // number next to it.
           const padding = 12.0 * 2 + 2; // horizontal padding + 1 px borders
           final framesSegment =
               14 + 6 + _measure(context, framesText, valueStyle);
@@ -191,8 +189,8 @@ class _SequenceTimeEstimate extends ConsumerWidget {
               available >=
                   padding + framesSegment + timeSegment + overheadSegment;
 
-          // Nothing meaningful fits: render nothing at all instead of a
-          // clipped icon that tells the user neither a count nor a duration.
+          // Nothing meaningful fits: render nothing rather than a clipped icon
+          // that tells the user neither a count nor a duration.
           if (!showFrames) return const SizedBox.shrink();
 
           return Container(

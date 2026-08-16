@@ -1,8 +1,6 @@
 part of '../projects_tab_content.dart';
 
-// =============================================================================
 // Create / edit project dialog.
-// =============================================================================
 
 class _ProjectFormDialog extends StatefulWidget {
   final Project? existing;
@@ -106,9 +104,7 @@ class _ProjectFormDialogState extends State<_ProjectFormDialog> {
   }
 }
 
-// =============================================================================
 // Add-target dialog: searchable catalog picker.
-// =============================================================================
 
 class _AddTargetDialog extends ConsumerStatefulWidget {
   final Set<int> attachedTargetIds;

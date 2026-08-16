@@ -1,11 +1,10 @@
 // Flat wizard tuning controls: the frame count is TYPEABLE, and the two
 // sliders carry their captions on every tab.
 //
-// Frame Count used to be a read-only number between -/+ steppers, so the walk
-// from the default 30 down to 3 cost 27 taps and typing into the number did
-// nothing. And on Multi-Filter Batch / Sky Flats the histogram target and
-// tolerance sliders rendered as a bare "11%" over a bare "±10%" under one
-// "Global Settings" heading, with nothing saying which was which.
+// A read-only Frame Count between -/+ steppers costs 27 taps to walk from the
+// default 30 down to 3. And on Multi-Filter Batch / Sky Flats the histogram
+// target and tolerance sliders render as a bare "11%" over a bare "±10%" under
+// one "Global Settings" heading, with nothing saying which is which.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,8 +80,8 @@ void main() {
   testWidgets('a typed frame count commits when the field loses focus',
       (tester) async {
     // The operator who types "3" and then reaches straight for Start never
-    // presses Enter. If the edit only landed on submit, the run would silently
-    // use the old count — the same defect in a different costume.
+    // presses Enter. An edit that lands only on submit leaves the run using the
+    // previous count, silently.
     final container = (await _pump(tester)).container;
     container.read(flatWizardProvider.notifier).setFrameCount(30);
     await tester.pump();

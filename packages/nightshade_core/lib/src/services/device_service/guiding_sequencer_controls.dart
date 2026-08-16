@@ -1,9 +1,7 @@
 part of '../device_service.dart';
 
 extension _DeviceServiceGuidingSequencerControls on DeviceService {
-  // ===========================================================================
-  // Guiding Control
-  // ===========================================================================
+  // Guiding control
 
   /// Get the live connected guider device ID.
   ///
@@ -98,9 +96,7 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
     }
   }
 
-  // ===========================================================================
-  // Sequencer Control
-  // ===========================================================================
+  // Sequencer control
 
   Future<void> _startSequence() async {
     await _backend.sequencerStart();

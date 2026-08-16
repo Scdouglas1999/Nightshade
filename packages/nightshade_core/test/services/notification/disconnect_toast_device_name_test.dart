@@ -1,17 +1,15 @@
-// WD-EQ-2a — the disconnect toast printed the raw device id.
+// The disconnect toast never prints a raw device id.
 //
-// Wave F, verbatim from the live tree: "Equipment disconnected / Guider
-// native:builtin_guider:multi_star disconnected." `friendlyNameFromDeviceId`
-// has known that id since WD-EQ-2 (half b, the run-dashboard feed, was fixed);
-// the notification body template still interpolated `equipment.device_id`, the
-// RAW id, so the one surface an operator sees at 2 a.m. kept dumping wire
-// identifiers.
+// A body template that interpolates `equipment.device_id` renders "Equipment
+// disconnected / Guider native:builtin_guider:multi_star disconnected." —
+// dumping wire identifiers on the one surface an operator sees at 2 a.m., even
+// though `friendlyNameFromDeviceId` resolves that id.
 //
-// The refuter's counter-input is encoded literally: the four ids an operator
-// can produce with no hardware attached must not appear ANYWHERE in a rendered
-// disconnect body, and the assertion is a pattern over the whole body, not an
-// equality against one expected sentence — so a future template that reaches
-// for `${equipment.device_id}` again fails here even if it words the rest
+// The counter-input is encoded literally: the four ids an operator can produce
+// with no hardware attached must not appear ANYWHERE in a rendered disconnect
+// body, and the assertion is a pattern over the whole body rather than an
+// equality against one expected sentence — so a template that reaches for
+// `${equipment.device_id}` again fails here even if it words the rest
 // differently.
 
 import 'dart:io';
@@ -115,7 +113,7 @@ void main() {
     expect(
       body,
       isNot(matches(_rawIdShape)),
-      reason: 'WD-EQ-2a: the toast body must never carry a wire id',
+      reason: 'the toast body must never carry a wire id',
     );
   });
 
@@ -186,7 +184,7 @@ void main() {
       expect(
         arm,
         isNot(contains('equipment.device_id')),
-        reason: 'WD-EQ-2a: the operator-facing template must use the name',
+        reason: 'the operator-facing template must use the name',
       );
       expect(arm, contains('equipment.device_name'));
     },

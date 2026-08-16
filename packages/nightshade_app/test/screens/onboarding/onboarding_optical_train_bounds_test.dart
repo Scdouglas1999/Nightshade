@@ -1,12 +1,11 @@
-// Regression: the optical-train step must not present an implausible optical
-// system as a computed fact, and must point at the field that is wrong.
+// The optical-train step must not present an implausible optical system as a
+// computed fact, and must point at the field that is wrong.
 //
-// The defect, observed live in the release build: typing focal length 999999999
-// and aperture 0.0001 left both fields un-flagged (the step only checked "> 0")
-// and the Computed values panel printed "f/9999999990000.00" in the same
-// confident mono readout it uses for real numbers. Focal length reaches the FITS
-// FOCALLEN card, plate-solve field-of-view estimation and the arcsec/px image
-// scale, so this is not cosmetic.
+// Checking only "> 0" leaves focal length 999999999 with aperture 0.0001
+// un-flagged, and the Computed values panel prints "f/9999999990000.00" in the
+// same confident mono readout it uses for real numbers. Focal length reaches the
+// FITS FOCALLEN card, plate-solve field-of-view estimation and the arcsec/px
+// image scale, so this is not cosmetic.
 //
 // The bounds themselves live in OpticalTrainLimits (nightshade_core) and are
 // unit-tested there. What is pinned here is that the STEP honours them: the

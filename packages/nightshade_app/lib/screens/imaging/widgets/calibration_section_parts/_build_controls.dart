@@ -1,5 +1,3 @@
-// Part of ../calibration_section.dart -- extracted for maintainability.
-//
 // Defect-map build button, apply toggle and clear button.
 part of '../calibration_section.dart';
 

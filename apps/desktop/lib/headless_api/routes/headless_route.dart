@@ -42,9 +42,9 @@ enum HttpMethod { get, post, put, delete, patch, head, options }
 /// A single declarative entry in the headless route table.
 ///
 /// The pair `(method, path)` MUST be unique across every registered
-/// list; [registerRoutes] does not de-duplicate so a collision is a
-/// shelf-router-detected ambiguity (the second registration silently
-/// shadows the first, which would be a behaviour regression).
+/// list; [registerRoutes] does not de-duplicate, so a collision is a
+/// shelf-router-detected ambiguity — the second registration silently
+/// shadows the first.
 class HeadlessRoute {
   /// HTTP verb the router binds [handler] to.
   final HttpMethod method;
@@ -116,23 +116,20 @@ const _httpMethodNames = <HttpMethod, String>{
 /// Return [routes] with a `405 Method Not Allowed` entry synthesized for every
 /// verb a LITERAL path does not implement.
 ///
-/// Live rig L32 (2026-08-09). A GET to a POST-only endpoint did not answer
-/// "wrong verb" — it answered a question nobody asked:
+/// Without the stub, a GET to a POST-only endpoint answers a question nobody
+/// asked. `GET /api/calibration/darks/find-match` finds no literal GET route,
+/// falls through to the parameterised `GET /api/calibration/darks/<id>`, and
+/// that handler tries to parse `find-match` as an integer:
 ///
 /// ```
 /// GET /api/calibration/darks/find-match -> 400 {"error":"Path segment is not a
 ///                                               valid integer","field":"id"}
-/// GET /api/calibration/darks/clear      -> 400  (identical)
 /// ```
 ///
-/// Neither path takes an `id`. Both are registered as POST, correctly ahead of
-/// the parameterised `GET /api/calibration/darks/<id>`; the GET simply finds no
-/// literal GET route, falls through to the `<id>` route, and that handler
-/// dutifully tries to parse `find-match` as an integer. The result names a
-/// field the caller never sent, about a value they never supplied, for a path
-/// that exists — an error that actively points away from its own cause. With
-/// eleven literal siblings on that one prefix, every one of them carried the
-/// same trap for anyone who guessed the verb.
+/// The error names a field the caller never sent, about a value they never
+/// supplied, for a path that exists — it points away from its own cause. Every
+/// literal sibling on a prefix that also carries an `<id>` route has the same
+/// trap.
 ///
 /// Doing this here rather than per-route is the point: the route table is the
 /// single source of truth for what exists, so a path added tomorrow gets the

@@ -37,15 +37,11 @@ const Map<String, String> resourcePrefixKeys = {
   '/api/coimaging/': 'coimaging',
   '/api/constellation/': 'constellation',
   // The live collaboration surface (shared-viewer join/leave, broadcast
-  // preview, in-session chat + annotations) is a collaborative resource too —
-  // it previously fell through to the `system` catch-all with `/api/mosaic/`
-  // and `/api/coimaging/` before those were mapped, so a fine-grained token
-  // needed `system` (admin-adjacent) to run a shared viewing session and any
-  // `system` grant silently gained it. Tag it with the collaborative
-  // `constellation` resource so a fine-grained token scopes to the
-  // collaborative surface, not system administration. (`/api/session-handoff`
-  // is deliberately NOT here: it transfers session ownership and stays
-  // admin-only via `adminOnlyPaths`, where the resource is irrelevant.)
+  // preview, in-session chat + annotations) is a collaborative resource too,
+  // so it carries `constellation` and a fine-grained token does not need
+  // `system` to run a shared viewing session. (`/api/session-handoff` is
+  // deliberately NOT here: it transfers session ownership and stays admin-only
+  // via `adminOnlyPaths`, where the resource is irrelevant.)
   '/api/collaboration/': 'constellation',
   '/api/catalog/': 'catalog',
   '/api/files/': 'filesystem',
@@ -152,7 +148,7 @@ const controlPathPrefixes = [
   // assemble are escalated to the high-risk tier in `endpointRateLimitFor`
   // via the parameterised matchers below.
   '/api/mosaic/',
-  // live co-imaging (WS3) + the underlying Constellation swarm mutating
+  // live co-imaging + the underlying Constellation swarm mutating
   // endpoints (create / join / leave / close / contribute / sub-complete /
   // baton). Rate-limited like the rest of the control surface so an unattended
   // rig's contribute/baton loop is bounded. The data-egress sub-complete +
@@ -177,15 +173,11 @@ const rateLimitedReadPaths = {'/api/files/browse'};
 
 /// Public pairing endpoints that mint pairing codes / session tokens.
 ///
-/// HTTP-002 / HTTP-003: these are unauthenticated by design, so the per-token
-/// route-class bucket never applies to them. Enrolling them here gives the
-/// legacy endpoint window (keyed off the spoof-proof socket peer) a hard cap so
-/// an attacker cannot flood `/api/pairing/start` to dilute the 6-digit code
-/// space, nor flood `/api/pairing/lan-claim` / `/api/pairing/verify` to mint
-/// session tokens without bound. The standard control window
-/// (`defaultControlRateLimitMaxRequests`/min) is far above any legitimate
-/// pairing cadence — an operator pairs a device a handful of times — while
-/// still bounding automated abuse. They reuse the existing 429 envelope.
+/// Unauthenticated by design, so the per-token route-class bucket never
+/// applies. Enrolling them here caps them under the legacy endpoint window,
+/// keyed off the spoof-proof socket peer, so a flood cannot dilute the 6-digit
+/// code space or mint session tokens without bound. The control window is far
+/// above any legitimate pairing cadence and reuses the existing 429 envelope.
 const rateLimitedPairingPaths = {
   '/api/pairing/start',
   '/api/pairing/verify',

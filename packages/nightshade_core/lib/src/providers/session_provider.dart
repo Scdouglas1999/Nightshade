@@ -15,9 +15,7 @@ import '../services/session_service.dart';
 import '../services/logging_service.dart';
 import '../database/daos/sequence_checkpoints_dao.dart';
 
-// ============================================================================
-// Session State Model
-// ============================================================================
+// Session state model
 
 /// Current imaging session state
 /// Tracks the active imaging session with all relevant details
@@ -166,9 +164,7 @@ class SessionState extends Equatable {
   ];
 }
 
-// ============================================================================
-// Session State Notifier
-// ============================================================================
+// Session state notifier
 
 /// Notifier for managing session state
 class SessionStateNotifier extends StateNotifier<SessionState> {
@@ -217,12 +213,10 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
   /// Stamp the equipment this session is starting with onto its
   /// `imaging_sessions` row.
   ///
-  /// `equipment_snapshot` had a schema column, a reader
-  /// ([QuickStartService._buildQuickStartContext]) and a restore path
-  /// (`QuickStartChecker`), and NOTHING in the app ever wrote it — so every
-  /// session row carried NULL and the Continue Session dialog's "Load Previous
-  /// Setup" re-applied no cooler setpoint, no gain/offset and no filter or
-  /// focuser position, whatever the previous night had been run with.
+  /// `equipment_snapshot` is what the Continue Session dialog's "Load Previous
+  /// Setup" re-applies (read by [QuickStartService._buildQuickStartContext],
+  /// restored by `QuickStartChecker`): a NULL column silently restores no
+  /// cooler setpoint, no gain/offset and no filter or focuser position.
   ///
   /// Taken at start rather than at end: a night that ends in a crash is
   /// precisely the night the handoff dialog exists for, and an end-of-session
@@ -453,9 +447,7 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
   }
 }
 
-// ============================================================================
 // Providers
-// ============================================================================
 
 /// DAO provider for sequence checkpoints (optional, for sequence integration)
 final sequenceCheckpointsDaoProvider = Provider<SequenceCheckpointsDao>((ref) {

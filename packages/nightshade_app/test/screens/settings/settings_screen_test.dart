@@ -22,8 +22,8 @@
 //
 // Why we swallow "overflowed" FlutterErrors: some settings panes overflow a few
 // pixels at the test surface size — a tracked cosmetic issue. We drop only
-// "overflowed" errors and re-forward everything else so a real layout
-// regression still trips takeException().
+// "overflowed" errors and re-forward everything else so a real layout fault
+// still trips takeException().
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -347,9 +347,7 @@ void main() {
         reason: 'Selecting "Red night" must fire setTheme("redNight").');
   });
 
-  // ===========================================================================
   // Deep-linking by stable KEY (the navigation contract).
-  // ===========================================================================
 
   testWidgets(
       'deep_link_opens_target_section: initialSection "location" renders the '
@@ -463,9 +461,7 @@ void main() {
             'matrix.');
   });
 
-  // ===========================================================================
   // Search.
-  // ===========================================================================
 
   testWidgets(
       'search_filters_to_a_real_section: typing a keyword narrows the sidebar '
@@ -495,9 +491,7 @@ void main() {
         reason: 'Selecting a search result must open that section.');
   });
 
-  // ===========================================================================
   // Derived index shim (kept only for backward compatibility).
-  // ===========================================================================
 
   test(
       'kSettingsSectionIndex maps every stable key (incl. merged-away aliases) '

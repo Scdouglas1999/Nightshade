@@ -21,7 +21,7 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SkyAtlasDaoMixin {
   SkyAtlasDao(super.db);
 
-  // --- Regions ------------------------------------------------------------
+  // Regions
 
   /// All regions, newest first.
   Future<List<SkyAtlasRegionRow>> getAllRegions() {
@@ -170,7 +170,7 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
-  // --- Tiles --------------------------------------------------------------
+  // Tiles
 
   /// All tiles, ordered by depth (most integration first) for coverage views.
   Future<List<SkyTileRow>> getAllTiles() {
@@ -315,7 +315,7 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
-  // --- Folds (the time-scrub timeline) ------------------------------------
+  // Folds (the time-scrub timeline)
 
   /// Append a fold record to the timeline, returning its row id.
   ///

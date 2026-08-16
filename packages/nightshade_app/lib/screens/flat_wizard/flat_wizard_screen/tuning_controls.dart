@@ -81,9 +81,8 @@ class _HistogramTargetSlider extends StatelessWidget {
 /// light frames use the app-settings exposure defaults. When those two sources
 /// disagree the flats carry a different bias pedestal from the lights and the
 /// library matcher rejects them outright (`flat_library_dao.dart`: "gain,
-/// offset, and binning must match exactly"). The wizard used to show none of
-/// these numbers, so the divergence was silent all the way to a rejected
-/// calibration library.
+/// offset, and binning must match exactly"), so the numbers are shown here
+/// rather than left to surface as a rejected calibration library.
 class _CaptureConfigSummary extends ConsumerWidget {
   const _CaptureConfigSummary();
 

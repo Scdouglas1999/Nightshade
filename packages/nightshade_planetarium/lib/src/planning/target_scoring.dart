@@ -122,9 +122,8 @@ class TargetScoringService {
       visibility: visibility,
     );
 
-    // Calculate weighted total score via the shared aggregation contract.
-    // NORMALIZED mode == divide by the weight-sum, reproducing the previous
-    // open-coded `Σ(axis*weight) / Σ(weight)` exactly.
+    // Weighted total via the shared aggregation contract. NORMALIZED mode is
+    // `Σ(axis*weight) / Σ(weight)`.
     final totalScore = WeightedScore.total(
       weights.factors(
         altitudeScore: altScore,
@@ -325,8 +324,7 @@ class TargetScoringService {
       firstObservableTime: firstObservableTime,
     );
 
-    // Calculate weighted total score via the shared aggregation contract
-    // (NORMALIZED — identical to the previous open-coded weighted average).
+    // Weighted total via the shared aggregation contract (NORMALIZED).
     final totalScore = WeightedScore.total(
       weights.factors(
         altitudeScore: altScore,
@@ -366,14 +364,10 @@ class TargetScoringService {
   double debugScoreAltitude(double altitude) => _scoreAltitude(altitude);
 
   /// Test-only seam for the moon factor, for the same reason as
-  /// [debugScoreAltitude].
-  ///
-  /// Added because the Rust twin (`scheduling/scoring.rs::score_moon_distance`)
-  /// kept the pre-fix `return 100.0` for months after this Dart copy was
-  /// corrected: the parity canary only parsed `fn score_altitude`, so the
-  /// divergence was invisible even though the file's own header states the two
-  /// must agree. Whichever scorer runs, a full moon must never beat a new moon at
-  /// the same separation.
+  /// [debugScoreAltitude]: the parity canary has to cover the moon factor too,
+  /// or the Rust twin (`scheduling/scoring.rs::score_moon_distance`) can
+  /// diverge unseen. Whichever scorer runs, a full moon must never beat a new
+  /// moon at the same separation.
   @visibleForTesting
   double debugScoreMoonDistance(double distance, double illumination) =>
       _scoreMoonDistance(distance, illumination);

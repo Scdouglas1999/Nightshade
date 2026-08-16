@@ -72,11 +72,10 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
           ),
           const SizedBox(height: 8),
           Text(
-            // Names the file actually fetched. The card used to say "MPCORB",
-            // which is the 1.4-million-object master file; the default source is
-            // the Minor Planet Center's Bright Minor Planets ephemeris — a few
-            // hundred bodies — so an observer who could not find their asteroid
-            // concluded the search was broken rather than out of range.
+            // Names the file actually fetched. The default source is the Minor
+            // Planet Center's Bright Minor Planets ephemeris — a few hundred
+            // bodies — not the 1.4-million-object MPCORB master, so an observer
+            // who cannot find their asteroid is out of range, not broken.
             'Downloads the Minor Planet Center\'s current bright-asteroid '
             'elements (Soft00Bright — the few hundred asteroids bright enough '
             'to observe, not the full MPCORB) and its comet elements '
@@ -140,9 +139,9 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
                   : () async {
                       await controller.refresh();
                       if (!context.mounted) return;
-                      // Always acknowledge the press. A refresh that ends in a
-                      // partial or total failure used to say nothing here and
-                      // leave only a small status line to notice.
+                      // Always acknowledge the press: a refresh that ends in a
+                      // partial or total failure otherwise leaves only a small
+                      // status line to notice.
                       final result = ref.read(elementRefreshControllerProvider);
                       if (result.error case final failure?) {
                         context.showErrorSnackBar(

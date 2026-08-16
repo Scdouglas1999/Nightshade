@@ -140,12 +140,11 @@ class LastNightRecapCard extends ConsumerWidget {
             label: context.l10n.text('dbOpenLastRun'),
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
-            // WF-SCI-N4: this opened the Sequence BUILDER — 0 nodes, 0 frames,
-            // not the run and not even the History tab — while the card body
-            // around it already deep-links the same run to its Session Review.
-            // A button on a card must not promise less than the card. Same
-            // resolution the Morning Report tile uses: the run's session when
-            // it has one, the History tab when it does not.
+            // A button on a card must not promise less than the card: the
+            // body around it deep-links this run to its Session Review, so the
+            // button cannot land on the empty Sequence BUILDER. Same resolution
+            // the Morning Report tile uses: the run's session when it has one,
+            // the History tab when it does not.
             onPressed: () => context.go(_openLastRunDestination(sessionId)),
           ),
         ),
@@ -215,13 +214,10 @@ class LastNightRecapCard extends ConsumerWidget {
       case 'running':
         return l10n.text('dbRunRunning');
       default:
-        // WE-SEQ-N4: this arm used to capitalise the raw token, so a run the
-        // operator stopped read "Paused-stopped · 1 hour ago" — the schema's
-        // vocabulary, and a false claim (nothing was paused; the token means
-        // "stopped with the checkpoint kept"). SEQ-6 replaced that wording on
-        // every OTHER surface, and this card had its own copy of the mapping.
-        // There is one mapping now: [runStatusLabel], which also owns the
-        // readable degradation for a status neither knows.
+        // Raw status tokens are schema vocabulary, not operator copy — a
+        // capitalised "Paused-stopped" claims a pause that never happened.
+        // [runStatusLabel] is the one mapping every surface shares, and it
+        // owns the readable degradation for a status it does not know.
         if (status.isEmpty) return l10n.text('dbRunUnknown');
         return runStatusLabel(status);
     }

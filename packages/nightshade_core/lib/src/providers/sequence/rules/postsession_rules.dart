@@ -2,9 +2,7 @@ import '../../../services/optical_train_diagnostics_service.dart';
 import '../../preflight_providers.dart';
 import '../sequence_validation.dart';
 
-// =============================================================================
-// Post-session diagnostics
-// =============================================================================
+// Post-session diagnostics.
 //
 // Post-session checks do NOT plug into the SequenceValidator pipeline —
 // that pipeline runs before a sequence starts. Instead these helpers

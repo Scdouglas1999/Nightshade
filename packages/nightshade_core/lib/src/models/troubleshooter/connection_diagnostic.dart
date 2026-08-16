@@ -12,7 +12,7 @@
 // classifies the failure into a [DiagnosticCategory] and produces a
 // [ConnectionDiagnosis] with branched, hardware-aware [RemediationStep]s.
 //
-// Design rules (this project treats errors as a feature):
+// Design rules:
 //   * The raw error is ALWAYS carried through into [ConnectionDiagnosis.rawError]
 //     verbatim — we never hide the real message just because we recognized it.
 //   * There is no silent fallback. An unrecognized failure still produces a
@@ -200,9 +200,7 @@ ConnectionDiagnosis diagnoseConnectionFailure({
   );
 }
 
-// ---------------------------------------------------------------------------
 // Classification
-// ---------------------------------------------------------------------------
 
 bool _containsAny(String haystack, List<String> needles) {
   for (final needle in needles) {
@@ -286,14 +284,10 @@ const List<String> _configurationMarkers = [
 ///
 /// The built-in guider is a software guider that reuses the imaging camera: it
 /// has no cable, no power switch and no vendor driver. Its preflight refuses
-/// with a fully-specified message naming the exact profile value it wanted
-/// (`Built-in guider requires an active profile with a guide focal length`,
-/// `… positive guide focal length and camera pixel size (focal_length_mm=0, …)`).
-/// Those matched nothing in the marker tables, so the dialog fell through to
-/// `unknown` and told the operator "we couldn't pin down the exact cause" —
-/// while holding the cause — and then sent them to reseat a cable that does
-/// not exist and restart the app. Matching them here routes the message to a
-/// configuration cause whose steps name the setting.
+/// with a fully-specified message naming the exact profile value it wanted, so
+/// matching those here routes them to a configuration cause whose steps name
+/// that setting — the driver playbooks would send the operator to reseat a
+/// cable that does not exist.
 const List<String> _firstPartySetupMarkers = ['built-in guider requires'];
 
 bool _isNetworkDriver(DriverType driverType) =>
@@ -347,9 +341,7 @@ DiagnosticCategory _classify(
   return DiagnosticCategory.unknown;
 }
 
-// ---------------------------------------------------------------------------
 // Copy: headlines, plain-language, and branched remediation steps
-// ---------------------------------------------------------------------------
 
 String _headlineFor(DiagnosticCategory category, {required String error}) {
   switch (category) {

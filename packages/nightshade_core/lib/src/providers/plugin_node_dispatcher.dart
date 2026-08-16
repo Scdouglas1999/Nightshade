@@ -135,12 +135,10 @@ final pluginNodeDispatchCoordinatorProvider =
 
 /// Riverpod provider for the plugin-node dispatcher.
 ///
-/// Default (unwired) implementation fails loudly per
-/// Errors are a feature here: every plugin-node invocation
-/// returns a structured failure mentioning that the dispatcher has
-/// not been wired by the host layer. The desktop / mobile app entry
-/// points override this with a real dispatcher in their
-/// `ProviderScope`.
+/// The default implementation is unwired: every plugin-node invocation
+/// returns a structured failure naming the missing wiring, rather than a
+/// success the host never performed. The desktop / mobile app entry points
+/// override this with a real dispatcher in their `ProviderScope`.
 final pluginNodeDispatcherProvider = Provider<PluginNodeDispatcher>((ref) {
   return (request) async => PluginNodeDispatchResult.unwired(
     'Plugin node dispatcher is not wired in this environment. '

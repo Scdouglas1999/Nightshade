@@ -157,11 +157,11 @@ void main() {
     });
   });
 
-  // No-hardware campaign 2026-07-29: a driver that accepts the status read and
-  // never answers used to pin `_environmentPollInFlight` for the rest of the
-  // process. Every later tick returned early, `setError` was never reached, and
-  // the safety card kept rendering the last good "SAFE" indefinitely. The read
-  // is now capped so a wedged sensor becomes a visible error.
+  // A driver that accepts the status read and never answers would pin
+  // `_environmentPollInFlight` for the rest of the process: every later tick
+  // returns early, `setError` is never reached, and the safety card keeps
+  // rendering the last good "SAFE". The read is capped so a wedged sensor
+  // becomes a visible error.
   test('a status read that never completes surfaces as an error', () {
     const deviceId = 'simulator:safety-1';
     var wedge = false;
@@ -223,10 +223,9 @@ void main() {
       expect(state.isParked, isTrue);
     });
 
-    // The regression this file guards: `updateAzimuth` / `updateShutterStatus`
-    // had zero callers, so a connected dome rendered `Azimuth ---` /
-    // `Shutter Unknown` forever and the shutter button never flipped no matter
-    // what the hardware did.
+    // `updateAzimuth` / `updateShutterStatus` with no callers leave a connected
+    // dome rendering `Azimuth ---` / `Shutter Unknown` forever, with the shutter
+    // button never flipping whatever the hardware does.
     test('the poll keeps shutter state live after the shutter opens', () {
       var shutterCode = 1;
       when(() => backend.getHardwareDomeStatus(deviceId)).thenAnswer(

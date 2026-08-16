@@ -268,6 +268,24 @@ class NotificationService {
     );
   }
 
+  /// Per-family opt-out gate for [notify].
+  ///
+  /// Three `AppSettingsState` flags are live delivery gates, not bookkeeping:
+  /// a `false` here aborts the whole dispatch — no alert sound, no router
+  /// forward, no Discord, no Pushover — for that event family. Settings →
+  /// Notifications renders them under "Built-in event alerts"; they are also
+  /// persisted and synced to remote controllers, so a controller can silence
+  /// a family on the host.
+  ///
+  /// `notifyOnMeridianFlip` defaults to **false** (unlike its two siblings,
+  /// which default to true), so out of the box a meridian-flip alert raised by
+  /// the flip monitor is dropped right here. That default is deliberate and
+  /// the settings row says so out loud; do not "fix" it by returning true for
+  /// [NotificationEvent.meridianFlip] when the operator has left it off.
+  ///
+  /// The remaining families have no flag of their own and always pass. The
+  /// unified [NotificationRouter]'s own backend event-stream subscription is a
+  /// separate producer and is not gated by any of this.
   bool _shouldNotifyForEvent(
     NotificationEvent event,
     AppSettingsState settings,

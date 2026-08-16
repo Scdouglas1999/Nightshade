@@ -1,5 +1,4 @@
-/// HTTP handlers for the headless API's first-run pairing flow (audit
-/// §2.1).
+/// HTTP handlers for the headless API's first-run pairing flow.
 ///
 /// The host generates a pairing code; the dashboard or mobile companion user
 /// retypes it into the Pair sheet, and the server mints a long-lived bearer
@@ -209,24 +208,12 @@ class PairingHandlers {
   final RateLimitClientKey rateLimitClientKey;
 
   /// Invoked on a SUCCESSFUL pairing so the client's bearer-token failure
-  /// bucket is reset. The auth middleware checks that bucket *before* it
-  /// resolves the token — it has to, because the resolve is an O(N*L)
-  /// constant-time scan and letting unauthenticated callers drive it is a
-  /// CPU-burn vector — which means its own "clear on success" line is
-  /// unreachable while the client is limited. So a client that tripped the
-  /// limiter with a stale token stayed locked out even holding a brand-new,
-  /// valid one.
-  ///
-  /// That is the ordinary consequence of an appliance restart: every token is
-  /// invalidated, the paired tablet retries with the one it has, trips the
-  /// limiter, and the operator re-pairs — successfully — only to keep getting
-  /// 429s. Reproduced live: a token issued seconds earlier was still refused
-  /// with "Too many authentication failures".
-  ///
-  /// Clearing here does not weaken the pre-check: an attacker spamming bad
-  /// tokens cannot reach this path without completing a real pairing, which
-  /// requires being on the private LAN (lan-claim) or presenting the operator
-  /// code, and which has its own independent lockout.
+  /// bucket is reset. The auth middleware checks that bucket BEFORE resolving
+  /// the token — the resolve is an O(N*L) constant-time scan, so letting
+  /// unauthenticated callers drive it is a CPU-burn vector — which makes its
+  /// own clear-on-success unreachable while the client is limited. Without an
+  /// explicit clear here, a client that tripped the limiter with a stale token
+  /// stays locked out while holding a brand-new valid one.
   final ClearAuthFailures clearAuthFailures;
   final bool pairingPrintCodes;
 
@@ -284,9 +271,9 @@ class PairingHandlers {
   /// write the on-disk `nightshade.log.<date>` file at all — that file carries
   /// only the native Rust tracing output — it appends to an in-memory ring
   /// buffer that is served over HTTP by `/api/logs/recent` and `/api/logs/tail`.
-  /// Logging the code therefore did the exact inverse of what this endpoint
-  /// intends: the code never reached the operator's disk, while any already
-  /// authenticated client could harvest it over the network.
+  /// Logging the code would therefore do the exact inverse of what this
+  /// endpoint intends: the code would never reach the operator's disk, while
+  /// any already authenticated client could harvest it over the network.
   ///
   /// The file is written 0600 and lives outside the logs directory, so it is
   /// not enumerable or downloadable through `/api/logs/files/...` (those routes
@@ -716,9 +703,9 @@ class PairingHandlers {
   /// Resolve the client-requested scope spec to the grant the pairing actually
   /// receives. The default is `control` (imaging + devices); `admin` is opt-in
   /// only so a scanned QR or LAN pairing cannot silently gain
-  /// backup/filesystem privileges. A coarse `view`/`control` request keeps the
-  /// historical `control` grant (pre-6.0 verify upgraded `view` to `control`);
-  /// a fine-grained spec (`camera:control,mount:view`) is honoured verbatim.
+  /// backup/filesystem privileges. A coarse `view`/`control` request resolves
+  /// to the `control` grant; a fine-grained spec (`camera:control,mount:view`)
+  /// is honoured verbatim.
   HeadlessAuthGrant _resolveRequestedGrant(String requestedScopeRaw) {
     final parsed = HeadlessAuthGrant.parseSpec(requestedScopeRaw);
     if (parsed == null) {

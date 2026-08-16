@@ -256,11 +256,9 @@ class TargetSchedulerProperties extends ConsumerWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Local helpers — kept private to this file so they don't pollute the design
 // system. If the same pattern shows up in a second editor we'll promote them
 // to nightshade_ui.
-// ---------------------------------------------------------------------------
 
 /// Weight slider that updates its thumb locally on every drag frame but only
 /// commits the value (which re-instantiates the scoring service and re-scores
@@ -443,7 +441,6 @@ class _PreviewPlaceholder extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Adaptive Swap editor section.
 //
 // Surfaces the four `swap_on_conditions_below`-family fields on
@@ -451,7 +448,6 @@ class _PreviewPlaceholder extends StatelessWidget {
 // `swapOnConditionsBelow == null` the scheduler runs the ordinary ranking
 // only and we hide the sub-controls behind a master enable switch (matches
 // how the Rust side treats `None` as "feature off").
-// ---------------------------------------------------------------------------
 
 /// Default value the master toggle restores when the user re-enables
 /// adaptive swap after a previous "off" (so the field doesn't come back as
@@ -508,9 +504,9 @@ class _AdaptiveSwapSection extends StatelessWidget {
                             swapOnConditionsBelow: _defaultSwapThreshold,
                           ));
                         } else {
-                          // PHASE-5: TargetSchedulerNode.copyWith now uses
-                          // plain `?? this.swapOnConditionsBelow`; clearing
-                          // back to null requires a fresh node.
+                          // TargetSchedulerNode.copyWith uses plain
+                          // `?? this.swapOnConditionsBelow`, so clearing back
+                          // to null requires a fresh node.
                           onUpdate(TargetSchedulerNode(
                             id: node.id,
                             name: node.name,

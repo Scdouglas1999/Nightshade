@@ -77,11 +77,10 @@ abstract class AnnotationSettings with _$AnnotationSettings {
     /// Maximum number of objects to display
     @Default(500) int maxObjectsToDisplay,
 
-    /// Fractional padding around the
-    /// catalog FOV bounding box. 0.05 = 5% padding (the historical
-    /// hardcoded default). Increase if large DSOs whose centre is just
-    /// off-frame are getting clipped from the overlay; decrease to query
-    /// faster on slow disks.
+    /// Fractional padding around the catalog FOV bounding box. 0.05 = 5%
+    /// padding. Increase if large DSOs whose centre is just off-frame are
+    /// getting clipped from the overlay; decrease to query faster on slow
+    /// disks.
     @Default(0.05) double catalogBboxPaddingFraction,
 
     /// Whether to show compass overlay (N/E arrows from plate solve rotation)

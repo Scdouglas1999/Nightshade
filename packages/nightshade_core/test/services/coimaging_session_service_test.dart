@@ -1,7 +1,7 @@
-// Collaborative Sky (6.0) WS3 — client-side live co-imaging orchestration.
+// Client-side live co-imaging orchestration.
 //
 // Exercises [CoImagingSessionService] over a `package:http/testing` MockClient
-// (no network) + a real in-memory DB with the real WS3 [CoImagingSessionsDao]:
+// (no network) + a real in-memory DB with the real [CoImagingSessionsDao]:
 //
 //   * createSession persists the owner membership (anchor framing offset +
 //     membership token);
@@ -343,7 +343,7 @@ void main() {
     expect(p.sessionId, 'z');
   });
 
-  // --- Gap 1: framing-offset pointing ------------------------------------
+  // Framing-offset pointing
 
   MockClient throwingMock() => MockClient(
     (request) async => throw StateError(
@@ -430,7 +430,7 @@ void main() {
     expect(o.decDeg, closeTo(0.01, 1e-9));
   });
 
-  // --- Gap 2: capture-loop auto-contribute -------------------------------
+  // Capture-loop auto-contribute
 
   test(
     'recordCompletedSub fuses, THEN reports accounting, THEN tags the tile',
@@ -570,7 +570,7 @@ void main() {
     );
   });
 
-  // --- Gap 3: altitude-driven longitude baton ----------------------------
+  // Altitude-driven longitude baton
 
   test(
     'observerAltitudeDegrees puts the celestial pole at altitude == lat',
@@ -742,7 +742,7 @@ void main() {
     expect(combinedFrames, 2); // the combined stack kept growing east
   });
 
-  // --- WS4 consent gate (fail closed) ------------------------------------
+  // Consent gate (fail closed)
 
   test('recordCompletedSub fails CLOSED with no consent on record', () async {
     var touchedHub = false;
@@ -885,7 +885,7 @@ void main() {
     expect(sentAttribution, 'false');
   });
 
-  // --- Gap 1: point-matched framing for the centring/slew path ------------
+  // Point-matched framing for the centring/slew path
 
   test('framedCenterForPoint applies the offset for a covering session, '
       'null otherwise', () async {
@@ -928,7 +928,7 @@ void main() {
     );
   });
 
-  // --- Gap 3: the longitude-baton scheduler tick -------------------------
+  // The longitude-baton scheduler tick
 
   test('CoImagingBatonScheduler claims an up target and reconciles it as HELD, '
       'releases + reconciles it as RELEASED when it sets', () async {
@@ -1050,38 +1050,44 @@ void main() {
     scheduler.stop();
   });
 
-  test('headless coordinate-less join self-heals the centre so the in-process '
-      'auto-contribute (membershipsForPoint) matches the folded frame', () async {
-    // Mirrors the headless REST join path: joinSession is called with ONLY the
-    // session id (no target coordinates). The membership must still carry the
-    // centre so membershipsForPoint — the Gap-2 auto-contribute filter — can
-    // attribute a folded sub to the session.
-    final mock = MockClient((request) async {
-      if (request.method == 'GET' &&
-          request.url.path.endsWith('/coimaging/sessions/s1')) {
-        return http.Response(jsonEncode(sessionJson(id: 's1')), 200);
-      }
-      if (request.url.path.endsWith('/join')) {
-        return http.Response(
-          jsonEncode(participantJson(slot: 2, token: 'mtok-headless')),
-          200,
-        );
-      }
-      return http.Response('unexpected ${request.url.path}', 500);
-    });
-    final svc = serviceWith(mock);
+  test(
+    'headless coordinate-less join self-heals the centre so the in-process '
+    'auto-contribute (membershipsForPoint) matches the folded frame',
+    () async {
+      // Mirrors the headless REST join path: joinSession is called with ONLY the
+      // session id (no target coordinates). The membership must still carry the
+      // centre so membershipsForPoint — the Gap-2 auto-contribute filter — can
+      // attribute a folded sub to the session.
+      final mock = MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/coimaging/sessions/s1')) {
+          return http.Response(jsonEncode(sessionJson(id: 's1')), 200);
+        }
+        if (request.url.path.endsWith('/join')) {
+          return http.Response(
+            jsonEncode(participantJson(slot: 2, token: 'mtok-headless')),
+            200,
+          );
+        }
+        return http.Response('unexpected ${request.url.path}', 500);
+      });
+      final svc = serviceWith(mock);
 
-    // Coordinate-less join (the headless handler passes no centre).
-    await svc.joinSession('s1');
+      // Coordinate-less join (the headless handler passes no centre).
+      await svc.joinSession('s1');
 
-    // The durable row carries the backfilled centre.
-    final row = await sessionsDao.getSession(hubKey, 's1');
-    expect(row!.targetRaDeg, closeTo(148.9, 1e-9));
-    expect(row.targetDecDeg, closeTo(69.1, 1e-9));
+      // The durable row carries the backfilled centre.
+      final row = await sessionsDao.getSession(hubKey, 's1');
+      expect(row!.targetRaDeg, closeTo(148.9, 1e-9));
+      expect(row.targetDecDeg, closeTo(69.1, 1e-9));
 
-    // A frame folded at (near) the session centre now matches the membership —
-    // previously the null-coordinate row was silently excluded.
-    final matches = await svc.membershipsForPoint(raDeg: 148.95, decDeg: 69.05);
-    expect(matches.map((r) => r.sessionId), ['s1']);
-  });
+      // A frame folded at (near) the session centre matches the membership; a
+      // null-coordinate row would be silently excluded.
+      final matches = await svc.membershipsForPoint(
+        raDeg: 148.95,
+        decDeg: 69.05,
+      );
+      expect(matches.map((r) => r.sessionId), ['s1']);
+    },
+  );
 }

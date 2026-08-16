@@ -1,4 +1,4 @@
-// E2E test for the desktop→mobile remote event seam (AUDIT-FIX-6-E2E §4.4).
+// E2E test for the desktop→mobile remote event seam.
 //
 // What this exercises end-to-end through real production transports:
 //   1. `HeadlessApiServer` (the desktop's HTTP/WebSocket server) booted

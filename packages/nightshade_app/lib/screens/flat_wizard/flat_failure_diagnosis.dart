@@ -3,15 +3,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// Why a flat run ended with nothing on disk, said in numbers the operator can
 /// act on.
 ///
-/// The wizard already KNOWS why every failure happened — the calibration solver
-/// returns `errorMessage: 'Max exposure reached but still under target'` and the
-/// notifier stores it on `FlatWizardState.warningMessage` — but nothing under
-/// `screens/flat_wizard/` ever read that field, so the only thing rendered was
-/// the terminal literal "Flat capture failed - no frames were saved." That told
-/// an operator with an unpowered flat panel nothing at all.
-///
 /// Everything here is derived from state the wizard already carries
-/// ([FlatWizardState.aduHistory], the per-filter results and the global limits).
+/// ([FlatWizardState.aduHistory], the per-filter results, the global limits and
+/// the solver's own reason on `FlatWizardState.warningMessage`).
 /// Nothing is invented: in particular the absolute target ADU is NOT restated,
 /// because the ADU/full-scale conversion depends on the camera's bit depth,
 /// which the wizard state does not carry. The target is quoted as the histogram

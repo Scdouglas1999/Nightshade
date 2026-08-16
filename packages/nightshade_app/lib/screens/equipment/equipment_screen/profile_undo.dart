@@ -1,5 +1,3 @@
-// Part of ../equipment_screen.dart -- extracted for maintainability.
-//
 // Undo for a deleted equipment profile.
 part of '../equipment_screen.dart';
 

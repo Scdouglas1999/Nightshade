@@ -96,7 +96,7 @@ extension _SequenceDiffNodeDescribe on SequenceDiffService {
       case ParkDomeNode():
         return 'Park dome';
       case PluginInstructionNode():
-        // Audit §11 — show the friendly node name AND the source plugin
+        // Show the friendly node name AND the source plugin
         // so users distinguish identical-named nodes from different
         // plugins in the diff dialog.
         final source = node.pluginName.isEmpty

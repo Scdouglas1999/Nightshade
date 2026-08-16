@@ -4,36 +4,21 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
   /// The set of database setting keys that the remote wire model
   /// (`models.AppSettings`) can actually round-trip. Built from the fields
   /// mapped in `_toRemoteSettings` / `_fromRemoteSettings`. Anything NOT in
-  /// here is dropped on the floor by a remote save, so we refuse to write it
+  /// here is dropped on the floor by a remote save, so writing it is refused
   /// rather than letting a phone silently fail to persist an
   /// unattended-night knob.
   ///
-  /// As of the 2026-06-05 full-parity pass, every setter-reachable
-  /// *user-config* setting is remotable. The fail-loud guard now fires only
-  /// for the TRUE residual — settings that are genuinely non-remotable by
-  /// nature, NOT merely un-wired:
-  ///   * Desktop-shell / window UI prefs that are host-machine-local and
-  ///     meaningless to drive from a phone: `start_minimized`,
-  ///     `sidebar_collapsed`, `confirm_before_closing`.
-  ///     A remote write to any of these intentionally FAILS LOUD via
-  ///     [_assertKeysRemotable] (they're absent here) rather than appearing to
-  ///     succeed then dropping on the host — same fail-loud contract as every
-  ///     other non-remotable setting.
-  ///   * Host-filesystem infra paths whose remote edit is unsafe / restart-
-  ///     affecting: `database_path`, `logs_path`.
-  ///     (`image_output_path` / `sequences_path` / `astap_path` /
-  ///     `astrometry_path` ARE remoted — they're per-run imaging/output
-  ///     config, not host infra.)
-  ///   * The full 8-point horizon-mask blob `horizon_profile_json` — a larger
-  ///     JSON sub-model; the scalar `effective_horizon_deg` floor (used by the
-  ///     scheduler / dashboard / planetarium) IS remoted. Remoting the full
-  ///     mask wants its own typed wire field — tracked separately.
-  /// NOTE: weather threshold *values* live in a separate `WeatherSettings`
-  /// model with its own endpoint — remoting them is a distinct out-of-scope
-  /// item, not part of this allow-set.
+  /// Absent by design, so a remote write to them fails loud via
+  /// [_assertKeysRemotable]: host-machine-local desktop-shell prefs
+  /// (`start_minimized`, `sidebar_collapsed`, `confirm_before_closing`),
+  /// host-filesystem infra paths whose remote edit is restart-affecting
+  /// (`database_path`, `logs_path`), and the 8-point horizon-mask blob
+  /// `horizon_profile_json` (the scalar `effective_horizon_deg` floor IS
+  /// remoted). Weather threshold values live in a separate `WeatherSettings`
+  /// model with its own endpoint and are not part of this allow-set.
   ///
-  /// IMPORTANT: keep this in lock-step with `_toRemoteSettings`. A key added
-  /// to the wire model must be added here, or remote saves of it will throw.
+  /// Keep this in lock-step with `_toRemoteSettings`. A key added to the wire
+  /// model must be added here, or remote saves of it will throw.
   static const Set<String> _remotableSettingKeys = {
     // Appearance / general
     'theme',
@@ -69,7 +54,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'alpaca_server_port',
     'alpaca_auto_discover',
     // Sequencer execution / output
-    'use_simulation_mode',
     'image_output_path',
     // Image Grading
     'image_grading_enabled',
@@ -88,10 +72,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'adaptive_exposure_per_filter_enabled',
     'adaptive_exposure_per_filter_min_secs',
     'adaptive_exposure_per_filter_max_secs',
-    // Full-night audit 2026-06-04 follow-up — high-value unattended-night
-    // knobs now carried by models.AppSettings (autofocus / dither /
-    // weather-safety / recovery). Previously these threw via the fail-loud
-    // guard on a remote save; now they round-trip.
+    // Autofocus / dither / weather-safety / recovery.
     'park_on_unsafe_weather',
     'auto_focus_on_filter_change',
     'af_disable_guiding',
@@ -102,8 +83,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'recovery_stop_tracking_during_recovery',
     'recovery_abort_on_meridian',
     'recovery_audible_alert_when_entered',
-    // Full-night audit 2026-06-04 follow-up (long tail) — remaining
-    // high-value unattended-night knobs now carried by models.AppSettings.
     // Weather-safety / dawn.
     'park_before_dawn',
     // Meridian flip detail.
@@ -142,9 +121,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'smart_night_sub_exposure_floor_secs',
     'smart_night_sub_exposure_ceiling_secs',
     'smart_night_target_snr',
-    // Full remote-settings parity 2026-06-05 — the remaining setter-reachable
-    // unattended-night knobs now carried by models.AppSettings. Previously
-    // these threw via the fail-loud guard on a remote save; now they round-trip.
     // Equipment defaults (camera).
     'default_gain',
     'default_offset',
@@ -199,10 +175,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'bit_depth',
     'timezone',
     'use_system_time',
-    // Settings round-trip gap closure (G5 / G7) — the remaining
-    // setter-reachable knobs now carried by models.AppSettings. Previously
-    // these threw via the fail-loud guard on a remote save; now they
-    // round-trip.
     // Sequencer output path default.
     'sequences_path',
     // Smart Night target auto-select.
@@ -220,9 +192,9 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
   /// wire model can't carry. Callers on the local (FFI / Drift) path never
   /// invoke this — every DB key is persistable locally.
   ///
-  /// Errors are a feature here: a silent no-op here would mean a
-  /// user toggling (say) "park on unsafe weather" from their phone believes
-  /// it stuck when it never reached the host. Loud failure surfaces the gap.
+  /// Swallowing the write here would leave a user toggling (say) "park on
+  /// unsafe weather" from their phone believing it stuck when it never reaches
+  /// the host, so the write throws instead.
   void _assertKeysRemotable(Iterable<String> keys) {
     final unsupported = keys
         .where((k) => !_remotableSettingKeys.contains(k))
@@ -425,12 +397,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.alpacaAutoDiscover,
             )
           : null,
-      useSimulationMode: settings.containsKey('use_simulation_mode')
-          ? _parseBool(
-              settings['use_simulation_mode'],
-              current.useSimulationMode,
-            )
-          : null,
       webServerEnabled: settings.containsKey('web_server_enabled')
           ? _parseBool(settings['web_server_enabled'], current.webServerEnabled)
           : null,
@@ -595,10 +561,8 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       afFailureAction: settings['af_failure_action'],
       // Canonical key is `af_disable_guiding` — matches the setter in
       // autofocus.dart, the default-settings seed, and the stored-snapshot
-      // loader. The old `af_disable_guiding_during_af` key never matched
-      // anything written to disk, so toggling "disable guiding during AF"
-      // (especially over a remote/network backend, which routes its writes
-      // through this same partial-persistence helper) silently no-op'd.
+      // loader. Any other spelling matches nothing on disk and the toggle
+      // silently no-ops, remote writes included: they route through here too.
       afDisableGuidingDuringAf: settings.containsKey('af_disable_guiding')
           ? _parseBool(
               settings['af_disable_guiding'],

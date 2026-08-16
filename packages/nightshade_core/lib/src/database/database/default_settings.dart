@@ -51,7 +51,6 @@ const Map<String, String> _defaultSettings = {
   'alpaca_server_host': 'localhost',
   'alpaca_server_port': '11111',
   'alpaca_auto_discover': 'false',
-  'use_simulation_mode': 'false',
   'web_server_enabled': 'false',
   'web_server_port': '8080',
   'default_gain': '100',
@@ -140,12 +139,8 @@ const Map<String, String> _defaultSettings = {
 /// A retired key is worse than a missing one: nothing writes it, so it keeps
 /// its stale seed value forever — while `BackupService._exportSettings` dumps
 /// the whole `app_settings` table into every `.nsbackup`, and the settings
-/// snapshot serves it. `auto_save_sequences` shipped defaulting to `'true'`
-/// alongside `autosave.sequence_enabled` (default `false`), which is the key
-/// the Files & Storage toggle shows and the one `AutoSaveService` actually
-/// obeys, so every export claimed sequence auto-save was on while the app had
-/// it off. Deleting the row on open is what stops an already-created profile
-/// from carrying that contradiction forward.
+/// snapshot serves it. Deleting the row on open stops an already-created
+/// profile from carrying a retired key's value forward.
 const Set<String> _retiredSettingKeys = {
   // Removed 2026-08: duplicated `autosave.sequence_enabled` with no UI, no
   // reader, and the opposite default.
@@ -155,6 +150,10 @@ const Set<String> _retiredSettingKeys = {
   // wizard and in Equipment > Edit Profile > Camera Defaults). This key had
   // no UI, no setter caller and no reader that acted on it, yet it shipped
   // seeded 'On Connect' — so every settings snapshot, .nsbackup and
-  // /api/settings payload announced automatic cooling the app never did.
+  // /api/settings payload announced automatic cooling that nothing performed.
   'cooling_behavior',
+  // Removed 2026-08: simulation mode is installed natively (debug builds
+  // only); the persisted toggle had no effect in any shippable configuration
+  // and its plumbing is gone.
+  'use_simulation_mode',
 };

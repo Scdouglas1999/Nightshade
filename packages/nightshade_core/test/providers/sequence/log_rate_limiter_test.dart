@@ -1,11 +1,11 @@
-// WF-N1 (half b) — the in-app log ring was consumed by one line.
+// One line can consume the whole in-app log ring.
 //
-// `SequenceExecutor._handleSequencerEvent` traced EVERY backend event at debug
+// `SequenceExecutor._handleSequencerEvent` traces EVERY backend event at debug
 // level ("Received event: type=…, category=…"). At ~5 lines/s that fills
-// LoggingService's 1000-entry ring in ~3 minutes, so Settings > Advanced > Logs
-// showed nothing but `SequenceExecutor` DBG rows and its source dropdown
-// offered no other producer at all. Any diagnostic worth reading — the
-// scheduler's reconcile line included — was gone before the operator looked.
+// LoggingService's 1000-entry ring in ~3 minutes, leaving Settings > Advanced >
+// Logs showing nothing but `SequenceExecutor` DBG rows with no other producer
+// in its source dropdown, and any diagnostic worth reading — the scheduler's
+// reconcile line included — gone before the operator looks.
 //
 // The trace is kept (it is genuinely useful when an event goes missing) but
 // rate-limited PER EVENT TYPE, so a burst of one chatty type collapses while a

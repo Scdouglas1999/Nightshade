@@ -1,5 +1,3 @@
-// Part of ../guiding_screen.dart -- extracted for maintainability.
-//
 // RMS formatting, state mapping, guider commands and guiding-settings persistence.
 part of '../guiding_screen.dart';
 
@@ -114,10 +112,9 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
   }
 
   /// Per-frame guide error, converted for display the same way the RMS
-  /// readouts are. The guider reports residuals in guide-camera pixels; the
-  /// graph and bullseye used to plot those raw pixels against axes labelled in
-  /// arcseconds, so at a typical 2-4"/px guide scale the plot understated the
-  /// real error several-fold.
+  /// readouts are. The guider reports residuals in guide-camera pixels while
+  /// the graph and bullseye axes are arcseconds, so at a typical 2-4"/px guide
+  /// scale the raw pixels understate the real error several-fold.
   double _errorForDisplay(double px, double pixelScale) =>
       pixelScale > 0 ? px * pixelScale : px;
 
@@ -127,9 +124,9 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
   /// Copy for the guide-star preview while [starImageProvider] holds no image.
   ///
   /// The notifier only polls while the guider is looping / guiding /
-  /// calibrating and otherwise sits in `AsyncValue.loading()` forever, so an
-  /// idle guider was told "Waiting for image..." when nothing had been asked
-  /// for. Say what is actually true, and what the user has to do next.
+  /// calibrating and otherwise sits in `AsyncValue.loading()`, so an idle
+  /// guider is not waiting for anything. Say what is actually true, and what
+  /// the user has to do next.
   String _starViewIdleMessage() {
     final phd2State = ref.watch(phd2StateProvider);
     final isAcquiring = phd2State == Phd2State.looping ||
@@ -349,14 +346,12 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Settle / dither persistence — canonical AppSettings authority (defect 5)
   //
   // The screen owns no independent settle/dither store: it seeds its live cache
   // from the persisted settings once, then writes every edit straight back
   // through the AppSettings notifier so values persist across navigation AND
   // full reconstruction, and remote companions share the same canonical sync.
-  // ---------------------------------------------------------------------------
 
   /// Seed the settle/dither controls from the persisted authority exactly once
   /// per screen instance. Values are clamped to the control ranges so a

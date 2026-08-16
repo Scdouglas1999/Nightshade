@@ -10,9 +10,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     required Duration timeout,
   });
 
-  // =========================================================================
   // Device Discovery & Connection
-  // =========================================================================
 
   // Cache for device discovery to prevent redundant API calls
   List<Map<String, dynamic>>? _cachedDevices;
@@ -217,10 +215,9 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
         );
       }
       final deviceTypeName = d['deviceType'] as String?;
-      // Server-side schema drift would otherwise silently turn an
-      // unknown device class into a Camera. Skip and log loudly per
-      // Errors are a feature here — a wrong default here means
-      // the equipment screen claims a focuser is a camera.
+      // Server-side schema drift would otherwise silently turn an unknown
+      // device class into a Camera and the equipment screen would claim a
+      // focuser is one. Unknown classes are skipped and logged instead.
       final deviceType = DeviceType.values
           .where((t) => t.name == deviceTypeName)
           .firstOrNull;
@@ -339,9 +336,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     return _rowsFromJson(response['devices'], DeviceInfo.fromJson);
   }
 
-  // =========================================================================
-  // Camera Control
-  // =========================================================================
+  // Camera control
 
   @override
   Future<void> cameraStartExposure({
@@ -361,7 +356,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     // transport retry after a timeout could launch a SECOND exposure on a host
     // that already received and began the first, so this POST is pinned to a
     // single attempt (no auto-retry), mirroring connect/disconnect. The user
-    // (or sequencer) re-issues if it genuinely failed. See MOBILE-001.
+    // (or sequencer) re-issues if it genuinely failed.
     await _post(
       'camera/expose',
       {
@@ -513,13 +508,13 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     // Network backend: the remote host owns the SDK. Query it via the
     // headless API, parsing the same struct shape Rust returns.
     //
-    // Fallback policy — "errors are a feature":
-    //   * HTTP 404 / `not_implemented` code → older host that predates this
-    //     route. Return an empty recommendation; the user can still set
-    //     values manually from the profile editor. This is logged.
+    // Fallback policy:
+    //   * HTTP 404 / `not_implemented` code → host predates this route. Return
+    //     an empty recommendation, logged; the user can still set values
+    //     manually from the profile editor.
     //   * Anything else (timeout, malformed JSON, 5xx, transport failure)
-    //     rethrows so the UI shows a real error rather than silently
-    //     pretending the device has no recommendation.
+    //     rethrows, so the UI shows a real error rather than pretending the
+    //     device has no recommendation.
     try {
       final response = await _get('camera/recommended-settings', {
         'deviceId': deviceId,
@@ -565,9 +560,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     }
   }
 
-  // =========================================================================
-  // Mount Control
-  // =========================================================================
+  // Mount control
 
   @override
   Future<void> mountSlewToCoordinates(
@@ -639,7 +632,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     // Non-idempotent relative actuation: a duplicate move-axis after a
     // transient-timeout retry can leave the axis slewing at a rate the operator
     // already cancelled (or double-applied), so this POST is pinned to a single
-    // attempt with no auto-retry, mirroring connect/disconnect. See MOBILE-001.
+    // attempt with no auto-retry, mirroring connect/disconnect.
     await _post(
       'mount/move-axis',
       {'deviceId': deviceId, 'axis': axis, 'rate': rate},
@@ -666,9 +659,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     await _post('mount/find-home', {'deviceId': deviceId});
   }
 
-  // =========================================================================
-  // Focuser Control
-  // =========================================================================
+  // Focuser control
 
   @override
   Future<void> focuserMoveTo(String deviceId, int position) async {
@@ -684,7 +675,6 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     // retried POST after a transient timeout would move the focuser by 2*delta.
     // Pinned to a single attempt (no auto-retry), mirroring connect/disconnect.
     // The absolute `focuser/move-to` above is idempotent and keeps retries.
-    // See MOBILE-001.
     await _post(
       'focuser/move-relative',
       {'deviceId': deviceId, 'delta': delta},
@@ -758,9 +748,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     await _post('focuser/autofocus/cancel');
   }
 
-  // =========================================================================
-  // Filter Wheel Control
-  // =========================================================================
+  // Filter wheel control
 
   @override
   Future<void> filterWheelSetPosition(String deviceId, int position) async {
@@ -799,9 +787,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     return RemoteFilterWheelPosition.fromJson(response);
   }
 
-  // =========================================================================
-  // Rotator Control
-  // =========================================================================
+  // Rotator control
 
   @override
   Future<void> rotatorMoveTo(String deviceId, double angle) async {
@@ -814,7 +800,6 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     // retried POST after a transient timeout would rotate by 2*delta. Pinned to
     // a single attempt (no auto-retry), mirroring connect/disconnect. The
     // absolute `rotator/move-to` above is idempotent and keeps retries.
-    // See MOBILE-001.
     await _post(
       'rotator/move-relative',
       {'deviceId': deviceId, 'delta': delta},

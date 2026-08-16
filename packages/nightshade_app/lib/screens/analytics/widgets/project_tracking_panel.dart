@@ -14,9 +14,7 @@ import 'campaign_rollup_dialog.dart';
 part 'project_tracking_panel_parts/_headers.dart';
 part 'project_tracking_panel_parts/_project_card.dart';
 
-// =============================================================================
-// Sort Mode
-// =============================================================================
+// Sort mode
 
 enum ProjectSortMode {
   completion,
@@ -25,9 +23,7 @@ enum ProjectSortMode {
   name,
 }
 
-// =============================================================================
-// Per-Filter Breakdown Provider
-// =============================================================================
+// Per-filter breakdown provider
 
 /// Computes per-target, per-filter integration time from captured images.
 ///
@@ -64,9 +60,7 @@ final perFilterIntegrationProvider =
   return AsyncValue.data(result);
 });
 
-// =============================================================================
-// Untracked-Targets Cleanup Count
-// =============================================================================
+// Untracked-targets cleanup count
 
 /// Number of "untracked" library targets eligible for the opt-in cleanup.
 /// Re-evaluates whenever the targets or sessions data changes so the button
@@ -87,9 +81,7 @@ final untrackedTargetsCountProvider = FutureProvider<int?>((ref) async {
   return ref.read(targetsDaoProvider).countUntrackedTargets();
 });
 
-// =============================================================================
-// Project Tracking Panel
-// =============================================================================
+// Project tracking panel
 
 /// Full-featured project tracking panel for the analytics screen.
 ///
@@ -146,11 +138,10 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
     return progressAsync.when(
       data: (projects) {
         if (projects.isEmpty) {
-          // CON-58: two screens are called "Projects" and they told the
-          // operator opposite things about how a project comes into being —
-          // this one said "add targets and capture images", Plan Tonight →
-          // Projects offers a "New Project" button. There is exactly one
-          // creation path, so this names it and goes there.
+          // Two screens are called "Projects", so they must not tell the
+          // operator opposite things about how a project comes into being.
+          // Plan Tonight → Projects owns the "New Project" button; there is
+          // exactly one creation path, so this names it and goes there.
           return AnalyticsEmptyState(
             icon: LucideIcons.target,
             title: 'No projects yet',

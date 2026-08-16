@@ -162,12 +162,10 @@ void main() {
   });
 
   group('every result carries the full 25-field shape', () {
-    /// The failure literal used to be copy-pasted at 22 sites and is now built
-    /// once. These pin the contract that collapse relied on: a failure is
-    /// zeroed astrometry plus a reason, and a success from a local fallback
-    /// parser leaves the CD matrix and SIP terms empty (only the native solver
-    /// recovers those). A field left half-populated on one path is what the
-    /// collapse is meant to make impossible.
+    /// The result contract: a failure is zeroed astrometry plus a reason, and
+    /// a success from a local fallback parser leaves the CD matrix and SIP
+    /// terms empty (only the native solver recovers those). No path may leave
+    /// a field half-populated.
     void expectAstrometryUnset(PlateSolveResult result) {
       expect(result.cd11, 0);
       expect(result.cd12, 0);

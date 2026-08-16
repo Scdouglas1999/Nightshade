@@ -87,8 +87,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   /// Catalogs installed on the connected appliance, when this app is driving a
   /// remote backend. The cards above read the LOCAL filesystem, which on a
-  /// paired phone says nothing at all about the machine that actually runs
-  /// plate solving, target search, framing and annotation.
+  /// paired phone says nothing about the machine that actually runs plate
+  /// solving, target search, framing and annotation.
   RemoteCatalogStatusResponse? _rigCatalogs;
   String? _rigCatalogError;
   ProviderSubscription<NightshadeBackend>? _backendSubscription;
@@ -300,8 +300,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     }
   }
 
-  /// Tear down after the user cancelled an in-flight download: refresh any
-  /// surviving install and let them know nothing was changed.
+  /// Tear down after the user cancels an in-flight download: refresh any
+  /// surviving install and say that nothing changed.
   Future<void> _onDownloadCancelled() async {
     _logOutcome('Catalog download cancelled by the operator');
     await _loadCatalogStatus();

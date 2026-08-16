@@ -25,8 +25,7 @@ void main() {
   testWidgets('tapping the validation badge opens the issue list',
       (tester) async {
     // A target still carrying the (0h, +0deg) placeholder: a real rule fires
-    // on it AND names the offending node, so both halves of the fix are
-    // exercised.
+    // on it AND names the offending node, so both halves are exercised.
     final target = TargetHeaderNode(
       targetName: 'Unset target',
       raHours: 0,

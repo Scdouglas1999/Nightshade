@@ -8,8 +8,8 @@
 /// consumer that reads the field as a Map reads nothing, on every host.
 ///
 /// Every consumer therefore goes through this one decode, and the tests feed
-/// the String shape, so a reader can no longer pass on a shape production does
-/// not send.
+/// the String shape, so a reader cannot accept a shape production does not
+/// send.
 library;
 
 import 'dart:convert';

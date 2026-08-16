@@ -74,13 +74,9 @@ double? airmassForTrueAltitude(double altitudeDegrees) {
 class AstronomyCalculations {
   AstronomyCalculations._();
 
-  // ============================================================================
   // Constants
-  // ============================================================================
 
-  // ============================================================================
-  // Julian Date Calculations
-  // ============================================================================
+  // Julian date calculations
 
   /// Convert DateTime to Julian Date.
   ///
@@ -110,9 +106,7 @@ class AstronomyCalculations {
   /// Modified Julian Date
   static double modifiedJulianDate(DateTime dt) => _modifiedJulianDate(dt);
 
-  // ============================================================================
-  // Sidereal Time
-  // ============================================================================
+  // Sidereal time
 
   /// Greenwich Mean Sidereal Time in hours
   static double greenwichMeanSiderealTime(DateTime dt) =>
@@ -122,9 +116,7 @@ class AstronomyCalculations {
   static double localSiderealTime(DateTime dt, double longitudeDeg) =>
       _localSiderealTime(dt, longitudeDeg);
 
-  // ============================================================================
-  // Atmospheric Refraction
-  // ============================================================================
+  // Atmospheric refraction
 
   /// Calculate atmospheric refraction correction using Bennett (1982) formula
   /// This is the standard formula used by the USNO
@@ -153,9 +145,7 @@ class AstronomyCalculations {
   static double apparentToTrueAltitude(double apparentAltDeg) =>
       _apparentToTrueAltitude(apparentAltDeg);
 
-  // ============================================================================
-  // Coordinate Transformations
-  // ============================================================================
+  // Coordinate transformations
 
   /// Convert equatorial (RA/Dec) to horizontal (Alt/Az) coordinates
   /// Returns (altitude, azimuth) in degrees
@@ -208,9 +198,7 @@ class AstronomyCalculations {
     required double latDeg,
   }) => _galacticToEquatorial(lonDeg: lonDeg, latDeg: latDeg);
 
-  // ============================================================================
-  // Precession & Nutation
-  // ============================================================================
+  // Precession & nutation
 
   /// Nutation in longitude and obliquity (degrees) for a given Julian Date.
   ///
@@ -258,9 +246,7 @@ class AstronomyCalculations {
     required DateTime dt,
   }) => _precessFromDateToJ2000(raDeg: raDeg, decDeg: decDeg, dt: dt);
 
-  // ============================================================================
-  // Sun Calculations
-  // ============================================================================
+  // Sun calculations
 
   /// Calculate Sun position for given DateTime
   /// Returns (ra, dec) in degrees
@@ -282,9 +268,7 @@ class AstronomyCalculations {
     apparent: apparent,
   );
 
-  // ============================================================================
-  // Twilight Calculations
-  // ============================================================================
+  // Twilight calculations
 
   // -34/60
 
@@ -312,9 +296,7 @@ class AstronomyCalculations {
   static Duration? darknessHours(TwilightTimes twilight) =>
       _darknessHours(twilight);
 
-  // ============================================================================
-  // Moon Calculations
-  // ============================================================================
+  // Moon calculations
 
   /// Calculate Moon position for given DateTime
   /// Returns (ra, dec, distance) - ra/dec in degrees, distance in km
@@ -354,42 +336,32 @@ class AstronomyCalculations {
     longitudeDeg: longitudeDeg,
   );
 
-  // ============================================================================
-  // Object Rise/Set/Transit Calculations
-  // ============================================================================
+  // Object rise/set/transit calculations
 
   /// The calendar date of the night that CONTAINS [instant] — the value to pass
   /// as `date` to [calculateObjectVisibility] when all you hold is a timestamp.
   ///
   /// The observing night runs local noon to local noon, so anything before noon
-  /// belongs to the night that started the previous day. Callers that handed an
-  /// instant straight to `date` silently described the FOLLOWING night whenever
-  /// that instant had crossed midnight, which is a whole sidereal day (~4 min)
-  /// of error in every rise/transit/set time they reported.
+  /// belongs to the night that started the previous day. Handing `date` a raw
+  /// instant that has crossed midnight describes the FOLLOWING night — a whole
+  /// sidereal day (~4 min) of error in every rise/transit/set time.
   static DateTime nightDateOf(DateTime instant) => _nightDateOf(instant);
 
   /// Calculate rise, transit, and set times for an object.
   ///
   /// The window scanned is the local day of [date] from noon to the following
-  /// noon (the natural span for "tonight"). [date] is therefore the DATE of the
-  /// night, not an instant within it — only its calendar day is read. Passing a
-  /// timestamp that has already crossed local midnight (astronomical dusk in
-  /// mid-summer, say) selects the NEXT night, which is how the planetarium's
-  /// "Best Targets Tonight" list came to report transit times a sidereal day
-  /// out while the same screen's Info tab reported them correctly. Convert an
-  /// instant with [nightDateOf].
+  /// noon. [date] is therefore the DATE of the night, not an instant within it —
+  /// only its calendar day is read, and a timestamp past local midnight selects
+  /// the NEXT night. Convert an instant with [nightDateOf].
   ///
   /// The three times describe ONE pass of the sky: rise < transit < set, and
   /// the rise may fall before the window when the body is already up as it
   /// opens. Which pass is reported is decided by the transit — the window's
   /// altitude maximum — so it is the culmination the window was opened for.
   ///
-  /// The algorithm samples apparent
-  /// altitude at a fine step, brackets each rise/set crossing, then bisects to
-  /// sub-minute accuracy. Transit is located by sampling for the altitude
-  /// maximum and refining it. All steps recompute the body's position via
-  /// [positionAt], so Sun/Moon/planets are handled correctly across the night;
-  /// fixed catalog objects omit [positionAt] and use their constant RA/Dec.
+  /// Every sample recomputes the body's position via [positionAt], so
+  /// Sun/Moon/planets track across the night; fixed catalog objects omit
+  /// [positionAt] and use their constant RA/Dec.
   ///
   /// [minAltitude] is the altitude that defines "up" for rise/set (default 0°,
   /// i.e. the geometric horizon). [standardAltitude] overrides the altitude
@@ -472,9 +444,7 @@ class AstronomyCalculations {
     longitudeDeg: longitudeDeg,
   );
 
-  // ============================================================================
-  // Meridian / Meridian-Flip Geometry
-  // ============================================================================
+  // Meridian / meridian-flip geometry
 
   /// Hour angle of a target (degrees) for the given instant and location.
   ///
@@ -515,9 +485,7 @@ class AstronomyCalculations {
     pastMeridianMinutes: pastMeridianMinutes,
   );
 
-  // ============================================================================
-  // Airmass Calculation
-  // ============================================================================
+  // Airmass calculation
 
   /// Airmass for planning surfaces, with the scheduler's convention applied.
   ///
@@ -532,9 +500,7 @@ class AstronomyCalculations {
   /// on the Rust side, which does the same for the same reason.
   static double airmass(double altitudeDeg) => _airmass(altitudeDeg);
 
-  // ============================================================================
-  // Angular Separation
-  // ============================================================================
+  // Angular separation
 
   /// Calculate angular separation between two sky coordinates (degrees).
   ///

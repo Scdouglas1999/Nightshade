@@ -1,4 +1,4 @@
-// Collaborative Sky (6.0) WS2 — client-side collaborative-mosaic orchestration.
+// Client-side collaborative-mosaic orchestration.
 //
 // Exercises [CollaborativeMosaicService] over a `package:http/testing` MockClient
 // (no network) + a real in-memory DB with the real v45/v56 mosaic DAOs and the
@@ -406,7 +406,7 @@ void main() {
     () async {
       final projectId = await seedProject();
       await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
-      // No explicit license/attribution and no resolver wired → the WS4 consent
+      // No explicit license/attribution and no resolver wired → the consent
       // gate refuses the upload BEFORE any bytes leave the device.
       final mock = MockClient((request) async => http.Response('{}', 200));
       await expectLater(

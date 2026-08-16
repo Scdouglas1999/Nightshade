@@ -1,8 +1,8 @@
 /// `GET /pair` — the self-contained browser pairing page.
 ///
-/// Extracted from `system_handlers.dart` so the ~300-line inline HTML page
-/// (a distinct responsibility — a no-app, no-SSH pairing UI) lives apart
-/// from the JSON info/self-test handlers. The handler is an extension on
+/// The ~300-line inline HTML page (a distinct responsibility — a no-app,
+/// no-SSH pairing UI) lives apart from the JSON info/self-test handlers.
+/// The handler is an extension on
 /// [SystemHandlers] so the route wiring (`h.handlePairPage`) resolves
 /// unchanged.
 library;
@@ -16,23 +16,10 @@ import 'system_handlers.dart';
 extension SystemPairPageHandler on SystemHandlers {
   /// `GET /pair` — a self-contained browser pairing page.
   ///
-  /// Lets an operator pair from ANY browser on the LAN without the mobile
-  /// app and without reading the appliance terminal. The page is pure
-  /// vanilla JS (no build pipeline, kept inline like `/broadcast`) and does
-  /// all its work client-side against the already-public pairing endpoints:
-  ///
-  ///   * Fetches `GET /api/info` (same origin) to show the rig name and the
-  ///     active pairing mode (lan-open vs code-required).
-  ///   * In **lan-open** mode a "Pair this browser" button POSTs
-  ///     `/api/pairing/lan-claim`; on success the token is exchanged for an
-  ///     HttpOnly browser session and the page links into the dashboard.
-  ///     If the request arrived through a tunnel/proxy and is not eligible for
-  ///     one-tap trust, the page reveals the code flow instead of dead-ending.
-  ///   * In **code-required** mode it POSTs `/api/pairing/start` (which only
-  ///     returns the expiry — the code itself is deliberately never sent over
-  ///     HTTP, see PairingHandlers) and instructs the operator to read the
-  ///     6-digit code from the appliance log / stdout, then enter it; the
-  ///     page then POSTs `/api/pairing/verify` to complete pairing.
+  /// Lets an operator pair from ANY browser on the LAN without the mobile app
+  /// and without reading the appliance terminal. The page is pure vanilla JS
+  /// (no build pipeline, kept inline like `/broadcast`) and does all its work
+  /// client-side against the already-public pairing endpoints.
   ///
   /// Security note: this page never surfaces the pairing code itself. The
   /// code is the out-of-band trust factor and is intentionally kept to the

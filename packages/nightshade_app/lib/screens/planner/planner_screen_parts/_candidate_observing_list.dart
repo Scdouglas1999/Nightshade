@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // Observing-list dialog, rows, score badges and candidate chips.
 part of '../planner_screen.dart';
 
@@ -111,9 +109,8 @@ class _CandidateObservingListDialogState
     if (id == null) {
       // No row was written. Two very different reasons, and they must not read
       // the same: a genuine write failure sets errorMessage, while "the target
-      // is already in this list" sets only a neutral statusMessage. The latter
-      // used to render the raw Dart exception ("Failed to add item: Bad state:
-      // …") in red for what is a harmless no-op.
+      // is already in this list" sets only a neutral statusMessage — a harmless
+      // no-op must not surface as a red Dart exception.
       final alreadyThere =
           uiState.errorMessage == null ? uiState.statusMessage : null;
       if (alreadyThere != null) {
@@ -323,11 +320,10 @@ class _CandidateObservingListDialogState
 
 /// One selectable observing list inside the add-to-list dialog.
 ///
-/// Previously a bare `ListTile` with unstyled text: nothing signalled that the
-/// list names were tappable, in contrast to the bordered "Create new list…"
-/// button right below them. This gives the rows real chrome (icon, border,
-/// chevron) and states plainly when the target is already in a list instead of
-/// inviting an add that can only be a no-op.
+/// The rows carry real chrome (icon, border, chevron) so they read as tappable
+/// beside the bordered "Create new list…" button below them, and they state
+/// plainly when the target is already in a list instead of inviting an add that
+/// can only be a no-op.
 class _ObservingListRow extends StatelessWidget {
   final String name;
   final NightshadeColors colors;

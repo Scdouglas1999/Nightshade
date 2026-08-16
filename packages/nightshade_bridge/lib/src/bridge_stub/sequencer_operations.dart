@@ -11,9 +11,7 @@ double calculateSequencerProgressFraction({
 }
 
 extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
-  // =========================================================================
   // Sequencer API
-  // =========================================================================
 
   /// Guard, call, log — the shape every pass-through to the generated
   /// sequencer API shares.
@@ -506,9 +504,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  // =========================================================================
-  // Checkpoint / Crash Recovery
-  // =========================================================================
+  // Checkpoint / crash recovery
 
   /// Set the checkpoint directory
   Future<void> sequencerSetCheckpointDir(String path) => _native(

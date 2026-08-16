@@ -134,9 +134,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     // Watch shared viewer state so rebuilds reflect zoom/pan/overlay changes.
     final viewerState = ref.watch(imagingViewerStateProvider);
 
-    // Replace the previous build-time `_checkFirstUseCatalogPrompt()` call:
     // ref.listen fires only on actual provider transitions, so resize storms
-    // and hot reloads no longer trigger duplicate dialogs (audit §4.3).
+    // and hot reloads do not trigger duplicate dialogs.
     ref.listen<AnnotationState>(annotationStateProvider, (prev, next) {
       _maybeShowFirstUseCatalogPrompt(next);
     });
@@ -195,12 +194,10 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
             // top-level Column it appears on both the desktop and mobile layouts.
             const MeridianFlipCountdownBanner(),
 
-            // Main content. A single AdaptivePanelLayout replaces the former
-            // desktop `ResizablePanel` split AND the bespoke mobile column:
+            // Main content. One AdaptivePanelLayout covers every tier:
             //
             //   * Desktop (w >= 768): resizable split — preview column on the
-            //     left, the tab panel on the right with a draggable divider,
-            //     reproducing the old `ResizablePanel(320/250/500, side left)`.
+            //     left, the tab panel on the right with a draggable divider.
             //   * Tablet (600..768): fixed-ratio side-by-side split.
             //   * Phone portrait (w < 600): the tab panel collapses into a bottom
             //     sheet so the live preview keeps the whole screen; a persistent
@@ -209,8 +206,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
             //   * Phone landscape (enough width): automatic side-by-side split
             //     (preview left, controls right).
             //
-            // We compute the phone tier on the screen's OWN constraints (not the
-            // raw window) so an embedded/remote layout still reflows correctly.
+            // The phone tier is computed on the screen's OWN constraints (not
+            // the raw window) so an embedded/remote layout still reflows.
             //
             // On phone the persistent capture bar is a SIBLING below the
             // AdaptivePanelLayout (not inside its primary): the bottom-sheet
@@ -236,16 +233,12 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   // (landscape && width >= landscapeSplitMinWidth, default 560):
                   // in that band the controls are already beside the image, and
                   // stacking the bottom capture bar under them overflows the
-                  // short (~390 px) landscape height. So the Capture TAB has to
-                  // carry the shutter there instead — the previous code omitted
-                  // the bar on the stated grounds that "the Capture tab's
-                  // Snapshot/Loop are already visible beside the image", which
-                  // was simply not true: CapturePanel had no Snapshot or Loop
-                  // button and _takeSnapshot has no keyboard shortcut, so in
-                  // that band the Imaging screen offered NO way to start an
-                  // exposure at all. Passing the actions here makes the claim
-                  // true, and keeps the tutorial GlobalKeys unique because the
-                  // bottom bar is omitted on exactly this branch.
+                  // short (~390 px) landscape height, so the Capture TAB carries
+                  // the shutter there instead. CapturePanel has no Snapshot or
+                  // Loop button of its own and _takeSnapshot has no keyboard
+                  // shortcut, so without these actions the band offers NO way to
+                  // start an exposure at all. Omitting the bottom bar on exactly
+                  // this branch also keeps the tutorial GlobalKeys unique.
                   final controlsInLandscapeSplit = compact &&
                       constraints.maxWidth > constraints.maxHeight &&
                       constraints.maxWidth >= 560;
@@ -322,8 +315,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Hide the inline Stats readout on narrow widths, matching the old
-        // panel which dropped the whole Stats section below ~600px.
+        // Hide the inline Stats readout on narrow widths.
         final showStats =
             constraints.maxWidth >= BreakpointTokens.breakpointPhone;
         // The shared shell can leave this pane shorter than the toolbar while
@@ -616,18 +608,17 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   }
 }
 
-/// Composes the Camera tab from its existing controls and the new
-/// [CalibrationSection]. Kept in this file (rather than mutating
-/// [CameraPanel] directly) so the tab/panel layout stays the single
-/// integration point for the W6-DEFECT UI.
+/// Composes the Camera tab from its existing controls and the
+/// [CalibrationSection]. Kept in this file rather than mutating [CameraPanel]
+/// directly, so the tab/panel layout stays the single integration point.
 ///
 /// The Camera tab and the [CalibrationSection] share ONE scroll view so the
-/// Cooling controls keep their natural height. Previously [CameraPanel] was an
-/// [Expanded] scroll region with the calibration card pinned below it, which
-/// let the full-height calibration card squeeze Cooling into a cramped,
-/// separately-scrolling strip. [CameraPanel] now renders non-scrolling
-/// ([CameraPanel.scrollable] = false) and the single outer
-/// [SingleChildScrollView] scrolls the whole tab — no nested scroll regions.
+/// Cooling controls keep their natural height: an [Expanded] scroll region with
+/// the calibration card pinned below it lets the full-height calibration card
+/// squeeze Cooling into a cramped, separately-scrolling strip. [CameraPanel]
+/// renders non-scrolling ([CameraPanel.scrollable] = false) and the single
+/// outer [SingleChildScrollView] scrolls the whole tab — no nested scroll
+/// regions.
 class _CameraTabContent extends StatelessWidget {
   final NightshadeColors colors;
 

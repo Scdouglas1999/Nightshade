@@ -37,9 +37,7 @@ const int replayDebugDefaultRetentionDays = 90;
 /// value must be exactly `true`/`false` (case-insensitive, surrounding
 /// whitespace tolerated); anything else is corruption and throws
 /// [FormatException] so the read surfaces as an AsyncError instead of
-/// silently coercing garbage to `true` (the old
-/// `value.toLowerCase() != 'false'` behaviour treated every corrupt string
-/// as enabled).
+/// coercing an unreadable value to `true`.
 bool parseReplayEnabledSetting(String? stored) {
   if (stored == null) return true;
   switch (stored.trim().toLowerCase()) {
@@ -91,7 +89,7 @@ int _clampRetentionDays(int days) {
 /// but a rollback that did not land leaves the persisted value out of step
 /// with what the caller was just told. Without this line the next read of the
 /// setting reports a value the operator never confirmed, with nothing in the
-/// log tying it to the update that was reported as not applied.
+/// log tying it to the update reported as not applied.
 void _logFailedReplayRollback(String what, Object error) {
   developer.log(
     'Failed to roll back $what after an aborted update; the persisted value '

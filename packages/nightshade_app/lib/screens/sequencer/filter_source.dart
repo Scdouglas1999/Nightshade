@@ -3,12 +3,10 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 /// Filter names the sequence builder should offer, and where they came from.
 ///
-/// The builder used to read the equipment PROFILE and nothing else, so a rig
-/// whose filters live on the connected wheel (the usual case for a wheel that
-/// reports its own slot names) authored against "No filters in profile" and a
-/// node header reading "Exposure: No Filter" — while the run captured, named
-/// and reported every frame as filter "R". The authoring surface denied a
-/// filter the data-writing path was using for filenames and statistics.
+/// Reading the equipment PROFILE alone leaves a rig whose filters live on the
+/// connected wheel authoring against "No filters in profile" while the run
+/// captures, names and reports every frame under the wheel's own slot name —
+/// the authoring surface denying a filter the data-writing path is using.
 ///
 /// The profile stays authoritative when it has filters: it is the operator's
 /// deliberate naming. The connected wheel is the fallback, not an override.

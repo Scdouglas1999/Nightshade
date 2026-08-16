@@ -125,7 +125,7 @@ void main() {
     (tester) async {
       await _pump(tester, DisconnectedBackend());
 
-      // The old copy asserted a readiness the system did not have.
+      // The copy must not assert a readiness the system does not have.
       expect(find.text('Sequence ready — start tonight’s run.'), findsNothing);
       expect(find.text('Ready'), findsNothing);
       // …and it must say why instead.

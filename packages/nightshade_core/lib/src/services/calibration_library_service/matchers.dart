@@ -1,9 +1,7 @@
 part of '../calibration_library_service.dart';
 
 extension _CalibrationLibraryMatchers on CalibrationLibraryService {
-  // ---------------------------------------------------------------------------
   // Per-type matchers
-  // ---------------------------------------------------------------------------
 
   CalibrationMatch? _matchDark(
     Iterable<CalibrationMasterRecord> darks,
@@ -329,9 +327,7 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Scoring helpers
-  // ---------------------------------------------------------------------------
 
   double _applyTempScore({
     required double score,

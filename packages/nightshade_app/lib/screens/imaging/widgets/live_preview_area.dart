@@ -71,14 +71,10 @@ const double _cornerReadoutBandHeight = 120.0;
 /// Whether the on-canvas measurement readouts — the histogram, the HFR / ECC /
 /// star-count chip and the image-stats panel — are drawn.
 ///
-/// This replaces a 2.5 s idle timer that faded them out whenever the pointer
-/// stopped moving. The intent was "leave a clean captured frame", but nobody
-/// wiggles the mouse while a sequence runs and a remote operator watching over
-/// a screen share has no local pointer at all, so in real use the two numbers
-/// an astrophotographer checks constantly were hidden essentially always — a
-/// new frame would land and the panel would still be blank until you jiggled
-/// the mouse. Visibility is now explicit and user-owned (Overlays → Readouts),
-/// defaulting on: nothing on this canvas disappears because of a timer.
+/// Visibility is explicit and user-owned (Overlays → Readouts), defaulting on:
+/// nothing on this canvas disappears because of a timer. A pointer-idle fade
+/// would hide these permanently for an unattended run or a remote operator
+/// watching over a screen share, who has no local pointer at all.
 final previewReadoutsVisibleProvider = StateProvider<bool>((ref) => true);
 
 class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
@@ -652,9 +648,8 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                           // through the calibration pipeline. The provider
                           // only reports true when the saved file path
                           // ended up at `_cal.fits` — calibration failures
-                          // leave the original path untouched, so this
-                          // badge never lies about a frame that the
-                          // pipeline couldn't calibrate.
+                          // leave the original path untouched, so an
+                          // uncalibrated frame never wears the badge.
                           _CalibratedBadge(colors: colors),
                         ],
                       ),

@@ -75,9 +75,7 @@ List<Override> _diagnosticsOverrides() {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // ===========================================================================
   // DiagnosticsScreen — optical-train health surface
-  // ===========================================================================
 
   testWidgets(
       'renders_without_throwing_no_sessions: DiagnosticsScreen with no sessions '
@@ -184,9 +182,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  // ===========================================================================
   // DiagnosticDumpScreen — bug-report attachment surface
-  // ===========================================================================
 
   testWidgets(
       'dump_screen_renders_create_button: header title and "Create dump" '

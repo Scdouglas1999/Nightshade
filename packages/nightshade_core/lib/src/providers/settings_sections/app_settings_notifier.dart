@@ -18,9 +18,9 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   // full settings blob.
   StreamSubscription<NightshadeEvent>? _settingsEventSub;
 
-  /// `correlatingCommandId`s of POSTs this notifier itself originated.
-  /// Used to drop our own echoes so a local write doesn't fight the
-  /// in-flight UI by overwriting state with the value we just sent.
+  /// `correlatingCommandId`s of POSTs this notifier itself originated, so its
+  /// own echoes are dropped and a local write does not fight the in-flight UI
+  /// by overwriting state with the value it just sent.
   /// Bounded at 64 entries — far more than any realistic in-flight
   /// burst, but cheap to keep.
   final List<String> _ownCommandIds = <String>[];

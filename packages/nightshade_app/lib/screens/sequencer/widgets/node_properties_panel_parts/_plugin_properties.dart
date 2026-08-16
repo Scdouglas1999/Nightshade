@@ -1,5 +1,3 @@
-// Part of ../node_properties_panel.dart -- extracted for maintainability.
-//
 // Properties editor for plugin-contributed instruction nodes. Plugins own an
 // opaque JSON config blob plus an optional per-node timeout. We surface both
 // with a multi-line JSON editor (validated on change so a malformed blob is

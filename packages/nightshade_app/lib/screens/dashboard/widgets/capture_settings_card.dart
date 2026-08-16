@@ -569,13 +569,11 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
 
   /// Commit on blur, then force the box back onto the committed value.
   ///
-  /// Without this the field only committed on Enter, so tabbing away — or
-  /// clicking Capture, which unfocuses the field on desktop — left the box
-  /// showing a number the rig was never told about, and the next exposure ran
-  /// at the old setting with nothing on screen to say so. Re-syncing after the
-  /// commit is what makes the box truthful in BOTH directions: a good edit
-  /// renormalises ("2" -> "2.0") and an unparseable one snaps back to the value
-  /// actually in force instead of sitting there looking committed.
+  /// Committing only on Enter leaves the box showing a number the rig was never
+  /// told about when the user tabs away — or clicks Capture, which unfocuses the
+  /// field on desktop. Re-syncing after the commit makes the box truthful in
+  /// BOTH directions: a good edit renormalises ("2" -> "2.0") and an unparseable
+  /// one snaps back to the value actually in force.
   void _onFocusChanged() {
     if (_focusNode.hasFocus) return;
     final typed = _controller.text;

@@ -6,13 +6,12 @@ import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/models/imaging/imaging_models.dart';
 import 'package:nightshade_core/src/services/flat_wizard_service.dart';
 
-/// PHASE-3 PARITY/SNAPSHOT TEST — PINS CURRENT BEHAVIOR.
+/// Snapshot cover for the ADU-convergence math.
 ///
-/// Written BEFORE collapsing the duplicated ADU-convergence math so that the
-/// canonical Dart `FlatWizardService.calculateNextExposure` (the engine that
-/// actually drives the standalone flat-wizard screen and the headless
-/// `/api/flat-wizard/*` handlers via `calibrateFilter`) cannot regress when the
-/// second copy (`FlatExposureCalculator.calculateNextExposure`) is removed.
+/// Pins the canonical Dart `FlatWizardService.calculateNextExposure` — the
+/// engine that drives the standalone flat-wizard screen and the headless
+/// `/api/flat-wizard/*` handlers via `calibrateFilter` — so its numbers cannot
+/// move.
 ///
 /// Two layers are pinned:
 ///  1. The pure next-exposure math for representative (currentAdu, target,

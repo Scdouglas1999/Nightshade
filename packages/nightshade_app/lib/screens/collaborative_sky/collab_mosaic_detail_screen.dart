@@ -11,7 +11,7 @@ import '../your_sky/sky_atlas_format.dart';
 import 'collaborative_sky_format.dart';
 import 'collaborative_sky_providers.dart';
 
-/// The per-panel detail for one collaborative mosaic (WS2): the claimable panel
+/// The per-panel detail for one collaborative mosaic: the claimable panel
 /// grid, who has claimed/uploaded each panel (the attribution that credits every
 /// contributor on the finished mosaic), and the live combined progress as panels
 /// land. A participant can JOIN the mosaic here — linking it to a local project
@@ -192,8 +192,9 @@ class _Body extends ConsumerWidget {
         ? total
         : mosaic.panels.where((p) => p.uploaded).length;
     // Credit contributors from the hub's authoritative `/v1/attribution` list
-    // (WS4 consent contract) rather than reconstructing them from the owner +
-    // per-panel names; falls back to the embedded names until it resolves.
+    // — the consent-aware source — rather than reconstructing them from the
+    // owner + per-panel names; falls back to the embedded names until it
+    // resolves.
     final attribution = ref
         .watch(collaborativeMosaicAttributionProvider(mosaic.mosaicId))
         .valueOrNull;
@@ -294,8 +295,8 @@ class _Body extends ConsumerWidget {
 /// local [MosaicProject] via [CollaborativeMosaicService.joinMosaicAsParticipant]
 /// — mirroring the hub grid into a durable project — then route to the mosaic
 /// project screen so the rig can claim panels and capture. In-flight state
-/// disables the button + shows a spinner, mirroring the WS3 `_JoinSessionButton`
-/// pattern; failures surface a snackbar via [describeConstellationError].
+/// disables the button + shows a spinner, mirroring `_JoinSessionButton`;
+/// failures surface a snackbar via [describeConstellationError].
 class _JoinMosaicButton extends ConsumerStatefulWidget {
   final CollabMosaic mosaic;
 

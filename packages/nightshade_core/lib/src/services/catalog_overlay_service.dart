@@ -237,10 +237,9 @@ class CatalogOverlayService {
   /// Project catalog objects through [wcs] and return everything visible
   /// in the FOV brighter than [magnitudeLimit].
   ///
-  /// Throws nothing — invalid WCS yields [CatalogOverlayResult.empty]
-  /// with `catalogAvailable=false` so the caller can choose to surface
-  /// a banner. Errors from catalog file IO propagate so the user sees
-  /// real failures (per the project's "errors are a feature" rule).
+  /// Invalid WCS yields [CatalogOverlayResult.empty] with
+  /// `catalogAvailable=false` so the caller can surface a banner. Catalog
+  /// file IO errors propagate rather than reading as an empty field.
   Future<CatalogOverlayResult> queryFov({
     required SolvedWcs wcs,
     required double magnitudeLimit,
@@ -356,9 +355,7 @@ class CatalogOverlayService {
     );
   }
 
-  // -------------------------------------------------------------------------
   // Conversion helpers — kept small so the per-object loop stays cheap.
-  // -------------------------------------------------------------------------
 
   static bool _dsoPassesMagnitudeFilter(
     DeepSkyObject dso,

@@ -45,11 +45,10 @@ class SequenceLockedException extends SequenceEditorException {
 /// Thrown by snippet/clipboard deserialization when a node JSON payload
 /// carries a `nodeType` discriminator the editor does not recognize.
 ///
-/// Previously the editor silently substituted an `InstructionSetNode`,
-/// which collapsed the snippet's semantics (an unknown `MeridianFlip`
-/// would silently become a no-op container at runtime). Throwing instead
-/// surfaces the schema mismatch so the importer can decide whether to
-/// surface to the user, log, or abort the snippet insertion.
+/// Substituting an `InstructionSetNode` would collapse the snippet's
+/// semantics — an unknown `MeridianFlip` becomes a no-op container at runtime.
+/// Throwing surfaces the schema mismatch so the importer can decide whether to
+/// show it to the user, log it, or abort the snippet insertion.
 class SnippetDeserializationException extends SequenceEditorException {
   const SnippetDeserializationException({
     required this.unknownType,
@@ -72,10 +71,10 @@ class SnippetDeserializationException extends SequenceEditorException {
 /// Thrown when an operation requires a current sequence to exist but
 /// none has been loaded or created.
 ///
-/// Previously, methods like `addTargetHeader` would silently call
-/// `createSequence()` to paper over this. That hides a UX failure (the
-/// user didn't realize they hadn't opened a sequence yet) and makes the
-/// editor non-idempotent. Callers should catch this and prompt the user.
+/// Mutating methods such as `addTargetHeader` must throw rather than paper
+/// over it by calling `createSequence()`: an implicit unnamed sequence hides
+/// from the user that they never opened one, and makes the editor
+/// non-idempotent. Callers catch this and prompt.
 class NoActiveSequenceException extends SequenceEditorException {
   const NoActiveSequenceException({required this.attemptedOperation})
     : super(

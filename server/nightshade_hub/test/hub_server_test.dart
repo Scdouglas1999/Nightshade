@@ -751,7 +751,7 @@ void main() {
         final owner = await signup('m-owner-consent');
         final mosaicId = (await publish(owner))['mosaicId'] as String;
         await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
-        // Holding the claim, but no license — the WS4 consent gate refuses the
+        // Holding the claim, but no license — the consent gate refuses the
         // share into the redistributable mosaic before any bytes are read/stored.
         final noLicense = await req(
           'POST',
@@ -1035,10 +1035,9 @@ void main() {
     test(
       'a contributor may pull only its OWN panel master, never a peer\'s',
       () async {
-        // Regression: isParticipant returned true for ANY account holding ANY
-        // panel, which let a hostile contributor claim one throwaway panel and
-        // then exfiltrate every peer's raw panel master. The download is now
-        // scoped to the panel the caller was actually assigned.
+        // A panel download is scoped to the panel the caller was actually
+        // assigned: holding ANY panel must not let a hostile contributor claim
+        // one throwaway panel and exfiltrate every peer's raw panel master.
         final owner = await signup('m-owner-xpanel');
         final bob = await signup('m-bob-xpanel');
         final mosaicId = (await publish(owner))['mosaicId'] as String;
@@ -1382,7 +1381,7 @@ void main() {
         final owner = await signup('ci-anon-owner');
         final sessionId =
             (await create(owner, rigId: 'owner-rig'))['sessionId'] as String;
-        // No license -> the WS4 consent gate refuses the contribution (400).
+        // No license -> the consent gate refuses the contribution (400).
         expect(
           (await req(
             'POST',
@@ -1879,12 +1878,11 @@ void main() {
 
       test('a resource-bound mosaic token is confined on the legacy tile-swarm '
           'routes (403)', () async {
-        // Regression: the legacy tile/handoff handlers gated on the coarse
-        // `contribute` scope ONLY, so a token minted as "contribute to mosaic 42"
-        // kept full contribute authority on the GLOBAL co-add + handoff baton —
-        // its actions allow-list + resource binding were never consulted there.
-        // Every collaborative WRITE route now runs the fine-grained gate, so the
-        // delegated token is denied outside its mosaic-upload-on-42 grant.
+        // Every collaborative WRITE route — the tile and handoff handlers
+        // included — runs the fine-grained gate, not the coarse `contribute`
+        // scope alone. A token minted as "contribute to mosaic 42" is therefore
+        // denied outside that grant on the GLOBAL co-add + handoff baton: its
+        // actions allow-list and resource binding are consulted there too.
         final a = await account('confine-1');
         final minted =
             (await jsonOf(
@@ -1935,11 +1933,11 @@ void main() {
 
       test('a resource-bound token is confined on READ gates too, not only '
           'writes (no global read leak)', () async {
-        // Regression: action-less READ gates skipped the narrowed-token denial,
-        // so a "contribute to mosaic 42" delegation could read the entire swarm
-        // target queue, every tile, and every mosaic/co-imaging list — leaking
-        // other users' coordinates + activity. Each WS1-3 read gate now declares
-        // its own read action + resource binding, confining the bound token.
+        // Every read gate declares its own read action + resource binding, so a
+        // narrowed "contribute to mosaic 42" delegation is confined there too.
+        // An action-less read gate would let it read the entire swarm target
+        // queue, every tile, and every mosaic/co-imaging list — leaking other
+        // users' coordinates + activity.
         final a = await account('read-confine-1');
         final minted =
             (await jsonOf(
@@ -1988,9 +1986,9 @@ void main() {
             accountId: reader.id,
             scope: HubScope.read,
           );
-          // A forbidden attempt (read token on an admin-only route) and a consent
-          // rejection (tile contribution with no license) — both previously left
-          // ZERO audit trail because denials are returned, not thrown.
+          // A forbidden attempt (read token on an admin-only route) and a
+          // consent rejection (tile contribution with no license) both reach the
+          // audit ledger, even though denials are returned rather than thrown.
           expect(
             (await req(
               'POST',

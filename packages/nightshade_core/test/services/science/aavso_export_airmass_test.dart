@@ -2,10 +2,9 @@
 //
 // This exercises `AavsoExportService.exportSession` against a real database
 // and reads the number out of the file that would be uploaded — not the
-// airmass helper in isolation. The exporter used to carry its own Pickering
-// copy clamped to 1..40, so a frame taken low in the sky was submitted to the
-// AAVSO with an airmass the frame's own FITS header disagreed with. Cutting
-// the exporter's call to the shared model must break this test.
+// airmass helper in isolation. The exporter must use the shared airmass model:
+// its own copy would submit a frame taken low in the sky with an airmass the
+// frame's own FITS header disagrees with.
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -107,8 +106,9 @@ void main() {
   test(
     'the submitted AMASS column is the product airmass model at every altitude',
     () async {
-      // 60° and 20° sit in the Pickering band; 4° and 0° are the band the old
-      // exporter got wrong, and 0° it refused outright (`altitude > 0`).
+      // 60° and 20° sit in the Pickering band; 4° and 0° are where a
+      // Pickering-only exporter diverges, and 0° is where an `altitude > 0`
+      // guard refuses to answer at all.
       final high = await frameAtAltitude('ss-cyg-60.fits', 60.0);
       final mid = await frameAtAltitude('ss-cyg-20.fits', 20.0);
       final low = await frameAtAltitude('ss-cyg-04.fits', 4.0);

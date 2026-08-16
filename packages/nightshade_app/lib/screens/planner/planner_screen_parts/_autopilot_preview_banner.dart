@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // The authoritative "what the autopilot will run tonight" banner. This is a
 // READ-ONLY preview of the live SchedulerEngine's decision: it renders the
 // exact target the dynamic scheduler would slew to right now (same scorer,
@@ -35,10 +33,9 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
   Widget _buildBanner(BuildContext context, SchedulerDecision decision) {
     final hasPick = decision.chosenTargetId != null;
     // Distinguish an EMPTY scheduler queue (fresh install / nothing added yet)
-    // from "targets are queued but none pass right now". The old banner showed
-    // the alarming "Nothing eligible right now" for BOTH — including the empty
-    // queue — right next to a full Night Outlook (which lists the whole bundled
-    // catalog), which read as a bug. `scoredCandidates` is empty only when the
+    // from "targets are queued but none pass right now". One banner for both
+    // puts the alarming "Nothing eligible right now" beside a full Night
+    // Outlook, which reads as a bug. `scoredCandidates` is empty only when the
     // scheduler had zero candidates to evaluate.
     final queueEmpty = !hasPick && decision.scoredCandidates.isEmpty;
     final accent = hasPick ? colors.primary : colors.warning;

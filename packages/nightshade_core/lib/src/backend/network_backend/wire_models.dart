@@ -2,19 +2,11 @@ part of '../network_backend.dart';
 
 /// Backend connection state.
 ///
-/// The chip in the mobile UI conflated OS-level connectivity with
-/// WebSocket session liveness. Splitting `connecting` (very first attempt)
-/// from `reconnecting` (subsequent attempts after a previously-successful
-/// connection) and adding a terminal `error` (gave up / hard failure) lets
-/// the indicator render "Server unreachable" distinctly from "Reconnecting".
-///
-/// Why five values rather than three: `connecting` and `reconnecting` both
-/// look like "in flight" to the user, but the messaging differs — a fresh
-/// connect should not promise "still reconnecting" when there's nothing to
-/// reconnect to yet. `error` is reserved for the case where the backend has
-/// stopped attempting (e.g. an unrecoverable version mismatch); the legacy
-/// `disconnected` state is reused for the post-disconnect idle window while
-/// the exponential backoff timer is armed.
+/// Describes WebSocket session liveness, not OS-level connectivity. The
+/// connection chip renders each state differently, so `connecting` (first
+/// attempt) stays distinct from `reconnecting` (a previously-successful
+/// connection dropped), and `error` (stopped attempting) from `disconnected`
+/// (idle, backoff timer armed).
 enum BackendConnectionState {
   /// Idle — not currently attempting a connection and not connected.
   /// Either disposed, or a backoff timer is armed before the next attempt.
@@ -566,9 +558,7 @@ class RemoteSessionStatus {
   }
 }
 
-// =============================================================================
 // Client-side mirrors of the headless server's /api/catalog/... shapes.
-// =============================================================================
 
 /// Per-catalog install state surfaced by `GET /api/catalog/status`.
 class RemoteCatalogStatus {
@@ -755,11 +745,9 @@ DateTime? _parseDateField(Object? raw) {
   return DateTime.tryParse(raw);
 }
 
-// =========================================================================
 // Wire types for the read-only DB endpoints. All endpoints use the
 // same `{items, total}` envelope, captured by [RemotePage<T>] so callers
 // see one consistent paginated shape regardless of underlying table.
-// =========================================================================
 
 /// Generic envelope for paginated `GET` endpoints. `items` is the page
 /// content; `total` is the unpaginated row count matching the filter.

@@ -15,10 +15,8 @@ const _nativeRunInProgressStates = <String>{
 extension _SequencerStartPreflight on SequencerHandlers {
   /// Open the session row that the headless `load -> start` path never opened.
   ///
-  /// Found on the live rig 2026-08-09: after six completed headless runs the
-  /// appliance held **30 FITS files on disk and 8 registered images**, all
-  /// eight belonging to the single run that had gone through
-  /// `checkpoint/resume` rather than `start`.
+  /// Without it a night ends with frames on disk and no registered images —
+  /// only the runs that went through `checkpoint/resume` are reviewable.
   ///
   /// The cause is that `handleSequencerStart`'s headless branch re-implements a
   /// subset of what `SequenceExecutor.start()` does — it wires devices into the
@@ -41,8 +39,8 @@ extension _SequencerStartPreflight on SequencerHandlers {
   /// Push the host's configured capture folder into the native executor.
   ///
   /// The native save path is per-process state; `imageOutputPath` is durable.
-  /// Reproduced on the live rig 2026-08-09, immediately after restarting the
-  /// appliance with the capture folder already configured:
+  /// Restart the appliance with the capture folder already configured and,
+  /// without this restore:
   ///
   /// ```
   /// GET  /api/system/disk-space -> {"configured": true, "path": "C:\\", ...}
@@ -144,11 +142,6 @@ extension _SequencerStartPreflight on SequencerHandlers {
   /// executor then refused, so a run that never began does not appear in
   /// `GET /api/sessions` as a night that happened.
   ///
-  /// Live rig 2026-08-09, found by running the fix rather than reading it: a
-  /// start whose sequence had failed to load answered `409 no_sequence_loaded`
-  /// and still left session id 3 behind — name copied from the previous run,
-  /// zero exposures, status `completed`.
-  ///
   /// Failure here is logged, not raised: the caller is already returning a
   /// refusal, and replacing an accurate refusal with a bookkeeping error would
   /// tell the operator the wrong thing about why their run did not start.
@@ -172,10 +165,10 @@ extension _SequencerStartPreflight on SequencerHandlers {
   ///
   /// The Rust `collect_required_devices` walk gates the five roles
   /// `sequencerSetDevices` carries. These three are reached through
-  /// `device_ops` with no id, so that walk structurally cannot see them — and
-  /// confirmed on the live rig 2026-08-09, `Dither`, `StartGuiding` and
-  /// `CalibratorOn` each answered `{"status":"started"}` and then failed
-  /// mid-run. Waiting cannot conjure a device nobody connected, so the
+  /// `device_ops` with no id, so that walk structurally cannot see them and a
+  /// `Dither`, `StartGuiding` or `CalibratorOn` node answers
+  /// `{"status":"started"}` and then fails mid-run. Waiting cannot conjure a
+  /// device nobody connected, so the
   /// recovery retries are futile by construction: refuse at Start, in the
   /// operator's terms, while there is still a night to save.
   ///
@@ -295,20 +288,11 @@ extension _SequencerStartPreflight on SequencerHandlers {
   ///
   /// Everything `start()` can return an `Err` for is a precondition it checks
   /// BEFORE launching the run — executor not idle, no sequence loaded, no
-  /// device ops, no save path, no camera, no plate solver. Not one of them is a
-  /// host fault, and calling them one is the cry-wolf shape: reproduced against
-  /// the Linux appliance on 2026-08-09 with the camera pre-flight,
-  ///
-  /// ```
-  /// POST /api/sequencer/start -> HTTP 500
-  ///   {"error":"internal_error","message":"Failed to start sequence: This
-  ///    sequence captures frames but no camera is assigned to the run. ..."}
-  /// ```
-  ///
-  /// A dashboard renders that as "internal error", and a 5xx invites the
-  /// automatic retry an unattended controller would do — so an operator-fixable
-  /// setup mistake reads as a transient appliance fault. The refusal text is
-  /// already the right words; only the envelope was wrong.
+  /// device ops, no save path, no camera, no plate solver. None is a host
+  /// fault, so none may carry a 5xx: a dashboard renders that as "internal
+  /// error" and an unattended controller retries it, turning an
+  /// operator-fixable setup mistake into a phantom appliance fault. The
+  /// refusal text is already the right words; only the envelope changes.
   Response _nativeStartRefusal(Object error) {
     final native = error is bridge_api.NightshadeError
         ? error.maybeMap(

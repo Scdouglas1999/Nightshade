@@ -105,9 +105,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     }
   }
 
-  // =========================================================================
   // Sessions & Analytics
-  // =========================================================================
 
   /// Get all imaging sessions
   Future<List<Map<String, dynamic>>> getAllSessions() async {
@@ -330,9 +328,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     ).toInt();
   }
 
-  // =========================================================================
   // Weather & Radar
-  // =========================================================================
 
   /// Get weather radar data
   Future<Map<String, dynamic>> getWeatherRadar(
@@ -384,9 +380,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     await _post('weather/clear-cache');
   }
 
-  // =========================================================================
   // Night Narrator feed (read-only)
-  // =========================================================================
 
   /// Fetch the appliance's narrator feed for a session (pinned-first,
   /// newest-first). Returns the raw event maps; callers reconstruct
@@ -411,9 +405,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return _sessionScienceObjectList(json, 'events', 'GET /api/narrator feed');
   }
 
-  // =========================================================================
   // First Light — difference-imaging transient discovery (read + triage)
-  // =========================================================================
 
   /// Fetch the appliance's First Light transient detections (newest-first).
   /// Pass [sessionId] for a single session, or null for the across-sessions
@@ -507,9 +499,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return _postRawBytes('firstlight/$id/export/mpc', const {});
   }
 
-  // =========================================================================
   // Sky Atlas — Pillar A ("Your Sky") personal atlas
-  // =========================================================================
 
   /// Fetch the host's persisted atlas regions (the "Your Sky" browser list).
   /// The imaging pipeline that folds frames into the atlas runs on the host, so
@@ -587,9 +577,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     });
   }
 
-  // =========================================================================
-  // Target Suggestions
-  // =========================================================================
+  // Target suggestions
 
   /// Get target suggestions for tonight
   Future<Map<String, dynamic>> getSuggestionsForTonight({
@@ -624,9 +612,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return response;
   }
 
-  // =========================================================================
-  // Transient Alerts
-  // =========================================================================
+  // Transient alerts
 
   /// Get active transient alerts
   Future<Map<String, dynamic>> getActiveTransients() async {
@@ -697,9 +683,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return response;
   }
 
-  // =========================================================================
   // Backup & Restore
-  // =========================================================================
 
   /// List available backups
   Future<List<Map<String, dynamic>>> listBackups() async {
@@ -1034,9 +1018,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return _downloadBytes('science/session/$sessionId/report/pdf');
   }
 
-  // =========================================================================
-  // Remote Filesystem
-  // =========================================================================
+  // Remote filesystem
 
   Future<RemoteDirectoryListing> browseRemoteDirectories({String? path}) async {
     final response = await _get(

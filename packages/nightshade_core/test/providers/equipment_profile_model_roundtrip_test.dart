@@ -4,14 +4,13 @@ import 'package:nightshade_core/src/models/equipment_profile.dart'
     as remote_profile;
 import 'package:nightshade_core/src/providers/profiles_provider.dart';
 
-/// LIM-3 / LIM-6: the slave-side UI model [EquipmentProfileModel] must
-/// round-trip every field the slave edits losslessly through the REST wire
-/// model in BOTH directions — `toRemoteProfile()` (slave -> host POST) and
-/// `fromRemoteProfile()` (host GET -> slave UI). In particular the three
-/// fields added in LIM-3 (`meridianFlipOverrides`, `safetyMonitorName`,
-/// `switchName`) must survive the round-trip so the converter's
-/// preserve-from-existing guard is no longer the ONLY thing protecting them:
-/// an explicit slave edit now travels the wire as a real value.
+/// The slave-side UI model [EquipmentProfileModel] round-trips every field the
+/// slave edits losslessly through the REST wire model in BOTH directions —
+/// `toRemoteProfile()` (slave -> host POST) and `fromRemoteProfile()` (host GET
+/// -> slave UI). `meridianFlipOverrides`, `safetyMonitorName` and `switchName`
+/// survive the round-trip, so the converter's preserve-from-existing guard is
+/// not the only thing protecting them: an explicit slave edit travels the wire
+/// as a real value.
 EquipmentProfileModel _sampleModel({
   String? meridianFlipOverrides = '{"enabled":true,"flipAtDeg":1.5}',
   String? safetyMonitorName = 'My Safety',
@@ -66,7 +65,8 @@ EquipmentProfileModel _sampleModel({
 
 void main() {
   group('EquipmentProfileModel REST round-trip (slave UI model)', () {
-    test('toRemoteProfile -> fromRemoteProfile preserves the LIM-3 fields', () {
+    test('toRemoteProfile -> fromRemoteProfile preserves the override + name '
+        'fields', () {
       final model = _sampleModel();
       final wire = model.toRemoteProfile();
 
@@ -136,7 +136,7 @@ void main() {
       },
     );
 
-    test('fromDatabase -> toRemoteProfile carries the LIM-3 fields', () {
+    test('fromDatabase -> toRemoteProfile carries the override + name fields', () {
       // A host row read by the slave then re-emitted: the slave UI model is the
       // hop between the DB row and the wire, so its fromDatabase path must also
       // carry the three fields.

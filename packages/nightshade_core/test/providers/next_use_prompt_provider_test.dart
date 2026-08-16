@@ -12,13 +12,11 @@ import 'package:nightshade_core/src/providers/readiness_provider.dart';
 import 'package:nightshade_core/src/providers/tutorial_provider.dart'
     show tutorialProgressDaoProvider;
 
-// =============================================================================
 // Helpers for building readiness reports of a known overall level.
 //
 // selectNextUseStep only consumes ReadinessReport.isReadyToImage (and, in the
 // completion provider, individual item levels). For the pure-function tests we
 // just need a report that is, or is not, ready to image.
-// =============================================================================
 
 /// A ready-to-image report: every item green, so `isReadyToImage` is true.
 ReadinessReport _readyReport() => buildReadinessReport(

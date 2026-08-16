@@ -1,10 +1,10 @@
-// Regression test for the guide graph's Y-axis labels.
+// The guide graph's Y-axis labels stay legible.
 //
 // The phone guiding layout leaves the plot area very short (panel header +
-// scale-selector row + gutters take a fixed slice of the graph pane), and the
-// painter used to draw all five labels — +2" / +1.0" / 0 / -1.0" / -2" —
-// unconditionally, so they landed on top of each other as an illegible smear
-// at the left edge.
+// scale-selector row + gutters take a fixed slice of the graph pane), so a
+// painter that draws all five labels — +2" / +1.0" / 0 / -1.0" / -2" —
+// unconditionally lands them on top of each other as an illegible smear at
+// the left edge.
 //
 // The painter's own text drawing is invisible to the widget tree, so this
 // captures the `drawParagraph` calls the painter makes and asserts the label

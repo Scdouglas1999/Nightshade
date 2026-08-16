@@ -27,11 +27,8 @@ class ScienceStatusBanner extends ConsumerWidget {
   /// reporting on.
   ///
   /// Every other state on this banner comes from the in-memory pipeline
-  /// tracker, which starts empty on every app launch. Reviewing last night's
-  /// session therefore rendered "Science idle — waiting for the first captured
-  /// frame" directly above that session's 120 solved frames. When nothing is
-  /// in flight but the reviewed session has frames, the banner says it is
-  /// reviewing stored results instead of denying they exist.
+  /// tracker, which starts empty on every app launch; this count is what lets
+  /// the banner tell idle apart from reviewing stored results.
   final int? storedFrameCount;
 
   const ScienceStatusBanner({

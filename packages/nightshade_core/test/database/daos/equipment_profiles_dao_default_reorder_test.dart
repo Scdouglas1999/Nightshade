@@ -1,6 +1,6 @@
-// LIM-1 / LIM-2 / LIM-6: the atomic primitives the dedicated remote
-// set-default / clear-default / reorder endpoints route through. These are the
-// ONLY thing that lets a slave mutate the host's `isDefault` / `sortOrder` (the
+// The atomic primitives the dedicated remote set-default / clear-default /
+// reorder endpoints route through. These are the ONLY thing that lets a slave
+// mutate the host's `isDefault` / `sortOrder` (the
 // generic `remoteProfileToDbRow` save path deliberately preserves both). The
 // handler-level wiring is covered in apps/desktop; this isolates the DAO so the
 // atomic unset-others-then-set + reorder-by-index behavior is independently

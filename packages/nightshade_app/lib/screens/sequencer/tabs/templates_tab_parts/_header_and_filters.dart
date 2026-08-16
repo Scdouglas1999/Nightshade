@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // Top-of-tab chrome and primary action chip: snippet summary card, header with search box, category filter chips, and the _ActionButton primitive.
 part of '../templates_tab.dart';
 
@@ -97,12 +95,12 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
-    // WF-EQ-N1, live-confirmed at 1000x800: the single-row desktop header
-    // packs the search box, the wizard and Save-as-Template beside the title,
-    // leaving it ~130px — below even the shrink floor's needs — so the tab
-    // stopped naming itself. The stacked header is the honest layout until the
-    // row genuinely fits: title needs ~260px beside ~570px of toolbar plus the
-    // nav rail, so the fork sits at 1100.
+    // Measured at 1000x800: the single-row desktop header packs the search
+    // box, the wizard and Save-as-Template beside the title, leaving it ~130px
+    // — below even the shrink floor's needs — so the tab stops naming itself.
+    // The stacked header is the honest layout until the row genuinely fits:
+    // title needs ~260px beside ~570px of toolbar plus the nav rail, so the
+    // fork sits at 1100.
     final isNarrow = screenWidth < 1100;
     final current = ref.watch(currentSequenceProvider);
     final editingTemplate =
@@ -121,9 +119,8 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
         // Title row with save button
         Row(
           children: [
-            // The shared tab heading (CON-52) at every width, not only on
-            // the wide row — the stacked layout gives it the room the packed
-            // row could not.
+            // The shared tab heading at every width, not only on the wide row
+            // — the stacked layout gives it the room the packed row cannot.
             const Expanded(
               child: SequencerTabTitle(
                 title: 'Sequence Templates',
@@ -212,14 +209,14 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
       children: [
         Row(
           children: [
-            // Title (CON-52: the one Sequencer tab heading, shared by all four
-            // tabs so the type scale and the punctuation cannot drift again).
-            // WF-EQ-N1: Expanded, not Flexible. Two Flexible children split
-            // the row's free space evenly, so at 1000x800 the heading was left
-            // with "Sequence Te…" while the search box held its 250 px — the
-            // tab stopped naming itself so a filter field could keep its full
-            // width. The toolbar's width is fixed now; the heading takes the
-            // rest.
+            // Title: the one Sequencer tab heading, shared by all four tabs so
+            // the type scale and the punctuation cannot drift.
+            //
+            // Expanded, not Flexible. Two Flexible children split the row's
+            // free space evenly, which at 1000x800 leaves the heading with
+            // "Sequence Te…" while the search box holds its 250 px — the tab
+            // stops naming itself so a filter field can keep its full width.
+            // The toolbar's width is fixed, so the heading takes the rest.
             const Expanded(
               child: SequencerTabTitle(
                 title: 'Sequence Templates',

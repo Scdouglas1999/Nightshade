@@ -1,5 +1,3 @@
-// Part of ../main.dart -- extracted for maintainability.
-//
 // Discovery and pairing operations: the user-facing entry points that
 // FIND or NAME a server (auto-discovery, QR scan, manual entry, Tailscale
 // onboarding, the relay-connect dialog, the saved-servers screen) and the
@@ -96,14 +94,12 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
       return null;
     }
 
-    // The dialog owns its TextEditingController (see PairingCodeDialog).
-    // The previous shape — a method-local controller disposed the moment
-    // showDialog's future resolved — raced the route's exit animation: the
-    // TextField rebuilt one more time against the disposed controller,
-    // and the resulting build exception cascaded into duplicate-GlobalKey /
-    // '_dependents.isEmpty' assertions as the connection MaterialApp was
-    // swapped for the main shell. Result: a reliable red screen on every
-    // first pair (recoverable only by restarting the app).
+    // The dialog owns its TextEditingController (see PairingCodeDialog),
+    // because the route outlives showDialog's future: a method-local
+    // controller disposed when that future resolves is still read by one more
+    // TextField rebuild during the route's exit animation, and the build
+    // exception cascades into duplicate-GlobalKey / '_dependents.isEmpty'
+    // assertions as the connection MaterialApp is swapped for the main shell.
     final pairingInput = await showDialog<({String code, bool admin})>(
       context: uiContext,
       builder: (ctx) =>
@@ -310,9 +306,9 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
   }
 
   Future<void> _scanQrCode() async {
-    // Scanner now performs strict schema + host-locality validation and pops
-    // a confirmed [QrConnectionData] (or null on cancel). The previous
-    // string-based round-trip went through a permissive parser.
+    // The scanner performs strict schema + host-locality validation and pops a
+    // confirmed [QrConnectionData], or null on cancel — never a raw string
+    // through a permissive parser.
     final uiContext = _connectionUiContext;
     if (uiContext == null || !uiContext.mounted) {
       setState(() {
@@ -742,9 +738,8 @@ class _PairingCodeDialogState extends State<PairingCodeDialog> {
   late final TextEditingController _codeController;
   bool _requestAdmin = false;
 
-  /// Inline validation message for the code field. Submitting an empty code
-  /// used to `return` silently, leaving a fully-enabled-looking "Pair" button
-  /// that did nothing — the operator got no clue what was wrong.
+  /// Inline validation message for the code field. An empty code must say why
+  /// rather than no-op behind an enabled-looking "Pair" button.
   String? _codeError;
 
   @override

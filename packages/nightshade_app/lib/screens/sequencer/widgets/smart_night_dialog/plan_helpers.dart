@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../smart_night_dialog.dart -- extracted for maintainability.
-//
 // Strategy persistence, validation, filter-count adjustment and plan start/save helpers.
 part of '../smart_night_dialog.dart';
 

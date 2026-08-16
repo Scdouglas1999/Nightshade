@@ -15,8 +15,8 @@
 //   * quadtree parent/child bit arithmetic is consistent so coarse fallbacks
 //     register over the sharp tiles they stand in for.
 //
-// All inputs are validated to surface errors (project policy: errors are a
-// feature), so out-of-range arguments are asserted to throw rather than clamp.
+// Out-of-range arguments are asserted to throw rather than clamp: a clamped
+// order or pixel index addresses the wrong sky.
 
 import 'dart:math' as math;
 

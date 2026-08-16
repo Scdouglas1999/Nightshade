@@ -1,11 +1,11 @@
-// CON-56 — the only two ALL-CAPS buttons in the whole build, both on the
-// planetarium time transport: `button: NOW` and `button: TONIGHT`, beside
-// "Start Tour", "Maybe Later", "New Project" everywhere else.
+// Every button label on the planetarium time transport uses the same register
+// as the rest of the build: "Start Tour", "Maybe Later", "New Project" — never
+// `button: NOW` or `button: TONIGHT`.
 //
-// The assertion is deliberately not "these two strings changed". It scans
-// every button label the panel publishes and fails on ANY multi-letter
+// The assertion is deliberately not "these two strings are Title case". It
+// scans every button label the panel publishes and fails on ANY multi-letter
 // all-caps word, so the next shouted label added to this transport fails here
-// too — the item was one instance of a register split, not two typos.
+// too.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -93,8 +93,7 @@ void main() {
     expect(
       shouted,
       isEmpty,
-      reason:
-          'CON-56: every other button in the build is Title or sentence case',
+      reason: 'every other button in the build is Title or sentence case',
     );
 
     await tester.pumpWidget(const SizedBox.shrink());

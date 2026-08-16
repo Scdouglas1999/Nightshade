@@ -330,7 +330,7 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
       // Science: SciencePhotometry is a leaf — the per-frame
       // photometric capture is fully encoded in the node's config.
       SciencePhotometryNode _ ||
-      // Audit §11 — plugin nodes are leaves. The plugin author owns
+      // Plugin nodes are leaves. The plugin author owns
       // any internal fan-out; nesting Dart-side children under a
       // plugin node would never execute.
       PluginInstructionNode _ => false,
@@ -681,7 +681,7 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
           pauseGuiding: json['pauseGuiding'] as bool? ?? false,
           autoCenter: json['autoCenter'] as bool? ?? false,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
-          // Why: legacy JSON has no flag; pin values verbatim (audit §1.2).
+          // Legacy JSON has no flag; pin the values verbatim.
           useGlobalDefaults: json['useGlobalDefaults'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,

@@ -23,11 +23,11 @@ Future<List<Star>> _loadStarsInIsolate(_LoadStarsArgs args) async {
         rows.add(row);
       }
     } catch (e) {
-      // Why: HYG CSV contains ~120k rows; a single malformed line (truncated
-      // export, encoding glitch, unexpected NaN in a numeric column) must
-      // not abort the whole load — the catalog is still useful with one
-      // row missing. Log at FINE so a systemic format regression (e.g.
-      // upstream column reorder) shows up without spamming the user.
+      // HYG CSV contains ~120k rows; a single malformed line (truncated
+      // export, encoding glitch, unexpected NaN in a numeric column) must not
+      // abort the whole load — the catalog is still useful with one row
+      // missing. FINE surfaces a systemic format change (e.g. an upstream
+      // column reorder) without spamming the user.
       developer.log(
         'HYG line parse failed; skipping: $e',
         name: 'HygStarCatalog',
@@ -126,11 +126,9 @@ _HygRow? _parseHygLine(String line) {
 
   // HYG row id 0 is the SUN, carried as a placeholder at RA 0h / Dec 0 with
   // magnitude -26.7 because the catalogue's cartesian coordinates are
-  // heliocentric. It is not a sky position. Left in, it drew a huge blob
-  // labelled "Sol" in the middle of Pisces, and — being by far the brightest
-  // entry — it was the first result of every brightest-object-in-view query
-  // that touched the RA 0h / Dec 0 region. The real Sun is drawn separately
-  // from its computed ephemeris.
+  // heliocentric. That is not a sky position, and as the brightest entry it
+  // would win every brightest-object-in-view query touching RA 0h / Dec 0. The
+  // real Sun is drawn from its computed ephemeris.
   if (hygId == 0) return null;
 
   final hipId = int.tryParse(parts[1]);

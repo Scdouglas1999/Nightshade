@@ -5,18 +5,15 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../harness/pump_app_screen.dart';
 
-/// Regression cover for the defect that stopped the whole app from ever idling.
+/// The overlay animates when, and ONLY when, there is a live autofocus run to
+/// animate.
 ///
 /// [AutofocusProgressOverlay] is mounted once in the app shell, so it is alive
-/// on every screen for the entire session and its State is never disposed. It
-/// used to call `_pulseController.repeat(reverse: true)` unconditionally in
-/// `initState`, which re-scheduled a frame on every vsync from launch to quit —
-/// measured natively at ~45 frames per second while completely idle, with the
-/// GPU 2% busy and nothing to draw. The pulse it was animating is only ever
-/// built while an autofocus run is actually in progress.
-///
-/// The invariant these tests pin: the overlay animates when, and only when,
-/// there is a live autofocus run to animate.
+/// on every screen for the entire session and its State is never disposed. An
+/// unconditional `_pulseController.repeat(reverse: true)` in `initState`
+/// therefore re-schedules a frame on every vsync from launch to quit — around
+/// 45 fps while completely idle, with nothing to draw. The pulse it animates is
+/// only ever built while a run is in progress.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

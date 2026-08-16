@@ -16,28 +16,22 @@ class _ExposureProgressPanel extends StatelessWidget {
   /// in flight above the frames already captured.
   final bool isRunning;
 
-  /// Frames this node actually captured, from the ONE channel no other
-  /// instruction can overwrite (SEQ-18, fifth look).
-  ///
-  /// Everything below this was, until now, derived by parsing the node's
-  /// display string out of `SequenceProgress.nodeProgressDetail` — a single
-  /// slot shared with every other instruction that reports against the node.
-  /// The native `emit_budget_progress` writes an `IntegrationBudget` payload
-  /// into that slot one millisecond after a burst finishes, which erased the
-  /// count for a node whose four frames were on disk, in the database and in
-  /// the thumbnail strip six pixels below the four empty boxes. The next node
-  /// opened with an `AdaptiveExposure` payload, which read back identically —
-  /// so the card could not tell "captured everything" from "captured nothing".
+  /// Frames this node actually captured, from a DEDICATED channel no other
+  /// instruction can overwrite. `SequenceProgress.nodeProgressDetail` is a
+  /// single slot shared with every instruction reporting against the node —
+  /// `emit_budget_progress` overwrites it a millisecond after a burst finishes
+  /// — so a count parsed out of it cannot tell "captured everything" from
+  /// "captured nothing".
   final NodeExposureTally? tally;
 
   /// The filter the run is imaging through, when the node itself names none.
   ///
   /// A node with `filter == null` does not image unfiltered — it images
-  /// through whatever is in the wheel, and every other surface said so: the
-  /// telemetry strip read `Filter: R`, the thumbnails `Filter R`, the files on
-  /// disk `M42-TEST_R_0001.fits`, the session report a single `R` row. Only
-  /// this header called it "No Filter", two rows under a target rollup reading
-  /// "R 180s" (Wave D, SEQ-19).
+  /// through whatever is in the wheel, and every other surface says so: the
+  /// telemetry strip reads `Filter: R`, the thumbnails `Filter R`, the files on
+  /// disk `M42-TEST_R_0001.fits`, the session report a single `R` row. This
+  /// header must not be the one place that calls it "No Filter", two rows under
+  /// a target rollup reading "R 180s".
   final String? runFilter;
 
   const _ExposureProgressPanel({
@@ -70,12 +64,11 @@ class _ExposureProgressPanel extends StatelessWidget {
         : null;
     // The node's own progress line, in EITHER of the two wordings the executor
     // writes: "Frame 3/4 (R)" while a frame is exposing, "Completed 3/4" once
-    // it lands. This card only understood the first, and the LAST line a
-    // successful run leaves behind is the second — so 4 captured frames parsed
-    // as none and the card read "0 / 4 frames" over four thumbnails (SEQ-18,
-    // three strikes). One vocabulary now: nightshade_core's
-    // [parseExposureProgressDetail], round-trip-tested against the formatters
-    // the executor uses.
+    // it lands. The LAST line a successful run leaves behind is the second, so
+    // a card that only understands the first parses 4 captured frames as none
+    // and reads "0 / 4 frames" over four thumbnails. One vocabulary:
+    // nightshade_core's [parseExposureProgressDetail], round-trip-tested
+    // against the formatters the executor uses.
     //
     // The typed ExposureInstructionProgressDetail is still preferred when
     // present; it always describes a frame in flight.
@@ -104,10 +97,9 @@ class _ExposureProgressPanel extends StatelessWidget {
           : 0;
     } else {
       // A node is finished when its status says so OR when its own last line
-      // reports the final planned frame captured. The status is not always what
-      // reaches this card — that is precisely how SEQ-18 survived a fix keyed
-      // on it — so the line the run left behind is a second, independent
-      // witness.
+      // reports the final planned frame captured. The status does not always
+      // reach this card, so the line the run left behind is a second,
+      // independent witness.
       final isDone =
           isComplete || (liveFrameIsDone && liveFrame >= totalFrames);
       // A finished node — and a node between frames — has nothing in flight.

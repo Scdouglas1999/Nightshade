@@ -40,7 +40,7 @@ void main() {
         const AsyncData(PushDeliveryTargets.none),
       );
 
-      // It must not restate the old intent-only copy.
+      // It must not restate the intent-only copy.
       expect(subtitle, isNot(contains('Forward critical events')));
       // It must name the actual blocker…
       expect(subtitle, contains('No device has registered for push'));

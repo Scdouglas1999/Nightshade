@@ -38,9 +38,8 @@ class CockpitNowImaging extends ConsumerWidget {
     if (target == null) {
       // The instruction half must not contradict the rest of the screen: a
       // running sequence can legitimately have no TARGET NODE (free-form
-      // capture), and telling the operator to "load a sequence" while the
-      // toolbar offers Pause/Stop is the cry-wolf shape (live: waveM-close
-      // 30-run3.png).
+      // capture), so telling the operator to "load a sequence" while the
+      // toolbar offers Pause/Stop would be false.
       final executionState = ref.watch(sequenceExecutionStateProvider);
       final sequenceActive = executionState != SequenceExecutionState.idle &&
           executionState != SequenceExecutionState.completed &&

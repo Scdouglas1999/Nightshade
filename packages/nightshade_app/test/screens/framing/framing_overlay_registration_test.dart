@@ -106,7 +106,7 @@ void main() {
     const pan = Offset(120, -60);
     const rotation = 35 * math.pi / 180;
 
-    // The OLD (buggy) overlay order: translate(pan) outer, rotate(center)
+    // The INCORRECT overlay order: translate(pan) outer, rotate(center)
     // inner == translate(pan) ∘ rotate(center): the canvas-center anchor stays
     // at the center under rotation, then is translated by an UN-rotated pan.
     final broken = _translation(pan) * _rotationAbout(rotation, canvasCenter);

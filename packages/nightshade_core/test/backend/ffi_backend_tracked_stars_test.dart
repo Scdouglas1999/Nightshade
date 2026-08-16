@@ -1,17 +1,12 @@
-// Regression guard for the host FFI backend's per-star tracked-star wiring
-// (Phase F, guider-ui).
+// The host FFI backend's per-star tracked-star wiring.
 //
-// The bug this pins: `FfiBackend.phd2GetStatus()` historically constructed its
-// `Phd2Status` WITHOUT the `trackedStars` field, so it defaulted to `const []`.
-// The headless host API then serialized an always-empty `trackedStars` array
-// and the built-in multi-star guider's star-list panel rendered "No stars
-// tracked yet" forever on real hardware — even though the Rust side computed the
-// per-star list correctly (it was unreachable behind `#[frb(ignore)]`).
-//
-// The fix routes `phd2GetStatus()` through the now-bridged
-// `builtinGuiderGetTrackedStarsJson()` native accessor and decodes its JSON into
-// `Phd2Status.trackedStars`. These tests drive the REAL `FfiBackend` (NOT a mock
-// backend) so the seam cannot silently regress to empty again:
+// `FfiBackend.phd2GetStatus()` fills `Phd2Status.trackedStars` from the bridged
+// `builtinGuiderGetTrackedStarsJson()` accessor. Left unset the field defaults
+// to `const []`, the headless host API serializes an always-empty array, and
+// the built-in multi-star guider's star-list panel reads "No stars tracked yet"
+// on live hardware while the Rust side is computing the list correctly. These
+// tests drive the REAL `FfiBackend` (NOT a mock backend) so the seam cannot
+// regress to empty again:
 //
 //   1. The real `FfiBackend.phd2GetStatus()` runs end-to-end and exercises the
 //      tracked-star accessor. Without the new bridge method bound this throws
@@ -34,8 +29,8 @@ void main() {
 
   group('FfiBackend.phd2GetStatus tracked-star wiring (real backend)', () {
     test('runs end-to-end and populates trackedStars from the native accessor', () async {
-      // The REAL host FFI backend — not a mock. This is the exact seam that was
-      // broken: a mock backend would never exercise it.
+      // The REAL host FFI backend — not a mock. This is the seam under test; a
+      // mock backend would never exercise it.
       final backend = FfiBackend();
 
       final status = await backend.phd2GetStatus();

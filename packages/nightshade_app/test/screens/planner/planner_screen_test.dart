@@ -1,7 +1,7 @@
-// Tests for the Plan Tonight screen tab structure after Scheduler was
-// merged in as a tab (W8-SCHED-MERGE). The full Riverpod graph requires a
-// real drift database and FFI backend, so we override the providers each
-// tab actually reads with deterministic test doubles.
+// Tests for the Plan Tonight screen tab structure, Scheduler tab included. The
+// full Riverpod graph requires a real drift database and FFI backend, so we
+// override the providers each tab actually reads with deterministic test
+// doubles.
 
 import 'dart:async';
 
@@ -377,9 +377,7 @@ void main() {
     await settleProviderTeardown(tester);
   });
 
-  // ===========================================================================
   // Behavior tests beyond initial selection.
-  // ===========================================================================
 
   testWidgets(
       'tapping_Target_Queue_tab_switches_selection_away_from_Recommendation: '
@@ -533,9 +531,9 @@ void main() {
     });
 
     // Two distinct suggestions so the optimizer promotes one to the primary
-    // card while the other only ever appears as a candidate row. The
-    // regression this guards: candidate rows previously had no path to the
-    // sequencer, so only the top recommendation could be reviewed.
+    // card while the other only ever appears as a candidate row. Candidate rows
+    // need their own path to the sequencer, or only the top recommendation is
+    // reachable.
     const primary = TargetSuggestion(
       targetId: 11,
       targetName: 'North America Nebula',
@@ -1176,9 +1174,8 @@ void main() {
     await settleProviderTeardown(tester);
   });
 
-  // COL2-8: after switching the sort, the accessibility tree still reported the
-  // first candidate as the previously-first target while every button in that
-  // row acted on the new one.
+  // After switching the sort, the accessibility tree must report the first
+  // candidate as the target the row's buttons act on.
   testWidgets(
       'a re-sort moves the candidate cards and their semantics together',
       (tester) async {

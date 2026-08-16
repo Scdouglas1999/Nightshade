@@ -21,9 +21,7 @@ import '../../database_provider.dart';
 import '../../settings_provider.dart';
 import '../sequence_validation.dart';
 
-// =============================================================================
-// Pre-flight check validation rules
-// =============================================================================
+// Pre-flight check validation rules.
 //
 // These rules wire the existing `dark_library_service`,
 // `equipment_health_service`, and `optical_train_diagnostics_service`
@@ -260,8 +258,8 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
 /// its cooling setpoint is a number nothing will ever honour.
 ///
 /// Unknown capabilities (no camera, no id, driver does not report) keep the
-/// setpoint: that is the historical behaviour and the only honest answer when
-/// we cannot tell whether a cooler exists.
+/// setpoint — the only honest answer when we cannot tell whether a cooler
+/// exists.
 Future<bool> _cameraCannotRegulateTemperature(
   Ref ref,
   CameraStateSnapshot camera,

@@ -126,9 +126,9 @@ void main() {
   });
 
   test('set paired with a late-window rise is the following set', () {
-    // Regression from the live scheduler endpoint: this target was above the
-    // horizon at local noon, so the first sampled event was today's set and
-    // the second was tomorrow's rise. Pairing those yielded -11.6 hours.
+    // This target is above the horizon at local noon, so the first sampled
+    // event is today's set and the second is tomorrow's rise. Pairing those
+    // yields -11.6 hours.
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: 12.5 * 15.0,
       decDeg: 35.0,

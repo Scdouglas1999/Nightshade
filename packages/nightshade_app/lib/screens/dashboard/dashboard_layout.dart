@@ -367,19 +367,9 @@ class DashboardTileConfig {
 
 @immutable
 class DashboardLayout {
-  /// Layout version 6: Dashboard enrichment
-  /// - Version 1: Initial layout
-  /// - Version 2: Added tile ordering
-  /// - Version 3: Zone-based architecture (primary/secondary/tertiary)
-  /// - Version 4: Monitoring-first cockpit default (Run dashboard panels
-  ///   transplanted in; legacy control cards retained but disabled by default)
-  /// - Version 5: Density pass — merged `cockpitNowImaging` (target header +
-  ///   exposure progress) and `cockpitFrames` (capped live frame + recent
-  ///   strip) supersede their four individual panels (now disabled by default)
-  ///   to fit both columns with little-to-no scrolling.
-  /// - Version 6: Quality/forensics registered; session vitals + sky context
-  ///   panels added. Quality joins the right-rail default (enabled); Session
-  ///   Vitals, Sky Context, and Frame Forensics ship present-but-disabled.
+  /// Schema version of a persisted layout. Bumped whenever the default tile
+  /// set gains or retires tiles; `_migrateToCurrentVersion` is the authority on
+  /// what a bump does to a stored layout.
   static const int currentVersion = 6;
 
   final int version;
@@ -488,9 +478,7 @@ class DashboardLayout {
 
   static DashboardLayout defaultLayout() {
     final tiles = <DashboardTileConfig>[
-      // ===================================================================
       // Merged cockpit tiles — the dense default monitoring surface.
-      // ===================================================================
 
       // Primary zone (hero column): the compact "now imaging" status strip,
       // the capped live frame + recent-strip tile, then guiding.
@@ -549,10 +537,8 @@ class DashboardLayout {
         zone: DashboardZone.secondary,
       ),
 
-      // ===================================================================
       // Superseded cockpit panels — the four individual panels the merged
       // tiles replace. Present (so power users can re-enable) but disabled.
-      // ===================================================================
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitTargetHeader,
         size: DashboardTileSize.large,
@@ -582,9 +568,7 @@ class DashboardLayout {
         zone: DashboardZone.primary,
       ),
 
-      // ===================================================================
-      // Other cockpit panels disabled by default — opt-in via Edit Dashboard.
-      // ===================================================================
+      // Other cockpit panels disabled by default — opt-in via edit dashboard.
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitSessionWarnings,
         size: DashboardTileSize.medium,
@@ -646,10 +630,8 @@ class DashboardLayout {
         zone: DashboardZone.secondary,
       ),
 
-      // ===================================================================
       // Legacy control/info cards — retained for power users + migration,
       // disabled by default now that the cockpit panels own the dashboard.
-      // ===================================================================
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.livePreview,
         size: DashboardTileSize.large,

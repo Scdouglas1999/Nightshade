@@ -21,8 +21,8 @@ const List<(String, double)> _compassPoints = [
 /// Pure geometry of the lunar phase drawing.
 ///
 /// Kept out of the canvas code so the phase construction can be verified
-/// without rendering — the previous terminator formula was wrong in a way that
-/// no compile-time or smoke test could catch.
+/// without rendering: a wrong terminator formula draws a plausible moon and no
+/// compile-time or smoke test catches it.
 class MoonPhaseGeometry {
   MoonPhaseGeometry._();
 
@@ -34,8 +34,8 @@ class MoonPhaseGeometry {
   /// axis and has semi-minor axis `R * |2k - 1|`. That follows directly from
   /// the definition `k = (1 + cos(phase angle)) / 2`, so the phase angle's
   /// cosine *is* `2k - 1` and no further trigonometry belongs here. Wrapping it
-  /// in another cosine (as this code used to) makes the phase non-monotonic:
-  /// first quarter drew a full-width dark ellipse and rendered as a new moon.
+  /// in another cosine makes the phase non-monotonic — first quarter comes out
+  /// as a full-width dark ellipse, i.e. a new moon.
   static double terminatorSemiAxisFraction(double illumination) {
     if (!illumination.isFinite) return 0.0;
     return (2 * illumination.clamp(0.0, 1.0) - 1).abs();

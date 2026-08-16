@@ -7,16 +7,11 @@ import 'framing_provider.dart' show SurveySource;
 
 /// Canonical dependency-injection handle for [FramingImageCacheService].
 ///
-/// Before this provider existed, the framing notifier instantiated the cache
-/// service ad-hoc, which made it impossible to override the on-disk location in
-/// tests and meant two call sites could end up with diverging configuration.
-/// Everything that needs to read or write cached survey snapshots should now
-/// resolve the service through this provider so there is a single, overridable
-/// instance.
-///
-/// Tests (and any environment that must redirect the cache to a temporary
-/// directory) override this provider with a service constructed via
-/// `FramingImageCacheService(supportDirProvider: ...)`.
+/// Everything that reads or writes cached survey snapshots resolves the
+/// service through this provider, so there is one instance and one on-disk
+/// location. Tests override it with a service constructed via
+/// `FramingImageCacheService(supportDirProvider: ...)` to redirect the cache
+/// to a temporary directory.
 final framingImageCacheServiceProvider = Provider<FramingImageCacheService>(
   (ref) => FramingImageCacheService(),
 );
@@ -39,16 +34,13 @@ typedef CachedSurveyImageKey = ({
 /// Resolves the on-disk [File] for a previously-cached survey snapshot, or
 /// `null` when no entry has been pinned for the requested target + source.
 ///
-/// This is a thin read-through over
-/// [FramingImageCacheService.loadCachedSurveyImage]; it intentionally contains
-/// no fetch-or-fallback logic. The offline-first read orchestration (deciding
-/// whether to serve the cached file versus hitting the network) lives in the
-/// framing notifier so this file keeps a single, narrow responsibility.
+/// A thin read-through over [FramingImageCacheService.loadCachedSurveyImage]
+/// with no fetch-or-fallback logic; the offline-first orchestration (cached
+/// file versus network) lives in the framing notifier.
 ///
-/// Errors from the underlying service (IO failures while probing the cache
-/// directory) propagate as an [AsyncError] rather than being swallowed —
-/// surfacing failures is intentional (errors are a feature here). A
-/// genuine cache miss is represented as a `null` value, not an error.
+/// A genuine cache miss is a `null` value. IO failures while probing the cache
+/// directory propagate as an [AsyncError], so a broken cache directory is not
+/// reported as an empty one.
 final cachedSurveyImageFileProvider =
     FutureProvider.family<File?, CachedSurveyImageKey>((ref, key) async {
       final service = ref.watch(framingImageCacheServiceProvider);

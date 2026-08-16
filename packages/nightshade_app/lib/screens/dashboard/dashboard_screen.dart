@@ -59,7 +59,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     ref.watch(phd2ControllerProvider);
     // Keep the critical-events → notifications bridge alive while the
     // dashboard is shown. It's a Provider<void> whose side effects only run
-    // while watched; the deleted Run tab used to own this watch.
+    // while watched.
     ref.watch(runDashboardCriticalEventsBridgeProvider);
     final layoutAsync = ref.watch(dashboardLayoutProvider);
 
@@ -255,7 +255,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
   /// every responsive layout. Contains, top to bottom:
   ///   * [RunDashboardRecoveryBanner] — full-bleed recovery banner (self-hides)
   ///   * [RunDashboardCriticalBanner] — full-bleed critical-event banner
-  ///     (self-hides) — recovery above critical matches the old Run-tab order
+  ///     (self-hides) — recovery sits above critical
   ///   * [CockpitRunControls] — inline run controls (self-hides when idle),
   ///     padded to align with the command bar.
   ///

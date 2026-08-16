@@ -1,15 +1,11 @@
-// =============================================================================
-// node_summary_line.dart — the row-level renderer for a node's at-a-glance
-// summary. Turns the pure [SummaryFragment] list from `node_summary.dart`
-// into design-system chips + muted text, and wires editable chips to the
-// anchored inline editors in `node_summary_inline_editors.dart`.
-// =============================================================================
+// The row-level renderer for a node's at-a-glance summary. Turns the pure
+// [SummaryFragment] list from `node_summary.dart` into design-system chips +
+// muted text, and wires editable chips to the anchored inline editors in
+// `node_summary_inline_editors.dart`.
 //
-// This widget replaces the old raw-`fontSize` subtitle in the sequencer tree.
-// It owns ZERO domain logic and ZERO formatting: `node_summary.dart` already
-// produced the terse,
-// capped (1-3) fragment list and decided which fragments are editable. This
-// layer only paints them and routes taps.
+// It owns ZERO domain logic and ZERO formatting: `node_summary.dart` produces
+// the terse, capped (1-3) fragment list and decides which fragments are
+// editable. This layer only paints them and routes taps.
 //
 // CHIP TEMPLATE: emphasized/editable chips mirror `_WatchdogBadge` in
 // `sequence_tree.dart` exactly — `Container(padding: paddingXs,
@@ -124,8 +120,7 @@ class NodeSummaryLine extends ConsumerWidget {
 }
 
 /// Muted inline text for a non-emphasized [StaticFragment]. `labelQuiet`
-/// (11px) is the design-system muted-label token — it replaces the old
-/// hardcoded `fontSize: NightshadeTypography.fontSize10/12` subtitle literal.
+/// (11px) is the design-system muted-label token.
 class _MutedText extends StatelessWidget {
   final String text;
   final Color color;

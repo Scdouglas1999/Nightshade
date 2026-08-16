@@ -1,15 +1,7 @@
-// WF-SCI-N2: the Night Doctor verdict was computed once per session and never
-// again.
-//
-// Live evidence, on the build that had already FIXED the detector: Session
-// Review for the Aug 13 session read 100 / 100, "A clean night — no problems
-// detected", Excellent, 0 findings — over four subs the same app grades POOR.
-// Refresh (top right) produced an identical screen, and `select * from
-// night_reports` still held exactly one row, created_at Aug 13 20:54:26, i.e.
-// written by the PRE-fix build. A brand-new run analysed by the new code
-// scored 70 / "Rough night: every sub was graded poor", so the detector worked
-// and the cache was what was stale. The same trap catches any night whose
-// report is computed on first view, before grading has finished.
+// The Night Doctor verdict must not be computed once per session and never
+// again: a stored report written by an older detector — or written on first
+// view, before grading finished — otherwise survives every visit, and Refresh
+// re-renders the same stale row rather than recomputing.
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -110,8 +102,8 @@ void main() {
 
   test('a report older than the frames it judges is recomputed on sight',
       () async {
-    // The counter-input to the fix above: nobody thinks to press Refresh. A
-    // report written before the run finished cannot have seen these subs.
+    // The harder case: nobody thinks to press Refresh. A report written before
+    // the run finished cannot have seen these subs.
     await seedStoredReport(capturedAt.subtract(const Duration(minutes: 1)));
 
     controller();

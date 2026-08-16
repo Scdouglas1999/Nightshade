@@ -12,17 +12,16 @@
 /// name", "Exposure time") are excluded — a help bubble on every control is
 /// noise, and noise trains users to ignore the bubbles that matter.
 ///
-/// Accuracy is non-negotiable: wrong help is worse than no help, because the
-/// user trusts it. Each [body] is one factual sentence describing what the
-/// control does, followed by practical guidance for a typical astrophotography
-/// rig.
+/// Wrong help is worse than no help, because the user trusts it. Each [body] is
+/// one factual sentence describing what the control does, followed by practical
+/// guidance for a typical astrophotography rig.
 library;
 
 /// Identifies a single field-level help string.
 ///
 /// Each id appears exactly once in [kFieldHelpCopy]; [helpFor] and the tests
 /// enforce that exhaustively, so adding an id without copy is a surfaced error
-/// rather than a silent gap (errors are a feature in this codebase).
+/// rather than a silent gap.
 ///
 /// Only genuinely non-obvious controls are enumerated here. If you find
 /// yourself wanting to add an "obvious" field (a name, a directory, a plain
@@ -186,8 +185,8 @@ const Map<FieldHelpId, FieldHelpCopy> kFieldHelpCopy =
 /// Throws a [StateError] if no copy is defined for [id]. [kFieldHelpCopy] is
 /// required to be exhaustive over [FieldHelpId], so a missing entry is a
 /// programming error that must surface immediately rather than be papered over
-/// with a silent fallback (errors are a feature in this codebase). Mirrors the
-/// `stepFor` contract in `nightshade_core`'s next-use-steps model.
+/// with a silent fallback. Mirrors the `stepFor` contract in `nightshade_core`'s
+/// next-use-steps model.
 FieldHelpCopy helpFor(FieldHelpId id) {
   final copy = kFieldHelpCopy[id];
   if (copy == null) {

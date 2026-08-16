@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../quick_start_wizard_dialog.dart -- extracted for maintainability.
-//
 // Initialisation, target search, preset and estimate helpers of the quick-start wizard state.
 part of '../quick_start_wizard_dialog.dart';
 
@@ -187,9 +185,7 @@ extension _QuickStartWizardHelpers on _QuickStartWizardDialogState {
       generation == _authorityGeneration &&
       identical(ref.read(backendProvider), backend);
 
-  // ---------------------------------------------------------------------------
   // Target search
-  // ---------------------------------------------------------------------------
 
   void _onTargetSearch(String query) {
     _searchDebounce?.cancel();
@@ -314,9 +310,7 @@ extension _QuickStartWizardHelpers on _QuickStartWizardDialogState {
     return CoordinateParser.parseDec(text);
   }
 
-  // ---------------------------------------------------------------------------
   // Preset application
-  // ---------------------------------------------------------------------------
 
   void _applyPreset(_ExposurePreset preset) {
     setState(() {
@@ -421,9 +415,7 @@ extension _QuickStartWizardHelpers on _QuickStartWizardDialogState {
     return '$filterSummary | ${features.join(", ")}';
   }
 
-  // ---------------------------------------------------------------------------
   // Estimated time calculation
-  // ---------------------------------------------------------------------------
 
   double _estimatedTotalSecs() {
     final enabledFilters = _filterConfigs.where((f) => f.enabled).toList();
@@ -463,9 +455,7 @@ extension _QuickStartWizardHelpers on _QuickStartWizardDialogState {
         : _kWizardDitherSettleSecondsFallback;
   }
 
-  // ---------------------------------------------------------------------------
   // Validation
-  // ---------------------------------------------------------------------------
 
   bool _canAdvance() {
     switch (_currentStep) {

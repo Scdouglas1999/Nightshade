@@ -35,18 +35,14 @@ typedef SwitchBridgeGetCapabilitiesFn =
 typedef SwitchBridgeSetValueFn =
     Future<void> Function(String deviceId, int switchId, double value);
 
-/// Owns the per-channel switch-device refresh + write paths that used to
-/// live inline on `DeviceService`. Extracted as part of the A-10 god-
-/// class split so the switch-bridge testable seam (4 static function
-/// pointers + the backend-bypass flag) has a dedicated home instead of
-/// being scattered across the 3,800-line facade.
+/// Owns the per-channel switch-device refresh + write paths, and the
+/// switch-bridge testable seam (four static function pointers plus the
+/// backend-bypass flag).
 ///
-/// `DeviceService` instantiates one of these per-instance and keeps thin
-/// public delegators (`refreshSwitchChannels` / `setSwitchChannel`) so
-/// the existing call sites (UI, generated MockDeviceService used by
-/// `centering_service_test.mocks.dart`, sequencer triggers) keep working
-/// without churn. The DeviceService delegator owns its `_trackInFlight`
-/// quiesce accounting; this service does not touch that state.
+/// `DeviceService` instantiates one per instance and keeps thin public
+/// delegators (`refreshSwitchChannels` / `setSwitchChannel`) for its call sites.
+/// That delegator owns its `_trackInFlight` quiesce accounting; this service
+/// does not touch that state.
 ///
 /// ## Testable seam
 ///
@@ -81,7 +77,7 @@ class SwitchChannelService {
   bool _stillOwnsRefresh(int generation, String deviceId) =>
       generation == _refreshGeneration && _stillOwnsDevice(deviceId);
 
-  // ---- Switch bridge hooks (testable seam) -----------------------------
+  // Switch bridge hooks (testable seam)
   // Follow-up: the per-channel switch UI needs to call FFI even
   // when the test rig swaps in a MockBackend. The MockBackend can't
   // satisfy `_backend is FfiBackend`, so the actual `apiSwitch*` calls

@@ -1,5 +1,3 @@
-// Part of ../live_frame_panel.dart -- extracted for maintainability.
-//
 // Live frame viewer, zoom readout and viewer control widgets.
 part of '../live_frame_panel.dart';
 

@@ -28,17 +28,7 @@ Nightshade's plugin architecture provides a flexible way to add new features wit
    - Access to logging, storage, and events
    - Lifecycle hooks: `onLoad`, `onEnable`, `onDisable`, `onUnload`
 
-2. **UI Plugin** (`UiPlugin extends NightshadePlugin`)
-   - Add custom panels to Equipment, Imaging, or Sequencer tabs
-   - Status bar widgets
-   - Settings sections
-
-3. **Device Plugin** (`DevicePlugin extends NightshadePlugin`)
-   - Support for custom hardware drivers
-   - Camera, mount, focuser, filter wheel, etc.
-   - Integration with ASCOM, INDI, or Alpaca
-
-4. **Sequence Plugin** (`SequencePlugin extends NightshadePlugin`)
+2. **Sequence Plugin** (`SequencePlugin extends NightshadePlugin`)
    - Custom sequence nodes for automation
    - Extend the behavior tree with new actions
    - Custom logic and triggers
@@ -144,63 +134,6 @@ final subscription = context.eventBus.on('app.ready').listen((data) {
 await subscription.cancel();
 ```
 
-### UI Plugin Example
-
-```dart
-class MyUiPlugin extends UiPlugin {
-  @override
-  String get id => 'com.example.ui';
-
-  @override
-  String get name => 'UI Extension';
-
-  @override
-  List<UiExtensionPoint> get extensionPoints => [
-    UiExtensionPoint(
-      type: UiExtensionPointType.equipmentPanel,
-      title: 'My Custom Panel',
-      widgetBuilder: () => MyCustomWidget(),
-    ),
-  ];
-
-  @override
-  Future<void> onLoad(PluginContext context) async {
-    context.logger.info('UI plugin loaded');
-  }
-
-  @override
-  Future<void> onUnload() async {}
-}
-```
-
-### Device Plugin Example
-
-```dart
-class MyDevicePlugin extends DevicePlugin {
-  @override
-  String get id => 'com.example.device';
-
-  @override
-  List<DevicePluginType> get supportedDevices => [
-    DevicePluginType.camera,
-    DevicePluginType.focuser,
-  ];
-
-  @override
-  Future<void> onLoad(PluginContext context) async {
-    // Initialize device SDK
-    // Scan for devices
-    // Register device drivers
-  }
-
-  @override
-  Future<void> onUnload() async {
-    // Cleanup SDK
-    // Disconnect devices
-  }
-}
-```
-
 ## Plugin Lifecycle
 
 ```
@@ -300,8 +233,6 @@ See `lib/src/example_plugin.dart` for basic examples and `lib/examples/` for mor
 
 ### Basic Examples (`lib/src/example_plugin.dart`)
 - **ExamplePlugin** - Basic plugin with storage and events
-- **ExampleUiPlugin** - UI extension points
-- **ExampleDevicePlugin** - Device support
 - **ExampleSequencePlugin** - Custom sequence nodes
 
 ### Working Examples (`lib/examples/`)

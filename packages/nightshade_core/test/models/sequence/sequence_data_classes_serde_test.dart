@@ -1,5 +1,5 @@
-// Phase 1 freezed-migration safety net for the non-SequenceNode
-// data classes declared in `lib/src/models/sequence/sequence_models.dart`.
+// Serde + value-semantics net for the non-SequenceNode data classes declared
+// in `lib/src/models/sequence/sequence_models.dart`.
 //
 // Covers: MosaicPanelInfo, SequenceOverheadConfig, SequenceEstimate,
 // AdaptiveExposureConfig, BrightnessTierPreferences,
@@ -7,8 +7,8 @@
 // AdaptiveSwapSnapshot, FilterPlan, PhotometryQualityGates,
 // TransparencyBackupPlan, Sequence, SequenceProgress.
 //
-// FilterBudgetEntry and IntegrationBudget are already covered by
-// `test/models/integration_budget_test.dart` — we do NOT duplicate those.
+// FilterBudgetEntry and IntegrationBudget are covered by
+// `test/models/integration_budget_test.dart` and are not duplicated here.
 //
 // The TargetTrigger sealed family lives in
 // `target_trigger_serde_test.dart`.
@@ -21,9 +21,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  // ============================================================
-  // MosaicPanelInfo
-  // ============================================================
   group('MosaicPanelInfo', () {
     const sample = MosaicPanelInfo(
       mosaicName: 'M31 4x2',
@@ -34,11 +31,8 @@ void main() {
     );
 
     test('to_json_shape_uses_snake_case_keys', () {
-      // PHASE-2-NOTE: snake_case keys (`mosaic_name`, `panel_index`,
-      // `total_panels`). Freezed defaults to camelCase; the Phase 2
-      // conversion must add `@JsonKey(name: 'mosaic_name')` (or
-      // configure `FieldRename.snake` on the freezed annotation) for
-      // every field.
+      // The wire keys are snake_case (`mosaic_name`, `panel_index`,
+      // `total_panels`), not the camelCase a code generator defaults to.
       expect(
         sample.toJson(),
         equals({
@@ -67,9 +61,8 @@ void main() {
     });
 
     test('copyWith_with_no_args_preserves_all_values', () {
-      // PHASE-2-NOTE: MosaicPanelInfo uses the plain `?? this.X` pattern
-      // for ALL fields (none are nullable). Phase 2's freezed-generated
-      // copyWith preserves this semantic naturally.
+      // MosaicPanelInfo uses the plain `?? this.X` pattern for ALL fields
+      // (none are nullable).
       expect(sample.copyWith(), equals(sample));
     });
 
@@ -98,9 +91,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // SequenceOverheadConfig
-  // ============================================================
   group('SequenceOverheadConfig', () {
     test('default_constructor_uses_documented_defaults', () {
       const cfg = SequenceOverheadConfig();
@@ -119,11 +109,8 @@ void main() {
     });
 
     test('equality_via_equatable_props', () {
-      // PHASE-2-NOTE: This class has NO toJson/fromJson and NO copyWith
-      // — it's a pure Equatable values bag. Phase 2 can either:
-      //   (a) leave it as-is (lowest-risk),
-      //   (b) freeze it and gain a copyWith (no JSON change since none
-      //       exists today).
+      // This class has NO toJson/fromJson and NO copyWith — it is a pure
+      // Equatable values bag.
       const a = SequenceOverheadConfig(slewSecs: 25.0);
       const b = SequenceOverheadConfig(slewSecs: 25.0);
       const c = SequenceOverheadConfig(slewSecs: 30.0);
@@ -133,9 +120,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // SequenceEstimate
-  // ============================================================
   group('SequenceEstimate', () {
     test('total_estimated_includes_overhead', () {
       const e = SequenceEstimate(
@@ -221,9 +205,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // AdaptiveExposureConfig
-  // ============================================================
   group('AdaptiveExposureConfig', () {
     const sample = AdaptiveExposureConfig(
       targetSnr: 40.0,
@@ -237,7 +218,7 @@ void main() {
     );
 
     test('to_json_shape_uses_snake_case_keys', () {
-      // PHASE-2-NOTE: snake_case keys (`target_snr`,
+      // The wire keys are snake_case (`target_snr`,
       // `reference_sky_brightness_mag`, `min_exposure_secs`,
       // `max_exposure_secs`, `per_filter_enabled`, …, `enabled`).
       expect(
@@ -263,12 +244,9 @@ void main() {
     });
 
     test('from_json_applies_defaults_when_fields_missing', () {
-      // PHASE-2-NOTE: every field has a fromJson default
-      // (`(json['x'] as num?)?.toDouble() ?? <default>`). Freezed
-      // requires either nullable types with `@Default(...)` annotations
-      // or required fields. The Phase 2 freezed class must use
-      // `@Default(30.0) double targetSnr` etc. to preserve missing-field
-      // defaults.
+      // Every field carries a fromJson default
+      // (`(json['x'] as num?)?.toDouble() ?? <default>`), so a payload
+      // missing a field decodes to the documented value rather than null.
       final back = AdaptiveExposureConfig.fromJson(const <String, dynamic>{});
       expect(back.targetSnr, equals(30.0));
       expect(back.referenceSkyBrightnessMag, equals(21.5));
@@ -330,12 +308,8 @@ void main() {
       );
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
-      // PHASE-2-NOTE: Freezed uses package:collection ListEquality /
-      // MapEquality by default — equivalent semantics. Phase 2 just
-      // needs to ensure the freezed annotation enables deep equality
-      // (the default in modern freezed). The hash-of-sorted-keys
-      // implementation is unique to this class; freezed handles it
-      // generically.
+      // Equality is deep over the collection fields, and the hash is built
+      // from sorted keys so map order cannot change it.
     });
 
     test('is_enabled_for_filter_respects_per_filter_override', () {
@@ -372,9 +346,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // BrightnessTier enum
-  // ============================================================
   group('BrightnessTier', () {
     test('wire_value_matches_lowercase_name', () {
       expect(BrightnessTier.faint.wireValue, equals('faint'));
@@ -394,18 +366,13 @@ void main() {
     });
 
     test('from_wire_returns_null_for_unknown_and_null', () {
-      // PHASE-2-NOTE: errors-are-a-feature: unknown values return null
-      // so callers can fall back to "auto" rather than silently
-      // accepting junk. Phase 2 must preserve this null-on-unknown
-      // semantic.
+      // Unknown values return null so callers can fall back to "auto"
+      // rather than silently accepting junk.
       expect(BrightnessTier.fromWire('bogus'), isNull);
       expect(BrightnessTier.fromWire(null), isNull);
     });
   });
 
-  // ============================================================
-  // BrightnessTierPreferences
-  // ============================================================
   group('BrightnessTierPreferences', () {
     const sample = BrightnessTierPreferences(
       faintMinScore: 80.0,
@@ -465,9 +432,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // ConditionsScoreWeights
-  // ============================================================
   group('ConditionsScoreWeights', () {
     const sample = ConditionsScoreWeights(
       transparencyWeight: 0.5,
@@ -527,9 +491,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // ConditionsScore
-  // ============================================================
   group('ConditionsScore', () {
     final generatedAt = DateTime.utc(2026, 5, 25, 12, 0, 0);
     final sample = ConditionsScore(
@@ -543,13 +504,10 @@ void main() {
     );
 
     test('to_json_uses_snake_case_and_unix_secs_for_generated_at', () {
-      // PHASE-2-NOTE: `generatedAt` is serialised as
-      // `generated_unix_secs` (an int seconds-since-epoch). Freezed's
-      // default JsonConverter will treat DateTime as ISO 8601; the
-      // Phase 2 conversion MUST register a custom `@JsonConverter` (or
-      // override `toJson`/`fromJson`) that emits/parses unix seconds.
-      // This is a wire-protocol contract — the Rust side uses
-      // `serde_with` to (de)serialise the field as i64.
+      // `generatedAt` is serialised as `generated_unix_secs` (an int
+      // seconds-since-epoch), NOT ISO 8601. This is a wire-protocol
+      // contract — the Rust side (de)serialises the field as i64 via
+      // `serde_with`.
       final json = sample.toJson();
       expect(json['score'], equals(82.5));
       expect(json['transparency_score'], equals(90.0));
@@ -571,9 +529,8 @@ void main() {
     });
 
     test('from_json_falls_back_to_default_weights_when_weights_missing', () {
-      // PHASE-2-NOTE: When 'weights' is missing or not a Map, the
-      // fallback is `const ConditionsScoreWeights()` (the default
-      // instance). Phase 2's @Default annotation handles this naturally.
+      // When 'weights' is missing or not a Map, the fallback is
+      // `const ConditionsScoreWeights()` (the default instance).
       final back = ConditionsScore.fromJson(const {
         'score': 50.0,
         'generated_unix_secs': 1000,
@@ -630,9 +587,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // AdaptiveSwapRuntimeState
-  // ============================================================
   group('AdaptiveSwapRuntimeState', () {
     final sample = AdaptiveSwapRuntimeState(
       currentTargetId: 't1',
@@ -648,13 +602,8 @@ void main() {
     );
 
     test('to_json_shape_uses_snake_case_and_unix_secs', () {
-      // PHASE-2-NOTE: `lastSwapAt` is serialised as `last_swap_unix_secs`
-      // (int seconds, UTC-anchored). When null, the field is null in
-      // JSON (not omitted). The Dart `toJson` has a quirk:
-      //   `'last_swap_unix_secs': lastSwapAt?.millisecondsSinceEpoch
-      //       == null ? null : lastSwapAt!.toUtc().millisecondsSinceEpoch
-      //       ~/ 1000`
-      // Phase 2 must keep this conversion (custom DateTimeConverter).
+      // `lastSwapAt` is serialised as `last_swap_unix_secs` (int seconds,
+      // UTC-anchored). When null the field is null in JSON, not omitted.
       final json = sample.toJson();
       expect(json['current_target_id'], equals('t1'));
       expect(json['current_tier'], equals('medium'));
@@ -729,9 +678,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // AdaptiveSwapSnapshot
-  // ============================================================
   group('AdaptiveSwapSnapshot', () {
     final generatedAt = DateTime.utc(2026, 5, 25, 12, 0, 0);
     final sample = AdaptiveSwapSnapshot(
@@ -760,19 +706,16 @@ void main() {
     });
 
     test('from_json_treats_missing_state_as_default_state', () {
-      // PHASE-2-NOTE: `AdaptiveSwapSnapshot.fromJson` defaults `state`
-      // to `const AdaptiveSwapRuntimeState()` when the field is missing
-      // or not a Map. Phase 2 must preserve this default — the Rust
-      // side relies on it for the "no telemetry yet" boot state.
+      // `AdaptiveSwapSnapshot.fromJson` defaults `state` to
+      // `const AdaptiveSwapRuntimeState()` when the field is missing or not
+      // a Map; the Rust side relies on it for the "no telemetry yet" boot
+      // state.
       final back = AdaptiveSwapSnapshot.fromJson(const <String, dynamic>{});
       expect(back.state, equals(const AdaptiveSwapRuntimeState()));
       expect(back.score, isNull);
     });
   });
 
-  // ============================================================
-  // FilterPlan
-  // ============================================================
   group('FilterPlan', () {
     const sample = FilterPlan(
       filterName: 'L',
@@ -786,15 +729,10 @@ void main() {
     );
 
     test('to_json_shape_uses_snake_case_and_pascal_binning', () {
-      // PHASE-2-NOTE: `binning` is encoded as a PascalCase string
+      // `binning` is encoded as a PascalCase string
       // ("One"/"Two"/"Three"/"Four"), NOT the BinningMode enum name
-      // ("one"/"two"/...). This matches the Rust serde enum. The Phase
-      // 2 conversion must register a custom JsonConverter for
-      // BinningMode that maps the PascalCase strings — freezed's
-      // default would emit "two" (lowercase). The mapping helpers
-      // `_binningModeToRustString` / `_rustStringToBinningMode` are
-      // file-private; Phase 2 should keep them or hoist them to a
-      // dedicated converter class.
+      // ("one"/"two"/...), matching the Rust serde enum. The mapping runs
+      // through `_binningModeToRustString` / `_rustStringToBinningMode`.
       expect(
         sample.toJson(),
         equals({
@@ -818,14 +756,13 @@ void main() {
     });
 
     test('from_json_applies_documented_defaults', () {
-      // PHASE-2-NOTE: missing-field defaults are:
+      // Missing-field defaults are:
       //   filter_name: '' (empty string), count: 10,
       //   duration_secs: 60.0, binning: BinningMode.one (via the
       //   default branch of `_rustStringToBinningMode`).
-      // Notably `filterName` is documented as required, but the
-      // fromJson defaults it to ''. Freezed must mark the field as
-      // required OR provide a Default('') — pick the latter to match
-      // current behaviour.
+      // `filterName` is documented as required, yet fromJson defaults it to
+      // '' — the decoder is deliberately more permissive than the
+      // constructor.
       final back = FilterPlan.fromJson(const <String, dynamic>{});
       expect(back.filterName, equals(''));
       expect(back.count, equals(10));
@@ -835,12 +772,9 @@ void main() {
     });
 
     test('copyWith_filterIndex_sentinel_allows_explicit_null', () {
-      // PHASE-2-NOTE: FilterPlan.copyWith uses the `_sentinel` Object
-      // marker for filterIndex / gain / offset / ditherEvery so callers
-      // can explicitly pass `null` to clear the field. Freezed's
-      // generated copyWith handles nullable optionals the same way —
-      // passing `null` explicitly clears the field. This semantic
-      // survives the migration naturally.
+      // FilterPlan.copyWith uses the `_sentinel` Object marker for
+      // filterIndex / gain / offset / ditherEvery, so passing `null`
+      // explicitly clears the field rather than keeping the current one.
       final cleared = sample.copyWith(filterIndex: null);
       expect(cleared.filterIndex, isNull);
       expect(
@@ -884,9 +818,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // PhotometryQualityGates
-  // ============================================================
   group('PhotometryQualityGates', () {
     const sample = PhotometryQualityGates(
       minSnr: 100.0,
@@ -934,9 +865,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // TransparencyBackupPlan
-  // ============================================================
   group('TransparencyBackupPlan', () {
     const sample = TransparencyBackupPlan(
       backupFilter: 'Lum',
@@ -979,9 +907,8 @@ void main() {
     });
 
     test('copyWith_sentinel_allows_explicit_null_for_each_nullable_field', () {
-      // PHASE-2-NOTE: All three fields use sentinel-based copyWith so
-      // callers can explicitly clear. Freezed's nullable copyWith
-      // handles this naturally.
+      // All three fields use sentinel-based copyWith, so a caller can clear
+      // any of them with an explicit `null`.
       expect(sample.copyWith(backupFilter: null).backupFilter, isNull);
       expect(sample.copyWith(backupTargetId: null).backupTargetId, isNull);
       expect(sample.copyWith(description: null).description, isNull);
@@ -998,9 +925,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // Sequence
-  // ============================================================
   group('Sequence', () {
     Sequence makeSequence() {
       final target = TargetHeaderNode(
@@ -1099,24 +1023,19 @@ void main() {
     });
 
     test('copyWith_no_args_preserves_all_values', () {
-      // PHASE-2-NOTE: Sequence.copyWith uses plain `?? this.X` for all
-      // fields. There's no sentinel pattern, so callers CANNOT clear
-      // databaseId, rootNodeId, or estimatedDurationMins via copyWith
-      // — passing null reads as "leave alone". This is a known limit
-      // of the current API; Phase 2's freezed-generated copyWith will
-      // INTRODUCE the ability to explicitly null these (which is a
-      // behaviour change, but a strictly-more-capable one). Document
-      // here so the Phase 2 commit message can flag it.
+      // Sequence.copyWith uses plain `?? this.X` for all fields. With no
+      // sentinel pattern, databaseId, rootNodeId and estimatedDurationMins
+      // cannot be cleared through copyWith — passing null reads as "leave
+      // alone".
       final seq = makeSequence();
       expect(seq.copyWith(), equals(seq));
     });
 
     test('equality_via_props_uses_nodes_map_and_excludes_derived_indexes', () {
-      // PHASE-2-NOTE: `_childrenByParent` and `_parentById` are
-      // `late final` lazy indexes — NOT in Equatable's props. Two
-      // sequences with identical `nodes` maps but freshly-built indexes
-      // are still equal. Phase 2 must NOT promote those derived fields
-      // to equality-relevant.
+      // `_childrenByParent` and `_parentById` are `late final` lazy indexes
+      // and are NOT in Equatable's props, so two sequences with identical
+      // `nodes` maps but freshly-built indexes are still equal. Derived
+      // fields must never become equality-relevant.
       final a = makeSequence();
       final b = makeSequence();
       // Force the lazy indexes on one of them.
@@ -1132,9 +1051,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // SequenceProgress
-  // ============================================================
   group('SequenceProgress', () {
     test('default_constructor_has_idle_state_and_empty_progress', () {
       const p = SequenceProgress();
@@ -1205,10 +1121,8 @@ void main() {
     });
 
     test('copyWith_no_args_preserves_all_values', () {
-      // PHASE-2-NOTE: All nullable fields use plain `?? this.X`, so
-      // explicit-null cannot clear them via copyWith. Phase 2's freezed
-      // upgrade will introduce that ability, which is strictly more
-      // capable.
+      // All nullable fields use plain `?? this.X`, so an explicit null
+      // cannot clear them through copyWith.
       const p = SequenceProgress(currentNodeId: 'x', totalExposures: 5);
       expect(p.copyWith(), equals(p));
     });

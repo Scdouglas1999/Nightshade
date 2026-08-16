@@ -100,12 +100,16 @@ class PlanetariumSkyProjection {
   ///
   /// Returns null (draw nothing) rather than guessing when the canvas is not
   /// laid out, the field of view is degenerate, or the alt-az frame is active
-  /// without a sidereal time — the same "draw nothing rather than garbage"
-  /// rule the FOV overlay follows.
+  /// without a site — the same "draw nothing rather than garbage" rule the FOV
+  /// overlay follows.
+  ///
+  /// [latitude] is null when no observing site is on record. It is only read in
+  /// the horizontal frame, which is exactly the frame that cannot be placed
+  /// without one.
   static PlanetariumSkyProjection? resolve({
     required SkyViewState viewState,
     required Size canvasSize,
-    required double latitude,
+    required double? latitude,
     double? lstHours,
   }) {
     if (canvasSize.isEmpty ||
@@ -116,11 +120,14 @@ class PlanetariumSkyProjection {
     if (!viewState.fieldOfView.isFinite || viewState.fieldOfView <= 0) {
       return null;
     }
+    if (viewState.viewMode == SkyViewMode.horizontal && latitude == null) {
+      return null;
+    }
 
     final projector = SkyFovProjector.forSize(
       viewState,
       canvasSize,
-      latitude: latitude,
+      latitude: latitude ?? 0,
       lstHours: lstHours,
     );
     if (!projector.canProjectSkyCoordinates) return null;

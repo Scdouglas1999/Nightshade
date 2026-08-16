@@ -28,8 +28,8 @@ class _SequenceHeader extends ConsumerWidget {
           // Drive density off this header's OWN width, not the device class.
           // The header can live in a narrow landscape split pane on a phone,
           // so the desktop toggles / counts must hide whenever *this* row is
-          // tight — otherwise they overflow it (the previous device-wide
-          // `Responsive.isMobile` let them show in a 300 px pane).
+          // tight — a device-wide check would let them show in a 300 px pane
+          // and overflow it.
           final compact = constraints.maxWidth < 600;
           final padding = compact
               ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)

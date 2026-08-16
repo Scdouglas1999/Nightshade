@@ -24,7 +24,7 @@ part 'science_export_hub/hub_state_helpers.dart';
 
 /// Identifier for a science dataset that the hub can export. Exposed so that
 /// per-card export buttons in the science analytics tab can route into the
-/// hub with the relevant card pre-highlighted (audit §4.14 consolidation).
+/// hub with the relevant card pre-highlighted.
 enum ScienceExportDataset {
   photometry,
   frameQuality,
@@ -98,11 +98,10 @@ final scienceExportFileWriterProvider = Provider<ScienceExportFileWriter>(
 
 /// Timestamp as UTC ISO-8601, always ending in `Z`.
 ///
-/// Every CSV in this hub used to write `toIso8601String()` on a LOCAL DateTime:
-/// a row stored at 09:00 UTC exported as `2026-08-01T05:00:00.000` on a UTC-4
-/// host, with no offset and no `Z`. Anything parsing that as ISO-8601 placed
-/// every measurement hours away from where it was taken, and the error changed
-/// with the observer's timezone and with DST inside one observing season.
+/// `toIso8601String()` on a LOCAL DateTime carries no offset and no `Z`, so
+/// anything parsing it as ISO-8601 places the measurement hours from where it
+/// was taken — by an amount that changes with the observer's timezone and with
+/// DST inside one observing season.
 String _utcStamp(DateTime dt) => dt.toUtc().toIso8601String();
 
 /// Julian Date for [dt], the time system AAVSO/AID submissions and every period

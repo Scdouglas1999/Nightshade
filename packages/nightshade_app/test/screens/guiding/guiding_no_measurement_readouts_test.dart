@@ -136,9 +136,9 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    // Graph header + graph stats row both label the same number px, because
-    // no pixel scale is known. The old build printed 0.53 px in one place and
-    // 0.53" fifty pixels below it.
+    // Graph header + graph stats row both label the same number px, because no
+    // pixel scale is known — one must not print 0.53 px and the other 0.53"
+    // fifty pixels below it.
     expect(find.text('0.53 px'), findsAtLeastNWidgets(1));
     expect(
       find.text('0.53"'),

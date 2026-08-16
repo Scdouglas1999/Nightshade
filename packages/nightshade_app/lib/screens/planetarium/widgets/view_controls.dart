@@ -8,6 +8,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart' show chooseExportTarget;
 import '../../../services/finder_chart_service.dart';
 import '../../../utils/exported_file_reveal.dart';
+import '../../../utils/snackbar_helper.dart';
 import '../../../utils/coordinate_format_utils.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';
 import '../providers/finder_chart_catalog_provider.dart';
@@ -79,8 +80,14 @@ class ViewControls extends ConsumerWidget {
               // Home = the observer's zenith, not the fixed point RA 0h/Dec 0
               // (which is usually below the horizon). See
               // [skyViewHomeCenterProvider].
-              final (ra, dec) = ref.read(skyViewHomeCenterProvider);
-              ref.read(skyViewStateProvider.notifier).setCenter(ra, dec);
+              // Null with no site on record: the zenith is the point over the
+              // observer, so the equatorial centre is left where it is.
+              final home = ref.read(skyViewHomeCenterProvider);
+              if (home != null) {
+                ref
+                    .read(skyViewStateProvider.notifier)
+                    .setCenter(home.$1, home.$2);
+              }
               ref
                   .read(skyViewStateProvider.notifier)
                   .setHorizontalCenter(0, 90);
@@ -310,7 +317,17 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
     try {
       final viewState = ref.read(skyViewStateProvider);
       final renderConfig = ref.read(skyRenderConfigProvider);
-      final location = ref.read(observerLocationProvider);
+      // A finder chart states a horizon, so it needs a real observer rather
+      // than a default one.
+      final site = ref.read(observerLocationProvider).site;
+      if (site == null) {
+        if (mounted) {
+          context.showWarningSnackBar(
+            'Set your observing location in Settings to export a finder chart.',
+          );
+        }
+        return;
+      }
       final time = ref.read(observationTimeProvider);
       final constellations = ref.read(constellationDataProvider);
       final selectedState = ref.read(selectedObjectProvider);
@@ -382,8 +399,8 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
         dsos: dsos,
         constellations: constellations,
         observationTime: time.time,
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: site.latitude,
+        longitude: site.longitude,
         chartConfig: FinderChartConfig(
           printMode: printMode,
           chartResolution: 2048,
@@ -639,19 +656,17 @@ class QualitySettingsButton extends ConsumerWidget {
 /// Wrap a command-bar [PopupMenuButton] so it has a NAME and its message is
 /// carried by the trigger.
 ///
-/// Two things are wrong with a bare `PopupMenuButton(tooltip: 'X')` here, and
-/// both were live findings (D-2, WF-SS-N3):
+/// Two things are wrong with a bare `PopupMenuButton(tooltip: 'X')` here:
 ///
 ///  * The icon carries no label, so the control dumps as a bare `button: ` —
 ///    unidentifiable to anyone driving the bar from the keyboard or a screen
-///    reader, and unusable as evidence in an audit.
+///    reader.
 ///  * Material's `Tooltip` publishes its message as a semantics node of its
-///    own. The live tree kept `panel: Projection: Stereographic` for the rest
-///    of the session after a single hover, with the bar visibly clean on
-///    screen at the same instant. Passing an EMPTY tooltip makes `Tooltip`
-///    return its child untouched, so no such node is ever created; the hover
-///    message comes from [NightshadeTooltip] instead, which retires with the
-///    pointer.
+///    own, which survives the pointer and strands a stale `panel: …` in the
+///    tree for the rest of the session after one hover. Passing an EMPTY
+///    tooltip makes `Tooltip` return its child untouched, so no such node is
+///    ever created; the hover message comes from [NightshadeTooltip], which
+///    retires with the pointer.
 Widget _namedCommandBarPopup({required String name, required Widget child}) {
   // The NAME itself goes on the icon (`Icon(semanticLabel:)`), because
   // `PopupMenuButton` builds an `IconButton` whose semantics node is a

@@ -178,15 +178,25 @@ class _GlobalNotesDialogState extends ConsumerState<GlobalNotesDialog> {
                 loading: () => Center(
                   child: CircularProgressIndicator(color: colors.primary),
                 ),
-                error: (e, _) => Center(
-                  child: Text(
-                    'Notes are temporarily unavailable.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: colors.error,
+                error: (e, stack) {
+                  developer.log(
+                    '[GlobalNotesDialog] All-notes query failed: $e',
+                    name: 'GlobalNotesDialog',
+                    level: 1000,
+                    error: e,
+                    stackTrace: stack,
+                  );
+                  return Center(
+                    child: Text(
+                      'Notes unavailable: ${userFacingError(e)}',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: colors.error,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],

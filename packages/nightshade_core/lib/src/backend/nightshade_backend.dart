@@ -34,15 +34,10 @@ export 'roles/roles.dart';
 /// the same underlying `backendProvider` state, so swapping backends
 /// remains a single state mutation.
 ///
-/// **Why this exists as a marker and not a fat interface body**: the file
-/// used to declare 157 abstract methods. Every new backend feature forced a
-/// 4-file edit (interface + three impls), and the file mixed unrelated
-/// concerns (device control, image processing, sequencer runtime config,
-/// recovery, profiles). Splitting the contract along the role seams above
-/// makes the intent of each consumer visible at its import list and lets
-/// `DisconnectedBackend` future-proof itself by only implementing the roles
-/// it can legitimately answer. The marker preserves the 500+ existing call
-/// sites that expect a single backend object.
+/// **Why a marker and not a fat interface body**: the contract lives in the
+/// role files, so each consumer's intent is visible at its import list and a
+/// backend can implement only the roles it can legitimately answer. The marker
+/// keeps working the call sites that take one backend object.
 ///
 /// **DO NOT add new methods to this class**. New methods belong in the
 /// role interface for their concern. If no existing role fits, add a new

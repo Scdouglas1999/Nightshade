@@ -16,7 +16,7 @@ part 'integration_settings/integration_enums.dart';
 /// `IntegrationSettingsArgs`:
 /// `{ align:{...}, weighting:{...}, normalization:{...}, integration:{...} }`.
 class IntegrationSettings {
-  // --- Alignment ---
+  // Alignment
   /// Geometric transform model. Default: [TransformModel.affine].
   final TransformModel model;
 
@@ -29,7 +29,7 @@ class IntegrationSettings {
   /// Brightest-N reference stars used for matching. Default 60.
   final int maxRefStars;
 
-  // --- Weighting ---
+  // Weighting
   /// Whether per-sub weighting is applied. Default true.
   final bool weightingEnabled;
 
@@ -45,7 +45,7 @@ class IntegrationSettings {
   /// Custom eccentricity exponent (custom only). Default 1.0.
   final double eccPow;
 
-  // --- Normalization ---
+  // Normalization
   /// Whether normalization to the reference is applied. Default true.
   final bool normalizationEnabled;
 
@@ -58,7 +58,7 @@ class IntegrationSettings {
   /// Local-grid cols (mode == local only). Default 8.
   final int localCols;
 
-  // --- Integration ---
+  // Integration
   /// Pixel combine operator. Default [CombineMode.mean].
   final CombineMode combine;
 
@@ -88,7 +88,7 @@ class IntegrationSettings {
   /// Output sample format. Default [OutputBitDepth.f32].
   final OutputBitDepth outputBitDepth;
 
-  // --- Cull recommendation (advisory; consumed by the UI, not the native side) ---
+  // Cull recommendation (advisory; consumed by the UI, not the native side)
   /// Whether to recommend an auto-cull of the worst subs. Default true.
   final bool autoCull;
 
@@ -100,7 +100,7 @@ class IntegrationSettings {
   /// hand-edited away from any preset. Persisted for UI round-trip only.
   final IntegrationPreset? sourcePreset;
 
-  // --- Drizzle (variable-pixel reconstruction; off by default — heavy) ---
+  // Drizzle (variable-pixel reconstruction; off by default — heavy)
   /// Whether to drizzle-integrate instead of plain resample-and-combine.
   /// Default false. Routes through native `api_drizzle_integrate`.
   final bool drizzle;
@@ -118,7 +118,7 @@ class IntegrationSettings {
   /// Default false.
   final bool bayerDrizzle;
 
-  // --- Deconvolution (preview finishing pass; off by default — heavy) ---
+  // Deconvolution (preview finishing pass; off by default — heavy)
   /// Whether to run a Richardson–Lucy deconvolution finishing pass. Default
   /// false. Routes through native `api_deconvolve_preview`.
   final bool deconvolve;
@@ -133,7 +133,7 @@ class IntegrationSettings {
   /// PSF is estimated from the frame's own stars).
   final PsfKind psfKind;
 
-  // --- Star reduction (preview finishing pass; off by default) ---
+  // Star reduction (preview finishing pass; off by default)
   /// Whether to run a star-size-reduction finishing pass. Default false.
   /// Routes through native `api_reduce_stars_preview`.
   final bool reduceStars;
@@ -144,7 +144,7 @@ class IntegrationSettings {
   /// Star-reduction algorithm. Default [StarReduceMethod.screenedResidual].
   final StarReduceMethod starReduceMethod;
 
-  // --- Background extraction (gradient removal; ON by smart default) ---
+  // Background extraction (gradient removal; on by smart default)
   /// Whether to fit + subtract a star-masked low-order polynomial background.
   /// Default false on the bare model; [smartDefaults] turns it ON. Routes
   /// through native `api_extract_background`.
@@ -157,7 +157,7 @@ class IntegrationSettings {
   /// pedestal). Default true.
   final bool backgroundPreserveMean;
 
-  // --- Colour calibration (photometric white balance; off by default) ---
+  // Colour calibration (photometric white balance; off by default)
   /// Whether to solve + apply a catalogue-referenced per-channel white balance.
   /// Default false.
   ///
@@ -174,7 +174,7 @@ class IntegrationSettings {
   /// (a G2V / sun-like reference).
   final double whiteRefBv;
 
-  // --- Narrowband palette (channel combine; off by default) ---
+  // Narrowband palette (channel combine; off by default)
   /// Narrowband palette mix. Default [NarrowbandPalette.none]. When `custom`,
   /// [customWeights] supplies the per-input `[r, g, b]` triples. Routes through
   /// native `api_combine_channels`.
@@ -295,16 +295,12 @@ class IntegrationSettings {
   /// - **Resampler** drops to bilinear only when [preferSpeed] is set (e.g. a
   ///   very large sub count where the user opted for the Fast preset).
   ///
-  /// **Pristine master by default.** Smart defaults NEVER enable destructive
-  /// post-stacking processing. The out-of-box output is an unmodified linear
-  /// master FITS (calibrate → register → normalize → weight → integrate) plus a
-  /// stretched preview, so the user can import the master into their processing
-  /// tool of choice (PixInsight / APP / Siril) and start from scratch.
-  /// Background extraction, colour calibration, deconvolution, star reduction,
-  /// drizzle, and narrowband combine are all left **OFF** here — they remain
-  /// fully available as explicit opt-ins, and when used they write *sibling*
-  /// files so the linear master is always preserved. ([dithered]/[underSampled]
-  /// are retained for API compatibility and future opt-in heuristics.)
+  /// Destructive post-stacking steps (background extraction, colour
+  /// calibration, deconvolution, star reduction, drizzle, narrowband combine)
+  /// stay OFF here, so the output is an unmodified linear master FITS plus a
+  /// stretched preview. They are explicit opt-ins and write *sibling* files,
+  /// leaving the linear master intact. ([dithered]/[underSampled] are accepted
+  /// for API compatibility and not yet read.)
   factory IntegrationSettings.smartDefaults({
     required int subCount,
     bool longNight = false,

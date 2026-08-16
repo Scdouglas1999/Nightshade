@@ -1,26 +1,17 @@
-// Phase 3 Step 1 — Derived tree-index sibling class.
+// Derived tree-index sibling class for `Sequence`.
 //
-// `Sequence` used to carry two `late final` lazy lookup maps
-// (`_childrenByParent`, `_parentById`) that were excluded from
-// `Equatable.props`. Freezed's generated `==` / `hashCode` would either
-// include them (breaking the
-// `equality_via_props_uses_nodes_map_and_excludes_derived_indexes` Phase 1
-// contract test) or require hoisting them out — this file does the hoist.
+// The lookup maps live here, not on the model: freezed generates `==` /
+// `hashCode` over every field, and derived indexes must not participate in
+// sequence equality (see
+// `equality_via_props_uses_nodes_map_and_excludes_derived_indexes`). The
+// index is cached per `Sequence` instance via an [Expando], external to the
+// data class, so repeated lookups against one instance still hit a single
+// pre-built index and stay O(1) per hop on hot paths.
 //
-// `Sequence` now keeps the same `childrenOf` / `parentOf` /
-// `descendantsOf` / `invariants` / `countDescendants` API as before; under
-// the hood those methods delegate to a `SequenceTreeIndex` cached per
-// `Sequence` instance via an [Expando]. The cache is external to the data
-// class, so it never participates in equality, hashCode, or copyWith — but
-// repeated lookups against the same `Sequence` instance still hit a single
-// pre-built index (preserving the W1.7 "O(1) lookup on hot paths"
-// performance contract).
-//
-// Callers that hold a `Sequence` reference get the cached index implicitly
-// via the public methods on `Sequence`. Callers that want to be explicit —
-// or that need to share an index across several lookups without going
-// through `Sequence` — can construct one directly via
-// [SequenceTreeIndex.from].
+// `Sequence.childrenOf` / `parentOf` / `descendantsOf` / `invariants` /
+// `countDescendants` delegate here and pick up the cache implicitly. Callers
+// that want to share one index across several lookups without going through
+// `Sequence` construct one via [SequenceTreeIndex.from].
 
 import 'sequence_models.dart';
 

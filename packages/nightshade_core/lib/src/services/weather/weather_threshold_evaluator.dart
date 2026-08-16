@@ -84,9 +84,9 @@ class WeatherThresholdEvaluator {
 
   /// Evaluate [reading] against [thresholds].
   ///
-  /// Breach order is humidity → wind → rain → cloud, matching the historical
-  /// inline order so the reported reason is unchanged. Rain is unsafe at any
-  /// strictly-positive rate regardless of the configured ceilings.
+  /// Breach order is humidity → wind → rain → cloud; the first breach is the
+  /// reported reason. Rain is unsafe at any strictly-positive rate regardless
+  /// of the configured ceilings.
   WeatherThresholdResult evaluate(
     WeatherReading reading,
     WeatherThresholds thresholds,

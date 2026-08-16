@@ -1,13 +1,12 @@
 // Widget tests for the ConnectedDevicecard mount + focuser "Configuration"
 // dialogs' truthful validation/save behavior.
 //
-// Both dialogs previously coerced malformed numeric input via
-// `parse(...) ?? old`, so a bad value reported success while silently keeping
-// the prior value, and they issued sequential per-field writes. The rewrite
-// validates before touching persistence (minutes 0..120; coefficient finite;
-// backlash 0..10000), saves through ONE batched AppSettingsNotifier call, and
-// closes only after the write resolves — showing an inline error and staying
-// open otherwise.
+// Coercing malformed numeric input via `parse(...) ?? old` reports success
+// while silently keeping the prior value, and sequential per-field writes land
+// half a change. Both dialogs therefore validate before touching persistence
+// (minutes 0..120; coefficient finite; backlash 0..10000), save through ONE
+// batched AppSettingsNotifier call, and close only after the write resolves —
+// showing an inline error and staying open otherwise.
 //
 // The harness wires a real in-memory settings store (via mockDatabase), so a
 // save round-trips to `appSettingsProvider` state; "did zero work" is asserted

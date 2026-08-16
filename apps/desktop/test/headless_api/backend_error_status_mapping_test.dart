@@ -10,10 +10,10 @@ import 'package:shelf/shelf.dart';
 ///
 /// The table exists so a remote client gets an actionable status instead of an
 /// opaque 500, and only genuinely internal faults fall through to `orElse`.
-/// Regression driving this file: a completely saturated frame from a real
-/// ASI1600MM-Cool answered `500 internal_error`, because the bridge reported the
-/// rejection as the unclassified `OperationFailed` and nothing mapped the
-/// frame-rejection case. `ExposureFailed` now carries it and maps to 422.
+/// Observed live: a completely saturated frame from a real ASI1600MM-Cool
+/// answers `500 internal_error` when the bridge reports the rejection as the
+/// unclassified `OperationFailed` and nothing maps the frame-rejection case.
+/// `ExposureFailed` carries it and maps to 422.
 void main() {
   Future<Response> throwing(bridge_error.NightshadeError error) async {
     final handler = errorTranslationMiddleware(
@@ -77,16 +77,16 @@ void main() {
     expect(result.body['error'], 'internal_error');
   });
 
-  // Regression: the wire `message` is rendered verbatim by remote/mobile
-  // clients, so it must always be a sentence an operator can act on. Observed
-  // live on a running instance with no image captured:
+  // The wire `message` is rendered verbatim by remote/mobile clients, so it
+  // must always be a sentence an operator can act on. Observed live on a
+  // running instance with no image captured:
   //   GET /api/camera/last-image  -> {"error":"device_error",
   //        "message":"NightshadeError.noImageAvailable()"}
   //   GET /api/imaging/raw-data   -> same
   //   GET /api/run-watch/frame-thumbnail ->
   //        "Failed to fetch last image: NightshadeError.noImageAvailable()"
-  // Cause: the message cleaner only unwrapped variants with a single
-  // positional `field0`; zero-arg and named-field variants fell through to
+  // Cause: a message cleaner that only unwraps variants with a single
+  // positional `field0` lets zero-arg and named-field variants fall through to
   // `toString()`, which is the freezed constructor form.
   test('no variant ever leaks the freezed constructor form', () async {
     final variants = <bridge_error.NightshadeError>[
@@ -221,12 +221,10 @@ void main() {
       const bridge_error.NightshadeError.timeout('slew'): 504,
     };
 
-    // The wire code per status. `internal_error` used to cover everything
-    // `>= 500`, which made a capability the camera does not have read as an
-    // appliance fault. Live rig 2026-08-09, ASI178MM with no cooler:
-    // `POST /api/camera/cooling {"enabled":false}` ->
-    // `501 {"error":"internal_error","message":"Operation not supported"}`.
-    // Only a genuine 500 is internal.
+    // The wire code per status. Only a genuine 500 is `internal_error`:
+    // covering everything `>= 500` with it makes a capability the camera does
+    // not have — `POST /api/camera/cooling` on a cooler-less camera — read as
+    // an appliance fault.
     const codeForStatus = <int, String>{
       400: 'device_error',
       404: 'device_error',

@@ -123,7 +123,7 @@ class FakePostSessionSeam implements PostSessionSeam {
     );
   }
 
-  // --- Smart Morning Report finishing seam (scriptable) ---------------------
+  // Smart Morning Report finishing seam (scriptable)
 
   /// Scripted [analyzeNight] result; defaults to an empty curve.
   IntegrationCurve analyzeResult = IntegrationCurve.empty;
@@ -162,7 +162,7 @@ class FakePostSessionSeam implements PostSessionSeam {
   /// This makes the morning-report wiring testable end-to-end: a `qualities`
   /// map that omits `noise` yields the same all-zero curve the real Rust
   /// optimizer would (it skips any `noise <= 0` sub from its variance sums), so
-  /// the dead-feature regression (blocker #5) cannot be masked by a fake curve.
+  /// a dead improvement curve cannot be masked by a fake one.
   bool useRealOptimizer = false;
 
   @override
@@ -594,7 +594,7 @@ void main() {
     },
   );
 
-  // --- Smart Morning Report extensions --------------------------------------
+  // Smart Morning Report extensions
 
   /// An integrate builder that echoes the lights and stamps each accepted
   /// per-frame record with synthetic per-sub science metrics.
@@ -746,9 +746,8 @@ void main() {
       'optimizer yields a positive, monotone curve + non-zero target_snr', () async {
     scriptMetrics();
     // Drive the FAITHFUL optimizer port (not a canned curve), so the curve is
-    // whatever `_analyzeAndStoreCurve`'s qualities actually support. Pre-fix —
-    // when `noise` was dropped from the map — every point's snr is 0 and the
-    // anchor (target_snr) is 0, exactly the dead-feature the review flagged.
+    // whatever `_analyzeAndStoreCurve`'s qualities support. Without `noise` in
+    // the map every point's snr is 0 and the anchor (target_snr) is 0.
     seam.useRealOptimizer = true;
 
     final subs = [
@@ -816,7 +815,7 @@ void main() {
 
   test('CONTROL: without per-sub noise the REAL optimizer collapses to a '
       'zero curve (proves the regression test bites)', () async {
-    // A metrics scripter that deliberately OMITS noise (the pre-fix shape).
+    // A metrics scripter that deliberately OMITS noise.
     seam.integrateBuilder = (args) {
       final lights = (args['lightPaths'] as List).cast<String>();
       final output = args['output'] as Map<String, dynamic>;
@@ -931,8 +930,8 @@ void main() {
     expect(row.read<int>('background_extracted'), 1);
 
     // Each pass's written FITS path is persisted via updateFinishingPaths onto
-    // the v44 columns (previously discarded). The fake seam echoes `outputFits`,
-    // and the service suffixes the master path with _bgx/_decon/_starred.
+    // the v44 columns. The fake seam echoes `outputFits`, and the service
+    // suffixes the master path with _bgx/_decon/_starred.
     expect(row.read<String>('background_extracted_path'), '/out/on_bgx.fits');
     expect(row.read<String>('deconvolved_path'), '/out/on_decon.fits');
     expect(row.read<String>('star_reduced_path'), '/out/on_starred.fits');
@@ -962,7 +961,7 @@ void main() {
     expect(master.starReducedPath, isNull);
   });
 
-  // --- Drizzle branch -------------------------------------------------------
+  // Drizzle branch
 
   /// An integrate builder that echoes the lights and stamps each accepted
   /// per-frame record with a (non-identity) source→reference registration
@@ -1284,7 +1283,7 @@ void main() {
     expect(master!.hasWcs, isFalse);
   });
 
-  // --- Colour calibration (wired via MasterColorCalibrator) -----------------
+  // Colour calibration (wired via MasterColorCalibrator)
 
   /// A plate-solver returning a fixed CD-matrix WCS so the colour-calibration
   /// gate has a master to project against.

@@ -1,12 +1,12 @@
 // Window controls must survive the responsive breakpoint on desktop.
 //
-// Regression cover for a live finding: resizing the Linux window to 760x700
-// dropped the shell below `ShellChromeMetrics.shellLayoutBreakpoint`, which
-// swapped the desktop TitleBar for the compact mobile bar — and that bar drew
-// no minimize/maximize/close. Because the desktop runners set
-// `TitleBarStyle.hidden` there are no OS decorations to fall back on, so the
-// window was left with no mouse-reachable way to be closed, minimized or
-// moved. Window controls are a property of the platform, not of the width.
+// Resizing the Linux window to 760x700 drops the shell below
+// `ShellChromeMetrics.shellLayoutBreakpoint` and swaps the desktop TitleBar for
+// the compact mobile bar. If that bar draws no minimize/maximize/close the
+// window has no mouse-reachable way to be closed, minimized or moved, because
+// the desktop runners set `TitleBarStyle.hidden` and there are no OS decorations
+// to fall back on. Window controls are a property of the platform, not of the
+// width.
 //
 // These tests pump the real `AppShell`, so deleting the controls from the
 // compact bar fails them.

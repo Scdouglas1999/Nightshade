@@ -1,10 +1,10 @@
-// Regression: the "Set location" call to action must land on the Location
-// section, not the top of Settings.
+// The "Set location" call to action must land on the Location section, not the
+// top of Settings.
 //
-// With no site on record this button is the dashboard's primary remedy. It used
-// to navigate to a bare '/settings', which opens the General panel and leaves
-// the user hunting the sidebar for the one field the button just offered to set.
-// The rest of the app already deep-links with '/settings?section=location'.
+// With no site on record this button is the dashboard's primary remedy. A bare
+// '/settings' opens the General panel and leaves the user hunting the sidebar
+// for the one field the button just offered to set. The rest of the app
+// deep-links with '/settings?section=location'.
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

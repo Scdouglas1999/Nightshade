@@ -6,25 +6,19 @@ import '../astronomy/sgp4.dart';
 import '../catalogs/satellite_catalog.dart';
 import 'planetarium_providers.dart';
 
-// ============================================================================
-// Satellite Toggle Provider
-// ============================================================================
+// Satellite toggle provider
 
 /// Whether satellite overlay is enabled
 final showSatellitesProvider = StateProvider<bool>((ref) => false);
 
-// ============================================================================
-// Satellite Catalog Provider
-// ============================================================================
+// Satellite catalog provider
 
 /// Singleton satellite catalog instance for TLE management
 final satelliteCatalogProvider = Provider<SatelliteCatalog>((ref) {
   return SatelliteCatalog();
 });
 
-// ============================================================================
-// TLE Data Provider
-// ============================================================================
+// TLE data provider
 
 /// Loads bright satellite TLE data. Auto-refreshes when toggled on.
 final satelliteTleProvider = FutureProvider<List<OrbitalElements>>((ref) async {
@@ -45,9 +39,7 @@ final satelliteTleProvider = FutureProvider<List<OrbitalElements>>((ref) async {
   }
 });
 
-// ============================================================================
-// Current Satellite Positions Provider
-// ============================================================================
+// Current satellite positions provider
 
 /// Satellite position state that updates every few seconds.
 class SatellitePositionState {
@@ -113,14 +105,17 @@ class SatellitePositionNotifier extends StateNotifier<SatellitePositionState> {
     final elements = tleData.valueOrNull;
     if (elements == null || elements.isEmpty) return;
 
-    final location = _ref.read(observerLocationProvider);
+    // A satellite's position on the sky is topocentric: no site, no pass to
+    // draw.
+    final site = _ref.read(observerLocationProvider).site;
+    if (site == null) return;
     final timeState = _ref.read(observationTimeProvider);
 
     final satellites = SatelliteCatalog.computePositions(
       elements: elements,
       time: timeState.time,
-      observerLatitude: location.latitude,
-      observerLongitude: location.longitude,
+      observerLatitude: site.latitude,
+      observerLongitude: site.longitude,
     );
 
     if (!mounted) return;
@@ -154,9 +149,7 @@ final currentSatellitesProvider = Provider<List<SatelliteData>>((ref) {
   return ref.watch(satellitePositionProvider).satellites;
 });
 
-// ============================================================================
-// Pass Prediction Provider
-// ============================================================================
+// Pass prediction provider
 
 /// State for satellite pass predictions.
 class PassPredictionState {
@@ -282,7 +275,14 @@ class PassPredictionNotifier extends StateNotifier<PassPredictionState> {
       return;
     }
 
-    final location = _ref.read(observerLocationProvider);
+    final site = _ref.read(observerLocationProvider).site;
+    if (site == null) {
+      _computeGeneration++;
+      state = const PassPredictionState(
+        error: 'Set an observing site to predict passes',
+      );
+      return;
+    }
     final generation = ++_computeGeneration;
 
     state = const PassPredictionState(isComputing: true);
@@ -290,8 +290,8 @@ class PassPredictionNotifier extends StateNotifier<PassPredictionState> {
     try {
       final passes = await _ref.read(passPredictionComputerProvider)(
         elements: elements,
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: site.latitude,
+        longitude: site.longitude,
         startTime: DateTime.now().toUtc(),
         predictionWindow: predictionWindow,
       );

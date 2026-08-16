@@ -1,10 +1,8 @@
 // Headless OTA update endpoints.
 //
-// Closes the `04-storage-image-transfer` §12 audit gap. The desktop GUI
-// has had `UpdateService` + `LanPushReceiver` wired through
-// `desktop_app_bootstrap.dart` since 2.4, but `main_headless.dart` never
-// exposed a REST surface for a paired phone to drive the update flow.
-// These handlers expose:
+// The desktop GUI wires `UpdateService` + `LanPushReceiver` through
+// `desktop_app_bootstrap.dart`. These handlers are the REST surface that lets
+// a paired phone drive the same update flow against a headless host:
 //
 //   GET    /api/system/version            — current build info (view)
 //   POST   /api/system/update/check       — kick off a check job (admin)

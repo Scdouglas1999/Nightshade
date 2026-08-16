@@ -21,11 +21,10 @@ void main() {
       'regression: an exact 60.0s dark MUST match a 60.0s light frame request '
       'with the default tolerances',
       () async {
-        // Why: before the fix this DAO used ±0.001s and could
-        // silently return null for matching floating-point exposures
-        // depending on representation, while the coverage UI used ±1.0s
-        // and said "all darks present". The unified ±0.5s default MUST
-        // accept the exact-match case the UI promised was covered.
+        // The DAO and the coverage UI share the ±0.5s default, so the
+        // exact-match case the UI reports as covered must match here too. A
+        // tolerance near zero returns null for equal exposures depending on
+        // floating-point representation.
         await dao.addEntry(
           DarkLibraryCompanion.insert(
             filePath: '/tmp/dark_60s.fits',

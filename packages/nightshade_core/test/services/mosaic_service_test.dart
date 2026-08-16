@@ -188,8 +188,7 @@ void main() {
     test('overlap reduces the reported coverage', () {
       // The same 2x2 grid at the DEFAULT 10% overlap. Adjacent centres are
       // 0.9° apart, so the grid spans 1° + 0.9° = 1.9° per axis, not 2°.
-      // The old implementation ignored overlap and still reported 4 sq°,
-      // overstating the coverage of every real mosaic by ~10% per axis.
+      // Ignoring overlap would report 4 sq°, ~10% per axis too much.
       const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
@@ -217,7 +216,8 @@ void main() {
         panelsVertical: 3,
       );
 
-      // 1 + 2*0.9 = 2.8° per axis -> 7.84 sq°, not the old 9 sq°.
+      // 1 + 2*0.9 = 2.8° per axis -> 7.84 sq°, not the 9 sq° the panel areas
+      // sum to.
       expect(service.calculateMosaicArea(config), closeTo(7.84, 0.001));
     });
 
@@ -843,13 +843,11 @@ void main() {
     );
 
     test('stamps a DISTINCT catalogTargetId per panel from the callback', () {
-      // The capture-collapse bug: every panel header carried a null
-      // catalogTargetId, so the frame-registration walk attributed every
-      // panel's subs to the SAME target and integratePanels pooled one field
-      // into all N panels. With the per-panel callback each header must carry
-      // its own id (panelIndex + 100), proving frames are attributable per
-      // panel. Without the fix every header's catalogTargetId is null and the
-      // distinct-id assertion below fails.
+      // A null catalogTargetId on every panel header collapses the capture: the
+      // frame-registration walk attributes every panel's subs to the SAME target
+      // and integratePanels pools one field into all N panels. With the
+      // per-panel callback each header carries its own id (panelIndex + 100),
+      // so frames stay attributable per panel.
       final nodes = service.createMosaicSequence(
         mosaicName: 'Test Mosaic',
         config: config,
@@ -921,12 +919,10 @@ void main() {
 
   group('MosaicService - W1 altitude gate', () {
     test('minAltitude option flows onto every panel TargetHeader', () {
-      // W1: when the wizard / framing call sites default minAltitude to the
-      // Smart Night floor, each panel header must carry that minAltitude so the
+      // When the wizard / framing call sites default minAltitude to the Smart
+      // Night floor, each panel header must carry that minAltitude so the
       // serializer emits `min_altitude` and the executor installs a
-      // `start_when AltitudeAbove` wait. This pins the service contract the
-      // defaulted call sites rely on; with options.minAltitude null (the old
-      // behaviour) the assertion below fails.
+      // `start_when AltitudeAbove` wait.
       const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,

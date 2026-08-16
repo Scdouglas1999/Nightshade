@@ -39,12 +39,9 @@
 
 import 'dart:math' as math;
 
-/// Errors are a feature: an out-of-range order, pixel index, or coordinate
-/// must surface immediately rather than producing a silently wrong tile.
-///
-/// Every public entry point validates its inputs and throws this instead of
-/// clamping or returning a bogus pixel, so a miswired caller fails loudly in
-/// tests and in the field.
+/// Every public entry point validates its inputs and throws this rather than
+/// clamping or returning a bogus pixel, so an out-of-range order, pixel index
+/// or coordinate cannot become a silently wrong tile.
 class HealpixArgumentError extends ArgumentError {
   /// Creates an argument error for a HEALPix routine.
   HealpixArgumentError(super.message);
@@ -206,7 +203,7 @@ class HealpixNested {
     return HealpixNested(order);
   }
 
-  // --- Base-face geometry tables (Górski et al. 2005, Fig. 4) ---------------
+  // Base-face geometry tables (Górski et al. 2005, Fig. 4)
 
   /// For each of the 12 faces, the integer multiple of `Nside` that locates
   /// the face's reference column in the (ix, iy) raster used by the
@@ -217,7 +214,7 @@ class HealpixNested {
   /// direction, in units of the equatorial spacing.
   static const List<int> _jpll = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
 
-  // --- Forward: sky -> pixel ------------------------------------------------
+  // Forward: sky -> pixel
 
   /// Converts a sky direction (RA/Dec in degrees) to a NESTED pixel index.
   ///
@@ -253,7 +250,7 @@ class HealpixNested {
     return _zphiToNest(z, phi);
   }
 
-  // --- Inverse: pixel -> sky ------------------------------------------------
+  // Inverse: pixel -> sky
 
   /// Converts a NESTED pixel index to its center sky direction (RA/Dec deg).
   HealpixAngle pix2ang(int ipix) {
@@ -272,7 +269,7 @@ class HealpixNested {
   /// Converts a NESTED pixel index to its center unit vector.
   Vector3 pix2vec(int ipix) => angToVec(pix2ang(ipix));
 
-  // --- Face decomposition ---------------------------------------------------
+  // Face decomposition
 
   /// Decomposes a NESTED pixel index into integer `(x, y, face)`.
   ///
@@ -308,7 +305,7 @@ class HealpixNested {
     return xyf.face * nside * nside + _interleave(ix, iy);
   }
 
-  // --- Fractional intra-face <-> sky ---------------------------------------
+  // Fractional intra-face <-> sky
 
   /// Maps a fractional intra-face coordinate to a sky direction.
   ///
@@ -380,7 +377,7 @@ class HealpixNested {
     return _zphiToXyf(z, phi);
   }
 
-  // --- Cell boundary (corner) generation -----------------------------------
+  // Cell boundary (corner) generation
 
   /// Returns the four corner sky directions of a NESTED pixel, ordered
   /// counter-clockwise as seen from outside the sphere:
@@ -410,7 +407,7 @@ class HealpixNested {
   List<Vector3> boundaryVectors(int ipix) =>
       boundaries(ipix).map(angToVec).toList(growable: false);
 
-  // --- Neighbours -----------------------------------------------------------
+  // Neighbours
 
   /// Compass directions of the eight [neighboursNest] slots, in result
   /// order. Index 0 = West, then NW, N, NE, E, SE, S, SW (counter-clockwise
@@ -536,7 +533,7 @@ class HealpixNested {
     return result;
   }
 
-  // --- Disc query (visible-set enumeration) --------------------------------
+  // Disc query (visible-set enumeration)
 
   /// Returns the NESTED indices of every pixel whose footprint intersects
   /// (when [inclusive] is true) or whose center lies within (when false) a
@@ -613,7 +610,7 @@ class HealpixNested {
     return out;
   }
 
-  // --- Quadtree (level-of-detail) ------------------------------------------
+  // Quadtree (level-of-detail)
 
   /// Returns the parent pixel index one order coarser (`ipix >> 2`).
   ///
@@ -667,7 +664,7 @@ class HealpixNested {
     return HealpixNested(targetOrder).angToPixNest(a);
   }
 
-  // --- Internal: (z, phi) <-> nest -----------------------------------------
+  // Internal: (z, phi) <-> nest
 
   int _zphiToNest(double z, double phi) => xyfToNest(_zphiToXyf(z, phi));
 
@@ -730,7 +727,7 @@ class HealpixNested {
     return HealpixXyf(x, y, face);
   }
 
-  // --- Internal helpers -----------------------------------------------------
+  // Internal helpers
 
   /// Chooses the equatorial-belt face from the two diagonal edge indices.
   int _equatorFace(int ifp, int ifm) {
@@ -801,7 +798,7 @@ class HealpixNested {
     }
   }
 
-  // --- Static numeric utilities --------------------------------------------
+  // Static numeric utilities
 
   /// Tiny inset used to keep an inclusive upper-edge coordinate inside the
   /// half-open integer range when flooring for pixel addressing.
@@ -858,7 +855,7 @@ class HealpixNested {
     return r;
   }
 
-  // --- Static coordinate conversions (no order dependence) -----------------
+  // Static coordinate conversions (no order dependence)
 
   /// Converts a HEALPix `(theta, phi)` direction to a unit vector.
   static Vector3 angToVec(HealpixAngle a) {

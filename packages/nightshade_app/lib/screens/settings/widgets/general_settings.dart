@@ -79,13 +79,11 @@ class GeneralSettings extends ConsumerWidget {
                 // the navigation rail, the persistent status bar and the whole
                 // Settings tree. The product screens (Dashboard body, Imaging,
                 // the Sequencer) hold literals with no catalogue keys behind
-                // them and stay English. Both locales state that scope; the
-                // Spanish string used to promise "la interfaz principal", which
-                // is exactly what it does not do.
+                // them and stay English. Both locales state that scope.
                 subtitle: l10n.text('generalLanguageDesc'),
                 trailing: SettingsDropdown(
-                  // Values are the stored language codes, so the mapping no
-                  // longer depends on comparing translated display strings.
+                  // Values are the stored language codes, so the mapping does
+                  // not depend on comparing translated display strings.
                   value: settings.language == 'es' ? 'es' : 'en',
                   items: const ['en', 'es'],
                   itemLabels: [

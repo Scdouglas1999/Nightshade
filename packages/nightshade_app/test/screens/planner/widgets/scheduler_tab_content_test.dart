@@ -481,7 +481,8 @@ void main() {
     notifier.switchTo(newBackend);
     await tester.pumpAndSettle();
 
-    // The old host's pending request must not leave the replacement host busy.
+    // A pending request from the previous host must not leave the replacement
+    // host busy.
     await tester.tap(runButton);
     await tester.pumpAndSettle();
     verify(() => newBackend.controlScheduler('start')).called(1);

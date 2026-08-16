@@ -51,23 +51,17 @@ CameraSensorSpecs? cameraSensorSpecsFromOpticalConfig(OpticalConfig? config) {
 
 /// Binds the connected rig to the planetarium's FOV overlay.
 ///
-/// The planetarium package is deliberately dependency-free of nightshade_core
-/// (the dependency runs the other way), so its [equipmentFOVProvider] — the
-/// single source of truth the sky renderer reads — cannot subscribe to the
-/// profile/equipment providers itself. This provider closes that gap the same
-/// way the app's `fovPresetsSyncProvider` closes the persistence gap: watch it
-/// once high in a screen that shows the overlay and it keeps pushing.
+/// The planetarium package does not depend on nightshade_core (the dependency
+/// runs the other way), so its [equipmentFOVProvider] cannot subscribe to the
+/// profile/equipment providers itself. Watch this once high in a screen that
+/// shows the overlay and it keeps pushing.
 ///
-///  * [opticalConfigProvider] → telescope + camera specs. Either slot resolves
-///    to null when its inputs are unknown, and a null slot makes
-///    `EquipmentFOVState.fov` null, which makes the overlay painter draw
-///    nothing. No profile, no focal length and no connected camera therefore
-///    all degrade to "no box" rather than to a fabricated one.
-///  * [rotatorStateProvider] → the live mechanical angle, so the box is drawn
-///    at the rotation the camera is actually installed at. With no rotator
+///  * [opticalConfigProvider] → telescope + camera specs. An unknown slot
+///    resolves to null, which makes `EquipmentFOVState.fov` null and the
+///    overlay painter draw nothing rather than a fabricated box.
+///  * [rotatorStateProvider] → the live mechanical angle. With no rotator
 ///    connected the rotation stays whatever the user last dialled in (framing
-///    assistant slider / rotation handle), which is the honest fallback for a
-///    manually-rotated camera.
+///    assistant slider / rotation handle).
 ///
 /// Writes are deferred to a microtask because Riverpod forbids mutating another
 /// provider while this one is initialising.

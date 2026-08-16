@@ -353,7 +353,7 @@ class PluginHost {
   ///
   /// Calls [onEnable] when enabling or [onDisable] when disabling.
   ///
-  /// Returns true if state was changed, false otherwise.
+  /// Returns true when the state changes, false when it already matched.
   Future<bool> setPluginEnabled(String pluginId, bool enabled) async {
     final loaded = _plugins[pluginId];
     if (loaded == null) {

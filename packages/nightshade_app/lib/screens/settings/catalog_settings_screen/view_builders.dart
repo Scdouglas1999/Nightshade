@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../catalog_settings_screen.dart -- extracted for maintainability.
-//
 // Content, download, package and annotation section builders of _CatalogSettingsScreenState.
 part of '../catalog_settings_screen.dart';
 

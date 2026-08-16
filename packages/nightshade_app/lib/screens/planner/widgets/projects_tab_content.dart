@@ -21,9 +21,9 @@ part 'projects_tab_content/progress_widgets.dart';
 part 'projects_tab_content/project_dialogs.dart';
 part 'projects_tab_content/terminal_states.dart';
 
-/// Projects tab body for the multi-night planner (component C9).
+/// Projects tab body for the multi-night planner.
 ///
-/// Surfaces the campaign layer of the planning stack built in C6/C8:
+/// Surfaces the campaign layer of the planning stack:
 ///
 ///   * a project selector ([projectListProvider]) bound to
 ///     [activeProjectIdProvider], with create / edit / delete affordances;
@@ -160,9 +160,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Create / edit / delete project
-  // ---------------------------------------------------------------------------
 
   Future<void> _openCreateDialog() async {
     if (_projectMutationInFlight || _changingProject) return;
@@ -365,9 +363,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Add target
-  // ---------------------------------------------------------------------------
 
   Future<void> _openAddTargetDialog(int projectId, Set<int> attachedIds) async {
     if (_projectMutationInFlight || _changingProject) return;
@@ -473,9 +469,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Edit goals
-  // ---------------------------------------------------------------------------
 
   Future<void> _openGoalsDialog(int targetId, String targetName) async {
     final profile = ref.read(activeEquipmentProfileProvider);
@@ -496,9 +490,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Smart Night handoff (component C11)
-  // ---------------------------------------------------------------------------
+  // Smart night handoff (component C11)
 
   /// One-click handoff of the active project's still-incomplete targets into
   /// the Smart Night planner. Reads the active project's roll-up, pulls out the
@@ -585,9 +577,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Body
-  // ---------------------------------------------------------------------------
 
   Widget _buildBody({
     required NightshadeColors colors,
@@ -649,9 +639,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Active-selection reconciliation
-  // ---------------------------------------------------------------------------
 
   /// Schedule a write of [fallbackId] into the persisted active-project id.
   ///

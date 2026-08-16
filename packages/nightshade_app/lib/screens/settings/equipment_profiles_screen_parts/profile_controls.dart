@@ -1,8 +1,6 @@
 part of '../equipment_profiles_screen.dart';
 
-// ============================================================================
-// Helper Widgets
-// ============================================================================
+// Helper widgets
 
 class _Section extends StatelessWidget {
   final String title;

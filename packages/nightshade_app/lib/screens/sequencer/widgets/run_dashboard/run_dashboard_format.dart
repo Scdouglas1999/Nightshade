@@ -1,7 +1,7 @@
 /// Utility formatters shared across run-dashboard panels.
 ///
-/// Kept in one file so all duration / RA / Dec strings on the dashboard
-/// look the same (audit §UI consistency: design-system rule).
+/// Kept in one file so all duration / RA / Dec strings on the dashboard look
+/// the same.
 library;
 
 import 'package:nightshade_core/nightshade_core.dart';

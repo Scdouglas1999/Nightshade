@@ -47,8 +47,7 @@ class ProjectTargetCandidate {
 ///
 /// ## Fail-closed contract
 ///
-/// A missing or partial forecast is **never** silently treated as clear sky
-/// (this project treats errors as a feature). Concretely:
+/// A missing or partial forecast is **never** silently treated as clear sky:
 ///
 /// * If [RadarFetchResult] is an error or carries no frames, [buildWeek]
 ///   returns [WeekForecast.unavailable] immediately — no nights are

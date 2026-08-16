@@ -6,10 +6,9 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 /// nightshade_remote_protocol, which is the single source of truth for the
 /// version-negotiation policy. Both halves of the mobile connect flow (the
 /// pre-flight check in the discovery layer and the WebSocket-handshake gate in
-/// [NetworkBackend]) therefore evaluate the *same* logic and constants — they
-/// can no longer silently drift. The core-side [SemanticVersion] /
-/// [RemoteApiCompatibilityResult] surface is preserved unchanged for existing
-/// callers; only the decision-making is delegated.
+/// [NetworkBackend]) therefore evaluate the *same* logic and constants and
+/// cannot drift apart. Only the decision-making is delegated: the core-side
+/// [SemanticVersion] / [RemoteApiCompatibilityResult] surface stays here.
 class RemoteApiCompatibility {
   static const apiVersionHeader =
       NightshadeServerCompatibility.apiVersionHeader;

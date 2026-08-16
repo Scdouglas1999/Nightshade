@@ -86,6 +86,24 @@ void main() {
     notifier.dispose();
   });
 
+  test('applyUpdate refuses when no safety check is wired', () async {
+    final notifier = UpdateNotifier(
+      currentVersion: '2.0.0',
+      currentBuildNumber: 41,
+      updateService: updateService,
+    );
+    await Future<void>.delayed(Duration.zero);
+    notifier.setStagedFromLanPush(manifest(), r'C:\staged');
+
+    await notifier.applyUpdate();
+
+    expect(notifier.state.status, UpdateStatus.error);
+    expect(notifier.state.errorMessage, contains('no safety check'));
+    verifyNever(() => updateService.applyUpdate());
+
+    notifier.dispose();
+  });
+
   test('applyUpdate runs safety check before spawning updater', () async {
     final calls = <String>[];
     when(() => updateService.applyUpdate()).thenAnswer((_) async {
@@ -104,6 +122,35 @@ void main() {
     verify(() => updateService.applyUpdate()).called(1);
 
     notifier.dispose();
+  });
+
+  test('headless controller with no wired gate refuses apply', () async {
+    final staged = StagedUpdate(
+      version: '2.1.0',
+      buildNumber: 42,
+      stagedAt: DateTime.utc(2026, 7, 12),
+      extractPath: r'C:\staged',
+    );
+    when(() => updateService.getStagedUpdate()).thenAnswer((_) async => staged);
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_update_unwired_',
+    );
+    final controller = UpdateController(
+      service: updateService,
+      currentVersion: '2.0.0',
+      currentBuildNumber: 41,
+      stateDirectory: tempDir,
+    );
+    addTearDown(() async {
+      await controller.dispose();
+      await tempDir.delete(recursive: true);
+    });
+
+    await expectLater(
+      controller.applyStagedUpdate(jobId: 'apply-1'),
+      throwsA(isA<StateError>()),
+    );
+    verifyNever(() => updateService.applyUpdate());
   });
 
   test(
@@ -176,6 +223,9 @@ void main() {
         currentVersion: '2.0.0',
         currentBuildNumber: 41,
         stateDirectory: tempDir,
+        // This test is about the handoff, so the host gate is explicitly
+        // permissive; without one the controller refuses every apply.
+        applySafetyCheck: () async {},
       );
       addTearDown(() async {
         await controller.dispose();

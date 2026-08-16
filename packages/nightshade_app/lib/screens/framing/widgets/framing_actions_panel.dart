@@ -150,19 +150,17 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     final isMountConnected =
         mountState.connectionState == DeviceConnectionState.connected;
     // A PARKED mount cannot GoTo — every driver refuses, most of them without
-    // an error the UI ever sees. The rail used to show a green "Ready" and a
-    // filled primary button over a mount sitting at RA 00h00m/Dec +00,
-    // "Status Parked", and clicking it produced no dialog, no toast and not one
-    // line in the log. `isParked` defaults to true on an unknown mount, so it
-    // is only consulted once the mount is actually connected and reporting
-    // status.
+    // an error the UI ever sees, so the rail must not show "Ready" and a filled
+    // primary button over one. `isParked` defaults to true on an unknown mount,
+    // so it is only consulted once the mount is actually connected and
+    // reporting status.
     final isMountParked = isMountConnected && mountState.isParked;
     final canSlew = hasTarget && isMountConnected && !isMountParked;
 
     // Altitude is advisory, not a gate: a target below the horizon now will
     // rise, and the operator may legitimately want the mount pre-pointed. But
-    // "Ready" over a target 5.7 deg under the ground is the same lie the park
-    // state was, so the badge says which it is. Null means no configured site
+    // "Ready" over a target 5.7 deg under the ground would be false, so the
+    // badge says which it is. Null means no configured site
     // (the app cannot know the altitude), in which case we claim nothing.
     final targetAltitudeDeg = _targetAltitudeDeg(target);
     final isBelowHorizon = targetAltitudeDeg != null && targetAltitudeDeg < 0;
@@ -178,7 +176,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
 
-          // ---- Step 1: Target -------------------------------------------
+          // Step 1: target
           _StepRow(
             number: 1,
             title: 'Target',
@@ -199,7 +197,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
 
           _stepDivider(colors),
 
-          // ---- Step 2: Frame --------------------------------------------
+          // Step 2: frame
           _StepRow(
             number: 2,
             title: 'Frame',
@@ -254,7 +252,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
 
           _stepDivider(colors),
 
-          // ---- Step 3: Solve current frame ------------------------------
+          // Step 3: solve current frame
           _StepRow(
             number: 3,
             title: 'Solve latest camera frame',
@@ -281,7 +279,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
 
           _stepDivider(colors),
 
-          // ---- Step 4: GoTo & Frame -------------------------------------
+          // Step 4: GoTo & frame
           _StepRow(
             number: 4,
             statusKey: framingGotoStatusKey,

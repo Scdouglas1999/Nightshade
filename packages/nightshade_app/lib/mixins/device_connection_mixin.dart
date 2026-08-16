@@ -27,19 +27,8 @@ mixin DeviceConnectionMixin<T extends ConsumerStatefulWidget>
   ///   simulator). When `null` it is derived defensively from [deviceId] via
   ///   [driverTypeFromDeviceId], falling back to [DriverType.native].
   ///
-  /// Callers that pass neither [deviceType] nor [driverType] keep the legacy
-  /// behavior exactly: a connect failure surfaces as
-  /// `context.showErrorSnackBar('Failed to connect $deviceName: $e')`. This
-  /// keeps the upgrade non-breaking for existing consumers while letting
-  /// surfaces that know the device's type/driver opt into the troubleshooter
-  /// recovery flow.
-  ///
-  /// The live production consumer of the opted-in path is the equipment
-  /// discovery panel (`DiscoveryPanel._connectDevice`), which mixes in this
-  /// mixin and routes every device connect through here with the
-  /// backend-resolved [driverType], so the guided troubleshooter (bounded
-  /// single retry, raw error carried verbatim) is the single canonical connect
-  /// recovery path for the equipment surfaces.
+  /// Callers that pass neither [deviceType] nor [driverType] get a bare error
+  /// snackbar instead of the troubleshooter.
   Future<void> connectDevice({
     required String deviceId,
     required String deviceName,

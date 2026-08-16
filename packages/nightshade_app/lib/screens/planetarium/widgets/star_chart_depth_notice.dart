@@ -7,11 +7,11 @@ import '../../settings/catalog_settings_screen.dart';
 
 /// States that the chart has zoomed past the bundled catalog's depth.
 ///
-/// At an imaging-scale field the sky goes almost empty, and until now it did so
-/// silently — which reads as "this patch of sky is bare" rather than "this
-/// catalog stops at magnitude 9". Framing and guide-star checks are exactly
-/// what a 1 deg field is for, so a chart that is ~30x shallower than the real
-/// sky has to say so instead of passing for one.
+/// At an imaging-scale field the sky goes almost empty, which reads as "this
+/// patch of sky is bare" rather than "this catalog stops at magnitude 9".
+/// Framing and guide-star checks are exactly what a 1 deg field is for, so a
+/// chart that is ~30x shallower than the real sky has to say so instead of
+/// passing for one.
 ///
 /// [StarCatalogFallbackBanner] covers the louder case (no HYG at all) and takes
 /// precedence; this only speaks when a real catalog is installed and the zoom

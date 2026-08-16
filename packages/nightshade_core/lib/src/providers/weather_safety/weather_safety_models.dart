@@ -44,11 +44,10 @@ NoDataResolution noDataFailModeResolution(SafetyFailMode mode) {
 
 /// What a single safety source currently contributes to the combined verdict.
 ///
-/// Simulator campaign 2026-07-28 (S1): a bare `bool` per source could not tell
-/// "the sensor says safe" apart from "the sensor is configured but has stopped
-/// answering", so an unreachable sensor kept an optimistic `true` and the rig
-/// was reported SAFE in fail-closed mode while its own device row said
-/// `connected: false`.
+/// A bare `bool` per source cannot tell "the sensor says safe" apart from "the
+/// sensor is configured but has stopped answering", so an unreachable sensor
+/// keeps an optimistic `true` and the rig reads SAFE in fail-closed mode while
+/// its own device row says `connected: false`.
 enum SafetySourceReading {
   /// The operator has no such source configured; it contributes nothing and
   /// must never force unsafe on its own.
@@ -146,10 +145,9 @@ class WeatherSafetyState {
   /// operator must use this instead of a single toggle, otherwise it claims
   /// protection the rig does not have.
   ///
-  /// Scope is deliberately weather-only. The park-before-dawn watchdog can also
-  /// park with weather safety off, but it is a separate feature disclosed on the
-  /// Sequencer page; folding it in here would let a weather panel imply that
-  /// weather is covered when nothing is watching the sky.
+  /// Weather-only by design: the park-before-dawn watchdog also parks with
+  /// weather safety off, and folding it in here would let a weather panel
+  /// imply the sky is watched when nothing is watching it.
   final bool autoParkArmed;
 
   /// Whether auto-resume would actually run (needs the master switch too).

@@ -68,9 +68,7 @@ enum TooltipPosition { top, bottom, left, right, center }
 
 /// Tutorial categories - focused mini-tours
 enum TutorialCategory {
-  // ============================================================
-  // WORKFLOW TOURS (existing)
-  // ============================================================
+  // Workflow tours (existing)
 
   /// New-user "First Night Wizard" — 7-step modal walkthrough covering the
   /// minimum-viable path from cold app launch to a running imaging sequence.
@@ -96,9 +94,7 @@ enum TutorialCategory {
   /// Optional: Analytics, weather (4 steps max)
   advancedFeatures,
 
-  // ============================================================
-  // SCREEN-SPECIFIC TOURS (12 screens)
-  // ============================================================
+  // Screen-specific tours (12 screens)
 
   /// Dashboard screen deep tour (12 steps)
   dashboardTour,

@@ -1,15 +1,15 @@
 // Settings > Connection must not cost the operator local mode.
 //
 // `BackendNotifier.connect()` installs an authoritative DisconnectedBackend
-// when a handshake fails. On a phone that never owned a rig that is correct,
-// but on the desktop that OWNS the hardware it replaced a working FfiBackend
-// with a dead one: every role provider follows `backendProvider`, so one
-// mistyped host left a standing red "Error: not connected to server" bar on
-// every screen, and `useLocalBackend()` had no UI caller anywhere in the app —
-// the only way back was to relaunch.
+// when a handshake fails. On a phone that never owned a rig that is correct, but
+// on the desktop that OWNS the hardware it replaces a working FfiBackend with a
+// dead one: every role provider follows `backendProvider`, so one mistyped host
+// leaves a standing red "Error: not connected to server" bar on every screen,
+// and with no UI caller for `useLocalBackend()` the only way back is to
+// relaunch.
 //
-// These tests pin the two halves of the fix: the connect dialog restores what
-// it displaced, and a disconnected desktop is offered a way back.
+// These tests pin both halves: the connect dialog restores what it displaced,
+// and a disconnected desktop is offered a way back.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

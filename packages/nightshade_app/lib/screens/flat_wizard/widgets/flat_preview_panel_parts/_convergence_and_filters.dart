@@ -1,5 +1,3 @@
-// Part of ../flat_preview_panel.dart -- extracted for maintainability.
-//
 // ADU convergence graph and per-filter progress cards.
 part of '../flat_preview_panel.dart';
 

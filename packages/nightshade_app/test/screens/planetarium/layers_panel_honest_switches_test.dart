@@ -1,17 +1,16 @@
-// Regression: a layer switch must not accept a flip it cannot act on.
+// A layer switch must not accept a flip it cannot act on. Two switches have the
+// same shape:
 //
-// Two live findings, same shape:
-//
-//  * 'Deep stars (Tycho-2 / Gaia tier)' was rendered identical to the working
-//    switches next to it. Flipping it on at 1.5 deg FOV left the sky
+//  * 'Deep stars (Tycho-2 / Gaia tier)' rendered identical to the working
+//    switches next to it. Flipped on at 1.5 deg FOV the sky stays
 //    pixel-identical — no stars, no toast, no progress, no "not installed"
-//    state — and the switch stayed on. No deep tileset is published, and the
+//    state — and the switch stays on. No deep tileset is published, and the
 //    shipped `deep_stars/config.json` points at an abandoned dev localhost
-//    host, so for every paying customer this control could never do anything.
+//    host, so this control can never do anything.
 //
-//  * 'Equatorial grid' and 'Alt/Az grid' were listed as peers of 'Coordinate
-//    grid' but are only modifiers of it: with the master off, turning either on
-//    drew nothing and said nothing.
+//  * 'Equatorial grid' and 'Alt/Az grid' read as peers of 'Coordinate grid' but
+//    are only modifiers of it: with the master off, turning either on draws
+//    nothing and says nothing.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

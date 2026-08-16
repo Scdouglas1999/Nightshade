@@ -1,10 +1,9 @@
 // Unit tests for the onboarding filter-wheel slot/name seeding rule.
 //
-// Regression for the ZWO EFW bug: onboarding used to render a hardcoded 5
-// slots regardless of the connected wheel. The fix reads the driver's real
-// slot count + names; `mergeFilterSlotNames` is the pure core of that rule —
-// the result must always have the DEVICE's slot count, while preserving any
-// names the user already typed in the draft.
+// Onboarding reads the DRIVER's real slot count and names rather than a fixed
+// number. `mergeFilterSlotNames` is the pure core of that rule: the result must
+// always have the device's slot count, while preserving any names the user has
+// already typed in the draft.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/onboarding/steps/filter_wheel_step.dart';
@@ -12,8 +11,8 @@ import 'package:nightshade_app/screens/onboarding/steps/filter_wheel_step.dart';
 void main() {
   group('mergeFilterSlotNames', () {
     test('uses the driver slot count, not the draft length (8-slot EFW)', () {
-      // An 8-position EFW reports 8 names; an empty/short draft must NOT shrink
-      // it to 5 (the old hardcoded default) or to the draft length.
+      // An 8-position EFW reports 8 names; an empty or short draft must NOT
+      // shrink it to a fixed default or to the draft length.
       final driver = List.generate(8, (i) => 'Filter ${i + 1}');
       final merged = mergeFilterSlotNames(driver, const <String>[]);
       expect(merged.length, 8);

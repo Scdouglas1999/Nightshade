@@ -84,9 +84,8 @@ class _GatherOutcome {
 /// - `logs/<basename>`            one entry per rotated log file, raw text
 ///
 /// Every gather step is wrapped so one failure cannot abort the whole dump.
-/// Errors are a feature here: gather failures are logged at
-/// `error` level **and** preserved verbatim inside the failed entry's body so
-/// the bug-report reader sees exactly what went wrong.
+/// A gather failure is logged at `error` level and preserved verbatim inside
+/// the failed entry's body, so the bug-report reader sees what went wrong.
 class DiagnosticDumpService {
   /// Current dump-bundle layout version. Bump when the file layout or any
   /// field semantics change so consumers (issue triage scripts) can detect
@@ -130,7 +129,7 @@ class DiagnosticDumpService {
 
     final archive = Archive();
 
-    // --- system_info.json ---------------------------------------------------
+    // system_info.json
     await _addJsonEntry(
       archive: archive,
       entries: entries,
@@ -139,7 +138,7 @@ class DiagnosticDumpService {
       stepName: 'system_info',
     );
 
-    // --- profile.json -------------------------------------------------------
+    // profile.json
     await _addJsonEntry(
       archive: archive,
       entries: entries,
@@ -170,7 +169,7 @@ class DiagnosticDumpService {
       stepName: 'profile',
     );
 
-    // --- sequence.json ------------------------------------------------------
+    // sequence.json
     await _addJsonEntry(
       archive: archive,
       entries: entries,
@@ -197,7 +196,7 @@ class DiagnosticDumpService {
       stepName: 'sequence',
     );
 
-    // --- devices.json -------------------------------------------------------
+    // devices.json
     await _addJsonEntry(
       archive: archive,
       entries: entries,
@@ -222,14 +221,14 @@ class DiagnosticDumpService {
       stepName: 'devices',
     );
 
-    // --- logs/* -------------------------------------------------------------
+    // logs/
     // Why use a temp scratch file: LoggingService.exportLogs writes to a path
     // we then immediately read back. That gives us the same concatenated
     // export the existing settings → log-viewer flow produces, without
     // duplicating the rotation/concatenation logic.
     await _addLogsEntry(archive: archive, entries: entries);
 
-    // --- manifest.json ------------------------------------------------------
+    // manifest.json
     // Written last so it reflects the final entries list.
     archive.addFile(
       _textFile(
@@ -293,10 +292,10 @@ class DiagnosticDumpService {
   /// How much log history a dump carries.
   ///
   /// The native appender (tracing_appender daily roller) has no retention cap,
-  /// so the log directory grows forever and an unbounded export shipped every
-  /// capture path, target name and host name the install had ever written.
-  /// Two days is enough to cover last night plus the night before, which is
-  /// the window a bug report about an imaging session actually needs.
+  /// so the log directory grows forever and an unbounded export would ship
+  /// every capture path, target name and host name the install ever wrote. Two
+  /// days covers last night plus the night before, the window a bug report
+  /// about an imaging session needs.
   static const Duration logRetentionWindow = Duration(hours: 48);
 
   Future<void> _addLogsEntry({

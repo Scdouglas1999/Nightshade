@@ -4,9 +4,8 @@
 // What this exercises end-to-end through real Riverpod providers:
 //   1. The `meridianFlipDisconnectGuardProvider` StateNotifier wired into a
 //      ProviderContainer with a real `mountStateProvider`.
-//   2. While a flip is "executing" (the state §1.2 wiring drives), the mount
-//      transitions to `disconnected`. The guard's `ref.listen` callback fires
-//      and must:
+//   2. While a flip is "executing", the mount transitions to `disconnected`.
+//      The guard's `ref.listen` callback fires and must:
 //        - reset `flipExecutionStateProvider` → `FlipExecutionState.aborted`
 //        - clear `flipCurrentStepProvider`, `flipProgressProvider`,
 //          `flipCurrentAttemptProvider`
@@ -16,13 +15,12 @@
 //   4. A third scenario: the mount disconnects while the flip is `retrying`
 //      — guard must abort (both `executing` and `retrying` are in-progress).
 //
-// We do NOT spin up the Rust sequencer for this test. The disconnect guard
-// is a pure Dart Riverpod listener with one input (`mountStateProvider`) and
-// five outputs (the flip-state providers). Driving it via a ProviderContainer
-// with a mock backend hits every line of the guard code, and is the same
-// surface area an integration test against a live sequencer would exercise
-// for this specific behavior. The §1.2 wiring is what mounts
-// this guard in `app_shell.dart`; the guard itself is the unit under test.
+// The Rust sequencer is deliberately not spun up here. The disconnect guard is
+// a pure Dart Riverpod listener with one input (`mountStateProvider`) and five
+// outputs (the flip-state providers). Driving it via a ProviderContainer with a
+// mock backend hits every line of the guard code, the same surface an
+// integration test against a live sequencer would exercise for this behaviour.
+// `app_shell.dart` mounts the guard; the guard itself is the unit under test.
 
 import 'dart:async';
 
@@ -138,7 +136,7 @@ void main() {
         await Future<void>.value();
         await Future<void>.value();
 
-        // ----- Assertions: every output of the guard must have fired -------
+        // Assertions: every output of the guard must have fired
         expect(
           container.read(flipExecutionStateProvider),
           equals(FlipExecutionState.aborted),

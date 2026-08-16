@@ -53,10 +53,9 @@ void main() {
     test(
       'cover mutations return a clean 404 (not 500) when no cover is connected',
       () async {
-        // Regression: the cover open/close/brightness/calibrator handlers used
-        // to call straight into the native bridge, which throws an opaque 500
-        // when nothing is attached. A remote tablet user must instead get the
-        // same graceful "not connected" 404 the switch/dome handlers return.
+        // The native bridge throws an opaque 500 when nothing is attached, so
+        // the cover open/close/brightness/calibrator handlers must check first
+        // and answer the same "not connected" 404 the switch/dome handlers do.
         final scoped = ProviderContainer(
           overrides: [
             deviceBackendProvider.overrideWithValue(

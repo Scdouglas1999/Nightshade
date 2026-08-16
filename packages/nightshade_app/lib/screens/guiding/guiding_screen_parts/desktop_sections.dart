@@ -1,5 +1,3 @@
-// Part of ../guiding_screen.dart -- extracted for maintainability.
-//
 // Desktop layout, shared panels, value formatting, and guiding actions.
 part of '../guiding_screen.dart';
 

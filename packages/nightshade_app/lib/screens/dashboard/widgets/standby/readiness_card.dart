@@ -141,11 +141,10 @@ class _StorageLine extends ConsumerWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              // The commonest cause by far is a capture folder that is not
-              // there — an unmounted drive, a deleted folder, a path carried
-              // over from another machine. Saying so is actionable; the old
-              // constant "Disk query failed" was not, and it was what an
-              // operator saw for a folder the app knew by name was missing.
+              // Name the missing folder: by far the commonest cause is a
+              // capture path that is not there — an unmounted drive, a deleted
+              // folder, a path carried over from another machine — and a bare
+              // "Disk query failed" is not actionable.
               e is DiskSpaceException &&
                       e.kind == DiskSpaceFailureKind.pathMissing
                   ? context.l10n.text('dbCaptureFolderMissing')

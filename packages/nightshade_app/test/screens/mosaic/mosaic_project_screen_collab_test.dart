@@ -1,6 +1,6 @@
-// Widget tests for the Collaborative Sky WS2 surface on the Mosaic project
-// review screen (`MosaicCollaborativeSection` + the per-panel claim/upload
-// affordances on the grid).
+// Widget tests for the collaborative surface on the Mosaic project review
+// screen (`MosaicCollaborativeSection` + the per-panel claim/upload affordances
+// on the grid).
 //
 // Pumps the REAL `MosaicProjectScreen` with explicit (temp) path builders,
 // `databaseProvider` overridden to a seeded in-memory DB, and

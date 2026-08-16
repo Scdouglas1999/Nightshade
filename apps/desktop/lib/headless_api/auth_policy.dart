@@ -63,12 +63,9 @@ enum HeadlessResource {
   settings,
   plugins,
   devices,
-  // Collaborative Sky (6.0) resources. Their headless routes
-  // (`/api/mosaic/`, `/api/coimaging/`, `/api/constellation/`) were previously
-  // unmapped and fell through to [system], conflating collaborative access with
-  // system administration for fine-grained tokens. They are first-class
-  // resources so a fine-grained token can hold (e.g.) `mosaic:control` without
-  // also holding `system`.
+  // Collaborative Sky resources (`/api/mosaic/`, `/api/coimaging/`,
+  // `/api/constellation/`). First-class resources rather than [system], so a
+  // fine-grained token can hold `mosaic:control` without also holding `system`.
   mosaic,
   coimaging,
   constellation,

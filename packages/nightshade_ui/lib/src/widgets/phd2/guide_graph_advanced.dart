@@ -555,12 +555,11 @@ class _GraphPainter extends CustomPainter {
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
     // The X axis is elapsed time relative to *now*, which sits at the right
-    // edge (matching how _drawTrace positions points across `timeScale`). We
-    // count backwards from 0 on the right to -timeScale on the left, so the
-    // newest sample is always at "now" and older samples scroll left. This is
-    // the convention PHD2 / NINA / SkyGuide use and is stable across repaints,
-    // unlike the previous wall-clock MM:SS labels which appeared to "tick up"
-    // because they were recomputed from DateTime.now() every frame.
+    // edge (matching how _drawTrace positions points across `timeScale`):
+    // counting back from 0 on the right to -timeScale on the left keeps the
+    // newest sample at "now" and scrolls older ones left. This is the PHD2 /
+    // NINA convention, and it is stable across repaints — wall-clock MM:SS
+    // labels recomputed from DateTime.now() appear to tick up instead.
     final totalSeconds = timeScale.duration.inSeconds;
     const numLabels = 5;
 

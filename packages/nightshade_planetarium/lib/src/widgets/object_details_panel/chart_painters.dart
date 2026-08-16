@@ -66,7 +66,10 @@ class _AltitudeGraphPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final location = ref.read(observerLocationProvider);
+    // Altitude is measured from the observer's horizon: with no site there is
+    // no curve to draw.
+    final site = ref.read(observerLocationProvider).site;
+    if (site == null) return;
     final now = ref.read(observationTimeProvider).time;
 
     // Draw cloud cover background band (behind everything else)
@@ -163,8 +166,8 @@ class _AltitudeGraphPainter extends CustomPainter {
         raDeg: object.coordinates.ra * 15,
         decDeg: object.coordinates.dec,
         dt: time,
-        latitudeDeg: location.latitude,
-        longitudeDeg: location.longitude,
+        latitudeDeg: site.latitude,
+        longitudeDeg: site.longitude,
       );
 
       final x = (hour / 24) * size.width;
@@ -227,7 +230,10 @@ class _AirmassChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final location = ref.read(observerLocationProvider);
+    // Altitude is measured from the observer's horizon: with no site there is
+    // no curve to draw.
+    final site = ref.read(observerLocationProvider).site;
+    if (site == null) return;
     final now = ref.read(observationTimeProvider).time;
 
     final gridColor = txtColor.withValues(alpha: 0.15);
@@ -316,8 +322,8 @@ class _AirmassChartPainter extends CustomPainter {
         raDeg: object.coordinates.ra * 15,
         decDeg: object.coordinates.dec,
         dt: time,
-        latitudeDeg: location.latitude,
-        longitudeDeg: location.longitude,
+        latitudeDeg: site.latitude,
+        longitudeDeg: site.longitude,
       );
 
       if (alt > 0) {

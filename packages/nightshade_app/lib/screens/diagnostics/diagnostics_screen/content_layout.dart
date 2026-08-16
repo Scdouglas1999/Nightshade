@@ -236,4 +236,4 @@ class _MobileLayout extends StatelessWidget {
   }
 }
 
-// --- Health Grade Card ---
+// Health grade card

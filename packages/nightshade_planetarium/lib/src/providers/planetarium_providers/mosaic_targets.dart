@@ -1,8 +1,6 @@
 part of '../planetarium_providers.dart';
 
-// ============================================================================
-// Mosaic Plan Provider
-// ============================================================================
+// Mosaic plan provider
 
 /// Current mosaic plan state
 class MosaicPlanState {
@@ -122,9 +120,7 @@ final mosaicPlanProvider =
       return MosaicPlanNotifier(ref);
     });
 
-// ============================================================================
-// Best Targets Provider
-// ============================================================================
+// Best targets provider
 
 /// A target the "Best Targets Tonight" panel is willing to recommend, together
 /// with the evidence for the recommendation.
@@ -160,9 +156,13 @@ class TonightTarget {
 ///
 /// Anchored on the night DATE rather than the current instant so the list does
 /// not flicker as the clock ticks.
-final bestTargetsProvider = FutureProvider<List<TonightTarget>>((ref) async {
+///
+/// Null with no site on record: what is up tonight, and for how long, is a
+/// question about a place. An empty list would read as "nothing is up".
+final bestTargetsProvider = FutureProvider<List<TonightTarget>?>((ref) async {
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return null;
   final dsos = await ref.watch(loadedDsosProvider.future);
-  final location = ref.watch(observerLocationProvider);
   // The night in progress, so this list and the sidebar's Info tab (which reads
   // selectedObjectVisibilityProvider) describe the SAME night.
   final nightDate = ref.watch(_currentNightDateProvider);
@@ -180,8 +180,8 @@ final bestTargetsProvider = FutureProvider<List<TonightTarget>>((ref) async {
     sizesArcMin: [for (final d in dsos) d.sizeArcMin],
     objectTypes: [for (final d in dsos) d.type.index],
     fov: ref.watch(equipmentFOVProvider).fov,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
+    latitudeDeg: site.latitude,
+    longitudeDeg: site.longitude,
     nightDate: nightDate,
   );
   final ranked = await compute(_rankTonightTargetsOffThread, args);

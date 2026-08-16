@@ -208,11 +208,11 @@ void main() {
       expect(p.fraction, closeTo(0.7, 1e-9));
     });
 
-    // REGRESSION GUARD for the inversion this attribution invites: under a
+    // Guard for the inversion this attribution invites: under a
     // forever/until-time loop `totalFrames` is a ONE-PASS FLOOR (1 here), so
-    // dividing the run counter by it would report "1/1 - 100%" after the first
-    // frame and stay there — the very defect the flag exists to prevent,
-    // merely re-sourced from the wire.
+    // dividing the run counter by it reports "1/1 - 100%" after the first frame
+    // and stays there — the exact failure the flag exists to prevent, merely
+    // re-sourced from the wire.
     test(
       'an unbounded loop stays unknown even though the run counter moves',
       () {

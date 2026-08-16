@@ -216,16 +216,14 @@ class _RunDashboardRecoveryBannerState
 
 /// Trio of recovery-mode buttons: Try Now, Skip Node, Abort.
 ///
-/// Extracted from the banner body so the same affordance can be reused by
-/// the companion mobile [SequencerTab] so recovery actions are available on
-/// mobile. Each button tracks its own in-flight state so a busy "Abort"
-/// hold-and-release does not freeze the "Try Now" spinner.
+/// Shared with the companion mobile [SequencerTab] so recovery actions are
+/// available there too. Each button tracks its OWN in-flight state, so a busy
+/// "Abort" hold-and-release does not freeze the "Try Now" spinner.
 ///
-/// The Abort button is wrapped in [HoldToConfirmButton] (1500ms hold) so a
-/// stray click cannot kill a multi-hour overnight run; the same gating is
-/// applied on the mobile companion. Errors thrown by the underlying
-/// [RecoveryControl] surface to the operator via a [ScaffoldMessenger]
-/// SnackBar rather than being swallowed — errors are a feature.
+/// Abort is wrapped in [HoldToConfirmButton] (1500 ms hold) so a stray click
+/// cannot kill a multi-hour overnight run. Errors thrown by the underlying
+/// [RecoveryControl] surface through a [ScaffoldMessenger] SnackBar: swallowed,
+/// they leave the operator believing recovery was actioned.
 class _RecoveryActionButtons extends StatefulWidget {
   final NightshadeColors colors;
   final RecoveryControl control;

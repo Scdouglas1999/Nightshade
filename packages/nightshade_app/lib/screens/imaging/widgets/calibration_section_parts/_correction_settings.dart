@@ -1,5 +1,3 @@
-// Part of ../calibration_section.dart -- extracted for maintainability.
-//
 // Correction settings panel, dropdown row and formatters.
 part of '../calibration_section.dart';
 

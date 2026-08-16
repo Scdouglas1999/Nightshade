@@ -164,11 +164,9 @@ void main() {
     );
   });
 
-  // ===========================================================================
   // Source-of-truth parity: /predict + /should-refocus must answer from the
   // SAME DB-backed PredictiveAfService model the live run consults, so the
   // HTTP answer a slave queries matches the host's in-run refocus decision.
-  // ===========================================================================
   group('FocusModelHandlers predictive-AF source-of-truth', () {
     const profileId = 1;
     const filter = 'Ha';

@@ -430,9 +430,8 @@ class _TargetCardState extends State<TargetCard> {
                 ),
               ],
               const SizedBox(width: 8),
-              // Bounded: the trailing column used to size to its text, so a
-              // caption longer than a bare HH:MM pushed the row past a narrow
-              // sidebar and struck the overflow stripe.
+              // Bounded so a caption longer than a bare HH:MM cannot push the
+              // row past a narrow sidebar and strike the overflow stripe.
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 96),
                 child: Column(

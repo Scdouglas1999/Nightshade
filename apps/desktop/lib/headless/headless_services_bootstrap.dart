@@ -86,13 +86,11 @@ Future<HeadlessApiServer> startHeadlessServices(
     }
   }
 
-  // eagerly construct the PairingService so the server can hydrate
-  // _pairedSessionTokens from the on-disk Drift DB at startup. Without
-  // this, the server lazy-creates the service only when a client hits
-  // /api/pairing/verify, and any previously-paired clients are rejected
-  // with 403 until they re-pair — exactly the silent-eviction bug the
-  // audit flagged. Construction is cheap (no DB I/O); the actual file
-  // open happens the first time a query runs.
+  // Construct the PairingService eagerly so the server hydrates
+  // _pairedSessionTokens from the on-disk Drift DB at startup. Lazy creation
+  // on the first /api/pairing/verify would leave already-paired clients
+  // rejected with 403 until they re-pair. Construction is cheap (no DB I/O);
+  // the file opens on the first query.
   final pairingService = PairingService();
 
   // Crash recovery is a production feature, not an opt-in API call. Configure
@@ -310,9 +308,8 @@ Future<HeadlessApiServer> startHeadlessServices(
 }
 
 /// Redact a bearer token for log output: shows the first 4 and last 4
-/// characters, masks the middle. Why: the headless server's first-run
-/// message previously printed the full token via debugPrint, which would
-/// persist in any log file the console output is captured to.
+/// characters, masks the middle. A full token must never reach stdout or the
+/// log — console output is captured to files that outlive the session.
 String _redactToken(String token) {
   if (token.length <= 8) return '*' * token.length;
   return '${token.substring(0, 4)}...${token.substring(token.length - 4)}';

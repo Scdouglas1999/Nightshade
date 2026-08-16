@@ -102,8 +102,8 @@ void main() {
       expect(find.text('M42'), findsWidgets);
       expect(find.text('Tail'), findsOneWidget);
 
-      // Hit-testable: if anything were painted over the tree, this tap would
-      // land on that widget instead of the row.
+      // Hit-testable: anything painted over the tree would take this tap
+      // instead of the row.
       await tester.tap(find.text('Tail'));
       await tester.pump();
       final tailId = handle.container

@@ -62,11 +62,10 @@ class DarkLibraryCoverageReport {
 /// raw-frame quorum handling, and master-dark precedence. Preflight and Smart
 /// Night both call through here so calibration warnings do not drift apart.
 ///
-/// Tolerance values come from [DarkLibraryMatchTolerances] so this
-/// service and `DarkLibraryDao.findBestMatch` can never disagree. Before this
-/// fix, the coverage UI used ±1.0s exposure tolerance while the DAO used
-/// ±0.001s, so the green checkmark could appear while the runtime dark match
-/// silently returned null.
+/// Tolerance values come from [DarkLibraryMatchTolerances] so this service and
+/// `DarkLibraryDao.findBestMatch` can never disagree. A coverage UI on ±1.0s
+/// exposure tolerance against a DAO on ±0.001s shows a green checkmark while
+/// the runtime dark match silently returns null.
 class DarkLibraryCoverageService {
   const DarkLibraryCoverageService();
 

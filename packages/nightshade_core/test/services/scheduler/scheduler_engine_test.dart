@@ -709,9 +709,7 @@ void main() {
         expect(
           sink.stopCount,
           0,
-          reason:
-              'stopping here kills whatever the operator started by hand '
-              '(SEQ-12)',
+          reason: 'stopping here kills whatever the operator started by hand',
         );
         await engine.dispose();
       },
@@ -1864,17 +1862,15 @@ void main() {
   });
 
   group('wheel-less rigs', () {
-    // The integration-goals editor was changed to offer an unfiltered ('')
-    // goal, because a profile with no filter wheel previously had no way to
-    // express a target at all. The scheduler was not changed to match, and the
-    // net effect INVERTED the defect: `availableFilters` is EMPTY on such a
-    // rig, so `contains('')` was false and the candidate was hard-rejected with
-    // "required filter(s) not in equipment wheel ()". A target that scheduled
-    // fine free-form became UNSCHEDULABLE the moment the operator followed the
-    // app's own empty-state prompt.
+    // The integration-goals editor offers an unfiltered ('') goal, which is
+    // how a profile with no filter wheel expresses a target. `availableFilters`
+    // is EMPTY on such a rig, so a `contains('')` admission test rejects the
+    // candidate with "required filter(s) not in equipment wheel ()" — a target
+    // that schedules fine free-form becomes unschedulable the moment the
+    // operator follows the app's own empty-state prompt.
     //
     // Driven through the real engine rather than a scoring helper, because the
-    // defect lives in the wiring between the editor and the admission gate.
+    // behaviour lives in the wiring between the editor and the admission gate.
     test('an unfiltered goal on a wheel-less rig still dispatches', () async {
       final sink = _RecordingSink();
       final now = DateTime.utc(2026, 5, 11, 4, 0);

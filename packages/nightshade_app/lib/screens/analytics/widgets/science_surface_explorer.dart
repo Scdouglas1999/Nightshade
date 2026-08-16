@@ -754,10 +754,9 @@ class _SurfacePainter extends CustomPainter {
 
     if (!showContour) return;
 
-    // Real iso-value lines across the interpolated surface. This control used
-    // to drop a vertical stem from every marker to a flat baseline — a
-    // lollipop plot that broke the 3D projection it hung inside and drew no
-    // contour anywhere.
+    // Real iso-value lines across the interpolated surface. A vertical stem
+    // from every marker down to a flat baseline is a lollipop plot: it breaks
+    // the 3D projection it hangs inside and draws no contour anywhere.
     final contourPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.3

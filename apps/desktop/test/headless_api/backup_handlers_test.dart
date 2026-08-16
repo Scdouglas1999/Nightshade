@@ -184,8 +184,7 @@ void main() {
       expect(created.success, isTrue, reason: created.errorMessage);
 
       // Drift the live database away from the backup, then let the process
-      // take its in-memory snapshot — this is the state the pre-fix restore
-      // left untouched.
+      // take its in-memory snapshot — the restore must re-hydrate it.
       await dao.setSetting('bortle_class', '7');
       await dao.setSetting('observer_name', 'stale-observer');
       final stale = await container.read(appSettingsProvider.future);

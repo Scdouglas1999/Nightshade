@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // Comet, solar, lunar, and remote-observatory node-tree factories.
 part of '../templates_tab.dart';
 

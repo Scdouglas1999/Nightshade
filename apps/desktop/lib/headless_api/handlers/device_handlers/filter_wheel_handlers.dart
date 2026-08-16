@@ -1,9 +1,7 @@
 part of '../device_handlers.dart';
 
 extension FilterWheelDeviceHandlers on DeviceHandlers {
-  // ===========================================================================
-  // Filter Wheel Control
-  // ===========================================================================
+  // Filter wheel control
 
   Future<Response> handleFilterWheelSetPosition(Request request) async {
     _logInfo('[API] POST /api/filter-wheel/position');
@@ -79,13 +77,12 @@ extension FilterWheelDeviceHandlers on DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// remote GET for the current filter-wheel position/state.
+  /// Remote GET for the current filter-wheel position/state.
   ///
-  /// Reads the live backend status when a wheel is connected. Control requests
-  /// issued through the headless API call the backend directly, so the UI
-  /// StateNotifier may not receive a matching event from every vendor driver.
-  /// Treating that cache as authoritative left this endpoint reporting the old
-  /// slot after the physical wheel and canonical equipment endpoint had moved.
+  /// Reads the live backend status when a wheel is connected, never the UI
+  /// StateNotifier: control requests issued through the headless API call the
+  /// backend directly, and not every vendor driver emits a matching event, so
+  /// the cache can still name the old slot after the wheel has moved.
   ///
   /// The response shape matches the task spec:
   ///   { "position": int|null, "name": string|null, "isMoving": bool }

@@ -1,17 +1,14 @@
-// Verify the SequenceExecutor's FrameAccepted handling
-// now consumes the `save_path` field that the Rust grader emits on
-// accepted frames.
+// The SequenceExecutor's FrameAccepted handling consumes the `save_path` field
+// the Rust grader emits on accepted frames.
 //
-// Previously, `_registerSequenceFrame` left `file_path` blank for
-// accepted frames (the Rust grader did not ship the path on the
-// FrameAccepted event). The thumbnail strip showed a colour-bordered
-// placeholder tile.
+// `_registerSequenceFrame` leaving `file_path` blank for accepted frames shows
+// a colour-bordered placeholder tile in the thumbnail strip.
 //
-// Now, accepted frames carry the on-disk save path via the
-// `save_path` field on `SequencerEvent::FrameAccepted` → `event.data`,
-// and the inserted `captured_images` row's `file_path` column holds it.
-// The thumbnail strip then renders the inline preview the same way it
-// does for rejected frames via the existing `reject_path` flow.
+// Accepted frames carry the on-disk save path via the `save_path` field on
+// `SequencerEvent::FrameAccepted` → `event.data`, and the inserted
+// `captured_images` row's `file_path` column holds it, so the thumbnail strip
+// renders the inline preview the same way it does for rejected frames via the
+// existing `reject_path` flow.
 
 import 'dart:async';
 

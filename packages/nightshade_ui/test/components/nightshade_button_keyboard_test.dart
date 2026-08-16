@@ -1,15 +1,14 @@
-// Regression: NightshadeButton must be operable from the keyboard.
+// NightshadeButton is operable from the keyboard.
 //
-// The defect: the button was `Semantics > MouseRegion > GestureDetector`. A
-// GestureDetector owns no focus node, so the design system's primary button —
-// used on essentially every screen — was invisible to Tab traversal and could
-// not be activated by Enter or Space.
+// A `Semantics > MouseRegion > GestureDetector` stack owns no focus node, so
+// the design system's primary button — used on essentially every screen —
+// falls out of Tab traversal and cannot be activated by Enter or Space.
 //
-// Observed live in the 13-step first-run wizard at 1400x900: the only control
-// Tab could reach was the header's "Skip onboarding" TextButton. Three
-// consecutive Tab presses produced a pixel-identical frame (0 differing pixels)
-// and pressing Return abandoned setup rather than advancing, so the wizard could
-// not be completed without a mouse.
+// Measured in the 13-step first-run wizard at 1400x900: the only control Tab
+// reaches is the header's "Skip onboarding" TextButton, three consecutive Tab
+// presses produce a pixel-identical frame (0 differing pixels), and Return
+// abandons setup rather than advancing, so the wizard cannot be completed
+// without a mouse.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

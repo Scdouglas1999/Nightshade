@@ -6,18 +6,17 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../utils/snackbar_helper.dart';
 
 /// Set true when the WebSocket connection to a remote backend has been
-/// down briefly but is still within the reconnect grace window (audit
-/// §3.6). The mobile app drives this; desktop/headless do not flip it.
+/// down briefly but is still within the reconnect grace window. The mobile app
+/// drives this; desktop/headless do not flip it.
 final connectionStaleProvider = StateProvider<bool>((_) => false);
 
 /// Inline banner shown across all screens while the mobile app is mid-
-/// reconnect. Replaces the old "session torn down after 3 polls" UX.
+/// reconnect.
 ///
-/// During the 30-second grace window the operator now also gets a
-/// "Retry" button so they can force an immediate reconnect attempt
-/// instead of waiting for the exponential-backoff timer to fire
-/// The button is a no-op when the current
-/// backend is not a [NetworkBackend] (e.g. host-side desktop).
+/// During the 30-second grace window the operator gets a "Retry" button to
+/// force an immediate reconnect attempt instead of waiting for the
+/// exponential-backoff timer. The button is a no-op when the current backend is
+/// not a [NetworkBackend] (e.g. host-side desktop).
 class ConnectionStaleBanner extends ConsumerStatefulWidget {
   const ConnectionStaleBanner({super.key});
 

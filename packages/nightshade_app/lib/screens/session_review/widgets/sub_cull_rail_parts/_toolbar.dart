@@ -1,5 +1,3 @@
-// Part of ../sub_cull_rail.dart -- extracted for maintainability.
-//
 // Cull toolbar, selection pill and lasso painter.
 part of '../sub_cull_rail.dart';
 

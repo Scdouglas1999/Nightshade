@@ -31,19 +31,17 @@ class SmartExposureNode extends SequenceNode {
   /// per-plan [FilterPlan.count]s entirely and takes exactly one sub per
   /// filter, round-robin, repeating indefinitely until EITHER the
   /// [integrationBudgetSecs] cap is met OR the surrounding target's window
-  /// (`endWhen`) closes (or the sequence is stopped/skipped). This is the
-  /// "balanced result by dawn" mode — every filter stays evenly sampled for
-  /// the whole available window instead of draining fixed counts and
-  /// stopping early.
+  /// (`endWhen`) closes (or the sequence is stopped/skipped), so every filter
+  /// stays evenly sampled across the whole window instead of draining fixed
+  /// counts and stopping early.
   ///
   /// In this mode [batchSize] is effectively 1 and [rotateFilters] true
   /// regardless of their stored values (the Rust executor coerces them).
-  /// Default false — existing sequences keep today's count-draining
-  /// behaviour.
+  /// Default false, which keeps the count-draining behaviour.
   ///
-  /// Errors-are-a-feature: entering this mode with no integration budget AND
-  /// no bounding target window is a misconfiguration; the Rust executor
-  /// fails closed rather than looping forever, and the editor surfaces a hint.
+  /// Entering this mode with no integration budget AND no bounding target
+  /// window is a misconfiguration: the Rust executor fails closed rather than
+  /// looping forever, and the editor surfaces a hint.
   final bool loopUntilStopped;
 
   SmartExposureNode({

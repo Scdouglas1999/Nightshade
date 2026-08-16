@@ -37,13 +37,13 @@
 // fetcher therefore still get correct single-ownership disposal through the
 // loader.
 //
-// ## Errors are a feature
+// ## Tile failures
 //
 // The loader surfaces every genuine (non-cancellation) tile failure to its
 // injected [HipsTileLoaderErrorSink] (defaulting to `dart:developer` logging)
-// *and* records it in [HipsResidentSnapshot.failures], so a developer/operator
-// sees it and a UI banner can show it. Cancellations (the expected outcome of a
-// superseded pan/zoom generation) are dropped quietly. No silent fallbacks.
+// *and* records it in [HipsResidentSnapshot.failures], so a missing tile is
+// distinguishable from an empty one. Cancellations — the expected outcome of a
+// superseded pan/zoom generation — are dropped quietly.
 
 import 'dart:developer' as developer;
 import 'dart:ui' as ui;
@@ -59,9 +59,7 @@ import '../services/hips/hips_tile_fetcher.dart';
 import '../services/hips/hips_tile_loader.dart';
 import 'framing_provider.dart' show FramingTarget, SurveySource;
 
-// ===========================================================================
 // Tunable residency budget
-// ===========================================================================
 
 /// Default bounds for the framing tile [HipsTileCache].
 ///
@@ -69,9 +67,7 @@ import 'framing_provider.dart' show FramingTarget, SurveySource;
 /// tiles at the selected Norder plus their coarser parents and an Allsky base.
 /// 256 entries / 256 MiB comfortably holds a deep-zoom view plus the coarse
 /// LOD ancestors that keep panning seam-free, while bounding native GPU memory
-/// so the engine's own raster cache is not starved. These are deliberately
-/// exposed as named constants (not magic numbers buried in the provider) so the
-/// budget is reviewable and a test can assert against them.
+/// so the engine's own raster cache is not starved.
 const int kHipsFramingCacheMaxEntries = 256;
 
 /// Default decoded-byte budget for the framing tile cache (256 MiB).
@@ -82,21 +78,13 @@ const int kHipsFramingCacheMaxEntries = 256;
 /// layer.
 const int kHipsFramingCacheMaxBytes = 256 * 1024 * 1024;
 
-// ===========================================================================
 // C5 — fetcher provider
-// ===========================================================================
 
 /// Canonical DI handle for the HiPS [HipsTileFetcher] (component C5).
 ///
 /// Production resolves a real fetcher (its own [http.Client] + the default
-/// timeout / size cap). Tests override this with a fetcher constructed from a
-/// `package:http/testing` `MockClient` so no real network request is ever made:
-///
-/// ```dart
-/// hipsTileFetcherProvider.overrideWithValue(
-///   HipsTileFetcher(httpClient: MockClient(...)),
-/// )
-/// ```
+/// timeout / size cap). Tests override it with a `MockClient`-backed fetcher so
+/// no real network request is made.
 ///
 /// The instance is **handed to the loader, which owns its disposal** (see the
 /// file header): this provider intentionally does not `ref.onDispose` the
@@ -108,9 +96,7 @@ final hipsTileFetcherProvider = Provider.autoDispose<HipsTileFetcher>(
   (ref) => HipsTileFetcher(),
 );
 
-// ===========================================================================
 // C4 — cache provider
-// ===========================================================================
 
 /// Canonical DI handle for the bounded LRU [HipsTileCache] (component C4).
 ///
@@ -128,9 +114,7 @@ final hipsTileCacheProvider = Provider.autoDispose<HipsTileCache>(
   ),
 );
 
-// ===========================================================================
 // C6 — debounce clock provider (test seam)
-// ===========================================================================
 
 /// The [HipsLoaderClock] the loader debounces its recomputes on.
 ///
@@ -148,9 +132,7 @@ final hipsLoaderClockProvider = Provider.autoDispose<HipsLoaderClock>(
   (ref) => const HipsRealLoaderClock(),
 );
 
-// ===========================================================================
 // C6 — loader provider
-// ===========================================================================
 
 /// Canonical DI handle for the HiPS tile orchestrator (component C6).
 ///
@@ -184,9 +166,7 @@ final hipsTileLoaderProvider = Provider.autoDispose<HipsTileLoader>((ref) {
   return loader;
 });
 
-// ===========================================================================
 // Shared survey `properties` resolution
-// ===========================================================================
 
 /// The single source of truth for a survey's HiPS `properties` document.
 ///
@@ -195,23 +175,17 @@ final hipsTileLoaderProvider = Provider.autoDispose<HipsTileLoader>((ref) {
 ///   * the tile layer / loader — to drive LOD selection and tile addressing, and
 ///   * the attribution badge — to render the survey's `obs_copyright` credit.
 ///
-/// Both resolve the IDENTICAL immutable `<baseUrl>/properties` document, so this
-/// provider fetches it ONCE per survey through the shared [hipsTileFetcherProvider]
-/// and hands the parsed [HipsProperties] to both. Keyed by [SurveySource] and
-/// `autoDispose`, so a survey switch resolves the new survey once, pan/zoom never
-/// re-fetch it (they do not change the family key), and the future is disposed
-/// when the framing tile layer is left. There is exactly one fetch, one cache and
-/// one error surface per survey — no divergent duplicate state.
+/// Fetched ONCE per survey through the shared [hipsTileFetcherProvider]. Keyed
+/// by [SurveySource] and `autoDispose`: a survey switch resolves the new survey
+/// once, pan/zoom do not change the family key so they never re-fetch, and the
+/// future is disposed when the framing tile layer is left.
 ///
 /// It throws (surfacing the error into the [AsyncValue]) for a survey with no
 /// verified HiPS base URL; callers gate on [hipsFramingActiveProvider] /
 /// [hipsSurveyIsTileCapable] first, so in practice it is only read for a survey
-/// [HipsSurveyAddress.forSurvey] can resolve.
-///
-/// Errors are a feature: a failed/cancelled `properties` fetch lands in the
-/// [AsyncValue]'s error state (and is logged), and consumers fall back (the badge
-/// renders nothing, the tile layer stays transparent over the canvas snapshot) —
-/// never a silent blank or a fabricated value.
+/// [HipsSurveyAddress.forSurvey] can resolve. A failed or cancelled fetch lands
+/// in the error state and is logged; consumers fall back to the canvas
+/// snapshot rather than rendering a fabricated value.
 final framingHipsPropertiesProvider = FutureProvider.autoDispose
     .family<HipsProperties, SurveySource>((ref, source) async {
       final address = HipsSurveyAddress.forSurvey(source);
@@ -241,29 +215,16 @@ final framingHipsPropertiesProvider = FutureProvider.autoDispose
       }
     });
 
-// ===========================================================================
 // Feature flag
-// ===========================================================================
 
 /// User-facing feature flag for the HiPS framing tile layer, defaulting to
 /// **on** for tile-capable surveys.
 ///
-/// This is the toggle the framing canvas's "HiPS Tiles" control chip flips (next
-/// to the Grid / Labels chips). It is a session-scoped [StateProvider] — a
-/// runtime UI preference exactly like the framing screen's Grid / Labels /
-/// cardinal-direction toggles (which likewise live in in-memory framing state,
-/// not a persisted `AppSettings` row) — so the tile layer is self-contained and
-/// needs no database schema migration to ship. It is overridable in tests to
-/// force the layer on or off.
-///
-/// Whether the layer is *actually active* for the current survey is decided by
-/// [hipsFramingActiveProvider], which additionally requires the selected survey
-/// to have a verified HiPS pyramid (the DSS surveys today). Keeping the raw
-/// user toggle separate from the survey-capability gate means the toggle's value
-/// is preserved while a non-tile-capable survey is selected, and the gate
-/// transparently re-enables tiles when the user switches back to a DSS survey.
-/// The control chip is only shown for tile-capable surveys (where flipping it has
-/// an effect), so the user never sees an inert toggle.
+/// The raw user toggle behind the framing canvas's "HiPS Tiles" control chip,
+/// session-scoped like the Grid / Labels chips. Whether the layer is actually
+/// active is [hipsFramingActiveProvider], which also requires a verified HiPS
+/// pyramid: keeping the two separate preserves the toggle's value while a
+/// non-tile-capable survey is selected.
 final hipsFramingEnabledProvider = StateProvider<bool>((ref) => true);
 
 /// Whether the HiPS tile layer should be active for [source].
@@ -297,9 +258,7 @@ final hipsFramingActiveProvider = Provider.family<bool, SurveySource>((
   return enabled && hipsSurveyIsTileCapable(source);
 });
 
-// ===========================================================================
 // Resident-tiles notifier + provider
-// ===========================================================================
 
 /// Resolved survey addressing for a framing tile session: the verified base URL
 /// plus the canonical HiPS id the cache/tile-ids are keyed by.
@@ -473,18 +432,14 @@ class HipsResidentTilesNotifier extends StateNotifier<HipsResidentSnapshot> {
 
 /// The versioned resident-tile snapshot the framing tile widget watches.
 ///
-/// `ref.watch(hipsResidentTilesProvider)` yields the current
-/// [HipsResidentSnapshot]; the painter reads [HipsResidentSnapshot.version] in
-/// `shouldRepaint` (a cheap integer compare) and walks the primary/fallback tile
-/// lists to composite. The widget drives the underlying loader by reading the
-/// notifier (`ref.read(hipsResidentTilesProvider.notifier)`) and calling
-/// [HipsResidentTilesNotifier.requestViewport] / [HipsResidentTilesNotifier.setSurvey].
+/// The painter compares [HipsResidentSnapshot.version] in `shouldRepaint` — a
+/// cheap integer compare — and walks the primary/fallback tile lists to
+/// composite. The widget drives the loader through the notifier
+/// ([HipsResidentTilesNotifier.requestViewport] / `setSurvey`).
 ///
-/// `autoDispose`: when the framing tile layer is no longer watched, the notifier
-/// is disposed (detaching its listener) and the loader provider it depends on is
-/// likewise torn down, disposing the cache + fetcher. Overridable in tests via
-/// the subclass-and-seed pattern (override with a notifier whose loader is fed a
-/// `MockClient` fetcher) so widget/golden tests never hit the network.
+/// `autoDispose`: when the framing tile layer is no longer watched, the
+/// notifier is disposed (detaching its listener) and the loader provider it
+/// depends on is torn down with it, disposing the cache + fetcher.
 final hipsResidentTilesProvider =
     StateNotifierProvider.autoDispose<
       HipsResidentTilesNotifier,

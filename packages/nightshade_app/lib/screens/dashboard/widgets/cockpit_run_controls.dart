@@ -355,11 +355,11 @@ class _ControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // WE-EQ-N3: a bare Tooltip+InkWell publishes a node with a tap action but
-    // no role and no enabled flag, so the AT-SPI tree printed the Dashboard's
-    // two headline calls-to-action as `panel: Image tonight [DISABLED]` and
+    // A bare Tooltip+InkWell publishes a node with a tap action but no role
+    // and no enabled flag, so AT-SPI reads the Dashboard's two headline
+    // calls-to-action as `panel: Image tonight [DISABLED]` and
     // `panel: Sequencer [DISABLED]` — dead non-controls, while clicking either
-    // navigated fine. `excludeSemantics` makes this the ONE node for the
+    // navigates fine. `excludeSemantics` makes this the ONE node for the
     // control so the InkWell underneath cannot re-describe it.
     return Tooltip(
       message: label,

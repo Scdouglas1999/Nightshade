@@ -6,14 +6,12 @@ import 'package:flutter/material.dart';
 /// Material's `_DropdownMenuItemContainer` (the wrapper every
 /// [DropdownMenuItem] and every dropdown hint is built into) declares
 /// `button: true` and **never** an enabled state. AT-SPI derives "disabled"
-/// from the ABSENCE of the enabled flag, so every entry of a perfectly live
-/// dropdown announced itself as a control the user could not operate, and no
-/// entry carried the `selected` mark that says which one is in force. The same
-/// defect was filed against eight different screens (SCI-36, COL2-9/12,
-/// CON-47, SEQ-10, SKY-17, SET-19 …) because it is one framework behaviour,
-/// not eight bugs.
+/// from the ABSENCE of the enabled flag, so a raw Material dropdown announces
+/// every entry of a perfectly live control as one the user cannot operate, and
+/// no entry carries the `selected` mark that says which one is in force. That
+/// is one framework behaviour, not one bug per screen.
 ///
-/// The fix, established and pinned in `NightshadeDropdown`, is two-part:
+/// The remedy, pinned in `NightshadeDropdown`, is two-part:
 ///
 /// 1. wrap each item's child in `Semantics(enabled:, selected:)` — the flags
 ///    the framework leaves out — and

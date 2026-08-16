@@ -15,9 +15,7 @@ part of '../network_backend.dart';
 /// [NightshadeBackend] surface — only a slave calls them, behind an
 /// `is NetworkBackend` branch in the corresponding provider/notifier.
 mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
-  // ===========================================================================
   // Reads
-  // ===========================================================================
 
   /// GET /api/observing-lists — every observing list on the host, ordered by
   /// sortOrder.
@@ -81,9 +79,7 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
     return _rowsFromJson(response[key], fromJson);
   }
 
-  // ===========================================================================
   // Writes (slave mutations persist on the master, not the local DB)
-  // ===========================================================================
 
   /// POST /api/observing-lists — create a list on the host; returns its id.
   Future<int> createObservingList({

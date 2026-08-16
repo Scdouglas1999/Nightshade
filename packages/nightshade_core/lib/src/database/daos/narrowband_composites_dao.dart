@@ -15,9 +15,8 @@ import '../database.dart';
 /// [CampaignsDao] and [NightReportsDao]. It is deliberately NOT a
 /// `@DriftAccessor`.
 ///
-/// Per project policy this DAO never silently swallows failures: SQLite errors
-/// propagate, and reads map nullable columns to the model's well-defined
-/// nullable fields rather than guessing.
+/// SQLite errors propagate; reads map nullable columns to the model's nullable
+/// fields.
 class NarrowbandCompositesDao {
   NarrowbandCompositesDao(this._db);
 

@@ -3,9 +3,8 @@
 /// that carries the master's dimensions.
 ///
 /// Pure, immutable value types with `fromJson`/`toJson` round-trips and value
-/// equality, matching the `integration_settings.dart` house style. Decoded
-/// defensively (nullable + defaults) so a partial or forward-migrated blob never
-/// throws.
+/// equality, matching `integration_settings.dart`. Decoded defensively
+/// (nullable + defaults) so a partial or forward-migrated blob never throws.
 library;
 
 /// The catalog kind of an [Annotation] marker. The wire token is the stable

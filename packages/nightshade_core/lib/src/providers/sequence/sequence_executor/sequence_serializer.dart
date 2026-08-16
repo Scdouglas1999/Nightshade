@@ -1,7 +1,37 @@
-part of '../sequence_executor.dart';
+import 'dart:convert';
 
-extension _SequenceExecutorSerializationOperations on SequenceExecutor {
-  String _sequenceToJson(Sequence sequence) {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../models/imaging/imaging_models.dart';
+import '../../../models/sequence/sequence_models.dart';
+import '../../../models/settings/app_settings.dart' show SafetyFailMode;
+import '../../profiles_provider.dart' show activeEquipmentProfileProvider;
+import '../../meridian_flip_provider.dart';
+import '../../settings_provider.dart';
+import '../sequencer_defaults.dart';
+
+/// Translates the Dart sequence model into the JSON the Rust executor loads.
+///
+/// The ONE place a [Sequence] becomes native config: `SequenceNode` is sealed,
+/// so every node type must appear in [_nodeToConfig]'s switch and adding a node
+/// type forces this translation to be updated rather than silently dropping the
+/// node on the wire.
+///
+/// It owns nothing about a run. Everything it needs from the executor arrives
+/// through the constructor: [Ref] for the settings / profile / defaults it
+/// reads, and [warn] for the operator-facing warnings a lookup failure must
+/// surface into the run record rather than only into a log file.
+class SequenceSerializer {
+  SequenceSerializer({
+    required Ref ref,
+    required void Function(String message) warn,
+  }) : _ref = ref,
+       _warn = warn;
+
+  final Ref _ref;
+  final void Function(String message) _warn;
+
+  String sequenceToJson(Sequence sequence) {
     final appSettings = _ref.read(appSettingsProvider).valueOrNull;
     final autoFocusOnFilterChange =
         appSettings?.autoFocusOnFilterChange ?? false;
@@ -79,7 +109,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           injectedAfNodes[syntheticId] = {
             'id': syntheticId,
             'name': 'Autofocus (auto, post filter change)',
-            'node_type': _autofocusRuntimeConfig(
+            'node_type': autofocusRuntimeConfig(
               autofocusSettings,
               maxDurationSecs: 600,
             ),
@@ -134,7 +164,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
     });
   }
 
-  Map<String, dynamic> _autofocusRuntimeConfig(
+  Map<String, dynamic> autofocusRuntimeConfig(
     AutofocusSettings settings, {
     AutofocusNode? nodeOverrides,
     required double maxDurationSecs,
@@ -249,87 +279,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   /// Emit a filter-lookup warning to both the logger and (if a run is
   /// live) the run stats. Centralized so the wording stays consistent
   /// across the three lookup failure modes.
-  void _surfaceFilterLookupWarning(String message) =>
-      _surfaceRunWarning(message);
-
-  /// Emit an operator-facing warning onto both the log and the live run
-  /// stats, so it survives into `sequence_runs.stats_json` and the
-  /// post-session report rather than only existing in a log file.
-  ///
-  /// [persist] = `false` for a warning raised during run START-UP, which is
-  /// already covered by the final `finishRun` write. See [_incrementRunStat];
-  /// the default `true` keeps mid-run warnings crash-durable.
-  void _surfaceRunWarning(String message, {bool persist = true}) {
-    _logger.warning(message, source: 'SequenceExecutor');
-    // Route through _incrementRunStat so the warning gets the same copy-to-
-    // notify + stats-seal handling as every other live-stat mutation (it is a
-    // no-op when no run is live or the stats are already sealed for finish).
-    _incrementRunStat(
-      (stats) => stats.recordWarning(message),
-      persist: persist,
-    );
-  }
-
-  /// Record the duration of a newly-completed frame and update the EMA.
-  ///
-  /// Called from the `ExposureCompleted` event handler with the event's real
-  /// exposure `duration_secs` plus a fixed per-frame download overhead.
-  /// Maintains a bounded queue of the [kEtaWindowSize] most recent frame
-  /// durations and keeps `_smoothedSecsPerFrame` as the EMA over them with
-  /// weight [kEtaEmaAlpha].
-  ///
-  /// Resilient to non-positive samples (e.g., when multiple frames complete
-  /// inside a single timer tick) — only positive durations enter the EMA.
-  void _recordFrameDurationSample(double secsForFrame) {
-    if (!secsForFrame.isFinite || secsForFrame <= 0) return;
-    _frameDurations.addLast(secsForFrame);
-    if (_frameDurations.length > kEtaWindowSize) {
-      _frameDurations.removeFirst();
-    }
-    final prior = _smoothedSecsPerFrame;
-    if (prior == null) {
-      // First sample bootstraps the EMA so we don't bias toward zero.
-      _smoothedSecsPerFrame = secsForFrame;
-    } else {
-      _smoothedSecsPerFrame =
-          (kEtaEmaAlpha * secsForFrame) + ((1.0 - kEtaEmaAlpha) * prior);
-    }
-  }
-
-  /// Reset the ETA EMA state. Called when a new run starts (or resumes
-  /// from a checkpoint) so the smoother doesn't carry stale samples
-  /// from a previous run with different exposure cadence.
-  void _resetEtaState() {
-    _frameDurations.clear();
-    _smoothedSecsPerFrame = null;
-  }
-
-  /// Compute the smoothed ETA in seconds for the supplied progress snapshot.
-  ///
-  /// The EMA is fed directly from the `ExposureCompleted` handler using the
-  /// event's real `duration_secs` (plus a fixed per-frame download overhead),
-  /// so this method only projects: remaining = EMA-secs-per-frame ×
-  /// frames-left. It deliberately does NOT synthesise per-frame samples from
-  /// the wall-clock elapsed delta — that folded AF / dither / slew / flip
-  /// gaps into the per-frame estimate and yanked the ETA around. Wall-clock
-  /// elapsed is still surfaced separately for the elapsed display.
-  ///
-  /// Returns `null` when no frames have completed yet (so the UI can show
-  /// `--` instead of misleading garbage).
-  double? _computeSmoothedEta(SequenceProgress progress) {
-    final completedFrames = progress.completedExposures;
-    final totalFrames = progress.totalExposures;
-    if (completedFrames <= 0 || totalFrames <= 0) {
-      return null;
-    }
-
-    final remainingFrames = totalFrames - completedFrames;
-    if (remainingFrames <= 0) return 0.0;
-
-    final smoothed = _smoothedSecsPerFrame;
-    if (smoothed == null) return null;
-    return smoothed * remainingFrames;
-  }
+  void _surfaceFilterLookupWarning(String message) => _warn(message);
 
   /// Convert a Dart node to native config format.
   ///
@@ -412,7 +362,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           );
         }
         final settings = _ref.read(autofocusSettingsProvider);
-        return _autofocusRuntimeConfig(
+        return autofocusRuntimeConfig(
           settings,
           nodeOverrides: n.useSettingsDefaults ? null : n,
           maxDurationSecs: n.maxDurationSecs,
@@ -572,11 +522,9 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
             conditionValue = n.repeatUntilAltitude;
             break;
           case LoopConditionType.integrationTime:
-            // Audit the engine reads `condition_value` as the
-            // target integration in SECONDS (loop_node.rs IntegrationTime
-            // arm). It must carry `integrationTimeTarget`, NOT the
-            // repeat count — previously this shipped `repeatCount`, so an
-            // integration-time loop ran the wrong number of frames.
+            // The engine reads `condition_value` as the target integration
+            // in SECONDS (loop_node.rs IntegrationTime arm), so it must carry
+            // `integrationTimeTarget`, NOT the repeat count.
             conditionValue = n.integrationTimeTarget;
             break;
           case LoopConditionType.forever:
@@ -790,47 +738,44 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
     }
   }
 
-  /// Build the Rust-side MeridianFlipConfig JSON for a [MeridianFlipNode].
-  ///
-  /// Why: the Rust struct [`MeridianFlipConfig`](native/.../lib.rs:875) has
-  /// no `#[serde(default)]` annotations on most fields, so the JSON we send
-  /// MUST include every required field. Two sources drive the final config:
-  ///
-  /// 1. When `node.useGlobalDefaults == true` (fresh nodes from the palette /
-  ///    quick-start wizard / canonical importers that opt in), the effective
-  ///    `globalMeridianFlipSettingsProvider` snapshot is the source of truth.
-  ///    The 16 settings in Sequencer Settings -> Meridian Flip therefore
-  ///    drive node behavior at execution time (audit §1.2).
-  /// 2. When `node.useGlobalDefaults == false` (user-edited or legacy nodes),
-  ///    the per-node fields take priority. The global retry-delays / tracking
-  ///    wait minutes still flow through because the node model doesn't carry
-  ///    them; the Rust struct requires both.
-  ///
-  /// Enum names are emitted PascalCase to match Rust's
-  /// `#[derive(Deserialize)]` default form.
   /// Build the Rust `MeridianFlipConfig` JSON from the operator's GLOBAL
   /// meridian-flip settings, with no node involved.
   ///
-  /// This is what the trigger-driven flip runs on. The standard `meridian_flip`
-  /// trigger is seeded in Rust with `MeridianFlipConfig::default()` and nothing
-  /// used to replace it, so the entire Settings → Meridian Flip panel was inert
-  /// for the flip that actually fires on an unattended night. Proven live: a
-  /// run with `recenterAfterFlip: false` still executed
-  /// `"Step 6/8: Plate solving and centering"` and then failed the flip on it.
+  /// This is what the trigger-driven flip runs on: the standard
+  /// `meridian_flip` trigger is seeded in Rust with
+  /// `MeridianFlipConfig::default()`, so without this push the Settings →
+  /// Meridian Flip panel does not reach the flip that fires on an unattended
+  /// night.
   ///
   /// Shares [_buildMeridianFlipConfig]'s field list by delegating to it with a
   /// synthetic all-global node, so the two wire payloads can never drift.
   Map<String, dynamic> buildGlobalMeridianFlipConfigJson() =>
       _buildMeridianFlipConfig(MeridianFlipNode(useGlobalDefaults: true));
 
+  /// Build the Rust-side MeridianFlipConfig JSON for a [MeridianFlipNode].
+  ///
+  /// The Rust struct [`MeridianFlipConfig`](native/.../lib.rs:875) carries no
+  /// `#[serde(default)]` on most fields, so the JSON MUST include every
+  /// required field. Two sources drive the final config:
+  ///
+  /// 1. `node.useGlobalDefaults == true` — the effective
+  ///    `globalMeridianFlipSettingsProvider` snapshot is the source of truth,
+  ///    so the settings in Sequencer Settings -> Meridian Flip drive node
+  ///    behaviour at execution time.
+  /// 2. `node.useGlobalDefaults == false` — the per-node fields take priority.
+  ///    The global retry-delays / tracking wait minutes still flow through
+  ///    because the node model doesn't carry them and the Rust struct requires
+  ///    both.
+  ///
+  /// Enum names are emitted PascalCase to match Rust's
+  /// `#[derive(Deserialize)]` default form.
   Map<String, dynamic> _buildMeridianFlipConfig(MeridianFlipNode node) {
     final global = _ref.read(effectiveMeridianFlipSettingsProvider);
     final useGlobal = node.useGlobalDefaults;
     // The post-flip guide re-lock settles using the user's global guiding
     // settle settings (the same knobs a Start Guiding node uses), so a tuned
-    // settle is honoured after a flip instead of the executor's old hardcoded
-    // 1.5px/10s/60s. Null (settings not loaded) leaves these keys off the JSON,
-    // and the Rust MeridianFlipConfig serde defaults reproduce the old values.
+    // settle is honoured after a flip. Null (settings not loaded) leaves these
+    // keys off the JSON so the Rust MeridianFlipConfig serde defaults apply.
     final appSettings = _ref.read(appSettingsProvider).valueOrNull;
 
     final triggerMethod = useGlobal ? global.triggerMethod : node.triggerMethod;
@@ -970,7 +915,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
     }
   }
 
-  String _safetyFailModeToBackendString(SafetyFailMode mode) => switch (mode) {
+  String safetyFailModeToBackendString(SafetyFailMode mode) => switch (mode) {
     SafetyFailMode.failOpen => 'fail_open',
     SafetyFailMode.warnOnly => 'warn_only',
     SafetyFailMode.failClosed => 'fail_closed',

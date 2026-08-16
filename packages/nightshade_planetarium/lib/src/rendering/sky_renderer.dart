@@ -106,9 +106,8 @@ class SkyCanvasPainter extends CustomPainter {
   /// owns the never-blank guarantee: suppress the gradient only while the layer
   /// underneath is actually covering the canvas.
   ///
-  /// A real field rather than side-channel state, so [shouldRepaint] can see a
-  /// flip and the host does not have to force the repaint by re-keying its
-  /// `CustomPaint`.
+  /// A real field rather than side-channel state, so [shouldRepaint] sees a
+  /// flip without the host re-keying its `CustomPaint`.
   final bool paintsOpaqueBackground;
 
   /// Which slice of the scene this painter renders. See [SkyRenderScope].
@@ -246,17 +245,15 @@ class SkyCanvasPainter extends CustomPainter {
   static SkySpriteAtlas? _spriteAtlas;
 
   /// Reusable composite paint for the additive star atlas pass. `BlendMode.plus`
-  /// makes the white sprites sum where they overlap (so a dense field reads as a
-  /// glow rather than flat discs), exactly the additive feel the old per-object
-  /// glow had.
+  /// makes the white sprites sum where they overlap, so a dense field reads as a
+  /// glow rather than flat discs.
   static final Paint _starAtlasPaint = Paint()..blendMode = BlendMode.plus;
 
   /// Reusable composite paint for the DSO atlas pass. Source-over (not additive)
-  /// so overlapping DSO glyphs don't blow out to white — matching the old
-  /// per-DSO alpha-blended shapes.
+  /// so overlapping DSO glyphs don't blow out to white.
   static final Paint _dsoAtlasPaint = Paint();
 
-  // ===== Reusable scratch buffers for the atlas passes =====
+  // Reusable scratch buffers for the atlas passes
   // Grown on demand and shared across the per-frame painter instances so the
   // hot loops never reallocate. Each star/DSO consumes 4 transform floats, 4
   // rect floats and 1 color int.

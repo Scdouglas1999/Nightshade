@@ -25,7 +25,7 @@ final _progressSortProvider = StateProvider.autoDispose<ProgressSort>(
 final _progressExpandedRowProvider =
     StateProvider.autoDispose<int?>((_) => null);
 
-/// Progress tab body for Plan Tonight (§W8-SCHED-HISTORY surfacing).
+/// Progress tab body for Plan Tonight.
 ///
 /// Lists every target in the catalog with its imaging progress: total %,
 /// total integration captured vs goal, ETA in nights (or em-dash when not
@@ -529,8 +529,8 @@ class _PerFilterTable extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
         child: Text(
-          // WE-EQ-N1: there is no "Target Queue" tab — it was merged into
-          // Schedule. Directions have to name a tab the operator can see.
+          // Directions have to name a tab the operator can see: integration
+          // goals are edited in Schedule.
           'No integration goals are defined for this target. Add filter '
           'goals in the Schedule tab to start tracking progress.',
           style: TextStyle(

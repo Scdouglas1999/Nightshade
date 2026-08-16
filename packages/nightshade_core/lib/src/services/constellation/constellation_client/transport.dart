@@ -164,8 +164,8 @@ extension _ConstellationClientTransport on ConstellationClient {
     final kind = switch (status) {
       401 || 403 => ConstellationErrorKind.auth,
       404 => ConstellationErrorKind.notFound,
-      // A 409 from the hub is a geometry/order mismatch (§5) — the tiling on
-      // this hub does not match ours, so the contribution can never fuse.
+      // A 409 from the hub is a geometry/order mismatch — the tiling on this
+      // hub does not match the local one, so the contribution can never fuse.
       409 => ConstellationErrorKind.geometryMismatch,
       405 || 423 => ConstellationErrorKind.conflict,
       // The hub rejected the REQUEST (bad params, an un-shareable license, a

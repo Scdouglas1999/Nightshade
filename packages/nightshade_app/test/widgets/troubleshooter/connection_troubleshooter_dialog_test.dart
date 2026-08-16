@@ -4,8 +4,8 @@
 // ordered remediation playbook. These tests prove it:
 //   * renders the diagnosis headline + plain-language explanation,
 //   * lists every remediation step with a 1-based number badge,
-//   * keeps the raw error hidden until "Technical details" is expanded
-//     (the project treats errors as a feature — available, not shouting),
+//   * keeps the raw error hidden until "Technical details" is expanded —
+//     available, not shouting,
 //   * resolves `show(...)` to `true` on Retry and `false` on Close.
 import 'dart:async';
 

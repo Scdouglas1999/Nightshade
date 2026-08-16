@@ -18,9 +18,7 @@ class MosaicHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'MosaicHandlers');
 
-  // ===========================================================================
-  // Generate Mosaic Panels
-  // ===========================================================================
+  // Generate mosaic panels
 
   Future<Response> handleGeneratePanels(Request request) async {
     _logInfo('[API] POST /api/mosaic/generate-panels');
@@ -33,9 +31,7 @@ class MosaicHandlers {
     return jsonOk({'panels': panels.map((p) => _panelToJson(p)).toList()});
   }
 
-  // ===========================================================================
-  // Generate Mosaic Sequence
-  // ===========================================================================
+  // Generate mosaic sequence
 
   Future<Response> handleGenerateSequence(Request request) async {
     _logInfo('[API] POST /api/mosaic/generate-sequence');
@@ -80,9 +76,7 @@ class MosaicHandlers {
     });
   }
 
-  // ===========================================================================
-  // Calculate Mosaic Area
-  // ===========================================================================
+  // Calculate mosaic area
 
   Future<Response> handleCalculateArea(Request request) async {
     _logInfo('[API] POST /api/mosaic/calculate-area');
@@ -98,9 +92,7 @@ class MosaicHandlers {
     });
   }
 
-  // ===========================================================================
-  // Validate Mosaic Configuration
-  // ===========================================================================
+  // Validate mosaic configuration
 
   Future<Response> handleValidateMosaic(Request request) async {
     _logInfo('[API] POST /api/mosaic/validate');
@@ -117,9 +109,7 @@ class MosaicHandlers {
     });
   }
 
-  // ===========================================================================
-  // Estimate Mosaic Time
-  // ===========================================================================
+  // Estimate mosaic time
 
   Future<Response> handleEstimateTime(Request request) async {
     _logInfo('[API] POST /api/mosaic/estimate-time');
@@ -164,10 +154,8 @@ class MosaicHandlers {
     });
   }
 
-  // ===========================================================================
-  // Collaborative mosaics (Collaborative Sky WS2) — let an unattended rig drive
-  // the whole distributed flow (publish/claim/upload/assemble) over the hub.
-  // ===========================================================================
+  // Collaborative Sky mosaics — let an unattended rig drive the whole
+  // distributed flow (publish/claim/upload/assemble) over the hub.
 
   CollaborativeMosaicService get _collab =>
       container.read(collaborativeMosaicServiceProvider);
@@ -194,14 +182,12 @@ class MosaicHandlers {
     // the caller can act on — "not published to a hub", "no integrated master
     // to upload", "not plate-solved", "only the owner may assemble". Reporting
     // 500 tells a remote client the appliance is broken and invites a blind
-    // retry, when the fix is on the caller's side.
+    // retry, when the remedy is on the caller's side.
     if (error is StateError) return 409;
     if (error is ConstellationException) {
       return switch (error.kind) {
         // Same meanings as CoImagingHandlers / CalibrationLibraryHandlers —
-        // these two tables used to be INVERTED, so one Collaborative Sky
-        // feature answered 502 and 503 for the same unreachable hub depending
-        // on which pillar the client happened to call.
+        // one cause must not answer three codes across the pillars.
         // No answer from the hub at all — this appliance is the gateway.
         ConstellationErrorKind.network => 502,
         // The hub answered, but is itself unhealthy; retry later.
@@ -339,7 +325,7 @@ class MosaicHandlers {
   /// POST `/api/mosaic/projects/<projectId>/panels/<panelIndex>/upload` —
   /// upload the claimed panel's locally-integrated master FITS to the hub.
   ///
-  /// WS4 consent gate: a panel master leaves the device only under an explicit
+  /// Consent gate: a panel master leaves the device only under an explicit
   /// sharing license + attribution choice. The optional body
   /// `{"license": "cc-by", "attributionConsent": true}` supplies that choice
   /// per-request; with no body the service falls back to the operator's
@@ -669,9 +655,7 @@ class MosaicHandlers {
     }
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   Map<String, dynamic> _collabMosaicToJson(CollabMosaic m) => {
     'mosaicId': m.mosaicId,

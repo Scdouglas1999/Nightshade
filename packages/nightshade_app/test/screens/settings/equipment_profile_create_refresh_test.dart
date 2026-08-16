@@ -75,8 +75,8 @@ void main() {
       expect(profilesNotifier.createdName, 'Remote observatory');
       expect(profilesNotifier.createdDescription, 'Wide-field setup');
 
-      // Even after the old arbitrary 100 ms window, a slow host refresh must
-      // remain an honest loading state rather than throwing firstWhere.
+      // A slow host refresh must remain an honest loading state rather than
+      // throwing firstWhere, however long it takes.
       await tester.pump(const Duration(milliseconds: 250));
       expect(tester.takeException(), isNull);
 

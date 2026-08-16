@@ -1,6 +1,6 @@
-// The mosaic projects list used to be a dead end: a full-page list of rows with
-// no "New mosaic" action and no back control, so an operator who opened it from
-// Analytics could only go deeper into a project or restart the app.
+// The mosaic projects list must not be a dead end: without a "New mosaic" action
+// and a back control, an operator who opened it from Analytics can only go
+// deeper into a project or restart the app.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

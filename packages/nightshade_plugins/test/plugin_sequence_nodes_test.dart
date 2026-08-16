@@ -590,9 +590,7 @@ void main() {
   });
 }
 
-// =============================================================================
 // Test fixtures
-// =============================================================================
 
 /// A minimal SequencePlugin with two nodes; used by the registry / executor
 /// tests above without needing any external services.

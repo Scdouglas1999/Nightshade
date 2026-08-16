@@ -36,9 +36,7 @@ part 'bridge_stub/guiding_operations.dart';
 part 'bridge_stub/sequencer_operations.dart';
 part 'bridge_stub/storage_and_image_operations.dart';
 
-// ============================================================================
-// Error Messages for the Native-Bridge-Absent Path
-// ============================================================================
+// Error messages for the native-bridge-absent path
 
 /// Error message thrown when a device operation is called without the native
 /// bridge. Rust is the only device path, so there is nothing to fall back to.
@@ -74,9 +72,7 @@ String _canonicalGuiderDeviceId(String deviceId) {
   return deviceId;
 }
 
-// ============================================================================
-// Type Aliases - Use FRB-generated types to avoid duplication
-// ============================================================================
+// Type aliases over the FRB-generated types
 
 // From device.dart
 typedef DeviceType = gen_device.DeviceType;
@@ -114,9 +110,7 @@ typedef EventSeverity = gen_event.EventSeverity;
 typedef EventCategory = gen_event.EventCategory;
 typedef PolarAlignmentEvent = gen_event.PolarAlignmentEvent;
 
-// ============================================================================
 // Extension on FRB-generated DeviceType
-// ============================================================================
 
 extension DeviceTypeExtension on DeviceType {
   String get displayName {
@@ -147,9 +141,7 @@ extension DeviceTypeExtension on DeviceType {
   }
 }
 
-// ============================================================================
 // Enums unique to bridge fallback layer (not in FRB-generated code)
-// ============================================================================
 
 /// Device connection state
 enum ConnectionState { disconnected, connecting, connected, error }
@@ -162,9 +154,7 @@ enum ShutterState { open, closed, opening, closing, error, unknown }
 
 // EventSeverity, EventCategory, PolarAlignmentEvent, and NightshadeEvent are now typedefed from event.dart
 
-// ============================================================================
-// Data Classes unique to bridge fallback layer (not in FRB-generated code)
-// ============================================================================
+// Data classes unique to bridge fallback layer (not in FRB-generated code)
 
 /// Session state from native
 class NativeSessionState {

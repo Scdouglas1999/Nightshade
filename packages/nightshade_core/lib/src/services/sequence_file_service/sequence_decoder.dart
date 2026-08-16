@@ -437,10 +437,9 @@ extension _SequenceFileDecoder on SequenceFileService {
           resumeGuiding: json['resumeGuiding'] as bool? ?? true,
           maxRetries: json['maxRetries'] as int? ?? 3,
           failureAction: _parseFlipFailureAction(json['failureAction']),
-          // Why: legacy sequences pre-§1.2 wired no global-defaults flag.
-          // Treat absence as `false` (preserve the persisted per-node values
-          // verbatim) so existing user sequences don't suddenly start pulling
-          // from settings.
+          // Legacy sequences carry no global-defaults flag. Absence means
+          // `false` (preserve the persisted per-node values verbatim) so an
+          // existing user sequence never starts pulling from settings.
           useGlobalDefaults: json['useGlobalDefaults'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
@@ -574,7 +573,7 @@ extension _SequenceFileDecoder on SequenceFileService {
           isEnabled: isEnabled,
         );
 
-      // Audit §11 — plugin-contributed instruction. The normaliser
+      // Plugin-contributed instruction. The normaliser
       // strips underscores + lowercases, so 'PluginNode' / 'plugin_node'
       // / 'pluginnode' all land on the same case key.
       case 'pluginnode':

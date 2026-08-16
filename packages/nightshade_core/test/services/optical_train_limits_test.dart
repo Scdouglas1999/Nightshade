@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/services/optical_train_limits.dart';
 
-/// Observed live in the first-run wizard: focal length `999999999` mm and
-/// aperture `0.0001` mm were both accepted — only `<= 0` was rejected — and the
-/// step rendered `f/9999999990000.00`. Focal length reaches the FITS `FOCALLEN`
-/// card and drives plate-solve field-of-view and arcsec/px, so an implausible
-/// value silently corrupts astrometry for that rig.
+/// Rejecting only `<= 0` accepts focal length `999999999` mm and aperture
+/// `0.0001` mm, and the first-run wizard step renders `f/9999999990000.00`.
+/// Focal length reaches the FITS `FOCALLEN` card and drives plate-solve
+/// field-of-view and arcsec/px, so an implausible value silently corrupts
+/// astrometry for that rig.
 void main() {
   String? check({
     double? focalLengthMm = 600,

@@ -168,8 +168,7 @@ sealed class SequencerEvent with _$SequencerEvent {
   const factory SequencerEvent.stopped({
     /// The run this terminal belongs to, when the publisher knows it.
     /// Episode identity for the dashboard's stop fold: without it a
-    /// bare terminal and a neighbouring press are indistinguishable
-    /// (Wave K refutation K2).
+    /// bare terminal and a neighbouring press are indistinguishable.
     PlatformInt64? sequenceRunId,
   }) = SequencerEvent_Stopped;
   const factory SequencerEvent.completed() = SequencerEvent_Completed;
@@ -177,15 +176,11 @@ sealed class SequencerEvent with _$SequencerEvent {
   /// The run ended in FAILURE. Terminal, and the counterpart of
   /// [`SequencerEvent::Completed`] / [`SequencerEvent::Stopped`].
   ///
-  /// `ExecutorEvent::SequenceFailed` used to be flattened onto
-  /// `SequencerEvent::Error`, which the Dart executor handles as a
-  /// *non-terminal* mid-run error. The consequence was that Dart's
-  /// `case 'SequenceFailed'` branch — the one that drives
-  /// `_onTerminalEvent` — was unreachable dead code, so a failed run NEVER
-  /// finalized: `sequence_runs.status` stayed `'running'` with a null
-  /// `ended_at`, the imaging session stayed active, and the next start was
-  /// refused with `active_session_exists` until the operator manually reset
-  /// the sequencer.
+  /// This is what drives Dart's `_onTerminalEvent`; `SequencerEvent::Error` is
+  /// handled there as a non-terminal mid-run error, so a failure delivered as
+  /// `Error` never finalizes the run — `sequence_runs.status` stays `'running'`
+  /// with a null `ended_at`, the imaging session stays active, and the next
+  /// start is refused with `active_session_exists`.
   const factory SequencerEvent.failed({required String error}) =
       SequencerEvent_Failed;
   const factory SequencerEvent.nodeStarted({
@@ -230,14 +225,10 @@ sealed class SequencerEvent with _$SequencerEvent {
   /// A meridian flip finished. Mirrors
   /// `ExecutorEvent::MeridianFlipOutcome`.
   ///
-  /// The flip is the single most dangerous thing the app does unattended and
-  /// it used to be entirely absent from the wire: the run vitals reported
-  /// `meridianFlips: 0` after a flip that had physically swapped pier sides,
-  /// and a flip whose post-flip plate-solve recenter FAILED left
-  /// `errorMessages: []` on a run reported as `completed`. This variant is
-  /// the typed verdict the Dart run-stats layer consumes — deliberately
-  /// typed rather than string-sniffed off the log, matching the Pack-H
-  /// migration away from regex-parsed `detail` strings.
+  /// The flip is the most dangerous operation the app runs unattended, so its
+  /// verdict rides the wire as this typed variant — consumed by the Dart
+  /// run-stats layer, which counts the flip and surfaces a failed post-flip
+  /// recenter rather than sniffing either out of a log string.
   const factory SequencerEvent.meridianFlipOutcome({
     /// `"success"`, `"failed"`, or `"aborted"`.
     required String outcome,

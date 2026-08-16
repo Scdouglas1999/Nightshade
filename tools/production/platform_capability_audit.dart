@@ -55,9 +55,9 @@ const _requiredFiles = <_RequiredFile>[
     path: 'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart',
     label: 'Headless endpoint catalog capability exposure',
     requiredText: [
-      // The capability endpoints were extracted from system_handlers.dart into
-      // this hand-maintained catalog (re-exported via availableHeadlessEndpoints
-      // through system_handlers.dart). The API-exposure invariant lives here now.
+      // The capability endpoints live in this hand-maintained catalog,
+      // re-exported via availableHeadlessEndpoints through
+      // system_handlers.dart, so the API-exposure invariant is pinned here.
       "'GET /api/equipment/camera/capabilities'",
       "'GET /api/equipment/mount/capabilities'",
       "'GET /api/equipment/focuser/capabilities'",
@@ -130,9 +130,8 @@ const _requiredFiles = <_RequiredFile>[
       'unsupportedBackendReasonFor gates ASCOM COM off Linux',
       'BackendSelectorChips disables unsupported platform backends',
       'PlatformCapabilityMatrix.linux',
-      // The unsupported-backend indicator icon was changed from Icons.block to
-      // LucideIcons.ban in the chip refactor; the gating assertion still checks
-      // the disabled-backend icon is rendered.
+      // The unsupported-backend indicator icon is LucideIcons.ban; the gating
+      // assertion checks the disabled-backend icon is rendered.
       'LucideIcons.ban',
     ],
   ),

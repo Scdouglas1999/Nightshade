@@ -1,8 +1,8 @@
 // The cull rail must decide at RENDER time whether the curve-driven cull is
-// offerable, using the same evaluation the press handler runs. It previously
-// rendered an enabled, quantified "Keep best 1 (+0%)" whenever a curve carried
-// a keep-set, and only discovered the curve was stale after the press — so the
-// control advertised an operation it would unconditionally refuse.
+// offerable, using the same evaluation the press handler runs. Offering an
+// enabled, quantified "Keep best 1 (+0%)" whenever a curve carries a keep-set,
+// and only discovering the curve is stale after the press, advertises an
+// operation the control will unconditionally refuse.
 //
 // These are full-wiring tests: a real SessionReviewController over a real
 // in-memory database, with the real widget pumped against it. Nothing is

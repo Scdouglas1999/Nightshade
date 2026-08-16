@@ -91,8 +91,8 @@ void main() {
     expect(card.width, lessThanOrEqualTo(settingsContentMaxWidth));
     // ...and the control still hugs the card's right edge inside it.
     expect(card.right - control.right, lessThan(edgeSlack));
-    // The regression this replaces: the control used to begin near the row's
-    // midpoint, thousands of pixels short of the right edge.
+    // A control that begins near the row's midpoint sits thousands of pixels
+    // short of the right edge.
     expect(control.left, greaterThan(card.center.dx));
   });
 }

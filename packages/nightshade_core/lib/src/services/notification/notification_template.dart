@@ -58,10 +58,8 @@ class NotificationContext {
 
 /// Local wall-clock time as an operator reads it off a toast: `HH:mm`.
 ///
-/// WF-STOP-N5: the built-in notification bodies used to interpolate
-/// `${time.local}`, so the stop toast read "Sequence stopped by request at
-/// 2026-08-14T00:13:25.206940." — a wire format in operator copy. They now
-/// interpolate `${time.clock}` instead.
+/// The built-in notification bodies interpolate `${time.clock}`, not
+/// `${time.local}`, whose ISO-8601 rendering is a wire format in operator copy.
 ///
 /// This is deliberately NOT a new entry in `interpolationCatalog`: that catalog
 /// is Rust-canonical (`expressions/catalog.rs::variable_catalog`) with a

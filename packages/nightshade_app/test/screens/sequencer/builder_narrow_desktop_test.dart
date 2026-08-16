@@ -1,17 +1,17 @@
-// WD-SEQ-N2 / NEW-C1 — the builder at a small desktop window.
+// The builder at a small desktop window.
 //
-// Live at a 900x900 window the three-pane builder did not give way: the
-// properties pane kept its ~250px and the palette its ~200px while the CANVAS
-// — the pane holding the document — was squeezed to roughly 180px. At that
-// width the exposure node's inline editors broke to one control per line
-// (leaving a bare "x" alone on a row), "Total 3.0" was clipped mid-value,
-// "+ Add note" was sliced by the pane edge and the target rollup truncated to
-// "12 planne...". The rail fallback never fired because it only triggers below
-// palette + 300 + properties *collapsed*, which 900px clears easily.
+// At 900x900 an unyielding three-pane builder keeps the properties pane at
+// ~250px and the palette at ~200px while the CANVAS — the pane holding the
+// document — is squeezed to roughly 180px. At that width the exposure node's
+// inline editors break to one control per line (leaving a bare "x" alone on a
+// row), "Total 3.0" is clipped mid-value, "+ Add note" is sliced by the pane
+// edge and the target rollup truncates to "12 planne...". The rail fallback does
+// not fire, because it only triggers below palette + 300 + properties
+// *collapsed*, which 900px clears easily.
 //
-// NEW-C1 is the same window from the palette's side: its tab strip rendered
-// "\odes" and "Queu" — the outer labels clipped by a scrollable strip in a
-// viewport too small for it.
+// The same window from the palette's side clips its tab strip to "\odes" and
+// "Queu" — the outer labels cut by a scrollable strip in a viewport too small
+// for it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -56,9 +56,8 @@ void main() {
   testWidgets('a narrow builder collapses a side panel, not the canvas',
       (tester) async {
     // 700px of pane area is what a 900px WINDOW leaves once the nav rail and
-    // the shell chrome take their share — the live WD-SEQ-N2 repro. With both
-    // side panels at their minimums the canvas gets 700 - 220 - 270 = 210px,
-    // which is the ~180px squeeze the drive photographed.
+    // the shell chrome take their share. With both side panels at their
+    // minimums the canvas gets 700 - 220 - 270 = 210px, the ~180px squeeze.
     await pumpAppScreen(
       tester,
       const SequencerScreen(),
@@ -96,8 +95,8 @@ void main() {
     expect(find.text('Queue'), findsOneWidget);
   });
 
-  // WD-SEQ-N3 — the palette tabs switch panes on click, and the accessibility
-  // tree still published them as "Tab 1 of 3 [DISABLED]".
+  // The palette tabs switch panes on click, so the accessibility tree must not
+  // publish them as "Tab 1 of 3 [DISABLED]".
   testWidgets('the palette tabs announce themselves as enabled',
       (tester) async {
     final semantics = tester.ensureSemantics();
@@ -125,7 +124,7 @@ void main() {
 
   testWidgets('the palette tab labels are never clipped by their strip',
       (tester) async {
-    // 1000x900 is NEW-C1's exact repro width.
+    // 1000x900 is the width the strip clips its outer labels at.
     await pumpAppScreen(
       tester,
       const SequencerScreen(),

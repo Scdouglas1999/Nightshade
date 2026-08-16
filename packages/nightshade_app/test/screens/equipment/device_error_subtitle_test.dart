@@ -3,8 +3,8 @@
 // When the owning device is in `DeviceConnectionState.error` and a raw driver
 // message is available, the subtitle must surface a plain-language headline
 // drawn from the connection-troubleshooter knowledge base (NOT the raw string,
-// NOT the older PrettyError pretty-printer), while the FULL untouched raw
-// message remains reachable via the tooltip ("errors are a feature"). When the
+// NOT the PrettyError pretty-printer), while the FULL untouched raw message
+// remains reachable via the tooltip. When the
 // device is healthy it falls back to the descriptive "Main imaging camera"
 // blurb. A `Diagnose` affordance is offered only in the error state and only
 // when the parent wires an `onDiagnose` callback.
@@ -109,7 +109,7 @@ void main() {
         tooltip.message,
         raw,
         reason: 'The full untouched raw driver message must survive verbatim '
-            'in the tooltip — errors are a feature.',
+            'in the tooltip.',
       );
     });
 
@@ -201,8 +201,8 @@ void main() {
         'unknown driver error still surfaces a friendly headline with the raw '
         'text in the tooltip', (tester) async {
       // An error the classifier cannot confidently bucket must still produce a
-      // concrete headline (never a dead end) while the raw text survives in the
-      // tooltip — the "errors are a feature" guarantee.
+      // concrete headline rather than a dead end, with the raw text surviving
+      // in the tooltip.
       const raw = 'Touptek SDK: device not responding to ping';
       await tester.pumpWidget(_wrap(
         DeviceErrorSubtitle(

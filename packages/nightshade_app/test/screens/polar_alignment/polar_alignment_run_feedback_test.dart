@@ -1,15 +1,13 @@
 // What the Polar Alignment screen says about a run in progress.
 //
-// Live findings:
-//  * IMG-12 — Stop produced no change of any kind for the whole teardown, so a
-//    click that had in fact been accepted was indistinguishable from one that
-//    was dropped.
-//  * IMG-13 — the panel showed "Capturing Point 1" beside "Plate solving point
-//    1/3…" and kept both for the entire solve; the capture had finished long
-//    before, so one of the two lines was always false.
-//  * IMG-16 — a solid centre marker sat in the bullseye before any measurement
-//    and after a failure, reading as "your polar error is zero", while the
-//    numbers directly beneath it read "-- / -- / --".
+// Three ways it can lie:
+//  * Stop that produces no change of any kind for the whole teardown, so an
+//    accepted click is indistinguishable from a dropped one.
+//  * "Capturing Point 1" left beside "Plate solving point 1/3…" for the entire
+//    solve, long after the capture finished, so one of the two lines is false.
+//  * A solid centre marker in the bullseye before any measurement and after a
+//    failure, reading as "your polar error is zero" while the numbers directly
+//    beneath it read "-- / -- / --".
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -183,12 +181,11 @@ void main() {
     );
   });
 
-  // IMG-14(b), third strike. The refusal existed — the button was disabled and
-  // a Tooltip carried the reason — and the operator still got nothing: hover
-  // text is invisible to a click, the footer went on reading "Ready to start
-  // polar alignment", and the log gained no line. A tooltip assertion is not
-  // an assertion that anything is legible, so these pin the visible footer
-  // line and the published disabled state instead.
+  // A disabled button with a Tooltip carrying the reason still gives the
+  // operator nothing: hover text is invisible to a click, the footer goes on
+  // reading "Ready to start polar alignment", and the log gains no line. A
+  // tooltip assertion is not an assertion that anything is legible, so these
+  // pin the visible footer line and the published disabled state instead.
   testWidgets('a parked mount says so in the footer, not only on hover',
       (tester) async {
     final semantics = tester.ensureSemantics();

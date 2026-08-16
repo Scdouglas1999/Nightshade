@@ -6,14 +6,9 @@ extension _DeviceServiceImagingChainConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(cameraStateProvider.notifier);
 
-      // Skip the discovery precondition. We used to run a full
-      // `discoverDevices(camera)` sweep and reject any unknown id with
-      // "Camera not found: $id" — that made a reconnect of a known-good
-      // device fail whenever a discovery transient (USB blip, backend
-      // swap, ...) had blanked the cache. The backend's `connectDevice`
-      // is the only honest source of truth for "is this actually
-      // reachable?", so we keep the cheap structural format check here
-      // and let the backend report the real outcome.
+      // Structural format check only — discovery is not a precondition for
+      // connect. The backend's `connectDevice` decides reachability; see
+      // [InvalidDeviceIdException].
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('camera', deviceId);
       }

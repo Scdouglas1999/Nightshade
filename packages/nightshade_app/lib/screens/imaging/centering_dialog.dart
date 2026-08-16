@@ -81,10 +81,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   /// These mirror the headless centering endpoint (`POST /framing/center`,
   /// which validates `exposureTime` with `min: 0.01, max: 600`) so the same
   /// value is accepted or rejected whether centering is driven from this
-  /// dialog or over the headless API, and so nothing slips past that the
-  /// underlying `CenteringService` — which requires a finite, positive
-  /// `exposureTime` — would reject anyway. Do not invent tighter/looser limits
-  /// here without changing both call sites in lockstep.
+  /// dialog or over the headless API. Do not invent tighter/looser limits here
+  /// without changing both call sites in lockstep.
   static const double _minExposureSeconds = 0.01;
   static const double _maxExposureSeconds = 600.0;
 
@@ -197,8 +195,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 _buildHeader(theme, colors),
                 const SizedBox(height: 16),
 
-                // Plate-solver missing banner (W6-SOLVER-UX §6.1). Surfaced
-                // when `_startCentering` catches `SolverNotAvailableError`
+                // Plate-solver missing banner. Surfaced when
+                // `_startCentering` catches `SolverNotAvailableError`
                 // before kicking off the centering loop. The banner exposes
                 // a "Set up plate solver" CTA that go_routes to
                 // /settings/plate-solving — clicking it pops this dialog and
@@ -445,9 +443,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     try {
       await ref.read(centeringServiceProvider).stop();
     } catch (e) {
-      // Surface the failure rather than swallow it: per CLAUDE.md a silent
-      // abort failure could leave the mount slewing after the user thinks
-      // they aborted.
+      // Surface the failure rather than swallow it: a silent abort failure
+      // leaves the mount slewing after the user thinks they aborted.
       if (mounted) {
         context.showErrorSnackBar('Abort failed: $e');
       }

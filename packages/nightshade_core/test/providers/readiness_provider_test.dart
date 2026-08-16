@@ -17,14 +17,12 @@ import 'package:nightshade_core/src/providers/settings_provider.dart';
 import 'package:nightshade_core/src/database/daos/dark_library_dao.dart';
 import '../harness/in_memory_database.dart';
 
-// =============================================================================
 // Test doubles
 //
 // Each input provider is overridden so the readiness provider can be exercised
 // in isolation, without a Drift database or live device backends. The fake
 // notifiers simply seed `state`; readiness only reads connection state and
 // (for the focuser) the reported position.
-// =============================================================================
 
 /// Camera notifier seeded to a fixed snapshot. The production notifier reaches
 /// out to `DeviceService`; readiness only consumes `connectionState`.
@@ -495,11 +493,10 @@ void main() {
       expect(report.overall, ReadinessLevel.ready);
     });
 
-    // An empty profile produces an empty offline-device list, which used to
-    // read as "every assigned device is connected" — a GREEN row on a fresh
-    // install with the camera, mount and guider all disconnected. The rule
-    // needs the assignment SET, so this asserts the provider actually wires it
-    // through, not just that the model rule exists.
+    // An empty profile produces an empty offline-device list, which reads the
+    // same as "every assigned device is connected" unless the rule also sees
+    // the assignment SET. This asserts the provider wires that set through,
+    // not just that the model rule exists.
     test('profile with zero assigned devices -> profileDevices caution, not a '
         'vacuous all-connected pass', () async {
       final container = _container(

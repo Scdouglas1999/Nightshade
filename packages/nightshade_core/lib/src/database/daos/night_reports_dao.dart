@@ -15,11 +15,10 @@ import '../database.dart';
 /// `customSelect`/`customInsert`/`customUpdate` APIs — mirroring
 /// [IntegratedMastersDao]. It is deliberately NOT a `@DriftAccessor`.
 ///
-/// Per project policy this DAO never silently swallows failures: SQLite errors
-/// propagate, and reads map nullable columns to the model's well-defined
-/// nullable fields rather than guessing. The `findings_json` column round-trips
-/// through [NightReport.decodeFindings] / [NightReport.encodeFindings] so a
-/// corrupt blob degrades to an empty findings list rather than crashing a read.
+/// SQLite errors propagate; reads map nullable columns to the model's nullable
+/// fields. The `findings_json` column round-trips through
+/// [NightReport.decodeFindings] / [NightReport.encodeFindings], so a corrupt
+/// blob degrades to an empty findings list rather than crashing a read.
 class NightReportsDao {
   NightReportsDao(this._db);
 

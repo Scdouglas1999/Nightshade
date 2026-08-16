@@ -57,8 +57,8 @@ class AdaptiveInteractiveSkyView extends StatelessWidget {
   /// added here but missed there would be silently dropped.
   final planetarium_v1.SkyBackgroundLayer? backgroundLayer;
 
-  /// Retained for API compatibility with prior callers. No longer used: the
-  /// v1 widget owns its own pose.
+  /// Ignored: the v1 widget owns its own pose. Accepted only so existing
+  /// callers keep compiling.
   final bool syncViewPoseFromV1;
 
   @override

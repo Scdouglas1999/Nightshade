@@ -1,8 +1,6 @@
 part of '../planetarium_providers.dart';
 
-// ============================================================================
-// Sky View State Provider
-// ============================================================================
+// Sky view state provider
 
 class SkyViewNotifier extends StateNotifier<SkyViewState> {
   SkyViewNotifier()
@@ -17,12 +15,10 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
   /// Point the view at [home] (the zenith, from `skyViewHomeCenterProvider`)
   /// unless the user has already aimed it.
   ///
-  /// The constructor's RA 0h / Dec 0 is a fixed point on the celestial equator,
-  /// overhead at one instant a year on the equator and below the horizon most
-  /// of the time everywhere else — at 40N/105W the planetarium's first paint
-  /// was 25-45 deg INTO THE GROUND. The reset action was already fixed to use
-  /// the zenith; the initial pose was not, so this is where first paint adopts
-  /// the same home.
+  /// First paint adopts the same home the reset action uses. The constructor's
+  /// RA 0h / Dec 0 is a fixed point on the celestial equator — overhead at one
+  /// instant a year on the equator and below the horizon most of the time
+  /// everywhere else.
   void adoptHomeCenter((double raHours, double decDeg) home) {
     if (_userAimed) return;
     state = state.copyWith(
@@ -55,38 +51,38 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
   /// frames, carrying the aimed patch of sky across. No-op if already in
   /// [mode].
   ///
-  /// Changing frame is a change of GRID, not of target. This used to flip
-  /// [SkyViewState.viewMode] alone, and since the two frames keep independent
-  /// centers the horizontal one still held whatever the last reset left there —
-  /// (az 0, alt 90). So a chart framed on M57 at a 2-degree imaging field
-  /// jumped to the zenith the moment the user asked for a horizon-aligned grid,
-  /// with no way back but to re-find the target.
+  /// Changing frame is a change of GRID, not of target. The two frames keep
+  /// independent centers, so flipping [SkyViewState.viewMode] alone would drop
+  /// the chart onto whatever pose the inactive frame was left holding.
   ///
-  /// [observer] and [instant] are the site and time the conversion is made at;
-  /// they are required so no call site can flip the frame without them and
-  /// silently reintroduce the jump. A center below the horizon converts
-  /// faithfully to a negative altitude rather than being clamped up — the user
-  /// really was aimed at the ground.
+  /// [observer] and [instant] are the site and time the conversion is made at,
+  /// and are required so no call site can flip the frame without them. A center
+  /// below the horizon converts faithfully to a negative altitude rather than
+  /// being clamped up — the user really was aimed at the ground.
   void setViewMode(
     SkyViewMode mode, {
     required PlanetariumObserver observer,
     required DateTime instant,
   }) {
     if (state.viewMode == mode) return;
+    // The horizontal frame is defined by the observer's horizon, so the frames
+    // cannot be converted between until a site is on record.
+    final site = observer.site;
+    if (site == null) return;
     // The raw transform, not [AstronomyCalculations.objectAltAz]: the renderer
     // projects catalog J2000 positions with this same unprecessed transform, so
     // this is the camera's frame. Precessing here would slide the view ~22
     // arcmin off the stars it draws.
     final lst = AstronomyCalculations.localSiderealTime(
       instant,
-      observer.longitude,
+      site.longitude,
     );
 
     if (mode == SkyViewMode.horizontal) {
       final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
         raDeg: state.centerRA * 15,
         decDeg: state.centerDec,
-        latitudeDeg: observer.latitude,
+        latitudeDeg: site.latitude,
         lstHours: lst,
       );
       state = state.copyWith(
@@ -100,7 +96,7 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     final (raDeg, dec) = AstronomyCalculations.horizontalToEquatorial(
       altDeg: state.centerAltitude,
       azDeg: state.centerAz,
-      latitudeDeg: observer.latitude,
+      latitudeDeg: site.latitude,
       lstHours: lst,
     );
     state = state.copyWith(
@@ -296,17 +292,19 @@ final skyViewStateProvider =
       // that clock's periodic timer. "Now" is the right instant anyway — at
       // first build nothing has time-travelled yet, and the reset control (which
       // does watch the observation clock) covers the time-travelled case.
-      notifier.adoptHomeCenter(
-        skyViewHomeCenterAt(ref.read(observerLocationProvider), DateTime.now()),
+      final home = skyViewHomeCenterAt(
+        ref.read(observerLocationProvider),
+        DateTime.now(),
       );
+      if (home != null) notifier.adoptHomeCenter(home);
       // The observing site is pushed in from the app's settings sync, which can
-      // land after this notifier is built. Re-home on that first real site so
-      // the opening view is overhead at the USER's location, not at the
-      // Los Angeles default PlanetariumObserver starts from. Watching the site
-      // (not the home provider, which re-derives every minute) keeps an
-      // untouched view still rather than slowly tracking the zenith.
-      ref.listen<PlanetariumObserver>(observerLocationProvider, (_, site) {
-        notifier.adoptHomeCenter(skyViewHomeCenterAt(site, DateTime.now()));
+      // land after this notifier is built — until it does there is no zenith to
+      // home on. Watching the site (not the home provider, which re-derives
+      // every minute) keeps an untouched view still rather than slowly tracking
+      // the zenith.
+      ref.listen<PlanetariumObserver>(observerLocationProvider, (_, observer) {
+        final center = skyViewHomeCenterAt(observer, DateTime.now());
+        if (center != null) notifier.adoptHomeCenter(center);
       });
       return notifier;
     });
@@ -345,12 +343,13 @@ final flyToRequestProvider =
       return FlyToNotifier();
     });
 
-/// Computed provider for current view center in horizontal coordinates
-/// Returns (azimuth, altitude) in degrees
+/// Current view center in horizontal coordinates, as (azimuth, altitude) in
+/// degrees, or null when no site is on record and the equatorial center cannot
+/// be placed against a horizon.
+///
 /// Uses minute precision to avoid excessive rebuilds from per-second time updates.
-final viewCenterAltAzProvider = Provider<(double, double)>((ref) {
+final viewCenterAltAzProvider = Provider<(double, double)?>((ref) {
   final viewState = ref.watch(skyViewStateProvider);
-  final location = ref.watch(observerLocationProvider);
   final time = ref.watch(
     _currentMinuteProvider,
   ); // Use minute precision instead
@@ -360,13 +359,16 @@ final viewCenterAltAzProvider = Provider<(double, double)>((ref) {
     return (viewState.centerAz, viewState.centerAltitude);
   }
 
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return null;
+
   // Convert view center (RA/Dec) to Alt/Az
-  final lst = AstronomyCalculations.localSiderealTime(time, location.longitude);
+  final lst = AstronomyCalculations.localSiderealTime(time, site.longitude);
 
   final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
     raDeg: viewState.centerRA * 15, // Convert hours to degrees
     decDeg: viewState.centerDec,
-    latitudeDeg: location.latitude,
+    latitudeDeg: site.latitude,
     lstHours: lst,
   );
 
@@ -382,32 +384,15 @@ final viewCenterAltAzProvider = Provider<(double, double)>((ref) {
 /// [InteractiveSkyView] from its own LayoutBuilder; 1.0 until first layout.
 final skyViewAspectRatioProvider = StateProvider<double>((ref) => 1.0);
 
-/// The view center expressed in equatorial coordinates, whichever frame the
-/// view is actually in. Returns (raHours, decDegrees).
+/// Where the Home / reset-view control should point: the observer's zenith, as
+/// (raHours, decDegrees).
 ///
-/// Catalog lookups are indexed by RA/Dec, so every "what is in view" query must
-/// go through this rather than reading [SkyViewState.centerRA] / `centerDec`
-/// directly: in [SkyViewMode.horizontal] those two fields are the *preserved
-/// inactive* equatorial pose, not where the user is looking. Querying them in
-/// alt/az mode fetched an unrelated patch of sky, which is why the horizontal
-/// view rendered nearly starless while the constellation figures — drawn from
-/// the full catalog rather than from a viewport query — still covered the
-/// screen and appeared detached from their stars.
+/// The zenith is above the horizon by definition, which a fixed point such as
+/// RA 0h / Dec 0 is not.
 ///
-/// Minute precision (via [_currentMinuteProvider]) keeps the sky from
-/// re-querying on every clock tick; a minute of rotation is ~0.25 deg, far
-/// inside the query's margin.
-/// Where the Home / reset-view control should point: the observer's zenith.
-///
-/// Returns (raHours, decDegrees). Home used to be the fixed point RA 0h / Dec 0,
-/// which is only overhead at one instant a year on the equator — at the audited
-/// site and time it sat at altitude -14 deg, so the planetarium's own "reset"
-/// button aimed the map at the ground with nothing on screen saying so. The
-/// zenith is above the horizon by definition and is what "home" means to someone
-/// standing under the sky.
-///
-/// Minute precision, matching the rest of the sky clock.
-final skyViewHomeCenterProvider = Provider<(double raHours, double decDeg)>((
+/// Minute precision, matching the rest of the sky clock. Null with no site on
+/// record: the zenith is the point over the observer, and there is no observer.
+final skyViewHomeCenterProvider = Provider<(double raHours, double decDeg)?>((
   ref,
 ) {
   return skyViewHomeCenterAt(
@@ -416,38 +401,58 @@ final skyViewHomeCenterProvider = Provider<(double raHours, double decDeg)>((
   );
 });
 
-/// The zenith over [observer] at [time], as (raHours, decDegrees).
+/// The zenith over [observer] at [time], as (raHours, decDegrees), or null when
+/// [observer] has no site on record.
 ///
-/// Split out of [skyViewHomeCenterProvider] so the sky-view notifier can home
+/// Separate from [skyViewHomeCenterProvider] so the sky-view notifier can home
 /// itself from a site it has just been handed. Reading the provider from inside
 /// a listener on `observerLocationProvider` returns the value cached for the
 /// PREVIOUS site — dependents have not been refreshed yet at that point — which
-/// homed the view to the zenith of the old longitude.
-(double raHours, double decDeg) skyViewHomeCenterAt(
+/// homes the view to the zenith of the old longitude.
+(double raHours, double decDeg)? skyViewHomeCenterAt(
   PlanetariumObserver observer,
   DateTime time,
 ) {
-  final lst = AstronomyCalculations.localSiderealTime(time, observer.longitude);
+  final site = observer.site;
+  if (site == null) return null;
+  final lst = AstronomyCalculations.localSiderealTime(time, site.longitude);
   var ra = lst % 24;
   if (ra < 0) ra += 24;
   // The pole itself is a projection singularity, so stop just short of it.
-  return (ra, observer.latitude.clamp(-89.5, 89.5));
+  return (ra, site.latitude.clamp(-89.5, 89.5));
 }
 
+/// The view center expressed in equatorial coordinates, whichever frame the
+/// view is actually in. Returns (raHours, decDegrees).
+///
+/// Catalog lookups are indexed by RA/Dec, so every "what is in view" query must
+/// go through this rather than reading [SkyViewState.centerRA] / `centerDec`
+/// directly: in [SkyViewMode.horizontal] those two fields are the *preserved
+/// inactive* equatorial pose, not where the user is looking, and querying them
+/// there fetches an unrelated patch of sky.
+///
+/// Minute precision (via [_currentMinuteProvider]) keeps the sky from
+/// re-querying on every clock tick; a minute of rotation is ~0.25 deg, far
+/// inside the query's margin.
 final viewCenterEquatorialProvider = Provider<(double, double)>((ref) {
   final viewState = ref.watch(skyViewStateProvider);
   if (viewState.viewMode == SkyViewMode.equatorial) {
     return (viewState.centerRA, viewState.centerDec);
   }
 
-  final location = ref.watch(observerLocationProvider);
+  final site = ref.watch(observerLocationProvider).site;
+  // The horizontal pose cannot be inverted without a site. The preserved
+  // equatorial pose is then the only coordinate the view actually holds, and
+  // the frame cannot have been switched to horizontal without a site anyway.
+  if (site == null) return (viewState.centerRA, viewState.centerDec);
+
   final time = ref.watch(_currentMinuteProvider);
-  final lst = AstronomyCalculations.localSiderealTime(time, location.longitude);
+  final lst = AstronomyCalculations.localSiderealTime(time, site.longitude);
 
   final (raDeg, decDeg) = AstronomyCalculations.horizontalToEquatorial(
     altDeg: viewState.centerAltitude,
     azDeg: viewState.centerAz,
-    latitudeDeg: location.latitude,
+    latitudeDeg: site.latitude,
     lstHours: lst,
   );
   return (raDeg / 15.0, decDeg);

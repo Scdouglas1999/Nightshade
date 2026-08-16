@@ -128,7 +128,7 @@ extension _CalibrationLibrarySharing on CalibrationLibraryService {
     return newId;
   }
 
-  /// Whether a REMOTE candidate passes the WS1 quality gate for [ctx]. The gate
+  /// Whether a REMOTE candidate passes the quality gate for [ctx]. The gate
   /// FAILS CLOSED on the trust dimensions — a candidate is folded only when it
   /// is provably sensor-compatible, never when identity is merely unknown:
   ///  * a shareable license;

@@ -13,7 +13,7 @@ import 'package:nightshade_updater/src/services/update_downloader.dart';
 import 'package:nightshade_updater/src/services/update_service.dart';
 import 'package:nightshade_updater/src/services/update_verifier.dart';
 
-/// SEC-001: OTA must fail closed unless the staged update is cryptographically
+/// OTA fails closed unless the staged update is cryptographically
 /// authenticated to the vendor key. A correct SHA-256 against an
 /// attacker-supplied (self-referential) manifest is NOT sufficient.
 void main() {

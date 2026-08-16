@@ -19,9 +19,9 @@ import '../providers/settings_provider.dart' show LocationSettings;
 /// both read the observer's public IP and choose where the rig thinks it is.
 ///
 /// The second rule here is that an unusable answer is an error, never a
-/// coordinate. The old parser returned `0.0` for a missing `lat`/`lon`, so a
-/// rate-limited or rewritten reply silently produced Null Island: a real place
-/// in the Gulf of Guinea, where every target is up at the wrong time.
+/// coordinate. Defaulting a missing `lat`/`lon` to `0.0` puts the rig on Null
+/// Island — a real place in the Gulf of Guinea, where every target is up at
+/// the wrong time.
 class IpGeolocation {
   /// Free, no-key, TLS-only IP geolocation. Same shape of service as the
   /// cleartext one it replaces (`latitude` / `longitude` / `success`).

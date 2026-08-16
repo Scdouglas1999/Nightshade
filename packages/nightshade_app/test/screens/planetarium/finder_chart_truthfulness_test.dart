@@ -1,12 +1,11 @@
-// Regression: an exported finder chart must describe the sky it actually shows.
+// An exported finder chart must describe the sky it actually shows.
 //
-// Observed live: with HIP42327 selected and the view panned to RA 0h / Dec 0 at
-// 1.5 deg FOV, "Export finder chart" wrote a PDF titled
-// "Finder Chart: HIP42327" whose footer read "Center: 0h 0m 0.0s +0d 0' 0"" —
-// the view centre, 8h37m of RA and 19 deg of Dec from the named object, which
-// appeared nowhere on the chart. The same footer claimed "Mag limit: 12.0" over
-// a chart holding about six stars, from a hard-coded
-// `fieldOfView < 10 ? 12.0 : 6.0` that never consulted the plotted data.
+// With HIP42327 selected and the view panned to RA 0h / Dec 0 at 1.5 deg FOV,
+// "Export finder chart" writes a PDF titled "Finder Chart: HIP42327" whose
+// footer reads "Center: 0h 0m 0.0s +0d 0' 0"" — the view centre, 8h37m of RA and
+// 19 deg of Dec from the named object, which appears nowhere on the chart. A
+// hard-coded `fieldOfView < 10 ? 12.0 : 6.0` likewise claims "Mag limit: 12.0"
+// over a chart holding about six stars, without consulting the plotted data.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/planetarium/providers/finder_chart_catalog_provider.dart';
 import 'package:nightshade_app/services/finder_chart_service.dart';
@@ -127,8 +126,8 @@ void main() {
     });
 
     test('a sparse chart does not claim mag 12', () {
-      // The audited case: 1.5 deg FOV (the old formula's "< 10" branch, which
-      // printed 12.0) over a field the loaded catalogs only fill to ~mag 8.
+      // A 1.5 deg FOV over a field the loaded catalogs only fill to ~mag 8: a
+      // field-of-view formula would print 12.0 here.
       final faintest = FinderChartService.faintestPlottedMagnitude(
         stars: [_star('a', 6.4), _star('b', 8.0)],
         dsos: const [],

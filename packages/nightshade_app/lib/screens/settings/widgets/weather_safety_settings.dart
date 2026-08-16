@@ -157,7 +157,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
               trailing: SettingsSwitch(
                 // One logical setting, two stores: writing it here also writes
                 // the Sequencer "Park on unsafe weather" policy, so the two
-                // pages can no longer disagree about whether auto-park is on.
+                // pages cannot disagree about whether auto-park is on.
                 value: settings.autoParkEnabled && parkPolicyEnabled,
                 onChanged: (value) => ref
                     .read(weatherSettingsActionsProvider)

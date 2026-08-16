@@ -61,11 +61,9 @@ class SmartNightDarkLibraryCoverage {
     // cooled to, or they don't calibrate. The lights' setpoint is whatever
     // the Smart Night CoolCamera node uses, which is
     // `settings.coolDownTargetC` (see sequence_emitter.dart CoolCameraNode).
-    // The old code used `profile.defaultCoolingTemp ?? settings.coolDownTargetC`,
-    // which diverged whenever the profile carried a default cooling temp the
-    // wizard's cool-down setpoint didn't match (the wizard does not seed
-    // coolDownTargetC from the profile), producing darks at a temperature
-    // bucket the lights never used.
+    // Not `profile.defaultCoolingTemp`: the wizard does not seed
+    // coolDownTargetC from the profile, so a profile default that differs puts
+    // the darks in a temperature bucket the lights never used.
     final targetTemp = settings.coolDownTargetC;
     final requirements = filters.map((filter) {
       final recommendation = exposureContext.recommendForFilter(filter);
@@ -127,16 +125,13 @@ class SmartNightDarkLibraryMissing {
 /// end-of-night panel flats, sourced from the ADU-targeted flat-calibration
 /// history.
 ///
-/// Smart Night used to emit flats at a hardcoded panel brightness (128) and a
-/// blind 3-second exposure with NO ADU targeting — flats taken that way do not
-/// reliably land near half-well and therefore do not calibrate the lights. The
-/// real ADU-converged exposures already live in the `flat_history` table: each
-/// row records the exposure that achieved a target histogram percentage
-/// (`histogramTarget`) and the panel brightness that produced it (the Flat
-/// Wizard's binary-search solver writes these). This helper reads the most
-/// recent calibration per filter so the auto-builder can emit the SAME
-/// exposure + brightness that previously hit the ADU target — instead of a
-/// blind guess.
+/// The ADU-converged exposures live in the `flat_history` table: each row
+/// records the exposure that achieved a target histogram percentage
+/// (`histogramTarget`) and the panel brightness that produced it, written by
+/// the Flat Wizard's binary-search solver. This helper reads the most recent
+/// calibration per filter so the auto-builder emits an exposure that hit the
+/// ADU target; a blind exposure does not reliably land near half-well and so
+/// does not calibrate the lights.
 ///
 /// Filters with NO prior calibration are returned in [SmartNightFlatPlan.uncalibratedFilters]
 /// so the builder can surface a loud "calibrate this filter once" reminder

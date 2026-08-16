@@ -22,9 +22,9 @@ class StackAndShareConfig {
   /// (`apiAutoStretchImage`) — the only stretch the engine can apply to an
   /// in-memory u16 buffer. There is deliberately no stretch-*method* knob: the
   /// method-aware path (`apiApplyStretch`) operates on a FITS file on disk, not
-  /// the in-memory result, so offering five methods that all silently produced
-  /// the same STF output would be exactly the "silent fallback" project policy
-  /// forbids. The result viewer honours the same honest STF/Linear-only model.
+  /// the in-memory result, so a method picker here would offer five choices
+  /// that all produced the same STF output. The result viewer offers the same
+  /// STF/Linear-only pair.
   final bool autoStretch;
 
   /// Minimum per-frame quality score required for a frame to be included in the
@@ -40,17 +40,11 @@ class StackAndShareConfig {
   ///
   /// This is the Stack-and-Share-level OSC knob; it is folded into the
   /// underlying [LiveStackingConfig.sensorMode] by [resolvedStackingConfig].
-  /// Unlike the live engine (which defaults to `"mono"` to preserve historic
-  /// single-channel behaviour byte-for-byte), the Stack-and-Share path defaults
-  /// to `"auto"` so a colour camera's frames are debayered when they actually
-  /// carry Bayer geometry without the user having to opt in.
-  ///
-  /// - `auto` — debayer only when the frame carries Bayer geometry (or
-  ///   [bayerPatternOverride] is supplied); otherwise treat as mono.
-  /// - `mono` — frames are single-channel luminance; never debayered.
-  /// - `osc` — frames are a Bayer CFA mosaic that *must* be debayered to RGB;
-  ///   an unresolvable pattern is a hard error native-side (no silent
-  ///   mono-fallback that would scramble the colour mosaic).
+  /// Unlike the live engine, which defaults to `"mono"`, this path defaults to
+  /// `"auto"` so a colour camera's frames are debayered when they carry Bayer
+  /// geometry without the user having to opt in. The three cases are defined
+  /// on `ApiLiveStackingConfig.sensorMode`
+  /// (nightshade_bridge/lib/src/api/imaging.dart).
   final String sensorMode;
 
   /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`), or

@@ -1,25 +1,23 @@
-// SEQ-18, sixth look — the tally against the WIRE shape, not a convenient one.
+// The tally against the WIRE shape, not a convenient one.
 //
-// The fifth-look pin fed `detail_json` as a Dart `Map`. Nothing in production
-// ever sends that. The native side stringifies the payload:
+// `detail_json` crosses as a JSON String, never as a Dart `Map`: the native
+// side stringifies the payload —
 //
 //   node/instructions/expose.rs        ProgressDetail::Exposure { frame, total, .. }
 //   api/sequencer/event_translation.rs `payload.to_string()`  -> a JSON String
 //   event/sequencer.rs:118             `detail_json: String`
 //   ffi_backend/event_mapping.dart:534 'detail_json': sequencerEvent.detailJson
 //
-// so every consumer decodes it first (event_operations.dart's
-// `decodeStructuredProgressJson`). The tally did not, read `{}` out of the
-// String, and counted nothing — which is why the card fell back to the old
-// string parse on a real host.
+// — so every consumer must decode it first (event_operations.dart's
+// `decodeStructuredProgressJson`). A consumer that reads it as a Map sees `{}`
+// and counts nothing.
 //
-// The second half of this file is the boundary the id-less fallback got wrong:
-// `ExposureCompleted` carries no node id on the wire (event_mapping.dart's
-// ExposureCompleted case has frame/total/duration only), and the waveF log has
-// `NodeStarted` for node 2 emitted BEFORE node 1's last frame. Attributing an
-// id-less event to "the run's current node" therefore credits node 2 with
-// node 1's frame — join-by-position, with the node id sitting right there in
-// the structured event.
+// The second half of this file pins the id-less boundary: `ExposureCompleted`
+// carries no node id on the wire (event_mapping.dart's ExposureCompleted case
+// has frame/total/duration only), and `NodeStarted` for the next node can be
+// emitted BEFORE the previous node's last frame. Attributing an id-less event
+// to "the run's current node" therefore credits the wrong node — a join by
+// position, with the node id available in the structured event.
 
 import 'dart:convert';
 

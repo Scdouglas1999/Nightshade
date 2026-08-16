@@ -229,8 +229,9 @@ void main() {
 
       expect(container.read(liveStackingProvider).config.bayerPattern, 'BGGR');
 
-      // Switch back to automatic detection. This used to be a no-op because
-      // LiveStackingConfig.copyWith(bayerPattern: null) meant "keep old".
+      // Switch back to automatic detection.
+      // `LiveStackingConfig.copyWith(bayerPattern: null)` means "keep current",
+      // so clearing has to go through a path that is not copyWith.
       await tester.tap(find.text('BGGR'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Auto (detected: RGGB)').last);

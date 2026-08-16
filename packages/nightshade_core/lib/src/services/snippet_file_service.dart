@@ -52,9 +52,8 @@ class SnippetImportIssue {
 }
 
 /// Thrown by [SnippetFileService.importSnippet] when the file cannot be
-/// loaded. Carries the full issue list so the UI can render every
-/// problem at once — matching the loud-error pattern of the sequence
-/// importer (audit-arch §errors are a feature).
+/// loaded. Carries the full issue list so the UI can render every problem at
+/// once, like the sequence importer.
 class SnippetImportException implements Exception {
   SnippetImportException(this.issues) : assert(issues.isNotEmpty);
 
@@ -273,9 +272,7 @@ class SnippetFileService {
     return _bodyToSnippet(migrated);
   }
 
-  // ---------------------------------------------------------------------------
   // Internals
-  // ---------------------------------------------------------------------------
 
   /// Build the "body" — everything that goes into the checksum — for
   /// [snippet]. Excludes the checksum field itself so encoding and

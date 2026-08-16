@@ -17,19 +17,9 @@ enum PhoneModalMode {
 /// Shows a modal that is a centered, viewport-capped **dialog** on tablet and
 /// desktop but becomes a **bottom sheet or full-screen route** on a phone.
 ///
-/// This is the adaptive replacement for `showDialog` for any modal that would
-/// otherwise be a fixed desktop-sized dialog on a phone. On tablet/desktop it
-/// reuses [AdaptiveDialogConstraints] so the dialog never overflows a narrow
-/// window.
-///
-/// ```dart
-/// final result = await showAdaptiveModal<bool>(
-///   context: context,
-///   designWidth: 720,
-///   designHeight: 560,
-///   builder: (context) => MyModalBody(),
-/// );
-/// ```
+/// The adaptive replacement for `showDialog` for any modal that would otherwise
+/// be a fixed desktop-sized dialog on a phone. On tablet/desktop it reuses
+/// [AdaptiveDialogConstraints] so the dialog never overflows a narrow window.
 ///
 /// [phoneMode] picks the phone presentation. [isDismissible] / [barrierLabel]
 /// behave as in `showDialog` / `showModalBottomSheet`.

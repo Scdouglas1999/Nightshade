@@ -1,12 +1,10 @@
-// Regression (SKY-16): the planetarium command bar must not tell a desktop
-// user to "tap".
+// The planetarium command bar must not tell a desktop user to "tap".
 //
-// Live evidence from the desktop build, driven with a mouse: the coordinate
-// mode toggle's tooltip read `Equatorial view — tap for Alt/Az`. Every other
-// control in the app either says "click" or names the action; this one named a
-// gesture the platform it was rendered on does not have. The fix names the
-// action instead of any gesture, which is also the only wording that is true
-// for a screen-reader user driving the bar from the keyboard.
+// A coordinate-mode tooltip reading `Equatorial view — tap for Alt/Az` names a
+// gesture the platform it is rendered on does not have, while every other
+// control in the app either says "click" or names the action. Naming the action
+// instead of any gesture is also the only wording that is true for a
+// screen-reader user driving the bar from the keyboard.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/planetarium/widgets/redesign/command_bar.dart';

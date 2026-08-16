@@ -1,8 +1,7 @@
-// Regression: About > System Information listed Platform / OS Version / Dart
-// Version and nothing else — not the build number, not where the data lives,
-// not what schema it is on, and there was no way to hand any of it to a bug
-// report except by retyping it. Every fact a support conversation opens with is
-// now in the block, and the block copies in one action.
+// About > System Information carries every fact a support conversation opens
+// with — build number, where the data lives, what schema it is on, not just
+// Platform / OS Version / Dart Version — and the block copies in one action, so
+// none of it has to be retyped into a bug report.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

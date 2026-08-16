@@ -1,5 +1,3 @@
-// Part of ../sub_cull_rail.dart -- extracted for maintainability.
-//
 // Thumbnail cache providers, thumbnail widgets, accept toggle and blink view.
 part of '../sub_cull_rail.dart';
 

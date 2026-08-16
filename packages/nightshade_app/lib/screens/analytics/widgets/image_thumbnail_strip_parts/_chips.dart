@@ -1,5 +1,3 @@
-// Part of ../image_thumbnail_strip.dart -- extracted for maintainability.
-//
 // Summary chips, quality-filter chips, science badges and detail rows.
 part of '../image_thumbnail_strip.dart';
 

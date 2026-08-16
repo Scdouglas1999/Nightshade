@@ -11,7 +11,6 @@
 /// `flutter analyze`-clean slice. When generate next runs these can be promoted
 /// to drift tables without a data migration, because the row layout is fixed.
 ///
-/// ---------------------------------------------------------------------------
 /// `integrated_masters` — one row per archival integrated master.
 ///
 /// A master is either a one-shot batch integration (status `finalized`,
@@ -44,7 +43,6 @@
 ///
 /// Indexes: target_id, status, created_at.
 ///
-/// ---------------------------------------------------------------------------
 /// `integrated_master_frames` — join table: which captured subs are folded into
 /// which master. Enforces dedup so a sub is never double-counted across runs.
 ///
@@ -61,7 +59,6 @@
 ///
 /// Indexes: master_id, image_id.
 ///
-/// ---------------------------------------------------------------------------
 /// `flat_library` — master-flat artifact library, mirroring `dark_library`.
 ///
 /// This is the missing master-flat counterpart to `dark_library`. (Note
@@ -88,7 +85,6 @@
 ///
 /// Indexes: filter, equipment_profile_id, (filter, gain, bin_x, bin_y).
 ///
-/// ---------------------------------------------------------------------------
 /// v42 (Smart Morning Report / "Night Doctor"): the `night_reports` table plus
 /// additive columns on `integrated_masters` and `integrated_master_frames`.
 ///

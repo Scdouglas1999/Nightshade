@@ -115,9 +115,9 @@ class HeadlessApiServer {
 
   /// Extra browser/origin values allowed to issue cross-origin requests
   /// (beyond same-origin to the bound host:port). Pass as e.g.
-  /// `['http://192.168.1.50:3000']`. Why explicit list: the previous policy
-  /// reflected any origin matching host:port, which let any local-loopback
-  /// app bypass CORS. See §2.27 in 2026-05-09-v250-audit-fixes.md.
+  /// `['http://192.168.1.50:3000']`. An explicit list, never origin
+  /// reflection: reflecting any origin matching host:port would let any
+  /// local-loopback app bypass CORS.
   final List<String> corsAllowedOrigins;
 
   /// when true, every successful `POST /api/pairing/start` prints the
@@ -159,9 +159,9 @@ class HeadlessApiServer {
   final SecurityContext? tlsContext;
 
   /// when TLS is active, the SHA-256 hex digest of the certificate's
-  /// SubjectPublicKeyInfo DER. Used to overwrite the token-derived
-  /// fingerprint with a cert-pinned identity anchor. Plain HTTP mode leaves
-  /// this null and falls back to the token-derived fingerprint.
+  /// SubjectPublicKeyInfo DER. It overrides the token-derived fingerprint with
+  /// a cert-pinned identity anchor. Plain HTTP mode leaves this null and falls
+  /// back to the token-derived fingerprint.
   final String? tlsPublicKeyFingerprint;
 
   /// capacity of the in-memory ring buffer that backs WS replay on
@@ -223,33 +223,30 @@ class HeadlessApiServer {
   late final AuthCookieManager _authCookieManager;
   late final PairingAttemptTracker _pairingAttempts;
   PairingService? _pairingService;
-  // Tokens minted by completed pairing flows and their scopes. Why separate
-  // from the configured token table: pairing tokens live in PairingDatabase
+  // Tokens minted by completed pairing flows and their scopes. Separate from
+  // the configured token table because pairing tokens live in PairingDatabase
   // (Drift) and must not mutate the immutable configured-token map.
   //
-  // this map is now hydrated from `PairedDevices` at [start()] so
-  // server restarts no longer evict already-paired clients.
-  // entries are evicted synchronously by [_evictPairedSessionToken]
-  // when the TokenManager surfaces a revoke / expiry event.
+  // Hydrated from `PairedDevices` at [start()] so a restart does not evict
+  // paired clients. Entries are evicted synchronously by
+  // [_evictPairedSessionToken] when the TokenManager surfaces a revoke or
+  // expiry event.
   //
-  // HTTP-002: bounded with LRU-on-write eviction so a pairing flood (or a very
-  // long-lived appliance) cannot grow it without bound — every authenticated
-  // request linearly scans this map in [_scopeForToken], and the pairing mint
-  // routes are now rate-limited (see `_rateLimitedPairingPaths`) but the cap is
-  // the hard backstop. The ceiling is far above any realistic paired-device
-  // count, so legitimate devices are never evicted in practice.
+  // Bounded with LRU-on-write eviction so a pairing flood, or a very
+  // long-lived appliance, cannot grow it without bound — every authenticated
+  // request linearly scans this map in [_scopeForToken]. The mint routes are
+  // rate-limited (see `_rateLimitedPairingPaths`); the cap is the backstop,
+  // and its ceiling is far above any realistic paired-device count.
   final BoundedTokenGrantMap _pairedSessionTokens = BoundedTokenGrantMap();
 
   /// When each paired session token last had its device row stamped as seen.
   ///
-  /// `paired_devices.last_connected_at` was written by exactly nothing in
-  /// production: the only writer, `TokenManager.verifySessionToken`, had no
-  /// caller, because the middleware authenticates against the in-memory
-  /// [_pairedSessionTokens] map instead. Every phone therefore reported
-  /// "Not seen yet / No connection recorded yet" on the Paired Devices screen
-  /// while it was actively driving the rig. This map throttles the write to at
-  /// most one per token per [_lastConnectedThrottle] so an actively polling
-  /// client does not issue an UPDATE per request.
+  /// The middleware authenticates against the in-memory [_pairedSessionTokens]
+  /// map, so `TokenManager.verifySessionToken` — the only other writer of
+  /// `paired_devices.last_connected_at` — never runs. This map carries the
+  /// stamp instead, throttled to at most one write per token per
+  /// [_lastConnectedThrottle] so an actively polling client does not issue an
+  /// UPDATE per request.
   final Map<String, DateTime> _pairedDeviceSeenStamps = <String, DateTime>{};
   static const Duration _lastConnectedThrottle = Duration(minutes: 1);
 
@@ -296,7 +293,7 @@ class HeadlessApiServer {
   /// the worst-case age bounded without busy-looping.
   Timer? _jobSweepTimer;
 
-  /// Collaborative Sky WS2 — unattended driver that auto-completes a
+  /// Unattended driver that auto-completes a Collaborative Sky
   /// collaborative mosaic (owner: assemble + publish; participant: pull the
   /// finished mosaic) so a multi-rig collaborative night finishes with nobody
   /// watching. Started in [_startServer], stopped in [_stopServer].
@@ -351,7 +348,7 @@ class HeadlessApiServer {
   late final SequenceManagementHandlers _sequenceManagementHandlers;
   late final FlatWizardHandlers _flatWizardHandlers;
   late final MosaicHandlers _mosaicHandlers;
-  // Collaborative Sky WS3 — unattended-rig live co-imaging participation.
+  // Unattended-rig live co-imaging participation.
   late final CoImagingHandlers _coImagingHandlers;
   late final AnalyticsHandlers _analyticsHandlers;
   late final WeatherHandlers _weatherHandlers;
@@ -593,7 +590,6 @@ class HeadlessApiServer {
     _initializeHandlers();
   }
 
-  // ===========================================================================
   // Core Handlers (moved to handlers/system_handlers.dart)
   //
   // The four read-only system endpoints (/api/info, /api/status,
@@ -603,7 +599,6 @@ class HeadlessApiServer {
   // The closure-based [SystemServerView] passed at construction time
   // keeps the snapshot live (every getter is called per request) so
   // the JSON envelope matches the inline implementation exactly.
-  // ===========================================================================
 
   /// Sorted, deduplicated list of scope names present in the configured
   /// + paired token tables. Captured into [SystemServerView] so the
@@ -624,15 +619,13 @@ class HeadlessApiServer {
   // path, the desktop GUI, and the HTTP surface still observe the same
   // in-memory state.
 
-  // ===========================================================================
-  // Pairing flow (§2.1) — first-run dashboard onboarding.
+  // Pairing flow — first-run dashboard onboarding.
   //
   // The desktop console prints the 6-digit code; the dashboard user retypes it
   // into the Pair sheet. Verifying the code mints a long-lived bearer token
   // that the dashboard then uses for all authenticated calls. The code itself
   // is never returned in the HTTP response body so a network observer (or a
   // logging proxy) cannot harvest it without console access.
-  // ===========================================================================
 
   /// Returns the [PairingService], lazily constructing one on first use.
   /// Why lazy: the constructor cannot await a [PairingDatabase] open, but the
@@ -681,12 +674,9 @@ class HeadlessApiServer {
   // [DeviceDiscoveryHandlers] (handlers/device_discovery_handlers.dart) so the
   // headless server class is not the home of read-only discovery logic.
   //
-  // /api/devices/connect and /api/devices/disconnect were moved to
-  // [DeviceHandlers.handleConnectDevice] / [DeviceHandlers.handleDisconnectDevice].
-  // The previous in-line implementations bypassed
-  // `DeviceService.connect<Type>`, skipping the per-device-type connect
-  // flow (StateNotifier updates, temperature polling, cool-on-connect,
-  // recommended-gain auto-apply, filter-name sync, heartbeat monitoring).
+  // /api/devices/connect and /api/devices/disconnect live in
+  // [DeviceHandlers.handleConnectDevice] /
+  // [DeviceHandlers.handleDisconnectDevice].
 
   // Dashboard + Run-Watch static-file serving was moved to
   // [StaticFileHandlers] (handlers/static_file_handlers.dart). The handlers
@@ -916,11 +906,10 @@ class _RequestBodyLimitResult {
 /// [HeadlessTokenScope] that evicts the least-recently-written entry once it
 /// exceeds [maxEntries].
 ///
-/// HTTP-002: pairing / one-tap LAN claim mint long-lived session tokens into
-/// this map, and [HeadlessApiServer._scopeForToken] scans it in constant time
-/// on every authenticated request that isn't a configured static token. Without
-/// a ceiling a LAN flood (or a multi-year appliance) could grow it without
-/// bound. Re-writing an existing key refreshes its recency (remove-then-insert)
+/// Pairing and one-tap LAN claim mint long-lived session tokens into this map,
+/// and [HeadlessApiServer._scopeForToken] scans it in constant time on every
+/// authenticated request that isn't a configured static token. Without a
+/// ceiling a LAN flood (or a multi-year appliance) grows it without bound. Re-writing an existing key refreshes its recency (remove-then-insert)
 /// so an actively re-paired token survives eviction longest; otherwise the
 /// oldest entry is dropped. [maxEntries] defaults far above any realistic
 /// paired-device count, so it is a backstop rather than a routine eviction

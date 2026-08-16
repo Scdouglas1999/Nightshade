@@ -98,7 +98,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
   // 30s tick refreshes the "Last scan: N seconds ago" label. Suspended when
-  // the app is backgrounded so a hidden equipment tab doesn't tick (§4.33).
+  // the app is backgrounded so a hidden equipment tab doesn't tick.
   Timer? _lastScanTimer;
 
   @override
@@ -231,7 +231,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         context.showSuccessSnackBar('Equipment rescan complete');
       }
     } catch (e) {
-      // Surface failures loudly — errors are a feature.
+      // A failed rescan must say so: silence here is indistinguishable from a
+      // scan that ran and found nothing.
       if (_isCurrentOperation(generation, authority, rescanning: true)) {
         messenger?.showSnackBar(
           SnackBar(content: Text('Rescan failed: $e')),
@@ -638,12 +639,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     IconData icon,
     List<UnifiedDevice> devices,
   ) {
-    // Zero-result classes get the SAME chrome as every other class. They used
-    // to collapse to one italic "No switches found" line: no count, no clue
-    // which backends had been asked, and no route to adding one — while the
-    // log recorded "Discovery complete for Switch: 0 devices, 0 backend
-    // errors". The section that says nothing was found is exactly where the
-    // reason for that belongs.
+    // Zero-result classes get the SAME chrome as every other class: the count,
+    // which backends were asked, and a route to adding one. The section that
+    // says nothing was found is exactly where the reason for that belongs.
     final isEmpty = devices.isEmpty;
 
     return Container(

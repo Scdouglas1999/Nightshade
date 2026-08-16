@@ -12,7 +12,7 @@ import 'package:nightshade_core/src/services/scheduler/sky_calculations.dart';
 /// consolidation must not make: a scheduler that ranks targets a hair
 /// differently than the goldens it is pinned to.
 void main() {
-  // --- The retired copies, transcribed byte-for-byte ----------------------
+  // The retired copies, transcribed byte-for-byte
 
   /// `scheduler_service.dart:140` and `night_analysis_service.dart:1039` and
   /// the inline block in `scheduler_engine/astronomy_helpers.dart:_moonPosition`
@@ -167,7 +167,7 @@ void main() {
     return (alt * 180.0 / math.pi, az * 180.0 / math.pi);
   }
 
-  // --- Sample instants ----------------------------------------------------
+  // Sample instants
   //
   // Chosen to walk every branch the calendar arithmetic has: the January /
   // February month rollback, leap day, the century-and-400-year Gregorian

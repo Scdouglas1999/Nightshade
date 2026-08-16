@@ -71,8 +71,8 @@ void main() {
 
         final s = notifier.forDevice('mount-1');
         expect(s.health, HeartbeatHealth.degraded);
-        // Errors are a feature here: the actual failure count must
-        // be in the reason text so the tooltip surfaces it.
+        // The actual failure count must be in the reason text, because the
+        // tooltip is where the operator reads it.
         expect(s.reason, contains('3'));
         expect(s.reason, contains('consecutive heartbeat'));
         expect(s.reason, contains('450ms'));

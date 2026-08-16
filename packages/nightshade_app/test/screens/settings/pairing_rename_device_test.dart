@@ -1,11 +1,11 @@
-// Regression: the Paired Devices list is a stack of rows the operator cannot
-// tell apart. Every phone pairs under a fixed per-platform name ("Android
-// companion" — apps/mobile/lib/services/mobile_pairing_service.dart), so a
-// household with three handsets gets three byte-identical rows and revoking the
-// phone that was sold is guesswork. The host owns the name column, so the host
-// is where that is settled: these tests drive the real notifier against a real
-// in-memory pairing database, so a rename that only repaints (and never reaches
-// the row that survives a restart) fails here.
+// The Paired Devices list must be a list the operator can tell apart. Every
+// phone pairs under a fixed per-platform name ("Android companion" —
+// apps/mobile/lib/services/mobile_pairing_service.dart), so a household with
+// three handsets gets three byte-identical rows and revoking the phone that was
+// sold is guesswork. The host owns the name column, so the host is where that is
+// settled: these tests drive the real notifier against a real in-memory pairing
+// database, so a rename that only repaints — and never reaches the row that
+// survives a restart — fails here.
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

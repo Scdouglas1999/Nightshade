@@ -68,7 +68,6 @@ class MobilePreferences {
   Future<void> setPreferWebRtcLiveView(bool value) =>
       _prefs.setBool(_kPreferWebRtcLiveView, value);
 
-  // ---------------------------------------------------------------------------
   // Notification category toggles
   //
   // Each toggle gates a specific notification channel emitted by the mobile-
@@ -76,7 +75,6 @@ class MobilePreferences {
   // power services. Defaults are intentionally ON: an astrophotographer who
   // installs the companion app does so to be paged during failures, so the
   // burden of proof for muting is on the user, not the app.
-  // ---------------------------------------------------------------------------
 
   bool get notifySequence => _prefs.getBool(_kNotifySequence) ?? true;
   Future<void> setNotifySequence(bool value) =>
@@ -124,7 +122,6 @@ class MobilePreferences {
   Future<void> setNotifyBattery(bool value) =>
       _prefs.setBool(_kNotifyBattery, value);
 
-  // ---------------------------------------------------------------------------
   // First-run setup latch
   //
   // Set to true once the user finishes (or explicitly skips) the first-run
@@ -132,7 +129,6 @@ class MobilePreferences {
   // other surface. The flag is intentionally per-device (not synced to the
   // server) because the wizard exists to bridge new-mobile→fresh-server,
   // not new-mobile→already-configured-server.
-  // ---------------------------------------------------------------------------
 
   bool get firstRunCompleted => _prefs.getBool(_kFirstRunCompleted) ?? false;
   Future<void> setFirstRunCompleted(bool value) =>

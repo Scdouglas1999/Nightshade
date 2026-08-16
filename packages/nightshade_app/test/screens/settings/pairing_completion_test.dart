@@ -1,9 +1,9 @@
-// Regression: after a device consumed the pairing code the desktop kept
-// showing it counting down, and the paired-device list stayed a manual refresh
-// behind. Live: POST /api/pairing/verify returned 200, the server destroyed the
-// code (a second verify returned invalid_pairing_code) and paired_devices went
-// 13 -> 14, while the screen still read "Enter this code on your device: ... /
-// Expires in 04:18" a minute later and rendered 13 rows.
+// Once a device consumes the pairing code, the desktop must stop showing it
+// counting down and the paired-device list must not stay a manual refresh
+// behind. POST /api/pairing/verify returns 200, the server destroys the code (a
+// second verify returns invalid_pairing_code) and paired_devices goes 13 -> 14,
+// so a screen still reading "Enter this code on your device: ... / Expires in
+// 04:18" over 13 rows is stale.
 //
 // The HTTP pairing endpoint runs against the same database FILE from its own
 // PairingDatabase instance, so there is no Drift stream to listen to; the

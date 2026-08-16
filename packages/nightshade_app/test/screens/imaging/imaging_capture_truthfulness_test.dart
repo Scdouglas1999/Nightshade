@@ -69,10 +69,9 @@ class _PreviewHost extends ConsumerWidget {
 
 /// Fails if [finder]'s widget is present but painted invisible.
 ///
-/// Presence alone is not enough for this regression: the idle-hide the audit
-/// found wrapped these overlays in an `AnimatedOpacity(opacity: 0)`, so the
-/// widgets stayed in the tree and any `findsOneWidget` assertion passed while
-/// the operator saw nothing.
+/// Presence alone is not enough: an idle-hide that wraps these overlays in an
+/// `AnimatedOpacity(opacity: 0)` keeps the widgets in the tree, so any
+/// `findsOneWidget` assertion passes while the operator sees nothing.
 void expectVisible(WidgetTester tester, Finder finder, String label) {
   expect(finder, findsOneWidget, reason: '$label must be in the tree');
   final faded = <String>[];
@@ -114,7 +113,7 @@ void main() {
     expectVisible(tester, find.byType(HistogramWidget), 'histogram');
     expectVisible(tester, find.byType(ImageStatsOverlay), 'image stats');
 
-    // Well past the old 2.5 s idle-hide delay.
+    // Well past any plausible idle-hide delay: the readouts do not self-hide.
     await tester.pump(const Duration(seconds: 6));
     expectVisible(tester, find.byType(HistogramWidget), 'histogram');
     expectVisible(tester, find.byType(ImageStatsOverlay), 'image stats');

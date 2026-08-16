@@ -114,8 +114,7 @@ abstract class StackingEngineSeam {
   ///   native colour-capture path bit-for-bit.
   ///
   /// Any other channel count is a hard error: there is no display layout for it
-  /// and silently picking one would render a wrong image (this project treats
-  /// errors as a feature rather than guessing).
+  /// and picking one would render a wrong image.
   Uint8List autoStretch({
     required int width,
     required int height,

@@ -8,8 +8,8 @@ import '../db/hub_database.dart';
 import 'calibration_master_store.dart';
 import 'fits_master_validation.dart';
 
-/// Ledger + storage orchestration for shared master-calibration artifacts
-/// (Collaborative Sky WS1 — shared calibration libraries).
+/// Ledger + storage orchestration for the shared calibration library's
+/// master artifacts.
 ///
 /// Darks (and biases) are a pure function of the sensor + capture tuple
 /// (camera, gain, offset, exposure, binning, temperature) and are the safest
@@ -120,7 +120,7 @@ class SharedCalibrationService {
     if (bytes.isEmpty) {
       throw CalibrationPublishRejected('emptyMaster', 'empty master body');
     }
-    // The sensor geometry is the single hardest WS1 safety claim: it drives the
+    // The sensor geometry is the single hardest safety claim here: it drives the
     // client matcher's "different sensor can never calibrate this frame" gate.
     // Refuse a publish that omits it (a 0/unset dimension would otherwise match
     // ANY sensor on the puller's side).

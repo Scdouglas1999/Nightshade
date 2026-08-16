@@ -377,14 +377,11 @@ class _ChartSummary extends StatelessWidget {
 
 /// The one frame population every chart on the session card plots.
 ///
-/// Each chart used to pick its own: HFR filtered `isAccepted` and the other
-/// three filtered nothing, so a single card reported n=10 beside n=12 and n=16
-/// for the same night. Worse than untidy — the guiding trace then averaged in
-/// the frames the grader had already thrown out and claimed a p90 of 3.9" for a
-/// session whose accepted subs never guided past 0.95", which reads as a mount
-/// fault that does not exist. Calibration frames are excluded for the same
-/// reason: a dark's sensor temperature is real but it is not part of the night
-/// the rest of the card describes.
+/// One population for all of them, so the card cannot report n=10 beside n=12
+/// for the same night, and so the guiding trace cannot average in frames the
+/// grader threw out and claim a p90 the accepted subs never saw. Calibration
+/// frames are excluded for the same reason: a dark's sensor temperature is
+/// real but it is not part of the night the rest of the card describes.
 List<DbCapturedImage> sessionChartFrames(List<DbCapturedImage> images) => images
     .where(
         (image) => image.isAccepted && image.frameType.toLowerCase() == 'light')

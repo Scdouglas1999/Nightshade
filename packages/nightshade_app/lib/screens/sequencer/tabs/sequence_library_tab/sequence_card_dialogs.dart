@@ -1,5 +1,3 @@
-// Part of ../sequence_library_tab.dart -- extracted for maintainability.
-//
 // Delete-sequence dialog and the favourite toggle.
 part of '../sequence_library_tab.dart';
 

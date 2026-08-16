@@ -1,11 +1,7 @@
-// Part of ../settings_screen.dart -- extracted for maintainability.
-//
 // Mobile section list, search results and category widgets.
 part of '../settings_screen.dart';
 
-// =============================================================================
 // Mobile: grouped list with search
-// =============================================================================
 
 class _MobileSectionList extends StatelessWidget {
   const _MobileSectionList({
@@ -298,9 +294,7 @@ class _MobileSectionItem extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // Shared sidebar section item (preserves the original visual style)
-// =============================================================================
 
 class _CategoryItem extends StatefulWidget {
   final IconData icon;
@@ -330,16 +324,16 @@ class _CategoryItemState extends State<_CategoryItem> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      // A settings section is a control, not a panel: keyboard-only and
-      // screen-reader users could not change section at all while this was a
-      // bare GestureDetector. InkWell supplies traversal, Enter/Space
-      // activation and the button role in one widget; Semantics adds the
-      // selected state so AT can announce which section is open.
+      // A settings section is a CONTROL, not a panel: as a bare GestureDetector
+      // keyboard-only and screen-reader users cannot change section at all.
+      // InkWell supplies traversal, Enter/Space activation and the button role
+      // in one widget; Semantics adds the selected state so AT can announce
+      // which section is open.
       child: MergeSemantics(
         child: Semantics(
           // Semantics publishes isEnabled only when this field is given;
           // omitting it makes assistive tech announce a live control as
-          // disabled. Measured on the running app 2026-08-09.
+          // disabled.
           enabled: true,
           button: true,
           selected: widget.isSelected,

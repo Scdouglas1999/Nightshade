@@ -31,6 +31,11 @@ void main() {
     required List<Override> overrides,
   }) async {
     final container = ProviderContainer(overrides: overrides);
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     container
         .read(observationTimeProvider.notifier)
         .setTime(DateTime(2026, 3, 14, 22, 0, 0));

@@ -1,12 +1,11 @@
 // The viewport's bottom corners are shared, and the sharing has to be real.
 //
-// Live findings IMG-2 / IMG-3: the field-of-view scale bar was painted straight
-// across the bottom-left histogram plot (its `10'` label landing inside the
-// card's lower border), and the bottom-right image-stats card was drawn on top
-// of the compass rose, bisecting the circle and leaving only the red N arrow
-// legible. Both are independently-anchored overlays in one stack, so nothing
-// made them collide except each assuming it owned its corner; at the default
-// 1600x900 window they overlapped on every frame.
+// Each overlay is independently anchored in one stack, so an overlay that
+// assumes it owns its corner collides with its neighbour on every frame at the
+// default 1600x900 window: the field-of-view scale bar painted straight across
+// the bottom-left histogram plot (its `10'` label inside the card's lower
+// border), and the bottom-right image-stats card drawn over the compass rose,
+// bisecting the circle and leaving only the red N arrow legible.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/widgets/overlay_painters.dart';

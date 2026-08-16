@@ -11,14 +11,11 @@ import '../database_provider.dart';
 /// pointed it.
 ///
 /// The scheduler scores the `targets` table, never the builder's tree, so the
-/// two are separate copies of "where is this object". Re-pointing a target in
-/// the builder used to move only the builder's copy: the autopilot went on
-/// evaluating the coordinates the operator had replaced — reporting a target at
-/// the zenith by the old position while the builder card beside it read
-/// Alt −19°, and calling the preview "what the rig would slew to next". The run
-/// path already re-points the row when the sequence is STARTED
-/// (`SequenceExecutor._refreshCatalogCoordinates`); this closes the same gap at
-/// EDIT time, so an evaluation between the edit and the next run is honest too.
+/// two are separate copies of "where is this object" and both must be moved
+/// together. The run path re-points the row when the sequence is STARTED
+/// (`SequenceExecutor._refreshCatalogCoordinates`); this reconciles them at
+/// EDIT time, so an evaluation between the edit and the next run scores the
+/// coordinates the operator can see.
 ///
 /// Deliberately conservative:
 ///   * it only ever UPDATES an existing catalog row — editing the builder never

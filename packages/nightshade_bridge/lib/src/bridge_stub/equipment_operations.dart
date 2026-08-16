@@ -1,9 +1,7 @@
 part of '../bridge_stub.dart';
 
 extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
-  // =========================================================================
-  // Camera Control
-  // =========================================================================
+  // Camera control
 
   /// Get camera status
   Future<CameraStatus> getCameraStatus(String deviceId) async {
@@ -122,9 +120,7 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
   }
 
-  // =========================================================================
-  // Mount Control
-  // =========================================================================
+  // Mount control
 
   /// Get mount status
   Future<MountStatus> getMountStatus(String deviceId) async {
@@ -268,9 +264,7 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
   }
 
-  // =========================================================================
-  // Focuser Control
-  // =========================================================================
+  // Focuser control
 
   /// Get focuser status
   Future<FocuserStatus> getFocuserStatus(String deviceId) async {
@@ -340,9 +334,7 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
   }
 
-  // =========================================================================
-  // Filter Wheel Control
-  // =========================================================================
+  // Filter wheel control
 
   /// Get filter wheel status
   Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
@@ -405,9 +397,7 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     await apiFilterwheelSetPosition(deviceId: deviceId, position: index);
   }
 
-  // =========================================================================
-  // Plate Solving
-  // =========================================================================
+  // Plate solving
 
   /// Plate solve blind
   Future<PlateSolveResult> plateSolveBlind(

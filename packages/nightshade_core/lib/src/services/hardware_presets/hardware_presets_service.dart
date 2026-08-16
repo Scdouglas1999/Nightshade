@@ -14,9 +14,8 @@ import '../../models/hardware_presets/hardware_preset_models.dart';
 ///     rather than silently substituting an empty catalog.
 ///
 /// The service performs **no I/O** — encoding/decoding helpers are pure and the
-/// persistence read/write lives in the provider layer. Errors are a
-/// feature: a malformed persisted override surfaces as a [FormatException]
-/// instead of being swallowed.
+/// persistence read/write lives in the provider layer. A malformed persisted
+/// override surfaces as a [FormatException] instead of being swallowed.
 class HardwarePresetsService {
   /// `app_settings` key under which the JSON-encoded user telescope overrides
   /// are persisted.
@@ -140,9 +139,7 @@ class HardwarePresetsService {
     return bestPreset;
   }
 
-  // -------------------------------------------------------------------------
   // Persistence (de)serialization. Pure — no I/O. Used by the provider.
-  // -------------------------------------------------------------------------
 
   /// Decodes a list of [TelescopePreset] from an already-JSON-decoded [Object]
   /// (the form returned by `jsonDecode`). `null` yields an empty list; a
@@ -186,9 +183,7 @@ class HardwarePresetsService {
   static String encodeCameraOverrides(List<CameraDefaultsPreset> overrides) =>
       jsonEncode(overrides.map((preset) => preset.toJson()).toList());
 
-  // -------------------------------------------------------------------------
   // Internals.
-  // -------------------------------------------------------------------------
 
   /// Merges [overrides] (first) with [catalog], de-duping by the key returned
   /// from [idOf] so an override replaces the matching built-in and each id

@@ -26,9 +26,9 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
       vsync: this,
     );
     // Seed initial tab from the enum provider once. After this, sync flows
-    // via the ref.listenManual hook below — keeps animateTo out of build()
-    // (audit §4.3). The 3-tab controller and the 3-value enum are now the
-    // same domain, so there is no lossy bool→3-tab mapping (audit §25).
+    // via the ref.listenManual hook below, which keeps animateTo out of
+    // build(). The 3-tab controller and the 3-value enum share one domain, so
+    // there is no lossy bool→3-tab mapping.
     _tabController.index = ref.read(sequencerToolboxTabProvider).index;
     _tabController.addListener(_onTabChanged);
 
@@ -40,11 +40,10 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
       }
     });
 
-    // Backwards-compatible one-way bridge for the legacy
-    // `snippetPaletteVisibleProvider` intent flag (§25): a cross-area caller
-    // (Templates → "Go to Builder") flips it true to surface snippets. We act
-    // on the rising edge by switching the enum, then reset the flag so it
-    // stays a one-shot trigger with no bidirectional coupling.
+    // One-way bridge for the `snippetPaletteVisibleProvider` intent flag: a
+    // cross-area caller (Templates → "Go to Builder") flips it true to surface
+    // snippets. Act on the rising edge by switching the enum, then reset the
+    // flag so it stays a one-shot trigger with no bidirectional coupling.
     ref.listenManual<bool>(snippetPaletteVisibleProvider, (prev, next) {
       if (!mounted || !next) return;
       ref.read(sequencerToolboxTabProvider.notifier).state =
@@ -57,7 +56,7 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
     if (!_tabController.indexIsChanging) {
       // Mirror every tab (including Queue) back to the enum provider so the
       // provider is the single source of truth for the active toolbox tab
-      // and persists the user's last choice (audit §25).
+      // and persists the user's last choice.
       final tab = SequencerToolboxTab.values[_tabController.index];
       if (ref.read(sequencerToolboxTabProvider) != tab) {
         ref.read(sequencerToolboxTabProvider.notifier).state = tab;
@@ -79,18 +78,11 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
   /// A tab label that also states what it is to a screen reader.
   ///
   /// Flutter's [TabBar] wraps each tab in [MergeSemantics] and annotates it
-  /// with `selected` + "Tab n of m", but never with an enabled state — so the
-  /// AT-SPI tree published `panel: Nodes / Tab 1 of 3 [DISABLED]` for three
-  /// tabs that switch panes on click (Wave D, WD-SEQ-N3). Declaring the state
-  /// here merges it into that same node, the way the planner's filter chips
-  /// were fixed (a95a1d500).
-  ///
-  /// Wave F: the `[DISABLED]` is gone, but the node is still ROLE-LESS —
-  /// `panel: Nodes / Tab 1 of 3`. TabBar does wrap each tab in
-  /// `Semantics(role: SemanticsRole.tab)`, but that is an ANCESTOR node, and
-  /// the merged node carrying the label is the one an AT-SPI client reads.
-  /// Declaring `button` here puts a role the Linux bridge demonstrably
-  /// publishes on the node that actually carries the name.
+  /// with `selected` + "Tab n of m", but never with an enabled state, and its
+  /// `Semantics(role: SemanticsRole.tab)` is an ANCESTOR node — while the
+  /// merged node carrying the LABEL is the one an AT-SPI client reads. Without
+  /// the state and role declared here that node publishes as a role-less,
+  /// disabled panel for a tab that switches panes on click.
   Widget _tabLabel(int index, String label, int activeIndex) {
     return Semantics(
       button: true,
@@ -126,11 +118,11 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
             // The strip has to fit the width the PANEL actually got, which is
             // not the width the screen has: at a 1000px window the palette is
             // ~200px wide and the scrollable strip clipped its outer labels —
-            // "Nodes" rendered as "\odes" with the N cut off the left edge and
-            // "Queue" as "Queu" with the e cut off behind the collapse button
-            // (Wave D, NEW-C1). A scrollable strip in a too-small viewport
-            // hides labels instead of resizing, so below the threshold we hand
-            // the three tabs equal shares of the strip and shrink the type.
+            // "Nodes" renders as "\odes" with the N cut off the left edge and
+            // "Queue" as "Queu" with the e cut off behind the collapse button.
+            // A scrollable strip in a too-small viewport hides labels instead
+            // of resizing, so below the threshold we hand the three tabs equal
+            // shares of the strip and shrink the type.
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const collapseButtonWidth = 24.0;
@@ -179,7 +171,7 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                           ),
                           Tab(
                             height: tabHeight,
-                            // §4: surface the Ctrl+T accelerator on the
+                            // Surface the Ctrl+T accelerator on the
                             // Snippets tab so the keyboard toggle is
                             // discoverable.
                             child: Tooltip(

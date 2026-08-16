@@ -5,11 +5,11 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// The tooltip must stay fully inside the viewport no matter which edge its
 /// trigger sits against.
 ///
-/// Regression: positioning clamped the ANCHOR point and then shifted the tooltip
-/// by a fraction of its own width, so a trigger at the right edge rendered its
-/// tooltip almost entirely off-screen — observed as a one-character sliver on the
-/// Imaging panel's "Stack & Share" button. Because this is the shared
-/// design-system tooltip, the same happened for any trigger near any edge.
+/// Clamping the ANCHOR point and then shifting the tooltip by a fraction of its
+/// own width renders a right-edge trigger's tooltip almost entirely off-screen
+/// — a one-character sliver on the Imaging panel's "Stack & Share" button.
+/// Because this is the shared design-system tooltip, the same applies to any
+/// trigger near any edge.
 void main() {
   const viewport = Size(400, 300);
 

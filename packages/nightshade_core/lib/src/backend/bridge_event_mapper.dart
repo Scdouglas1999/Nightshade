@@ -216,14 +216,11 @@ bridge.SequencerEvent _sequencerEventFromCore(
         lastError: _optionalString(data, 'last_error'),
         abortedByUser: data['aborted_by_user'] as bool? ?? false,
       );
-    // Benign lifecycle / progress events. These were previously unhandled and
-    // fell through to the `default` arm below, which synthesizes a
-    // SequencerEvent.error — flagged critical by isCriticalEvent and shown as a
-    // false "Sequencer error" banner on the dashboard. This bit slaves hard:
-    // when the master merely PAUSED a sequence, the mirrored 'Paused' event
-    // became a bogus critical error. Map them to their real, non-critical
-    // variants. Both bare and 'Sequence'-prefixed names are accepted so the
-    // mapping is robust to either emission convention.
+    // Benign lifecycle / progress events map to their real, non-critical
+    // variants. They must not reach the `default` arm below, which synthesizes
+    // a SequencerEvent.error — flagged critical by isCriticalEvent and shown as
+    // a "Sequencer error" banner. Both bare and 'Sequence'-prefixed names are
+    // accepted so either emission convention maps.
     case 'Paused':
     case 'SequencePaused':
       return const bridge.SequencerEvent.paused();

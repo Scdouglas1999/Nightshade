@@ -16,8 +16,8 @@ extension _CoImagingSessionInternals on CoImagingSessionService {
   /// [license] + [attributionConsent] (already-resolved caller) wins; otherwise
   /// the injected persisted record is consulted. Returns null ONLY when a
   /// consent resolver is wired and no record exists — the FAIL-CLOSED signal.
-  /// Legacy/test wirings without a resolver degrade to the historical
-  /// ccBy + credited default so the coordination layer stays testable.
+  /// Wirings without a resolver fall back to a ccBy + credited default so the
+  /// coordination layer stays testable.
   Future<({ContributionLicense license, bool attributionConsent})?>
   _resolveContributionConsent({
     ContributionLicense? license,
@@ -37,7 +37,7 @@ extension _CoImagingSessionInternals on CoImagingSessionService {
     return resolver();
   }
 
-  // --- Internals -----------------------------------------------------------
+  // Internals
 
   /// The session target's sky centre (degrees): from the durable membership when
   /// it carries coordinates, else from a single live [getSession] (self-healing

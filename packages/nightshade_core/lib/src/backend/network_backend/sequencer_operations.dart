@@ -7,9 +7,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     required Duration timeout,
   });
 
-  // =========================================================================
-  // Plate Solving
-  // =========================================================================
+  // Plate solving
 
   @override
   Future<PlateSolveResult> plateSolve({
@@ -71,9 +69,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     );
   }
 
-  // =========================================================================
-  // Plate Solver Setup
-  // =========================================================================
+  // Plate solver setup
   //
   // These run against the HOST's filesystem (the machine wired to the rig).
   // On the phone the settings page must probe the host — never the phone —
@@ -128,9 +124,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     });
   }
 
-  // =========================================================================
-  // Sequencer Control
-  // =========================================================================
+  // Sequencer control
 
   @override
   Future<void> sequencerStart() async {
@@ -216,6 +210,15 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   @override
   Future<void> sequencerSetSimulationMode(bool enabled) async {
     await _post('sequencer/simulation', {'enabled': enabled});
+  }
+
+  @override
+  Future<bool> sequencerIsSimulationMode() async {
+    // The headless API exposes simulation mode as a write only, so a remote
+    // client has no reading of the host executor's flag. Answering `false`
+    // keeps the client from asserting simulated hardware it cannot observe;
+    // add a wire readback here before any caller treats this as authoritative.
+    return false;
   }
 
   @override
@@ -313,9 +316,9 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   Future<void> sequencerUpdatePendingIntegrationCarryOver(
     Map<String, Map<String, double>> carryOver,
   ) async {
-    // Remote staging mirrors the FFI path. The headless API
-    // owns the deserialisation; an unrecognised endpoint on an older
-    // headless build is surfaced (errors are a feature here).
+    // Remote staging mirrors the FFI path. The headless API owns the
+    // deserialisation; an unrecognised endpoint on an older headless build is
+    // surfaced rather than swallowed.
     await _post('sequencer/update-pending-integration-carry-over', {
       'carry_over': carryOver,
     });
@@ -543,9 +546,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     await _post('sequencer/clear-default-adaptive-exposure', const {});
   }
 
-  // =========================================================================
-  // Recovery Mode
-  // =========================================================================
+  // Recovery mode
 
   @override
   Future<void> recoveryTryNow() async {
@@ -607,9 +608,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     );
   }
 
-  // =========================================================================
   // Checkpoint / Crash Recovery
-  // =========================================================================
 
   @override
   Future<void> sequencerSetCheckpointDir(String path) async {
@@ -685,9 +684,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     );
   }
 
-  // =========================================================================
-  // Equipment Status
-  // =========================================================================
+  // Equipment status
 
   @override
   Future<CameraStatus> getCameraStatus(String deviceId) async {
@@ -729,9 +726,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     return RotatorStatus.fromJson(response);
   }
 
-  // =========================================================================
-  // Device Capabilities
-  // =========================================================================
+  // Device capabilities
 
   void _requireRemoteCapabilityFields(
     Map<String, dynamic> response,
@@ -837,8 +832,4 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       rethrow;
     }
   }
-
-  // NOTE: The old _parseXxxCapabilities helpers have been removed.
-  // Pure Dart types now have fromJson() factory constructors, which keep the
-  // remote/network path in sync with new capability fields automatically.
 }

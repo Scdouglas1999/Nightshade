@@ -9,22 +9,15 @@ import 'master_preview_view.dart';
 /// Side-by-side A/B comparison of two [IntegrationSettings] recipes over the
 /// same accepted subs.
 ///
-/// Each side runs `controller.reIntegratePreview(settings)` — a throwaway,
-/// non-persisting integration — and renders the resulting master preview
-/// (reusing [MasterPreviewView]) plus a compact stat block (frames integrated /
-/// rejected, integration time, residual, dimensions). A diff strip under the
-/// previews calls out which recipe won on each metric so the imager can pick a
-/// finishing recipe by eye *and* by number.
-///
-/// The comparison is exploratory: it must not change the controller's working
-/// settings, persist a master, or flip the shared hero/`lastOutcome`. The
-/// preview path guarantees that — see [SessionReviewController.reIntegratePreview].
+/// The comparison is EXPLORATORY: it must not change the controller's working
+/// settings, persist a master, or flip the shared hero/`lastOutcome`. Each side
+/// runs `controller.reIntegratePreview(settings)`, a throwaway non-persisting
+/// integration, which is what guarantees that.
 ///
 /// Recipe A defaults to the controller's current working settings; recipe B
-/// seeds a sensible "tighter rejection" variant the user can edit via the
-/// recipe chips. Per the CONTRACT this panel drives everything through the one
-/// [SessionReviewController] — no separate provider read — but only via the
-/// non-persisting preview path, so a comparison stays a comparison.
+/// seeds a "tighter rejection" variant the user can edit via the recipe chips.
+/// Everything routes through the one [SessionReviewController] — no separate
+/// provider read — so a comparison stays a comparison.
 class AbComparePanel extends StatefulWidget {
   final SessionReviewController controller;
 

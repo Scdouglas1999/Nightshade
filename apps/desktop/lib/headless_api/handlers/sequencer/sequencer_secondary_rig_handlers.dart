@@ -2,14 +2,12 @@ part of '../sequencer_handlers.dart';
 
 /// Dual-rig / secondary (piggyback) camera monitoring and control.
 extension _SequencerSecondaryRig on SequencerHandlers {
-  // ===========================================================================
-  // Dual-rig / secondary (piggyback) camera — monitoring + control.
+  // Dual-rig / secondary (piggyback) camera — monitoring and control.
   //
   // Lets a remote dashboard observe and drive the secondary capture loop. The
   // dither coordination is enforced natively (the primary's dither call sites
   // gate on the shared barrier), so these endpoints are thin wrappers over the
   // FRB bindings.
-  // ===========================================================================
 
   /// GET /api/sequencer/secondary-rig — live status snapshot of the secondary
   /// rig (or `{armed: false}` when none is running).

@@ -1,9 +1,8 @@
-// Stepped migration test for the v29 -> v30 step (the I4 follow-up to
-// guide_rms_history): exposure_seconds becomes NULL-able, the missing
-// idx_guide_rms_mount_recent index is created, and existing rows
-// survive the table recreate.
+// Stepped migration test for the v29 -> v30 step on guide_rms_history:
+// exposure_seconds becomes NULL-able, the missing idx_guide_rms_mount_recent
+// index is created, and existing rows survive the table recreate.
 //
-// We follow the same pattern as migration_v28_to_v29_test.dart:
+// Same pattern as migration_v28_to_v29_test.dart:
 //   1. Open a fresh DB at v30 via onCreate.
 //   2. Drop the v30-specific guide_rms_history shape, recreate the v29
 //      shape (NOT NULL exposure_seconds, no helper index), seed it with
@@ -12,13 +11,12 @@
 //   3. Reopen — triggers onUpgrade(29, 30) which runs the recreate-with-
 //      nullable-column block in database.dart.
 //   4. Assert via sqlite_master + PRAGMA table_info that the schema
-//      changed shape, AND verify the seeded row survived (this is the
-//      protection that catches a regression where the migration
-//      accidentally drops user data).
+//      changed shape, AND verify the seeded row survived — that is what
+//      catches a migration that drops user data.
 //
-// We deliberately do NOT import `package:drift/drift.dart` wholesale to
-// avoid the `isNull` symbol collision with flutter_test; the companions
-// and `NightshadeDatabase` come through `database.dart`.
+// `package:drift/drift.dart` is deliberately not imported wholesale, to avoid
+// the `isNull` symbol collision with flutter_test; the companions and
+// `NightshadeDatabase` come through `database.dart`.
 import 'dart:io';
 
 import 'package:drift/native.dart';

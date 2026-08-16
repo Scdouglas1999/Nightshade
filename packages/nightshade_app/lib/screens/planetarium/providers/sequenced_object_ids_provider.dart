@@ -32,12 +32,11 @@ Set<String> sequenceTargetMatchKeys(String targetName) {
 ///
 /// Shaped to match [observedCatalogIdsProvider] and [listedCatalogIdsProvider]
 /// (a `Set<String>` of ids-or-names, matched leniently against a DSO's id, name,
-/// Messier number and NGC/IC designation) so the sky renderer could consume it
+/// Messier number and NGC/IC designation) so the sky renderer can consume it
 /// the same way it consumes those two — see the note in the planetarium shell
 /// for the renderer-side work that would need.
 ///
-/// Empty when no sequence is loaded, which is the honest answer: "nothing is
-/// planned" rather than "everything is".
+/// Empty when no sequence is loaded.
 final sequencedObjectIdsProvider = Provider<Set<String>>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
   if (sequence == null) return const <String>{};

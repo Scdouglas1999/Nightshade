@@ -31,11 +31,10 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
   /// Needed because red night is a WAVELENGTH constraint, not just a dark
   /// palette, and some surfaces pick colours outside this class — notably
   /// [NightshadeChartColors], whose series are `static const` and therefore
-  /// theme-blind. The dashboard guiding chart drew its Dec series in
-  /// `#6B95B8` (measured on device) while the rest of the UI was red, which is
-  /// exactly the dark-adaptation loss the mode exists to prevent.
-  /// [useDarkOnPrimary] cannot stand in for this: it is also true for light
-  /// and for custom accents that want dark ink.
+  /// theme-blind. A blue chart series beside a red UI is exactly the
+  /// dark-adaptation loss the mode exists to prevent. [useDarkOnPrimary] cannot
+  /// stand in for this: it is also true for light and for custom accents that
+  /// want dark ink.
   final bool isRedNight;
 
   const NightshadeColors({
@@ -173,12 +172,10 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     surfaceOverlay: Color(0xFF301616),
     border: Color(0xFF2E1414),
     borderHighlight: Color(0xFF3A1A1A),
-    // The red-only constraint is about WAVELENGTH, not dimness: the old ladder
-    // was unreadable rather than dark-adapted — textMuted #7F1D1D measured
-    // 1.67:1 and textSecondary #B71C1C 2.55:1 against these surfaces (floor
-    // 4.5:1). Raised as a set so all three clear AA (5.35 / 7.46 / 9.86 worst
-    // case) and stay strictly ordered, while keeping red the dominant channel
-    // (red purity actually INCREASES for muted, 0.38 → 0.49).
+    // The red-only constraint is about WAVELENGTH, not dimness, so the text
+    // ladder still has to clear the 4.5:1 contrast floor against these
+    // surfaces: these three measure 5.35 / 7.46 / 9.86 worst case, stay
+    // strictly ordered, and keep red the dominant channel.
     textPrimary: Color(0xFFFFB3B3),
     textSecondary: Color(0xFFF59191),
     textMuted: Color(0xFFE86A6A),
@@ -282,8 +279,7 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
   /// accent-derived palette (a fresh instance out of [darkWithAccent] every
   /// call) never equals the previous frame's. `Theme.updateShouldNotify` then
   /// fires on every root rebuild and every widget reading this palette rebuilds
-  /// with it. The default no-accent path hid the bug: [dark] is `const` and
-  /// therefore canonicalized.
+  /// with it. Only the const [dark] path is safe without it.
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

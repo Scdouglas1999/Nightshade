@@ -1,18 +1,16 @@
 // The Imaging capture bar at a NARROW window, with the rig the operator
 // actually had connected.
 //
-// Live finding ND-4: at 900x900 the bar was cut after `Dur 2 s` — the gain
-// chip, all seven filter chips and the Stretch toggle sat past the right edge
-// with no scrollbar, arrow or overflow affordance, and the filter chips
-// dropped out of the accessibility tree entirely. No `RenderFlex overflowed`
-// line was logged for the whole session, so a log scan could never have caught
-// it; the earlier width sweep never reproduced it either, because it pumped
-// the bar with NO filter wheel and no stats — the two clusters that consume
-// the width.
+// At 900x900 with a filter wheel and stats — the two clusters that consume the
+// width — the bar is cut after `Dur 2 s`: the gain chip, all seven filter chips
+// and the Stretch toggle sit past the right edge with no scrollbar, arrow or
+// overflow affordance, and the filter chips drop out of the accessibility tree
+// entirely. Nothing logs `RenderFlex overflowed` for it, and a width sweep that
+// pumps the bar with NO filter wheel and no stats never reproduces it.
 //
-// ND-5 rides along: at that width the trailing controls must still publish
-// their role and enabled state (the gain chip reported [DISABLED] while live,
-// and Loop / Snapshot exposed as panels rather than buttons).
+// At that width the trailing controls must also still publish their role and
+// enabled state: undeclared, the gain chip reports [DISABLED] while live, and
+// Loop / Snapshot expose as panels rather than buttons.
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/semantics.dart';

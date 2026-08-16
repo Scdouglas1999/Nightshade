@@ -10,11 +10,10 @@ enum _RegionSource { target, custom }
 
 /// Characters a sexagesimal or decimal coordinate can contain.
 ///
-/// The field used to be labelled "RA (degrees)" and accept digits only, while
-/// Framing prints the same quantity as `05h 35m 16s`, the planetarium readout
-/// as `0h 42m 44s`, and Framing's own RA input takes sexagesimal. Copying the
-/// RA you are looking at into a degrees-only box puts the region 79° from where
-/// you meant, silently.
+/// Accepts the sexagesimal and decimal forms the rest of the app prints:
+/// Framing shows `05h 35m 16s`, the planetarium readout `0h 42m 44s`. A
+/// degrees-only box silently puts the region tens of degrees from where the
+/// operator meant when they paste the RA they are looking at.
 final _coordinateCharacters =
     FilteringTextInputFormatter.allow(RegExp(r"""[0-9.:+\-hmsdHMSD°'" ]"""));
 
@@ -54,10 +53,9 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
   @override
   void initState() {
     super.initState();
-    // A validation message must not outlive the state that produced it. The
-    // sheet used to keep showing "Pick a target first." after the user did
-    // exactly what its own copy told them to do — switch to Custom RA/Dec,
-    // a mode with no target to pick — right through to a successful create.
+    // A validation message must not outlive the state that produced it: "Pick
+    // a target first." left on screen after a switch to Custom RA/Dec — a mode
+    // with no target to pick — contradicts the sheet's own copy.
     for (final c in [
       _nameController,
       _raController,
@@ -99,12 +97,12 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
   /// The target library has loaded and is empty, so `From a target` can never
   /// produce a region no matter what the user does in this mode.
   ///
-  /// This is the state a live re-drive found still dead: the sheet rendered a
-  /// dim `Create region`, the accessibility tree reported it as a plain
-  /// actionable button, and clicking it produced nothing at all — no error, no
-  /// toast, no region. A control that cannot work in the state it is shown in
-  /// is not made honest by dimming it, so in this state the sheet offers the
-  /// only action that CAN work instead (see [_buildPrimaryAction]).
+  /// A dim `Create region` here still reads to the accessibility tree as a
+  /// plain actionable button, and clicking it produces nothing at all — no
+  /// error, no toast, no region. A control that cannot work in the state it is
+  /// shown in is not made honest by dimming it, so in this state the sheet
+  /// offers the only action that CAN work instead (see
+  /// [_buildPrimaryAction]).
   bool _libraryIsEmpty(AsyncValue<List<DbTarget>> targetsAsync) =>
       _source == _RegionSource.target &&
       (targetsAsync.valueOrNull?.isEmpty ?? false);
@@ -455,11 +453,10 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
         return;
       }
       ref.invalidate(skyAtlasRegionsProvider);
-      // `pop`, not `maybePop`: this sheet used to guard itself with
-      // `PopScope(canPop: !_saving)` and then close itself with `maybePop`,
-      // which asks that very guard for permission — so a write that took
-      // longer than one frame left the region created and the app behind a
-      // modal barrier no key, button or click could lift.
+      // `pop`, not `maybePop`: `maybePop` consults the `PopScope(canPop:
+      // !_saving)` guard this sheet sets, so a write taking longer than one
+      // frame would leave the region created and the app behind a modal
+      // barrier no key, button or click could lift.
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;

@@ -112,9 +112,7 @@ class DashboardWidgetDefinition {
 }
 
 const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
-  // ===========================================================================
-  // Merged cockpit tiles (density pass). Self-chromed like the rest.
-  // ===========================================================================
+  // Merged cockpit tiles (density pass). self-chromed like the rest.
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitNowImaging,
     title: 'Now Imaging',
@@ -134,11 +132,9 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     builder: _buildCockpitFrames,
   ),
 
-  // ===========================================================================
   // Cockpit panels (transplanted Run dashboard). All are self-chromed: each
   // wraps itself in a NightshadeCard / banner, so the tile frame draws no
   // resting border. They read their own providers and degrade gracefully idle.
-  // ===========================================================================
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitTargetHeader,
     title: 'Target',
@@ -339,9 +335,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     builder: _buildCockpitMorningReport,
   ),
 
-  // ===========================================================================
   // Legacy control/info cards (disabled by default; retained for power users).
-  // ===========================================================================
   // Primary zone widgets (hero content)
   DashboardWidgetDefinition(
     id: DashboardWidgetId.livePreview,

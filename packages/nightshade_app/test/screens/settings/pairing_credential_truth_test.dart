@@ -1,18 +1,13 @@
-// Three defects found on the Manage Pairing page during the 2026-08-13 drive.
+// Three claims the Manage Pairing page has to get right.
 //
-// WD-N4 (and the SET-18 residual): the pairing credential is the ONE element
-// the page does not expose to accessibility. The live tree gave
-// "Enter this code on your device:" and "Expires in 04:55" with nothing in
-// between — the code itself is a SelectableText, which publishes its text as a
-// semantic value rather than a name — so a screen-reader user is told a code
-// exists and never told what it is. The QR is an image; this text was the only
-// non-visual path to pairing a phone.
-//
-// WD-N5: the green "<name> paired" banner survived revoking that very device —
-// the page read "WaveD Test Phone paired" above "No paired devices".
-//
-// WD-N6: with exactly one device paired the confirmation read
-// "Revoke access for all 1 paired devices?".
+// 1. The pairing credential must reach ACCESSIBILITY. A SelectableText
+//    publishes its text as a semantic value rather than a name, so a screen
+//    reader is told a code exists and never told what it is — and the QR is an
+//    image, so this text is the only non-visual path to pairing a phone.
+// 2. The green "<name> paired" banner must not survive revoking that device,
+//    which would put "… paired" above "No paired devices".
+// 3. The revoke confirmation must agree with the count: "all 1 paired devices"
+//    is not a sentence about one device.
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -63,7 +58,7 @@ Future<PairingNotifier> _pumpPairing(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('WD-N4 — the pairing code is readable by a screen reader',
+  testWidgets('the pairing code is readable by a screen reader',
       (tester) async {
     final handle = tester.ensureSemantics();
     final database = PairingDatabase.forTesting(NativeDatabase.memory());
@@ -83,8 +78,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('WD-N5 — revoking the device takes its banner with it',
-      (tester) async {
+  testWidgets('revoking the device takes its banner with it', (tester) async {
     final database = PairingDatabase.forTesting(NativeDatabase.memory());
     addTearDown(() async => database.close());
 
@@ -118,8 +112,7 @@ void main() {
     expect(find.text('No paired devices'), findsOneWidget);
   });
 
-  testWidgets('WD-N6 — one device is not "all 1 paired devices"',
-      (tester) async {
+  testWidgets('one device is not "all 1 paired devices"', (tester) async {
     final database = PairingDatabase.forTesting(NativeDatabase.memory());
     await database.addPairedDevice(
       deviceId: 'phone-one',

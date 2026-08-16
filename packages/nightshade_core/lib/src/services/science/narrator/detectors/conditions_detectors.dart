@@ -386,9 +386,9 @@ class ExcellentTransparencyDetector extends NarratorDetector {
     if (t.length < 2) return const [];
 
     // Consider points within the last 2×sustainMinutes, then take the TRAILING
-    // run of consecutive points all above the threshold. (A window bounded by a
-    // sustainMinutes cutoff can never *span* sustainMinutes, so the old cutoff
-    // approach could never fire — see finding #2.)
+    // run of consecutive points all above the threshold. The window has to be
+    // wider than sustainMinutes: one bounded by a sustainMinutes cutoff can
+    // never *span* sustainMinutes, so it could never fire.
     final cutoff = ctx.now.subtract(
       Duration(seconds: (2 * sustainMinutes * 60).round()),
     );

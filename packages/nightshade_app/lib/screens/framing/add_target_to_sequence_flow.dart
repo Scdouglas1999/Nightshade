@@ -389,8 +389,7 @@ class _DestinationPickerDialog extends StatefulWidget {
   final int initialIndex;
 
   /// How many mosaic panels will be inserted (0 when no mosaic is drawn). The
-  /// dialog says so explicitly: it used to promise a single target group while a
-  /// 2x2 grid was on the canvas, and silently drop the panels.
+  /// dialog states it explicitly so a drawn mosaic cannot be silently dropped.
   final int mosaicPanelCount;
 
   const _DestinationPickerDialog({

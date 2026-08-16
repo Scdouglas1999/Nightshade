@@ -98,9 +98,7 @@ abstract class NotificationTransportConfig {
   Map<String, dynamic> toJson();
 }
 
-// ---------------------------------------------------------------------------
-// Email (SMTP)
-// ---------------------------------------------------------------------------
+// Email (smtp)
 
 class EmailTransportConfig extends Equatable
     implements NotificationTransportConfig {
@@ -184,9 +182,7 @@ class EmailTransportConfig extends Equatable
   ];
 }
 
-// ---------------------------------------------------------------------------
 // Generic webhook
-// ---------------------------------------------------------------------------
 
 class WebhookTransportConfig extends Equatable
     implements NotificationTransportConfig {
@@ -252,9 +248,7 @@ class WebhookTransportConfig extends Equatable
   List<Object?> get props => [url, headers, bodyTemplate];
 }
 
-// ---------------------------------------------------------------------------
 // Pushover
-// ---------------------------------------------------------------------------
 
 class PushoverTransportConfig extends Equatable
     implements NotificationTransportConfig {
@@ -306,9 +300,7 @@ class PushoverTransportConfig extends Equatable
   List<Object?> get props => [apiToken, userKey, device, priority];
 }
 
-// ---------------------------------------------------------------------------
 // Telegram
-// ---------------------------------------------------------------------------
 
 class TelegramTransportConfig extends Equatable
     implements NotificationTransportConfig {
@@ -357,9 +349,7 @@ class TelegramTransportConfig extends Equatable
   List<Object?> get props => [botToken, chatId, disableNotification];
 }
 
-// ---------------------------------------------------------------------------
 // Discord
-// ---------------------------------------------------------------------------
 
 class DiscordTransportConfig extends Equatable
     implements NotificationTransportConfig {
@@ -411,9 +401,7 @@ class DiscordTransportConfig extends Equatable
   List<Object?> get props => [webhookUrl, username, avatarUrl];
 }
 
-// ---------------------------------------------------------------------------
 // MQTT
-// ---------------------------------------------------------------------------
 
 class MqttTransportConfig extends Equatable
     implements NotificationTransportConfig {

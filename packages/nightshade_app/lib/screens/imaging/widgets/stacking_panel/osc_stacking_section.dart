@@ -1,8 +1,6 @@
 part of '../stacking_panel.dart';
 
-// ---------------------------------------------------------------------------
-// OSC / Color stacking controls
-// ---------------------------------------------------------------------------
+// OSC / color stacking controls
 //
 // The OSC dropdown vocabulary (Bayer / demosaic values + labels) and the
 // labelled dropdown widget are shared with the Stack-and-Share dialog via

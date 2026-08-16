@@ -90,11 +90,11 @@ class DeepStarVerifyResult {
 /// hash are skipped, so "pause" simply stops the run and a later download
 /// call continues where it left off.
 class DeepStarCatalogManager {
-  /// Default base URL: intentionally empty. No official tileset is published
-  /// yet, and shipping a loopback placeholder (the old
-  /// `http://localhost:8765/...` dev default) meant a fresh install's
-  /// Download button could only ever fail with connection-refused. Users
-  /// supply a host in Settings; developers can self-host a generated tileset
+  /// Default base URL: intentionally empty. No official tileset is published,
+  /// and a loopback placeholder such as `http://localhost:8765/...` leaves a
+  /// fresh install's Download button able only to fail with
+  /// connection-refused. Users supply a host in Settings; developers can
+  /// self-host a generated tileset
   /// (`tools/catalog_prep/make_deep_star_tiles.py`, then e.g.
   /// `python3 -m http.server 8765` from the output directory).
   static const String defaultBaseUrl = '';
@@ -120,9 +120,7 @@ class DeepStarCatalogManager {
   String get _configPath => path.join(directory, 'config.json');
   String get _metaPath => path.join(directory, 'install_metadata.json');
 
-  // ---------------------------------------------------------------------
   // Configuration (base URL)
-  // ---------------------------------------------------------------------
 
   /// The configured tileset base URL (persisted), or the default.
   Future<String> getBaseUrl() async {
@@ -152,9 +150,7 @@ class DeepStarCatalogManager {
     await File(_configPath).writeAsString(jsonEncode({'baseUrl': url.trim()}));
   }
 
-  // ---------------------------------------------------------------------
   // Status
-  // ---------------------------------------------------------------------
 
   Future<DeepStarStatus> status() async {
     final manifestFile = File(_manifestPath);
@@ -206,9 +202,7 @@ class DeepStarCatalogManager {
     );
   }
 
-  // ---------------------------------------------------------------------
   // Download
-  // ---------------------------------------------------------------------
 
   /// Fetch the remote manifest from the configured base URL.
   Future<DeepStarManifest> fetchRemoteManifest({String? baseUrl}) async {

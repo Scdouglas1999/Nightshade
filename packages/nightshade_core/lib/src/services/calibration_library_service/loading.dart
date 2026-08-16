@@ -1,10 +1,6 @@
 part of '../calibration_library_service.dart';
 
 extension _CalibrationLibraryLoading on CalibrationLibraryService {
-  // ---------------------------------------------------------------------------
-  // Loading
-  // ---------------------------------------------------------------------------
-
   Future<List<CalibrationMasterRecord>> _loadAll() async {
     final tags = await _tagsDao.getAllKeyed();
 

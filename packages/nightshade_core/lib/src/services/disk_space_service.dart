@@ -32,10 +32,9 @@ class DiskSpaceInfo {
       'DiskSpaceInfo(path=$path, free=${freeBytes ~/ (1024 * 1024)}MB, total=${totalBytes ~/ (1024 * 1024)}MB)';
 }
 
-/// Thrown when the disk-space query fails. We do NOT silently substitute
-/// fallback values — capture sessions depend on this number being accurate,
-/// and a silent fallback would hide misconfiguration (e.g. capture path on a
-/// missing/disconnected drive). Errors are a feature: surface them.
+/// Thrown when the disk-space query fails. No fallback value is substituted:
+/// capture sessions depend on this number being accurate, and a substituted
+/// one hides misconfiguration such as a capture path on a disconnected drive.
 class DiskSpaceException implements Exception {
   final String path;
   final String message;
@@ -44,13 +43,9 @@ class DiskSpaceException implements Exception {
   /// Which failure this is, so the UI can say something useful instead of
   /// "Disk query failed".
   ///
-  /// The dashboard used to render one constant string for every cause, which
-  /// is how a capture folder that simply was not there — an unmounted drive,
-  /// a deleted folder, a path saved on another machine — reached the operator
-  /// as an unexplained failure. The distinction is not cosmetic on a rig left
-  /// running overnight: "the drive is gone" is actionable and "disk query
-  /// failed" is not. Matching on [kind] rather than on [message] so the copy
-  /// stays free to change.
+  /// Callers match on [kind], never on [message], so the copy stays free to
+  /// change: "the drive is gone" is actionable on a rig left running
+  /// overnight, "disk query failed" is not.
   final DiskSpaceFailureKind kind;
 
   const DiskSpaceException(

@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/src/astronomy/astronomy_calculations.dart';
 
-/// Regression tests for the twilight crossing finder.
+/// The twilight crossing finder.
 ///
-/// The old implementation compared only the search window's endpoint
-/// altitudes, which returns null whenever the window holds zero or two
-/// crossings of matching endpoint sign — e.g. high-latitude summer sites
-/// where sunset slips past local midnight. The fixed finder brackets the
-/// first crossing in the requested direction with a coarse scan, so these
-/// tests brute-force the truth with a fine scan and require agreement.
+/// Comparing only the search window's endpoint altitudes returns null whenever
+/// the window holds zero or two crossings of matching endpoint sign — e.g.
+/// high-latitude summer sites where sunset slips past local midnight. The
+/// finder brackets the first crossing in the requested direction with a coarse
+/// scan, so these tests brute-force the truth with a fine scan and require
+/// agreement.
 void main() {
   const sunRiseSetAltitude = -0.8333;
 
@@ -56,9 +56,9 @@ void main() {
     return null;
   }
 
-  // Latitudes from equatorial to polar, longitudes spread across the
-  // globe so the test exercises sites whose solar midnight is far from
-  // the machine's civil midnight (the failure mode of the old window).
+  // Latitudes from equatorial to polar, longitudes spread across the globe so
+  // the test exercises sites whose solar midnight is far from the machine's
+  // civil midnight.
   final sites = <(double, double, String)>[
     (0.0, 0.0, 'equator/Greenwich'),
     (64.15, -21.95, 'Reykjavik'),

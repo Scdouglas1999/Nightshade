@@ -148,8 +148,8 @@ void main() {
       );
       final e = out.single.evidence!;
       expect(e.kind, NarratorEvidenceKind.vector);
-      // The old code returned (tileX + tileY) % 360 == 1112 % 360 == 32;
-      // the honest value is the real major-axis position angle.
+      // The direction is the real major-axis position angle, not a function
+      // of the tile coordinates.
       expect(e.directionDeg, closeTo(47.5, 1e-9));
       expect(e.magnitude, closeTo(0.9, 1e-9));
     });

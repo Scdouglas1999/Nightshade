@@ -369,7 +369,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
               description: l10n.text('remoteAccessPairDesc'),
               // Routed, not `Navigator.push`ed: a page pushed straight onto
               // the shell's navigator survives every rail destination the
-              // operator picks afterwards (WF-SS-N2).
+              // operator picks afterwards.
               onPressed: () => context.push('/pairing'),
             ),
             if (webState.isRunning &&
@@ -540,10 +540,9 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                           value: webState.activeViewers.toString(),
                         ),
                         // The error is the only actionable content on this
-                        // panel, and it used to clip after two lines — cutting
-                        // off the port number the operator needs. Show a
-                        // plain-language summary, let it wrap, and keep the raw
-                        // text selectable + copyable.
+                        // panel and the port number is the actionable part of
+                        // it, so let it wrap rather than clip. The raw text
+                        // stays selectable and copyable.
                         _StatusRow(
                           icon: webState.lastError.isEmpty
                               ? LucideIcons.info

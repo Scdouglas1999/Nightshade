@@ -28,22 +28,16 @@ class UiNotificationNotifier extends StateNotifier<List<UiNotification>> {
 
   /// Hard upper bound on the number of notifications retained in state.
   ///
-  /// The toast overlay only ever renders the most recent few (see
-  /// `NotificationToastOverlay._maxVisibleToasts`), so keeping more than a
-  /// small backlog serves no UI purpose and is pure cost. Crucially, this cap
-  /// is what makes a *burst* of notifications safe: without it a mass event
-  /// (e.g. "Disconnect All" emitting a driver-error/disconnect for every
-  /// device, multiplied by any teardown chatter on the Rust EventBus) would
-  /// append unboundedly. Each append rebuilds the overlay and copies the whole
-  /// list, so an unbounded queue turns a burst into O(n^2) list copies plus one
-  /// overlay rebuild — and one batch of post-frame callbacks / toast animation
-  /// ticks — *per event*. On Windows that floods the platform task runner
-  /// ("Failed to post message to main thread"). Capping the retained list keeps
-  /// each append O(cap) and bounds the rebuild cost.
+  /// This cap is what makes a *burst* safe. Each append rebuilds the overlay
+  /// and copies the whole list, so an unbounded queue turns a mass event (say
+  /// "Disconnect All" emitting a disconnect per device) into O(n^2) list copies
+  /// plus a rebuild and a batch of toast animation ticks per event — enough to
+  /// flood the Windows platform task runner ("Failed to post message to main
+  /// thread"). Capping keeps each append O(cap).
   ///
-  /// Sized comfortably above the overlay's visible count so a normal flurry of
-  /// distinct notifications still scrolls through naturally; only a genuine
-  /// flood is trimmed.
+  /// Sized above the overlay's visible count
+  /// (`NotificationToastOverlay._maxVisibleToasts`) so a normal flurry still
+  /// scrolls through; only a flood is trimmed.
   static const int maxRetained = 20;
 
   /// A counter appended to the millisecond timestamp so that several

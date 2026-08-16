@@ -1,14 +1,11 @@
-// WD-N7: the Settings Tour coach mark was drawn on top of a live control.
-//
-// Live at 1600x900 on 2026-08-13, Settings → Remote Access with remote access
-// on: the bottom-right "Settings Tour" card sat over the "Manage Pairing"
-// button in the Pair Remote Browsers row, and the button was only clickable
-// after dismissing the card with Maybe Later.
+// The Settings Tour coach mark must not be drawn on top of a live control: a
+// card over the "Manage Pairing" button leaves it clickable only after the card
+// is dismissed.
 //
 // The card is chrome and it floats, which is correct — but not over a control.
-// It now holds its band inside the detail pane it is anchored over, so nothing
-// interactive is ever underneath it, while the section navigator (whose ADVANCED
-// group a whole-screen band used to push off-screen) keeps its full height.
+// It holds its band inside the detail pane it is anchored over, so nothing
+// interactive is underneath it, while the section navigator keeps its full
+// height (a whole-screen band pushes its last group off-screen).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

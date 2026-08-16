@@ -206,11 +206,10 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
         return;
       }
       final headers = sequence.targetHeaders;
-      // The insight's target name (when the optimizer attached one via
-      // applyHint) is the only reliable join key — the in-editor node tree
-      // doesn't carry the Drift `targetId`. The previous logic stamped the
-      // FIRST header whenever the insight carried any targetId, which
-      // mutated the wrong target on a multi-target sequence.
+      // The insight's target NAME (when the optimizer attached one via
+      // applyHint) is the only reliable join key — the in-editor node tree does
+      // not carry the Drift `targetId`. Falling back to the first header would
+      // mutate the wrong target on a multi-target sequence.
       final hintTargetName = hint['targetName'] as String?;
       TargetHeaderNode? match;
       if (hintTargetName != null && hintTargetName.isNotEmpty) {

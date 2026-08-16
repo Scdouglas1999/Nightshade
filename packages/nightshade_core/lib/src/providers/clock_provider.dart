@@ -142,10 +142,9 @@ final clockProvider = Provider<Clock>((ref) {
   }
   final offset = _parseTimezoneOffset(settings.timezone);
   if (offset == null) {
-    // Surface an unparseable TZ as the system clock so the app keeps
-    // working, but say so. The doc comment above claimed this was logged and
-    // it was not, so a picker value the parser rejects produced a clock
-    // silently identical to "use system time".
+    // An unparseable TZ falls back to the system clock so the app keeps
+    // working, and logs: the fallback is otherwise indistinguishable from
+    // "use system time" and the rejected picker value stays invisible.
     ref
         .read(loggingServiceProvider)
         .warning(
@@ -159,9 +158,7 @@ final clockProvider = Provider<Clock>((ref) {
   return FixedOffsetClock(utcOffset: offset, label: settings.timezone);
 });
 
-// ============================================================================
 // Shared tick stream — one timer per cadence, multiplexed across the app.
-// ============================================================================
 
 /// Standard cadences exposed by [tickerProvider]. Adding a new cadence is a
 /// matter of adding an enum value and the corresponding [Duration] in
@@ -201,30 +198,15 @@ Duration _tickerInterval(TickerCadence cadence) {
 
 /// A shared interval-tick stream keyed by [TickerCadence].
 ///
-/// Why this exists:
-///   * Previously each panel that needed a periodic refresh (the Run
-///     Dashboard's sky stats, the integration totals card, the safety
-///     freshness indicator) spun up its *own* `Timer.periodic`. With a
-///     dozen panels we had a dozen timers waking up out of phase. The
-///     symptom was "the dashboard recomputes things every 200 ms because
-///     each panel's tick is at a different millisecond offset."
-///   * Subsystems that share a cadence now also share a tick boundary —
-///     the dashboard sky panel and the dashboard integration panel both
-///     redraw on the same 30 s boundary, which makes test snapshots
-///     deterministic and shaves a measurable amount off the idle-CPU
-///     profile.
+/// One timer per cadence, shared by every consumer of it: panels on the same
+/// cadence redraw on the same boundary rather than each waking the app at its
+/// own millisecond offset.
 ///
-/// Each cadence is a `StreamProvider` (no `family` cell explosion: only
-/// three) that emits the current `DateTime` once on subscription and then
-/// at the requested cadence. The underlying timer is created on first
-/// listen and torn down when the provider is disposed (no listeners). New
-/// listeners join an in-flight cadence without resetting the phase.
-///
-/// Usage:
-/// ```dart
-/// final tick = ref.watch(tickerProvider(TickerCadence.thirtySeconds));
-/// final now = tick.valueOrNull ?? DateTime.now();
-/// ```
+/// Each cadence is a `StreamProvider` (only three cells) that emits the
+/// current `DateTime` once on subscription and then at the requested cadence.
+/// The underlying timer is created on first listen and torn down when the
+/// provider is disposed (no listeners). New listeners join an in-flight
+/// cadence without resetting the phase.
 final tickerProvider = StreamProvider.family<DateTime, TickerCadence>((
   ref,
   cadence,

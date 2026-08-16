@@ -3,17 +3,17 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
-/// Pins the single angular-separation implementation the package now has.
+/// Pins the single angular-separation implementation this package has.
 ///
-/// Four hand-rolled great-circle helpers used to coexist here — two taking RA
-/// in hours, two in degrees, three by the spherical law of cosines and one by
-/// haversine. They could disagree at arcsecond scale, which is exactly the
-/// scale the coincident-star merge and the catalog cone search compare at.
-/// These tests hold the survivors to one another so a future edit cannot
-/// silently re-fork them.
+/// Hand-rolled great-circle helpers fork easily — some taking RA in hours,
+/// some in degrees, some by the spherical law of cosines and some by haversine
+/// — and they disagree at arcsecond scale, which is exactly the scale the
+/// coincident-star merge and the catalog cone search compare at. These tests
+/// hold the implementations to one another so a future edit cannot silently
+/// re-fork them.
 void main() {
-  /// The law-of-cosines form the deleted helpers used, kept here as the
-  /// reference the canonical helper must agree with at ordinary separations.
+  /// The law-of-cosines form, kept here as the reference the canonical helper
+  /// must agree with at ordinary separations.
   double lawOfCosinesDegrees(
     double ra1Deg,
     double dec1Deg,

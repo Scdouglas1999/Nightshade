@@ -1,8 +1,7 @@
 /// Named width breakpoints for responsive layout decisions.
 ///
-/// Replaces the scattered raw `< 1100`, `< 1024`, `< 768` magic numbers
-/// across the screens with a single source of truth so we can adjust the
-/// design system without grepping the codebase.
+/// The single source of truth for layout width bands, so a screen never
+/// hardcodes a raw pixel threshold.
 ///
 /// Bands:
 ///   * phone:         w <  600
@@ -11,11 +10,10 @@
 ///   * desktopWide:  1024  <= w < 1280
 ///   * ultraWide:    w >= 1280
 ///
-/// Note: `NightshadeTokens` already exposes a wider responsive scale aimed
-/// at the planetarium / typography. `BreakpointTokens` exists alongside
-/// it because UI layout decisions (sidebar collapse, toolbar overflow)
-/// historically used different thresholds. Keeping them separate avoids
-/// retroactively shifting the type-scale breakpoints.
+/// Deliberately separate from the `NightshadeTokens` responsive scale, which
+/// drives the planetarium and the type scale: layout decisions (sidebar
+/// collapse, toolbar overflow) switch at different widths, and merging the two
+/// would shift the type-scale breakpoints.
 abstract final class BreakpointTokens {
   BreakpointTokens._();
 

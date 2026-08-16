@@ -155,7 +155,8 @@ void main() {
           ),
           projectServiceProvider.overrideWithValue(projectService),
           targetLibraryServiceProvider.overrideWithValue(library),
-          // The library is EMPTY — the case the old sheet dead-ended on.
+          // The library is EMPTY — the case a sheet can most easily dead-end
+          // on.
           allDbTargetsProvider.overrideWith(
             (ref) => Stream.value(const <ndb.Target>[]),
           ),
@@ -178,7 +179,8 @@ void main() {
     await tester.tap(find.widgetWithText(NightshadeButton, 'Add Target').first);
     await tester.pumpAndSettle();
 
-    // The empty state now tells the truth: search for the object.
+    // The empty state points at the action that works: search for the
+    // object.
     expect(find.textContaining('Search for an object by name'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField).last, 'M31');
@@ -257,11 +259,13 @@ void main() {
       find.widgetWithText(NightshadeButton, 'Open catalog settings'),
       findsOneWidget,
     );
-    // The old copy sent the user hunting for something that cannot be found.
+    // The copy must not send the user hunting for something that cannot be
+    // found.
     expect(find.textContaining('Search for an object by name'), findsNothing);
 
     // ...and it still does not fall back to the "nothing matches" phrasing
-    // once the user types, which would be the same lie with a query in it.
+    // once the user types, which would be the same false claim with a query in
+    // it.
     await tester.enterText(find.byType(TextField).last, 'M31');
     await tester.pumpAndSettle();
     expect(find.text('No sky catalog installed'), findsOneWidget);

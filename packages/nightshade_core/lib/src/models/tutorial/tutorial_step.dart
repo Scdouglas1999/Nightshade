@@ -58,9 +58,8 @@ class FirstNightWizardStep {
 class FirstNightWizard {
   /// Lookup the wizard steps in display order. Throws [StateError] if
   /// the underlying [TutorialDefinitions.firstNight] doesn't have exactly
-  /// the expected seven entries — the wizard is a fixed-length walkthrough
-  /// and silently rendering fewer than seven steps would be a regression
-  /// the user couldn't see.
+  /// the expected seven entries — the wizard is a fixed-length walkthrough,
+  /// and rendering fewer than seven steps is a gap the user cannot see.
   static List<FirstNightWizardStep> get steps {
     final source = TutorialDefinitions.getStepsForCategory(
       TutorialCategory.firstNight,

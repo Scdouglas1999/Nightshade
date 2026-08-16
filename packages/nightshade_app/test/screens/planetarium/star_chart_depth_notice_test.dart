@@ -1,12 +1,12 @@
-// Regression: an imaging-scale field rendered empty and said nothing about it.
+// An imaging-scale field that renders empty must say why.
 //
-// Live measurement at FOV 1.2 deg on a fresh profile: 12 star blobs over
+// At FOV 1.2 deg on a fresh profile the chart draws 12 star blobs over
 // 2.725 sq deg = 4.4 stars/sq deg, against 100-200/sq deg for the real field to
-// mag 12. Decoding the shipped pack showed the app was drawing 12 of the 13
-// stars it OWNS there — the renderer is fine, the catalog is empty past mag 9.
-// The only signal in the product was StarCatalogFallbackBanner, which fires
-// solely when HYG is missing altogether, so the far more common "installed but
-// too shallow for this zoom" state passed for a bare patch of sky.
+// mag 12 — and 12 of the 13 stars the shipped pack OWNS there. The renderer is
+// fine; the catalog is empty past mag 9. StarCatalogFallbackBanner fires solely
+// when HYG is missing altogether, so without a second signal the far more common
+// "installed but too shallow for this zoom" state passes for a bare patch of
+// sky.
 //
 // No deep tileset is published, so the chart cannot be made deeper from inside
 // the app; what it can do is stop presenting a catalog limit as a sky.
@@ -76,11 +76,10 @@ void main() {
       reason: 'the number is the whole point — a user has to be able to tell '
           'a missing star from an absent one',
     );
-    // The action used to be labelled "Install". Nothing can be installed: the
-    // Layers panel row that opens the same Catalog Settings form was renamed
-    // "Configure source..." for exactly this reason, and this alert — raised
-    // the moment a user zooms to an imaging field, when they most believe the
-    // missing stars are one click away — kept the phantom promise.
+    // Nothing can be INSTALLED from here: the action opens the Catalog Settings
+    // form, which the Layers panel row calls "Configure source…". This alert is
+    // raised the moment a user zooms to an imaging field, when they most believe
+    // the missing stars are one click away, so it must not promise an install.
     expect(find.text('Install'), findsNothing);
     expect(find.text('Configure'), findsOneWidget);
     expect(
@@ -92,8 +91,8 @@ void main() {
 
   // The alert lays its action out in a Row beside the message, so a longer
   // label eats the message column and the block grows tall enough to cover the
-  // chart it annotates. Budgets are the old "Install" baseline: 225 px at the
-  // 460 px slot cap, 393 px in a 360 px phone chart.
+  // chart it annotates. Budgets: 225 px at the 460 px slot cap, 393 px in a
+  // 360 px phone chart.
   testWidgets('the honest label does not cost the message its column',
       (tester) async {
     await _pumpNotice(tester, fov: 1.2, chartWidth: 484);

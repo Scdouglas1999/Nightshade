@@ -51,9 +51,7 @@ class _SentimentPicker extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // Auto-prompt dialog (post-run "How did this go?" sheet)
-// =============================================================================
 
 /// Auto-prompt that appears after a run completes (when the
 /// `notes.prompt_after_run` setting is true). Pre-fills body from run

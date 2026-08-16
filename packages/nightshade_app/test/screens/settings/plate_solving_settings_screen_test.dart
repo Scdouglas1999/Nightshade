@@ -1,12 +1,8 @@
-// Widget + model tests for the Plate Solving settings UX layer
-// (W6-SOLVER-UX §6.1).
+// Widget + model tests for the Plate Solving settings UX layer.
 //
-// Imports the model leaf path rather than the public `nightshade_core`
-// barrel because the v2.5.0-hardening base SHA carries unrelated
-// `framing_provider` / `scheduler_provider` breakage that prevents the
-// barrel from compiling. Once that is repaired this should switch to
-// `package:nightshade_core/nightshade_core.dart` — both surfaces export
-// the same `PlateSolverDetection` / `PlateSolverInfo` types.
+// Imports the model leaf path rather than the public `nightshade_core` barrel.
+// Both surfaces export the same `PlateSolverDetection` / `PlateSolverInfo`
+// types.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

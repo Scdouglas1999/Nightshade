@@ -1,14 +1,13 @@
-// P1 cluster — two model-level settings fixes:
+// Two model-level settings contracts:
 //
-//  * Finding #2 (af key unification): the "disable guiding during autofocus"
-//    setting is persisted under the canonical key `af_disable_guiding`. The
-//    partial-persistence reader previously looked for the stale
-//    `af_disable_guiding_during_af` key, so a save→reload round trip lost the
-//    toggle. This test drives the full local save/load round trip.
+//  * The "disable guiding during autofocus" setting is persisted under the
+//    canonical key `af_disable_guiding`. A partial-persistence reader looking
+//    for a different key loses the toggle across a save→reload round trip; this
+//    test drives the full local round trip.
 //
-//  * Finding #3 (location unset detection): (0,0) — the Gulf of Guinea null
-//    island — is treated as UNSET so pre-flight / scheduler code can block a
-//    night planned for coordinates the user never configured.
+//  * (0,0) — the Gulf of Guinea null island — is treated as UNSET, so
+//    pre-flight / scheduler code can block a night planned for coordinates the
+//    user never configured.
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -21,7 +20,7 @@ import 'package:nightshade_core/src/providers/settings_provider.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('af_disable_guiding canonical key (Finding #2)', () {
+  group('af_disable_guiding canonical key', () {
     late ProviderContainer container;
     late NightshadeDatabase database;
 

@@ -1,7 +1,7 @@
-// Regression tests for the SequenceExecutor run-lifecycle transaction.
+// The SequenceExecutor run-lifecycle transaction.
 //
-// These pin the v6 "make it real" trust/reliability contract that
-// SequenceExecutor owns its run lifecycle transactionally:
+// These pin the contract that SequenceExecutor owns its run lifecycle
+// transactionally:
 //
 //   * start() serialization — two concurrent starts create exactly one
 //     session / run / native start (second is rejected).
@@ -586,13 +586,9 @@ void main() {
     );
 
     test(
-      'authoritative simulation setting is pushed unchanged on start',
+      'start pushes simulation mode off, with no setting to read it from',
       () async {
-        final container = buildContainer(
-          settingsNotifier: () => _TestAppSettingsNotifier(
-            () async => const AppSettingsState(useSimulationMode: true),
-          ),
-        );
+        final container = buildContainer();
         _stubBackendForStart(backend);
         when(() => backend.sequencerStart()).thenAnswer((_) async {});
         _stubConfirmingStop(backend, eventController);
@@ -604,7 +600,7 @@ void main() {
 
         await executor.start();
 
-        verify(() => backend.sequencerSetSimulationMode(true)).called(1);
+        verify(() => backend.sequencerSetSimulationMode(false)).called(1);
         await executor.stop();
       },
     );
@@ -993,26 +989,15 @@ void main() {
       );
     }, timeout: const Timeout(Duration(seconds: 90)));
 
-    // ---------------------------------------------------------------------
-    // Stop must not cry wolf when the run really did stop.
-    //
-    // Reproduced on the live rig (ZWO ASI1600MM-Cool / Pegasus NYX101) and
-    // again on the Linux simulator build, both byte-identical:
-    //
-    //   POST /api/sequencer/stop
-    //     -> 500 after 30.07 s, "TimeoutException ... The native executor
-    //        accepted the stop command but never reported a terminal state
-    //        within 30s. The hardware was NOT confirmed stopped, so nothing
-    //        has been torn down."
-    //   GET  /api/sequencer/status -> {"state":"cancelled"}   <- it HAD stopped
+    // Stop must not report a failed stop for a run that really did stop.
     //
     // The headless `load` -> `start` path runs the sequence on the NATIVE
     // executor without calling SequenceExecutor.start(), so this executor
-    // never installs its event subscription and no terminal event can ever
-    // reach `_onTerminalEvent`. The device-service mirror still marks the
-    // state `running`, so Stop passes `canStop`, commands the native stop, and
-    // then waited on an event that structurally could not arrive.
-    // ---------------------------------------------------------------------
+    // installs no event subscription and no terminal event can reach
+    // `_onTerminalEvent`. The device-service mirror still marks the state
+    // `running`, so Stop passes `canStop` and commands the native stop —
+    // leaving the status poll as the only source that can confirm the
+    // terminal.
     void stubNativeStatus(String state) {
       when(
         () => backend.sequencerGetStatus(),
@@ -1416,14 +1401,10 @@ void main() {
     });
   });
 
-  // NOTE: the previous "terminal report id snapshot" test enshrined the
-  // REJECTED early-terminal design (it snapshotted the live run/session ids the
-  // instant the execution state became `completed`, asserting they were still
-  // readable — i.e. that the terminal state was published BEFORE cleanup). That
-  // is exactly the race this batch removes: the settled state is now published
-  // only AFTER cleanup, so the live ids are already cleared at that point. The
-  // report handoff instead flows through the immutable one-shot terminal-run
-  // result below, and that test replaces the old one.
+  // The settled terminal state publishes only AFTER cleanup, so the live
+  // run/session ids are already cleared by the time it is observable. The
+  // report handoff therefore flows through the immutable one-shot
+  // terminal-run result pinned below, never through the live ids.
 
   group('G. terminal-run result handoff', () {
     Future<SequenceExecutor> startRunning(ProviderContainer container) async {
@@ -1556,8 +1537,9 @@ void main() {
         // The terminal result is NOT published until cleanup succeeds.
         expect(container.read(sequenceTerminalRunResultProvider), isNull);
 
-        // A rapid Start is rejected and creates no second session/run — so the
-        // old cleanup (still holding firstRunId) cannot clear a fresh run's id.
+        // A rapid Start is rejected and creates no second session/run, so the
+        // in-flight cleanup (still holding firstRunId) cannot clear a fresh
+        // run's id.
         await expectLater(executor.start(), throwsA(isA<StateError>()));
         expect(session.startCount, 1, reason: 'no second session created');
         expect(container.read(currentRunIdProvider), firstRunId);

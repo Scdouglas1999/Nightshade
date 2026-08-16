@@ -67,8 +67,8 @@ final Size _canvasSize = Size(
 /// One 60 fps frame, in microseconds. The painter's synchronous mesh-build cost
 /// must sit comfortably below this; we use a generous multiple of headroom over
 /// the typical measured cost so the assertion is robust on a slow CI box yet
-/// still catches a catastrophic per-pixel-CPU regression (which would blow well
-/// past a frame).
+/// still catches a catastrophic per-pixel-CPU cost (which would blow well past
+/// a frame).
 const int _frameBudgetMicros = 16667;
 
 void main() {

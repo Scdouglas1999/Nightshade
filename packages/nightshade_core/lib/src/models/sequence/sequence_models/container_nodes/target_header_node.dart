@@ -53,9 +53,8 @@ class TargetHeaderNode extends SequenceNode {
   /// from a known catalog/library target (the live scheduler populates it
   /// from the `SchedulerCandidate`). The frame-registration path walks the
   /// tree to this id so captured frames are attributed to the correct
-  /// `targets` row and per-target integration goals can actually complete —
-  /// fixing the bug where scheduler frames were written with `target_id=NULL`
-  /// and the engine imaged one target forever.
+  /// `targets` row and per-target integration goals can complete; without it
+  /// frames register with `target_id=NULL` and no goal ever closes.
   ///
   /// RUNTIME-ONLY: deliberately NOT serialized (scheduler sequences are
   /// dispatched in-memory and never saved) and NOT sent to the Rust executor;
@@ -157,11 +156,10 @@ class TargetHeaderNode extends SequenceNode {
     DateTime? startAfter,
     DateTime? endBefore,
     MosaicPanelInfo? mosaicPanel,
-    // PHASE-5: plain `?? this.X` keep-or-replace semantics for all four
-    // previously-sentinel fields. Omitted or null = keep; non-null =
-    // replace. Clearing any of these back to null is rebuild-explicit
-    // at the editor — see _target_node_properties.dart's
-    // integration-budget toggle for the canonical recipe.
+    // Keep-or-replace: omitted or null = keep, non-null = replace. Clearing
+    // any of these back to null is rebuild-explicit at the editor — see
+    // _target_node_properties.dart's integration-budget toggle for the
+    // canonical recipe.
     IntegrationBudget? integrationBudget,
     TargetTrigger? startWhen,
     TargetTrigger? endWhen,

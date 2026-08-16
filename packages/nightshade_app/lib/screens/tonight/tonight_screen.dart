@@ -686,13 +686,11 @@ class _ErrorBanner extends StatelessWidget {
 
 /// Shown when the picker came back with nothing.
 ///
-/// "Nothing imageable right now — the sky may be below your horizon OR your
-/// location is not set" hedged about a fact the app knows for certain: with no
-/// site configured the suggestion pipeline returns an empty list before it
-/// looks at the sky at all, and Refresh can never change that. Every other
-/// surface (planner, weather, dashboard) names the missing location and offers
-/// a way to fix it; this one now does the same, and keeps the honest
-/// "nothing is up" message for when the site IS set.
+/// Do not hedge about a fact the app knows: with no site configured the
+/// suggestion pipeline returns an empty list before it looks at the sky at all,
+/// and Refresh can never change that. Name the missing location and offer a way
+/// to fix it, as the planner, weather and dashboard do; keep the "nothing is
+/// up" message for when the site IS set.
 class _NoPickCard extends ConsumerWidget {
   final NightshadeColors colors;
   final VoidCallback onRetry;

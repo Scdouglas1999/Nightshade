@@ -516,13 +516,11 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   /// Resolve this machine's position, with consent, and never leave the site
   /// in a state that does not exist.
   ///
-  /// Two things this used to get wrong. It was labelled GPS while on every
-  /// desktop `GeolocationService` falls back to a third-party IP lookup — a
-  /// silent outbound request from an app that is often run on an isolated
-  /// observatory network. And it wrote the new latitude/longitude while
-  /// passing the OLD elevation straight through, so an IP fix in Pennsylvania
-  /// inherited a 1234 m elevation from a previous Seattle site: a place that
-  /// does not exist, feeding refraction and horizon maths.
+  /// Two rules. ASK before the lookup: on every desktop `GeolocationService`
+  /// falls back to a third-party IP lookup, and this app is often run on an
+  /// isolated observatory network. And never mix a new fix with a stale
+  /// elevation: carrying the old value through gives a site that does not
+  /// exist, feeding refraction and horizon maths.
   Future<void> _detectLocation(AppSettingsState settings) async {
     // Shared with the first-run wizard's site step, which fires the same
     // service: one dialog means the two surfaces cannot describe the outbound
@@ -588,14 +586,11 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   /// eight compass fields on this page summarise them (highest altitude per
   /// 45° sector, so the number shown never under-reports an obstruction).
   ///
-  /// The import used to keep ONLY those eight numbers, behind a snackbar that
-  /// said just "Horizon profile imported from `<file>`". A 29° tree at azimuth
-  /// 190 was therefore applied to everything from 157.5° to 202.5°, and it
-  /// only showed up months later as the planner refusing targets that were
-  /// plainly clear — on exactly the southern sky a horizon survey is made for.
-  /// [LegacyHorizonProfile] now carries the samples and interpolates them in
-  /// `altitudeAtAzimuth`, which is what the planner's visibility filter and
-  /// the planetarium's 360-entry terrain table both already called.
+  /// [LegacyHorizonProfile] carries the SAMPLES, not just the eight sector
+  /// summaries, and interpolates them in `altitudeAtAzimuth` — the call the
+  /// planner's visibility filter and the planetarium's 360-entry terrain table
+  /// both make. Keeping only the summaries applies one 29° tree across a whole
+  /// 45° sector and refuses targets that are plainly clear.
   Future<void> _importHorizonFile() async {
     if (_isImportingHorizon) return;
     final generation = ++_horizonImportGeneration;
@@ -760,10 +755,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   /// lose.
   ///
   /// "Reset All to 0°" sits on the same row as "Import .hor / CSV", about
-  /// 120 px from it, and used to fire on the first click. A survey is hours of
-  /// work with a compass and an inclinometer (or a file that has to be found
-  /// again), the app does not keep the source file, and there is no undo — so
-  /// the misclick beside the Import button silently cost the whole skyline.
+  /// 120 px from it. A survey is hours of work with a compass and an
+  /// inclinometer, the app does not keep the source file, and there is no undo,
+  /// so a misclick beside Import would cost the whole skyline.
   Future<void> _resetHorizon(LegacyHorizonProfile current) async {
     final hasSurvey = current.sampleCount >= 2;
     final hasMask = horizonDirections.any((dir) => current.altitudeAt(dir) > 0);
@@ -837,9 +831,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   /// What the Timezone row can honestly say about the value below it.
   ///
   /// Reads [clockProvider] rather than the raw setting, so the sentence
-  /// describes the clock the app is actually running on. The old row said
-  /// nothing at all, which is how a picker that changed no displayed time
-  /// anywhere survived: there was no claim to falsify.
+  /// describes the clock actually in force — a row that says nothing leaves a
+  /// picker that changes no displayed time with no claim to falsify.
   String _timezoneSubtitle(AppSettingsState settings) {
     if (settings.useSystemTime) {
       return 'Ignored while "Use system time" is on — times follow this '
@@ -860,11 +853,10 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   /// Rewrites an IANA label left by the previous picker to the equivalent
   /// standard-time UTC offset.
   ///
-  /// The old dropdown offered 18 IANA names but `clockProvider` parses only
-  /// `UTC` and `UTC±HH:MM`, so 17 of them resolved to null and fell back to
-  /// the system clock — the setting persisted, was displayed, and did
-  /// nothing. Migrating means the choice the operator already made starts
-  /// being honoured instead of being silently discarded.
+  /// `clockProvider` parses only `UTC` and `UTC±HH:MM`, so a stored IANA name
+  /// resolves to null and silently falls back to the system clock while the
+  /// setting still persists and displays. Migrating means the choice the
+  /// operator already made is honoured.
   void _migrateLegacyTimezone(AppSettingsState settings) {
     if (_legacyTimezoneMigrated) return;
     final stored = settings.timezone;

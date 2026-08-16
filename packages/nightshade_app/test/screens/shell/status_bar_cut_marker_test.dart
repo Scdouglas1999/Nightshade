@@ -1,18 +1,15 @@
-// WE-EQ-N5 residual — the pill at the viewport cut is still mangled.
+// The pill at the viewport cut must not be mangled.
 //
-// The E-fix capped a dense pill's value at 88 px "so four device pills plus
-// the sequence indicator, the equipment indicator and the save-path chip fit a
-// 1000 px bar without the strip overflowing into the fade". Wave F drove
-// exactly that: `resize 1000 800` with four devices connected. The premise is
-// false on screen — the strip DOES overflow and scroll — and the item at the
-// cut still read "Si", sliced mid-word, dissolving into the fade with no
-// ellipsis (46-narrow.png, 4x crop 49-sb-zoom.png).
+// Capping a dense pill's value at 88 px does not make the strip fit: at 1000x800
+// with four devices connected it still overflows and scrolls, and the item at
+// the cut reads "Si", sliced mid-word, dissolving into the fade with no
+// ellipsis.
 //
 // So the contract asserted here is not "the strip fits". It is: while there is
 // content past the right edge, the cut carries a VISIBLE truncation mark, the
 // way an ellipsis inside a pill does — and when there is nothing past the edge,
 // neither the mark nor the fade is drawn, because a truncation mark over
-// complete content is the same lie in the other direction.
+// complete content is the same false claim in the other direction.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';

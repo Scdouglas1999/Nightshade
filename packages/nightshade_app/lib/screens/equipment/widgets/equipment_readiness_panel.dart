@@ -26,11 +26,9 @@ class EquipmentReadinessPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final report = ref.watch(readinessReportProvider);
 
-    // The header must count what the checklist below actually SHOWS. Dismissing
-    // a row used to leave this line quoting the full total over a shorter list
-    // ("2 items are blocking first light." above a single blocking row).
-    // Blocked rows can no longer be hidden at all, so only caution rows can go
-    // missing — and those are subtracted here and reported as dismissed.
+    // The header must count what the checklist below actually SHOWS. Blocked
+    // rows cannot be hidden at all, so only caution rows can go missing — and
+    // those are subtracted here and reported as dismissed.
     final dismissed = ref.watch(dismissedReadinessItemsProvider);
     final hiddenCaution =
         report.cautionItems.where((item) => dismissed.contains(item.id)).length;

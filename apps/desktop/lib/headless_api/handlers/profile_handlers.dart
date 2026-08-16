@@ -36,9 +36,7 @@ class ProfileHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'ProfileHandlers');
 
-  // ===========================================================================
   // Profiles
-  // ===========================================================================
 
   EquipmentProfilesDao get _profilesDao =>
       container.read(equipmentProfilesDaoProvider);
@@ -296,9 +294,7 @@ class ProfileHandlers {
     });
   }
 
-  // ===========================================================================
   // Settings
-  // ===========================================================================
 
   Future<Response> handleGetSettings(Request request) async {
     // Read from the DB-backed settings notifier (the desktop's source of
@@ -528,12 +524,12 @@ class ProfileHandlers {
 
     // MERGE the posted keys onto the current settings instead of hydrating
     // the freezed model straight from the posted map. `AppSettings.fromJson`
-    // fills every omitted key with its model DEFAULT, so a partial update
-    // (e.g. `{"settings":{"parkOnUnsafeWeather":false}}` from a script or
-    // integrator) used to silently reset the other ~150 persisted settings —
-    // including `webServerEnabled`, which tore down the very server the
-    // remote client was connected through. Full-snapshot writers (the mobile
-    // app's settings sync) are unaffected: their maps cover every key.
+    // fills every omitted key with its model DEFAULT, so hydrating from a
+    // partial update (e.g. `{"settings":{"parkOnUnsafeWeather":false}}` from a
+    // script or integrator) would reset the other ~150 persisted settings —
+    // including `webServerEnabled`, tearing down the very server the remote
+    // client is connected through. Full-snapshot writers (the mobile app's
+    // settings sync) are unaffected: their maps cover every key.
     // The jsonDecode(jsonEncode(...)) round-trip flattens nested freezed
     // values (e.g. ObserverLocation) into plain maps — freezed `toJson` is
     // shallow, and `fromJson` requires pure JSON.
@@ -546,12 +542,10 @@ class ProfileHandlers {
           };
     final settings = settings_models.AppSettings.fromJson(mergedJson);
 
-    // Persist the COMPLETE settings to the database — the single source of
-    // truth shared with the desktop — then sync the engine-relevant subset
-    // (location/theme/language/autoConnect) to the native bridge so the
-    // executor stays consistent. Writing only the bridge previously dropped
-    // every other field on the floor (B16): the API returned "updated" but
-    // the value never persisted.
+    // The database is the source of truth, shared with the desktop, so the
+    // COMPLETE settings go there. The bridge then gets the engine-relevant
+    // subset (location/theme/language/autoConnect) to keep the executor
+    // consistent. Writing only the bridge would drop every other field.
     await settingsNotifier.applyRemoteSettings(settings);
     await backend.updateSettings(settings);
     publishHostMutationFromContainer(
@@ -563,8 +557,8 @@ class ProfileHandlers {
     // [settings sync] emit live settings-change events so every
     // connected WS client can update its in-memory state without a GET
     // round-trip. The diff is field-by-field on the freezed `AppSettings`
-    // JSON projection — same JSON the client originally sent, so the
-    // keys match what the receiver expects.
+    // JSON projection — the same JSON the client sends, so the keys match
+    // what the receiver expects.
     _emitSettingsChanges(
       previous: previous,
       next: settings,

@@ -14,15 +14,12 @@ import 'run_dashboard/run_dashboard_format.dart';
 /// Renders in two layouts driven by [direction]:
 ///
 ///   * [Axis.horizontal] (default): the 32 px-tall strip below the
-///     sequencer toolbar that originally lived in this file. Each
-///     telemetry item is rendered as an icon + label + value pair laid
-///     out left to right with separators.
-///   * [Axis.vertical]: a card with per-device blocks stacked top-down.
-///     Used by the Run Dashboard's left column (and replaces the parallel
-///     hand-formatted equipment panel that previously duplicated this
-///     logic). Vertical layout renders more per-device detail (RA/Dec,
-///     side-of-pier, cooler power, etc.) because the dashboard has
-///     vertical real-estate the toolbar strip does not.
+///     sequencer toolbar. Each telemetry item is an icon + label + value
+///     pair laid out left to right with separators.
+///   * [Axis.vertical]: a card with per-device blocks stacked top-down,
+///     used by the Run Dashboard's left column. It renders more per-device
+///     detail (RA/Dec, side-of-pier, cooler power, …) because the dashboard
+///     has vertical real-estate the toolbar strip does not.
 ///
 /// Both layouts read the same Riverpod providers, so they always agree.
 class EquipmentTelemetryStrip extends ConsumerWidget {
@@ -457,7 +454,7 @@ class _VerticalLayout extends StatelessWidget {
                   : colors.textMuted,
           rows: [
             // Only while guiding: these values persist in guider state after a
-            // session stops, so an unguarded check showed the previous run's RMS
+            // session stops, so an unguarded check shows the previous run's RMS
             // directly beneath this block's own "Idle" status label.
             if (guider.isGuiding && guider.rmsTotal != null)
               _TelemetryRow(

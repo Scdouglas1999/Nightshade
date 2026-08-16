@@ -1,9 +1,7 @@
 part of '../device_service.dart';
 
 extension _DeviceServiceFocuserRotatorControls on DeviceService {
-  // ===========================================================================
   // Device ID Helpers
-  // ===========================================================================
 
   /// Get the connected camera device ID.
   ///
@@ -13,9 +11,7 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
   Future<String?> _getCameraDeviceId() async =>
       _connectedDeviceIdFor(DeviceType.camera);
 
-  // ===========================================================================
-  // Focuser Control
-  // ===========================================================================
+  // Focuser control
 
   /// Get the connected focuser device ID. Active-profile IDs are deliberately
   /// not used here; only the connected state has authority to move hardware.
@@ -286,9 +282,7 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
     }
   }
 
-  // ===========================================================================
-  // Rotator Control
-  // ===========================================================================
+  // Rotator control
 
   /// Get the connected rotator device ID. Active-profile IDs are deliberately
   /// excluded because they describe intended equipment, not a live connection.

@@ -1,9 +1,7 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
-  // ===========================================================================
   // /  — Long-running operation job client API
-  // ===========================================================================
 
   /// Snapshot of a server-side job. Mirrors the wire shape of
   /// `apps/desktop/lib/headless_api/job_manager.dart#Job.toJson`. We
@@ -163,9 +161,7 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
     return state == 'succeeded' || state == 'failed' || state == 'cancelled';
   }
 
-  // ===========================================================================
   // Session ownership client API
-  // ===========================================================================
 
   /// POST /api/session/claim — returns true on success, false when the
   /// slot is already taken.
@@ -222,7 +218,6 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
     return RemoteSessionStatus.fromJson(response);
   }
 
-  // =========================================================================
   // Remote OTA update management.
   //
   // Mirrors the headless server's `/api/system/version` and
@@ -230,7 +225,6 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   // download, apply, rollback) return a [RemoteJob] handle; the caller
   // polls via [getJob]/[awaitJobCompletion] or subscribes to the WS
   // event stream filtered by `category == EventCategory.system`.
-  // =========================================================================
 
   /// GET /api/system/version — current build info.
   Future<RemoteVersionInfo> getSystemVersion() async {
@@ -277,7 +271,7 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   }
 
   /// POST /api/system/update/rollback — roll back the last applied update
-  /// to the previous version. Only available while a restore point exists
+  /// to the build it replaced. Only available while a restore point exists
   /// (after an apply, before the next launch confirms the build healthy);
   /// the server returns 501 otherwise. The host process may restart during
   /// the rollback, so clients should reconnect after the WS drops.
@@ -290,23 +284,20 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   }
 
   /// POST /api/system/update/abort — abort any in-flight check or
-  /// download. The response carries the list of jobIds that were
-  /// cancelled.
-  Future<RemoteJob> abortUpdate() async {
+  /// download.
+  ///
+  /// Returns the ids of the jobs the host actually cancelled; the list is
+  /// empty when nothing was in flight, which is the host's answer and not an
+  /// error. The endpoint answers `{aborted: bool, cancelledJobs: [...]}` and
+  /// never mints a job of its own, so neither does this.
+  Future<List<String>> abortUpdate() async {
     final response = await _post('system/update/abort');
-    // The abort endpoint returns `{aborted: bool, cancelledJobs: [...]}`
-    // rather than a single Job snapshot. Synthesise a RemoteJob from
-    // the first cancelled job id (or a synthetic one when there were
-    // none) so the caller sees a consistent return type.
     final cancelled = response['cancelledJobs'];
-    final firstJobId = cancelled is List && cancelled.isNotEmpty
-        ? cancelled.first.toString()
-        : 'aborted';
-    return RemoteJob(
-      jobId: firstJobId,
-      operation: 'system.update.abort',
-      state: 'cancelled',
-    );
+    if (cancelled is! List) return const <String>[];
+    return cancelled
+        .map((id) => id.toString())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
   }
 
   /// GET /api/system/update/staged — info about the staged update, or

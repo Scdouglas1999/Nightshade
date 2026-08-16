@@ -1,5 +1,3 @@
-// Part of ../live_frame_panel.dart -- extracted for maintainability.
-//
 // Frame badge and quality chip widgets.
 part of '../live_frame_panel.dart';
 

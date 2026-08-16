@@ -1,11 +1,9 @@
-// Regression: Glance mode looked like a dead toggle.
+// Glance mode must not read as a dead toggle.
 //
-// Driven live on an idle dashboard: the button lights up blue, its icon flips
-// to an open eye, the tree flips `button: Glance mode [off]` -> `[ON]` — and
-// nothing else on the page changes at all. The two screenshots differ only in
-// the button and the clock, and the state survives navigation still with no
-// visible effect. It does have one: it re-sizes the LIVE session readouts,
-// which are not on an idle dashboard. A control has to say what it did.
+// On an idle dashboard the button lights up blue, its icon flips to an open
+// eye, the tree flips `button: Glance mode [off]` -> `[ON]` — and nothing else
+// on the page changes, because what it re-sizes is the LIVE session readouts,
+// which an idle dashboard does not show. A control has to say what it did.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/glance_mode_toggle.dart';

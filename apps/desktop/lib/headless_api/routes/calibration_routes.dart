@@ -1,12 +1,10 @@
 /// Declarative route table for the calibration-library surface
 /// (darks, flats, defect maps).
 ///
-/// Counterpart to `handlers/calibration_handlers.dart`. Previously the
-/// only way to manage these tables on a headless Pi was SSH; now they
-/// have a full REST surface. Order constraint inside each sub-prefix:
-/// the literal sub-paths (`upload`, `find-match`, `backfill-sizes`,
-/// `recommendation`) MUST register before the `<id>`-parameterised
-/// route on the same prefix.
+/// Counterpart to `handlers/calibration_handlers.dart`. Order constraint
+/// inside each sub-prefix: the literal sub-paths (`upload`, `find-match`,
+/// `backfill-sizes`, `recommendation`) MUST register before the
+/// `<id>`-parameterised route on the same prefix.
 library;
 
 import '../handlers/calibration_handlers.dart';

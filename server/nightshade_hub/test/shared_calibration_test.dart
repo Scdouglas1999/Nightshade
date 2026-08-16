@@ -1,4 +1,4 @@
-// Collaborative Sky (6.0) WS1 — hub shared-calibration-library service + routes.
+// Hub shared-calibration-library service + routes.
 //
 // Covers the publish quality/consent gates (shareable license, flats require an
 // optical-train tag, no defect maps, sensor dimensions required + verified
@@ -768,9 +768,9 @@ void main() {
         displayName: 'Flooder',
       );
       // Stay under the raw rate limiter (120/min) but push past the abuse
-      // threshold (25). Before the fix a poison-master flood accrued against
-      // NEITHER abuse bucket and was never auto-suspended; now each 422 lands in
-      // the audit ledger and feeds `checkAbuse`.
+      // threshold (25). Every 422 lands in the audit ledger and feeds
+      // `checkAbuse`, so a poison-master flood auto-suspends like any other
+      // abuse.
       expect(server.moderation.isSuspended(reg.account.id), isFalse);
       for (var i = 0; i < ModerationService.defaultAbuseThreshold; i++) {
         final r = await send(

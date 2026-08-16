@@ -1,14 +1,12 @@
 // Sequencer-execution defaults surfaced in Settings → Sequencer. Owns the
 // behaviour-tree-level knobs the executor consults: park triggers, the
-// meridian-flip warning window, autofocus cadence, dither cadence, and
-// the simulation execution toggle.
+// meridian-flip warning window, autofocus cadence, dither cadence.
 //
 // Owns:
 //   * parkOnUnsafeWeather, parkBeforeDawn, safetyFailMode
 //   * meridianFlipMinutes, autoFocusOnFilterChange, useFilterFocusOffsets
 //   * autoFocusEveryMinutes
 //   * ditherEnabled, ditherEveryFrames
-//   * useSimulationMode
 //
 // Does NOT own:
 //   * Per-instruction recovery defaults → see `recovery.dart`.
@@ -65,17 +63,9 @@ extension SequencerSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(ditherEveryFrames: value));
   }
 
-  Future<void> setUseSimulationMode(bool value) async {
-    final effective = effectiveSimulationMode(value);
-    await _saveSetting('use_simulation_mode', effective.toString());
-    _patchState((s) => s.copyWith(useSimulationMode: effective));
-  }
-
-  // ---------------------------------------------------------------------
   // Sequencer editor layout — cross-restart UI persistence. The sequencer
   // screen seeds its in-session StateProviders from these on first read and
   // writes back through these setters on change.
-  // ---------------------------------------------------------------------
   Future<void> setSequencerToolboxCollapsed(bool value) async {
     await _saveSetting('sequencer.toolbox_collapsed', value.toString());
     _patchState((s) => s.copyWith(sequencerToolboxCollapsed: value));

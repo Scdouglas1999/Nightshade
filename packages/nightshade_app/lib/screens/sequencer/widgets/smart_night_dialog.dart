@@ -43,16 +43,14 @@ class SmartNightDialog extends ConsumerStatefulWidget {
     this.seedSourceLabel,
   });
 
-  /// Optional set of target ids to pre-select on the Targets step (component
-  /// C11 — Smart Night handoff from an active project). When provided and
-  /// non-empty the wizard opens in hand-pick mode with exactly these targets
-  /// selected, so an operator can one-click feed a campaign's still-incomplete
-  /// targets into the planner instead of getting the generic "best of
-  /// everything tonight" set. A given id only takes effect if it survives
-  /// tonight's altitude/score cut-offs (the suggestion ranking is the source of
-  /// truth for whether a target is imageable tonight); ids that don't appear in
-  /// the ranking are surfaced honestly on the Targets step rather than silently
-  /// dropped.
+  /// Optional set of target ids to pre-select on the Targets step — the Smart
+  /// Night handoff from an active project. When non-empty the wizard opens in
+  /// hand-pick mode with exactly these targets selected.
+  ///
+  /// An id only takes effect if it survives tonight's altitude/score cut-offs:
+  /// the suggestion ranking is the source of truth for whether a target is
+  /// imageable tonight. Ids that do not appear in the ranking are surfaced on
+  /// the Targets step rather than silently dropped.
   final List<int>? seedTargetIds;
 
   /// Human-readable description of where [seedTargetIds] came from (e.g. the
@@ -89,7 +87,7 @@ Future<void> showSmartNightDialog(
 class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   int _step = 0;
 
-  // ---- Step 1: window ---------------------------------------------------
+  // Step 1: window
   DateTime? _windowStart;
   DateTime? _windowEnd;
   bool _windowInitialised = false;
@@ -101,7 +99,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   DateTime? _twilightStart;
   DateTime? _twilightEnd;
 
-  // ---- Step 3: targets --------------------------------------------------
+  // Step 3: targets
   /// User-selected target IDs. Empty → auto-pick top N by score.
   final Set<int> _selectedTargetIds = <int>{};
   bool _autoSelect = true;
@@ -144,10 +142,10 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       generation == _authorityGeneration &&
       identical(ref.read(backendProvider), backend);
 
-  // ---- Step 4: strategy -------------------------------------------------
+  // Step 4: strategy
   SmartNightStrategy _strategy = SmartNightStrategy.autoLrgb;
 
-  // ---- Step 5: preview --------------------------------------------------
+  // Step 5: preview
   SmartNightPlan? _preview;
   String? _previewError;
   String? _previewDraftId;
@@ -167,7 +165,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   /// rapid burst of taps only persists the final count.
   Timer? _countDraftDebounce;
 
-  // ---- Settings (defaults; wizard can override) ------------------------
+  // Settings (defaults; wizard can override)
   /// Local working copy of the wizard's [SmartNightSettings]. Seeded from
   /// the persisted defaults in [AppSettingsState] on first build; user
   /// changes are written back to settings so the next session pre-fills
@@ -314,9 +312,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     );
   }
 
-  // ---------------------------------------------------------------------
   // Header / stepper / footer
-  // ---------------------------------------------------------------------
 
   void _ensureWindowInitialised() {
     if (_windowInitialised) return;

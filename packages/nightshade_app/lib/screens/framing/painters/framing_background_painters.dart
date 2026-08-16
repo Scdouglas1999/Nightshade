@@ -17,9 +17,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 ///
 /// The destination rectangle is taken verbatim from
 /// [FramingPlateScale.drawRectFor] rather than re-deriving a fit-to-canvas
-/// rectangle locally. This eliminates the historical "fit-to-canvas vs
-/// 60px/deg" mismatch at its source: every framing painter and the gesture
-/// hit-tester now share one astrometric scale.
+/// rectangle locally: every framing painter and the gesture hit-tester derive
+/// px/deg from one astrometric scale.
 ///
 /// The image is rotated about the canvas center by [rotation] degrees so the
 /// survey field rotates together with the FOV overlay (which is drawn under the

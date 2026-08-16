@@ -231,19 +231,17 @@ void main() {
 
   test('HeartbeatStatusChanged(disconnected) drives the disconnect side '
       'effects (flips connection state + surfaces reconnecting)', () async {
-    // Polish #5 regression guard. The heartbeat-lost path no longer emits a
-    // standalone `Disconnected` event (deduped to one toast), so the
-    // canonical `HeartbeatStatusChanged{Disconnected}` status must itself
-    // drive the load-bearing disconnect side effects that the removed event
-    // used to: transitioning the device connection state (which is what
-    // arms the auto-reconnect path).
+    // The heartbeat-lost path emits no standalone `Disconnected` event (it is
+    // deduped to one toast), so the canonical
+    // `HeartbeatStatusChanged{Disconnected}` status itself drives the
+    // load-bearing disconnect side effects: transitioning the device connection
+    // state, which is what arms the auto-reconnect path.
     //
-    // DEV-P1 reconnect-UI: the camera is a Dart-owned reconnect type
-    // (native HeartbeatConfig::for_camera has auto_reconnect = false), so
-    // the Dart coordinator schedules the reconnect AND surfaces the
-    // "reconnecting" indicator immediately — the health dot must read
-    // `reconnecting`, NOT fall back to gray "unknown" while a reconnect is
-    // actively in flight.
+    // The camera is a Dart-owned reconnect type (native
+    // HeartbeatConfig::for_camera has auto_reconnect = false), so the Dart
+    // coordinator schedules the reconnect AND surfaces the "reconnecting"
+    // indicator immediately — the health dot reads `reconnecting`, not gray
+    // "unknown", while a reconnect is in flight.
     const deviceId = 'native:zwo:0';
 
     // Bring the camera "online" so the disconnect transition is observable.
@@ -486,11 +484,10 @@ void main() {
   test(
     'Heartbeat dispatch does not interfere with the Disconnected handler',
     () async {
-      // Regression guard for the task constraint: heartbeat routing must
-      // not break the  /  connection-state handling.
-      // We send a Disconnected event for a device that has no heartbeat
-      // entry at all — the heartbeat clear (no-op) must not raise and
-      // the event must still be processed by the existing handler.
+      // Heartbeat routing must not break connection-state handling. A
+      // Disconnected event for a device with no heartbeat entry at all must
+      // leave the heartbeat clear a no-op that does not raise, and the event
+      // must still reach the existing handler.
       const deviceId = 'native:zwo:0';
 
       expect(

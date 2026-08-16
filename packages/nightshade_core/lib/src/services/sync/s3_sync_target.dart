@@ -121,9 +121,7 @@ class S3SyncTarget implements SyncTarget {
   static const String _emptyPayloadSha256 =
       'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
-  // ---------------------------------------------------------------------
   // URI construction
-  // ---------------------------------------------------------------------
 
   /// Build the request URI for [key] (slash-separated object key, may be
   /// empty for bucket-scoped requests) with optional [query] parameters.
@@ -147,9 +145,7 @@ class S3SyncTarget implements SyncTarget {
     return uri.host;
   }
 
-  // ---------------------------------------------------------------------
   // AWS Signature Version 4
-  // ---------------------------------------------------------------------
 
   /// RFC 3986 percent-encoding per AWS's `UriEncode`: unreserved chars
   /// (`A-Z a-z 0-9 - _ . ~`) pass through, everything else is %-encoded
@@ -283,9 +279,7 @@ class S3SyncTarget implements SyncTarget {
     );
   }
 
-  // ---------------------------------------------------------------------
   // Signed transport
-  // ---------------------------------------------------------------------
 
   /// Sign and send [method] [uri]. [extraHeaders] (e.g. `Content-Type`)
   /// are transmitted but intentionally not signed — S3 only requires the
@@ -373,9 +367,7 @@ class S3SyncTarget implements SyncTarget {
     );
   }
 
-  // ---------------------------------------------------------------------
   // SyncTarget contract
-  // ---------------------------------------------------------------------
 
   /// No-op: object stores have no directory objects (see the file-level
   /// doc). A prefix exists implicitly once a key under it is written.
@@ -504,9 +496,7 @@ class S3SyncTarget implements SyncTarget {
     return entries;
   }
 
-  // ---------------------------------------------------------------------
-  // list-objects-v2 XML parsing (tolerant element scanner, no XML dep)
-  // ---------------------------------------------------------------------
+  // List-objects-v2 XML parsing (tolerant element scanner, no XML dep)
 
   static final RegExp _contentsBlock = RegExp(
     r'<(?:[A-Za-z0-9_-]+:)?Contents[\s>].*?</(?:[A-Za-z0-9_-]+:)?Contents>',

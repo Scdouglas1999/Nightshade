@@ -22,9 +22,8 @@ final previewDisplayScaleProvider = StateProvider<double>((ref) => 1.0);
 ///
 /// The zoom mutators need this to translate an *absolute* intent ("1:1", "no
 /// more than 800% of actual") into the fit-relative multiplier the viewer state
-/// stores. Without it `zoom1to1` had no way to know how far from 1:1 fit was,
-/// which is why it was a byte-for-byte copy of `fitToWindow`. Published by
-/// `LivePreviewArea` alongside [previewDisplayScaleProvider]; 1.0 until the
+/// stores: without it `zoom1to1` cannot know how far from 1:1 fit is. Published
+/// by `LivePreviewArea` alongside [previewDisplayScaleProvider]; 1.0 until the
 /// preview has laid out a frame, which makes fit and 1:1 agree — correct, since
 /// with no frame there is nothing to magnify.
 final previewFitScaleProvider = StateProvider<double>((ref) => 1.0);

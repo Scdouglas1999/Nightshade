@@ -783,9 +783,7 @@ void main() {
     });
   });
 
-  // ==========================================================================
-  // Per-target altitude crossings (TargetTrigger model + validators)
-  // ==========================================================================
+  // Per-target altitude crossings (TargetTrigger model + validators).
 
   group('TargetTrigger JSON round-trip', () {
     test('AltitudeAbove round-trips', () {

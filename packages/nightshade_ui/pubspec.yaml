@@ -18,8 +18,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   # Pinned exact version across all 10 workspace packages to prevent
-  # mixed-version drift. Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE
-  # (audit-dart §10 #3).
+  # mixed-version drift.
   flutter_lints: ^5.0.0
 
 flutter:

@@ -1,9 +1,5 @@
 part of '../quick_start_service.dart';
 
-// =============================================================================
-// Providers
-// =============================================================================
-
 Future<CheckpointInfo?> _safeCheckpointInfo(NightshadeBackend backend) async {
   try {
     return await backend.getCheckpointInfo();

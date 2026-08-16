@@ -81,7 +81,8 @@ void main() {
     expect(container.read(equipmentFOVProvider).fov, isNotNull);
 
     // Camera disconnects: the profile still knows the optics but nothing knows
-    // the sensor, so the box must disappear rather than linger at the old size.
+    // the sensor, so the box must disappear rather than linger at its last
+    // size.
     container.read(_testOpticalConfig.notifier).state = const OpticalConfig(
       telescopeName: 'ED80',
       focalLength: 480,

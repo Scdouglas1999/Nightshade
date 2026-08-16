@@ -1,4 +1,4 @@
-// Regression guard for the post-session integration-progress wiring.
+// The post-session integration-progress wiring.
 //
 // The progress feature spans two contracts that must agree on the exact
 // `eventType` token and `data` keys:

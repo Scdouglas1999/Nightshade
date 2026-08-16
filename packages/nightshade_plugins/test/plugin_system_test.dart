@@ -55,27 +55,18 @@ void main() {
 
     test('Multiple plugins can coexist', () async {
       final plugin1 = ExamplePlugin();
-      final plugin2 = ExampleUiPlugin();
-      final plugin3 = ExampleDevicePlugin();
+      final plugin2 = ExampleSequencePlugin();
 
       await host.registerPlugin(plugin1);
       await host.registerPlugin(plugin2);
-      await host.registerPlugin(plugin3);
 
-      expect(host.plugins.length, equals(3));
+      expect(host.plugins.length, equals(2));
       expect(host.isLoaded(plugin1.id), isTrue);
       expect(host.isLoaded(plugin2.id), isTrue);
-      expect(host.isLoaded(plugin3.id), isTrue);
 
-      // Get UI plugins
-      final uiPlugins = host.getPlugins<UiPlugin>();
-      expect(uiPlugins.length, equals(1));
-      expect(uiPlugins.first.id, equals(plugin2.id));
-
-      // Get device plugins
-      final devicePlugins = host.getPlugins<DevicePlugin>();
-      expect(devicePlugins.length, equals(1));
-      expect(devicePlugins.first.id, equals(plugin3.id));
+      final sequencePlugins = host.getPlugins<SequencePlugin>();
+      expect(sequencePlugins.length, equals(1));
+      expect(sequencePlugins.first.id, equals(plugin2.id));
     });
 
     test('Plugin duplicate registration throws exception', () async {
@@ -107,19 +98,19 @@ void main() {
     });
 
     test('Disabled plugin does not appear in typed queries', () async {
-      final plugin = ExampleUiPlugin();
+      final plugin = ExampleSequencePlugin();
       await host.registerPlugin(plugin);
 
       // Plugin is enabled, should appear
-      var uiPlugins = host.getPlugins<UiPlugin>();
-      expect(uiPlugins.length, equals(1));
+      var sequencePlugins = host.getPlugins<SequencePlugin>();
+      expect(sequencePlugins.length, equals(1));
 
       // Disable plugin
       await host.setPluginEnabled(plugin.id, false);
 
       // Plugin is disabled, should not appear
-      uiPlugins = host.getPlugins<UiPlugin>();
-      expect(uiPlugins.length, equals(0));
+      sequencePlugins = host.getPlugins<SequencePlugin>();
+      expect(sequencePlugins.length, equals(0));
     });
 
     test('Plugin can be retrieved by ID', () async {
@@ -150,10 +141,9 @@ void main() {
 
     test('Dispose cleans up all plugins', () async {
       await host.registerPlugin(ExamplePlugin());
-      await host.registerPlugin(ExampleUiPlugin());
-      await host.registerPlugin(ExampleDevicePlugin());
+      await host.registerPlugin(ExampleSequencePlugin());
 
-      expect(host.plugins.length, equals(3));
+      expect(host.plugins.length, equals(2));
 
       await host.dispose();
 
@@ -341,24 +331,6 @@ void main() {
   });
 
   group('Plugin Types', () {
-    test('UiPlugin declares extension points', () {
-      final plugin = ExampleUiPlugin();
-      expect(plugin.extensionPoints, isNotEmpty);
-      expect(plugin.extensionPoints.length, equals(2));
-
-      final equipmentPanel = plugin.extensionPoints
-          .where((e) => e.type == UiExtensionPointType.equipmentPanel)
-          .first;
-      expect(equipmentPanel.title, equals('Example Equipment Panel'));
-    });
-
-    test('DevicePlugin declares supported devices', () {
-      final plugin = ExampleDevicePlugin();
-      expect(plugin.supportedDevices, isNotEmpty);
-      expect(plugin.supportedDevices, contains(DevicePluginType.camera));
-      expect(plugin.supportedDevices, contains(DevicePluginType.focuser));
-    });
-
     test('SequencePlugin declares node definitions', () {
       final plugin = ExampleSequencePlugin();
       expect(plugin.nodeDefinitions, isNotEmpty);

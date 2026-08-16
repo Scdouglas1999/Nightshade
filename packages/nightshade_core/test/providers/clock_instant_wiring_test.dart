@@ -5,10 +5,10 @@
 // `FixedOffsetClock` shifts the fields and hands back a value the host still
 // labels local. Converting that back (`.toUtc()`, `.millisecondsSinceEpoch`,
 // `difference` against a real timestamp) lands chosenOffset + hostOffset away
-// from the actual moment. Once the picker started resolving — it offers 38
-// UTC offsets and migrates the legacy IANA names onto them — every consumer
-// that had been treating `now()` as an instant began recording and scheduling
-// against a time that never happened.
+// from the actual moment. The picker resolves — it offers 38 UTC offsets and
+// migrates the legacy IANA names onto them — so any consumer that treats
+// `now()` as an instant records and schedules against a time that never
+// happened.
 //
 // These tests pin the two halves: the clock exposes a true instant, and the
 // production wiring that needs an instant reads it.
@@ -121,11 +121,10 @@ void main() {
 
   group('the scheduler runs on the picked zone', () {
     // The engine evaluates time-window constraints as
-    // `now.toUtc().add(site.localOffset)`. It therefore needs a real instant
-    // AND the observatory's offset. It used to be handed `clock.now` (a zone
-    // rendering) and `DateTime.now().timeZoneOffset` (the laptop's offset), so
-    // "image between 22:00 and 04:00 local" was judged in the operator's own
-    // zone at a time that was hours out.
+    // `now.toUtc().add(site.localOffset)`, so it needs a real instant AND the
+    // observatory's offset. `clock.now` is a zone rendering and
+    // `DateTime.now().timeZoneOffset` is the laptop's offset: either would
+    // judge "image between 22:00 and 04:00 local" in the wrong zone.
     test('site offset comes from the Timezone setting', () async {
       final container = _container(
         const AppSettingsState(

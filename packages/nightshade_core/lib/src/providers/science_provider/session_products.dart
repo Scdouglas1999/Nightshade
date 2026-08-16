@@ -362,9 +362,7 @@ final sessionMovingObjectTrendProvider =
           .toList(growable: false);
     });
 
-// =========================================================================
 // Sessionless (standalone snapshot) providers
-// =========================================================================
 
 final sessionlessCalibrationsProvider =
     StreamProvider<List<FramePhotometricCalibrationRow>>((ref) {
@@ -475,9 +473,7 @@ final sessionlessPhotometryProvider =
       return ref.watch(scienceDaoProvider).watchSessionlessPhotometryRecent();
     });
 
-// =========================================================================
-// Sessionless EXPORT providers — complete datasets, not the preview window
-// =========================================================================
+// Sessionless export providers — complete datasets, not the preview window
 //
 // The `sessionless*Provider` streams above are UI preview feeds: each caps its
 // row count (200 photometry / 50 frame-quality / 500 PSF tiles …) so a list or

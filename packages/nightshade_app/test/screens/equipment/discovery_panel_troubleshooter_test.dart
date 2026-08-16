@@ -1,12 +1,11 @@
-// C1 — Route Equipment-screen connect failures through the guided
-// connection troubleshooter (discovery panel).
+// Equipment-screen connect failures route through the guided connection
+// troubleshooter.
 //
-// Scope item 5 of Onboarding & First-Light: when a device the user picked in
-// the discovery panel fails to connect, the bare "Failed to connect: $e"
-// snackbar is replaced by [ConnectionTroubleshooterDialog], which turns the
-// hostile raw driver string into a plain-language, hardware-aware remediation
-// playbook (while preserving the raw string verbatim in its collapsible
-// "Technical details" section — errors are a feature).
+// When a device the user picked in the discovery panel fails to connect, the
+// bare "Failed to connect: $e" snackbar is replaced by
+// [ConnectionTroubleshooterDialog], which turns the raw driver string into a
+// plain-language, hardware-aware remediation playbook while preserving that
+// string verbatim in its collapsible "Technical details" section.
 //
 // Two layers of coverage:
 //   1. `DiscoveryPanel.showConnectionTroubleshooter` (the @visibleForTesting

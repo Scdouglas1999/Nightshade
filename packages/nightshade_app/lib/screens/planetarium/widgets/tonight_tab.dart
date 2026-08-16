@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -354,6 +356,24 @@ class TonightTab extends ConsumerWidget {
           else
             bestTargets.when(
               data: (targets) {
+                // Null once more if the site was cleared between the gate above
+                // and this resolution: "no site" is a different answer from
+                // "nothing is up", so it keeps its own copy.
+                if (targets == null) {
+                  return NightshadeCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Center(
+                      child: Text(
+                        'Set an observing location to rank tonight\u2019s targets',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ),
+                  );
+                }
                 if (targets.isEmpty) {
                   return NightshadeCard(
                     padding: const EdgeInsets.all(16),
@@ -838,8 +858,15 @@ class _LocationIndicator extends StatelessWidget {
               onTap: () {
                 try {
                   context.goNamed('settings');
-                } catch (e) {
-                  // Router might not be available, ignore
+                } catch (e, stack) {
+                  developer.log(
+                    '[TonightTab] Could not open settings to fix the '
+                    'default location: $e',
+                    name: 'TonightTab',
+                    level: 900,
+                    error: e,
+                    stackTrace: stack,
+                  );
                 }
               },
               child: Container(

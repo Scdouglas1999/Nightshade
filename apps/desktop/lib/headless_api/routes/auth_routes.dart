@@ -12,14 +12,13 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [AuthHandlers].
 List<HeadlessRoute> buildAuthRoutes(AuthHandlers h) => <HeadlessRoute>[
-  // WebSocket auth ticket (§2.28). Issues a one-shot ticket so
-  // browsers don't have to leak the bearer token via WS query
-  // parameters.
+  // WebSocket auth ticket. Issues a one-shot ticket so browsers don't have
+  // to leak the bearer token via WS query parameters.
   HeadlessRoute(HttpMethod.post, '/api/ws/ticket', h.handleWsTicketIssue),
-  // HttpOnly cookie + CSRF token for the dashboard "remember me" path
-  // (§2.5 long-form). The dashboard exchanges a freshly-paired bearer
-  // token for a cookie that JS cannot read, plus a CSRF token it must
-  // echo on every write. Logout invalidates both.
+  // HttpOnly cookie + CSRF token for the dashboard "remember me" path. The
+  // dashboard exchanges a freshly-paired bearer token for a cookie that JS
+  // cannot read, plus a CSRF token it must echo on every write. Logout
+  // invalidates both.
   HeadlessRoute(HttpMethod.post, '/api/auth/cookie', h.handleAuthCookieIssue),
   HeadlessRoute(HttpMethod.get, '/api/auth/csrf', h.handleAuthCsrfFetch),
   HeadlessRoute(HttpMethod.post, '/api/auth/logout', h.handleAuthLogout),

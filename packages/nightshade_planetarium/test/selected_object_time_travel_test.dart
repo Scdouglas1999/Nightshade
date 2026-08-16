@@ -251,7 +251,7 @@ void main() {
         final time = DateTime.utc(2026, 7, 29, 15, 52);
         container.read(observationTimeProvider.notifier).setTime(time);
 
-        final (ra, dec) = container.read(skyViewHomeCenterProvider);
+        final (ra, dec) = container.read(skyViewHomeCenterProvider)!;
         expect(dec, closeTo(_lat, 0.5));
         expect(ra, closeTo(_lst(time) % 24, 0.2));
 
@@ -292,7 +292,7 @@ void main() {
             .read(observationTimeProvider.notifier)
             .setTime(DateTime.utc(2026, 7, 29, 15, 52));
 
-        final (ra, dec) = container.read(skyViewHomeCenterProvider);
+        final (ra, dec) = container.read(skyViewHomeCenterProvider)!;
         expect(ra, inInclusiveRange(0, 24));
         expect(dec.abs(), lessThanOrEqualTo(89.5));
       }

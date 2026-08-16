@@ -1,15 +1,15 @@
 // Settings → Location must not claim things it did not do.
 //
-// Three live-observed defects are pinned here:
-//   1. "Sync from Server" reported a green "Location synced from server" on a
-//      standalone desktop, where the read went to this app's own settings
-//      store and nothing was fetched from anywhere.
-//   2. "Use Device Location / Get location from GPS" ran a third-party IP
-//      lookup with no consent and wrote the new coordinates while passing the
-//      OLD elevation through, producing a Pennsylvania site at 1234 m.
-//   3. The Timezone picker offered 18 IANA names; `clockProvider` parses only
-//      `UTC`/`UTC±HH:MM`, so 17 of them silently fell back to the system
-//      clock and the picker changed nothing at all.
+// Three claims are pinned here:
+//   1. "Sync from Server" must not report a green "Location synced from server"
+//      on a standalone desktop, where the read goes to this app's own settings
+//      store and nothing is fetched from anywhere.
+//   2. "Use Device Location" must ask before the third-party IP lookup, and
+//      must not pass the OLD elevation through with new coordinates — that
+//      yields a site that does not exist.
+//   3. The Timezone picker must only offer values `clockProvider` can parse
+//      (`UTC` / `UTC±HH:MM`); anything else silently falls back to the system
+//      clock and the picker changes nothing at all.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

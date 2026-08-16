@@ -103,7 +103,7 @@ extension LikelyCauseExt on LikelyCause {
 /// Environmental snapshot taken at the instant a frame was captured.
 /// Every field is optional because the underlying tracker may not yet
 /// have produced a sample. The forensic UI surfaces missing fields as
-/// "—" instead of fabricating zeros (errors are a feature here).
+/// "—" instead of fabricating zeros.
 class ForensicEnvironment {
   final double? skyBrightnessMag;
   final double? cloudCoverPercent;

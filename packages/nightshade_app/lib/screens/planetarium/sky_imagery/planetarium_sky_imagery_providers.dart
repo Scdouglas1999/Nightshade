@@ -22,22 +22,14 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
 /// and draw survey tiles.
 ///
 /// The star chart is the better view above this, and tiles fetched there are
-/// wasted bandwidth on a connection an observatory often does not have.
+/// wasted bandwidth on a connection an observatory often does not have. Below
+/// it the HYG catalogue thins out fast — ~2.9 stars per square degree, so a
+/// 1.5-degree field carries around fifteen — and imagery becomes the only way
+/// to show what is there. 8 degrees is also comfortably wider than any normal
+/// imaging field, so a user framing a target is always inside the imagery band.
 ///
-/// Why 8 degrees specifically: the HYG catalogue the chart is drawn from holds
-/// ~118,000 stars over the whole sphere, i.e. about 2.9 per square degree. An
-/// 8-degree field therefore still carries on the order of 200 catalogue stars —
-/// enough that the pattern is recognisable and the chart is doing its job — and
-/// the count falls with the square of the field from there: ~46 stars at 4
-/// degrees, ~12 at 2 degrees, and a *measured* 15 stars in a 1.5-degree field
-/// centred on M42. That is the band where the chart stops being useful and real
-/// imagery starts being the only honest way to show what is there. 8 degrees is
-/// also comfortably wider than any normal imaging field, so a user framing a
-/// target is always inside the imagery band.
-///
-/// Secondary effect: it bounds the network. At 8 degrees on a typical canvas
-/// the LOD rule selects Norder 4-5, which is a few dozen tiles — one screenful,
-/// not a pyramid crawl.
+/// It bounds the network too: at 8 degrees on a typical canvas the LOD rule
+/// selects Norder 4-5, a few dozen tiles rather than a pyramid crawl.
 const double kPlanetariumSkyImageryMaxFovDegrees = 8.0;
 
 /// The survey the planetarium streams imagery from.
@@ -53,11 +45,10 @@ const SurveySource kPlanetariumSkyImagerySurvey = SurveySource.dss2Red;
 /// User toggle for the planetarium's sky-survey imagery layer.
 ///
 /// Off by default. Imagery costs network, and the app's normal deployment is an
-/// observatory laptop on an isolated LAN where every request fails; a layer
-/// that reached for the network the first time the planetarium opened would be
-/// a regression for most users. It is a session-scoped [StateProvider], exactly
-/// like the planetarium's other layer toggles (FOV rings, deep stars, night
-/// vision), so the layer needs no settings migration to ship.
+/// observatory laptop on an isolated LAN where every request fails, so reaching
+/// for the network the first time the planetarium opens would fail for most
+/// users. Session-scoped [StateProvider], exactly like the planetarium's other
+/// layer toggles (FOV rings, deep stars, night vision).
 final planetariumSkyImageryEnabledProvider =
     StateProvider<bool>((ref) => false);
 
@@ -93,13 +84,13 @@ final planetariumSkyImageryWithinFovProvider = Provider<bool>((ref) {
 /// Whether imagery is on screen *right now* — the signal the sky view uses to
 /// decide whether to stop painting its opaque background gradient.
 ///
-/// Deliberately short-circuits before touching [hipsResidentTilesProvider] when
-/// the layer is inactive, so a planetarium session with the layer off never
-/// instantiates the loader, its HTTP client or its tile cache.
-///
 /// It reports "the layer has imagery", not "the layer is mounted": while the
 /// pyramid is loading — or forever, offline — this stays false, the sky view
 /// keeps its own background, and the user sees the ordinary star chart.
+///
+/// Short-circuits before touching [hipsResidentTilesProvider] when the layer is
+/// inactive, so a session with the layer off never instantiates the loader, its
+/// HTTP client or its tile cache.
 final planetariumSkyImageryVisibleProvider = Provider<bool>((ref) {
   if (!ref.watch(planetariumSkyImageryActiveProvider)) return false;
   if (!ref.watch(planetariumSkyImageryWithinFovProvider)) return false;

@@ -1,8 +1,6 @@
 part of '../smart_night_models.dart';
 
-// ---------------------------------------------------------------------------
 // Public enums
-// ---------------------------------------------------------------------------
 
 /// High-level strategy for the auto-builder.
 ///
@@ -48,9 +46,7 @@ enum SmartNightAfCadence {
   onTempDelta,
 }
 
-// ---------------------------------------------------------------------------
 // Public model classes
-// ---------------------------------------------------------------------------
 
 /// Compact "user prefs" envelope owned by the wizard. The wizard initialises
 /// it from per-profile defaults if available; otherwise from these sane
@@ -119,9 +115,8 @@ class SmartNightSettings {
   /// Hard floor on a single sub-exposure (seconds).
   final double subExposureFloorSecs;
 
-  /// Planning SNR target used by the Smart Night exposure calculator.
-  /// 30 preserves the historical calculator behavior; higher values bias
-  /// the sky-limited recommendation longer, lower values shorter.
+  /// Planning SNR target used by the Smart Night exposure calculator. Higher
+  /// values bias the sky-limited recommendation longer, lower values shorter.
   final double targetSnr;
 
   /// Settle/dither cadence for SmartExposure rotation (every N frames).
@@ -149,13 +144,9 @@ class SmartNightSettings {
   /// the missing dark combinations (count = [darkFramesPerRequirement]
   /// per missing combo).
   ///
-  /// Defaults to `false` because the historical Smart Night design (see
-  /// `docs/plans/2026-05-17-smart-night-design.md` §7.1) intentionally
-  /// shipped warning-only — auto-scheduling dark capture surprises users
-  /// who only wanted lights tonight. The audit (item #9) flagged this as
-  /// outstanding work and we expose it behind the flag so opt-in users
-  /// can refresh their dark library inline without breaking the default
-  /// behavior for everyone else.
+  /// Defaults to `false`: auto-capturing darks surprises an operator who asked
+  /// for lights tonight, so the missing combinations are a warning unless this
+  /// is opted into.
   final bool autoScheduleMissingDarks;
 
   /// Frames captured per missing-dark combination when

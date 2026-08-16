@@ -130,7 +130,7 @@ class AavsoExportService {
 
     final buffer = StringBuffer();
 
-    // === Header ===
+    // Header
     buffer.writeln('#TYPE=Extended');
     buffer.writeln('#OBSCODE=$observerCode');
     buffer.writeln('#SOFTWARE=$_softwareLabel');
@@ -138,7 +138,7 @@ class AavsoExportService {
     buffer.writeln('#DATE=JD');
     buffer.writeln('#OBSTYPE=CCD');
 
-    // === Data lines ===
+    // Data lines
     // Extended format columns:
     // NAME,DATE,MAG,MERR,FILT,TRANS,MTYPE,CNAME,CMAG,KNAME,KMAG,AMASS,GROUP,CHART,NOTES
     for (final m in targetMeasurements) {

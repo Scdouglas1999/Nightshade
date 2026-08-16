@@ -370,11 +370,9 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     }
   }
 
-  // =========================================================================
   // Plugin management. Methods live on NetworkBackend because the
   // FfiBackend manages plugins directly via PluginHost; the network path
   // is the only one that needs HTTP wiring.
-  // =========================================================================
 
   /// GET /api/plugins
   Future<List<RemotePluginManifest>> listPlugins() async {

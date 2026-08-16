@@ -5,25 +5,15 @@ import '../../services/imaging_records_repository.dart';
 
 /// Thumbnail — inline frame thumbnails in the sequence tree.
 ///
-/// Streams the captured-image rows produced by a given `ExposureNode` so
-/// the sequence-tree thumbnail strip can render them inline beneath the
-/// node row, color-coded by runtime grade. Reads live captures via the
-/// `customSelect` watch behind [ImagesDao.watchImagesByProducingNode],
-/// which fires whenever the underlying `captured_images` table changes —
-/// the strip therefore updates the moment a new frame is graded and the
-/// row is upserted by the sequence executor.
+/// Streams the captured-image rows produced by a given `ExposureNode` so the
+/// sequence-tree thumbnail strip can render them inline beneath the node row,
+/// color-coded by runtime grade, via [ImagesDao.watchImagesByProducingNode].
 ///
 /// Family key: the producing node's stable string id (the same value the
 /// sequencer uses for `currentNodeId` and that ships in
-/// `SequencerEvent::FrameAccepted.nodeId`). We use a single-string key
-/// instead of a record so URL-style "?" arg parsing stays simple and so
-/// pre-Dart-3 record-comparison gotchas (== on positional records) can't
-/// silently break provider identity.
-///
-/// `autoDispose`: the provider is screen-scoped (sequence tree) — when the
-/// tree unmounts (navigation away, sequence swap) the watch should be
-/// torn down so we aren't holding a SQLite query subscription per
-/// ExposureNode forever.
+/// `SequencerEvent::FrameAccepted.nodeId`). A single string, not a record, so
+/// URL-style "?" arg parsing stays simple and record-comparison semantics
+/// cannot silently break provider identity.
 final exposureNodeThumbnailsProvider = StreamProvider.autoDispose
     .family<List<ProducingNodeThumbnail>, String>((ref, nodeId) {
       if (nodeId.isEmpty) {

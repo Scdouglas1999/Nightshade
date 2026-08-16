@@ -65,9 +65,9 @@ void main() {
 
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await _pumpWrites(tester);
-    // 20 px is StarDetectionConfig.hfr_radius — the window the half-flux
-    // radius is measured in. The old 50 px ceiling let an operator save a
-    // threshold no frame could ever exceed, i.e. a silently dead gate.
+    // 20 px is StarDetectionConfig.hfr_radius — the window the half-flux radius
+    // is measured in. A higher ceiling lets an operator save a threshold no
+    // frame can ever exceed: a silently dead gate.
     expect(
       handle.container
           .read(appSettingsProvider)
@@ -190,8 +190,8 @@ void main() {
 
   testWidgets('an eccentricity threshold exactly at the ceiling is dead too',
       (tester) async {
-    // The old field max was 0.95 itself. Grading rejects on `ecc > threshold`
-    // and the median can only reach 0.95, so that value never fires either.
+    // Grading rejects on `ecc > threshold` and the median can only reach 0.95,
+    // so a field max of 0.95 never fires either.
     await _pumpSettings(
       tester,
       extraSettings: {'image_grading_eccentricity_threshold': '0.95'},

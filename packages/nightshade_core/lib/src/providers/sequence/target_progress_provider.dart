@@ -42,17 +42,12 @@ class TargetExecutionProgress {
   /// wire carries the pass index (`InstructionProgress` is node_id /
   /// instruction / progress_percent / detail only).
   ///
-  /// Before this flag existed the card divided the current pass's count by an
-  /// unmultiplied plan: a Quick-Start `Capture Loop x10` wrapping one exposure
-  /// read "1/1 done - 100%" once the FIRST of ten frames landed, and stayed
-  /// there all night.
-  ///
-  /// A looped target is not automatically unknowable, though: when every frame
-  /// the run plans sits under this one target, the run-level frame counter
-  /// describes it exactly, and that counter IS loop-correct. See the
-  /// attribution block in the provider. What stays unknown is a repeat with no
-  /// true denominator (forever / until-time / until-altitude), and a repeat
-  /// whose frames cannot be told apart from another target's.
+  /// A looped target is not automatically unknowable: when every frame the run
+  /// plans sits under this one target, the loop-correct run-level frame counter
+  /// describes it exactly (see the attribution block in the provider). What
+  /// stays unknown is a repeat with no true denominator (forever / until-time /
+  /// until-altitude), and a repeat whose frames cannot be told apart from
+  /// another target's.
   ///
   /// Callers must render [totalFrames] (which is true) and not a completion
   /// ratio when this is set.

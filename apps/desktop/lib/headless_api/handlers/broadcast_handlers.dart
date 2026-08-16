@@ -49,9 +49,7 @@ class BroadcastHandlers {
   void _logWarning(String message) =>
       _logger.warning(message, source: 'BroadcastHandlers');
 
-  // ---------------------------------------------------------------------------
   // GET /api/broadcast/info
-  // ---------------------------------------------------------------------------
 
   /// Returns a JSON snapshot of the broadcast state. When no broadcast
   /// is active the response is `{"active": false}` so the public HTML
@@ -78,9 +76,7 @@ class BroadcastHandlers {
     return jsonOk(body, headers: _jsonHeaders());
   }
 
-  // ---------------------------------------------------------------------------
   // GET /api/broadcast/live-stack
-  // ---------------------------------------------------------------------------
 
   /// Returns the most-recently rendered watermarked JPEG. 404 when
   /// no frame has been stacked yet (the page should fall back to a
@@ -119,9 +115,7 @@ class BroadcastHandlers {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // GET /api/broadcast/sse
-  // ---------------------------------------------------------------------------
 
   /// Server-Sent Events stream. Emits one named `frame` event per new
   /// stacked frame, plus periodic `: keepalive` comments to defeat
@@ -193,9 +187,7 @@ class BroadcastHandlers {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // GET /broadcast
-  // ---------------------------------------------------------------------------
 
   /// Returns a minimal, vanilla-JS, no-framework HTML page that an
   /// audience can open on their phone. Auto-refreshes the live image
@@ -231,9 +223,7 @@ class BroadcastHandlers {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Internal helpers
-  // ---------------------------------------------------------------------------
 
   Map<String, String> _jsonHeaders() => {
     'content-type': 'application/json; charset=utf-8',

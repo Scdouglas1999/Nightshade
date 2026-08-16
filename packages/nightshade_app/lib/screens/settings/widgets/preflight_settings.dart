@@ -226,7 +226,8 @@ class _LivePreviewCard extends StatelessWidget {
   /// disabled check must not be listed as one that will stop the run:
   /// `PolarAlignmentFreshnessRule` returns nothing at all when
   /// `polarAlignmentMaxAgeDays <= 0`, so naming stale polar alignment at 0
-  /// contradicted the "check is disabled" line printed directly beneath it.
+  /// would contradict the "check is disabled" line printed directly beneath
+  /// it.
   List<String> get _gradedChecks => [
         'missing darks for the planned exposures',
         // TimeSyncRule grades drift from its *warning* threshold up; the 30 s

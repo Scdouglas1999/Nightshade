@@ -1,9 +1,7 @@
 part of '../mosaic_project_service.dart';
 
 extension _MosaicStitching on MosaicProjectService {
-  // ---------------------------------------------------------------------------
   // Helpers.
-  // ---------------------------------------------------------------------------
 
   Future<bool> _safeFitsHasWcs(
     Future<bool> Function(String fitsPath) probe,
@@ -17,10 +15,9 @@ extension _MosaicStitching on MosaicProjectService {
     }
   }
 
-  /// Best-effort probe that a panel master FITS still exists on disk
-  /// (remediation 2026-06-09, finding #4). A probe error degrades to `false`
-  /// (treat as missing -> skip the panel) rather than aborting the whole
-  /// stitch — a missing file must never poison the mosaic.
+  /// Best-effort probe that a panel master FITS still exists on disk. A probe
+  /// error degrades to `false` (treat as missing -> skip the panel) rather than
+  /// aborting the whole stitch — a missing file must never poison the mosaic.
   Future<bool> _safeFitsExists(String fitsPath) async {
     try {
       return await File(fitsPath).exists();

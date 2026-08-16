@@ -195,8 +195,7 @@ class _MetricsRow extends StatelessWidget {
           icon: dm <= 0 ? LucideIcons.trendingUp : LucideIcons.trendingDown,
           // Print the real signed magnitude delta as stored (native convention:
           // negative = brighter). A brightening shows "-0.50 mag", a fading
-          // "+0.50 mag" — matching how astronomers read Δmag. The previous
-          // code flipped the sign so a brightening read as fainter.
+          // "+0.50 mag" — matching how astronomers read Δmag.
           label: '${dm <= 0 ? '' : '+'}${dm.toStringAsFixed(2)} mag',
           color: dm <= 0 ? colors.accent : colors.info,
           colors: colors,

@@ -24,16 +24,6 @@ import 'steps/welcome_step.dart';
 
 part 'onboarding_screen_parts/_chrome.dart';
 
-/// First-run equipment onboarding wizard.
-///
-/// Orchestrates the [OnboardingStep] flow, validates each step before
-/// advancing, and commits the final draft as a new equipment profile.
-///
-/// Why a full-screen scaffold instead of a modal dialog: the steps
-/// (especially device discovery and the optical-train calculator) need
-/// real screen real estate, and a new user shouldn't see the dashboard
-/// background bleed through behind a partially-translucent dialog.
-/// Returning users reach the dashboard by pressing "Skip onboarding".
 /// Key on the phone footer's full-width primary-action region (the 48 px tall
 /// tap surface). Exposed so responsive widget tests can assert the touch-target
 /// floor on the reachable area rather than the button's intrinsic content box.
@@ -47,12 +37,12 @@ const Key onboardingNoticeKey = Key('onboarding.notice');
 /// A message the wizard shell needs to tell the user, rendered in the layout
 /// flow directly above the footer.
 ///
-/// These used to be [SnackBar]s. A Material snackbar docks to the bottom of the
-/// [Scaffold] — exactly where the wizard footer lives — so it covered Back /
-/// Next / Save profile *and* swallowed taps on them: the wizard said "you must
-/// fix this" while removing the controls needed to act on it. A notice in the
-/// Column cannot overlap the footer at any window size, and it stays put until
-/// the user resolves it instead of expiring after three seconds.
+/// Inline rather than a [SnackBar]: a Material snackbar docks to the bottom of
+/// the [Scaffold], exactly where the wizard footer lives, so it covers Back /
+/// Next / Save profile and swallows taps on them — the wizard would say "you
+/// must fix this" while removing the controls needed to act on it. A notice in
+/// the Column cannot overlap the footer at any window size, and it stays put
+/// until the user resolves it instead of expiring after three seconds.
 class _WizardNotice {
   const _WizardNotice(
     this.message,
@@ -71,6 +61,15 @@ class _WizardNotice {
   final bool fromValidation;
 }
 
+/// First-run equipment onboarding wizard.
+///
+/// Orchestrates the [OnboardingStep] flow, validates each step before
+/// advancing, and commits the final draft as a new equipment profile.
+///
+/// A full-screen scaffold rather than a modal dialog: the steps — device
+/// discovery and the optical-train calculator especially — need the room, and
+/// a translucent dialog would bleed the dashboard through behind a first run.
+/// Returning users reach the dashboard by pressing "Skip onboarding".
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -442,10 +441,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       case OnboardingStep.site:
         // Optional in the sense that a blank site is allowed — every
         // location-driven surface handles "not set". A *rejected* coordinate is
-        // not: advancing past a red out-of-range error used to leave whatever
-        // partial value had already been committed on record as the user's
-        // observing site. The step publishes its own blocking reason because the
-        // in-progress field text never reaches the draft or settings.
+        // not: advancing past a red out-of-range error would leave whatever
+        // partial value was already committed on record as the observing site.
+        // The step publishes its own blocking reason because the in-progress
+        // field text never reaches the draft or settings.
         return ref.read(onboardingSiteEntryErrorProvider);
       case OnboardingStep.summary:
         if ((draft.profileName ?? '').trim().isEmpty) {

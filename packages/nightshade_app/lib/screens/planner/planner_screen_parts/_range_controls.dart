@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // Magnitude, size, altitude and moon-separation range controls plus sort/reset chips.
 part of '../planner_screen.dart';
 
@@ -444,14 +442,10 @@ class _ControlChip extends StatelessWidget {
         active ? colors.primary.withValues(alpha: 0.5) : colors.border;
     final fg = active ? colors.primary : colors.textSecondary;
 
-    // Declare the chip. Read off the running app 2026-08-09, all six planner
-    // filters — Type, Constellation, Magnitude, Size, Alt now, Moon — plus the
-    // Sort control came off the accessibility tree as `[DISABLED]` while the
-    // planner was fully live and the scheduler was returning picks. A bare
-    // `InkWell` publishes a focusable node that never sets isEnabled, and
-    // nothing in the subtree carries the on/off state either, so a
-    // screen-reader user is told the filter row is dead and is never told
-    // which filters are applied.
+    // Declare the chip. A bare `InkWell` publishes a focusable node that never
+    // sets isEnabled, and nothing in the subtree carries the on/off state
+    // either, so a screen-reader user is told the filter row is dead and is
+    // never told which filters are applied.
     return Semantics(
       container: true,
       button: true,

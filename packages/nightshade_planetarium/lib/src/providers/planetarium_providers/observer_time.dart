@@ -1,22 +1,37 @@
 part of '../planetarium_providers.dart';
 
-// ============================================================================
-// Location Provider
-// ============================================================================
+// Location provider
 
-/// Observer location state
+/// The site the planetarium computes against.
+///
+/// [latitude] / [longitude] are null until a site is on record. No coordinates
+/// are assumed for an observer who has not chosen one: everything derived from
+/// the site — twilight, moon rise/set, sidereal time, alt/az, the sky itself —
+/// reports unknown rather than a place the observer is not at. Read [site] to
+/// get the pair or nothing; the two fields are only ever both set or both null.
 class PlanetariumObserver {
-  final double latitude;
-  final double longitude;
+  final double? latitude;
+  final double? longitude;
   final double elevation;
   final String? locationName;
 
   const PlanetariumObserver({
-    this.latitude = 34.0522, // Los Angeles default
-    this.longitude = -118.2437,
+    this.latitude,
+    this.longitude,
     this.elevation = 0,
     this.locationName,
   });
+
+  /// The coordinates to compute with, or null when no site is on record.
+  ({double latitude, double longitude})? get site {
+    final lat = latitude;
+    final lon = longitude;
+    if (lat == null || lon == null) return null;
+    return (latitude: lat, longitude: lon);
+  }
+
+  /// Whether a site is on record.
+  bool get hasSite => site != null;
 
   PlanetariumObserver copyWith({
     double? latitude,
@@ -36,20 +51,35 @@ class PlanetariumObserver {
 class PlanetariumObserverNotifier extends StateNotifier<PlanetariumObserver> {
   PlanetariumObserverNotifier() : super(const PlanetariumObserver());
 
+  /// Adopt a site pushed in from the app's settings.
+  ///
+  /// Latitude 0 with longitude 0 is the settings layer's "no site on record"
+  /// value, so it clears the site instead of pinning the planetarium to the
+  /// point in the Gulf of Guinea.
   void setLocation({
     double? latitude,
     double? longitude,
     double? elevation,
     String? locationName,
   }) {
+    if (latitude == 0.0 && longitude == 0.0) {
+      clearLocation(elevation: elevation, locationName: locationName);
+      return;
+    }
     state = state.copyWith(
       latitude: latitude,
       longitude: longitude,
       elevation: elevation,
       locationName: locationName,
     );
+  }
 
-    // Settings sync will be handled at app level
+  /// Drop the site: every site-derived readout goes back to unknown.
+  void clearLocation({double? elevation, String? locationName}) {
+    state = PlanetariumObserver(
+      elevation: elevation ?? state.elevation,
+      locationName: locationName ?? state.locationName,
+    );
   }
 }
 
@@ -63,31 +93,20 @@ final observerLocationProvider =
 /// The user-configured effective horizon in degrees, as observed by the
 /// planetarium widgets.
 ///
-/// 0° = mathematical horizon. A non-zero value (e.g. 20°) accounts for
-/// trees / buildings / hills the user cannot see through. Rise/transit/set
-/// times and the altitude card's shading both read from this provider so
-/// the planetarium agrees with the Run Dashboard's time-to-set stat to
-/// the second.
+/// 0° = mathematical horizon; a non-zero value (e.g. 20°) accounts for trees,
+/// buildings or hills. Rise/transit/set times and the altitude card's shading
+/// both read it, so the planetarium and the Run Dashboard quote one number.
 ///
-/// Why a planetarium-local provider with a default: `nightshade_core`
-/// (which owns the persisted setting via its own
-/// `effectiveHorizonDegProvider`) already depends on
-/// `nightshade_planetarium` for catalog access, so adding the reverse
-/// dependency would create a cycle. The app layer syncs the two
-/// providers (`nightshade_app/lib/services/location_sync_service.dart`).
-/// In standalone-planetarium scenarios (tests, demos) the default of
-/// `0.0` keeps the math identical to pre-Pack-D behaviour.
-///
-/// Name distinct from core's `effectiveHorizonDegProvider` to avoid
-/// `ambiguous_import` at app-layer call sites that already pull in both
-/// packages via the umbrella exports.
+/// Planetarium-local because `nightshade_core` owns the persisted setting and
+/// already depends on this package for catalog access; the app layer syncs the
+/// two (`nightshade_app/lib/services/location_sync_service.dart`). The name is
+/// deliberately distinct from core's `effectiveHorizonDegProvider` to avoid
+/// `ambiguous_import` where both umbrellas are in scope.
 final planetariumEffectiveHorizonDegProvider = StateProvider<double>(
   (ref) => 0.0,
 );
 
-// ============================================================================
-// Observation Time Provider
-// ============================================================================
+// Observation time provider
 
 /// Current observation time (can be simulated or real-time)
 class ObservationTimeState {

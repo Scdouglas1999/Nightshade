@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // Search field, filter chips (object type, constellation, magnitude, size, altitude, moon separation), sort dropdown, reset chip, the _ControlChip primitive, and the shared _showAngleSlider helper used by the angle-based filter sheets.
 part of '../planner_screen.dart';
 
@@ -239,12 +237,12 @@ Future<Set<String>?> showObjectTypeDialogForTest({
 
 /// Constellation filter.
 ///
-/// Catalog rows store the three-letter IAU abbreviation, and this control used
-/// to be a bare [DropdownButton] of up to 88 of them ("And", "Aql", "CVn"…)
-/// with the words "Constellation: " repeated on every row and no way to type.
-/// Finding a constellation meant knowing its abbreviation and scrolling. It is
-/// now a searchable dialog, like every other filter chip in this row, listing
-/// the full name with the abbreviation in tow so both spellings are matchable.
+/// Catalog rows store the three-letter IAU abbreviation. A bare
+/// [DropdownButton] of up to 88 of them ("And", "Aql", "CVn"…) would make
+/// finding a constellation a matter of knowing its abbreviation and scrolling,
+/// so this is a searchable dialog like every other filter chip in the row,
+/// listing the full name with the abbreviation in tow so both spellings are
+/// matchable.
 class _ConstellationDropdown extends ConsumerWidget {
   final NightshadeColors colors;
   final List<String> available;

@@ -63,11 +63,10 @@ class GuideControlsPanel extends StatefulWidget {
   /// Auto Select. Unlike the others this one RETURNS what happened, and the
   /// panel puts it in its own notice banner.
   ///
-  /// A snackbar was not enough: it renders on the app shell's messenger, sits
-  /// for four seconds and is gone, so a live drive that clicked Auto Select
-  /// three times and then read the screen found nothing at all and reported
-  /// the control dead for a third wave running. The banner stays until it is
-  /// dismissed, in the panel the operator just clicked.
+  /// A snackbar is not enough: it renders on the app shell's messenger, sits
+  /// for four seconds and is gone, so an operator who reads the screen a moment
+  /// later finds nothing and takes the control for dead. The banner stays until
+  /// it is dismissed, in the panel the operator just clicked.
   final Future<String?> Function()? onFindStar;
   final Future<void> Function()? onDeselectStar;
 

@@ -44,13 +44,11 @@ extension _ImagingServicePersistence on ImagingService {
     final hasConfiguredSite = appSettings?.isLocationSet ?? false;
     final observerName = appSettings?.observerName.trim();
 
-    // XPIXSZ/YPIXSZ describe the detector, and the driver is the only place
+    // XPIXSZ/YPIXSZ describe the detector and the driver is the only place
     // that knows them — the `equipment_profiles` table has no pixel-size
-    // column, which is why this used to pass null with the note "not stored in
-    // the profile yet". The result was that every frame this path wrote
-    // carried FOCALLEN but no pixel pitch, so ASTAP, PixInsight and AstroBin
-    // could not derive the plate scale from the file alone even though the app
-    // displays that scale on the Framing screen.
+    // column. Without them a frame carries FOCALLEN but no pixel pitch, so
+    // ASTAP, PixInsight and AstroBin cannot derive the plate scale from the
+    // file alone.
     //
     // The Rust writer multiplies these by XBINNING/YBINNING, so the UNBINNED
     // sensor pitch is what belongs here. Each axis is written only when the

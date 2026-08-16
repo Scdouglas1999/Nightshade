@@ -136,9 +136,9 @@ class FfiBackend extends _FfiBackendBase
         DomeStatusBackend {
   FfiBackend({super.database});
 
-  /// Pure bridge conversion seams. They avoid loading the native library in
-  /// mapper regression tests while keeping production conversion centralized
-  /// in [_FfiBackendBridgeModelMappers].
+  /// Pure bridge conversion seams. They keep the native library out of mapper
+  /// tests while production conversion stays centralized in
+  /// [_FfiBackendBridgeModelMappers].
   @visibleForTesting
   EquipmentProfile profileFromBridgeForTesting(bridge.EquipmentProfile value) =>
       _fromBridgeProfile(value);

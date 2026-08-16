@@ -128,8 +128,9 @@ class PhotometricCatalogMatcher implements TransientCatalogMatcher {
 ///
 /// [scanFrame] is the whole vertical slice:
 ///   1. Build the `<SipWcs JSON>` from the frame's [SolvedWcs] and call the
-///      native `api_difference_image` surface (`docs/nightshade_5_0_contracts.md`
-///      §2.2) through the injectable [DifferenceImageSeam].
+///      native `api_difference_image` surface
+///      (`docs/nightshade_5_0_contracts.md`) through the injectable
+///      [DifferenceImageSeam].
 ///   2. Cross-match every residual against the photometric catalog at its sky
 ///      position — a coincident catalog star names the source and marks the
 ///      residual a *brightening of a known object*; no match on a clean point

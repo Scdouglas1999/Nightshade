@@ -111,8 +111,8 @@ void main() {
 
     expect(dotColor(tester), colors.warning);
 
-    // Errors are a feature: tooltip must carry the actual
-    // failure count and the RTT, not a generic "something went wrong".
+    // The tooltip must carry the actual failure count and RTT, not a generic
+    // "something went wrong".
     final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
     expect(tooltip.message, contains('Degraded'));
     expect(tooltip.message, contains('3'));

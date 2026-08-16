@@ -1,8 +1,8 @@
-// End-to-end proof for NAME-001: the Living Sky atlas handlers emit the
-// unified error envelope, and those responses decode through the single
-// converged client parser ([ServerError.tryFromJson]) with a non-empty
-// machine code — while still carrying a human-readable `error` string for
-// legacy display clients.
+// End-to-end proof that the Living Sky atlas handlers emit the unified error
+// envelope, and that those responses decode through the single converged
+// client parser ([ServerError.tryFromJson]) with a non-empty machine code —
+// while still carrying a human-readable `error` string for legacy display
+// clients.
 
 import 'dart:convert';
 import 'dart:io';

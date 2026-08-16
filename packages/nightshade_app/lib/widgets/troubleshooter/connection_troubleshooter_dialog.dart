@@ -14,11 +14,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// plain-language explanation plus an ordered, hardware-aware remediation
 /// playbook.
 ///
-/// The raw driver string is never thrown away — the project treats errors as a
-/// feature. It is carried through verbatim and surfaced in a collapsible
-/// "Technical details" section so an advanced user (or support) can still read
-/// the exact message, while a first-time imager is guided by the friendly copy
-/// above it.
+/// The raw driver string is never thrown away: it is carried through verbatim
+/// and surfaced in a collapsible "Technical details" section, so an advanced
+/// user or support can read the exact message while a first-time imager is
+/// guided by the friendly copy above it.
 ///
 /// Use the static [show] entry point. It resolves to `true` when the user asked
 /// to retry the connection, and `false` (or `null` on barrier dismiss) when the

@@ -21,9 +21,9 @@ class _ExecutorSequenceSink
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
     // The scheduler dispatches generated sequences as part of its own autopilot
-    // loop. Rather than silently discarding the operator's unsaved in-editor
-    // work (the old discardUnsaved:true clobber), hand the editor slot to the
-    // autopilot owner: takeOwnership STASHES the manual sequence on the first
+    // loop. The editor slot is handed to the autopilot owner rather than
+    // overwritten, so the operator's unsaved in-editor work survives:
+    // takeOwnership STASHES the manual sequence on the first
     // hand-off and flips the owner to autopilot. stopSequence() restores it. A
     // re-dispatch while the autopilot already owns the slot (target switch) just
     // swaps the loaded plan without disturbing the stashed manual sequence.
@@ -166,9 +166,9 @@ class _ExecutorSequenceSink
     // and the operator's morning flats workflow may still need the optics open.
     //
     // SafeRigService throws a SafeRigException when a step fails (after
-    // attempting every step). Errors are a feature — let it propagate to the
-    // engine's evaluation lifecycle so a failed dawn-park surfaces loudly
-    // rather than leaving the mount silently tracking past sunrise.
+    // attempting every step). Let it propagate to the engine's evaluation
+    // lifecycle: a swallowed dawn-park failure leaves the mount tracking past
+    // sunrise with nothing said.
     final safeRig = _ref.read(safeRigServiceProvider);
     await safeRig.safeTheRig(
       reason: 'End of observing night — parking the mount',
@@ -196,15 +196,14 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   // configured clock so window evaluations, scoring, and meridian-factor
   // calculations all reflect the operator's chosen timezone.
   //
-  // Two separate things are needed and they used to be conflated. The engine
-  // wants a real instant for ephemeris (`SchedulerEngine` does
+  // Two separate things, and they must not be conflated. The engine wants a
+  // real instant for ephemeris (`SchedulerEngine` does
   // `now.toUtc().add(site.localOffset)`), and it wants the *site's* offset to
-  // decide whether "image between 22:00 and 04:00 local" is satisfied. Feeding
-  // it `clock.now` supplied a zone rendering where an instant was expected, and
-  // `DateTime.now().timeZoneOffset` supplied the laptop's offset where the
-  // observatory's was meant — so a remote operator's time windows were
-  // evaluated in their own zone, which is exactly what the Timezone setting
-  // exists to stop.
+  // decide whether "image between 22:00 and 04:00 local" is satisfied.
+  // `clock.now` is a zone rendering, not an instant, and
+  // `DateTime.now().timeZoneOffset` is the laptop's offset, not the
+  // observatory's — either substitution evaluates a remote operator's time
+  // windows in the wrong zone.
   final clock = ref.read(clockProvider);
   final localOffset = clock.utcOffset;
 
@@ -235,15 +234,15 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
     candidateLoader: loaderFor(initialActiveId),
     triggerStream: ref.read(schedulerTriggerStreamProvider),
     clock: clock.nowUtc,
-    // WF-N1: without this the engine's diagnostics exist only in
-    // `dart:developer`, which a shipping build routes nowhere — the on-disk log
-    // is Rust-only and the in-app Logs viewer reads LoggingService's ring.
+    // Without this the engine's diagnostics exist only in `dart:developer`,
+    // which a shipping build routes nowhere — the on-disk log is Rust-only and
+    // the in-app Logs viewer reads LoggingService's ring.
     logSink: schedulerLogSinkFor(ref.read(loggingServiceProvider)),
   );
 
-  // Hydrate a late settings/config read in place. Watching either async
-  // provider here used to dispose and recreate the engine on completion,
-  // losing run/pause state and any target currently under scheduler control.
+  // Hydrate a late settings/config read in place. Watching an async provider
+  // here would dispose and recreate the engine on completion, losing run/pause
+  // state and any target currently under scheduler control.
   ref.listen<AsyncValue<AppSettingsState>>(appSettingsProvider, (
     previous,
     next,
@@ -313,13 +312,12 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
 /// One-shot authority gate for every operation that can evaluate or start the
 /// unattended scheduler.
 ///
-/// [schedulerEngineProvider] is intentionally synchronous because status
-/// listeners must retain one stable engine instance. That used to mean the
-/// shell constructed it immediately with `(0, 0)` and factory scoring defaults
-/// while persisted settings were still loading. A fast preview/start could
-/// therefore choose and dispatch the wrong target. This provider waits for
-/// both authoritative inputs before exposing the engine and hydrates that same
-/// stable instance in place.
+/// [schedulerEngineProvider] is synchronous because status listeners must
+/// retain one stable engine instance, which means it can be constructed with
+/// `(0, 0)` and factory scoring defaults while persisted settings are still
+/// loading — enough for a fast preview/start to dispatch the wrong target.
+/// This provider waits for both authoritative inputs before exposing the
+/// engine and hydrates that same stable instance in place.
 ///
 /// Reads are deliberately one-shot. Once an engine is ready, a later transient
 /// settings refresh must not hide Pause/Stop or revoke control of an already

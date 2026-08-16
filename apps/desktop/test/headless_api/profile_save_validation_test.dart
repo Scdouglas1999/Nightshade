@@ -106,8 +106,8 @@ void main() {
       expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
     });
 
-    // Regression for a live defect: this exact payload returned
-    // `{"status":"saved","id":"7"}` / HTTP 200 against a running host and read
+    // Observed live: this exact payload returns
+    // `{"status":"saved","id":"7"}` / HTTP 200 against a running host and reads
     // back as f/9999999990000.00. Focal length reaches the FITS FOCALLEN card
     // and the plate-solve field-of-view estimate, so an implausible value
     // silently corrupts astrometry for the rig.

@@ -1,5 +1,3 @@
-// Part of ../stack_result_screen.dart -- extracted for maintainability.
-//
 // Save-picker, share and stretch-engine seams plus their providers.
 part of '../stack_result_screen.dart';
 
@@ -63,8 +61,8 @@ final stackResultSavePickerProvider =
 final stackResultShareProvider =
     Provider<StackResultShare>((ref) => _defaultShare);
 
-/// The stacking-engine seam used to auto-stretch the in-memory integrated
-/// buffer for display.
+/// The stacking-engine seam that auto-stretches the in-memory integrated buffer
+/// for display.
 ///
 /// Production uses [BridgeStackingEngineSeam]: a 1-channel (mono) buffer goes
 /// through the native STF (`apiAutoStretchImage`), while a 3-channel
@@ -80,10 +78,10 @@ final stackResultStretchEngineProvider =
 /// retained u16 buffer: a MAD-based PixInsight Screen-Transfer-Function (STF)
 /// auto-stretch, and a linear (unstretched) min/max mapping. Both honour the
 /// buffer's channel layout — a mono plane renders to grayscale, an interleaved
-/// RGB16 (OSC) integration renders in colour with a per-channel stretch. We
-/// deliberately do not advertise stretch methods the in-memory engine cannot
-/// apply — surfacing a control that silently produced identical output would
-/// violate the project's "no silent fallback" rule.
+/// RGB16 (OSC) integration renders in colour with a per-channel stretch.
+/// Stretch methods the in-memory engine cannot apply are NOT offered: a control
+/// that silently produced identical output would claim a rendering the viewer
+/// never made.
 enum StackViewerStretch {
   /// STF auto-stretch: the native single-channel STF
   /// ([ImagingBackend.autoStretchImage]) for a mono buffer, or the

@@ -74,12 +74,10 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      // Regression: the collapsed handle used to be a floating Positioned on a
-      // Stack, so `primary` was laid out at the FULL viewport height and the
-      // handle painted across its last ~56dp. Anything the primary anchored to
-      // its own bottom edge was sliced in half — on the Imaging screen that cut
-      // through the live histogram and the HFR/Mean stats readout. The handle
-      // must RESERVE its height so the two regions never intersect.
+      // The collapsed handle must RESERVE its height: floated over the primary
+      // it leaves `primary` laid out at the full viewport height and paints
+      // across its last ~56dp, slicing whatever the primary anchors to its own
+      // bottom edge.
       testWidgets('collapsed handle reserves space, never overlaps the '
           'primary at ${entry.key}', (tester) async {
         await _pumpAt(tester, entry.value, _host());
@@ -153,9 +151,9 @@ void main() {
   });
 
   group('phone device in landscape (wide viewport)', () {
-    // The regression: a phone in landscape reports a desktop-class WIDTH, so a
-    // width-only check took the desktop resizable split. On a mobile OS the
-    // device is still a phone and must use the phone split — no desktop chrome.
+    // A phone in landscape reports a desktop-class WIDTH, so a width-only
+    // check takes the desktop resizable split. On a mobile OS the device is
+    // still a phone and must use the phone split — no desktop chrome.
     testWidgets('android phone at 1100x480 uses the phone split, not desktop', (
       tester,
     ) async {

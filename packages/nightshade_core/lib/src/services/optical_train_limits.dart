@@ -1,15 +1,12 @@
 /// Physical plausibility bounds for an optical train.
 ///
-/// Validation used to reject only `<= 0`, so a focal length of `999999999` mm
-/// and an aperture of `0.0001` mm were both accepted and rendered as
-/// `f/9999999990000.00`. That is not merely cosmetic: focal length is written to
-/// the FITS `FOCALLEN` card and drives plate-solve field-of-view estimation and
-/// image-scale arcsec/px, so a nonsense value silently corrupts astrometry and
-/// every derived measurement for that rig.
+/// Focal length is written to the FITS `FOCALLEN` card and drives plate-solve
+/// field-of-view estimation and image-scale arcsec/px, so a value that is
+/// merely positive is not enough: a fat-fingered `999999999` mm corrupts
+/// astrometry and every derived measurement for that rig.
 ///
-/// The bounds are deliberately far wider than any real amateur or
-/// semi-professional rig — they exist to catch typos and fat-fingered zeros, not
-/// to police unusual setups.
+/// The bounds are far wider than any real amateur or semi-professional rig —
+/// they catch typos, not unusual setups.
 class OpticalTrainLimits {
   const OpticalTrainLimits._();
 

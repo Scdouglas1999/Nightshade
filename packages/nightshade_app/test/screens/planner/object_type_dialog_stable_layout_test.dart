@@ -1,12 +1,10 @@
-// Regression: the Object types dialog must not move its action row when a
-// chip is toggled.
+// The Object types dialog must not move its action row when a chip is toggled.
 //
-// The 7 type chips live in a Wrap. Selecting one used to add a leading
-// checkmark, which widened that chip, pushed the Wrap from 2 rows to 3, and
-// slid the Clear/Apply row ~20 px down — live, a click aimed at Apply landed
-// on empty space and the button had to be hunted for again. Selection is
-// carried by the chip's fill and outline, so the checkmark bought nothing and
-// cost the dialog its stable geometry.
+// The 7 type chips live in a Wrap. A leading checkmark on selection widens that
+// chip, pushes the Wrap from 2 rows to 3 and slides the Clear/Apply row ~20 px
+// down, so a click aimed at Apply lands on empty space. Selection is carried by
+// the chip's fill and outline, so the checkmark buys nothing and costs the
+// dialog its stable geometry.
 //
 // Driven through the sheet directly rather than through PlannerScreen: the
 // planner runs a 1 s periodic sky clock, so `pumpAndSettle` never returns

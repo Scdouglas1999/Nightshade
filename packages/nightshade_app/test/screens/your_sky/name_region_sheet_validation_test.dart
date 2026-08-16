@@ -1,12 +1,12 @@
-// Regression: a validation message must not outlive the state that produced it.
+// A validation message must not outlive the state that produced it.
 //
-// Found live. In Your Sky > Name a region the "From a target" mode says
-// "No targets in your library yet — switch to Custom to enter a sky position by
-// hand", yet Create region was enabled; pressing it produced the red
-// "Pick a target first.". Switching to Custom RA/Dec — doing exactly what the
-// sheet asked — left that error on screen, and it stayed there while RA, Dec and
-// a name were filled in, right up to a successful create. So the dialog told the
-// user to do something the current mode does not even offer.
+// In Your Sky > Name a region the "From a target" mode says "No targets in your
+// library yet — switch to Custom to enter a sky position by hand". Pressing an
+// enabled Create region there produces the red "Pick a target first.", and if
+// that error survives the switch to Custom RA/Dec — doing exactly what the sheet
+// asked — it stays on screen while RA, Dec and a name are filled in, right up to
+// a successful create, telling the user to do something the current mode does
+// not offer.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,11 +62,10 @@ void main() {
     expect(
         find.textContaining('No targets in your library yet'), findsOneWidget);
 
-    // Originally this asserted a PRESENT-but-disabled `Create region`. A live
-    // re-drive showed that state never reached the user: the accessibility
-    // tree reported the dim button as a plain actionable one and clicking it
-    // did nothing at all. The action is now absent in this state and the slot
-    // carries a live control instead — see
+    // A PRESENT-but-disabled `Create region` never reaches the user: the
+    // accessibility tree reports the dim button as a plain actionable one and
+    // clicking it does nothing at all. So the action is absent in this state and
+    // the slot carries a live control instead — see
     // `name_region_sheet_dead_action_test.dart`.
     expect(find.text('Create region'), findsNothing);
     expect(find.text('Switch to Custom RA/Dec'), findsOneWidget);

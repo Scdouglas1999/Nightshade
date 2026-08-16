@@ -275,9 +275,9 @@ void main() {
       expect(firstBefore!.isActive, isTrue);
       expect(firstBefore.isDefault, isTrue);
 
-      // Re-run onboarding to create a SECOND profile. Before the fix,
-      // dao.createProfile left it inactive (only the first profile auto-
-      // activates) yet the terminal screen claimed it was active + ready.
+      // Re-run onboarding to create a SECOND profile. dao.createProfile
+      // auto-activates only the first profile, so the terminal screen must not
+      // claim this one is active + ready unless activation happened.
       final notifier = container.read(onboardingDraftProvider.notifier);
       await notifier.loaded;
       await notifier.setProfileName('Second rig');

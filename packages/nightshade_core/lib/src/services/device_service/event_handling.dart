@@ -17,9 +17,8 @@ extension _DeviceServiceEventHandling on DeviceService {
   void _clearUserInitiatedDisconnect(String deviceId) =>
       _reconnectCoordinator.clearUserInitiatedDisconnect(deviceId);
 
-  /// Resolve a display name without running discovery. Falls back to
-  /// [getConnectedDevices] when the backend already knows this device
-  ///.
+  /// Resolve a display name without running discovery, from the devices the
+  /// backend already reports as connected.
   Future<String> _resolveDeviceDisplayName(
     DeviceType type,
     String deviceId,
@@ -106,13 +105,11 @@ extension _DeviceServiceEventHandling on DeviceService {
         _handleDeviceDisconnected(deviceType, deviceId);
         break;
 
-      // Surface driver errors published from Rust via
-      // report_error / connect_device_internal / heartbeat. Previously
-      // dropped on the floor — the user never saw the actual driver
-      // message. "errors are a feature", we route the
-      // payload through the structured errorService (which also pushes
-      // to UI notifications) AND set the matching device state to
-      // error so the equipment card subtitle renders it.
+      // Driver errors published from Rust via report_error /
+      // connect_device_internal / heartbeat. The payload is routed through the
+      // structured errorService (which also pushes a UI notification) AND sets
+      // the matching device state to error, so the equipment card subtitle
+      // renders the actual driver message.
       case 'Error':
         _handleDeviceError(
           deviceType: data['device_type'] as String?,
@@ -328,7 +325,6 @@ extension _DeviceServiceEventHandling on DeviceService {
         // Warming finished - no additional action needed
         break;
 
-      // ---------------------------------------------------------------
       // Heartbeat-health routing.
       //
       // The Rust heartbeat monitor publishes status changes via the
@@ -345,7 +341,6 @@ extension _DeviceServiceEventHandling on DeviceService {
       // a backend swap) and we never want a heartbeat-routing failure
       // to mask the higher-priority connection events that share this
       // method.
-      // ---------------------------------------------------------------
       case 'HeartbeatStarted':
         _heartbeat.onHeartbeatStarted(data['device_id'] as String?);
         break;
@@ -360,17 +355,14 @@ extension _DeviceServiceEventHandling on DeviceService {
             data['last_rtt_ms'],
           ),
         );
-        // Polish #5: the heartbeat-lost path no longer emits a standalone
-        // `EquipmentEvent::Disconnected` (it was deduped away to stop a
-        // third, redundant disconnect toast). But that event was the ONLY
-        // trigger for the load-bearing disconnect side effects in
-        // `_handleDeviceDisconnected`: clearing the per-device heartbeat
-        // health dot AND honoring the user's per-type auto-reconnect
-        // preference. So the canonical `HeartbeatStatusChanged{Disconnected}`
-        // status now drives those side effects directly. This is the state
-        // transition + reconnect, NOT a toast — the user-facing notification
-        // still comes solely from the accompanying `Error` event, so the
-        // dedupe goal (one toast) is preserved.
+        // The heartbeat-lost path emits no standalone
+        // `EquipmentEvent::Disconnected`, so this canonical
+        // `HeartbeatStatusChanged{Disconnected}` status is what drives the
+        // disconnect side effects: clearing the per-device heartbeat health
+        // dot and honouring the per-type auto-reconnect preference. State
+        // transition and reconnect only — the operator-facing notification
+        // comes solely from the accompanying `Error` event, so one lost
+        // device still raises one toast.
         if (hbStatus != null && hbStatus.toLowerCase() == 'disconnected') {
           _handleDeviceDisconnected(
             data['device_type'] as String?,
@@ -493,23 +485,23 @@ extension _DeviceServiceEventHandling on DeviceService {
   void _handleDeviceDisconnected(String? deviceType, String? deviceId) {
     if (deviceType == null || deviceId == null) return;
 
-    // Clear the heartbeat health entry so the per-card
-    // indicator falls back to "unknown" (gray dot) rather than getting
-    // stuck on the last-known value. Done unconditionally up-front so
-    // a clear failure here cannot block the existing connection-state
-    // teardown below ( /  paths).
+    // Clear the heartbeat health entry so the per-card indicator falls back to
+    // "unknown" (gray dot) rather than getting stuck on the last-known value.
+    // Done unconditionally up-front so a clear failure here cannot block the
+    // per-device-type teardown below.
     _heartbeat.clearDevice(deviceId);
 
-    // Log the disconnection event with timestamp
-    try {
-      final logger = _ref.read(loggingServiceProvider);
-      logger.warning(
-        'Device disconnected: $deviceType ($deviceId) at ${DateTime.now().toIso8601String()}',
+    // The disconnect is the forensic record of a lost device, so it goes
+    // through _safeLog: a logger that cannot be reached demotes the line to
+    // stderr instead of dropping it.
+    _safeLog(
+      (logger) => logger.warning(
+        'Device disconnected: $deviceType ($deviceId) at '
+        '${DateTime.now().toIso8601String()}',
         source: 'DeviceService',
-      );
-    } catch (e) {
-      // Logging service not available, continue without it
-    }
+      ),
+      'device-disconnected-$deviceType',
+    );
 
     // Check if this is a critical device and sequence is running
     final isCriticalDevice =

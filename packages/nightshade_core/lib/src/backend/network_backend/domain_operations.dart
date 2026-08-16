@@ -52,9 +52,7 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
     return raw.toInt();
   }
 
-  // =========================================================================
-  // Target Management
-  // =========================================================================
+  // Target management
 
   /// Get all targets from the headless server
   /// Returns JSON maps that can be used to construct CelestialTarget objects
@@ -138,9 +136,7 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
     );
   }
 
-  // =========================================================================
   // Sequence Management (CRUD - separate from sequencer execution)
-  // =========================================================================
 
   /// Get all sequences
   Future<List<Map<String, dynamic>>> getSequenceList() async {
@@ -367,9 +363,7 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
     });
   }
 
-  // =========================================================================
-  // Flat Wizard
-  // =========================================================================
+  // Flat wizard
 
   /// Calibrate a single filter for flat frames
   Future<Map<String, dynamic>> flatWizardCalibrateFilter({
@@ -435,9 +429,7 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
     return response;
   }
 
-  // =========================================================================
-  // Mosaic Planning
-  // =========================================================================
+  // Mosaic planning
 
   /// Generate mosaic panels
   Future<Map<String, dynamic>> mosaicGeneratePanels(

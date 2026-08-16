@@ -622,12 +622,11 @@ void main() {
   });
 
   group('stitchProject', () {
-    // The stitch path now PROBES that each panel master FITS exists on disk
-    // (finding #4) before handing it to the native stitcher. So these tests
-    // integrate to a REAL temp dir with the production-faithful seam (it writes
-    // the master FITS at `masterFitsPath`), exactly as the native integrator
-    // does — otherwise every panel would be (correctly) skipped for a missing
-    // file. `outRoot` replaces the former unwritable `/out` literal.
+    // The stitch path PROBES that each panel master FITS exists on disk before
+    // handing it to the native stitcher, so these tests integrate against a REAL
+    // temp dir with the production-faithful seam (it writes the master FITS at
+    // `masterFitsPath`), exactly as the native integrator does — otherwise every
+    // panel is correctly skipped for a missing file.
     late Directory stitchTmp;
     late String outRoot;
     setUp(() async {
@@ -915,12 +914,12 @@ void main() {
 
     test('skips a panel whose master FITS is MISSING on disk instead of aborting '
         'the whole mosaic', () async {
-      // Finding #4 guard: a non-empty FITS path is NOT proof the file is on
-      // disk. A master FITS removed by a temp sweep / manual cleanup / a
-      // supersession bug must degrade to a SKIPPED panel — never a path to a
-      // missing file handed to the native stitcher (which would abort the whole
-      // mosaic). The seam writes real files, then we delete ONE panel's FITS to
-      // simulate the missing-file case.
+      // A non-empty FITS path is NOT proof the file is on disk. A master FITS
+      // removed by a temp sweep / manual cleanup / a supersession bug degrades
+      // to a SKIPPED panel — never a path to a missing file handed to the
+      // native stitcher, which aborts the whole mosaic. The seam writes real
+      // files; ONE panel's FITS is then deleted to produce the missing-file
+      // case.
       seam.writeMasterFiles = true;
       final tempDir = await Directory.systemTemp.createTemp(
         'nightshade_mosaic_missing_',
@@ -1027,13 +1026,11 @@ void main() {
       // master always lands on the DURABLE DETERMINISTIC path
       // (`<base>/panel_<i>[_<filter>].fits`), IDENTICAL across re-runs.
       //
-      // Remediation 2026-06-09 (findings #1/#3): the supersession must be
-      // PATH-AWARE. The previous (buggy) id-only guard deleted the prior
-      // master's `masterFitsPath` — which is the SAME path the new master was
-      // just written to — leaving the panel linked to a live DB row whose FITS
-      // is gone (and aborting the whole stitch). The old test masked this by
-      // asserting the live file is DELETED; the correct invariant is the new
-      // file SURVIVES.
+      // Supersession must be PATH-AWARE: an id-only guard deletes the prior
+      // master's `masterFitsPath`, which is the SAME path the new master was
+      // just written to, leaving the panel linked to a live DB row whose FITS
+      // is gone and aborting the stitch. The invariant is that the new file
+      // SURVIVES.
       seam.writeMasterFiles = true;
       final tempDir = await Directory.systemTemp.createTemp(
         'nightshade_mosaic_reint_',
@@ -1096,8 +1093,8 @@ void main() {
             'not accumulated to 4 on a re-run',
       );
 
-      // The old master row is gone (superseded), not orphaned alongside a new
-      // one. The total master count did not grow.
+      // The superseded master row is gone, not orphaned alongside the new one:
+      // the total master count did not grow.
       final mastersAfter = await mastersDao.getAll();
       expect(
         mastersAfter.length,
@@ -1200,8 +1197,8 @@ void main() {
       final outcome = await service.stitchProject(
         projectId,
         outputDirectory: tempDir.path,
-        // Allow the WCS-less masters into the stitch via the header probe so the
-        // file-existence gate (finding #4) is what we exercise here.
+        // Allow the WCS-less masters into the stitch via the header probe so
+        // the file-existence gate is what this exercises.
         fitsHasWcs: (_) async => true,
       );
       expect(

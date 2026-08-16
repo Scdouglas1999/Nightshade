@@ -2,14 +2,13 @@ import '../route_metadata.dart' as route_metadata;
 
 /// CORS allow-list policy for the headless API.
 ///
-/// Why explicit allow-list instead of origin reflection:
-/// The previous behaviour echoed the request `Origin` whenever it matched the
-/// bound host:port. That allows a malicious local-loopback app on
-/// `http://127.0.0.1:NNNN` to script Nightshade through the browser - the
-/// browser sees same-origin and proceeds. By default we now allow only the
-/// dashboard's own origin; high-risk control endpoints get an even stricter
-/// check that omits the CORS header entirely on disallowed origins (the
-/// browser then blocks the request).
+/// Explicit allow-list, never origin reflection: echoing the request `Origin`
+/// whenever it matches the bound host:port would let a malicious local-loopback
+/// app on `http://127.0.0.1:NNNN` script Nightshade through the browser, which
+/// sees same-origin and proceeds. By default only the dashboard's own origin is
+/// allowed; high-risk control endpoints get a stricter check that omits the
+/// CORS header entirely on a disallowed origin, so the browser blocks the
+/// request.
 class CorsAllowList {
   final Set<String> _allowedOrigins;
   final bool _allowSameOrigin;

@@ -5,20 +5,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/backend/event_types.dart';
 import '../../models/sequence/instruction_progress_detail.dart';
 import '../../models/sequence/sequence_models.dart';
+import '../backend_provider.dart';
 import '../equipment/camera_state_provider.dart';
 import '../sequence_stats_provider.dart' show currentRunIdProvider;
 import 'node_exposure_tally.dart';
 import 'run_stop_classification.dart';
 
-// =============================================================================
-// EXECUTION STATE
-// =============================================================================
+// Execution state.
 
 /// Current sequence execution state
 final sequenceExecutionStateProvider = StateProvider<SequenceExecutionState>((
   ref,
 ) {
   return SequenceExecutionState.idle;
+});
+
+/// Whether the executor is driving simulated device ops.
+///
+/// Reports what the executor holds rather than what anyone asked for — the
+/// backend records simulation only once the call installing simulated ops has
+/// returned — so a badge fed from here cannot claim simulated hardware while
+/// real mounts and cameras are under the run. Recomputed on every execution
+/// state transition, which is when a run installs or tears down its ops.
+///
+/// A backend with no reading of the flag (remote) answers `false`, and a
+/// disconnected backend throws; both leave the value falsy for a consumer
+/// reading `.valueOrNull ?? false`, so an unreadable flag makes no claim
+/// rather than a wrong one.
+final executorSimulationModeProvider = FutureProvider<bool>((ref) async {
+  ref.watch(sequenceExecutionStateProvider);
+  return ref.watch(backendProvider).sequencerIsSimulationMode();
 });
 
 /// True while a start or checkpoint-resume transaction is still being
@@ -40,19 +56,11 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     state = state.copyWith(state: executionState);
   }
 
-  // Phase 3 Step 2 — `updateProgress` keeps its caller-friendly "null
-  // argument means leave alone" semantic without relying on the pre-freezed
-  // `copyWith(x: x ?? this.x)` quirk. Freezed's generated copyWith treats
-  // `null` differently per field-nullability: for non-null fields the
-  // exposed type is non-null (a compile error if we pass `int?`); for
-  // nullable fields `null` means "clear", not "omit". Both contradict the
-  // historical `?? this.x` pattern this method has always implemented.
-  //
-  // We rebuild the next `SequenceProgress` explicitly: each non-null
-  // method argument overrides the current field; `null` arguments fall
-  // back to the existing value. This is independent of how `copyWith` is
-  // implemented (Equatable today, freezed in Step 3) and preserves every
-  // observable behaviour the current event pump relies on.
+  // `updateProgress` means "a null argument leaves the field alone". The next
+  // `SequenceProgress` is therefore rebuilt explicitly rather than through
+  // `copyWith`: a generated copyWith treats `null` per field-nullability — a
+  // compile error on non-null fields, "clear" on nullable ones — and neither
+  // is the omit semantic every caller here relies on.
   void updateProgress({
     String? currentNodeId,
     String? currentNodeName,
@@ -140,13 +148,10 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
   /// Set the run's denominators. [totalIntegrationSecs] is optional: pass it
   /// only when a real value is known, otherwise the existing one is kept.
   ///
-  /// The native `Progress` event carries a frame count but no integration
-  /// total, and its handler used to pass a literal `0` — clobbering, roughly
-  /// once a second, the real total [SequenceExecutor._acquireAndStartRun] had
-  /// seeded from the sequence at start. Observed on the live rig: a
-  /// `/api/run-watch/snapshot` reading
-  /// `"totalIntegrationSecs": 0.0, "completedIntegrationSecs": 18.0` — a run
-  /// that had done more integration than the zero it claimed to need.
+  /// It is optional because the native `Progress` event carries a frame count
+  /// but no integration total: passing its absent value as `0` would clobber,
+  /// roughly once a second, the real total
+  /// [SequenceExecutor._acquireAndStartRun] seeded from the sequence at start.
   void setTotals(int totalExposures, [double? totalIntegrationSecs]) {
     state = state.copyWith(
       totalExposures: totalExposures,
@@ -164,18 +169,9 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
   ///
   /// Two independent subscribers handle `ExposureCompleted` on a desktop host —
   /// the DeviceService-driven pump in this file and [SequenceExecutor]'s own
-  /// handler — and BOTH were doing a read-modify-write
-  /// (`completedIntegrationSecs + durationSecs`). The frame COUNT was already
-  /// made idempotent (both writers assign the event's absolute frame index),
-  /// but the integration total was not, so every frame was counted twice.
+  /// handler — so an unguarded read-modify-write counts every frame twice.
   ///
-  /// Measured on the live rig: a run launch whose frames totalled 9.0 s of
-  /// shutter time (a 1 s light, then 2x2 s + 1x4 s) reported
-  /// `"completedIntegrationSecs": 18.0` in `/api/run-watch/snapshot` — exactly
-  /// double, while the same run's `sequence_runs.stats_json` and the imaging
-  /// session row both correctly recorded 8.0 s for the second run.
-  ///
-  /// [eventKey] must identify the originating event, not the frame: both
+  /// [eventKey] must identify the originating EVENT, not the frame: both
   /// subscribers receive the SAME event object, so its timestamp plus the frame
   /// index distinguishes "the other subscriber already handled this" from "a
   /// genuinely new frame".
@@ -224,14 +220,8 @@ bool _localExecutorOwnsRun(SequenceProviderReader read) =>
 /// event carries no status at all.
 ///
 /// The wire field is `status` — a STRING (`success` / `failed` / `cancelled` /
-/// `skipped`), see `SequencerEvent.nodeCompleted`. This pump used to read a
-/// `success` BOOL that no producer has ever emitted and defaulted it to
-/// `false`, so every finished step was recorded as [NodeStatus.failure]: the
-/// tree painted successful nodes red and
-/// `targetExecutionProgressProvider` — which only counts frames under nodes
-/// whose status is `success` — reported 0 completed frames for work that had
-/// actually been done. The `success` bool is still accepted so an older
-/// producer keeps working.
+/// `skipped`), see `SequencerEvent.nodeCompleted`. A `success` BOOL is also
+/// accepted so an older producer keeps working.
 ///
 /// A missing status returns null rather than defaulting to failure: claiming a
 /// step failed because we could not read its verdict is exactly the kind of
@@ -259,12 +249,11 @@ NodeStatus? _nodeStatusFromCompletedEvent(Map<String, dynamic> data) {
 ///
 /// Event names: the FFI mapper emits the BARE lifecycle names — `Started`,
 /// `Paused`, `Resumed`, `Stopped`, `Completed`, plus the terminal
-/// `SequenceFailed` (see `ffi_backend/event_mapping.dart`). This pump
-/// originally listed only `Sequence`-prefixed spellings, which NOTHING emits,
-/// so every lifecycle case here was dead code — `/api/run-watch/snapshot`
-/// reported `"state": "idle"` for the whole of a live headless run, and the
-/// camera card's end-of-run reset never fired. Both spellings are accepted now
-/// so remote hosts using either convention behave the same.
+/// `SequenceFailed` (see `ffi_backend/event_mapping.dart`). The
+/// `Sequence`-prefixed spellings are accepted as well, so remote hosts using
+/// either convention behave the same — but the bare names are the ones the FFI
+/// mapper actually emits, and a case that lists only the prefixed spelling is
+/// dead code.
 void applySequencerEventToSequenceProviders(
   SequenceProviderReader read,
   NightshadeEvent event,
@@ -273,7 +262,7 @@ void applySequencerEventToSequenceProviders(
   final data = event.data;
   final executorOwnsRun = _localExecutorOwnsRun(read);
 
-  // SEQ-18 — the per-node captured-frame tally. This pump is the ONLY writer on
+  // The per-node captured-frame tally. This pump is the ONLY writer on
   // a headless host (no executor subscribes there), so it has to feed the tally
   // as well as `SequenceExecutor`'s own handler; the tally's writes are
   // monotonic per node, so both firing for the same event is a no-op.
@@ -342,9 +331,8 @@ void applySequencerEventToSequenceProviders(
           SequenceExecutionState.completed;
       break;
 
-    // Terminal FAILURE. Previously absent entirely, so a headless run that
-    // died left the state it had before the failure — a run that had stopped
-    // hours ago still reading `running`, with no error text anywhere.
+    // Terminal FAILURE. Without this case a headless run that died keeps the
+    // state it had before the failure, with no error text anywhere.
     case 'SequenceFailed':
       final error = data['error'] as String? ?? 'Unknown error';
       progressNotifier.updateProgress(message: 'Sequence failed: $error');
@@ -409,14 +397,11 @@ void applySequencerEventToSequenceProviders(
     case 'ExposureCompleted':
       final durationSecs = (data['duration_secs'] as num?)?.toDouble() ?? 0.0;
       final currentProgress = read(sequenceProgressProvider);
-      // Use the event's ABSOLUTE frame index (matching the SequenceExecutor
-      // event handler) rather than incrementing the current count. The two
-      // subscribers (this one, driven by DeviceService, and the executor's
-      // own handler) previously diverged: this path did current+1 while the
-      // executor wrote the absolute frame, so when both were live for the
-      // same run the count double-advanced. Reading the absolute frame makes
-      // the two writers idempotent — whichever fires, the count lands on the
-      // same value. `frame` is 1-based from the backend.
+      // Use the event's ABSOLUTE frame index, matching the SequenceExecutor
+      // event handler, rather than incrementing the current count: this pump
+      // and the executor's handler can both be live for the same run, and only
+      // an absolute write is idempotent across the two. `frame` is 1-based
+      // from the backend.
       final absoluteFrame =
           (data['frame'] as num?)?.toInt() ??
           currentProgress.completedExposures + 1;

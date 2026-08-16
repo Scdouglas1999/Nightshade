@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // Owns the Recommendation tab: its state notifier, scroll-driven pagination, and the orchestrating build/error/loading scaffolding around primary card + candidate list + risk/rationale sections.
 part of '../planner_screen.dart';
 
@@ -177,7 +175,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
               // would slew to right now. This is what the rig runs; the
               // suggestion-based card below is the whole-night OUTLOOK
               // supplement (peak altitude / transit / window hours), not a
-              // competing #1 ranker (architecture-unification plan, §1).
+              // competing #1 ranker.
               _AutopilotPreviewBanner(colors: colors),
               const SizedBox(height: NightshadeTokens.spaceMd),
               const TransientAlertsPanel(initiallyExpanded: false),

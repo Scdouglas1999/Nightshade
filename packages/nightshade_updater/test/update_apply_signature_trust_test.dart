@@ -9,17 +9,15 @@ import 'package:nightshade_updater/src/services/update_service.dart';
 import 'package:nightshade_updater/src/services/update_verifier.dart';
 import 'package:path/path.dart' as path;
 
-/// PERSIST-001: apply-time trust must be bound to the vendor Ed25519
-/// signature, not to a self-recomputable manifest hash.
+/// Apply-time trust is bound to the vendor Ed25519 signature, not to a
+/// self-recomputable manifest hash.
 ///
-/// After SEC-001, [UpdateService.downloadAndStage] requires a vendor
-/// signature, but apply-time only re-checked `sha256(manifest) ==
-/// staged_verified.marker`. An attacker who can write the staging dir can
-/// recompute that hash after swapping the manifest + extracted tree +
-/// marker. These tests stage trees on disk directly (the exact bytes the
-/// HTTPS download and LAN-push paths persist via [persistStagedManifest])
-/// and drive [UpdateService.applyUpdate] to prove the signature is the
-/// authoritative apply-time gate.
+/// `sha256(manifest) == staged_verified.marker` is not enough on its own: an
+/// attacker who can write the staging dir recomputes that hash after swapping
+/// the manifest + extracted tree + marker. These tests stage trees on disk
+/// directly (the exact bytes the HTTPS download and LAN-push paths persist via
+/// [persistStagedManifest]) and drive [UpdateService.applyUpdate] to prove the
+/// signature is the authoritative apply-time gate.
 void main() {
   // Canonical signing payload — must match
   // UpdateVerifier._canonicalManifestPayload exactly.

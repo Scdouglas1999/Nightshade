@@ -6,9 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../catalogs/minor_planet_catalog.dart';
 import '../services/element_refresh_service.dart';
 
-// ============================================================================
 // Live MPC orbital-element refresh
-// ============================================================================
 
 /// The element-refresh service over the shared catalog directory.
 final elementRefreshServiceProvider = Provider<ElementRefreshService>((ref) {

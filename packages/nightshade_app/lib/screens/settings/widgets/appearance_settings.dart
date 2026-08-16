@@ -37,17 +37,15 @@ class AppearanceSettings extends ConsumerWidget {
               SettingRow(
                 icon: LucideIcons.moon,
                 title: 'Theme',
-                // Describe the SETTING, then the non-obvious option. The old
-                // subtitle was only the Red-night rationale, so on a Dark or
-                // Light rig the row read as if that sentence described the
-                // current selection.
+                // Describe the SETTING, then the non-obvious option. A subtitle
+                // that is only the Red-night rationale reads, on a Dark or Light
+                // rig, as if it described the current selection.
                 subtitle: 'Dark, Light, or Red night — red night preserves '
                     'dark adaptation at the telescope',
-                // A three-way selector, not the old Dark on/off switch: the
-                // theme engine has shipped a red-night mode all along
-                // (`resolveNightshadeThemeData`), but no settings surface
-                // ever offered it — the one theme built for a dark site was
-                // unreachable, especially on the phone in your hand at 2 AM.
+                // A three-way selector, not a Dark on/off switch: the theme
+                // engine carries a red-night mode (`resolveNightshadeThemeData`)
+                // and this is the surface that offers it — the one theme built
+                // for a dark site.
                 trailing: SettingsDropdown(
                   value: switch (settings.theme) {
                     'light' => 'Light',

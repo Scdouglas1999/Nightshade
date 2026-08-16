@@ -194,9 +194,9 @@ void main() {
                 'planner airmass must equal the product model at $altitude°',
           );
         }
-        // The old planner copy ran Pickering unclamped to the horizon, which
-        // reads 38.75 there against the model's 31.74 — a 22% disagreement with
-        // the AIRMASS card of the frame the planner just told the user to take.
+        // Pickering unclamped reads 38.75 at the horizon against the model's
+        // 31.74 — a 22% disagreement with the AIRMASS card of the frame the
+        // planner just told the operator to take.
         expect(AstronomyCalculations.airmass(0.5), lessThan(32.0));
       },
     );

@@ -1,14 +1,13 @@
-// Tests for OpenMeteoCloudProvider's timestamp handling (Multi-Night planning,
-// finding: naive GMT timestamps must be parsed as UTC, not device-local).
+// OpenMeteoCloudProvider parses naive GMT timestamps as UTC, not device-local.
 //
-// The regression these guard: Open-Meteo, when asked for hourly data, returns
-// naive ISO-8601 strings ("2026-05-30T18:00") with no zone designator. A bare
-// DateTime.parse treats those as device-LOCAL, shifting every frame by the
-// device's UTC offset. The multi-night forecast then matches frames against
-// UTC dark-hour samples within a 90-minute tolerance, so the shift silently
-// collapses the whole week to "unavailable" for any non-UTC user.
+// Open-Meteo, when asked for hourly data, returns naive ISO-8601 strings
+// ("2026-05-30T18:00") with no zone designator. A bare DateTime.parse treats
+// those as device-LOCAL, shifting every frame by the device's UTC offset. The
+// multi-night forecast then matches frames against UTC dark-hour samples within
+// a 90-minute tolerance, so the shift collapses the whole week to "unavailable"
+// for any non-UTC user.
 //
-// We drive a real Open-Meteo response body through fetchRadarFrames and assert:
+// A real Open-Meteo response body is driven through fetchRadarFrames to assert:
 //   * the request pins timezone=UTC,
 //   * every frame timestamp is a genuine UTC instant, and
 //   * the parsed instants line up with the requested hours (not offset-shifted),

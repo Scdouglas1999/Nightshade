@@ -298,7 +298,7 @@ void main() {
   });
 
   test('D5 a REAL safety abort must not read as "Stopped by request"', () {
-    // Wave I refutation I1: a weather/dome ParkAndAbort cancels through the
+    // A weather/dome ParkAndAbort cancels through the
     // same machinery as an operator stop and therefore publishes the SAME
     // cancel-notice Error and decision — but no manual-intervention
     // decision, because nobody was at the keyboard. The stop row must stay
@@ -343,7 +343,7 @@ void main() {
   });
 
   test('D7 the api Stopped can trail the press by 20 s and still folds in', () {
-    // Wave I refutation I2: api_sequencer_stop publishes its Stopped only
+    // api_sequencer_stop publishes its Stopped only
     // after the whole safing teardown, which can take arbitrarily long. One
     // press stays ONE row, the emitted (newest) row keeps its OWN time and
     // eventId, and it carries the cause.
@@ -373,7 +373,7 @@ void main() {
   });
 
   test('D8 the fold never breaks the feed newest-first ordering', () {
-    // Wave I refutation I3: learning the cause must copy the MESSAGE into
+    // Learning the cause must copy the MESSAGE into
     // the emitted row, never swap in an older member's row wholesale.
     final c = makeContainer();
     final h = c.read(eventHistoryProvider.notifier);
@@ -403,7 +403,7 @@ void main() {
   });
 
   test('D9 an earlier run\'s bare Stopped survives a stop 4 s later', () {
-    // Wave I refutation I4: run 1 ends with only its terminal Stopped, the
+    // Run 1 ends with only its terminal Stopped, the
     // operator restarts, and stops run 2 four seconds later. The Started
     // between them is the run boundary — the two stops must not merge.
     final c = makeContainer();
@@ -428,10 +428,10 @@ void main() {
   });
 
   test('D10 a stop 40 minutes earlier is never absorbed, boundary or not', () {
-    // Wave J refutation J3: the Started boundary is published by exactly one
-    // producer; where it is missing (attached session, truncated stream) the
-    // fold must degrade to TWO rows, never delete the old one. A bare
-    // terminal Stopped 40 minutes before a press shares no episode with it.
+    // The Started boundary is published by exactly one producer; where it is
+    // missing (attached session, truncated stream) the fold must degrade to TWO
+    // rows, never delete the earlier one. A bare terminal Stopped 40 minutes
+    // before a press shares no episode with it.
     final c = makeContainer();
     final h = c.read(eventHistoryProvider.notifier);
     h.addEvent(_stopped(1, _t0.subtract(const Duration(minutes: 40))));
@@ -451,10 +451,10 @@ void main() {
   });
 
   test('D11 with the operator decision absent a press degrades NEUTRAL', () {
-    // Wave J refutation J5 records the floor: if the manual-intervention
-    // decision is ever missing (older builds), the press's remaining
-    // producers are byte-identical to a safety abort and the row must stay
-    // cause-neutral — the safe direction, never the invented one.
+    // The floor: if the manual-intervention decision is missing (older
+    // builds), the press's remaining producers are byte-identical to a safety
+    // abort and the row must stay cause-neutral — the safe direction, never the
+    // invented one.
     final c = makeContainer();
     final h = c.read(eventHistoryProvider.notifier);
     h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
@@ -513,7 +513,7 @@ void main() {
 
   test('D14 run identity outranks time: different runs 90 s apart never merge',
       () {
-    // Wave K refutation K2 (merge direction): a bare terminal of run 1 and a
+    // Merge direction: a bare terminal of run 1 and a
     // press of run 2 ninety seconds later, with NO Started between (attached
     // session / truncated stream). The run ids on the wire keep them apart.
     final c = makeContainer();
@@ -539,7 +539,7 @@ void main() {
   });
 
   test('D15 run identity outranks the bound: a 5-minute teardown folds in', () {
-    // Wave K refutation K2 (split direction): the api Stopped can trail the
+    // Split direction: the api Stopped can trail the
     // press by the WHOLE safing teardown. With the run id on the wire the
     // late terminal joins its own episode however long that took.
     final c = makeContainer();
@@ -563,7 +563,7 @@ void main() {
   });
 
   test("D16 the autopilot's stop names the autopilot, never the operator", () {
-    // Wave K refutation K1: the scheduler drives the same stop path on an
+    // The scheduler drives the same stop path on an
     // unattended re-plan. Its decision is system-origin evidence and the
     // row must say so — a 2 a.m. autopilot stop rendering "Stopped by
     // request" invents a human that was not there.
@@ -589,7 +589,7 @@ void main() {
   });
 
   test('D17 stepping-stone chaining cannot stretch the id-less bound', () {
-    // Wave L refutation L2: six id-less terminal Stopped events 110 s apart
+    // Six id-less terminal Stopped events 110 s apart
     // (every adjacent pair inside the 2-minute bound, total span 9m10s).
     // Joins measure to the episode SPINE, not to fellow id-less members, so
     // the chain breaks and the night's record keeps multiple rows.
@@ -611,7 +611,7 @@ void main() {
   });
 
   test('D18 a rollback stop stays cause-neutral', () {
-    // Wave L refutation L1: a failed-launch rollback issues a real native
+    // A failed-launch rollback issues a real native
     // stop with origin `rollback`; the executor records a SystemEvent, not
     // operator evidence, so the feed's stop row must stay neutral.
     final c = makeContainer();

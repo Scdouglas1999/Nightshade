@@ -2,16 +2,10 @@
 /// management used by the headless API server and the mobile companion.
 library;
 
-// Why the rename: this package was originally named nightshade_webrtc, but the
-// WebRTC peer-connection + signaling primitives were removed in §2.3 audit
-// 2026-05-09. Live remote control now runs over REST + WebSocket via
-// headless_api_server.dart. Renamed to nightshade_remote_protocol in
-// so the name reflects what the package
-// actually contains: discovery, auth, crypto, and pairing primitives.
-//
-// web_server.dart was deleted on 2026-05-09 — the consolidated
-// HTTP/REST server now lives at apps/desktop/lib/headless_api_server.dart and
-// is shared by both GUI and headless modes.
+// The package holds discovery, auth, crypto and pairing primitives. Live
+// remote control runs over REST + WebSocket from
+// apps/desktop/lib/headless_api_server.dart, which both GUI and headless modes
+// share; there is no peer-connection or signalling layer here.
 export 'src/discovery.dart';
 export 'src/enhanced_discovery.dart';
 export 'src/tailnet_detector.dart';

@@ -207,8 +207,8 @@ void main() {
   });
 
   test('science provenance reads the preference, not the projection', () async {
-    // Settings load while the preference says Auto, so the projection — the
-    // value the old code stamped onto every science record — is 'Auto'.
+    // Settings load while the preference says Auto, so the projection is
+    // 'Auto' and differs from the resolved solver the record must carry.
     var preference = const PlateSolverPreference(
       choice: PlateSolverChoice.auto,
     );

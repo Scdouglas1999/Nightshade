@@ -1,4 +1,3 @@
-// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../polar_alignment_screen.dart';
@@ -21,9 +20,10 @@ extension _RightPanel on _PolarAlignmentScreenState {
         ? Center(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              // Pass the error through nullable: coalescing it to 0 made the
-              // idle reticle compute totalError == 0 and announce "Within
-              // acceptance — hold steady" before any frame had been captured.
+              // Pass the error through NULLABLE: null means unmeasured, 0 means
+              // aligned. Coalescing to 0 makes the idle reticle compute
+              // totalError == 0 and announce "Within acceptance — hold steady"
+              // before any frame exists.
               child: AllSkyTargetReticle(
                 azimuthErrorArcsec: state.currentError?.azimuthError,
                 altitudeErrorArcsec: state.currentError?.altitudeError,
@@ -191,9 +191,8 @@ extension _RightPanel on _PolarAlignmentScreenState {
   /// (`currentError`). That is short of the truth by exactly one iteration
   /// (cadence + exposure + solve), which is why this is rendered as a FLOOR
   /// rather than as a measurement: a reading taken over a few seconds and one
-  /// taken over ten minutes are not the same measurement, and the panel used to
-  /// present them identically, but claiming a precision the app does not have
-  /// would just swap one untrue number for another.
+  /// taken over ten minutes are not the same measurement, and the app cannot
+  /// claim a precision it does not have.
   Widget _buildDriftBaselineCaption(
     NightshadeColors colors,
     PolarAlignmentState state,

@@ -31,9 +31,7 @@ class EquipmentHandlers {
     return deviceId;
   }
 
-  // ===========================================================================
-  // Equipment Status
-  // ===========================================================================
+  // Equipment status
 
   Future<Response> handleCameraStatus(Request request) async {
     final deviceId = _requireDeviceId(request);
@@ -70,9 +68,7 @@ class EquipmentHandlers {
     return jsonOk(status.toJson());
   }
 
-  // ===========================================================================
-  // Equipment Capabilities
-  // ===========================================================================
+  // Equipment capabilities
 
   Future<Response> handleCameraCapabilities(Request request) async {
     final deviceId = _requireDeviceId(request);
@@ -134,9 +130,7 @@ class EquipmentHandlers {
     return jsonOk(caps.toJson());
   }
 
-  // ===========================================================================
-  // Device Health Monitoring
-  // ===========================================================================
+  // Device health monitoring
 
   Future<Response> handleStartDeviceHeartbeat(Request request) async {
     _logInfo('[API] POST /api/device/heartbeat/start');

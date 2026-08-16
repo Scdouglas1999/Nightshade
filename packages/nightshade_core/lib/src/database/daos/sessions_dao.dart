@@ -228,9 +228,7 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     };
   }
 
-  // ============================================================================
-  // Session Recovery Methods
-  // ============================================================================
+  // Session recovery methods
 
   /// Get all active sessions (for recovery)
   Future<List<ImagingSession>> getActiveSessions() {
@@ -316,9 +314,7 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     return activeSessions.isNotEmpty;
   }
 
-  // ============================================================================
-  // Quick Start Methods
-  // ============================================================================
+  // Quick start methods
 
   /// Get the most recent session for Quick Start (within last 7 days)
   Future<ImagingSession?> getMostRecentSession() async {

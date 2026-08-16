@@ -1,8 +1,6 @@
 part of '../guiding_provider.dart';
 
-// =============================================================================
-// PHD2 BRAIN PARAMS PROVIDER - Fetches algorithm parameters
-// =============================================================================
+// PHD2 brain params provider - fetches algorithm parameters
 
 /// Provider for PHD2 brain parameters
 final brainParamsProvider =
@@ -164,9 +162,7 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
   }
 }
 
-// =============================================================================
-// PHD2 CALIBRATION STATE PROVIDER
-// =============================================================================
+// PHD2 calibration state provider
 
 /// Provider for calibration state
 final calibrationStateProvider =

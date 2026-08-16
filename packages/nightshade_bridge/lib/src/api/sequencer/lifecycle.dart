@@ -46,8 +46,8 @@ Future<void> apiSequencerStop({String? origin}) => RustLib.instance.api
 Future<void> apiSequencerSkip() =>
     RustLib.instance.api.crateApiSequencerLifecycleApiSequencerSkip();
 
-/// trust-patch §7: jump execution to a specific node id,
-/// marking preceding siblings as Skipped. Honoured on the next container's
+/// Jump execution to a specific node id, marking preceding siblings as
+/// Skipped. Honoured on the next container's
 /// tree-walk step; the currently-running instruction (e.g. an exposure burst)
 /// completes before the jump takes effect. Returns an error if the executor
 /// is not running (caller should gate the UI button on execution state).
@@ -113,12 +113,10 @@ Future<void> apiSequencerResumeFromCheckpoint() => RustLib.instance.api
 /// Standalone meridian flip — runs the canonical [`MeridianFlipExecutor`]
 /// OUTSIDE any running sequence.
 ///
-/// Why this exists: the Dart-side standalone meridian monitor previously
-/// could only alert (the flip engine was reachable solely through the
-/// sequencer's trigger path), so an attended non-sequencer session got a
-/// notification while the mount tracked into the pier. This API gives that
-/// monitor a real flip with the exact same engine, timeouts, altitude
-/// check, re-center and refocus semantics as the in-sequence path.
+/// This is what the Dart-side standalone meridian monitor calls to flip an
+/// attended non-sequencer session instead of only alerting while the mount
+/// tracks into the pier. It runs the same engine with the same timeouts,
+/// altitude check, re-center and refocus semantics as the in-sequence path.
 ///
 /// Refuses while the sequence executor is Running/Paused/Stopping/
 /// Recovering — two engines commanding one mount is how pier crashes

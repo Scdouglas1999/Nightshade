@@ -1,10 +1,10 @@
 // Pillar C ("Constellation") — join-state restart survival.
 //
 // The follow-the-night sweep iterates ONLY joined targets, and Contribute/Pull
-// unlock on join. Before this fix the joined-target map lived purely in memory,
-// so every app restart silently re-locked the federation and emptied the baton
-// feed. `joinSharedTarget` now persists a join-rehydration row (at a disjoint
-// negative tileId so it can never collide with a real HEALPix tile receipt), and
+// unlock on join, so a joined-target map that lives purely in memory re-locks
+// the federation and empties the baton feed on every app restart.
+// `joinSharedTarget` persists a join-rehydration row (at a disjoint negative
+// tileId so it can never collide with a real HEALPix tile receipt), and
 // `rehydrateJoined` re-populates the map for the configured hub.
 //
 // Pins:

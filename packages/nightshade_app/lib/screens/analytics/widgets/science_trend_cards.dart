@@ -121,9 +121,7 @@ class UniformityTrendCard extends StatelessWidget {
   final List<ScienceFrameQualityMetricsRow> frameMetrics;
 
   /// Frames the user rejected. Their metrics rows are dropped so this card and
-  /// [HfrTrendCard] beside it describe the same frames — the two used to
-  /// disagree the moment anything was graded out, with HFR going empty while
-  /// uniformity kept plotting the rejected frames.
+  /// [HfrTrendCard] beside it describe the same frames.
   final Set<int> rejectedImageIds;
 
   const UniformityTrendCard({

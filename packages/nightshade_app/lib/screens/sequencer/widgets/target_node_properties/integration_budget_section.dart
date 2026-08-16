@@ -48,8 +48,8 @@ class _IntegrationBudgetSection extends ConsumerWidget {
                               integrationBudget: const IntegrationBudget()),
                         );
                   } else {
-                    // PHASE-5: TargetHeaderNode.copyWith uses plain
-                    // `?? this.integrationBudget` now; clearing back to
+                    // TargetHeaderNode.copyWith uses a plain
+                    // `?? this.integrationBudget`, so clearing back to
                     // null is rebuild-explicit.
                     ref.read(currentSequenceProvider.notifier).updateNode(
                           TargetHeaderNode(

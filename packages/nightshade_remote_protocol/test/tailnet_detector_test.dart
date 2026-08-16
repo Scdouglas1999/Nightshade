@@ -198,7 +198,7 @@ void main() {
         HostReachabilityTier.invalid,
       );
       // A DNS name that is not *.local cannot be proven private without
-      // resolution, which we refuse to perform — invalid.
+      // resolution, which this classifier never performs — invalid.
       expect(
         TailnetDetector.classify('example.com'),
         HostReachabilityTier.invalid,

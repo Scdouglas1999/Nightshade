@@ -1,11 +1,11 @@
 /// How a finished run's Session Report reaches the operator.
 ///
-/// WF-N5: every terminal run opened a MODAL Session Report plus a "How did this
-/// run go? / Write note" prompt, over whatever screen the operator happened to
-/// be on. With the autopilot armed and its dispatched runs failing fast, that
-/// was a modal per minute — one appeared on the Builder at 00:06:13, another
-/// while navigating to Plan Tonight at 00:06:53, another on History at 00:07:40
-/// — and each one swallowed the click aimed at the app underneath.
+/// A MODAL Session Report plus a "How did this run go? / Write note" prompt on
+/// every terminal run lands over whatever screen the operator happens to be on.
+/// With the autopilot armed and its dispatched runs failing fast, that is a
+/// modal per minute — one on the Builder at 00:06:13, another while navigating
+/// to Plan Tonight at 00:06:53, another on History at 00:07:40 — each one
+/// swallowing the click aimed at the app underneath.
 ///
 /// A report the operator asked for by pressing Start has earned a modal: they
 /// are sitting there, the run just ended, and the report is the answer to the

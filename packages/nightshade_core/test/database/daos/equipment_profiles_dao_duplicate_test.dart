@@ -7,11 +7,11 @@ import 'package:nightshade_core/src/database/database.dart';
 /// Covers [EquipmentProfilesDao.duplicateProfile] — the "Copy profile" path.
 ///
 /// A copied profile is what startup auto-connect later drives, so it must carry
-/// EVERY configured device slot forward. Regression: the copy dropped the
-/// `switchId` (and the `switchName` / `safetyMonitorName` friendly labels), so
-/// duplicating a rig with a power/switch box silently produced a profile that
-/// auto-connect would never attempt the switch for. A copy must also never
-/// inherit the source's active/default flags (no stale mutation).
+/// EVERY configured device slot forward. A copy that drops `switchId` (or the
+/// `switchName` / `safetyMonitorName` friendly labels) turns a rig with a
+/// power/switch box into a profile auto-connect never attempts the switch for.
+/// A copy must also never inherit the source's active/default flags (no stale
+/// mutation).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

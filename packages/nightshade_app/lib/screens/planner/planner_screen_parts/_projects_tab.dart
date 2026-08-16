@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // "Projects" tab: the multi-night project workspace. The former "Projects" and
 // "Progress" tabs are unified here behind one clearly-labelled scope switch —
 // the active project's goal tracking vs. the global all-targets roll-up — so a

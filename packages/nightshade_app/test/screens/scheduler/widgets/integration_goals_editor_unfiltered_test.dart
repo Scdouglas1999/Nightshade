@@ -85,8 +85,8 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // The old behaviour: a bare warning and no add-goal affordance at all,
-      // which dead-ends the autopilot for every OSC / DSLR / wheel-less rig.
+      // A bare warning with no add-goal affordance dead-ends the autopilot for
+      // every OSC / DSLR / wheel-less rig.
       expect(
         find.textContaining('configure a filter wheel first'),
         findsNothing,

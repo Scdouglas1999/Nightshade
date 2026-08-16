@@ -1,18 +1,14 @@
-// Regression: the Dashboard header clock chip must not state a local sidereal
-// time for a site the operator never gave it.
-//
-// This is the SECOND surface named by the same finding that produced
-// `screens/shell/status_bar_lst_test.dart`. The evidence recorded both — "the
-// header clock chip read 'LST 12:16:27' and the status bar read 'LST 12:16'" —
-// while the widgets beside them correctly said "Set an observing location" and
-// rendered moonrise/moonset as "--:--". Only the status bar was fixed at the
-// time, so the header kept asserting Greenwich's sidereal time as fact.
+// The Dashboard header clock chip must not state a local sidereal time for a
+// site the operator never gave it. The status bar is the other surface with the
+// same duty; see `screens/shell/status_bar_lst_test.dart`.
 //
 // `localSiderealTimeProvider` reads the planetarium's observer, whose default is
-// not the operator's site, so an unconfigured rig produced a perfectly
-// well-formed number that belonged to somebody else. LST is exactly what an
-// imager reads to decide what is transiting, which is why a confident wrong
-// value is worse here than a dash.
+// not the operator's site, so an unconfigured rig yields a perfectly
+// well-formed number that belongs to somebody else — "LST 12:16:27" beside
+// widgets correctly saying "Set an observing location" and rendering
+// moonrise/moonset as "--:--". LST is exactly what an imager reads to decide
+// what is transiting, which is why a confident wrong value is worse here than a
+// dash.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

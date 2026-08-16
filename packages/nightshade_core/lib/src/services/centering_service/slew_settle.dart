@@ -42,10 +42,9 @@ extension _CenteringSlewSettle on CenteringService {
 
         if (consecutiveQueryFailures >=
             CenteringService._maxConsecutiveQueryFailures) {
-          // Errors are a feature: escalate the sustained outage as a
-          // typed exception so the caller can surface a precise failure
-          // reason in [CenteringResult], rather than silently riding out
-          // the 60s cap.
+          // Escalate the sustained outage as a typed exception so the
+          // caller reports a precise failure reason in [CenteringResult]
+          // rather than riding out the 60s cap.
           throw CenteringMountUnresponsiveException(
             consecutiveFailures: consecutiveQueryFailures,
             elapsed: _pollInterval * consecutiveQueryFailures,

@@ -20,14 +20,12 @@
 ///
 /// ## Why the match is EXACT
 ///
-/// The first attempt at this used a substring test on "cancelled". A Wave E
-/// refuter showed what that costs: a run that had a REAL fault whose text
-/// happens to contain the word — "Temperature compensation cancelled"
+/// A substring test on "cancelled" swallows real faults whose text happens to
+/// contain the word — "Temperature compensation cancelled"
 /// (`native/.../temperature_compensation.rs`), "Cancelled: Target"
 /// (`executor/preflight.rs`), "focuser move was canceled by the driver",
-/// "slew canceled by the mount (limit switch)" — had that fault silently
-/// swallowed, so the operator got NO error report at all. Those messages are
-/// the pinned counter-inputs of
+/// "slew canceled by the mount (limit switch)" — leaving the operator with NO
+/// error report at all. Those messages are the pinned counter-inputs of
 /// `test/providers/sequence/run_stop_classification_test.dart`.
 ///
 /// The notice is a fixed string the executor writes verbatim, so recognising it
@@ -49,13 +47,9 @@ const String kSequenceStoppedByRequestMessage = 'Stopped by request';
 /// unattended stop must never claim a human asked for it.
 const String kSequenceStoppedByAutopilotMessage = 'Stopped by autopilot';
 
-/// Log tag stamped by every producer that reclassifies a stop, so a live log
-/// says WHICH implementation acted.
-///
-/// The stop pipeline has been fixed twice before at a producer that was not the
-/// one on screen. Each call site logs `[$kStopClassificationLogTag] <site>` when
-/// it reclassifies, so "did my fix run?" is answerable from the run log instead
-/// of from reading code.
+/// Log tag stamped by every producer that reclassifies a stop. Each call site
+/// logs `[$kStopClassificationLogTag] <site>` when it reclassifies, so the run
+/// log says WHICH producer acted.
 const String kStopClassificationLogTag = 'stop-classification';
 
 /// True when [message] is the run-cancelled NOTICE rather than a fault.
@@ -67,9 +61,7 @@ bool isSequenceCancelledNotice(String message) {
       normalized == 'sequence canceled';
 }
 
-// ---------------------------------------------------------------------------
-// WHO ended the run
-// ---------------------------------------------------------------------------
+// Who ended the run.
 //
 // Every cancellation path publishes the same cancel-notice pair, so the notice
 // says only THAT a run ended. The one thing on the wire that says WHO is the
@@ -92,8 +84,7 @@ const String kManualInterventionDecisionCategory = 'manual_intervention';
 const String kSystemEventDecisionCategory = 'system_event';
 
 /// Summary PREFIX of the operator's stop decision. A prefix, not an equality:
-/// the executor writes `Operator: stop` and older builds wrote
-/// `Operator: stop requested`.
+/// both `Operator: stop` and `Operator: stop requested` occur on the wire.
 const String kOperatorStopSummaryPrefix = 'Operator: stop';
 
 /// Summary of the autopilot's stop decision.

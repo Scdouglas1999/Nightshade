@@ -89,10 +89,9 @@ void main() {
       expect(r.isCompactPhone, isFalse); // 540 >= 480
     });
 
-    // The regression that broke landscape: a rotated phone's WIDTH is its long
-    // edge (>= 600), so the old width-based isPhone returned false and the
-    // screen fell through to the tablet/desktop layout. Device-class detection
-    // keeps it a phone.
+    // A rotated phone's WIDTH is its long edge (>= 600), so a width-based
+    // isPhone reads false and the screen falls through to the tablet/desktop
+    // layout. Device-class detection keeps it a phone.
     testWidgets('844x390 rotated phone IS a phone in landscape', (
       tester,
     ) async {

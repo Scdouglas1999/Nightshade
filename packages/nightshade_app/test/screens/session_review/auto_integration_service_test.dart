@@ -1,11 +1,11 @@
 // Tests for [AutoIntegrationService.maybeRunForSession] — the unattended
 // "wake up to a finished image" hook fired at run completion.
 //
-// The flagship case here is the multi-filter regression (senior review blocker
-// #6): a target with an accumulating master for ONE filter must not silently
-// drop the subs of every other filter. The service must route each filter
-// bucket independently (fold into its accumulating master when present, else
-// batch-integrate) and report the total subs across all filters.
+// The flagship case is multi-filter: a target with an accumulating master for
+// ONE filter must not silently drop the subs of every other filter. The service
+// routes each filter bucket independently (fold into its accumulating master
+// when present, else batch-integrate) and reports the total subs across all
+// filters.
 //
 // Runs against an in-memory database for the DAO-backed providers; the two
 // heavy orchestration services (accumulate + batch integrate) are faked so the

@@ -124,9 +124,9 @@ void main() {
 
   // The four tests above only prove the provider answers correctly. They all
   // stay green with the `latestScienceProductSessionProvider` line deleted from
-  // the tab's own session resolution — i.e. with the fix's entire production
-  // wiring removed. This one pumps the real tab and watches which session it
-  // actually loads science for, so it goes red the moment that line goes away.
+  // the tab's own session resolution — i.e. with the production wiring removed.
+  // This one pumps the real tab and watches which session it actually loads
+  // science for, so it goes red the moment that line goes away.
   testWidgets('the tab itself analyses the science-product session',
       (tester) async {
     tester.view.physicalSize = const Size(1400, 2400);

@@ -24,12 +24,10 @@ import 'widgets/progress_tab_content.dart';
 import 'widgets/projects_tab_content.dart';
 import 'widgets/scheduler_tab_content.dart';
 import 'widgets/week_forecast_strip.dart';
-// ---------------------------------------------------------------------------
 // File split: the rest of this library lives in `planner_screen_parts/`.
 // Each part is `part of '../planner_screen.dart';` and contains a cohesive
 // group of private widgets / helpers. Imports are owned here so part files
 // inherit the same symbol scope.
-// ---------------------------------------------------------------------------
 
 part 'planner_screen_parts/_recommendation_tab.dart';
 part 'planner_screen_parts/_autopilot_preview_banner.dart';
@@ -49,23 +47,14 @@ part 'planner_screen_parts/_range_controls.dart';
 /// param. Order here matches the rendered tab order; Recommendation is the
 /// default.
 ///
-/// Order rationale — the tabs read left-to-right as a planning-to-execution
-/// funnel, grouped by intent rather than by build order:
-///   * [recommendation] — "what's best right now" (the landing page / default).
-///   * [projects] — the multi-night campaign workspace: pick a campaign and
-///     track per-target integration goals, or switch scope to the global
-///     all-targets progress roll-up. (Absorbs the former standalone "Progress".)
-///   * [schedule] — the seven-night forecast strip atop the dynamic target
-///     queue: which upcoming nights to run, and the queue that runs them.
-///     (Unifies the former "This Week" forecast + "Target Queue" scheduler.)
-///   * [framing] / [planetarium] — the sky-work surfaces promoted to first-class
-///     tabs (absorbed from the standalone `/framing` and `/planetarium` routes).
-///   * [discover] — the Your Sky / Constellation discovery surfaces.
+/// The tabs read left-to-right as a planning-to-execution funnel: what is best
+/// right now, the multi-night campaign workspace, the forecast strip over the
+/// target queue, the two sky-work surfaces, then discovery.
 ///
 /// The rendered `tabs` list and the `IndexedStack` children in
-/// [_PlannerScreenState.build] are kept in lockstep with this order because the
-/// selected-tab index is [PlannerTab.index]; reordering here without matching
-/// both lists would mis-route deep-links and tab taps.
+/// [_PlannerScreenState.build] MUST be kept in lockstep with this order,
+/// because the selected-tab index is [PlannerTab.index]: reordering here
+/// without matching both lists mis-routes deep-links and tab taps.
 enum PlannerTab {
   recommendation,
   projects,
@@ -126,10 +115,10 @@ final _plannerOptimizationProvider =
     FutureProvider.autoDispose<SessionOptimizationPlan>((ref) async {
   // Depend on the SELECT-based location provider, not the whole appSettings
   // future. The host broadcasts `settings/updated` very frequently (scheduler
-  // runtime config), and awaiting appSettingsProvider.future re-ran this plan —
-  // and thus reloaded the Recommendation tab — on every one. appObserverLocation
-  // only emits when latitude/longitude actually change, so unrelated settings
-  // churn no longer thrashes the tab.
+  // runtime config), and awaiting appSettingsProvider.future would re-run this
+  // plan — reloading the Recommendation tab — on every one.
+  // appObserverLocation only emits when latitude/longitude actually change, so
+  // unrelated settings churn does not thrash the tab.
   final location = ref.watch(appObserverLocationProvider);
   if (location == null ||
       (location.latitude == 0.0 && location.longitude == 0.0)) {
@@ -163,14 +152,12 @@ final _plannerVisibleCountProvider = StateProvider.autoDispose<int>(
 ///     risk factors and rationale.
 ///   * Projects — the multi-night campaign workspace ([_ProjectsTab]): a scope
 ///     switch between the active campaign's per-target integration goals
-///     ([ProjectsTabContent], C9, with the C11 "Plan in Smart Night" handoff)
-///     and the global all-targets progress roll-up ([ProgressTabContent]).
-///   * Schedule — the seven-night forecast strip ([WeekForecastStrip], C10)
-///     pinned above the RoboTarget-class dynamic scheduler ([SchedulerTabContent],
-///     formerly the standalone `/scheduler` screen): which nights to run, and the
-///     queue that runs them.
-///   * Framing / Planetarium — the sky-work surfaces (absorbed from the
-///     standalone `/framing` and `/planetarium` routes).
+///     ([ProjectsTabContent], with the "Plan in Smart Night" handoff) and the
+///     global all-targets progress roll-up ([ProgressTabContent]).
+///   * Schedule — the seven-night forecast strip ([WeekForecastStrip]) pinned
+///     above the RoboTarget-class dynamic scheduler ([SchedulerTabContent]):
+///     which nights to run, and the queue that runs them.
+///   * Framing / Planetarium — the sky-work surfaces.
 ///   * Discover — the Your Sky / Constellation discovery surfaces.
 ///
 /// Query param `?tab=` selects the initial tab via [plannerTabFromQuery].
@@ -309,11 +296,9 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         bottom: false,
         child: Column(
           children: [
-            // Title + sub-tabs share ONE row on every form factor. The screen
-            // title previously sat in its own ~56px header row above
-            // the tabs, which wasted vertical space (the bottom/side nav already
-            // names the screen). Fold the title inline to the left of the tab
-            // strip: icon-only on a phone, icon + label on tablet/desktop.
+            // Title + sub-tabs share ONE row on every form factor: the title
+            // folds inline to the left of the tab strip — icon-only on a phone,
+            // icon + label on tablet/desktop.
             // While a phone keyboard is open, the focused search field is the
             // active navigation context. Temporarily reclaim the tab strip's
             // height so the controls row still fits in a short landscape

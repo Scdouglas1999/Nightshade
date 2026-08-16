@@ -241,7 +241,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
           // the sequence builder and the altitude charts, so a slider edit has
           // to reach it now — otherwise moving "Min altitude" here would only
           // take effect on the next launch and the rest of the app would keep
-          // gating on the old number. Safe for the engine: it takes this
+          // gating on the superseded number. Safe for the engine: it takes this
           // provider through ref.listen and skips the update while
           // schedulerConfigUserDirtyProvider is set (which this edit set), so
           // nothing is torn down and the live config is not overwritten.

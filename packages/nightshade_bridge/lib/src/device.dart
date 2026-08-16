@@ -494,7 +494,7 @@ enum FrameType { light, dark, flat, bias, darkFlat }
 /// Fields that vary by driver capability or that may legitimately fail to
 /// read are `Option<T>` and accompanied by an entry in `availability` so the
 /// UI can render "—" for `None`+`Unsupported` versus an error indicator for
-/// `None`+`Error(reason)`. See §5.4 of the v2.5.0 audit.
+/// `None`+`Error(reason)`.
 class MountStatus {
   final bool connected;
   final bool tracking;

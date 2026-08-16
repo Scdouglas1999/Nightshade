@@ -1,11 +1,7 @@
-// Part of ../project_tracking_panel.dart -- extracted for maintainability.
-//
 // Enhanced project card, metric chips, filter breakdown and loading skeleton.
 part of '../project_tracking_panel.dart';
 
-// =============================================================================
-// Enhanced Project Card
-// =============================================================================
+// Enhanced project card
 
 class _EnhancedProjectCard extends ConsumerWidget {
   final ProjectProgress progress;
@@ -301,9 +297,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
   }
 }
 
-// =============================================================================
-// Metric Chip
-// =============================================================================
+// Metric chip
 
 class _MetricChip extends StatelessWidget {
   final IconData icon;
@@ -347,9 +341,7 @@ class _MetricChip extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// Filter Breakdown Row
-// =============================================================================
+// Filter breakdown row
 
 class _FilterBreakdownRow extends StatelessWidget {
   final Map<String, double> filterData;

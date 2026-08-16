@@ -1,11 +1,10 @@
 // The flat wizard's largest panel must not deny frames it just wrote.
 //
-// Live finding IMG-18: through an entire Quick Capture run — and after it — the
-// preview read "No flat captured yet / Start capture or test exposure to see
-// preview" while the run was saving FITS to disk (13 files at the point the run
-// was stopped). The capture loop published the frame's raw display BYTES, and
-// the panel cannot render bytes without the frame's dimensions, so every
-// captured frame fell through to the empty state.
+// The capture loop publishes the frame's raw display BYTES, and the panel
+// cannot render bytes without the frame's dimensions — so every captured frame
+// falls through to the empty state, and the preview reads "No flat captured yet
+// / Start capture or test exposure to see preview" through an entire Quick
+// Capture run that is writing FITS to disk.
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';

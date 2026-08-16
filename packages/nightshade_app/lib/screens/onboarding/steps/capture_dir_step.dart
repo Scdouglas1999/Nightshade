@@ -499,14 +499,10 @@ class _OnboardingCaptureDirStepState
           ),
         ),
         const SizedBox(height: 6),
-        // This used to promise "Sessions will be organized into target/date
-        // subfolders under this directory." Nothing does that: the shipped
-        // default naming pattern is `$TARGET_$FILTER_$DATE_$SEQ`, which is
-        // flat, so every frame lands directly in the chosen folder. The
-        // subfolder machinery is real — a `/` in the pattern creates
-        // directories — it is simply not the default, so describe the pattern
-        // as the thing that controls layout rather than claiming a layout the
-        // app does not produce.
+        // Describe the naming pattern, which is what actually controls layout.
+        // The shipped default is `$TARGET_$FILTER_$DATE_$SEQ` — flat, so every
+        // frame lands directly in the chosen folder. Subfolders are real (a `/`
+        // in the pattern creates directories) but are not the default.
         Text(
           'Every capture is saved here. File names — and any subfolders — come '
           'from the naming pattern in Settings → Imaging.',

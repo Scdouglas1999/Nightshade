@@ -141,10 +141,10 @@ void main() {
   });
 
   testWidgets('the delta survives a phone-width card', (tester) async {
-    // The delta rides in the classification line, which used to be a Row of
-    // unconstrained Texts: anything past the card's width was clipped away
-    // (and threw a RenderFlex overflow), so on a phone the operator saw the
-    // brightness bucket removed and nothing put in its place.
+    // The delta rides in the classification line. As a Row of unconstrained
+    // Texts anything past the card's width is clipped (and throws a RenderFlex
+    // overflow), so on a phone the brightness figure disappears with nothing
+    // put in its place.
     await _pump(tester, _firstLightAlert(), size: const Size(390, 844));
 
     expect(

@@ -77,10 +77,8 @@ void main() {
     // Title (a plain Text) is still present.
     expect(find.text('M31 first night'), findsOneWidget);
 
-    // Body must be a MarkdownBody — not a raw `Text(note.body)`. The
-    // old implementation used a Text widget with the literal body
-    // string; the new implementation passes the body through
-    // MarkdownBody so **bold** renders as bold.
+    // Body must be a MarkdownBody, not a raw `Text(note.body)`, so **bold**
+    // renders as bold rather than as literal asterisks.
     expect(find.byType(MarkdownBody), findsAtLeastNWidgets(1),
         reason: 'Note bodies must be rendered with MarkdownBody so '
             'inline markdown (**bold**, `code`, links) renders properly.');

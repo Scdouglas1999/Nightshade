@@ -6,10 +6,10 @@ import 'package:nightshade_app/screens/settings/settings_catalog.dart';
 /// The settings sidebar must localize its GROUP headers, not just its leaf
 /// items.
 ///
-/// Regression: group headers rendered `SettingsGroupDef.title`, which is a
-/// structural identifier that has to stay English (see [kGroupTitles]). Under
-/// Spanish the sidebar therefore read "Apariencia" and "Ubicación" beneath a
-/// header saying "EQUIPMENT". `displayTitle` is the localized one.
+/// `SettingsGroupDef.title` is a structural identifier that has to stay English
+/// (see [kGroupTitles]), so rendering it as the header puts "Apariencia" and
+/// "Ubicación" under a header saying "EQUIPMENT" in Spanish. `displayTitle` is
+/// the localized one.
 void main() {
   Future<List<SettingsGroupDef>> groupsFor(
     WidgetTester tester,

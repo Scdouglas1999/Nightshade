@@ -49,16 +49,10 @@ abstract final class Responsive {
   ///   **width**, so narrowing a desktop window still reflows to the single
   ///   column exactly as before.
   ///
-  /// Prefer this — or, better, a [LayoutBuilder] reading the region's own width
-  /// for *how much space is available right now* — when building phone layouts.
-  /// [isMobile] (`< 768`) lumps small tablets in with phones and is kept only
-  /// for back-compat with existing screens. Pair with [isPhoneLandscape] /
-  /// [isPhonePortrait] to choose the per-orientation reflow.
-  ///
-  /// IMPORTANT: the global [scaleFactor]/[fontSize]/[spacing] helpers are NOT
-  /// the phone-fit mechanism. They miniaturize a wide layout; a phone layout
-  /// must **reflow** (stack columns, wrap dense rows, push secondary controls
-  /// into sheets/collapsibles) so content stays legible and nothing overflows.
+  /// Prefer this — or a [LayoutBuilder] reading the region's own width — when
+  /// building phone layouts. [isMobile] (`< 768`) lumps small tablets in with
+  /// phones. Pair with [isPhoneLandscape] / [isPhonePortrait] to choose the
+  /// per-orientation reflow.
   static bool isPhone(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     if (_isMobilePlatform) {
@@ -76,7 +70,7 @@ abstract final class Responsive {
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
-  /// The width used to pick a **device-class tier** ([isMobile] / [isTablet] /
+  /// The width that picks a **device-class tier** ([isMobile] / [isTablet] /
   /// [isDesktop] / [isDesktopLarge] / [isUltraWide]).
   ///
   /// - On a mobile OS this is the **shortest side**, so the tier is
@@ -173,26 +167,9 @@ abstract final class Responsive {
     return desktop;
   }
 
-  /// Calculates responsive dialog constraints that fit within the viewport.
-  ///
-  /// [maxWidthPercent] - Maximum width as percentage of screen width (0.0 to 1.0)
-  /// [maxHeightPercent] - Maximum height as percentage of screen height (0.0 to 1.0)
-  /// [preferredWidth] - Preferred width in logical pixels, capped by maxWidthPercent
-  /// [preferredHeight] - Preferred height in logical pixels, capped by maxHeightPercent
-  /// [minWidth] - Minimum width in logical pixels
-  /// [minHeight] - Minimum height in logical pixels
-  ///
-  /// Example:
-  /// ```dart
-  /// ConstrainedBox(
-  ///   constraints: Responsive.dialogConstraints(
-  ///     context,
-  ///     preferredWidth: 900,
-  ///     preferredHeight: 700,
-  ///   ),
-  ///   child: MyDialogContent(),
-  /// )
-  /// ```
+  /// Dialog constraints that fit within the viewport: the preferred size capped
+  /// at [maxWidthPercent] / [maxHeightPercent] of the screen, floored at
+  /// [minWidth] / [minHeight].
   static BoxConstraints dialogConstraints(
     BuildContext context, {
     double maxWidthPercent = AdaptiveDialogConstraints.defaultWidthFraction,
@@ -270,9 +247,7 @@ abstract final class Responsive {
     return 'desktop';
   }
 
-  // ===========================================================================
-  // Universal Scaling
-  // ===========================================================================
+  // Universal scaling
 
   /// Calculate a universal scale factor based on screen dimensions.
   ///
@@ -359,9 +334,7 @@ abstract final class Responsive {
     );
   }
 
-  // ===========================================================================
-  // Aspect Ratio Detection
-  // ===========================================================================
+  // Aspect ratio detection
 
   /// Returns true if the screen is in portrait orientation.
   static bool isPortrait(BuildContext context) {
@@ -409,17 +382,9 @@ abstract final class Responsive {
     return size.width / size.height;
   }
 
-  /// Returns a value based on aspect ratio category.
-  ///
-  /// ```dart
-  /// final columns = Responsive.aspectValue(
-  ///   context,
-  ///   portrait: 1,
-  ///   square: 2,
-  ///   landscape: 3,
-  ///   ultrawide: 4,
-  /// );
-  /// ```
+  /// Picks a value by aspect-ratio band: portrait below 1.0, square from 0.8 to
+  /// 1.25, ultrawide above 2.0, landscape otherwise. [square] and [ultrawide]
+  /// fall back to [landscape].
   static T aspectValue<T>(
     BuildContext context, {
     required T portrait,
@@ -433,9 +398,7 @@ abstract final class Responsive {
     return landscape;
   }
 
-  // ===========================================================================
-  // Layout Helpers
-  // ===========================================================================
+  // Layout helpers
 
   /// Returns the number of columns for a grid based on screen width.
   ///

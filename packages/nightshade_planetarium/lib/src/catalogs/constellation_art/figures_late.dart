@@ -1,15 +1,11 @@
-// Part of ../constellation_art.dart -- extracted for maintainability.
-//
 // Aquila through Corona Borealis constellation-art payloads.
 part of '../constellation_art.dart';
 
 final List<ConstellationArtData> _lateConstellationArtFigures = [
-  // ================================================================
   // AQUILA — The Eagle
   // Anchor stars: Altair (19.85, 8.87), Tarazed (19.77, 10.61),
   //   Alshain (19.92, 6.41)
   // Figure: eagle with outstretched wings
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Aql',
     segments: [
@@ -69,12 +65,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // PEGASUS — The Winged Horse (Great Square + neck/head)
   // Anchor stars: Alpheratz (0.14, 29.09), Scheat (23.06, 28.08),
   //   Markab (23.08, 15.21), Algenib (0.22, 15.18), Enif (21.74, 9.87)
   // Figure: horse body from the Great Square with neck to Enif
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Peg',
     segments: [
@@ -139,12 +133,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // ANDROMEDA — The Chained Princess
   // Anchor stars: Alpheratz (0.14, 29.09), Mirach (1.16, 35.62),
   //   Almach (2.07, 42.33)
   // Figure: woman with arms stretched out (chained)
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'And',
     segments: [
@@ -197,12 +189,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // PERSEUS — The Hero
   // Anchor stars: Mirfak (3.41, 49.86), Algol (3.14, 40.96),
   //   Gamma Per (3.72, 47.79)
   // Figure: man holding sword and head of Medusa (Algol)
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Per',
     segments: [
@@ -277,12 +267,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // BOOTES — The Herdsman (kite shape)
   // Anchor stars: Arcturus (14.26, 19.18), Izar (14.53, 30.37),
   //   Nekkar (15.03, 40.39)
   // Figure: man with staff, kite-shaped body
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Boo',
     segments: [
@@ -330,12 +318,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // VIRGO — The Maiden
   // Anchor stars: Spica (13.42, -11.16), Porrima (12.69, -1.45),
   //   Vindemiatrix (12.93, 3.40)
   // Figure: woman holding a sheaf of wheat (Spica)
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Vir',
     segments: [
@@ -395,12 +381,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // URSA MINOR — The Little Bear
   // Anchor stars: Polaris (2.53, 89.26), Kochab (14.85, 74.16),
   //   Pherkad (15.35, 71.83)
   // Figure: small bear with tail at Polaris
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'UMi',
     segments: [
@@ -449,12 +433,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // DRACO — The Dragon
   // Anchor stars: Eltanin (17.51, 52.30), Rastaban (17.51, 51.49),
   //   Thuban (14.07, 64.38)
   // Figure: serpentine dragon winding between the bears
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Dra',
     segments: [
@@ -524,13 +506,11 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // HERCULES — The Strongman
   // Anchor stars: Kornephoros (16.15, 14.03), Rasalgethi (17.39, 37.15)
   // Keystone: Zeta (16.50, 21.49), Eta (16.36, 19.15),
   //   Pi (17.25, 24.84), Epsilon (16.69, 31.60)
   // Figure: man with club, upside-down in sky
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Her',
     segments: [
@@ -582,12 +562,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // AURIGA — The Charioteer
   // Anchor stars: Capella (5.28, 46.00), Menkalinan (6.00, 44.95),
   //   Elnath (5.44, 28.61), Almaaz (5.11, 41.23)
   // Figure: pentagon with charioteer holding reins
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Aur',
     segments: [
@@ -628,12 +606,10 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // CRUX — The Southern Cross
   // Anchor stars: Acrux (12.44, -63.10), Gacrux (12.52, -57.11),
   //   Mimosa (12.80, -59.69), Imai (12.25, -58.75)
   // Figure: ornate cross
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Cru',
     segments: [
@@ -686,11 +662,9 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // CEPHEUS — The King
   // Anchor stars: Alderamin (21.31, 62.59), Errai (23.66, 77.63)
   // Figure: house/pentagon shaped king on throne
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'Cep',
     segments: [
@@ -721,11 +695,9 @@ final List<ConstellationArtData> _lateConstellationArtFigures = [
     ],
   ),
 
-  // ================================================================
   // CORONA BOREALIS — The Northern Crown
   // Anchor stars: Alphecca (15.58, 26.71), Nusakan (15.46, 29.11)
   // Figure: semicircular crown/diadem
-  // ================================================================
   ConstellationArtData(
     abbreviation: 'CrB',
     segments: [

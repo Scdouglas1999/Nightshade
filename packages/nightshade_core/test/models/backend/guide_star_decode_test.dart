@@ -4,8 +4,8 @@
 // that rides through the guiding status path (no flutter_rust_bridge regen).
 // These tests pin the decode of that payload — across the native serde shape
 // (snake_case, JSON string) and the network re-serialized shape (camelCase,
-// parsed list) — plus the `Phd2Status.trackedStars` integration. A regression
-// in any of these silently empties the guider UI star list again.
+// parsed list) — plus the `Phd2Status.trackedStars` integration. A break in
+// any of these silently empties the guider UI star list.
 
 import 'dart:convert';
 

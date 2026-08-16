@@ -1,12 +1,11 @@
-// Pillar C ("Constellation") — follow-the-night id-namespace regression.
+// Follow-the-night id namespace.
 //
-// The follow-the-night sweep queries the hub's handoff baton by target id. Those
-// ids MUST be true hub `shared_targets.id` values (the joined `SharedTarget`s).
-// A local `db.Target.id` is a private autoincrement that is NOT a hub id — and
-// both are small ints, so a local id can collide with a DIFFERENT hub target's
-// id. The old code unioned `byId.keys` (local ids) into the query set, so on a
-// collision the sweep queried — and a Claim would take the baton for — the WRONG
-// sky, defeating the anti-double-collect the feature exists for.
+// The follow-the-night sweep queries the hub's handoff baton by target id.
+// Those ids MUST be true hub `shared_targets.id` values (the joined
+// `SharedTarget`s). A local `db.Target.id` is a private autoincrement that is
+// NOT a hub id — and both are small ints, so a local id in the query set can
+// collide with a DIFFERENT hub target and take the baton for the wrong sky,
+// which is the double-collect the feature exists to prevent.
 //
 // Pins:
 //   * only JOINED hub ids are ever queried (a local-only id is never queried),
@@ -141,12 +140,10 @@ void main() {
 
   test('a local id colliding with a DIFFERENT hub id is not queried (no '
       'wrong-target baton)', () async {
-    // The collision: a LOCAL target row happens to carry db id 7 — the same int
-    // as the joined hub target Orion — but it is a different sky (M42 region).
-    // The old union would query handoff #7 "for" this local row and risk
-    // claiming Orion's baton while the user thinks they took M42. With the fix,
-    // #7 is queried exactly once (for the real joined hub target), and the local
-    // id-7 row contributes nothing to the candidate set.
+    // The collision: a LOCAL target row carries db id 7 — the same int as the
+    // joined hub target Orion — but it is a different sky (M42 region). #7 must
+    // be queried exactly once, for the real joined hub target; the local id-7
+    // row contributes nothing to the candidate set.
     final service = buildService(
       locals: const [
         (targetId: 7, name: 'M42 Trapezium', raDeg: 83.8, decDeg: -5.39),

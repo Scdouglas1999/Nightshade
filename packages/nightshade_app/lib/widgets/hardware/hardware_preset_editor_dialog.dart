@@ -20,9 +20,9 @@ enum HardwarePresetKind { telescope, camera }
 
 /// Form dialog to create a new hardware preset or edit an existing one.
 ///
-/// Operates in one of two modes ([HardwarePresetKind]). Required numeric
-/// fields are validated on save and surface inline `errorText` rather than
-/// silently coercing bad input — errors are a feature here.
+/// Operates in one of two modes ([HardwarePresetKind]). Required numeric fields
+/// are validated on save and surface inline `errorText` rather than silently
+/// coercing bad input into a preset the operator did not enter.
 ///
 /// Editing a **built-in** preset never mutates the immutable catalog: the
 /// service stores an `isBuiltIn: false` override under the built-in's id, so
@@ -222,9 +222,7 @@ class _HardwarePresetEditorDialogState
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Telescope form.
-  // ---------------------------------------------------------------------------
 
   Widget _buildTelescopeForm() {
     return Column(
@@ -282,9 +280,7 @@ class _HardwarePresetEditorDialogState
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Camera form.
-  // ---------------------------------------------------------------------------
 
   Widget _buildCameraForm() {
     return Column(
@@ -439,9 +435,7 @@ class _HardwarePresetEditorDialogState
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Shared field builders.
-  // ---------------------------------------------------------------------------
 
   Widget _identityFields() {
     return Row(
@@ -556,9 +550,7 @@ class _HardwarePresetEditorDialogState
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Validation + persistence.
-  // ---------------------------------------------------------------------------
 
   Future<void> _save() async {
     final errors = <String, String>{};

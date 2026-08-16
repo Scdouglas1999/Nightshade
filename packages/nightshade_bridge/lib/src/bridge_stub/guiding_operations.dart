@@ -13,9 +13,7 @@ String _resolvePhd2ProbeHost(String host) {
 }
 
 extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
-  // =========================================================================
-  // PHD2 Guiding
-  // =========================================================================
+  // PHD2 guiding
 
   /// Check whether something is listening on PHD2's event server.
   ///
@@ -246,9 +244,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     _nativeBridgeRequired('guiderGetStarImage');
   }
 
-  // =========================================================================
-  // Built-in Guider Configuration
-  // =========================================================================
+  // Built-in guider configuration
 
   /// Get the built-in guider configuration.
   /// Returns a map with keys matching GuiderConfig fields.

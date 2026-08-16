@@ -83,7 +83,7 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
       }
     }
 
-    // Version 27: Dynamic scheduler tables (W6-SCHED). The tables are
+    // Version 27: Dynamic scheduler tables. The tables are
     // intentionally managed with raw CREATE TABLE statements rather
     // than @DriftDatabase entries so they can land without an FRB/
     // drift codegen pass. The corresponding services do raw SQL
@@ -124,13 +124,11 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
       );
     }
 
-    // Version 28: Defect map table for bad-pixel cosmetic correction (W6-DEFECT).
-    // The DefectMaps drift Table class is declared in
-    // `tables/defect_map_table.dart` and registered in @DriftDatabase
-    // above, but `database.g.dart` has not yet been regenerated to
-    // emit the `defectMaps` getter. Use raw DDL here so the migration
-    // works ahead of the codegen pass; once `melos run generate` runs,
-    // this block can be swapped back to `m.createTable(defectMaps)`.
+    // Version 28: Defect map table for bad-pixel cosmetic correction. The
+    // DefectMaps drift Table class is declared in
+    // `tables/defect_map_table.dart` and registered in @DriftDatabase above,
+    // but `database.g.dart` carries no `defectMaps` getter, so raw DDL keeps
+    // the migration working ahead of the codegen pass.
     if (from < 28) {
       await customStatement(
         'CREATE TABLE IF NOT EXISTS defect_maps ('
@@ -248,19 +246,18 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
         'ON captured_images (producing_node_id, captured_at)',
       );
 
-      // I4 fix: guide_rms_history.exposure_seconds must be nullable
-      // post-v30. SQLite has no ALTER COLUMN, so we rename-create-copy-drop
-      // and recreate the helper index. We do this conditionally — only when
-      // the column currently has a NOT NULL constraint, so a fresh v30+
-      // install (created via the v30 raw DDL above) doesn't pay the rebuild
-      // cost on every startup.
-      // Guard: only touch guide_rms_history if it already exists in this
-      // DB. The table is first created at the v34 step below
-      // (_createGuideRmsHistoryTable), so a database upgrading from < 30
-      // does NOT have it yet here — the unconditional CREATE INDEX below
-      // otherwise threw "no such table: guide_rms_history" and aborted the
-      // entire migration (app failed to open). Older DBs correctly skip
-      // this block and get the nullable table + index from v34.
+      // guide_rms_history.exposure_seconds is nullable post-v30. SQLite has
+      // no ALTER COLUMN, so the column is rebuilt by rename-create-copy-drop
+      // and the helper index recreated. The rebuild runs only when the column
+      // still carries a NOT NULL constraint, so a fresh v30+ install (created
+      // via the v30 raw DDL above) does not pay the cost on every startup.
+      // The whole block is guarded on guide_rms_history already existing: the
+      // table is first created at the v34 step below
+      // (_createGuideRmsHistoryTable), so a database upgrading from < 30 does
+      // NOT have it here and an unguarded CREATE INDEX throws "no such table:
+      // guide_rms_history" and aborts the entire migration, leaving the app
+      // unable to open. Older DBs skip this block and get the nullable table
+      // + index from v34.
       if (await _tableExists('guide_rms_history')) {
         final exposureNotNullInfo = await customSelect(
           "SELECT \"notnull\" FROM pragma_table_info('guide_rms_history') "

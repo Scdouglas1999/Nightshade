@@ -11,10 +11,8 @@ class DeviceHealthSnapshot {
   /// check (`UsbStabilityRule`) — > 3 disconnects warns the user that the
   /// cable / hub / driver is suspect before a long unattended run begins.
   ///
-  /// Defaults to 0 so existing call sites that only populate `isHealthy`
-  /// keep their current behaviour: an unhealthy device with no count
-  /// still surfaces as "device heartbeat failure" through the existing
-  /// `analyze()` path.
+  /// Defaults to 0; an unhealthy device with no count still surfaces as
+  /// "device heartbeat failure" through `analyze()`.
   final int disconnectCountLast24h;
 
   /// Optional human-readable device label (for UI / error messages).
@@ -66,12 +64,9 @@ class EquipmentHealthReport {
   /// The score is a DEGRADATION score: it starts at 100 and subtracts for
   /// guiding/HFR drift, failed exposures, and unhealthy heartbeats. With no
   /// session history and no connected devices there is nothing to subtract,
-  /// so a brand-new rig used to render as "100 - Excellent" in green —
-  /// directly above the readiness panel telling the same user that no camera
-  /// is connected and they cannot capture. Observed on a fresh profile.
-  ///
-  /// When this is false the UI must present the score as un-assessed rather
-  /// than perfect: absence of evidence is not evidence of health.
+  /// so a rig with no history would otherwise score a perfect 100. When this
+  /// is false the UI must present the score as un-assessed: no evidence is not
+  /// evidence of health.
   final bool assessed;
 
   const EquipmentHealthReport({
@@ -205,12 +200,9 @@ class EquipmentHealthService {
     // Null when there is no history to compare against, NOT a stand-in number.
     //
     // `baseline` is sessions 6..15, so it is empty for every user with five or
-    // fewer sessions. `_mean([])` returns 0.0 and the old `.clamp(0.1, 100.0)`
-    // turned that into a 0.1 arcsec / 0.1 px "baseline" — a value no rig has
-    // ever produced. Every new user therefore cleared the 1.25x and 1.15x
-    // triggers on their first night and was told their guiding had degraded
-    // roughly sevenfold, losing 32 of 100 health points, on the strength of a
-    // comparison against nothing.
+    // fewer sessions. A clamped mean of nothing would be a floor value no rig
+    // ever produced, and every degradation trigger would fire against it on a
+    // user's first night.
     final baselineGuiding = _meanOrNull(
       baseline.map((session) => session.avgGuidingRms).whereType<double>(),
     );

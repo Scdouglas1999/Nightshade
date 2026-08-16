@@ -3,9 +3,9 @@
 // What this exercises end-to-end through the real `FlatWizardService`:
 //   1. Multi-filter calibration via `calibrateMultipleFilters` for L, R, G.
 //   2. Camera exposure with the user-configured gain/offset propagated.
-//      The audit §1.1 fix made the FlatWizardService stop forwarding gain=0
-//      and offset=0; this test asserts the values that came in (100, 50) are
-//      the values that reach the camera, NOT a default-zero regression.
+//      FlatWizardService must not forward gain=0 and offset=0 over the
+//      configured values; this test asserts the values that came in (100, 50)
+//      are the values that reach the camera.
 //   3. The exposure-completion event handshake — FlatWizardService subscribes
 //      to `backend.eventStream` and waits for an `ExposureComplete` event
 //      before reading the captured frame.
@@ -41,73 +41,69 @@ void main() {
     const wheelId = 'native:zwo-efw:0';
     const filters = ['L', 'R', 'G'];
 
-    test(
-      '3-filter run converges; gain/offset propagated to camera (audit §1.1)',
-      () async {
-        final backend = _FlatWizardTestBackend(
-          // Linear synthetic ADU: at exposure = 1.0s the model returns exactly
-          // 30000 ADU (== target). Below 1.0s the ADU is under target; above,
-          // over. FlatWizardService's proportional loop should converge in a
-          // few iterations from the geometric-midpoint starting exposure.
-          //   adu(t) = 10000 + 20000 * t
-          aduForExposure: (t) => 10000.0 + 20000.0 * t,
+    test('3-filter run converges; gain/offset propagated to camera', () async {
+      final backend = _FlatWizardTestBackend(
+        // Linear synthetic ADU: at exposure = 1.0s the model returns exactly
+        // 30000 ADU (== target). Below 1.0s the ADU is under target; above,
+        // over. FlatWizardService's proportional loop should converge in a
+        // few iterations from the geometric-midpoint starting exposure.
+        //   adu(t) = 10000 + 20000 * t
+        aduForExposure: (t) => 10000.0 + 20000.0 * t,
+      );
+      addTearDown(backend.disposeFake);
+
+      final service = FlatWizardService(backend);
+
+      final results = await service.calibrateMultipleFilters(
+        deviceId: cameraId,
+        filters: filters,
+        gain: 100,
+        offset: 50,
+        targetAdu: 30000,
+        tolerance: 5.0, // percent
+        minExposure: 0.01,
+        maxExposure: 10.0,
+        maxIterations: 12,
+      );
+
+      // Per-filter convergence assertions
+      expect(results, hasLength(3));
+      for (final r in results) {
+        expect(
+          r.success,
+          isTrue,
+          reason:
+              'Filter "${r.filter}" did not converge: '
+              'adu=${r.adu}, exposure=${r.exposure}, '
+              'iterations=${r.iterations}, error=${r.errorMessage}',
         );
-        addTearDown(backend.disposeFake);
-
-        final service = FlatWizardService(backend);
-
-        final results = await service.calibrateMultipleFilters(
-          deviceId: cameraId,
-          filters: filters,
-          gain: 100,
-          offset: 50,
-          targetAdu: 30000,
-          tolerance: 5.0, // percent
-          minExposure: 0.01,
-          maxExposure: 10.0,
-          maxIterations: 12,
+        // Within 5% of target ADU per the configured tolerance.
+        final pctError = ((r.adu - 30000).abs() / 30000) * 100;
+        expect(
+          pctError,
+          lessThanOrEqualTo(5.0),
+          reason: 'Filter "${r.filter}" ADU outside tolerance',
         );
+      }
 
-        // ----- Per-filter convergence assertions ------------------------------
-        expect(results, hasLength(3));
-        for (final r in results) {
-          expect(
-            r.success,
-            isTrue,
-            reason:
-                'Filter "${r.filter}" did not converge: '
-                'adu=${r.adu}, exposure=${r.exposure}, '
-                'iterations=${r.iterations}, error=${r.errorMessage}',
-          );
-          // Within 5% of target ADU per the configured tolerance.
-          final pctError = ((r.adu - 30000).abs() / 30000) * 100;
-          expect(
-            pctError,
-            lessThanOrEqualTo(5.0),
-            reason: 'Filter "${r.filter}" ADU outside tolerance',
-          );
-        }
-
-        // ----- The §1.1 fix: gain/offset must propagate, NOT default to 0 -----
-        // Every cameraStartExposure call recorded must use gain=100, offset=50.
-        expect(backend.exposureCalls, isNotEmpty);
-        for (final call in backend.exposureCalls) {
-          expect(
-            call.gain,
-            equals(100),
-            reason: 'gain was not forwarded to camera (audit §1.1 regression)',
-          );
-          expect(
-            call.offset,
-            equals(50),
-            reason:
-                'offset was not forwarded to camera (audit §1.1 regression)',
-          );
-          expect(call.frameType, equals(FrameType.flat));
-          expect(call.deviceId, equals(cameraId));
-        }
-      },
-    );
+      // Gain/offset must propagate, NOT default to 0
+      // Every cameraStartExposure call recorded must use gain=100, offset=50.
+      expect(backend.exposureCalls, isNotEmpty);
+      for (final call in backend.exposureCalls) {
+        expect(
+          call.gain,
+          equals(100),
+          reason: 'gain was not forwarded to camera',
+        );
+        expect(
+          call.offset,
+          equals(50),
+          reason: 'offset was not forwarded to camera',
+        );
+        expect(call.frameType, equals(FrameType.flat));
+        expect(call.deviceId, equals(cameraId));
+      }
+    });
 
     test('captureTestFrame drives the filter wheel by name', () async {
       // FlatWizardService.calibrateMultipleFilters does NOT change filters
@@ -132,7 +128,7 @@ void main() {
       expect(adu, closeTo(25000.0, 0.01));
       expect(backend.filterChangesByName, equals(['L']));
 
-      // §1.1 propagation also holds on the captureTestFrame entry point.
+      // Propagation also holds on the captureTestFrame entry point.
       expect(backend.exposureCalls.single.gain, equals(100));
       expect(backend.exposureCalls.single.offset, equals(50));
     });

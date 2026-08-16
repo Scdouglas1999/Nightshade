@@ -127,12 +127,9 @@ class ScienceProcessingService {
   /// Build the `photometry_measurements` rows for one frame: the target,
   /// the optional check star, and every comparison star.
   ///
-  /// Exposed as a pure function so the unit contract of the stored columns —
-  /// in particular that `uncertainty` is a magnitude for EVERY role — can be
-  /// asserted without standing up Riverpod, the database, the star detector
-  /// and the native bridge. [standardMagnitudeFor] is folded in via
-  /// [transform]/[airmass]/[exposureSeconds] rather than a callback so the
-  /// exposure normalization stays in one place.
+  /// `uncertainty` is a magnitude for EVERY role. [standardMagnitudeFor] is
+  /// folded in via [transform]/[airmass]/[exposureSeconds] rather than a
+  /// callback, so the exposure normalization stays in one place.
   static List<db.PhotometryMeasurementsCompanion>
   buildPhotometryMeasurementRows({
     required int? capturedImageId,
@@ -238,10 +235,10 @@ class ScienceProcessingService {
           snr: drift.Value(star.snr),
           // A plain comparison star has no differential magnitude to
           // propagate, so its uncertainty is its own Poisson-limited magnitude
-          // sigma. Storing the raw ADU flux noise (flux/SNR) here — as this
-          // fallback used to — put two physical quantities differing by ~10^6
-          // in a single column that AAVSO export publishes as MAGERR and the
-          // period analysis weights the light curve by.
+          // sigma. Storing the raw ADU flux noise (flux/SNR) here would put
+          // two quantities differing by ~10^6 in one column, which the AAVSO
+          // export publishes as MAGERR and the period analysis weights the
+          // light curve by.
           uncertainty: drift.Value<double?>(
             checkUncertainty ?? magnitudeSigmaFromSnr(star.snr),
           ),

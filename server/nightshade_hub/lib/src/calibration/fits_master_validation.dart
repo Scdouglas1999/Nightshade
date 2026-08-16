@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
-/// Minimal FITS validation for published calibration masters (Collaborative Sky
-/// WS1).
+/// Minimal FITS validation for published calibration masters.
 ///
 /// The hub does not trust the self-reported dimensions a publisher declares in
 /// query params: those drive the client matcher's quality gate, so a publisher
@@ -170,7 +169,7 @@ class FitsMasterHeader {
     }
     final bytesPerPixel = bitpix.abs() ~/ 8;
     final expectedData = naxis1 * naxis2 * naxis3 * bytesPerPixel;
-    // The single hardest WS1 safety property: the declared geometry must be
+    // The single hardest safety property here: the declared geometry must be
     // structurally backed by real pixel data. A header-only or undersized buffer
     // (the cheapest poison: a ~3 KB file advertising a popular sensor's exact
     // geometry) is rejected here.

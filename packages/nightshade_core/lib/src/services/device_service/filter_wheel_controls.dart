@@ -1,9 +1,7 @@
 part of '../device_service.dart';
 
 extension _DeviceServiceFilterWheelControls on DeviceService {
-  // ===========================================================================
-  // Filter Wheel Control
-  // ===========================================================================
+  // Filter wheel control
 
   /// Get the connected filter wheel device ID. An active profile is connection
   /// intent, not permission to command disconnected hardware.

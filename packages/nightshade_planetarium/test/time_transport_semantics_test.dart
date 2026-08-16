@@ -1,8 +1,7 @@
-// Regression (D-3): every time-transport control must carry its own accessible
-// name on the BUTTON node, and the one that stops time must report that it has.
+// Every time-transport control carries its own accessible name on the BUTTON
+// node, and the one that stops time reports that it has.
 //
-// Live AT-SPI dump of the planetarium transport, taken from the running desktop
-// build:
+// An AT-SPI dump of the planetarium transport without that guarantee:
 //
 //   panel: Aug 13, 2026 [DISABLED]
 //   button:            <- rewind / rate down
@@ -10,21 +9,20 @@
 //   button:            <- play / pause
 //   button:            <- step forward 1 h
 //   button:            <- fast forward / rate up
-//   button: NOW      <- CON-56 has since retitled these two 'Now' / 'Tonight'
-//   button: TONIGHT
+//   button: Now
+//   button: Tonight
 //
 // Five bare buttons with empty names, no toggle state on play/pause, and the
 // date chip — the control that opens the date picker — reported as an inert
-// disabled panel. The only signal that time was stopped was the string PAUSED
-// merged into an unrelated text panel, so the pause fix was invisible to
-// assistive tech.
+// disabled panel. The only signal that time is stopped is the string PAUSED
+// merged into an unrelated text panel, which assistive tech cannot reach.
 //
 // `IconButton(tooltip:)` is why: the tooltip's `Semantics(label:)` is not a
 // container, so it is absorbed by some ancestor node rather than by the button's
-// own — producing a named panel beside an unnamed button, which is precisely
-// what the dump shows. The assertions below therefore check the property an
-// assistive client actually consumes: ONE node carrying the name, the button
-// role and the tap action together.
+// own — producing a named panel beside an unnamed button, exactly as the dump
+// shows. The assertions below therefore check the property an assistive client
+// actually consumes: ONE node carrying the name, the button role and the tap
+// action together.
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +33,11 @@ import 'package:nightshade_planetarium/src/widgets/time_control_panel.dart';
 
 Future<ProviderContainer> _pumpTransport(WidgetTester tester) async {
   final container = ProviderContainer();
+  // The sky is drawn from the observer's site; without one the view renders
+  // its no-site state instead.
+  container
+      .read(observerLocationProvider.notifier)
+      .setLocation(latitude: 40.0, longitude: -74.0);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -107,13 +110,13 @@ void main() {
     handle.dispose();
   });
 
-  // E-SKY-2: the control used to swap its NAME and its toggle state together —
-  // `label: running ? 'Pause' : 'Play'` with `toggled: !running` — so assistive
-  // tech announced "Play, toggle button, on" at the moment time was HELD and
-  // "Pause, toggle button, off" while it was running: the name and the state
-  // asserting opposite things about the same sky. The contract now is an action
-  // name with no toggle state, and the state published by the rate chip beside
-  // the clock, which is also where it is drawn.
+  // Swapping the control's NAME and its toggle state together —
+  // `label: running ? 'Pause' : 'Play'` with `toggled: !running` — makes
+  // assistive tech announce "Play, toggle button, on" at the moment time is
+  // HELD and "Pause, toggle button, off" while it is running: the name and the
+  // state asserting opposite things about the same sky. The contract is an
+  // action name with no toggle state, and the state published by the rate chip
+  // beside the clock, which is also where it is drawn.
   testWidgets('play/pause names the action and never contradicts it', (
     tester,
   ) async {

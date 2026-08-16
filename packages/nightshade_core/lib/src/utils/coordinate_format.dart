@@ -1,23 +1,20 @@
 /// Shared sexagesimal formatters for Right Ascension (hours) and Declination
 /// (degrees).
 ///
-/// Historically, ~20 screens each carried their own private `_formatRa` /
-/// `_formatDec` helper. Most of those produced one of a small number of
-/// distinct visual styles. This class consolidates them into a single,
-/// parameterized implementation so the math lives in exactly one place.
+/// One parameterized implementation for every screen, so the math lives in
+/// exactly one place instead of a private `_formatRa` / `_formatDec` helper per
+/// caller.
 ///
 /// IMPORTANT: the byte-for-byte output of a given [SexagesimalStyle] is part of
-/// this class's contract — call sites were migrated only because the chosen
-/// style reproduces their previous string exactly. Do not "tidy up" a style's
-/// output without auditing every consumer, or you will silently change what
-/// users see.
+/// this class's contract — each call site picks the style that reproduces its
+/// string exactly. Do not "tidy up" a style's output without auditing every
+/// consumer, or what users see changes silently.
 ///
 /// UNITS: every `ra*` entry point is explicit about what it is handed.
 /// [CoordinateFormat.ra] / [CoordinateFormat.raHm] take **decimal hours**;
 /// [CoordinateFormat.raFromDegrees] / [CoordinateFormat.raHmFromDegrees] take
-/// **decimal degrees** and normalize into [0, 360) first. The private helpers
-/// this class replaced were all named `_formatRa` regardless of which unit they
-/// took, which is the same hours-vs-degrees confusion that has already produced
+/// **decimal degrees** and normalize into [0, 360) first. A single `_formatRa`
+/// name covering both units is the hours-vs-degrees confusion that produces
 /// slews to the wrong place.
 library;
 

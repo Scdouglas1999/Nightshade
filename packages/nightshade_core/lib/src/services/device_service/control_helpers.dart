@@ -505,12 +505,11 @@ extension _DeviceServiceControlHelpers on DeviceService {
           await _backend.focuserMoveRelative(focuserDeviceId, delta);
         }
         commandWasSent = true;
-        // Verify the focuser actually reached the target before recording
-        // the offset as applied. Recording on send (the old behaviour)
-        // poisons the delta bookkeeping after a stalled/failed move: every
-        // subsequent filter change then computes its delta from an offset
-        // that was never physically applied, walking focus off across the
-        // night with no error anywhere.
+        // Verify the focuser reached the target before recording the offset
+        // as applied. Recording on send poisons the delta bookkeeping after a
+        // stalled move: every later filter change computes its delta from an
+        // offset that was never physically applied, walking focus off across
+        // the night with no error anywhere.
         await _verifyFocuserPosition(
           deviceId: focuserDeviceId,
           targetPosition: targetPosition,

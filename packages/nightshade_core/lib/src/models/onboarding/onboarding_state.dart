@@ -297,12 +297,9 @@ class OnboardingDraft {
 
   /// Whether [step] actually put something on record in this draft.
   ///
-  /// Distinct from "the user walked past it". The wizard's step list used to
-  /// tick every step behind the cursor, so a guider the user tested, failed to
-  /// reach and then skipped carried the same filled tick as the camera they
-  /// really configured — while the Review screen honestly reported it as
-  /// "— not set —". A tick is a claim about the rig being built and must be
-  /// backed by a value.
+  /// Distinct from "the user walked past it": a tick in the wizard's step list
+  /// is a claim about the rig being built and must be backed by a value, so a
+  /// step the user reached and skipped does not tick.
   ///
   /// [siteConfigured] is supplied by the caller: the observing site is a
   /// global observer setting persisted to app settings, not to this draft.

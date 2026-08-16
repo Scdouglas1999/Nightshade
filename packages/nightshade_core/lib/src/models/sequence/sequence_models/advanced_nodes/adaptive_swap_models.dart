@@ -120,13 +120,10 @@ abstract class ConditionsScore with _$ConditionsScore {
     double? windScore,
     @Default(ConditionsScoreWeights()) ConditionsScoreWeights weights,
     // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
-    // `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
-    // fromJson fell back to `0` (epoch) on missing field; the freezed
-    // form makes the field required, which is strictly stricter (errors
-    // are a feature). The Rust producer always emits this field, so
-    // production traffic is unaffected; only synthetic JSON missing the
-    // key will now throw — matching the "silent fallback hides
-    // bugs" policy. Phase 1's contract tests always provide the key.
+    // `serde_with::TimestampSeconds<i64>`. The field is required rather than
+    // defaulting to `0` (epoch), so a missing key throws instead of decoding
+    // into a fabricated timestamp. The Rust producer always emits it, so only
+    // synthetic JSON can hit that path.
     @JsonKey(name: 'generated_unix_secs')
     @UnixSecsDateTimeConverter()
     required DateTime generatedAt,

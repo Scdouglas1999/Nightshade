@@ -9,10 +9,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// the tile (row, col) grid. The HFR value is printed in cells big enough to
 /// hold it.
 ///
-/// Extracted from the diagnostics screen's PSF field-map card so the Morning
-/// Report workbench can reuse the exact same painter at *per-sub* granularity
-/// (the design's "Reused: psf_field_map.dart"). The diagnostics card and the
-/// workbench both render this widget over their own tile rows.
+/// Shared by the diagnostics screen's PSF field-map card and the Morning Report
+/// workbench, which renders the same painter at *per-sub* granularity. Both
+/// render this widget over their own tile rows.
 class PsfFieldMapView extends StatelessWidget {
   /// The PSF field tiles to render. May be empty.
   final List<PsfFieldTileRow> tiles;

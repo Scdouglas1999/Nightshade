@@ -323,7 +323,7 @@ class _NetworkStatusIndicatorState
 
   bool _shouldShowLatency(_CombinedConnectionStatus status) {
     // Stale latency on a dropped connection is misleading — only show it
-    // while we believe the link is healthy.
+    // while the link is reporting healthy.
     return status == _CombinedConnectionStatus.connected;
   }
 
@@ -522,10 +522,10 @@ class _ConnectionDetailsSheetState
     }
   }
 
-  /// Run the discovery cascade and, on a hit, actually connect the backend to
-  /// the rig — the previous `NetworkService().rediscoverServer()` only stamped
-  /// last-server + NetworkService status and never brought the real WebSocket
-  /// session up, so the button appeared to work while the app stayed unable to
+  /// Run the discovery cascade and, on a hit, connect the backend to the rig.
+  /// Stamping last-server and NetworkService status alone — what
+  /// `NetworkService().rediscoverServer()` does — leaves the WebSocket session
+  /// down, so the button would report success while the app still could not
   /// drive the rig.
   Future<void> _handleSearchForServers() async {
     setState(() => _searching = true);

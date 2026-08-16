@@ -10,18 +10,14 @@ import '../models/sequence/template_snippet.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/sequence_file_service.dart';
 
-// =============================================================================
-// BUILT-IN SNIPPETS PROVIDER
-// =============================================================================
+// Built-in snippets provider
 
 /// Provider that returns all built-in template snippets
 final builtInSnippetsProvider = Provider<List<TemplateSnippet>>((ref) {
   return BuiltInSnippets.all;
 });
 
-// =============================================================================
-// CUSTOM SNIPPETS PROVIDER
-// =============================================================================
+// Custom snippets provider
 
 /// Provider for managing user-created custom snippets
 final customSnippetsProvider =
@@ -180,9 +176,7 @@ Future<File> _defaultSnippetsFile() async {
   return File('$snippetsDir${Platform.pathSeparator}custom_snippets.json');
 }
 
-// =============================================================================
-// COMBINED SNIPPETS PROVIDERS
-// =============================================================================
+// Combined snippets providers
 
 /// Provider that combines built-in and custom snippets
 final allSnippetsProvider = Provider<List<TemplateSnippet>>((ref) {
@@ -214,9 +208,7 @@ final snippetsByCategoryProvider =
       return grouped;
     });
 
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
+// Helper functions
 
 /// Create a template snippet from selected nodes in a sequence
 ///
@@ -272,9 +264,10 @@ Map<String, dynamic> _serializeNode(
   Sequence sequence,
   SequenceFileService fileService,
 ) {
-  // Start from the canonical, exhaustive sequence-file codec. The historical
-  // hand-maintained map below predates several fields and node types; using the
-  // canonical map first prevents snippet save/insert from dropping them. Strip
+  // Start from the canonical, exhaustive sequence-file codec. The
+  // hand-maintained map below is incomplete — it covers neither every field
+  // nor every node type — so taking the canonical map first is what keeps
+  // snippet save/insert from dropping them. Strip
   // tree identity because snippets rebuild topology recursively under fresh
   // IDs when inserted.
   final base = fileService.nodeToMap(node)

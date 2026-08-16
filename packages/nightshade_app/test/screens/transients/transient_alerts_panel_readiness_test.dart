@@ -171,9 +171,9 @@ void main() {
     expect(find.textContaining('Setup needed'), findsNothing);
   });
 
-  // COL2-11: "No active alerts" is indistinguishable from "we never asked" on
-  // the app's only channel for time-critical events. Enabling AAVSO alone (no
-  // build fetches it) produced exactly that confident empty state, with no
+  // "No active alerts" is indistinguishable from "we never asked" on the app's
+  // only channel for time-critical events. Enabling AAVSO alone (no build
+  // fetches it) produces exactly that confident empty state, with no
   // last-checked time and no way to check.
   group('the empty feed says whether anything was actually checked', () {
     testWidgets('before the first check it says so, and offers a check',
@@ -228,9 +228,9 @@ void main() {
     });
   });
 
-  // COL2-12: the eight "Types to Monitor" chips are a subscription list drawn
-  // with tick marks, but assistive tech saw plain buttons with no state — while
-  // the checkboxes in the same dialog reported on/off correctly.
+  // The eight "Types to Monitor" chips are a subscription list drawn with tick
+  // marks, so assistive tech must not read them as plain buttons with no state
+  // while the checkboxes in the same dialog report on/off correctly.
   testWidgets('monitored-type chips expose their on/off state', (tester) async {
     final handle = tester.ensureSemantics();
     await _pump(

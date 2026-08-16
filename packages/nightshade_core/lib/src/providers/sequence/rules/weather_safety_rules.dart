@@ -14,13 +14,9 @@ import '../sequence_validation.dart';
 /// trigger first evaluates — and the configured action is `ParkAndAbort`. The
 /// run therefore unparks, slews, takes a frame or two, then parks and aborts.
 ///
-/// Reproduced end-to-end on the desktop build with the simulator camera: a
-/// 2-iteration loop captured exactly one frame before
-/// "Trigger fired: Weather Unsafe (weather_unsafe) - action: ParkAndAbort"
-/// terminated the sequence. Nothing in pre-flight mentioned it, so the operator
-/// only finds out from the log — typically the next morning, having lost the
-/// night. This is the fail-closed contract working as designed; the bug is that
-/// it was invisible until it fired.
+/// The gate is the fail-closed contract working as designed, so the rule's job
+/// is to make it visible before it fires: unannounced, the operator learns of
+/// it only from the log, typically the next morning, having lost the night.
 class WeatherSafetyNoSourceRule implements RefAwareSequenceValidator {
   @override
   String get name => 'WeatherSafetyNoSource';

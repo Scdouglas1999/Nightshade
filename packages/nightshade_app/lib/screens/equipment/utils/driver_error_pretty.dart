@@ -9,9 +9,8 @@
 //
 // This helper takes the raw driver string and, when it matches a pattern
 // we can confidently identify, prepends a short human-readable label.
-// Everything we cannot identify passes through unchanged (errors are a
-// feature — we never want to mask the real message just because we
-// couldn't pretty-print it).
+// Everything we cannot identify passes through unchanged — never mask the
+// real message just because we could not pretty-print it.
 //
 // All transformations are conservative: we only prepend when we can
 // recognize the structure with high confidence. The original message is

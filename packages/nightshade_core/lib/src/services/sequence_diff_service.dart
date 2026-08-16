@@ -6,16 +6,15 @@ part 'sequence_diff_service/node_describe.dart';
 ///
 /// The diff is tree-aware rather than text-based: comparing two stored
 /// JSON blobs as strings is useless for the operator ("the order of
-/// keys changed" is not actionable) so we walk the node graphs and
-/// classify each node into [SequenceDiffChange.added],
+/// keys changed" is not actionable), so this walks the node graphs and
+/// classifies each node into [SequenceDiffChange.added],
 /// [SequenceDiffChange.removed], or [SequenceDiffChange.modified] using
 /// a stable identity strategy:
 ///
-///   1. **Same node id in both**: candidate for "modified". We compare
-///      every type-specific property (exposure duration, filter,
-///      autofocus method, etc.) and produce a per-field
-///      [FieldChange] entry. If every field is equal the node is not
-///      emitted at all (no-op).
+///   1. **Same node id in both**: candidate for "modified". Every
+///      type-specific property (exposure duration, filter, autofocus
+///      method, etc.) is compared into a per-field [FieldChange] entry.
+///      A node whose every field is equal is not emitted at all (no-op).
 ///   2. **Id only in old**: classified as removed.
 ///   3. **Id only in new**: classified as added.
 ///
@@ -28,9 +27,9 @@ part 'sequence_diff_service/node_describe.dart';
 ///   * Added 3 new TargetHeader nodes
 ///   * Removed HFR trigger from "Capture Hα"
 ///
-/// We deliberately diff every SequenceNode subtype here so that adding
-/// a new node kind to the sealed hierarchy generates a missed-case
-/// compile-time error (the switch is exhaustive). That matches the
+/// Every SequenceNode subtype is diffed here, so adding a new node kind
+/// to the sealed hierarchy generates a missed-case compile-time error
+/// (the switch is exhaustive). That matches the
 /// repository's persistence layer in `sequence_repository.dart` and
 /// keeps the diff in lock-step with what is actually saved.
 class SequenceDiffService {

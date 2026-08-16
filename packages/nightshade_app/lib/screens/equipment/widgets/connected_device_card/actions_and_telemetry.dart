@@ -9,9 +9,8 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
       children: [
         // Settings button — only shown for device types that have real
         // settings reachable from this card (or when an external onSettings
-        // callback has been injected by the parent). Device types without
-        // settings have no gear icon at all so we never ship a non-functional
-        // control. See docs/plans/2026-05-09-v250-audit-fixes.md §4.1.
+        // callback has been injected by the parent). Device types with nothing
+        // to configure get no gear icon rather than an inert one.
         if (settingsAction != null)
           IconButton(
             onPressed: _anyCommandInFlight ? null : settingsAction,
@@ -65,8 +64,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
   /// Returns the settings action for the current device type, or `null` if
   /// this device type has no real settings to expose from the card.
   ///
-  /// Wiring matrix (audit §4.6 follow-up; W0-EQ left TODOs that W1B-UI-EQ
-  /// addressed here):
+  /// Wiring matrix:
   ///
   /// | Device          | Gear visible? | Action                                    |
   /// |-----------------|---------------|-------------------------------------------|

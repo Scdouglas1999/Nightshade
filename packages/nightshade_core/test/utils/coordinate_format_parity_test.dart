@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// Parity pins for the ~30 private `_formatRa` / `_formatDec` helpers that were
-/// folded into [CoordinateFormat] (release pass Wave C2, cluster 7).
+/// Parity pins for the private `_formatRa` / `_formatDec` helpers folded into
+/// [CoordinateFormat].
 ///
-/// Every group below names the call site it replaced and pins the byte-for-byte
-/// string that site used to print. These strings are user-visible contract: a
-/// style whose output changes has silently changed what a screen shows.
+/// Every group below names the call site it covers and pins the byte-for-byte
+/// string that site prints. These strings are user-visible contract: a style
+/// whose output changes has silently changed what a screen shows.
 ///
-/// Two families of input were deliberately NOT preserved, because the retired
+/// Two families of input are deliberately NOT preserved, because the retired
 /// helpers were wrong there and the canonical decomposition (quantize the whole
 /// angle once, then split) cannot reproduce the error:
 ///

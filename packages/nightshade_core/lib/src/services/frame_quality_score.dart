@@ -2,38 +2,14 @@ import 'dart:math' as math;
 
 /// The 0-100 composite quality score stamped on a captured frame.
 ///
-/// One implementation, because there are two capture paths and they were not
-/// agreeing. `ImagingService` (the Imaging screen's snapshot/loop) computed a
-/// score and stored it; the SEQUENCER frame path — every frame of every
-/// unattended night — stored `NULL`.
+/// One implementation for both capture paths: a frame that reaches the
+/// database with `quality_score` NULL is assessed from
+/// `FrameQualityAssessmentService`'s `?? 75.0` fallback, so every such frame
+/// scores identically and anything that ranks or rejects on quality (stack
+/// frame selection, auto-reject, the "best frame" pick) ranks a constant.
 ///
-/// What that cost, measured in the running app on 2026-08-09 after a clean
-/// ten-frame run:
-///
-/// ```
-/// sqlite> select hfr, star_count, quality_score from captured_images limit 1;
-///         2.2388  35  NULL
-///
-/// Analytics -> Captured Images:  Good: 0   Needs Review: 10   Poor: 0
-///                                every tile "65 score"
-/// ```
-///
-/// `FrameQualityAssessmentService` reads `image.qualityScore ?? 75.0`, so with
-/// the column null EVERY sequencer frame was assessed from the same constant:
-/// the 65 on the tiles was a property of the fallback, not of the frame. A
-/// sharp frame and a soft one scored identically, and because 65 sits under the
-/// service's `advisoryScore < 70` line, the gallery labelled a flawless night
-/// "Needs Review" ten times out of ten and "Good" zero.
-///
-/// That is worse than a wrong label. Anything downstream that ranks or rejects
-/// on quality — stack frame selection, auto-reject, the "best frame" pick — was
-/// ranking a constant.
-///
-/// The weights and bands below are lifted verbatim from
-/// `ImagingService._calculateQualityScore`, which in turn mirrors the Rust
-/// implementation in `imaging/fits.rs`. Deliberately not retuned here: making
-/// the two paths agree is one change, and choosing what "good" should mean is a
-/// separate decision with its own evidence.
+/// The weights and bands below match `ImagingService._calculateQualityScore`
+/// and the Rust implementation in `imaging/fits.rs`; they are not retuned here.
 double computeFrameQualityScore({
   required double? hfr,
   required int? starCount,

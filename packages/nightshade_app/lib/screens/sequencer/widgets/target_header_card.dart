@@ -265,13 +265,11 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
             tooltip: _showAltitudeChart
                 ? 'Hide altitude chart'
                 : 'Show altitude chart',
-            // `VisualDensity.compact` is what actually decided this button's
-            // hit area: `IconButton` sizes its tap padding from
-            // `kMinInteractiveDimension` PLUS `visualDensity
-            // .baseSizeAdjustment`, so compact's -2 took 8dp off 48 and the
-            // control measured 40x40 on a phone. `constraints` does not
-            // override that — it bounds the visual button — so raising the
-            // constraints alone left the measurement exactly where it was.
+            // `VisualDensity` decides this button's hit area: `IconButton`
+            // sizes its tap padding from `kMinInteractiveDimension` PLUS
+            // `visualDensity.baseSizeAdjustment`, so compact's -2 takes 8dp off
+            // 48 and the control measures 40x40 on a phone. `constraints` only
+            // bounds the visual button and does not override that.
             visualDensity: NightshadeTouchTarget.visualDensity(context),
             padding: EdgeInsets.zero,
             constraints: NightshadeTouchTarget.constraints(
@@ -350,10 +348,10 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
         ),
       ),
       // The chips WRAP rather than sharing one rigid row. A fixed row of
-      // monospace coordinates plus a Spacer overflowed the card by 41px at a
-      // 900px window and 69px in the tighter builder pane (Wave D, WD-SEQ-N2),
-      // which paints the striped overflow bar over the pointing the operator
-      // came here to read.
+      // monospace coordinates plus a Spacer overflows the card by 41px at a
+      // 900px window and 69px in the tighter builder pane, which paints the
+      // striped overflow bar over the pointing the operator came here to
+      // read.
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -413,13 +411,13 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   }
 
   Widget _buildAltitudeChart(TargetHeaderNode node) {
-    // WE-SEQ-N2: the same card said "RA Not set · Dec Not set · Needs
-    // coordinates" AND plotted a full curve with "Alt 44.7° / Airmass 1.42 /
-    // Rise 15:03 / Transit 21:06" — the numbers for the 0h/+0° placeholder a
-    // Target node is born with, presented as this target's night. An altitude
-    // curve for a pointing nobody chose is a fabricated observation plan: it is
-    // read as "this target transits at 21:06", and it is wrong for whatever
-    // object the operator has in mind.
+    // A card must not say "RA Not set · Dec Not set · Needs coordinates" AND
+    // plot a full curve with "Alt 44.7° / Airmass 1.42 / Rise 15:03 / Transit
+    // 21:06" — the numbers for the 0h/+0° placeholder a Target node is born
+    // with, presented as this target's night. An altitude curve for a pointing
+    // nobody chose is a fabricated observation plan: it reads as "this target
+    // transits at 21:06", and it is wrong for whatever object the operator has
+    // in mind.
     //
     // Same predicate as the coordinate row and the "Needs coordinates" footer,
     // so the three cannot disagree.
@@ -714,11 +712,9 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   /// Count the frames and integration time planned under this target.
   ///
   /// Delegates to the shared [plannedCaptureUnder] walk so this card, the
-  /// library preview and the model's own `Sequence.totalExposures` can never
-  /// disagree again. It previously walked the subtree with NO loop
-  /// multiplier: a Quick-Start-Wizard sequence (`Capture Loop x10` wrapping a
-  /// single exposure node) read "1 planned exposures - 2m" here while the
-  /// toolbar beside it read "10 frames".
+  /// library preview and the model's own `Sequence.totalExposures` cannot
+  /// disagree. A local walk without the loop multiplier reads "1 planned
+  /// exposures" for a `Capture Loop x10` the toolbar beside it counts as 10.
   PlannedCapture _calculateTargetPlan(Sequence? sequence) {
     if (sequence == null) return PlannedCapture.empty;
     return plannedCaptureUnder(sequence, widget.node.id);

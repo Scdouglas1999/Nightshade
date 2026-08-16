@@ -7,9 +7,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     required Duration timeout,
   });
 
-  // =========================================================================
   // Framing & Centering
-  // =========================================================================
 
   /// Slew to target coordinates
   Future<void> slewToTarget(double ra, double dec) async {
@@ -84,9 +82,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     await _post('framing/set-target', {'ra': ra, 'dec': dec, 'name': name});
   }
 
-  // ===========================================================================
-  // Dome Control
-  // ===========================================================================
+  // Dome control
 
   // The headless endpoints require an explicit deviceId. Keep it on every
   // command/status/capability request so multi-dome hosts and the server's
@@ -189,9 +185,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     return DomeCapabilities.fromJson(json);
   }
 
-  // ===========================================================================
-  // Safety Monitor
-  // ===========================================================================
+  // Safety monitor
 
   /// Get safety status
   Future<Map<String, dynamic>> getSafetyStatus({String? deviceId}) async {
@@ -259,9 +253,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     await _post('safety/cancel-acknowledgement');
   }
 
-  // ===========================================================================
-  // Switch Control
-  // ===========================================================================
+  // Switch control
 
   /// Get switch states.
   ///
@@ -290,9 +282,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     });
   }
 
-  // ===========================================================================
-  // Cover Calibrator
-  // ===========================================================================
+  // Cover calibrator
 
   /// Get cover calibrator status
   Future<Map<String, dynamic>> getCoverStatus(String deviceId) async {
@@ -337,9 +327,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     await _post('cover/calibrator-off', {'deviceId': deviceId});
   }
 
-  // ===========================================================================
   // Scheduler (Astronomical Calculations)
-  // ===========================================================================
 
   /// Calculate altitude of object at given time
   Future<Map<String, dynamic>> getAltitude({
@@ -440,9 +428,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     return _post('scheduler/config', config);
   }
 
-  // ===========================================================================
-  // Focus Model
-  // ===========================================================================
+  // Focus model
 
   /// Get all focus data points
   Future<Map<String, dynamic>> getFocusModelData() async {
@@ -544,9 +530,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     return response['json'] as String?;
   }
 
-  // ===========================================================================
-  // Planetarium Support
-  // ===========================================================================
+  // Planetarium support
 
   /// Get current mount position for planetarium FOV overlay
   Future<Map<String, dynamic>> getPlanetariumMountPosition() async {

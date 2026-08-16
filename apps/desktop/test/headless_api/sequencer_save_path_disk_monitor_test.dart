@@ -10,20 +10,11 @@ import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
-/// Live-rig L30 (2026-08-09):
-///
-/// ```
-/// POST /api/sequencer/save-path {"path":"C:\\src\\rigframes"}
-///   -> {"status":"ok","path":"C:\\src\\rigframes"}
-///      ... 30 FITS subsequently written there ...
-/// GET  /api/system/disk-space -> {"configured": false}
-/// ```
-///
-/// Two settings, no link: `sequencerSetSavePath` is the native executor's
-/// output directory, while the free-space guard and the disk-space watchdog
-/// read `appSettings.imageOutputPath`. The guard watched nothing while the
-/// disk filled. Pointed at two different volumes it is worse than inert — it
-/// reports healthy space on the wrong disk.
+/// `sequencerSetSavePath` is the native executor's output directory, while the
+/// free-space guard and the disk-space watchdog read
+/// `appSettings.imageOutputPath`. Unlinked, the guard watches a different
+/// volume than the one being written and reports healthy space on the wrong
+/// disk.
 class _MockSequencerBackend extends Mock implements SequencerBackend {}
 
 void main() {

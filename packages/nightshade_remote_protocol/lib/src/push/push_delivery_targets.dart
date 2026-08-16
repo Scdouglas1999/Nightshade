@@ -13,12 +13,39 @@
 /// Two independent things must both hold for a push to land:
 ///   * at least one paired device has registered a push token
 ///     ([registeredDeviceCount] > 0), and
-///   * the host has a cloud delivery channel configured
-///     ([cloudDeliveryConfigured]) — an FCM service account / APNs key, or an
-///     explicit mock for local dev.
+///   * the host's delivery channel actually reaches phones
+///     ([PushDeliveryChannel.cloud]) — a recording mock is a separate state,
+///     not a flavour of configured.
 ///
 /// [canDeliver] is the single question the UI should ask.
 library;
+
+/// What a host's push delivery does with an alert.
+enum PushDeliveryChannel {
+  /// Nothing is wired: a registered token has nowhere to receive from.
+  none('none'),
+
+  /// A recording test double is wired. It stores the (frame, token) pairs it
+  /// would have sent and nothing leaves the host.
+  mock('mock'),
+
+  /// A real FCM/APNs credential is wired.
+  cloud('cloud');
+
+  const PushDeliveryChannel(this.wire);
+
+  /// Value carried on the `/api/push/targets` wire.
+  final String wire;
+
+  /// Whether an alert handed to this channel can reach a phone.
+  bool get deliversToDevices => this == PushDeliveryChannel.cloud;
+
+  static PushDeliveryChannel fromWire(String? wire) => switch (wire) {
+    'cloud' => PushDeliveryChannel.cloud,
+    'mock' => PushDeliveryChannel.mock,
+    _ => PushDeliveryChannel.none,
+  };
+}
 
 class PushDeliveryTargets {
   /// Paired devices with at least one registered push token.
@@ -30,15 +57,23 @@ class PushDeliveryTargets {
   /// Registered iOS (APNs) tokens.
   final int apnsTokenCount;
 
-  /// Whether the host has a remote push delivery channel wired at all.
-  final bool cloudDeliveryConfigured;
+  /// What the host's wired delivery does with an alert.
+  final PushDeliveryChannel channel;
 
+  /// [channel] is authoritative. [cloudDeliveryConfigured] stands in for hosts
+  /// that only report the two-state answer: true reads as
+  /// [PushDeliveryChannel.cloud], false as [PushDeliveryChannel.none].
   const PushDeliveryTargets({
     required this.registeredDeviceCount,
     required this.fcmTokenCount,
     required this.apnsTokenCount,
-    required this.cloudDeliveryConfigured,
-  });
+    bool cloudDeliveryConfigured = false,
+    PushDeliveryChannel? channel,
+  }) : channel =
+           channel ??
+           (cloudDeliveryConfigured
+               ? PushDeliveryChannel.cloud
+               : PushDeliveryChannel.none);
 
   /// Nothing registered, nothing configured — the honest default before a
   /// host has answered.
@@ -46,45 +81,59 @@ class PushDeliveryTargets {
     registeredDeviceCount: 0,
     fcmTokenCount: 0,
     apnsTokenCount: 0,
-    cloudDeliveryConfigured: false,
+    channel: PushDeliveryChannel.none,
   );
 
+  /// Whether the host's channel reaches phones. A recording mock does not.
+  bool get cloudDeliveryConfigured => channel.deliversToDevices;
+
   /// Whether a critical alert could actually reach a phone right now.
-  bool get canDeliver => registeredDeviceCount > 0 && cloudDeliveryConfigured;
+  bool get canDeliver => registeredDeviceCount > 0 && channel.deliversToDevices;
 
   /// Why delivery is impossible, or `null` when it is possible. Phrased for
   /// direct display to an operator.
   String? get blockedReason {
-    if (registeredDeviceCount == 0 && !cloudDeliveryConfigured) {
-      return 'No device has registered for push, and this host has no push '
-          'delivery configured';
+    final channelReason = switch (channel) {
+      PushDeliveryChannel.cloud => null,
+      PushDeliveryChannel.mock =>
+        'This host records pushes to a local mock instead of sending them',
+      PushDeliveryChannel.none => 'This host has no push delivery configured',
+    };
+    if (registeredDeviceCount == 0 && channelReason != null) {
+      return 'No device has registered for push, and '
+          '${channelReason[0].toLowerCase()}${channelReason.substring(1)}';
     }
     if (registeredDeviceCount == 0) {
       return 'No paired device has registered for push';
     }
-    if (!cloudDeliveryConfigured) {
-      return 'This host has no push delivery configured';
-    }
-    return null;
+    return channelReason;
   }
 
   Map<String, dynamic> toJson() => {
     'registeredDeviceCount': registeredDeviceCount,
     'fcmTokenCount': fcmTokenCount,
     'apnsTokenCount': apnsTokenCount,
+    'deliveryChannel': channel.wire,
+    // Kept for clients that only read the two-state answer.
     'cloudDeliveryConfigured': cloudDeliveryConfigured,
     // Derived, but sent so a client cannot drift from the host's own verdict.
     'canDeliver': canDeliver,
   };
 
+  /// A payload carrying `deliveryChannel` is taken at its word; one carrying
+  /// only `cloudDeliveryConfigured` collapses to cloud/none.
   factory PushDeliveryTargets.fromJson(Map<String, dynamic> json) {
+    final wire = json['deliveryChannel'] as String?;
     return PushDeliveryTargets(
       registeredDeviceCount:
           (json['registeredDeviceCount'] as num?)?.toInt() ?? 0,
       fcmTokenCount: (json['fcmTokenCount'] as num?)?.toInt() ?? 0,
       apnsTokenCount: (json['apnsTokenCount'] as num?)?.toInt() ?? 0,
-      cloudDeliveryConfigured:
-          json['cloudDeliveryConfigured'] as bool? ?? false,
+      channel: wire != null
+          ? PushDeliveryChannel.fromWire(wire)
+          : ((json['cloudDeliveryConfigured'] as bool? ?? false)
+                ? PushDeliveryChannel.cloud
+                : PushDeliveryChannel.none),
     );
   }
 
@@ -95,19 +144,19 @@ class PushDeliveryTargets {
           other.registeredDeviceCount == registeredDeviceCount &&
           other.fcmTokenCount == fcmTokenCount &&
           other.apnsTokenCount == apnsTokenCount &&
-          other.cloudDeliveryConfigured == cloudDeliveryConfigured;
+          other.channel == channel;
 
   @override
   int get hashCode => Object.hash(
     registeredDeviceCount,
     fcmTokenCount,
     apnsTokenCount,
-    cloudDeliveryConfigured,
+    channel,
   );
 
   @override
   String toString() =>
       'PushDeliveryTargets(devices: $registeredDeviceCount, '
       'fcm: $fcmTokenCount, apns: $apnsTokenCount, '
-      'cloudDeliveryConfigured: $cloudDeliveryConfigured)';
+      'channel: ${channel.wire})';
 }

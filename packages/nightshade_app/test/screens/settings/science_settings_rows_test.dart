@@ -1,7 +1,4 @@
-// =============================================================================
-// science_settings_rows_test.dart — the science settings rows must tell the
-// truth about what is stored.
-// =============================================================================
+// The science settings rows must tell the truth about what is stored.
 //
 // The five text rows on this page were each a hand-rolled commit-on-blur field.
 // Three of them rethrew a failed write into a future nobody held (so a refused
@@ -20,8 +17,8 @@ import 'package:nightshade_app/screens/settings/widgets/science_settings.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Science settings that resolve immediately, record their writes, and can be
-/// changed from outside the widget the way a remote push does.
+/// Science settings that resolve immediately, record their writes, and accept
+/// changes from outside the widget the way a remote push does.
 class _FakeScienceSettings extends ScienceSettingsNotifier {
   _FakeScienceSettings({
     ScienceSettings initial = const ScienceSettings(),
@@ -168,8 +165,8 @@ void main() {
     expect(_textIn(tester, field), 'AAA');
 
     // A remote push, a backup restore, or the other half of a master/slave
-    // pair. The rows used to read the provider once in initState and never
-    // again, so the field kept showing the stale code.
+    // pair. Reading the provider once in initState leaves the field showing the
+    // stale code.
     science.push(const ScienceSettings(aavsoObserverCode: 'BBB'));
     await tester.pump();
 

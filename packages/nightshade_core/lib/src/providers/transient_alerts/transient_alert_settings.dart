@@ -1,9 +1,5 @@
 part of '../transient_alert_provider.dart';
 
-// =============================================================================
-// Transient Alert Settings Provider
-// =============================================================================
-
 /// Storage key prefix for transient alert settings in the database
 const String _settingsKeyPrefix = 'transient_alert_';
 

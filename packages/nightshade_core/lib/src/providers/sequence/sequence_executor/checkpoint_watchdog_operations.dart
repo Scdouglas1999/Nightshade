@@ -86,13 +86,11 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
     });
   }
 
-  /// Tear down the per-run timers + transient run state in one place so the
+  /// Tear down the per-run timers + transient run state in ONE place so the
   /// terminal event handlers (`SequenceCompleted` / `SequenceStopped` /
-  /// `SequenceFailed`) and `stop()` stay in lockstep. Previously the event
-  /// handlers only cancelled `_progressTimer` and left `_checkpointTimer`,
-  /// `_startTime`, and `_isPaused` dangling — so a sequence that ended via a
-  /// backend event (not the Stop button) kept a live checkpoint timer and a
-  /// stale `_startTime`, which then mis-seeded the next run's elapsed clock.
+  /// `SequenceFailed`) and `stop()` stay in lockstep. A partial teardown that
+  /// cancels `_progressTimer` alone leaves `_checkpointTimer` running and
+  /// `_startTime` / `_isPaused` stale, which mis-seeds the next run.
   void _resetRunTimers() {
     _progressTimer?.cancel();
     _progressTimer = null;

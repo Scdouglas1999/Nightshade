@@ -174,8 +174,8 @@ void main() {
       await _pumpUntil(() => unparkStarted.isCompleted);
 
       // Re-degrade while mountUnpark is still in flight. Keep the second
-      // SafeRig call pending to reproduce the ordering where the old recovery
-      // continuation used to become the last command and resume the sequence.
+      // SafeRig call pending to reproduce the ordering where an in-flight
+      // recovery continuation could land last and resume the sequence.
       weather.updateConditions(windSpeed: 20);
       safety.forceEvaluation();
       await _pumpUntil(

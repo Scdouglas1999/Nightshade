@@ -157,8 +157,8 @@ void main() {
       expect(sessionService.hasActiveSession, isTrue);
 
       // Force the durable finalize to fail by closing the DB out from under
-      // it. The old implementation cleared identity in a `finally`, leaving
-      // the row stuck 'active' forever with a retry that silently no-ops.
+      // it. Clearing identity unconditionally would leave the row stuck
+      // 'active' forever, with every retry a no-op.
       await database.close();
 
       await expectLater(

@@ -308,6 +308,4 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Per-transport configuration + test send sections
-// ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
-// HTTP-002 / HTTP-003 unit coverage: the public pairing mint endpoints now
-// carry an endpoint rate limit (keyed off the socket peer by the middleware),
-// and the in-memory paired-session-token map is bounded with LRU-on-write
-// eviction.
+// Unit coverage: the public pairing mint endpoints carry an endpoint rate
+// limit (keyed off the socket peer by the middleware), and the in-memory
+// paired-session-token map is bounded with LRU-on-write eviction.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/auth_policy.dart';
@@ -9,8 +8,8 @@ import 'package:nightshade_desktop/headless_api/route_metadata.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
 
 void main() {
-  group('pairing endpoint rate limits (HTTP-002 / HTTP-003)', () {
-    test('start / verify / lan-claim now have an endpoint rate limit', () {
+  group('pairing endpoint rate limits', () {
+    test('start / verify / lan-claim have an endpoint rate limit', () {
       for (final path in const [
         '/api/pairing/start',
         '/api/pairing/verify',
@@ -58,7 +57,7 @@ void main() {
     });
   });
 
-  group('BoundedTokenGrantMap (HTTP-002)', () {
+  group('BoundedTokenGrantMap', () {
     final control = HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control);
     test('evicts the least-recently-written entry past the cap', () {
       final map = BoundedTokenGrantMap(maxEntries: 3);

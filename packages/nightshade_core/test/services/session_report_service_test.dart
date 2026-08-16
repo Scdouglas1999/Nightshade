@@ -193,9 +193,9 @@ void main() {
       expect(l.framesRejected, 1);
       expect(l.totalIntegrationSecs, 120.0);
       expect(l.meanHfr, closeTo(2.2, 1e-6));
-      // FWHM = 2.0 x HFR: HFR is the half-flux RADIUS, so the old 2.35 here
-      // was the sigma->FWHM factor applied to a radius and overstated every
-      // reported FWHM by 17.7%. The native measurement path already used 2.0.
+      // FWHM = 2.0 x HFR: HFR is the half-flux RADIUS, so the 2.35
+      // sigma->FWHM factor would overstate every reported FWHM by 17.7% and
+      // disagree with the native measurement path.
       expect(l.meanFwhm, closeTo(2.2 * kFwhmPerHfr, 1e-6));
       expect(l.meanStarCount, closeTo(520.0, 1e-6));
       // SNR proxy: (100/5 + 110/5) / 2 = 21

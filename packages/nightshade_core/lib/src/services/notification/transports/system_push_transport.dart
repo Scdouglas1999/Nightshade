@@ -8,11 +8,8 @@
 // [PushNotificationService] (now a pure broadcaster). Paired phones receive
 // it over the same WebSocket envelope they already listen to.
 //
-// This used to be a thin wrapper that always enqueued a critical push while
-// a parallel PushNotificationService subscription independently classified
-// the raw event stream. That triple feed is gone — the per-category toggle
-// gate and priority that lived on the service's own subscription now live
-// here, so no information is lost in the collapse.
+// This is the single systemPush producer: the per-category toggle gate and the
+// priority both live here, so the push service classifies nothing itself.
 
 import '../../../models/backend/event_types.dart' as core;
 import '../../../models/notification/notification_categories.dart';
@@ -105,7 +102,7 @@ class SystemPushTransport extends NotificationTransport {
   /// custom templates apply to the phone push too.
   _PushSpec? _pushSpecFor(NotificationCategory category) {
     switch (category) {
-      // ----- Critical-by-default categories (priority: critical) -----------
+      // Critical-by-default categories (priority: critical)
       // The exactly-once canary pins that every critical category pushes at
       // `critical` priority through this single producer.
       case NotificationCategory.sequenceFailed:
@@ -145,14 +142,14 @@ class SystemPushTransport extends NotificationTransport {
       // when push is enabled, like the other no-dedicated-toggle critical
       // categories.
       case NotificationCategory.transientDiscovered:
-        // No dedicated PushNotificationConfig toggle historically; these are
-        // critical-by-default and always escalate when push is enabled.
+        // No dedicated PushNotificationConfig toggle: critical by default,
+        // escalating whenever push is enabled.
         return const _PushSpec(
           enabled: _always,
           priority: PushNotificationPriority.critical,
         );
 
-      // ----- Non-critical categories the feed historically pushed ----------
+      // Non-critical categories that still push
       case NotificationCategory.sequenceCompleted:
         return _PushSpec(
           enabled: (c) => c.notifySequenceCompleted,
@@ -193,7 +190,7 @@ class SystemPushTransport extends NotificationTransport {
           priority: PushNotificationPriority.normal,
         );
 
-      // ----- Custom (user-defined NotificationNode / forwarded errors) -----
+      // Custom (user-defined NotificationNode / forwarded errors)
       // Always allowed when push is enabled; the user explicitly opted a
       // `custom` notification into systemPush via the matrix, so there is no
       // separate toggle to consult.

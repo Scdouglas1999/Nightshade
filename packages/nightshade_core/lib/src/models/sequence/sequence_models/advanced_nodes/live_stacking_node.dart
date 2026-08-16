@@ -2,10 +2,6 @@
 
 part of '../../sequence_models.dart';
 
-// =============================================================================
-// LIVE STACKING
-// =============================================================================
-
 /// Operating mode for a [LiveStackingNode].
 ///
 /// `broadcastOnly` keeps the building stack in memory only. The

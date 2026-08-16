@@ -195,12 +195,12 @@ void main() {
     );
   });
 
-  // Regression: the local (desktop / headless-host) write path must persist
-  // and reflect settings whose DB key is intentionally NOT carried by the
-  // remote wire model. `_applySettingsMap`'s `_assertKeysRemotable` guard is a
-  // remote-write concern; routing local patches through it made every
-  // host-only setter throw `UnsupportedError` AFTER the DAO write, surfacing a
-  // spurious write failure and skipping the setter's own state patch.
+  // The local (desktop / headless-host) write path persists and reflects
+  // settings whose DB key is intentionally NOT carried by the remote wire
+  // model. `_applySettingsMap`'s `_assertKeysRemotable` guard is a remote-write
+  // concern; routing local patches through it makes every host-only setter
+  // throw `UnsupportedError` AFTER the DAO write, surfacing a spurious write
+  // failure and skipping the setter's own state patch.
   group('local host writes of non-remotable settings', () {
     late NightshadeDatabase database;
     late ProviderContainer container;

@@ -9,11 +9,12 @@ import 'session_report_dialog.dart';
 
 /// The Session Reports an unattended night queued instead of opening.
 ///
-/// WF-N5: a report for a run the autopilot dispatched used to arrive as a modal
-/// over whatever screen the operator was on — one per re-dispatch. Those queue
-/// now (see `sessionReportPresentationProvider`), and this card is where they
-/// come back. Without it the queue would be a place reports go to be forgotten,
-/// and the "open it from Sequencer ▸ History" notice would be a false claim.
+/// A report for a run the autopilot dispatched would otherwise arrive as a
+/// modal over whatever screen the operator was on, one per re-dispatch. They
+/// queue instead (see `sessionReportPresentationProvider`), and this card is
+/// where they come back — without it the queue is where reports go to be
+/// forgotten, and the "open it from Sequencer ▸ History" notice is a false
+/// claim.
 ///
 /// Renders nothing when the queue is empty, so a hand-driven night never sees
 /// it.

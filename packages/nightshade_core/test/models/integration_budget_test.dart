@@ -160,10 +160,9 @@ void main() {
     test(
       'explicit null now KEEPS the budget (plain `?? this.X` semantics)',
       () {
-        // PHASE-5: TargetHeaderNode.copyWith dropped the sentinel; null
-        // and omitted are indistinguishable now. Clearing the budget is
-        // rebuild-explicit at the editor — see
-        // sequence_node_complex_subclasses_test.dart::
+        // TargetHeaderNode.copyWith carries no sentinel: null and omitted
+        // are indistinguishable. Clearing the budget is rebuild-explicit at
+        // the editor — see sequence_node_complex_subclasses_test.dart::
         // nullable_fields_cleared_via_rebuild_explicit for the recipe.
         const original = IntegrationBudget(totalSecs: 3600.0);
         final node = TargetHeaderNode(

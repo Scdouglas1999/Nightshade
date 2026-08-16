@@ -128,8 +128,8 @@ class MainActivity : FlutterActivity() {
     /**
      * Decode the `nightshade://voice-action/<wireId>` URI into the wire id.
      * Returns null if the intent isn't a voice-control URI or the wire id
-     * is unknown (we refuse to forward unrecognised ids so a typo never
-     * silently no-ops on the Dart side).
+     * is unknown. Unrecognised ids are never forwarded, so a typo fails here
+     * instead of silently no-opping on the Dart side.
      */
     private fun extractWireId(intent: Intent): String? {
         if (intent.action != Intent.ACTION_VIEW) return null

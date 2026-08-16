@@ -150,13 +150,11 @@ void main() {
     expect(logger.warnings.any((m) => m.contains('skipped')), isTrue);
   });
 
-  // ==========================================================================
   // Backend-readiness orchestration seam. main_headless invokes this ONLY after
   // startHeadlessServices has started the API server, then hands in the
   // `useLocalBackend()` readiness future. A readiness FAILURE must be logged and
   // swallowed HERE so the already-running server survives — it must never
   // propagate to main_headless's outer catch (which would shut the server down).
-  // ==========================================================================
 
   test(
     'readiness failure is logged and swallowed — server is not torn down and '

@@ -1,12 +1,12 @@
 /// How many frames each exposure node has actually captured — the ONE channel
 /// that only exposure-shaped progress can write.
 ///
-/// SEQ-18, fifth look. The node card counted frames by parsing the node's
-/// *display string* out of `SequenceProgress.nodeProgressDetail[nodeId]`. That
-/// map is a single slot shared by every instruction that reports against the
-/// node, and the native executor writes it several times per node from
-/// different producers. The waveF log shows exactly how the count died, one
-/// millisecond after a four-frame burst finished:
+/// Counting frames by parsing the node's *display string* out of
+/// `SequenceProgress.nodeProgressDetail[nodeId]` cannot work. That map is a
+/// single slot shared by every instruction that reports against the node, and
+/// the native executor writes it several times per node from different
+/// producers. A log one millisecond after a four-frame burst finishes shows how
+/// the count dies:
 ///
 /// ```
 /// 04:10:05.978257  NodeProgress node=7837c026… instruction=Exposure          progress=100%
@@ -17,17 +17,16 @@
 /// `emit_budget_progress` (native `node/instructions/expose.rs`) fires once per
 /// successful burst, against the SAME node id, and overwrites both the string
 /// detail and the structured detail with an `IntegrationBudget` payload that no
-/// exposure parser can read. So the card fell back to frame 0 and printed
+/// exposure parser can read, so the card falls back to frame 0 and prints
 /// "0 / 4 frames" with four empty boxes — directly above the four thumbnails
-/// the node had just captured. The next node opened with an `AdaptiveExposure`
-/// payload at 0%, which reads back as exactly the same "0 / 4 frames", which is
-/// why the card could not tell "captured everything" from "captured nothing".
+/// the node just captured. The next node opens with an `AdaptiveExposure`
+/// payload at 0%, which reads back as exactly the same "0 / 4 frames", so the
+/// card cannot tell "captured everything" from "captured nothing".
 ///
-/// Four fixes had already been aimed at the reader (the node's status, a 20 s
-/// retention window, a second string wording). None of them could work: the
-/// number was gone from the provider before any reader ran. This tally is a
-/// separate slot, so an unrelated instruction reporting against the node can no
-/// longer erase the frames it took.
+/// No fix on the reader side — node status, a retention window, a second string
+/// wording — can recover it: the number is gone from the provider before any
+/// reader runs. This tally is a separate slot, so an unrelated instruction
+/// reporting against the node cannot erase the frames it took.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -22,12 +22,11 @@ import '../../../widgets/frame_thumbnail_loader.dart';
 ///
 /// The Analytics thumbnail rail is where an operator goes to look at the
 /// night's frames, and a left click on one is the obvious way to ask "what is
-/// this?". Before this existed, the only per-frame affordance was a long-press
-/// / right-click menu that nothing advertised, so the rail's whole purpose —
-/// enlarge a frame, read what was recorded with it, cull it — was unreachable
-/// with the gesture everyone tries first.
+/// this?". The rail's whole purpose — enlarge a frame, read what was recorded
+/// with it, cull it — has to be reachable with that gesture, not only through
+/// an unadvertised long-press / right-click menu.
 ///
-/// Returns true when the frame's accepted flag was changed, so the caller can
+/// Returns true when the frame's accepted flag changed, so the caller can
 /// refresh whatever list it came from.
 Future<bool> showFrameDetailDialog(
   BuildContext context, {

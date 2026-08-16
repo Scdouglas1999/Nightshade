@@ -121,9 +121,9 @@ class GladePlusCatalogLoader {
             .objects
             .add(galaxy);
       } catch (e) {
-        // Why: GLADE+ catalog has ~22M entries; a single malformed line must
-        // not abort the load. The rest of the catalog remains usable. Log
-        // at FINE so a systemic format regression is visible.
+        // GLADE+ carries ~22M entries; a single malformed line must not abort
+        // the load, and the rest of the catalog remains usable. FINE keeps a
+        // systemic format change visible.
         developer.log(
           'GLADE+ line $i parse failed; skipping: $e',
           name: 'GladePlusCatalog',

@@ -171,11 +171,10 @@ void main() {
     },
   );
 
-  // SCI-43 — the hint named a screen the app does not have. The primary
-  // navigation is Dashboard / Equipment / Imaging / Sequencer / Guiding /
-  // Weather / Plan Tonight / Analytics; there is no "Calibration" entry, and
-  // the dark library lives at Settings > Equipment > Dark Library. Reproduced
-  // on every pre-flight run of the Wave D drive.
+  // The hint must name a destination that exists. The primary navigation is
+  // Dashboard / Equipment / Imaging / Sequencer / Guiding / Weather /
+  // Plan Tonight / Analytics — there is no "Calibration" entry, and the dark
+  // library lives at Settings > Equipment > Dark Library.
   test('the missing-dark hint names a destination that exists', () async {
     final container = await _container(canSetCcdTemperature: false);
     final issues = await _withRef(

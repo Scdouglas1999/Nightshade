@@ -48,8 +48,8 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Create a new profile.
   ///
-  /// The first profile becomes both the default and the active profile so the
-  /// rest of the app always has a coherent startup target.
+  /// The first profile becomes both the default and the active profile, so the
+  /// rest of the app has a coherent startup target.
   Future<int> createProfile(EquipmentProfilesCompanion profile) async {
     return transaction(() async {
       final countExpression = equipmentProfiles.id.count();

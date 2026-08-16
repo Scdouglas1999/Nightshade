@@ -258,12 +258,11 @@ class FollowTheNightScheduler {
 
   /// Julian Day for [at].
   ///
-  /// The parameter used to be named `utc` and trusted to be UTC; both call
-  /// sites do normalize first, so `toUtc()` here is a no-op today and every
-  /// number this class produces is unchanged. It is present so that a third
-  /// caller passing a local `DateTime` cannot silently shift the Julian Day
-  /// by the site's UTC offset — which is a whole-hours error in LST, i.e. a
-  /// target scored as up while it is below the horizon.
+  /// [at] is normalized with `toUtc()` rather than trusted to already be UTC.
+  /// Both call sites normalize first, so the conversion is a no-op for them;
+  /// it is present so that a third caller passing a local `DateTime` cannot
+  /// silently shift the Julian Day by the site's UTC offset — a whole-hours
+  /// error in LST, i.e. a target scored as up while it is below the horizon.
   ///
   /// This copy is NOT shared with `SkyCalculations` in `nightshade_core`:
   /// `nightshade_hub` is a pure-Dart server package and `nightshade_core` is

@@ -140,12 +140,11 @@ const PushNotificationConfig _failClosedPushConfig = PushNotificationConfig(
 
 /// Provider for the PushNotificationService instance.
 ///
-/// Architecture-unification, Subsystem 3 (collapsed): this service is now a
-/// pure mobile-push *broadcaster*. It no longer subscribes to the backend
-/// event stream or classifies events — the [NotificationRouter]'s
+/// A pure mobile-push *broadcaster*: it does not subscribe to the backend
+/// event stream or classify events. The [NotificationRouter]'s
 /// [SystemPushTransport] is the single producer of mobile pushes and calls
-/// `enqueue` on this service. The service's stream is consumed by the
-/// embedded web server to broadcast to connected mobile WebSocket clients.
+/// `enqueue` here; the service's stream is consumed by the embedded web server
+/// to broadcast to connected mobile WebSocket clients.
 ///
 /// The [PushNotificationConfig] remains the one config store for the
 /// systemPush feed (its per-event toggles + master `enabled` gate are read by

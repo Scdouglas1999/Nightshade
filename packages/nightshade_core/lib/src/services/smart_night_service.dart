@@ -245,9 +245,9 @@ class SmartNightService {
   /// [rankCandidates]. The service does NOT re-rank; the wizard
   /// composes that pipeline.
   ///
-  /// Validates required inputs and throws [SmartNightBuildException]
-  /// when an essential field is missing. Silent fallback would hide
-  /// bugs for months — errors are a feature.
+  /// Validates required inputs and throws [SmartNightBuildException] when an
+  /// essential field is missing, rather than planning a night around a
+  /// substituted value.
   SmartNightPlan build({
     required EquipmentProfileModel profile,
     required double latitudeDeg,
@@ -848,10 +848,9 @@ class SmartNightService {
   ///      this is the camera's REAL physical pixel pitch.
   ///   2. Otherwise `0`, a deliberate "unknown" sentinel.
   ///
-  /// We intentionally do NOT fall back to a hardcoded pitch (the old code
-  /// returned 3.76µm — the ASI2600 pitch — for every unknown camera, which
-  /// silently mis-scaled the sky-limited exposure math for anyone on a
-  /// different sensor). Returning `0` makes every caller's
+  /// There is deliberately no hardcoded fallback pitch: a stand-in figure
+  /// (3.76µm, say) mis-scales the sky-limited exposure math for every camera
+  /// that does not have it. Returning `0` makes each caller's
   /// `pixelSizeUm <= 0` guard fire loudly: [build] /
   /// [buildSingleTargetSequence] throw a [SmartNightBuildException] naming
   /// pixel size, and [previewTargetIntegration] returns null. The real

@@ -1,39 +1,35 @@
-// Phase 1 freezed-migration safety net for SequenceNode subclasses with
-// non-trivial copyWith semantics, configuration round-trips, or
-// special-case behaviour.
+// Cover for SequenceNode subclasses with non-trivial copyWith semantics,
+// configuration round-trips, or special-case behaviour.
 //
 // Covered here:
-//   * TargetHeaderNode (Phase 5: sentinels removed — 4 nullable fields
-//     use plain keep-or-replace; clearing is rebuild-explicit)
+//   * TargetHeaderNode (4 nullable fields use plain keep-or-replace;
+//     clearing is rebuild-explicit)
 //   * LoopNode
-//   * ConditionalNode (Phase 5: sentinel removed — safetyMonitorId
-//     uses plain keep-or-replace)
+//   * ConditionalNode (safetyMonitorId uses plain keep-or-replace)
 //   * RecoveryNode (no JSON, but has toRustTriggerConfig sliced by
 //                   trigger_type_serialization_test.dart; here we test
 //                   the data shape)
-//   * ExposureNode (Phase 5: clearAdaptiveExposure flag removed —
-//     copyWith now uses plain `?? this.adaptiveExposure` semantics;
-//     the "clear override" path is rebuild-explicit at the editor.)
-//   * NotificationNode is already covered by `notification_node_test.dart`
-//     — we add complementary copyWith-per-field tests here.
+//   * ExposureNode (copyWith uses plain `?? this.adaptiveExposure`
+//     semantics; the "clear override" path is rebuild-explicit at the
+//     editor)
+//   * NotificationNode is covered by `notification_node_test.dart`; the
+//     complementary copyWith-per-field tests live here.
 //   * MeridianFlipNode (plain copyWith; the sticky-override UX heuristic
 //     moved to `applyMeridianFlipEdit(...)` in the editor layer and is
 //     covered by `nightshade_app`'s widget tests)
-//   * TargetSchedulerNode (Phase 5: sentinel removed —
-//     swapOnConditionsBelow uses plain keep-or-replace; the
-//     ArgumentError path is gone since the signature is now typed)
+//   * TargetSchedulerNode (swapOnConditionsBelow uses plain
+//     keep-or-replace; the signature is typed, so there is no
+//     ArgumentError path)
 //   * SmartExposureNode
-//   * LiveStackingNode (Phase 5: sentinel removed — authToken /
-//     watermarkText use plain keep-or-replace; clearing is
-//     rebuild-explicit at the editor)
-//   * SciencePhotometryNode (Phase 5: gain/offset sentinels removed —
-//     plain keep-or-replace; clearing is rebuild-explicit at the
-//     editor; fromRustConfigJson defaults still pinned)
+//   * LiveStackingNode (authToken / watermarkText use plain
+//     keep-or-replace; clearing is rebuild-explicit at the editor)
+//   * SciencePhotometryNode (gain/offset use plain keep-or-replace;
+//     clearing is rebuild-explicit at the editor; fromRustConfigJson
+//     defaults pinned)
 //
 // The SequenceNode subclasses that are STRUCTURALLY simple (plain `??`
 // copyWith for every field) live in
-// `sequence_node_simple_subclasses_test.dart`. InstructionSetNode et al
-// are not duplicated here.
+// `sequence_node_simple_subclasses_test.dart` and are not duplicated here.
 
 import 'dart:convert';
 
@@ -41,9 +37,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  // ============================================================
-  // TargetHeaderNode
-  // ============================================================
   group('TargetHeaderNode', () {
     TargetHeaderNode makeM31() => TargetHeaderNode(
       id: 'th-m31',
@@ -73,9 +66,8 @@ void main() {
     });
 
     test('copyWith_no_args_preserves_all_nullable_fields', () {
-      // PHASE-5: copyWith is now plain `?? this.X` for every nullable
-      // field. Omitting the arg keeps the existing value — identical
-      // to the previous sentinel-omitted behaviour.
+      // copyWith is plain `?? this.X` for every nullable field, so omitting
+      // the arg keeps the existing value.
       final n = makeM31();
       final copy = n.copyWith();
       expect(copy.integrationBudget, equals(n.integrationBudget));
@@ -85,10 +77,9 @@ void main() {
     });
 
     test('copyWith_explicit_null_now_keeps_under_plain_semantics', () {
-      // PHASE-5: with the sentinels gone, passing `null` is
-      // indistinguishable from omitting the arg — both keep the
-      // current value. The previous "explicit-null clears" semantic
-      // moved to the rebuild-explicit recipe pinned below.
+      // Passing `null` is indistinguishable from omitting the arg — both
+      // keep the current value. Clearing goes through the rebuild-explicit
+      // recipe pinned below.
       final n = makeM31();
       final keep = n.copyWith(
         integrationBudget: null,
@@ -103,9 +94,9 @@ void main() {
     });
 
     test('nullable_fields_cleared_via_rebuild_explicit', () {
-      // PHASE-5: the four previously-sentinel fields are cleared by
-      // constructing a fresh TargetHeaderNode without them. Pin the
-      // recipe so editor authors can copy it directly.
+      // The four nullable fields are cleared by constructing a fresh
+      // TargetHeaderNode without them. The recipe is pinned here so editor
+      // authors can copy it directly.
       final n = makeM31();
       final cleared = TargetHeaderNode(
         id: n.id,
@@ -252,9 +243,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // LoopNode
-  // ============================================================
   group('LoopNode', () {
     test('node_type_and_category_pin', () {
       final n = LoopNode();
@@ -309,9 +297,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // ConditionalNode
-  // ============================================================
   group('ConditionalNode', () {
     test('node_type_pin', () {
       final n = ConditionalNode();
@@ -321,9 +306,8 @@ void main() {
     });
 
     test('copyWith_safety_monitor_id_keeps_or_replaces', () {
-      // PHASE-5: ConditionalNode.copyWith now uses plain `?? this.X`.
-      // No production caller ever cleared this via copyWith — clearing
-      // requires constructing a fresh ConditionalNode.
+      // ConditionalNode.copyWith uses plain `?? this.X`; clearing requires
+      // constructing a fresh ConditionalNode.
       final n = ConditionalNode(safetyMonitorId: 'mon-1');
       expect(n.copyWith().safetyMonitorId, equals('mon-1'));
       // Plain `?? this.X`: null arg keeps current.
@@ -339,7 +323,7 @@ void main() {
     });
 
     test('safety_monitor_id_clear_via_rebuild_explicit', () {
-      // PHASE-5: the rebuild-explicit recipe for clearing the field.
+      // The rebuild-explicit recipe for clearing the field.
       final n = ConditionalNode(id: 'c', safetyMonitorId: 'mon-1');
       final cleared = ConditionalNode(
         id: n.id,
@@ -375,9 +359,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // RecoveryNode
-  // ============================================================
   group('RecoveryNode', () {
     test('node_type_pin', () {
       final n = RecoveryNode();
@@ -488,18 +469,17 @@ void main() {
     });
 
     test('to_rust_trigger_config_returns_null_when_trigger_type_null', () {
-      // PHASE-2-NOTE: The semantic is "no triggerType configured =>
-      // null payload" — distinct from "triggerType set but no threshold
-      // => use Rust default". Phase 2 must preserve this exact null
-      // mapping; the Rust side reads the JSON as Option<TriggerType>.
+      // "No triggerType configured" maps to a null payload — distinct from
+      // "triggerType set but no threshold", which uses the Rust default. The
+      // Rust side reads the JSON as Option<TriggerType>.
       final n = RecoveryNode();
       expect(n.toRustTriggerConfig(), isNull);
     });
 
     test('to_rust_trigger_config_emits_unit_string_for_unit_variants', () {
-      // PHASE-2-NOTE: Some trigger types serialise as a BARE STRING
-      // (Rust unit variants), others as `{"Variant": {payload}}`. The
-      // dispatcher's switch returns dynamic to accommodate both shapes.
+      // Some trigger types serialise as a BARE STRING (Rust unit variants),
+      // others as `{"Variant": {payload}}`. The dispatcher's switch returns
+      // dynamic to accommodate both shapes.
       final n = RecoveryNode(triggerType: TriggerType.weatherUnsafe);
       expect(n.toRustTriggerConfig(), equals('WeatherUnsafe'));
       final n2 = RecoveryNode(triggerType: TriggerType.filterChange);
@@ -528,9 +508,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // ExposureNode
-  // ============================================================
   group('ExposureNode', () {
     test('node_type_and_required_devices_pin', () {
       final n = ExposureNode();
@@ -560,14 +537,13 @@ void main() {
     });
 
     test('copyWith_adaptive_exposure_uses_plain_keep_or_replace', () {
-      // PHASE-5: the `clearAdaptiveExposure` flag is gone. copyWith
-      // now follows the plain `?? this.adaptiveExposure` rule:
+      // copyWith follows the plain `?? this.adaptiveExposure` rule:
       //   * omitted  → keep current
       //   * non-null → install per-node override
       //   * null     → also keeps current (cannot clear via copyWith)
-      // The "clear back to inherit-global" path is rebuild-explicit
-      // at the editor layer; see _AdaptiveExposureSectionState
-      // ._clearOverride. We pin BOTH halves of the new contract.
+      // The "clear back to inherit-global" path is rebuild-explicit at the
+      // editor layer; see _AdaptiveExposureSectionState._clearOverride. Both
+      // halves of the contract are pinned here.
       final n = ExposureNode(adaptiveExposure: const AdaptiveExposureConfig());
       // Omitted → keep
       expect(n.copyWith().adaptiveExposure, isNotNull);
@@ -582,10 +558,10 @@ void main() {
     });
 
     test('adaptive_exposure_clear_via_rebuild_explicit', () {
-      // PHASE-5: the only way to clear an explicit per-node
-      // adaptiveExposure override is to construct a fresh ExposureNode
-      // without it (the rebuild-explicit pattern). This test pins the
-      // recipe so editor authors can copy it directly.
+      // The only way to clear an explicit per-node adaptiveExposure override
+      // is to construct a fresh ExposureNode without it (the rebuild-explicit
+      // pattern). This test pins the recipe so editor authors can copy it
+      // directly.
       final n = ExposureNode(
         id: 'e1',
         adaptiveExposure: const AdaptiveExposureConfig(),
@@ -648,7 +624,7 @@ void main() {
     });
 
     test('copyWith_no_args_preserves_existing_adaptive_exposure', () {
-      // PHASE-5: with the flag removed, copyWith() is a pure keep-all.
+      // copyWith() with no args is a pure keep-all.
       const ae = AdaptiveExposureConfig(targetSnr: 99);
       final n = ExposureNode(adaptiveExposure: ae);
       expect(n.copyWith().adaptiveExposure, equals(ae));
@@ -683,9 +659,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // NotificationNode (complementary to notification_node_test.dart)
-  // ============================================================
   group('NotificationNode', () {
     test('node_type_pin', () {
       final n = NotificationNode();
@@ -706,13 +680,11 @@ void main() {
     });
 
     test('copyWith_explicit_transports_keep_or_replace', () {
-      // PHASE-5: NotificationNode.copyWith dropped the
-      // `clearExplicitTransports` flag. copyWith now uses plain
-      // `?? this.explicitTransports` semantics (omitted / null keep;
-      // non-null replaces). Clearing back to the matrix default is
-      // rebuild-explicit — covered by
-      // notification_node_test.dart::"clears explicitTransports
-      // via rebuild-explicit".
+      // NotificationNode.copyWith uses plain `?? this.explicitTransports`
+      // semantics (omitted / null keep; non-null replaces). Clearing back to
+      // the matrix default is rebuild-explicit — covered by
+      // notification_node_test.dart::"clears explicitTransports via
+      // rebuild-explicit".
       final n = NotificationNode(
         explicitTransports: const [NotificationTransportKind.discord],
       );
@@ -738,18 +710,14 @@ void main() {
     });
   });
 
-  // ============================================================
   // MeridianFlipNode
-  // ============================================================
   //
-  // Sticky-override UX semantics (the "touching any config field implicitly
-  // flips useGlobalDefaults off" heuristic) used to live in
-  // `MeridianFlipNode.copyWith` and was pinned by tests in THIS group. The
-  // heuristic now lives in the editor-layer helper `applyMeridianFlipEdit(...)`
-  // in `nightshade_app/.../widgets/meridian_flip_edit_helper.dart`, where its
-  // tests have moved. The remaining tests here pin the data model itself: a
-  // vanilla `copyWith` with no hidden side effects, ready for the Phase 6
-  // freezed migration.
+  // The sticky-override UX heuristic ("touching any config field implicitly
+  // flips useGlobalDefaults off") lives in the editor-layer helper
+  // `applyMeridianFlipEdit(...)` in
+  // `nightshade_app/.../widgets/meridian_flip_edit_helper.dart`, with its own
+  // tests. The tests here pin the data model itself: a vanilla `copyWith` with
+  // no hidden side effects.
   group('MeridianFlipNode', () {
     test('node_type_category_and_required_devices_pin', () {
       final n = MeridianFlipNode();
@@ -769,10 +737,10 @@ void main() {
     });
 
     test('copyWith_is_plain_field_replace_no_implicit_flag_flip', () {
-      // The UX heuristic that flips useGlobalDefaults when a config field is
-      // touched has moved out of copyWith — copyWith is now a vanilla
-      // field-replace. Any per-node override has to come through an explicit
-      // `useGlobalDefaults: false` arg (e.g. via the editor helper).
+      // copyWith is a vanilla field-replace: the UX heuristic that flips
+      // useGlobalDefaults when a config field is touched lives in the editor
+      // helper, so any per-node override comes through an explicit
+      // `useGlobalDefaults: false` arg.
       final n = MeridianFlipNode();
       expect(n.useGlobalDefaults, isTrue);
       // Touching config fields leaves the flag alone.
@@ -843,9 +811,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // TargetSchedulerNode
-  // ============================================================
   group('TargetSchedulerNode', () {
     test('node_type_and_required_devices_pin', () {
       final n = TargetSchedulerNode();
@@ -882,10 +847,10 @@ void main() {
     });
 
     test('copyWith_swap_on_conditions_below_keeps_or_replaces', () {
-      // PHASE-5: TargetSchedulerNode.copyWith now uses plain
-      // `?? this.swapOnConditionsBelow` semantics. Omitted or null
-      // keeps; non-null replaces. The previous "explicit-null clears"
-      // path moved to rebuild-explicit at the editor (covered below).
+      // TargetSchedulerNode.copyWith uses plain
+      // `?? this.swapOnConditionsBelow` semantics. Omitted or null keeps;
+      // non-null replaces. Clearing is rebuild-explicit at the editor
+      // (covered below).
       final n = TargetSchedulerNode(swapOnConditionsBelow: 60.0);
       expect(n.copyWith().swapOnConditionsBelow, equals(60.0));
       expect(
@@ -899,8 +864,8 @@ void main() {
     });
 
     test('swap_on_conditions_below_cleared_via_rebuild_explicit', () {
-      // PHASE-5: the rebuild-explicit recipe used by the editor's
-      // adaptive-swap toggle when the user disables the feature.
+      // The rebuild-explicit recipe used by the editor's adaptive-swap toggle
+      // when the user disables the feature.
       final n = TargetSchedulerNode(swapOnConditionsBelow: 60.0);
       final cleared = TargetSchedulerNode(
         id: n.id,
@@ -996,9 +961,6 @@ void main() {
     );
   });
 
-  // ============================================================
-  // SmartExposureNode
-  // ============================================================
   group('SmartExposureNode', () {
     test('node_type_and_required_devices_pin', () {
       final n = SmartExposureNode();
@@ -1095,9 +1057,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // LiveStackingNode
-  // ============================================================
   group('LiveStackingNode', () {
     test('node_type_and_required_devices_pin', () {
       final n = LiveStackingNode();
@@ -1120,9 +1079,9 @@ void main() {
     });
 
     test('copyWith_auth_token_and_watermark_keep_or_replace', () {
-      // PHASE-5: plain `?? this.X` for both fields. Omitted or null
-      // keeps; non-null replaces. Clearing back to "public + no
-      // watermark" is rebuild-explicit at the editor.
+      // Plain `?? this.X` for both fields. Omitted or null keeps; non-null
+      // replaces. Clearing back to "public + no watermark" is
+      // rebuild-explicit at the editor.
       final n = LiveStackingNode(authToken: 'secret', watermarkText: 'M42');
       expect(n.copyWith().authToken, equals('secret'));
       expect(n.copyWith().watermarkText, equals('M42'));
@@ -1134,8 +1093,8 @@ void main() {
     });
 
     test('auth_token_and_watermark_cleared_via_rebuild_explicit', () {
-      // PHASE-5: pin the rebuild-explicit recipe used by the editor's
-      // empty-text-submit handlers for both fields.
+      // The rebuild-explicit recipe used by the editor's empty-text-submit
+      // handlers for both fields.
       final n = LiveStackingNode(authToken: 'secret', watermarkText: 'M42');
       final cleared = LiveStackingNode(
         id: n.id,
@@ -1179,9 +1138,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // LiveStackingMode / LiveStackingMethod enums
-  // ============================================================
   group('LiveStackingMode enum', () {
     test('storage_key_matches_snake_case_rust_form', () {
       expect(
@@ -1206,15 +1163,10 @@ void main() {
     });
 
     test('from_storage_key_unknown_defaults_to_broadcast_only', () {
-      // PHASE-2-NOTE: from_storage_key falls back to broadcastOnly for
-      // unknown / null keys. This is a SILENT FALLBACK that violates
-      // the errors are a feature here rule — but it's existing
-      // behaviour, so the test pins it. The Phase 2 conversion has the
-      // OPPORTUNITY to tighten this, but should only do so if the
-      // brief explicitly requests it. Default behaviour: preserve.
-      // BUG: silent fallback to broadcastOnly hides storage-format
-      // corruption. Suggested Phase-2 follow-up: throw FormatException
-      // for unknown keys (matching FilterBudgetEntry's behaviour).
+      // from_storage_key falls back to broadcastOnly for unknown / null
+      // keys, which hides storage-format corruption. The test pins the
+      // current behaviour; tightening it to a FormatException (as
+      // FilterBudgetEntry does) is a deliberate behaviour change.
       expect(
         LiveStackingMode.fromStorageKey('bogus'),
         equals(LiveStackingMode.broadcastOnly),
@@ -1249,9 +1201,9 @@ void main() {
     });
 
     test('from_storage_key_unknown_defaults_to_average', () {
-      // BUG (same as LiveStackingMode): silent fallback to `average`
-      // hides storage-format corruption. PHASE-2-NOTE: preserve current
-      // behaviour by default.
+      // Like LiveStackingMode, an unknown key falls back to `average`, which
+      // hides storage-format corruption. The fallback is pinned so a change
+      // to it is deliberate.
       expect(
         LiveStackingMethod.fromStorageKey('bogus'),
         equals(LiveStackingMethod.average),
@@ -1263,9 +1215,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // SciencePhotometryNode
-  // ============================================================
   group('SciencePhotometryNode', () {
     SciencePhotometryNode sample() => SciencePhotometryNode(
       id: 'sp1',
@@ -1307,10 +1256,9 @@ void main() {
     });
 
     test('to_rust_config_json_uses_snake_case_and_pascal_binning', () {
-      // PHASE-2-NOTE: Mirrors the Rust SciencePhotometryConfig shape.
-      // snake_case keys, BinningMode as PascalCase string, references
-      // serialised as a List<String>. Phase 2 must register the same
-      // BinningMode converter used by FilterPlan.
+      // Mirrors the Rust SciencePhotometryConfig shape: snake_case keys,
+      // BinningMode as a PascalCase string, references serialised as a
+      // List<String> — the same BinningMode mapping FilterPlan uses.
       final json = sample().toRustConfigJson();
       expect(json['target_designation'], equals('V0376 Per'));
       expect(json['reference_stars'], equals(['ref1', 'ref2', 'ref3']));
@@ -1343,12 +1291,10 @@ void main() {
     });
 
     test('from_rust_config_json_applies_documented_defaults', () {
-      // PHASE-2-NOTE: from_rust_config_json applies missing-field
-      // defaults: target_designation '', reference_stars [],
-      // max_cadence_gap_secs 2.0, filter 'Clear', exposure_secs 60.0,
-      // count 60, reduce_live true, apply_differential true, quality
-      // PhotometryQualityGates(). Phase 2 freezed @Default annotations
-      // must match each.
+      // from_rust_config_json applies missing-field defaults:
+      // target_designation '', reference_stars [], max_cadence_gap_secs 2.0,
+      // filter 'Clear', exposure_secs 60.0, count 60, reduce_live true,
+      // apply_differential true, quality PhotometryQualityGates().
       final back = SciencePhotometryNode.fromRustConfigJson(
         const <String, dynamic>{},
       );
@@ -1386,10 +1332,9 @@ void main() {
     });
 
     test('copyWith_gain_and_offset_keep_or_replace', () {
-      // PHASE-5: plain `?? this.X` for gain and offset. Omitted or
-      // null keeps; non-null replaces. Clearing is rebuild-explicit
-      // at science_photometry_properties.dart's empty-text-input
-      // handler.
+      // Plain `?? this.X` for gain and offset. Omitted or null keeps;
+      // non-null replaces. Clearing is rebuild-explicit at
+      // science_photometry_properties.dart's empty-text-input handler.
       final n = sample();
       expect(n.copyWith().gain, equals(100));
       expect(n.copyWith().offset, equals(30));
@@ -1402,7 +1347,7 @@ void main() {
     });
 
     test('gain_and_offset_cleared_via_rebuild_explicit', () {
-      // PHASE-5: rebuild-explicit recipe pinned for the editor.
+      // The rebuild-explicit recipe pinned for the editor.
       final n = sample();
       final cleared = SciencePhotometryNode(
         id: n.id,

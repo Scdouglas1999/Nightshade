@@ -25,9 +25,7 @@ part 'annotation_panel_parts/tab_panel.dart';
 part 'annotation_panel_parts/mini_chips.dart';
 part 'annotation_panel_parts/preset_name_dialog.dart';
 
-// ---------------------------------------------------------------------------
 // Export helpers
-// ---------------------------------------------------------------------------
 
 String _objectTypeName(ObjectType type) {
   switch (type) {

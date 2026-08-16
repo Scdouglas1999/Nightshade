@@ -2,10 +2,9 @@
 # flutter_lints 5.x rule overrides.
 include: ../../analysis_options.yaml
 
-# CQ-W14-CONST-CONSTRUCTORS:4 (audit-dart §10 #3)
-# Slice 4 of the per-package rollout — final slice. nightshade_remote_protocol is
-# minimal UI; no hand-written generated artifacts under lib/ beyond what
-# the workspace-root exclude block already covers.
+# The workspace-root config disables these two rules globally;
+# nightshade_remote_protocol enables them here. It carries no generated
+# artifacts under lib/ beyond what the workspace-root exclude block covers.
 linter:
   rules:
     prefer_const_constructors: true

@@ -260,11 +260,10 @@ void main() {
       expect(find.byType(NightshadeProgressBar), findsOneWidget);
     });
 
-    // The exposure this dialog owns used to be orphaned by its own title-bar
-    // ✕: the dialog closed, the sensor kept exposing, Imaging read
-    // "Exposing... 999858.8s remaining" and the camera stayed unusable until
-    // the process was restarted. PopScope covered Escape and the barrier but
-    // NOT the header close button, which pops the route directly.
+    // The exposure this dialog owns must not be orphaned by its own title-bar
+    // ✕: the dialog closes, the sensor keeps exposing, and the camera stays
+    // unusable until the process restarts. PopScope covers Escape and the
+    // barrier but NOT the header close button, which pops the route directly.
     testWidgets('running phase disables the header close button',
         (tester) async {
       await _pumpDialog(

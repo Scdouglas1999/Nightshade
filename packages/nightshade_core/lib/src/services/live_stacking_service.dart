@@ -39,8 +39,7 @@ class LiveStackingConfig {
   /// - `auto` — debayer only when the frame actually carries Bayer geometry
   ///   (or [bayerPattern] is supplied); otherwise treat as mono.
   ///
-  /// Defaults to `"mono"` so existing callers keep the historic single-channel
-  /// behaviour byte-for-byte.
+  /// Defaults to `"mono"`.
   final String sensorMode;
 
   /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`).
@@ -145,12 +144,9 @@ class LiveStackingStats {
 ///
 /// A refusal is a *counted event*: the engine increments
 /// `totalFramesAttempted` (and, for an alignment refusal,
-/// `rejectedAlignmentFailures`) and only then returns the error. The old
-/// contract threw the bare engine error, so every caller that caught it kept
-/// showing the statistics from the last ACCEPTED frame — a session in which
-/// all 179 frames were rejected read `Total Attempted 1 · Rejected 0`, i.e.
-/// the one number that would have told the operator their alignment settings
-/// were rejecting everything was the number that never moved.
+/// `rejectedAlignmentFailures`) and only then returns the error, and this
+/// exception carries those counters, so a caller that catches it reports the
+/// refusal instead of the statistics of the last ACCEPTED frame.
 ///
 /// [stats] is the engine's own tally read back immediately after the refusal,
 /// so a caller can publish the truth without a second round trip.
@@ -212,12 +208,10 @@ enum LiveStackingMasterFormat {
 /// Thrown when a stacked master is asked for in a format this stacker cannot
 /// write.
 ///
-/// The writer used to be PNG-only, and it accepted any name and quietly swapped
-/// the extension: typing `stack_master.fits` produced `stack_master.png` — the
-/// operator asked for a FITS master (header, WCS, integration metadata) and got
-/// a picture, with nothing on screen or on disk disclosing the swap. The master
-/// is FITS now, and anything the writer cannot produce is refused with the
-/// reason instead of renamed.
+/// The master is FITS (header, WCS, integration metadata). A format the writer
+/// cannot produce is refused with the reason rather than written under a
+/// swapped extension, which would hand the operator a picture where they asked
+/// for a master.
 class LiveStackingMasterFormatUnsupported implements Exception {
   /// The extension the caller asked for, lower-cased and including the dot.
   final String requestedExtension;

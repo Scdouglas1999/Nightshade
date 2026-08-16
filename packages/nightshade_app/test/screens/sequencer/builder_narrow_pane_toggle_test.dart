@@ -1,10 +1,8 @@
-// WE-SEQ-N7: at ~900px the desktop builder auto-collapses its side panes so the
-// canvas keeps a workable width (that part is the WD-SEQ-N2 fix and is right).
-// What was wrong is that the collapse could not be overruled: the effective
-// state was `userPref || derived`, so clicking the toolbox icon three times and
-// the properties icon once left the tree with no palette and no Target
-// Settings. The window could be read but not edited, and the only escape was
-// resizing the window.
+// At ~900px the desktop builder auto-collapses its side panes so the canvas
+// keeps a workable width. That collapse must stay overrulable: with an effective
+// state of `userPref || derived`, clicking the toolbox icon three times and the
+// properties icon once leaves the tree with no palette and no Target Settings —
+// a window that can be read but not edited, with resizing as the only escape.
 //
 // A derived layout decision is a default. The operator's explicit tap is an
 // instruction, and has to win.

@@ -1,5 +1,3 @@
-// HTTP-001 characterization + regression tests.
-//
 // The rate-limit / brute-force-lockout client key MUST be derived from the
 // real TCP socket peer, NOT the client-controlled `x-forwarded-for` /
 // `x-real-ip` headers. Otherwise an attacker on the default direct-bind
@@ -22,7 +20,7 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
 import 'package:shelf/shelf.dart';
 
 void main() {
-  group('headlessRateLimitClientKey (HTTP-001 unit)', () {
+  group('headlessRateLimitClientKey', () {
     test(
       'default keys off the socket peer, ignoring spoofed forwarding headers',
       () {
@@ -102,7 +100,7 @@ void main() {
     });
   });
 
-  group('HTTP-001 end-to-end (key off socket, not spoofed XFF)', () {
+  group('end-to-end (key off socket, not spoofed XFF)', () {
     test(
       'pairing brute-force locks out even when X-Forwarded-For rotates',
       () async {

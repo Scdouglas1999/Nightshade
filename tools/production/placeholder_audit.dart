@@ -32,9 +32,8 @@ const _allowedExtensions = <String>{
 };
 
 // Excluded directory NAMES anchored to path-segment boundaries (NOT substring
-// matches). This closes the false-negative where a production module
-// at packages/nightshade_test_utils/lib/... was silently skipped because its
-// path contained the substring `/test/`-like fragments.
+// matches), so a production module at packages/nightshade_test_utils/lib/...
+// is not skipped for merely carrying a `/test/`-like fragment in its path.
 const _excludedDirectoryNames = <String>{
   '.dart_tool',
   '.git',
@@ -290,7 +289,8 @@ List<_AllowlistEntry> _loadAllowlist(String path) {
     final normalized = _normalize(raw);
     final firstColon = normalized.indexOf(':');
     if (firstColon < 0) {
-      // Path-only entry — reject loudly. Errors are a feature.
+      // Path-only entry — reject loudly rather than silently widening the
+      // allowlist to a whole file.
       stderr.writeln(
         'Invalid allowlist entry at $path:${lineNumber + 1}: '
         '"$raw" — path-only entries are not allowed. '

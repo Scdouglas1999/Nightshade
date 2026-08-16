@@ -44,10 +44,8 @@ final extraTopLevelRoutesProvider =
 /// Planetarium is a Plan Tonight tab, so the standalone path redirects onto the
 /// host — but it must carry its query across, because the "show in sky"
 /// hand-off encodes the target as `?ra=&dec=&name=` and the planetarium view
-/// parses it from whatever router state is above it. Dropping the query here
-/// silently turned "show M31 in the sky" into "open the sky wherever it was".
-///
-/// Extracted from the route so the forwarding is directly testable.
+/// parses it from whatever router state is above it. Dropping the query turns
+/// "show M31 in the sky" into "open the sky wherever it was".
 String planetariumRedirectLocation(Uri uri) {
   final query = uri.query;
   return '/planner?tab=planetarium${query.isEmpty ? '' : '&$query'}';
@@ -109,11 +107,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionDuration: Duration(milliseconds: 300),
             ),
             routes: [
-              // Deep-link target for `image_ready` notification taps
-              // (audit §3.8). The image identifier is passed through so the
-              // imaging screen can highlight the new capture; today the
-              // imaging screen reads :imageId from GoRouterState if it
-              // wants to scroll or focus that frame.
+              // Deep-link target for `image_ready` notification taps. The
+              // image identifier is passed through so the imaging screen can
+              // highlight the new capture; the imaging screen reads :imageId
+              // from GoRouterState if it wants to scroll or focus that frame.
               GoRoute(
                 path: 'preview/:imageId',
                 name: 'imaging-preview',
@@ -236,15 +233,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
           // Remote-connection pairing. A ROUTE, not a `Navigator.push` — that
-          // is the whole point (WF-SS-N2). Pushed straight onto the shell's
-          // navigator it sat above the routed child while the nav rail stayed
-          // visible and clickable beside it: clicking a rail destination
-          // repainted that row as selected, swapped the routed child
-          // underneath, and left Pairing on screen indefinitely. The only way
-          // out was the screen's own back arrow, which then landed on whatever
-          // destination the rail had silently re-pointed to. As a shell route,
-          // `context.go` from the rail replaces the whole match list — the
-          // imperative push included — so the rail's claim comes true.
+          // is the whole point. An imperative push sits above the routed child
+          // while the nav rail stays visible and clickable beside it: a rail
+          // click would repaint that row as selected and swap the routed child
+          // underneath, leaving Pairing on screen indefinitely with only its
+          // own back arrow as the way out, landing on whatever destination the
+          // rail silently re-pointed to. As a shell route, `context.go` from
+          // the rail replaces the whole match list — the imperative push
+          // included — so the rail's claim comes true.
           GoRoute(
             path: '/pairing',
             name: 'pairing',
@@ -313,13 +309,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           // Replay Debug — the retrospective decision scrubber for one run.
           //
-          // NEW-E2: this screen used to be pushed imperatively with
-          // `Navigator.push` onto the SHELL's navigator, so it sat ABOVE the
-          // page go_router owns. Clicking a nav-rail destination changed the
-          // location underneath it — the rail repainted the new destination as
-          // selected, accent bar and all — while Replay stayed on screen. The
-          // chrome reported a destination the app had not gone to. As a real
-          // route it is part of the same match list, so `go()` replaces it.
+          // A real route rather than an imperative push onto the shell's
+          // navigator: as part of the same match list, a nav-rail `go()`
+          // replaces it instead of leaving it on screen above a location that
+          // has already changed underneath it.
           GoRoute(
             path: '/replay/:runId',
             name: 'replay',
@@ -370,9 +363,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionDuration: const Duration(milliseconds: 300),
             ),
             routes: [
-              // W6-SOLVER-UX §6.1 — dedicated plate-solver setup page.
-              // Reachable from the centering / framing / polar alignment
-              // "Plate solver not configured" banners.
+              // Dedicated plate-solver setup page. Reachable from the
+              // centering / framing / polar alignment "Plate solver not
+              // configured" banners.
               GoRoute(
                 path: 'plate-solving',
                 name: 'settings-plate-solving',
@@ -477,8 +470,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           // DEPRECATED: use /planner?tab=scheduler. Kept for one release for
-          // deep-link compatibility — Scheduler merged into Plan Tonight as
-          // a tab (§UX consolidation, W8-SCHED-MERGE).
+          // deep-link compatibility — Scheduler lives inside Plan Tonight as
+          // a tab.
           GoRoute(
             path: '/scheduler',
             name: 'scheduler',

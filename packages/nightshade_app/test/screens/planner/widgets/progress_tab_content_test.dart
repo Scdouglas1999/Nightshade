@@ -1,7 +1,6 @@
-// Verifies the new Plan Tonight → Progress tab body (W8-SCHED-MERGE).
-// The widget under test is [ProgressTabContent], which renders the
-// per-target progress / ETA / last-imaged-at rows produced by
-// allTargetProgressProvider (W8-SCHED-HISTORY).
+// Verifies the Plan Tonight → Progress tab body. The widget under test is
+// [ProgressTabContent], which renders the per-target progress / ETA /
+// last-imaged-at rows produced by allTargetProgressProvider.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,8 +1,6 @@
 part of '../projects_tab_content.dart';
 
-// =============================================================================
 // Empty / loading / error states.
-// =============================================================================
 
 class _NoProjectsState extends StatelessWidget {
   final Future<void> Function() onCreate;

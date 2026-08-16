@@ -1,12 +1,11 @@
 // Pause under the built-in guider: unavailable, and it has to SAY so.
 //
-// Live finding IMG-10 (re-opened by Wave D): with the built-in multi-star
-// guider connected and guiding, clicking Pause did nothing observable — the
-// state chip stayed "Guiding", the frame counter kept climbing, no toast, no
-// log line. The B-fix attached the explanation to a hover TOOLTIP, which is
-// invisible to the operator who clicks it and does not exist at all on touch,
-// so the click was still silence. Wave D's verdict: "Disabling the button
-// (with that text as the reason) would close this; a tooltip alone does not."
+// With the built-in multi-star guider connected and guiding, clicking Pause
+// does nothing observable — the state chip stays "Guiding", the frame counter
+// keeps climbing, no toast, no log line. A hover TOOLTIP cannot carry the
+// explanation: it is invisible to the operator who clicks, and does not exist at
+// all on touch. Only a disabled button carrying that text as its reason closes
+// this.
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';

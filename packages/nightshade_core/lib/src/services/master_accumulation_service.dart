@@ -48,8 +48,7 @@ class MasterAccumulationService {
   /// Dark-frame match tolerances, resolved from
   /// [darkLibraryMatchTolerancesProvider] at the provider boundary so this
   /// post-session accumulation matcher agrees with the coverage UI and the live
-  /// calibration path. Previously this call used the code defaults (±1.0°C),
-  /// which could silently disagree with the ±2.0°C the rest of the app uses.
+  /// calibration path, rather than the code defaults.
   final DarkLibraryMatchTolerances _darkTolerances;
 
   /// Create a new accumulating master for [targetId] / [filter] from a

@@ -39,6 +39,11 @@ void main() {
         planetPositionsProvider.overrideWithValue(const []),
       ],
     );
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     container
         .read(skyViewStateProvider.notifier)
         .setCenter(stars.first.coordinates.ra, stars.first.coordinates.dec);
@@ -120,6 +125,11 @@ void main() {
         planetPositionsProvider.overrideWithValue(const []),
       ],
     );
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
 
     Future<void> pumpWith(int views) => tester.pumpWidget(
       UncontrolledProviderScope(

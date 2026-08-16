@@ -115,12 +115,11 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
 
     final info = jsonDecode(response.body) as Map<String, dynamic>;
     // Fail-closed fingerprint pinning. When the caller pinned a fingerprint
-    // (paired rig), the server MUST advertise the same one or we refuse the
-    // connection outright — a mismatch means we're talking to a different
-    // server than the one the operator paired with (MITM, stale QR, or a
-    // re-keyed host). Throwing here propagates to [connect], which surfaces it
-    // as a terminal [BackendConnectionState.error] rather than spinning on
-    // reconnect.
+    // (paired rig), the server MUST advertise the same one or the connection is
+    // refused outright — a mismatch means a different server than the one the
+    // operator paired with (MITM, stale QR, or a re-keyed host). Throwing here
+    // propagates to [connect], which surfaces it as a terminal
+    // [BackendConnectionState.error] rather than spinning on reconnect.
     _verifyPinnedFingerprint(info['fingerprint']);
     // Surface the server instance UUID so the WS connect can decide
     // whether the seq cursor we cached on the previous attachment is still

@@ -214,11 +214,10 @@ class NetworkService {
       _attemptReconnect();
     }
 
-    // Only declare the session lost when ALL connectivity is gone. Losing
-    // WiFi while cellular remains used to drop a perfectly-good Tailscale
-    // session; now we keep it and let the heartbeat / probe decide. When
-    // WiFi drops to cellular for a tailnet host, re-probe so the session
-    // can ride the transition.
+    // Only total loss of connectivity declares the session lost. Losing WiFi
+    // while cellular remains keeps a working Tailscale session alive and lets
+    // the heartbeat decide; a WiFi->cellular switch for a tailnet host
+    // re-probes so the session rides the transition.
     if (hadConnection && !hasConnection) {
       // Lost all transport — degraded UX, surface as warning.
       developer.log('All network lost', name: 'NetworkService', level: 900);

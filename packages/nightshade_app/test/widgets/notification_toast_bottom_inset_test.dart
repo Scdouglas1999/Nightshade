@@ -1,12 +1,11 @@
-// WF-EQ-N2 — the two toast surfaces disagree about what they may paint over.
+// The two toast surfaces must agree about what they may paint over.
 //
-// WE-EQ-N2 made the contextual tour nudge declare a TransientBottomInset, and
-// the SnackBar path honours it: on Equipment the snackbar clears the nudge card
-// entirely (08-mount-toast.png). The NotificationToastOverlay — the surface
-// that carries errors — kept a hardcoded `bottom: 56`, so on the Dashboard the
-// refusal raised by clicking the disabled Edit Dashboard painted a card at
-// y 565-641 straight over the nudge card at y 578-670, covering its title and
-// body (03-editdash-click.png).
+// The contextual tour nudge declares a TransientBottomInset and the SnackBar
+// path honours it, so on Equipment the snackbar clears the nudge card entirely.
+// A NotificationToastOverlay with a hardcoded `bottom: 56` does not: on the
+// Dashboard the refusal raised by clicking the disabled Edit Dashboard paints a
+// card at y 565-641 straight over the nudge card at y 578-670, covering its
+// title and body.
 //
 // One declaration, two consumers, one behaviour: the overlay reads the same
 // notifier the snackbar helper reads.
@@ -85,7 +84,7 @@ void main() {
     expect(
       after,
       greaterThanOrEqualTo(240),
-      reason: 'WF-EQ-N2: the toast must clear the card that declared the inset',
+      reason: 'the toast must clear the card that declared the inset',
     );
     expect(after, greaterThan(before));
   });

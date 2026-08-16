@@ -360,9 +360,8 @@ Future<void> _waitUntil(
 ///     createDataChannel / addCandidate / close
 ///   * onIceCandidate / onIceGatheringState / onConnectionState setters
 ///
-/// All other members throw `UnimplementedError` — if the production
-/// code starts calling them, the failure should be loud (the CONTRIBUTING.md house rules:
-/// errors are a feature).
+/// All other members throw `UnimplementedError`, so production code reaching
+/// past the modelled surface fails visibly instead of silently receiving null.
 class _FakePeerConnection implements RTCPeerConnection {
   final Map<String, dynamic> config;
   _FakePeerConnection({required this.config});

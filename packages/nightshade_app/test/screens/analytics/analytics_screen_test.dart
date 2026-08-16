@@ -1,5 +1,5 @@
-// Tests for the Analytics screen tab structure after Diagnostics was merged
-// in as a tab (§UX consolidation). We don't spin up the full Riverpod graph
+// Tests for the Analytics screen tab structure, Diagnostics tab included.
+// We don't spin up the full Riverpod graph
 // (which would require a real drift database, an Ffi backend, and the full
 // event bus). Instead we override the stream providers each tab reads with
 // deterministic test doubles that emit a single empty list, so the tab
@@ -262,11 +262,9 @@ void main() {
     await settleProviderTeardown(tester);
   });
 
-  // The Share action used to throw
-  // "UnimplementedError: shareXFiles() has not been implemented on Linux" into
-  // a red toast on the shipping desktop build, after already writing an
-  // orphaned CSV. It is now offered only where an OS share sheet exists; the
-  // CSV button beside it covers desktop.
+  // Share is offered only where an OS share sheet exists: `shareXFiles()` is
+  // unimplemented on the shipping desktop build. The CSV button beside it
+  // covers desktop.
   testWidgets('desktop session detail offers no Share action', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
@@ -324,10 +322,8 @@ void main() {
     await settleProviderTeardown(tester);
   }, skip: Platform.isAndroid || Platform.isIOS);
 
-  // ===========================================================================
   // Phone responsiveness: the six-tab bar must not overflow on a phone in
   // either orientation, and every tab must remain reachable (the bar scrolls).
-  // ===========================================================================
   group('Analytics phone responsiveness (AdaptiveTabBar)', () {
     Future<void> pumpAt(WidgetTester tester, Size size) async {
       tester.view.devicePixelRatio = 1.0;

@@ -1,9 +1,7 @@
 part of '../bridge_stub.dart';
 
 extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
-  // =========================================================================
-  // Device Connection
-  // =========================================================================
+  // Device connection
 
   DriverType? _inferDriverTypeFromDeviceId(String deviceId) {
     if (deviceId.startsWith('ascom:')) return DriverType.ascom;
@@ -84,9 +82,7 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
       return;
     }
 
-    // =========================================================================
-    // Native Bridge Connection (ASCOM, Alpaca, INDI, native vendor SDKs)
-    // =========================================================================
+    // Native bridge connection (ASCOM, Alpaca, INDI, native vendor SDKs)
     // Rust owns every device family, so a missing native bridge is a hard
     // failure rather than a reason to try a second implementation.
     if (!_nativeAvailable) {
@@ -143,11 +139,10 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
       await phd2Disconnect();
     } else if (_nativeAvailable) {
       // Connects are authoritative in Rust, so their matching disconnect must
-      // cross the same FFI boundary. Previously this method only deleted the
-      // Dart bookkeeping below. The UI and headless endpoint therefore
-      // reported success while `api_get_connected_devices` still returned
-      // every device and the native drivers stayed open. A Rust disconnect
-      // failure must surface instead of claiming success.
+      // cross the same FFI boundary: clearing only the Dart bookkeeping below
+      // leaves the native driver open while every surface reports the device
+      // disconnected. A Rust disconnect failure surfaces rather than claiming
+      // success.
       try {
         await gen_api.apiDisconnectDevice(
           deviceType: _toGenDeviceType(deviceType),

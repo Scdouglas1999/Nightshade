@@ -7,12 +7,11 @@ import '../harness/pump_app_screen.dart';
 
 /// The finished-run summary must clear itself, seen from the rendered overlay.
 ///
-/// [AutofocusProgressOverlay] is mounted once in the app shell, so nothing tore
-/// it down when a run ended: the result pill floated over the bottom-right of
-/// every screen the operator then visited — the Guiding tour card, the Framing
-/// rotation controls — until they found its X. A FAILED run is the opposite
-/// case: its status line is the only place the failure reason is written, so it
-/// has to stay.
+/// [AutofocusProgressOverlay] is mounted once in the app shell, so nothing tears
+/// it down when a run ends: without a self-clear the result pill floats over the
+/// bottom-right of every screen the operator then visits. A FAILED run is the
+/// opposite case — its status line is the only place the failure reason is
+/// written, so it has to stay.
 ///
 /// The countdown itself lives in AutofocusOverlayNotifier (nightshade_core).
 /// These tests deliberately assert through the widget instead: what the

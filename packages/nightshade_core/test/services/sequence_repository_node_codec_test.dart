@@ -1,10 +1,10 @@
-// P0 regression — the DB sequence repository encoded five palette-reachable
-// node types (OpenCover / CloseCover / CalibratorOn / CalibratorOff /
-// SciencePhotometry) but had NO matching decoder case, so `_dbNodeToModel`
-// returned null and `loadSequence` threw a StateError — losing the ENTIRE
-// saved sequence. The cover/calibrator config was also dropped on encode.
-// This drives a real in-memory database through saveSequence -> loadSequence
-// and asserts every field round-trips.
+// The DB sequence repository decodes every palette-reachable node type it
+// encodes. Five of them (OpenCover / CloseCover / CalibratorOn / CalibratorOff /
+// SciencePhotometry) without a matching decoder case make `_dbNodeToModel`
+// return null and `loadSequence` throw a StateError, losing the ENTIRE saved
+// sequence; the cover/calibrator config also has to survive the encode. This
+// drives a real in-memory database through saveSequence -> loadSequence and
+// asserts every field round-trips.
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';

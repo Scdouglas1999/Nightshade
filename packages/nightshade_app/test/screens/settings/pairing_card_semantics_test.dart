@@ -1,15 +1,15 @@
-// WE-SP-3 / WE-SP-4, from the live pairing walk.
+// Two ways the pairing card fails its reader.
 //
-// WE-SP-3: with no paired devices the instruction "Start pairing mode to
-// connect a device" was painted in `colorScheme.outline` — a border colour. On
-// the captured frame its brightest glyph pixel measured rgb(43,49,59) against a
-// rgb(24,28,34) card: 1.31:1, where AA body text needs 4.5:1.
+// Contrast: with no paired devices, painting the instruction "Start pairing mode
+// to connect a device" in `colorScheme.outline` — a border colour — gives a
+// brightest glyph pixel of rgb(43,49,59) against a rgb(24,28,34) card, 1.31:1,
+// where AA body text needs 4.5:1.
 //
-// WE-SP-4: while pairing mode ran, the whole card collapsed into ONE semantics
-// node with role button, named by four unrelated strings —
-// "Pair New Device / Enter this code on your device: / Expires in 04:53 /
-// Cancel Pairing" — and the copy-the-code control had no accessible node, no
-// name, and produced no visible change when clicked.
+// Semantics: while pairing mode runs, the whole card can collapse into ONE node
+// with role button, named by four unrelated strings — "Pair New Device / Enter
+// this code on your device: / Expires in 04:53 / Cancel Pairing" — with the
+// copy-the-code control carrying no accessible node, no name, and producing no
+// visible change when clicked.
 import 'dart:math' as math;
 
 import 'package:drift/native.dart';
@@ -160,12 +160,11 @@ void main() {
     handle.dispose();
   });
 
-  // WF-SS-N1: the button WE-SP-4 introduced was painted worse than the
-  // empty-state WE-SP-3 fixed. `ButtonVariant.ghost` draws its label in
-  // `textSecondary` rgb(154,163,173) and paints no fill until hover, so the
-  // only copy affordance sat directly on the card's `primaryContainer` fill
-  // rgb(91,158,196) at 1.15:1 — a legible confirmation chip AFTER the click,
-  // and a disabled-looking ghost before it.
+  // The copy control's own contrast. `ButtonVariant.ghost` draws its label in
+  // `textSecondary` rgb(154,163,173) and paints no fill until hover, so on the
+  // card's `primaryContainer` fill rgb(91,158,196) the only copy affordance
+  // sits at 1.15:1 — a legible confirmation chip AFTER the click, and a
+  // disabled-looking ghost before it.
   testWidgets('the copy-code label is readable where it sits', (tester) async {
     final database = PairingDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);

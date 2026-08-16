@@ -163,65 +163,68 @@ void main() {
       return rows.map((r) => r.read<String>('name')).toSet();
     }
 
-    test('adds the WS1/WS2/WS3 columns, the co_imaging_sessions table and its '
-        'unique index on upgrade', () async {
-      final tempDir = await Directory.systemTemp.createTemp(
-        'nightshade_v55_v56_schema_',
-      );
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV55Database(tempDir);
+    test(
+      'adds the collaboration columns, the co_imaging_sessions table and its '
+      'unique index on upgrade',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v55_v56_schema_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV55Database(tempDir);
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        expect(
-          await columnNames(upgraded, 'calibration_tags'),
-          containsAll(<String>[
-            'shared_by',
-            'shared_at',
-            'license',
-            'provenance_json',
-            'published_remote_id',
-          ]),
-        );
-        expect(
-          await columnNames(upgraded, 'mosaic_panels'),
-          containsAll(<String>[
-            'assigned_rig_id',
-            'assigned_user_id',
-            'claim_token',
-            'uploaded_master_id',
-          ]),
-        );
-        expect(
-          await columnNames(upgraded, 'mosaic_projects'),
-          containsAll(<String>[
-            'hub_mosaic_id',
-            'collab_role',
-            'collab_status',
-          ]),
-        );
-        expect(
-          await indexNames(upgraded),
-          contains('idx_mosaic_projects_hub'),
-          reason: 'the hub_mosaic_id lookup index must exist',
-        );
-        expect(
-          await columnNames(upgraded, 'constellation_contributions'),
-          contains('session_id'),
-        );
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          expect(
+            await columnNames(upgraded, 'calibration_tags'),
+            containsAll(<String>[
+              'shared_by',
+              'shared_at',
+              'license',
+              'provenance_json',
+              'published_remote_id',
+            ]),
+          );
+          expect(
+            await columnNames(upgraded, 'mosaic_panels'),
+            containsAll(<String>[
+              'assigned_rig_id',
+              'assigned_user_id',
+              'claim_token',
+              'uploaded_master_id',
+            ]),
+          );
+          expect(
+            await columnNames(upgraded, 'mosaic_projects'),
+            containsAll(<String>[
+              'hub_mosaic_id',
+              'collab_role',
+              'collab_status',
+            ]),
+          );
+          expect(
+            await indexNames(upgraded),
+            contains('idx_mosaic_projects_hub'),
+            reason: 'the hub_mosaic_id lookup index must exist',
+          );
+          expect(
+            await columnNames(upgraded, 'constellation_contributions'),
+            contains('session_id'),
+          );
 
-        expect(await tableExists(upgraded, 'co_imaging_sessions'), isTrue);
-        expect(
-          await indexNames(upgraded),
-          contains('idx_coimaging_sessions_key'),
-          reason: 'the unique (hub_key, session_id) index must exist',
-        );
-      } finally {
-        await upgraded.close();
-      }
-    });
+          expect(await tableExists(upgraded, 'co_imaging_sessions'), isTrue);
+          expect(
+            await indexNames(upgraded),
+            contains('idx_coimaging_sessions_key'),
+            reason: 'the unique (hub_key, session_id) index must exist',
+          );
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
     test(
       'co_imaging_sessions round-trips a membership via the DAO after upgrade',
@@ -353,7 +356,7 @@ void main() {
     });
 
     test(
-      'WS2 mosaic collab columns round-trip through the DAOs after upgrade',
+      'mosaic collab columns round-trip through the DAOs after upgrade',
       () async {
         final tempDir = await Directory.systemTemp.createTemp(
           'nightshade_v55_v56_mosaic_',
@@ -392,7 +395,7 @@ void main() {
           project = await projectsDao.getById(projectId);
           expect(project!.collabStatus, 'assembling');
 
-          // Panel: claim then upload persist the WS2 columns.
+          // Panel: claim then upload persist the collaboration columns.
           await panelsDao.setClaim(
             panelId,
             claimToken: 'baton-0',

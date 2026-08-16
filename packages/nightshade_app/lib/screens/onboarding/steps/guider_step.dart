@@ -37,12 +37,11 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
 
   /// The `host:port` the last test actually probed.
   ///
-  /// The result line is only shown while the fields still read the same
-  /// endpoint. Editing the host after a green "PHD2 reachable. Selection
-  /// saved." left that sentence on screen describing a different machine — and
-  /// the guider stored in the draft (plus the phd2Host/phd2Port settings the
-  /// connect path reads) was still the *old* address, so the user carried on
-  /// believing the box they were now looking at had been verified and saved.
+  /// The verdict belongs to the address that was probed, so the result line is
+  /// only shown while the fields still read the same endpoint. Editing the host
+  /// after a green "PHD2 reachable. Selection saved." would leave that sentence
+  /// describing a different machine, while the draft — and the phd2Host/phd2Port
+  /// settings the connect path reads — still hold the old one.
   String? _testedEndpoint;
 
   String get _currentEndpoint =>

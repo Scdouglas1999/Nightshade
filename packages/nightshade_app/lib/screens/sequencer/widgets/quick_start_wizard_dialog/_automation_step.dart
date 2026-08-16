@@ -1,12 +1,9 @@
-// Part of ../quick_start_wizard_dialog.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../quick_start_wizard_dialog.dart';
 
 extension _AutomationStep on _QuickStartWizardDialogState {
-  // ===========================================================================
   // STEP 3: AUTOMATION
-  // ===========================================================================
 
   Widget _buildAutomationStep(NightshadeColors colors) {
     return Column(

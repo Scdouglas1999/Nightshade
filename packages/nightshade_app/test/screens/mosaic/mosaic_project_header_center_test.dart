@@ -114,8 +114,8 @@ void main() {
       ]),
     );
 
-    // 5.55h and 5.65h average to 5.60h = 05:36:00. (Field-wise rounding used
-    // to render this same value as the impossible '05:35:60.00'.)
+    // 5.55h and 5.65h average to 5.60h = 05:36:00. Field-wise rounding renders
+    // this same value as the impossible '05:35:60.00'.
     expect(subtitle, contains('05:36:00.00'));
     // One convention, axis-labelled, shared with the Collaborate card.
     expect(subtitle, contains('2 wide × 1 high'));
@@ -139,8 +139,8 @@ void main() {
   testWidgets(
       'a sparse grid (cells disabled in the wizard) reports the '
       'panels that exist, not rows x cols', (tester) async {
-    // A 3x3 project created with one corner disabled persists 8 panels. The
-    // header used to say "9 panels" right above a grid of 8 and an action row
+    // A 3x3 project created with one corner disabled persists 8 panels, so the
+    // header must not say "9 panels" above a grid of 8 and an action row
     // reading "… of 8 panels integrated".
     final subtitle = await pumpHeaderSubtitle(
       tester,

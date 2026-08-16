@@ -21,9 +21,8 @@ class PlanetaryPositions {
 
   /// Convert DateTime to Julian Date.
   ///
-  /// Kept as a name on this class because the VSOP87 code and its callers
-  /// read as one unit; the arithmetic is [AstronomyCalculations.julianDate],
-  /// of which this used to be a byte-for-byte copy.
+  /// Kept as a name on this class because the VSOP87 code and its callers read
+  /// as one unit; the arithmetic is [AstronomyCalculations.julianDate].
   static double julianDate(DateTime dt) => AstronomyCalculations.julianDate(dt);
 
   /// Convert ecliptic to equatorial coordinates

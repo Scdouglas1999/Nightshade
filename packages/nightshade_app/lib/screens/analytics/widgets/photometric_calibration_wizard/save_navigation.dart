@@ -70,9 +70,7 @@ extension _PhotometricWizardSaveNavigation
     );
   }
 
-  // =========================================================================
   // Navigation
-  // =========================================================================
 
   Widget _buildNavigationButtons(NightshadeColors colors) {
     final isBusy = _isComputing || _isSaving;

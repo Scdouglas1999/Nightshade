@@ -32,9 +32,7 @@ class SuggestionHandlers {
     return parsed;
   }
 
-  // ===========================================================================
-  // Get Suggestions For Tonight
-  // ===========================================================================
+  // Get suggestions for tonight
 
   Future<Response> handleGetSuggestionsForTonight(Request request) async {
     _logInfo('[API] GET /api/suggestions/tonight');
@@ -63,8 +61,7 @@ class SuggestionHandlers {
           max: _maxSuggestionResults,
         ) ??
         20;
-    // Preserve the handler's historical absent default (false) but reject a
-    // non-boolean supplied value instead of silently reading it as false.
+    // Absent means false; a supplied non-boolean is a 400.
     final prioritizeIncomplete =
         optionalQueryBool(query, 'prioritizeIncomplete') ?? false;
 
@@ -153,9 +150,7 @@ class SuggestionHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Suggestion Config
-  // ===========================================================================
+  // Get suggestion config
 
   Future<Response> handleGetConfig(Request request) async {
     _logInfo('[API] GET /api/suggestions/config');
@@ -174,9 +169,7 @@ class SuggestionHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Target Score
-  // ===========================================================================
+  // Get target score
 
   Future<Response> handleGetTargetScore(
     Request request,
@@ -240,9 +233,7 @@ class SuggestionHandlers {
     });
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   Map<String, dynamic> _suggestionToJson(TargetSuggestion s) {
     return {

@@ -14,8 +14,8 @@ import 'package:permission_handler/permission_handler.dart';
 ///   * `null` — operator backed out before a confirmed scan.
 ///
 /// Anything that fails validation surfaces as a snackbar inside the scanner
-/// and resumes scanning; the audit specifically calls out that the previous
-/// `startsWith('{')` check was too permissive and let arbitrary JSON through.
+/// and resumes scanning. Validation is a full schema check, never a
+/// `startsWith('{')` sniff, which would admit arbitrary JSON.
 class QrScannerScreen extends StatefulWidget {
   final Future<PermissionStatus> Function()? requestCameraPermission;
 

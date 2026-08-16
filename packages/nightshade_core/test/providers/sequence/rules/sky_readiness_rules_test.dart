@@ -1,13 +1,12 @@
-/// Pre-flight has to answer three questions it used to get wrong before the
-/// operator commits a night:
+/// Pre-flight answers three questions before the operator commits a night:
 ///
-///  * SEQ-3  — the executor's daylight gate refuses EVERY light frame while the
-///    Sun is up, and the run dies in the same millisecond with zero frames. The
-///    dialog said "Ready with Warnings" beside a green "Start Anyway".
-///  * SCI-39 — with no observing site the gate cannot run at all. Absent is
-///    UNKNOWN, not Null Island, and pre-flight must name the real reason.
-///  * SEQ-16 — a target with coordinates and no Slew/Center instruction exposes
-///    wherever the mount was left and files the frames under the target's name.
+///  * The executor's daylight gate refuses EVERY light frame while the Sun is
+///    up, and the run dies in the same millisecond with zero frames — so the
+///    dialog must not read "Ready with Warnings" beside a green "Start Anyway".
+///  * With no observing site the gate cannot run at all. Absent is UNKNOWN, not
+///    Null Island, and pre-flight names the real reason.
+///  * A target with coordinates and no Slew/Center instruction exposes wherever
+///    the mount was left and files the frames under the target's name.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -96,8 +95,7 @@ Sequence _lightRun({
 }
 
 void main() {
-  // Local mid-morning at lon -105: 2026-08-11 16:10 UTC is 10:10 local, the
-  // exact clock the SEQ-3 repro ran at.
+  // Local mid-morning at lon -105: 16:10 UTC is 10:10 local.
   DateTime daytime() => DateTime.utc(2026, 8, 11, 16, 10);
   DateTime night() => DateTime.utc(2026, 8, 11, 8, 10);
 

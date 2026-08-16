@@ -76,11 +76,10 @@ abstract class UpdateManifest with _$UpdateManifest {
   /// Check if this build supersedes [currentVersion]+[currentBuild].
   ///
   /// Newer when the semver is strictly newer, OR the semver is identical
-  /// and this manifest's [buildNumber] is greater. This lets same-semver
-  /// hotfix builds be offered while never offering an identical
-  /// version+build (which would loop a self-update). [isNewerThan]'s
-  /// semver-only contract is intentionally left untouched for callers that
-  /// want pure string ordering.
+  /// and this manifest's [buildNumber] is greater, so a rebuild of the same
+  /// semver is offered while an identical version+build never is (that would
+  /// loop a self-update). [isNewerThan] keeps a semver-only contract for
+  /// callers that want pure string ordering.
   bool isNewerBuildThan(String currentVersion, int currentBuild) {
     final cmp = _compareVersions(version, currentVersion);
     if (cmp != 0) return cmp > 0;

@@ -1,10 +1,7 @@
-// Part of ../node_properties_panel.dart -- extracted for maintainability.
-//
 // The node-type badge shown in property-panel headers. The form primitives
 // (text/number/toggle/dropdown inputs, property-field wrapper, quick-time and
-// destructive-action buttons) now live in the public `node_property_widgets.dart`
-// library — the panel imports them directly, so the formerly-duplicated private
-// copies that lived here have been removed in favour of a single source of truth.
+// destructive-action buttons) live in the public `node_property_widgets.dart`
+// library, which the panel imports directly.
 part of '../node_properties_panel.dart';
 
 class _NodeTypeBadge extends StatelessWidget {

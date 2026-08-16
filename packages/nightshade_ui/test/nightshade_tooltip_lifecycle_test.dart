@@ -76,10 +76,9 @@ void main() {
     expect(find.text(message), findsOneWidget);
 
     // Leave, and leave again a frame later: the second reverse() cancels the
-    // first one's TickerFuture. Under the old `.then()` retirement the hide
-    // scheduled by the first call was dropped and the second call's future
-    // completed against an already-dismissed controller, leaving the portal
-    // mounted forever.
+    // first one's TickerFuture. A `.then()` retirement drops the hide the first
+    // call scheduled and completes the second against an already-dismissed
+    // controller, leaving the portal mounted forever.
     await gesture.moveTo(const Offset(5, 5));
     await tester.pump(const Duration(milliseconds: 40));
     await gesture.moveTo(const Offset(6, 6));

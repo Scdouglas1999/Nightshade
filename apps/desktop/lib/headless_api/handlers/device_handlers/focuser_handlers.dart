@@ -3,30 +3,23 @@ part of '../device_handlers.dart';
 extension FocuserDeviceHandlers on DeviceHandlers {
   /// Reject a focuser target that lies outside the driver's advertised travel.
   ///
-  /// Why: `requireInt(..., min: 0)` guarded only the lower bound, so a target
-  /// above `maxPosition` was accepted and answered `200 {"status":"moving"}`.
-  /// Observed on the rig against an ASCOM focuser advertising
-  /// `maxPosition: 50000`: `move-to 999999` was accepted, and `move-relative`
-  /// with `delta: 900000` drove the focuser for roughly 40 seconds before the
-  /// driver silently clamped it at 50000 — so a mistyped extra zero became a
-  /// long blind run to the mechanical limit that reported success and ended
-  /// somewhere the operator never asked for. Drivers are not required to clamp;
-  /// one that does not would be commanded into its end stop. The negative case
-  /// was already refused with a precise 400, so only the upper half of the same
-  /// check was missing.
+  /// A target above `maxPosition` must be refused, not forwarded: on an ASCOM
+  /// focuser advertising `maxPosition: 50000`, `move-relative delta: 900000`
+  /// ran the focuser blind for roughly 40 seconds before the driver clamped it
+  /// at 50000, so a mistyped extra zero reported success and ended somewhere
+  /// the operator never asked for. Drivers are not required to clamp; one that
+  /// does not would be commanded into its end stop.
   ///
   /// `maxPosition <= 0` means the driver advertised no travel range (its
   /// `MaxStep` threw `PropertyNotImplementedException`), so there is nothing to
-  /// validate against and the request is passed through untouched.
+  /// validate against and the request passes through untouched. A null
+  /// [status] means the read itself failed — same outcome, see
+  /// [_tryFocuserStatus].
   ///
   /// Takes the already-read [status] rather than fetching its own: a relative
   /// move needs the current position anyway, and ASCOM focusers are polled over
   /// COM, so reading the same status twice per request would double the driver
   /// traffic and the chance of hitting a transient property fault.
-  ///
-  /// A null [status] means the status read itself failed, in which case there is
-  /// no bound to check against and the request passes through — see
-  /// [_tryFocuserStatus].
   void _requireWithinTravel({
     required String deviceId,
     required FocuserStatus? status,
@@ -52,12 +45,10 @@ extension FocuserDeviceHandlers on DeviceHandlers {
 
   /// Read focuser status for the range check, tolerating a failed read.
   ///
-  /// Why it must not propagate: before the range check existed the move went
-  /// straight to the driver, so letting an unreadable status turn into a failed
-  /// move would invent a new way for a previously working operation to fail —
-  /// and on a USB-contended rig a focuser status poll can transiently fault
-  /// while the move itself would have succeeded. Returning null skips the guard
-  /// and lets the driver arbitrate, exactly as it did before.
+  /// A failed read must not propagate: on a USB-contended rig a focuser status
+  /// poll can transiently fault while the move itself would have succeeded, so
+  /// turning that into a failed move would refuse a move the driver would have
+  /// accepted. Returning null skips the guard and lets the driver arbitrate.
   Future<FocuserStatus?> _tryFocuserStatus(String deviceId) async {
     try {
       return await container
@@ -120,7 +111,7 @@ extension FocuserDeviceHandlers on DeviceHandlers {
     // A relative move is only meaningful against the current position, so the
     // range check is applied to the resolved target rather than to the delta.
     // Without a readable position there is no target to check, so the guard is
-    // skipped rather than failing a move that used to work.
+    // skipped rather than failing a move the driver would accept.
     final status = await _tryFocuserStatus(deviceId);
     if (status != null) {
       final current = status.position;
@@ -231,9 +222,8 @@ extension FocuserDeviceHandlers on DeviceHandlers {
 
     // register the command so any later event with a matching
     // operation kind picks up `correlatingCommandId`. We still register
-    // even in the new job-model path because the event correlator's
-    // matching is independent of the job's own jobId — they evolve in
-    // parallel (the audit's §3 lays out the rationale).
+    // even in the job-model path because the event correlator's matching is
+    // independent of the job's own jobId — the two evolve in parallel.
     final commandId = commandCorrelator?.beginCommand(
       operation: 'focuser.autofocus.start',
       deviceId: deviceId,

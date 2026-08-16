@@ -295,13 +295,10 @@ void main() {
     );
 
     // A device the driver registry still holds must ALWAYS be releasable.
-    // `handleDisconnectDevice` used to gate purely on the equipment state
-    // notifier, which is a mirror of the registry and can lose the device (a
-    // stale `Disconnected` event for another device of the same type wipes the
-    // whole slot). On the rig that left an ASCOM focuser listed by
-    // `/api/devices/connected` and answering `status` with
-    // `{"connected":true,"position":35840,...}` while every disconnect returned
-    // `device_not_connected` — the driver was releasable only by restarting.
+    // Gating on the equipment state notifier alone is not enough: it mirrors
+    // the registry and can lose a device when a stale `Disconnected` event for
+    // another device of the same type wipes the slot, which would strand an
+    // open driver that `/api/devices/connected` still lists.
     group('disconnect falls back to the driver registry', () {
       Future<(Response, _RegistryBackend)> disconnect(
         String deviceId,

@@ -11,9 +11,7 @@ import 'package:flutter/material.dart';
 abstract final class NightshadeTokens {
   NightshadeTokens._();
 
-  // ===========================================================================
-  // Spacing Scale (based on 4px grid)
-  // ===========================================================================
+  // Spacing scale (based on 4px grid)
 
   /// 4px - Tight spacing for dense UIs
   static const double spaceXs = 4.0;
@@ -42,9 +40,7 @@ abstract final class NightshadeTokens {
   /// 64px - Large section spacing
   static const double space5xl = 64.0;
 
-  // ===========================================================================
-  // Edge Insets (Padding/Margin)
-  // ===========================================================================
+  // Edge insets (padding/margin)
 
   static const EdgeInsets paddingXs = EdgeInsets.all(spaceXs);
   static const EdgeInsets paddingSm = EdgeInsets.all(spaceSm);
@@ -83,9 +79,7 @@ abstract final class NightshadeTokens {
     vertical: spaceMd,
   );
 
-  // ===========================================================================
-  // Border Radius Scale
-  // ===========================================================================
+  // Border radius scale
 
   // Corner radii are deliberately tighter than the common 8/12/16 "soft card"
   // defaults. Crisper corners read as a precision instrument rather than a
@@ -114,9 +108,7 @@ abstract final class NightshadeTokens {
   /// Fully rounded (for circular elements)
   static const double radiusFull = 999.0;
 
-  // ---------------------------------------------------------------------------
-  // In-use migration radii (value-preserving; pending scale consolidation)
-  // ---------------------------------------------------------------------------
+  // In-use migration radii (value-preserving)
   //
   // The named scale above (3/5/6/7/10/13) is the GO-FORWARD design intent, but
   // the screen layer still carries ~1150 hardcoded `BorderRadius.circular(n)`
@@ -179,9 +171,7 @@ abstract final class NightshadeTokens {
     radiusInline11,
   );
 
-  // ===========================================================================
-  // Animation Durations
-  // ===========================================================================
+  // Animation durations
 
   /// 100ms - Micro interactions (hover color changes)
   static const Duration durationMicro = Duration(milliseconds: 100);
@@ -213,9 +203,7 @@ abstract final class NightshadeTokens {
   /// 2000ms - Pulse animation cycle (status indicators)
   static const Duration durationPulse = Duration(milliseconds: 2000);
 
-  // ===========================================================================
-  // Animation Curves
-  // ===========================================================================
+  // Animation curves
 
   /// Standard easing curve for most animations
   static const Curve curveStandard = Curves.easeInOut;
@@ -241,9 +229,7 @@ abstract final class NightshadeTokens {
   /// Settle curve with slight overshoot for toggles/switches
   static const Curve curveSettle = Curves.easeOutBack;
 
-  // ===========================================================================
-  // Icon Sizes
-  // ===========================================================================
+  // Icon sizes
 
   /// 14px - Inline icons
   static const double iconXs = 14.0;
@@ -263,9 +249,7 @@ abstract final class NightshadeTokens {
   /// 48px - Hero icons
   static const double icon2xl = 48.0;
 
-  // ===========================================================================
-  // Responsive Breakpoints
-  // ===========================================================================
+  // Responsive breakpoints
 
   /// Mobile: 0 - 480px
   static const double breakpointMobile = 480.0;
@@ -282,9 +266,7 @@ abstract final class NightshadeTokens {
   /// Ultra-wide: 1440px+
   static const double breakpointUltraWide = 1920.0;
 
-  // ===========================================================================
-  // Component Sizes
-  // ===========================================================================
+  // Component sizes
 
   /// Standard button height
   static const double buttonHeight = 40.0;
@@ -312,18 +294,11 @@ abstract final class NightshadeTokens {
 
   /// Minimum touch target, in logical pixels.
   ///
-  /// 48, not 44. This was 44 — the iOS HIG figure — while its doc comment also
-  /// claimed "Material accessibility"; Material's own minimum is 48, so every
-  /// control that correctly reached for this token still failed Android's rule
-  /// by 4dp. Measured on device: a dashboard control at 36x36, guiding chips at
-  /// 46x21, an equipment CTA at 312x7 sitting below the fold on a 360x640
-  /// screen. 48 satisfies both platforms, which is the point of having one
-  /// token.
+  /// 48, not 44: the iOS HIG figure is 44 and Material's minimum is 48, so 48
+  /// satisfies both platforms — which is the point of having one token.
   static const double minTouchTarget = 48.0;
 
-  // ===========================================================================
-  // Shadows & Elevation
-  // ===========================================================================
+  // Shadows & elevation
   //
   // Cards use borders for separation — not box shadows.
   // Shadows are reserved for floating overlays (menus, toasts, modals, drag
@@ -344,9 +319,7 @@ abstract final class NightshadeTokens {
     BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, 8)),
   ];
 
-  // ===========================================================================
-  // Elevation System (Dark Theme Optimized)
-  // ===========================================================================
+  // Elevation system (dark theme)
 
   /// Level 1 - Reserved for tonal separation; cards rely on borders instead.
   static const List<BoxShadow> elevationLevel1 = [];
@@ -373,9 +346,7 @@ abstract final class NightshadeTokens {
   /// Transition shadow from level 1 to level 2 (for hover animations)
   static const List<BoxShadow> elevationLevel1to2 = elevationLevel2;
 
-  // ===========================================================================
-  // Opacity Levels
-  // ===========================================================================
+  // Opacity levels
 
   /// Disabled state opacity
   static const double opacityDisabled = 0.38;
@@ -419,9 +390,7 @@ abstract final class NightshadeTokens {
   /// Darken amount for filled button border
   static const double buttonBorderDarken = 0.12;
 
-  // ===========================================================================
-  // Panel Row Layout (imaging side panel)
-  // ===========================================================================
+  // Panel row layout (imaging side panel)
 
   /// Internal padding for grouped panel sections in the imaging side panel.
   static const double panelSectionPadding = 14.0;

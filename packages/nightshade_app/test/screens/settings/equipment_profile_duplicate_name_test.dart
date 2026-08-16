@@ -1,10 +1,10 @@
-// Regression: Settings › Equipment Profiles › Duplicate offered a fixed
-// '<name> (Copy)' and accepted it unchecked, so duplicating the same profile
-// twice wrote two rows with byte-identical names. The list, the status-bar
-// profile chip and every profile picker show only the name, so once one of the
-// twins was active the operator could not tell which rig was loaded. Import
-// has always resolved collisions with a '(n)' suffix; Duplicate now uses that
-// same rule and refuses a name that is already in use.
+// Settings › Equipment Profiles › Duplicate must not offer a fixed
+// '<name> (Copy)' and accept it unchecked: duplicating the same profile twice
+// then writes two rows with byte-identical names, and since the list, the
+// status-bar profile chip and every profile picker show only the name, an
+// operator with one of the twins active cannot tell which rig is loaded.
+// Duplicate uses Import's '(n)' suffix rule and refuses a name already in
+// use.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

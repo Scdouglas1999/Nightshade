@@ -74,7 +74,7 @@ void main() {
     () async {
       final container = createContainer([zenithAtBreakfast, usableInDarkness]);
 
-      final best = await container.read(bestTargetsProvider.future);
+      final best = (await container.read(bestTargetsProvider.future))!;
 
       expect(best, isNotEmpty);
       expect(
@@ -92,7 +92,7 @@ void main() {
   test('every target the card offers has dark hours and a dark peak', () async {
     final container = createContainer([zenithAtBreakfast, usableInDarkness]);
 
-    final best = await container.read(bestTargetsProvider.future);
+    final best = (await container.read(bestTargetsProvider.future))!;
 
     for (final target in best) {
       expect(target.hoursInDarkness, greaterThan(0));
@@ -139,7 +139,7 @@ void main() {
         apertureMm: 200,
       ),
     );
-    final narrow = await container.read(bestTargetsProvider.future);
+    final narrow = (await container.read(bestTargetsProvider.future))!;
     expect(narrow.first.object.id, 'SMALL');
 
     fov.setRig(
@@ -151,7 +151,7 @@ void main() {
       ),
     );
     container.invalidate(bestTargetsProvider);
-    final wide = await container.read(bestTargetsProvider.future);
+    final wide = (await container.read(bestTargetsProvider.future))!;
     expect(wide.first.object.id, 'LARGE');
   });
 }

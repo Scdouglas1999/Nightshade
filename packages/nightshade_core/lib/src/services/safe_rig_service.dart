@@ -21,8 +21,8 @@ import '../providers/ui_notification_provider.dart';
 /// or more attempted steps threw; in that case [SafeRigService.safeTheRig]
 /// also throws a [SafeRigException] AFTER attempting every remaining step —
 /// safing the rig must never short-circuit (a dome-close failure must not skip
-/// the mount park, and vice-versa). Errors are a feature: they surface loudly
-/// via the critical notification and the thrown exception.
+/// the mount park, and vice-versa). Failures surface through the critical
+/// notification and the thrown exception.
 @immutable
 class SafeRigResult {
   /// True when the running sequence was paused (it was running and the
@@ -35,9 +35,8 @@ class SafeRigResult {
   /// True when the independent secondary capture loop acknowledged stop.
   ///
   /// Only set when a secondary rig was actually armed. A stop command sent to a
-  /// rig that was never running is not an action that protected anything, and
-  /// reporting it as one ("secondary rig stopped") describes work that never
-  /// happened.
+  /// rig that is not running protects nothing, and reporting it as one
+  /// ("secondary rig stopped") describes work that did not happen.
   final bool secondaryRigQuiesced;
 
   /// True when the mount park command was issued successfully.
@@ -480,10 +479,9 @@ class SafeRigService {
       return;
     }
 
-    // Report ONLY what was actually done. A step that was skipped because its
-    // device is not connected is not an accomplishment, and listing it (the old
-    // "mount already safe" for an absent mount) told operators the rig was
-    // secure when nothing had been commanded at all.
+    // Report ONLY what was actually done. A step skipped because its device is
+    // not connected is not an accomplishment: listing it tells the operator the
+    // rig is secure when nothing was commanded.
     final steps = <String>[];
     if (result.sequencePaused) steps.add('sequence paused');
     if (result.exposureAborted) steps.add('exposure aborted');
@@ -502,12 +500,10 @@ class SafeRigService {
 
     if (steps.isEmpty) {
       // Not a safing event: no run was active and no device answered, so
-      // nothing was commanded. The old text posted this at CRITICAL as
-      // "Rig safed: no action was possible" — one sentence asserting both
-      // that the rig had been secured and that nothing had been possible. On
-      // an idle, disconnected app (weather safety resolves fail-closed to
-      // unsafe when no weather source exists) that red alert was all the
-      // operator saw.
+      // nothing was commanded. A warning, not a critical "rig safed" — on an
+      // idle, disconnected app (weather safety resolves fail-closed to unsafe
+      // when no weather source exists) this is the only thing the operator
+      // sees.
       notifier.showWarning(
         'Nothing to safe: $reason. No run was active and no mount, dome or '
         'cover is connected.$gap',

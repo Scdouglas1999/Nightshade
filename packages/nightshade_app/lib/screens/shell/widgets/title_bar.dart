@@ -125,7 +125,7 @@ class TitleBar extends ConsumerWidget {
                     // shortcut opens where it says, not the generic root.
                     // Raised as an event as well as a route, because a second
                     // click while Settings is open carries an identical route
-                    // and would otherwise move nothing (WD-EQ-3b).
+                    // and would otherwise move nothing.
                     SettingsSectionRequest.raise('equipment-profiles');
                     context.go('/settings?section=equipment-profiles');
                   } catch (e) {
@@ -150,8 +150,13 @@ class TitleBar extends ConsumerWidget {
                 onPressed: () {
                   try {
                     context.go('/settings');
-                  } catch (e) {
-                    // Router might not be available yet
+                  } catch (e, stack) {
+                    developer.log(
+                        '[TitleBar] Could not navigate to settings: $e',
+                        name: 'TitleBar',
+                        level: 900,
+                        error: e,
+                        stackTrace: stack);
                   }
                 },
               ),

@@ -1,12 +1,11 @@
-// Phase 1 freezed-migration safety net for the `TargetTrigger` sealed family.
+// Serde cover for the `TargetTrigger` sealed family.
 //
 // `TargetTrigger` lives in
 // `lib/src/models/sequence/sequence_models.dart` and is a hand-rolled
 // sealed class hierarchy. The Rust side
 // (`native/nightshade_native/sequencer/src/scheduling/target_trigger.rs`)
 // uses serde's `#[serde(tag = "kind", content = "value")]` encoding, so
-// the Dart `toJson()` shape is a contract — Phase 2 must preserve it
-// byte-for-byte.
+// the Dart `toJson()` shape is a byte-for-byte contract.
 //
 // Every leaf trigger gets:
 //   * a JSON shape pin (the snake_case-free wire format is significant
@@ -20,17 +19,13 @@
 // Compound triggers (And, Or) additionally get nested-payload tests so
 // the recursive JSON encoder/decoder stays symmetric.
 //
-// PHASE-2-NOTE: Trigger JSON keys are PascalCase ("AltitudeAbove"),
-// NOT snake_case. This is intentional — it mirrors Rust's serde
-// externally-tagged enum encoding. Freezed unions default to lowercase
-// runtime-type tags ("altitudeAbove"); the Phase 2 conversion MUST
-// override the `@Freezed(unionKey: 'kind', unionValueCase:
-// FreezedUnionCase.pascal)` (or similar) to preserve the wire format.
+// Trigger JSON keys are PascalCase ("AltitudeAbove"), NOT snake_case, which
+// mirrors Rust's serde externally-tagged enum encoding.
 //
-// PHASE-2-NOTE: Compound triggers (And/Or) carry the children list
-// inside the `value` slot (a JSON array). HourAngleBetweenTrigger
-// carries a JSON object with two double fields `minHa` / `maxHa` —
-// camelCase, NOT snake_case (matches the Rust struct's field names).
+// Compound triggers (And/Or) carry the children list inside the `value` slot
+// (a JSON array). HourAngleBetweenTrigger carries a JSON object with two
+// double fields `minHa` / `maxHa` — camelCase, NOT snake_case (matching the
+// Rust struct's field names).
 
 import 'dart:convert';
 
@@ -95,12 +90,9 @@ void main() {
     });
 
     test('equality_and_hash_distinguish_altitude_below_from_above', () {
-      // PHASE-2-NOTE: Each trigger subclass mixes the discriminator into
-      // hashCode (`Object.hash('AltitudeAbove', altitudeDeg)`). Two
-      // triggers with the same numeric payload but different kinds must
-      // NOT be equal. Freezed unions handle this automatically by virtue
-      // of their generated `==`, but the conversion must keep the hash
-      // discriminator semantic.
+      // Each trigger subclass mixes the discriminator into hashCode
+      // (`Object.hash('AltitudeAbove', altitudeDeg)`), so two triggers with
+      // the same numeric payload but different kinds are NOT equal.
       expect(
         const AltitudeAboveTrigger(30.0),
         isNot(equals(const AltitudeBelowTrigger(30.0))),
@@ -113,10 +105,9 @@ void main() {
       // 2026-05-25T00:00:00Z = 1779840000 (approx)
       const t = TimeAfterTrigger(1779840000);
       expect(t.toJson(), equals({'kind': 'TimeAfter', 'value': 1779840000}));
-      // PHASE-2-NOTE: TimeAfter / TimeBefore wire value is an integer
-      // (Unix seconds). The fromJson uses `(raw as num).toInt()` so a
-      // double on the wire is also accepted, but the canonical form is
-      // int. Freezed should serialise the field as `int`.
+      // TimeAfter / TimeBefore carry an integer wire value (Unix seconds).
+      // fromJson uses `(raw as num).toInt()`, so a double on the wire is
+      // accepted, but the canonical form is int.
     });
 
     test('json_round_trip_preserves_unix_seconds', () {
@@ -172,10 +163,9 @@ void main() {
 
   group('HourAngleBetweenTrigger', () {
     test('json_shape_uses_nested_object_value_with_camelCase_keys', () {
-      // PHASE-2-NOTE: HourAngleBetween is the only trigger whose `value`
-      // is a JSON OBJECT (not a scalar). The object keys are camelCase
-      // (`minHa` / `maxHa`) — NOT snake_case. This matches the Rust
-      // struct's field names; Phase 2 must preserve the camelCase form.
+      // HourAngleBetween is the only trigger whose `value` is a JSON OBJECT
+      // rather than a scalar. Its keys are camelCase (`minHa` / `maxHa`), NOT
+      // snake_case, matching the Rust struct's field names.
       const t = HourAngleBetweenTrigger(minHa: -2.0, maxHa: 2.0);
       expect(
         t.toJson(),
@@ -273,10 +263,8 @@ void main() {
       const c = AndTrigger([TimeAfterTrigger(0), AltitudeAboveTrigger(30.0)]);
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
-      // PHASE-2-NOTE: child order is significant for equality. Freezed's
-      // default list equality is order-sensitive, so this naturally
-      // survives the migration; but the comment is here to make the
-      // contract explicit.
+      // Child order is significant for equality: list equality is
+      // order-sensitive.
       expect(a, isNot(equals(c)));
     });
   });
@@ -336,13 +324,10 @@ void main() {
   });
 
   group('evaluateTargetTrigger sanity (data-shape behaviour)', () {
-    // These are NOT polymorphic-method tests in the Phase-1-forbidden
-    // sense — `evaluateTargetTrigger` is a free function that switches
-    // on the sealed family, NOT a virtual method on the class. Phase 2
-    // will retain it (or relocate it to an extension) without semantic
-    // change because the sealed-switch dispatch already lives outside
-    // the class. We still check a representative input per leaf so the
-    // wire-protocol-aligned evaluator parity stays pinned.
+    // `evaluateTargetTrigger` is a free function that switches on the sealed
+    // family, not a virtual method on the class, so the dispatch lives outside
+    // the class. A representative input per leaf keeps the evaluator's parity
+    // with the wire protocol pinned.
     test('altitude_above_satisfied_when_altitude_meets_threshold', () {
       expect(
         evaluateTargetTrigger(
@@ -356,13 +341,10 @@ void main() {
     });
 
     test('and_with_empty_children_is_false', () {
-      // Note: differs from Rust semantics if Rust treats "all" of empty
-      // as true — but the Dart implementation explicitly returns false
-      // for empty And/Or. Phase 2 must preserve this Dart-side behaviour
-      // even if it later diverges from Rust.
-      // PHASE-2-NOTE: empty And/Or returns false. The fall-through
-      // case in `evaluateTargetTrigger` early-returns false to avoid
-      // `[].every(...)` returning `true`.
+      // Empty And/Or returns false: the fall-through case in
+      // `evaluateTargetTrigger` early-returns rather than letting
+      // `[].every(...)` return `true`. This differs from a Rust "all of
+      // empty is true" reading, deliberately.
       expect(
         evaluateTargetTrigger(
           const AndTrigger([]),

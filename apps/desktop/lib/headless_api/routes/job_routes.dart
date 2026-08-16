@@ -1,13 +1,9 @@
 /// Declarative route table for the long-running job model.
 ///
-/// Counterpart to `handlers/job_handlers.dart`. The previous inline
-/// registration wrapped each parametric route in a `(Request req,
-/// String jobId) => h.handleX(req, jobId)` closure — that wrapper is
-/// redundant because shelf_router introspects the handler's arity, and
-/// [JobHandlers.handleGetJob] / [JobHandlers.handleCancelJob] /
-/// [JobHandlers.handlePurgeJob] are already declared as
-/// `(Request, String)`. Passing the method tear-off directly produces
-/// identical dispatch with one less allocation per request.
+/// Counterpart to `handlers/job_handlers.dart`. Parametric handlers are passed
+/// as method tear-offs, not wrapped in a closure: shelf_router introspects the
+/// handler's arity and [JobHandlers.handleGetJob] and friends are already
+/// declared `(Request, String)`.
 library;
 
 import '../handlers/job_handlers.dart';

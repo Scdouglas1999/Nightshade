@@ -186,9 +186,7 @@ class _NoTwilight extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // PURE COUNTDOWN LOGIC (testable without a widget tree)
-// =============================================================================
 
 /// The single relevant countdown fact for the night band header.
 class NightCountdown {
@@ -310,9 +308,7 @@ String _clock(DateTime t, Clock clock) {
       '${shown.minute.toString().padLeft(2, '0')}';
 }
 
-// =============================================================================
 // PAINTER
-// =============================================================================
 
 class _TimelinePainter extends CustomPainter {
   final NightshadeColors colors;

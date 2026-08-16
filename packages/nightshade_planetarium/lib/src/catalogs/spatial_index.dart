@@ -88,6 +88,18 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     _byMagnitude = objectsBrightestFirst;
   }
 
+  /// Magnitude-walk length beyond which it is worth consulting the grid to see
+  /// whether the cell query would touch fewer objects.
+  ///
+  /// Below this the walk is short enough that the comparison is not worth the
+  /// cell-length reads, and the grid stays unbuilt: a freshly-loaded index
+  /// serving the default wide view never pays the grid build on the UI thread.
+  static const int _gridConsultThreshold = 8000;
+
+  /// How much cheaper the grid path must look before it is chosen, to pay for
+  /// its sort of the gathered candidates (the walk emits in magnitude order).
+  static const int _gridPreferenceFactor = 3;
+
   /// Returns up to [maxResults] of the BRIGHTEST objects with magnitude
   /// `<= maxMagnitude` that fall within the viewport region (same generous
   /// 1.5×-FOV bounds as [queryViewport]), brightest-first.
@@ -98,19 +110,6 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// the brightest few thousand — this avoids gathering and full-sorting the
   /// whole region every frame (the dominant per-frame pan cost). The result is
   /// identical to taking the brightest [maxResults] of [queryViewportFiltered].
-  /// Magnitude-walk length beyond which it is worth consulting the grid to see
-  /// whether the cell query would touch fewer objects.
-  ///
-  /// Below this the walk is short enough that the comparison is not worth the
-  /// cell-length reads — and, importantly, the grid stays unbuilt, preserving
-  /// the cold-start behaviour where a freshly-loaded index serving the default
-  /// wide view never pays the grid build on the UI thread.
-  static const int _gridConsultThreshold = 8000;
-
-  /// How much cheaper the grid path must look before it is chosen, to pay for
-  /// its sort of the gathered candidates (the walk emits in magnitude order).
-  static const int _gridPreferenceFactor = 3;
-
   List<T> queryBrightestInViewport(
     double centerRA,
     double centerDec,
@@ -134,11 +133,10 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     // The magnitude walk scans the magnitude-sorted list and stops once it
     // passes [maxMagnitude], so it touches exactly the number of objects at or
     // brighter than the limit. That is cheap while the limit bites — but the
-    // FOV-adaptive limit reaches the catalogue's own depth at every field
-    // below ~30 deg, and then nothing terminates the walk and it scans the
-    // whole catalogue on every pan and zoom frame. The old fixed 12 deg
-    // threshold left 12-30 deg — precisely the framing range an imager works
-    // in — on the wrong side of that cliff.
+    // FOV-adaptive limit reaches the catalogue's own depth at every field below
+    // ~30 deg, and then nothing terminates the walk and it scans the whole
+    // catalogue on every pan and zoom frame. A fixed FOV threshold cannot see
+    // that, which is why the choice is made on objects touched.
     //
     // The grid path instead touches only the objects in the cells overlapping
     // the query region, so it scales with sky area.
@@ -270,12 +268,11 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// short-axis [fovDegrees] and the canvas [aspectRatio] (width / height).
   ///
   /// [fovDegrees] describes the SHORT axis of the canvas, so the long axis
-  /// subtends that much again multiplied by the aspect ratio. Ignoring this
-  /// left the query covering a square region regardless of window shape: on a
-  /// 3.6:1 ultrawide only the middle ~42% of the screen width had any star
-  /// data, and stars popped in and out at the region boundary while panning.
-  /// The 1.5x factor is the pre-existing margin that keeps objects whose glow
-  /// or label spills in from just outside the frame.
+  /// subtends that much again multiplied by the aspect ratio: the region must
+  /// span the view's own extents, or a wide window is served star data for a
+  /// square patch and objects pop in and out at the region boundary while
+  /// panning. The 1.5x factor is the margin that keeps objects whose glow or
+  /// label spills in from just outside the frame.
   static (double raFov, double decFov) _extents(
     double fovDegrees,
     double aspectRatio,

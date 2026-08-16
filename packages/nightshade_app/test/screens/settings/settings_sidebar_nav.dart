@@ -1,31 +1,23 @@
 // Shared sidebar navigation for the SettingsScreen widget tests.
 //
-// Every settings test that opens a section has to drive the same grouped,
-// collapsible, lazily-built sidebar, and several of them had grown their own
-// copy of the helper — each carrying the same defect.
+// Every settings test that opens a section drives the same grouped,
+// collapsible, lazily-built sidebar, so the helper lives here once.
 //
-// THE DEFECT. `tester.scrollUntilVisible` finishes with an un-awaited
-// `Scrollable.ensureVisible` and never pumps:
+// NEVER read geometry before pumping. `tester.scrollUntilVisible` finishes with
+// an un-awaited `Scrollable.ensureVisible` and no pump:
 //
 //   while (maxIteration > 0 && finder.evaluate().isEmpty) { drag; pump; }
 //   await Scrollable.ensureVisible(finder.evaluate().single);   // <- no pump
 //
-// so on return the ScrollPosition has already jumped to its new offset while
-// the render tree still holds the OLD one. `tester.tap` then reads the stale
-// RenderBox centre. Measured on the real screen at 1280x800: the sidebar
-// viewport was 110..597, the position had moved to its 186px maximum, but the
-// "AUTOMATION & SAFETY" header still reported its unscrolled rect, centre
-// (129.5, 606) — 9px below the viewport clip. The tap silently landed on the
-// page background, the group never expanded, and the test failed later and
-// somewhere else, looking like a layout regression.
+// so on return the ScrollPosition has jumped to its new offset while the render
+// tree still holds the previous one, and `tester.tap` reads a stale RenderBox
+// centre. The tap then lands on the page background, the group never expands,
+// and the failure surfaces later and elsewhere, looking like a layout fault.
+// Whether the stale centre happens to fall inside the viewport is luck that
+// turns on row height.
 //
-// It only ever worked by luck. With 28px-tall buttons the same stale centre
-// (606) happened to fall inside a 617-deep viewport; raising the shared button
-// to the 48px touch-target floor moved the viewport bottom to 597 and the luck
-// ran out. The row height is not the bug — reading geometry before pumping is.
-//
-// Also note the loop exits on `finder.evaluate().isEmpty`, i.e. as soon as the
-// row EXISTS. A lazy ListView builds rows a little beyond the viewport, so
+// Note also that the loop exits on `finder.evaluate().isEmpty`, i.e. as soon as
+// the row EXISTS. A lazy ListView builds rows a little beyond the viewport, so
 // "exists" does not mean "inside the clip"; the explicit ensureVisible below is
 // what actually reveals it.
 

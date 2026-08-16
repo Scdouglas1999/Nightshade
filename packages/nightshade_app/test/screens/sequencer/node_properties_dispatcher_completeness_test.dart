@@ -3,10 +3,9 @@
 // Asserts that EVERY palette-reachable sequence-node type renders a real
 // property editor when selected in the NodePropertiesPanel — i.e. none of
 // them fall through to the "No property editor for <Type>" fallback card
-// (_UnknownNodeProperties). The fallback was the symptom traced
-// to nodes the engine reads but the UI could not edit;
-// this test is the regression guard so a newly-added NodeType can't ship
-// without an editor again.
+// (_UnknownNodeProperties). That fallback is the symptom of a node the engine
+// reads but the UI cannot edit, so this test keeps a newly-added NodeType from
+// shipping without an editor.
 //
 // The set of node types is sourced from the live `nodePaletteProvider` (the
 // single source of truth for what the user can drop into a sequence), plus

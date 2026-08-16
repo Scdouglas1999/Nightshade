@@ -2,9 +2,7 @@ part of '../network_backend.dart';
 
 mixin _NetworkBackendRemoteCalibrationCatalogOperations
     on _NetworkBackendTransport {
-  // =========================================================================
   // Remote calibration library management.
-  // =========================================================================
 
   /// Read the complete automatic-calibration configuration owned by the
   /// imaging host. This is intentionally separate from the app-settings wire
@@ -106,7 +104,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
 
   /// POST /api/calibration-library/accept — download a REMOTE shared master
   /// surfaced by [matchCalibrationMasters] and merge it into the appliance's
-  /// local library (WS1 download-on-accept). [remote] must be a REMOTE record
+  /// local library (download-on-accept). [remote] must be a REMOTE record
   /// (carry `remoteId`); the appliance re-applies the consent + quality gates.
   /// Returns the raw acceptance outcome (`kind`, plus `mergedId`/`filePath`/
   /// `existingId`/`reason` as applicable).
@@ -117,7 +115,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   }
 
   /// POST /api/calibration-library/publish — publish one LOCAL appliance master
-  /// to the configured hub under an explicit [license] + consent (WS1 share).
+  /// to the configured hub under an explicit [license] + consent.
   Future<Map<String, dynamic>> publishCalibrationMaster({
     required String type,
     required int id,
@@ -135,7 +133,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   }
 
   /// POST /api/calibration-library/retract — retract (un-share) one LOCAL
-  /// appliance master the user previously published to the hub (WS1 owner-scoped
+  /// appliance master the user previously published to the hub (owner-scoped
   /// retract). The appliance resolves the hub master id it recorded at publish
   /// time and issues the owner-scoped delete.
   Future<Map<String, dynamic>> retractCalibrationMaster({
@@ -551,9 +549,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     return _post('calibration/defect-maps/$id/regenerate');
   }
 
-  // =========================================================================
   // Remote catalog management.
-  // =========================================================================
 
   /// GET /api/catalog/status. Returns the on-disk state of every known
   /// catalog on the *server*. The mobile/desktop remote client surfaces
@@ -645,10 +641,8 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     await _post('catalog/reload');
   }
 
-  // =========================================================================
   // Read-only DB endpoints. Each returns a paginated `{items, total}`
   // envelope. Methods live on NetworkBackend (not the NightshadeBackend
   // interface) because the local FfiBackend already exposes these via Drift
   // DAOs; the network path is the only one that needs an explicit GET.
-  // =========================================================================
 }

@@ -9,9 +9,8 @@ import 'mobile_preferences.dart';
 part 'notification_service/contracts.dart';
 
 // One NotificationDetails per Android channel declared in
-// [MobileNotificationService._createNotificationChannels]. Every notify*
-// method used to inline its own copy; eighteen copies of five channels is how
-// the two deliberate variants below became indistinguishable from drift.
+// [MobileNotificationService._createNotificationChannels], so the two
+// deliberate variants below stay visible as choices rather than drift.
 
 const _sequenceDetails = NotificationDetails(
   android: AndroidNotificationDetails(
@@ -317,10 +316,9 @@ class MobileNotificationService implements MobileNotificationSink {
   ///
   /// We intentionally do NOT swallow failures: a `null` return from the
   /// platform channel means the call didn't reach Android (plugin mis-
-  /// registration, missing AndroidManifest entry, etc.) and that is an
-  /// error worth surfacing — the audit's no-silent-fallback rule. We
-  /// log it and treat it as denied so the banner pops up and the
-  /// operator notices something is wrong.
+  /// registration, missing AndroidManifest entry, etc.). Log it and treat it
+  /// as denied so the banner pops up, rather than reporting a permission the
+  /// app was never actually granted.
   Future<bool> _requestAndroidNotificationPermission() async {
     final android = _notifications
         .resolvePlatformSpecificImplementation<
@@ -673,7 +671,6 @@ class MobileNotificationService implements MobileNotificationSink {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Critical-event notifications (added v2.5 polish)
   //
   // These are the events that can occur silently in the middle of an
@@ -684,7 +681,6 @@ class MobileNotificationService implements MobileNotificationSink {
   // dependent on a feature config and a healthy desktop-side process; the
   // mobile companion now drives them directly from the WS event stream so
   // the user is paged even if push is disabled on the desktop.
-  // ---------------------------------------------------------------------------
 
   @override
   Future<void> notifySafety({
@@ -820,7 +816,6 @@ class MobileNotificationService implements MobileNotificationSink {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Job-failure notifications
   //
   // These map onto specific `JobFailed` events that the headless server
@@ -828,7 +823,6 @@ class MobileNotificationService implements MobileNotificationSink {
   // JobCompleted at all — a sequence emits dozens of progress events for
   // a single plate-solve and we are not in the business of buzzing the
   // operator's phone every tick. Only terminal failures get a ping.
-  // ---------------------------------------------------------------------------
 
   @override
   Future<void> notifyPlateSolveFailed(String errorMessage) async {
@@ -863,9 +857,7 @@ class MobileNotificationService implements MobileNotificationSink {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Session ownership notifications
-  // ---------------------------------------------------------------------------
 
   @override
   Future<void> notifyOwnershipTakenOver({

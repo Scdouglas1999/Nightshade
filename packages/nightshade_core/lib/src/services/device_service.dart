@@ -35,8 +35,7 @@ import 'predictive_af_service.dart';
 import 'switch_channel_service.dart';
 import 'device_service_lifecycle.dart';
 
-// Re-export backend types for backward compatibility
-// These were previously defined locally but are now consolidated in backend_types
+// Re-export backend types so importers of this file get them too.
 export '../models/backend/device_types.dart' show DeviceType, DriverType;
 export '../models/backend/device_info.dart' show DeviceInfo;
 
@@ -142,11 +141,8 @@ class DeviceService {
   /// How often environmental / dome telemetry is re-read while a relevant device
   /// is connected.
   ///
-  /// Public because UI that displays the AGE of one of these readings has to tick
-  /// faster than this to show anything but a constant. Naming it lets that
-  /// requirement be asserted instead of restated: the equipment card's
-  /// "Last checked" label was pinned at "0s ago" forever precisely because its
-  /// own ticker used this same 5 s period, so the sampled age was the fixed phase
+  /// Public so a UI showing the AGE of these readings can assert its own ticker
+  /// runs faster than this; ticking at the same period samples a fixed phase
   /// offset between two timers rather than elapsed time.
   static const Duration environmentPollInterval = Duration(seconds: 5);
 
@@ -156,7 +152,7 @@ class DeviceService {
   /// `_environmentPollInFlight` for the rest of the process: every later tick
   /// returns early, `setError` is never reached, and the card keeps rendering
   /// the last good value — a safety monitor frozen on "SAFE" while nothing is
-  /// actually being read. Shorter than the 5 s tick so a wedged read surfaces
+  /// being read. Shorter than the 5 s tick so a wedged read surfaces
   /// as an error before the next poll instead of silently stacking up.
   static const Duration _environmentReadTimeout = Duration(seconds: 4);
 
@@ -335,9 +331,7 @@ class DeviceService {
   /// Discover available devices of a specific type
   ///
   /// Returns a list of [DeviceInfo] objects representing available devices.
-  /// The DeviceInfo type is now the canonical type for device information.
   Future<List<DeviceInfo>> discoverDevices(DeviceType type) async {
-    // Backend now returns DeviceInfo directly - no conversion needed
     return await _backend.discoverDevices(type);
   }
 

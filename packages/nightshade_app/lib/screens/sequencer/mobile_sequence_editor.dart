@@ -41,9 +41,7 @@ import 'widgets/node_palette.dart';
 import 'widgets/node_properties_panel.dart';
 import 'widgets/run_dashboard/recovery_banner.dart';
 
-// =============================================================================
 // MOBILE SEQUENCE EDITOR
-// =============================================================================
 
 /// Touch-friendly sequence authoring surface for the mobile companion app.
 ///
@@ -136,12 +134,10 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Tree flattening (DFS) — mirrors the legacy `_NodeList` walker in
   // `sequencer_tab.dart` so the rendered order matches the desktop sequencer
   // exactly. The root node is the implicit container; we surface only its
   // children and below.
-  // ---------------------------------------------------------------------------
 
   List<_NodeRow> _flattenTree(Sequence seq) {
     final out = <_NodeRow>[];
@@ -172,15 +168,13 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Reorder handler.
   //
   // Flutter's `ReorderableListView` reports indices over the flat visible
-  // list, which spans multiple parents. We refuse cross-parent moves
-  // (would silently reparent the dragged node) and bail with a SnackBar.
+  // list, which spans multiple parents. A cross-parent move would silently
+  // reparent the dragged node, so it is refused with a SnackBar.
   // Within the same parent we translate the flat indices into the
   // parent's child list and call the editor's `reorderNodes`.
-  // ---------------------------------------------------------------------------
 
   void _handleReorder(
     Sequence sequence,
@@ -233,7 +227,6 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Delete with Undo.
   //
   // We capture the full subtree of the doomed node BEFORE calling
@@ -242,7 +235,6 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
   // child list. The undo window is 8 seconds — long enough for a phone
   // user to read the snackbar but short enough that it doesn't pin a
   // stale subtree in memory.
-  // ---------------------------------------------------------------------------
 
   void _deleteWithUndo(
       BuildContext context, Sequence sequence, SequenceNode node) {
@@ -326,12 +318,10 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Properties dialog — opens the same NodePropertiesPanel the desktop
   // sequencer uses on narrow widths. We set selectedNodeIdProvider first
   // so the panel renders the tapped node (it reads `selectedNodeProvider`
   // internally, which derives from selectedNodeIdProvider).
-  // ---------------------------------------------------------------------------
 
   void _openProperties(BuildContext context, SequenceNode node) {
     ref.read(selectedNodeIdProvider.notifier).state = node.id;
@@ -360,14 +350,12 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Add-node sheet — reuses the desktop NodePalette in its mobile-sheet
   // mode so the palette stays the single source of truth for "what can be
   // added". Tapping a palette item there already calls
   // `currentSequenceProvider.notifier.addNode(...)` against
   // `selectedNodeIdProvider` (or the root when nothing is selected), then
   // fires `onNodeAdded` so we can close the sheet automatically.
-  // ---------------------------------------------------------------------------
 
   void _showAddNodeSheet(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -396,9 +384,7 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
   }
 }
 
-// =============================================================================
 // ROW MODEL + WIDGET
-// =============================================================================
 
 class _NodeRow {
   final SequenceNode node;
@@ -616,9 +602,7 @@ class _AddNodeFab extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // SEQUENCER RECOVERY ACTIONS BANNER (phone variant)
-// =============================================================================
 
 /// Compact phone variant of [RunDashboardRecoveryBanner].
 ///
@@ -685,9 +669,8 @@ class _SequencerRecoveryActionsBannerState
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         // SingleChildScrollView on overflow keeps the row usable on the
-        // narrowest phones — the cause string can be long, the buttons
-        // are non-negotiable, and we'd rather scroll than truncate the
-        // action surface.
+        // narrowest phones: the cause string can be long, so the row scrolls
+        // rather than truncating the recovery actions.
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(

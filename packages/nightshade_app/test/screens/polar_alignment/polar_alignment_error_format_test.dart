@@ -1,9 +1,8 @@
 // Polar-axis error readouts speak the unit the operator's bolts are in.
 //
-// Every number in the wizard used to be a raw arcsecond count with a decimal —
-// "Up 2287.9\"", "Total Error 2327.5\"", "Final error: 1800.0 arcseconds". A
-// user turning altitude/azimuth bolts thinks in arcminutes and degrees, and
-// converting 2287.9" to 38' in their head at 2am is not a reasonable ask.
+// A user turning altitude/azimuth bolts thinks in arcminutes and degrees.
+// Converting a raw arcsecond count like 2287.9" to 38' in their head at 2am is
+// not a reasonable ask.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/polar_alignment/polar_alignment_error_format.dart';

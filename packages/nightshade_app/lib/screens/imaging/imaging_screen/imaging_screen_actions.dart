@@ -4,15 +4,12 @@ extension _ImagingScreenActions on _ImagingScreenState {
   /// Strips a leading `SomeException(category): ` prefix so capture failures
   /// read as English for the operator.
   ///
-  /// A raw `$error` interpolation put the Dart class name in front of the
-  /// operator: pulling the camera mid-loop produced the snackbar
-  /// "Capture error: NightshadeException(connection): Camera not connected"
-  /// (reproduced by disconnecting the camera through the API while a GUI loop
-  /// was running). Matched on `toString()` rather than the exception type
+  /// A raw `$error` interpolation puts the Dart class name in front of the
+  /// operator ("Capture error: NightshadeException(connection): Camera not
+  /// connected"). Matched on `toString()` rather than the exception type
   /// because `NightshadeException` is intentionally NOT exported from the
-  /// `nightshade_core` barrel — kept narrow on purpose — so this layer cannot
-  /// type-check it without widening that surface. The full object still reaches
-  /// the log untouched.
+  /// `nightshade_core` barrel, so this layer cannot type-check it without
+  /// widening that surface. The full object still reaches the log untouched.
   static final RegExp _exceptionPrefix =
       RegExp(r'^[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?:\s*');
 
@@ -44,7 +41,7 @@ extension _ImagingScreenActions on _ImagingScreenState {
   /// Driven by `ref.listen(annotationStateProvider, ...)` in `build`, which
   /// fires only on actual provider transitions instead of on every rebuild —
   /// this prevents duplicate dialogs from window-resize storms / hot-reload
-  /// rebuilds (audit §4.3).
+  /// rebuilds.
   void _maybeShowFirstUseCatalogPrompt(AnnotationState annotationState) {
     if (annotationState.status != AnnotationStatus.catalogsNotInstalled) return;
 
@@ -137,9 +134,7 @@ extension _ImagingScreenActions on _ImagingScreenState {
     );
   }
 
-  // =========================================================================
   // CAPTURE ACTIONS
-  // =========================================================================
 
   Future<void> _takeSnapshot() async {
     if (_isSingleCapture || _isLooping || _isStoppingCapture) return;
@@ -321,10 +316,8 @@ extension _ImagingScreenActions on _ImagingScreenState {
     }
   }
 
-  // =========================================================================
-  // ZOOM/PAN CONTROLS — delegates to imagingViewerStateProvider so window
-  // navigation and rebuilds don't reset the user's view (audit §4.10).
-  // =========================================================================
+  // Zoom/pan controls — delegate to imagingViewerStateProvider so window
+  // navigation and rebuilds don't reset the user's view.
 
   ImagingViewerStateNotifier get _viewer =>
       ref.read(imagingViewerStateProvider.notifier);

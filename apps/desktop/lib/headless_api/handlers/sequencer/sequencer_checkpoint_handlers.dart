@@ -4,12 +4,11 @@ part of '../sequencer_handlers.dart';
 extension _SequencerCheckpoints on SequencerHandlers {
   /// POST /api/sequencer/checkpoint/dir.
   ///
-  /// The host owns its crash-recovery storage layout. A paired client used to
-  /// be able to push its own documents directory here, which replaced the
-  /// host's checkpoint directory with a path that does not exist on the rig —
-  /// every subsequent checkpoint write failed and a mid-night crash became
-  /// unrecoverable. A client-supplied path is now refused; an empty body
-  /// re-asserts the host's own directory.
+  /// The host owns its crash-recovery storage layout: a client-supplied path
+  /// is refused, and an empty body re-asserts the host's own directory. A
+  /// paired client's documents directory does not exist on the rig, so
+  /// accepting one fails every later checkpoint write and makes a mid-night
+  /// crash unrecoverable.
   Future<Response> _handleSequencerSetCheckpointDir(Request request) async {
     _logInfo('[API] POST /api/sequencer/checkpoint/dir');
     final payload = await readJsonObject(request);

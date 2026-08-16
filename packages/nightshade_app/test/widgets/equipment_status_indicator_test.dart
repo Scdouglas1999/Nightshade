@@ -1,12 +1,11 @@
-// Regression: the shell's device count must count every device the app can
-// connect.
+// The shell's device count must count every device the app can connect.
 //
-// Observed live with six simulated devices attached (camera, mount, focuser,
-// filter wheel, dome, weather station): the global status bar read "My
-// Equipment / 4 connected" while the Equipment header read "6 connected · 6
-// unsaved" in the same frame. The chip only tallied the six slots the profile
-// editor lists first, so the dome and the weather station were invisible to the
-// one readout an operator glances at before starting an unattended run.
+// Tallying only the slots the profile editor lists first drops the dome and the
+// weather station: with six simulated devices attached (camera, mount, focuser,
+// filter wheel, dome, weather station) the global status bar reads "My
+// Equipment / 4 connected" while the Equipment header reads "6 connected · 6
+// unsaved" in the same frame — and the chip is the one readout an operator
+// glances at before starting an unattended run.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/equipment_status_indicator.dart';

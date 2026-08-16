@@ -1,12 +1,11 @@
 // Every frame this service writes must name the filter the light actually
 // passed through.
 //
-// The filter used to be read straight off [ExposureSettings], which is a UI
-// mirror: the Imaging screen's filter strip shipped without writing the
-// selection back into it, so every manual capture went to disk with no FITS
+// [ExposureSettings] is a UI mirror and is not authoritative: a screen that
+// does not write its filter selection back into it produces frames with no FITS
 // FILTER card, a "NoFilter" filename and an empty `captured_images.filter`
-// while the same screen displayed the active filter. These tests pin the
-// resolution to the live wheel so no call site can drop it again.
+// while displaying the active filter. These tests pin the resolution to the
+// live wheel.
 
 import 'dart:async';
 

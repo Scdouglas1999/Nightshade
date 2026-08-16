@@ -45,7 +45,7 @@ class TargetGroupProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Trust-patch §B: belt-and-suspenders gate. The parent `_NodeEditor`
+    // Belt-and-suspenders gate. The parent `_NodeEditor`
     // already wraps the editor body in IgnorePointer when
     // [canEditSequenceProvider] is false, but we also wrap our own subtree
     // in IgnorePointer here. This guarantees that any future refactor that
@@ -123,9 +123,9 @@ class TargetGroupProperties extends ConsumerWidget {
               ),
             ],
           ),
-          // Name resolution. Typing a name never used to touch RA/Dec, so
-          // "M31" at the 0h/+0° default was a reachable, runnable state that
-          // every downstream surface then reported as a real pointing.
+          // Name resolution: a named target must resolve to coordinates.
+          // Otherwise "M31" sitting at the 0h/+0° default is a runnable state
+          // that every downstream surface reports as a real pointing.
           _CoordinateLookupSection(colors: colors, node: node),
           NodePropertyField(
             colors: colors,
@@ -470,11 +470,9 @@ class TargetGroupProperties extends ConsumerWidget {
   }
 }
 
-// =============================================================================
 // Start-when / End-when trigger editor.
 //
 // One section per direction (start vs end). Each section is toggle-gated:
 // when off, the trigger is null (no gate). When on, the user picks a kind
 // from a dropdown and edits the parameters inline. Compound triggers
 // (And/Or) get a nested row of sub-triggers.
-// =============================================================================

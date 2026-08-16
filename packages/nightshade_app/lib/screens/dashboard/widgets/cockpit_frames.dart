@@ -125,8 +125,7 @@ class _CurrentFrame extends StatelessWidget {
   }
 }
 
-/// Slim one-line "waiting for first frame" row shown before any frame exists,
-/// replacing the tall empty 4:3 box of the old live-frame panel.
+/// Slim one-line "waiting for first frame" row shown before any frame exists.
 class _WaitingRow extends StatelessWidget {
   final NightshadeColors colors;
 

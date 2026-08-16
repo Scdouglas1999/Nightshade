@@ -1,9 +1,8 @@
-// Regression: with no appliance connected, Settings › Appliance Catalogs
-// rendered a single sentence — "Connect to a remote appliance to manage its
+// With no appliance connected, Settings › Appliance Catalogs must still offer a
+// way in. A single sentence — "Connect to a remote appliance to manage its
 // catalogs. This is separate from the phone's own planetarium catalogs." — and
-// nothing else. On the Linux/Windows desktop build there is no phone, and the
-// page carried no button, picker or link to the connection flow it named, so
-// the leaf was inert and its only sentence was about a different platform.
+// nothing else leaves the leaf inert on a Linux/Windows desktop where there is
+// no phone and no button, picker or link to the connection flow it names.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

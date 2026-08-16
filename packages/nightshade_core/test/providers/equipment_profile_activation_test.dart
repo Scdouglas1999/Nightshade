@@ -6,16 +6,14 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/equipment_profile.dart'
     as remote_profile;
 
-/// Regression coverage for the single, remote-aware profile-activation
-/// authority ([EquipmentProfilesNotifier]).
+/// Coverage for the single, remote-aware profile-activation authority
+/// ([EquipmentProfilesNotifier]).
 ///
-/// The defect: local activation used to write only SQLite, so the native
-/// (Rust) executor kept resolving the OLD profile — SQLite/UI could say
-/// profile B was active while the sequencer still ran profile A. The fix
-/// routes local activation through the notifier, which write-throughs the new
-/// active row into the native ProfileSettings backend. Remote (slave) mode
-/// must keep deferring to the host's load endpoint and never perform that
-/// slave-local native write.
+/// Local activation must write through the notifier into the native
+/// ProfileSettings backend as well as SQLite: a SQLite-only write leaves the
+/// Rust executor resolving the previous profile while the UI reports the new
+/// one. Remote (slave) mode defers to the host's load endpoint and must never
+/// perform that slave-local native write.
 class _MockFfiBackend extends Mock implements FfiBackend {}
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
@@ -302,13 +300,11 @@ void main() {
     expect((await dao.getProfileById(bId))!.isDefault, isFalse);
   });
 
-  // ==========================================================================
   // Strict transactional activation (startup path).
   //
   // The invariant: SQLite must NEVER claim a profile active unless the native
   // executor store accepted it first, and a native/commit failure must never be
   // silently reported as success.
-  // ==========================================================================
 
   ProviderContainer strictContainer(
     NightshadeBackend backend, {

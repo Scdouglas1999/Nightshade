@@ -116,7 +116,7 @@ void main() {
       'fix must not swallow a genuine fetch', (tester) async {
     final backend = mockBackend();
     // A request that never answers: the honest rendering of that IS the
-    // skeleton, and the fix must not have replaced it everywhere.
+    // skeleton, so it must survive where it is correct.
     when(() => backend.phd2GetAlgoParamNames(axis: any(named: 'axis')))
         .thenAnswer((_) => Completer<List<String>>().future);
 

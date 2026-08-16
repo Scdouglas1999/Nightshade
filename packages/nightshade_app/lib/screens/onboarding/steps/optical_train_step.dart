@@ -12,31 +12,15 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../widgets/help/field_help_label.dart';
 import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
 
-/// Optical train step — pixel size (microns), focal length (mm),
-/// aperture (mm), reducer factor. The image scale (arcsec/px) is
-/// auto-computed from pixel size + effective focal length.
-///
-/// Users can prefill the optics in one tap by picking from the built-in
-/// telescope library (the [HardwarePresetPickerDialog], C10), or enter the
-/// numbers manually. Either way the load-bearing fields — focal length,
-/// aperture, pixel size — carry inline [FieldHelpLabel] hints so a first-time
-/// imager understands where each value comes from without leaving the wizard.
-///
-/// This is the only step where focal length, aperture and pixel size are all
-/// required, because the imaging stack needs them for plate solving, framing,
-/// and FOV calculations. We surface the computed image scale in real time so
-/// the user can sanity-check their numbers before moving on.
 /// True when the optics on record still describe the telescope [draft] names.
 ///
 /// The badge beside the model name is a green tick, which reads as "validated
-/// against the library". Applying Askar FRA400 and then typing 1234 mm left
-/// that tick over 1234 mm / 72 mm / f/13.71 — a scope that does not exist. A
-/// preset that is no longer in the catalog (a user override that was deleted)
-/// cannot be checked against, so it is reported as edited rather than
-/// confirmed.
+/// against the library", so it must not survive an edit: applying a preset and
+/// then typing a different focal length describes a scope that does not exist.
+/// A preset no longer in the catalog (a deleted user override) cannot be
+/// checked against, so it is reported as edited rather than confirmed.
 ///
-/// Shared with the wizard's closing step, which used to restate the bare model
-/// name after the numbers had been edited away from it.
+/// Shared with the wizard's closing step so both name the same rig.
 bool draftMatchesTelescopePreset(
   OnboardingDraft draft,
   List<TelescopePreset> presets,
@@ -69,6 +53,20 @@ String? telescopeSummaryLabel(
   return draftMatchesTelescopePreset(draft, presets) ? name : '$name — edited';
 }
 
+/// Optical train step — pixel size (microns), focal length (mm),
+/// aperture (mm), reducer factor. The image scale (arcsec/px) is
+/// auto-computed from pixel size + effective focal length.
+///
+/// Optics can be prefilled in one tap from the built-in telescope library
+/// ([HardwarePresetPickerDialog]) or entered manually. Either way the
+/// load-bearing fields — focal length, aperture, pixel size — carry inline
+/// [FieldHelpLabel] hints so a first-time imager understands where each value
+/// comes from without leaving the wizard.
+///
+/// This is the only step where focal length, aperture and pixel size are all
+/// required, because the imaging stack needs them for plate solving, framing
+/// and FOV calculations. The computed image scale is shown in real time so the
+/// numbers can be sanity-checked before moving on.
 class OnboardingOpticalTrainStep extends ConsumerStatefulWidget {
   const OnboardingOpticalTrainStep({super.key});
 

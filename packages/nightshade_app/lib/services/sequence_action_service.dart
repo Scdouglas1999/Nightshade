@@ -36,18 +36,12 @@ class SequenceActionService {
   /// while the first is still running JOINS that future instead of issuing a
   /// duplicate backend command.
   ///
-  /// Why it matters per command:
-  ///   * skip — the executor's `skip()` has NO single-use guard of its own, so
-  ///     without this two concurrent skips advance the native node pointer
-  ///     twice (a silent double-skip).
-  ///   * start — a double-fired preflight callback (or a start from two
-  ///     surfaces) would otherwise bounce off the executor's start latch with a
-  ///     StateError surfaced as a scary red snackbar.
-  ///   * pause / resume — the executor rejects a concurrent pause/resume with
-  ///     "operation already in progress"; joining turns a double-tap into one
-  ///     command with one truthful result instead of that error.
-  ///   * stop / reset — the executor already coalesces these internally; the
-  ///     latch keeps the surfaced result identical for every joined caller.
+  /// The latch is load-bearing for two commands: `skip()` has NO single-use
+  /// guard of its own, so two concurrent skips advance the native node pointer
+  /// twice, and a double-fired start bounces off the executor's start latch as
+  /// a StateError. For pause/resume/stop/reset the executor already refuses or
+  /// coalesces; joining just gives every caller one truthful result instead of
+  /// an "operation already in progress" error.
   final Map<_SequenceCommand, Future<CommandActionResult>> _inFlight = {};
 
   /// Run [body] under the single-flight latch for [kind]: return the in-flight
@@ -69,11 +63,10 @@ class SequenceActionService {
 
   /// Starts the sequence.
   ///
-  /// Audit C3 — `_executor.start()` is async (full pre-flight validation
-  /// including async disk-space). The previous `_executor.start();`
-  /// without `await` returned `ok` before validation completed, swallowing
-  /// any [SequenceValidationException]. Awaiting it surfaces all
-  /// validation errors via the failure path.
+  /// `_executor.start()` is async — full pre-flight validation, including an
+  /// async disk-space check — so it MUST be awaited. Without the await this
+  /// returns `ok` before validation completes and swallows any
+  /// [SequenceValidationException].
   Future<CommandActionResult> start() =>
       _single(_SequenceCommand.start, () async {
         if (!_ref.read(sequenceExecutionStateProvider).canStart) {
@@ -184,9 +177,8 @@ class SequenceActionService {
   /// stop-failed / cleanup-failed) run before clearing progress — and a stop
   /// that cannot confirm the hardware stopped (or whose cleanup failed) throws,
   /// so the reset does NOT force a resettable idle. Returning a
-  /// [CommandActionResult] (instead of the old fire-and-forget `void`) lets
-  /// toolbar callbacks await the reset, gate their busy state on it, and
-  /// surface a failure instead of silently swallowing it.
+  /// [CommandActionResult] lets toolbar callbacks await the reset, gate their
+  /// busy state on it, and surface a failure rather than swallow it.
   Future<CommandActionResult> reset() => _single(
       _SequenceCommand.reset,
       () => _afterStart(() async {

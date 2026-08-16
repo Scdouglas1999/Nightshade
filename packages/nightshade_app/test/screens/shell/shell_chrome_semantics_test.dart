@@ -1,11 +1,9 @@
-// CON-61: the shell chrome is absent from the accessibility tree.
+// The shell chrome must reach the accessibility tree.
 //
-// Live evidence (waveD-equipment-shell.md, waveD-consistency.md): on the
-// running Linux bundle, `tree --all` on any screen contains ZERO title-bar
-// nodes and ZERO nav-rail destinations — `grep -icE
-// "minimize|maximize|close window|transient|settings"` returns 0 — while the
-// dashboard's own content and the alert popup ARE exposed. Settings is
-// therefore unreachable to assistive tech, which is what made it a P2.
+// On the running Linux bundle `tree --all` contains ZERO title-bar nodes and
+// ZERO nav-rail destinations while the dashboard's own content and the alert
+// popup ARE exposed, which leaves Settings — reachable only through the gear —
+// unreachable to assistive tech.
 //
 // This file settles which layer is at fault by asserting on the COMPILED
 // SemanticsNode tree (not on widget properties) for the exact arrangement the
@@ -13,8 +11,8 @@
 // labels are here, the Flutter side is doing its job and the loss is below it
 // (the GTK/AT-SPI bridge in the engine), which is out of this repo's reach.
 //
-// It also pins the half that WAS missing in-widget: the rail's collapse
-// button was a bare GestureDetector with no role and no name.
+// It also pins the in-widget half: the rail's collapse button must not be a bare
+// GestureDetector with no role and no name.
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

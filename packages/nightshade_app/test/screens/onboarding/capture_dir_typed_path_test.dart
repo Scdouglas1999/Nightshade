@@ -126,8 +126,8 @@ void main() {
   });
 
   testWidgets('leaving the field commits it, not just Enter', (tester) async {
-    // Tabbing away is how people leave a path box; dropping the edit there is
-    // exactly the silent-loss this control used to have as its whole design.
+    // Tabbing away is how people leave a path box, so dropping the edit there
+    // loses it silently.
     final writer = _Writer();
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);

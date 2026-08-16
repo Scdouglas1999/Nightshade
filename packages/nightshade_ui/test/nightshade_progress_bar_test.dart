@@ -1,16 +1,13 @@
-// Regression tests for the determinate progress bar's painted fill.
+// The determinate progress bar's painted fill matches its value.
 //
-// The determinate bar used to set the FILL's width (`Container(width: maxWidth
-// * value)`). `Container(width:)` enforces its request against the incoming
-// constraints, so a tight parent — `Expanded` inside a `Row`, which is how
-// nearly every call site uses this widget — clamped the fraction back up to the
-// full width. Every determinate bar in the shipping app painted 100% full
-// regardless of `value`, next to a correct numeric label ("0%" beside a solid
-// bar). Under loose constraints the opposite happened: the track shrink-wrapped
-// to the fill instead of spanning its slot.
+// Setting the FILL's width (`Container(width: maxWidth * value)`) cannot work:
+// `Container(width:)` enforces its request against the incoming constraints, so
+// a tight parent — `Expanded` inside a `Row`, which is how nearly every call
+// site uses this widget — clamps the fraction back up to the full width and the
+// bar paints 100% full beside a correct "0%" label. Under loose constraints the
+// track shrink-wraps to the fill instead of spanning its slot.
 //
-// These tests measure the real painted fill, so they fail on the old
-// implementation and pass on the fixed one.
+// These tests measure the real painted fill.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

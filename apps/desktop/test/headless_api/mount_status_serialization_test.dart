@@ -11,13 +11,11 @@ import 'handler_test_helpers.dart';
 
 /// Regression guard for `GET /api/mount/status`.
 ///
-/// The handler used to return `backend.mountGetStatus()`, which yields the raw
-/// flutter_rust_bridge `MountStatus` object. That object has no `toJson()`, so
-/// `jsonEncode` threw and every remote client (mobile tablet, desktop, web
-/// dashboard) received `{"error":"internal_error"}` instead of mount telemetry.
-/// Found by booting the arm64 appliance build under emulation and curling the
-/// endpoint. The fix routes through `getMountStatus()` (domain type with a real
-/// `toJson()`), matching `/api/equipment/mount/status`.
+/// The endpoint must answer through `getMountStatus()` — the domain type with
+/// a real `toJson()`, matching `/api/equipment/mount/status`. The raw
+/// flutter_rust_bridge `MountStatus` from `backend.mountGetStatus()` has no
+/// `toJson()`, so `jsonEncode` throws and every remote client receives
+/// `{"error":"internal_error"}` instead of mount telemetry.
 ///
 /// Only [getMountStatus] is modeled; any other call loud-fails through
 /// [noSuchMethod] so an accidental dependency surfaces immediately.
@@ -128,10 +126,9 @@ void main() {
       expect(availability['azimuth'], 'unsupported');
     });
 
-    // Regression: omitting `deviceId` used to pass an empty string straight to
-    // the backend, producing an opaque 500 ("Device not found:"). A tablet that
-    // just wants "the" mount should get it; the handler now falls back to the
-    // single connected mount.
+    // A tablet that just wants "the" mount gets it: an omitted `deviceId`
+    // falls back to the single connected mount rather than passing an empty
+    // string to the backend, which answers an opaque 500 ("Device not found:").
     test('no deviceId falls back to the connected mount', () async {
       final backend = _FakeDeviceBackend(
         const MountStatus(
@@ -176,8 +173,8 @@ void main() {
       expect(backend.lastQueriedDeviceId, 'mount-xyz');
     });
 
-    // Regression: with no mount connected and no deviceId, surface a clean 400
-    // rather than the previous opaque 500.
+    // With no mount connected and no deviceId, surface a clean 400 rather than
+    // an opaque 500.
     test('no deviceId and no mount connected returns 400, not 500', () async {
       final backend = _FakeDeviceBackend(
         const MountStatus(

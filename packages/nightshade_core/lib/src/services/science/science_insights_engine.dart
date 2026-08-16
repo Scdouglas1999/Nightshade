@@ -1,8 +1,7 @@
 /// Plain-language insight generator for the science layer.
 ///
-/// Replaces the inline rule list that used to live in `ScienceInsightsPanel`
-/// so the same insights can be shown on the Imaging HUD and on the Session
-/// dashboard without copying the thresholds twice.
+/// Shared by the Imaging HUD and the Session dashboard, so the thresholds are
+/// stated once.
 ///
 /// Each insight is intentionally short — one sentence with a concrete next
 /// action. Severities map to the standard `NightshadeColors` palette

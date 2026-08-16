@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // All hand-built SequenceNode-tree literals that ship as first-run templates. Pure data factory; no widget code. Owns _getBuiltInTemplates() plus its _createXxxNodes() helpers.
 part of '../templates_tab.dart';
 

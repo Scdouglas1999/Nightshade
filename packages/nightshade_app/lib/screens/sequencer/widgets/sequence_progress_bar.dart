@@ -86,16 +86,15 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     super.dispose();
   }
 
-  // WF-STOP-N4 — when the run last actually moved.
+  // When the run last actually moved.
   //
-  // A meridian flip whose plate solve failed entered its retry ladder and held
-  // the run for two and a half minutes. Every surface stayed cheerful: status
+  // A meridian flip whose plate solve fails enters its retry ladder and can
+  // hold the run for minutes while every surface stays cheerful: status
   // **Running**, `Progress 4/8 · 50%`, `Mount: Tracking`, and this row's
-  // `~1m 8s · done ~00:12:13` — a finish time still on screen at 00:12:53 and
-  // again at 00:13:24, long after it had passed, with no frame captured since
-  // 00:10. The estimate is fed by completed frames, so a run that stops
-  // capturing simply keeps its last one forever and it decays into a promise
-  // the run is not working toward.
+  // `~1m 8s · done ~00:12:13` — a finish time still on screen long after it
+  // has passed, with no frame captured. The estimate is fed by completed
+  // frames, so a run that stops capturing keeps its last one forever and it
+  // decays into a promise the run is not working toward.
   //
   // Fields the run advances when it is genuinely working. `message` is included
   // because a run can legitimately be busy between frames (slewing, focusing,

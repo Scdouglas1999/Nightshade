@@ -26,9 +26,7 @@ class SchedulerHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'SchedulerHandlers');
 
-  // ===========================================================================
   // Autopilot preview decision (host -> slave mirror)
-  // ===========================================================================
 
   /// GET /api/scheduler/preview
   ///
@@ -183,9 +181,7 @@ class SchedulerHandlers {
     return jsonOk(await _schedulerState());
   }
 
-  // ===========================================================================
-  // Calculate Altitude
-  // ===========================================================================
+  // Calculate altitude
 
   /// GET /api/scheduler/altitude?ra=X&dec=Y&time=Z
   /// Calculate altitude of object at given time (or now if no time)
@@ -278,9 +274,7 @@ class SchedulerHandlers {
     });
   }
 
-  // ===========================================================================
-  // Calculate Transit Time
-  // ===========================================================================
+  // Calculate transit time
 
   /// GET /api/scheduler/transit-time?ra=X&dec=Y
   /// Get transit time for object tonight
@@ -348,9 +342,7 @@ class SchedulerHandlers {
     });
   }
 
-  // ===========================================================================
-  // Calculate Rise/Set Times
-  // ===========================================================================
+  // Calculate Rise/Set times
 
   /// GET /api/scheduler/rise-set?ra=X&dec=Y
   /// Get rise and set times for object
@@ -410,9 +402,7 @@ class SchedulerHandlers {
     });
   }
 
-  // ===========================================================================
-  // Calculate Hours Above Horizon
-  // ===========================================================================
+  // Calculate hours above horizon
 
   /// GET /api/scheduler/hours-above-horizon?ra=X&dec=Y&minAltitude=30
   /// Get hours object is above altitude
@@ -475,9 +465,7 @@ class SchedulerHandlers {
     });
   }
 
-  // ===========================================================================
-  // Optimize Targets
-  // ===========================================================================
+  // Optimize targets
 
   /// POST /api/scheduler/optimize-targets
   /// Reorder a list of target IDs for optimal imaging tonight
@@ -717,9 +705,7 @@ class SchedulerHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Twilight Times
-  // ===========================================================================
+  // Get twilight times
 
   /// GET /api/scheduler/twilight-times
   /// Get astronomical, nautical, civil twilight times for tonight
@@ -782,9 +768,7 @@ class SchedulerHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Moon Info
-  // ===========================================================================
+  // Get moon info
 
   /// GET /api/scheduler/moon-info
   /// Get moon phase, rise/set, illumination

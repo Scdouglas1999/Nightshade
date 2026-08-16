@@ -22,9 +22,7 @@ import '../../services/phd2_probe.dart';
 ///     [SequencerBackend.sequencerUpdateDitherConfig]; the guider role is the
 ///     transport.
 abstract class GuidingBackend {
-  // =========================================================================
   // PHD2 Guiding (direct control)
-  // =========================================================================
 
   /// Probe whether a PHD2 instance is reachable on the given host/port.
   ///
@@ -124,9 +122,7 @@ abstract class GuidingBackend {
   /// Deselect the current guide star
   Future<void> phd2DeselectStar();
 
-  // =========================================================================
   // Generic Guiding (driver-agnostic)
-  // =========================================================================
 
   /// Start guiding using the connected guider
   ///

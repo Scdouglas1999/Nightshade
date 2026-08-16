@@ -1,8 +1,6 @@
 part of '../polar_alignment_provider.dart';
 
-// =============================================================================
-// POLAR ALIGNMENT UI STATE (Persisted — survives navigation & app restart)
-// =============================================================================
+// Polar alignment UI state (persisted — survives navigation & app restart)
 
 /// Non-runtime UI preferences for the polar alignment screen.
 ///
@@ -148,9 +146,7 @@ class PolarAlignmentUiStateNotifier
   }
 }
 
-// =============================================================================
-// POLAR ALIGNMENT ERROR HISTORY PROVIDER (For Trend Visualization)
-// =============================================================================
+// Polar alignment error history provider (for trend visualization)
 
 /// Maximum number of error samples to keep for visualization
 const int _maxErrorHistorySamples = 60;

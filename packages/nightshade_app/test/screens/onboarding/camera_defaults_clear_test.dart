@@ -1,10 +1,9 @@
 // The camera-defaults step must store what its fields show.
 //
 // `setCameraDefaults` treats a null argument as "leave unchanged", so emptying
-// the Gain box used to leave the preset's gain in the draft — and therefore in
-// the equipment profile the wizard creates. The step displayed "no gain" and
-// built a rig with one. Same shape for offset, binning, and the cooling
-// set-point.
+// the Gain box must not leave the preset's gain in the draft — and therefore in
+// the equipment profile the wizard creates, displaying "no gain" while building
+// a rig with one. Same shape for offset, binning and the cooling set-point.
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

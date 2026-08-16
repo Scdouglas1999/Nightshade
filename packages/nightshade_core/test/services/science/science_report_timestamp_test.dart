@@ -57,7 +57,7 @@ void main() {
     expect(ended, isNotNull);
     expect(ended!.group(1)!, endsWith('Z'));
 
-    // And nothing in the Session block is left in the old bare-local shape.
+    // And nothing in the Session block is left in the bare-local shape.
     expect(
       RegExp(r'\*\*(Started|Ended):\*\*').hasMatch(md),
       isFalse,

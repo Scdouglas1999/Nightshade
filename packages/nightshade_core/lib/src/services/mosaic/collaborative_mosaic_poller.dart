@@ -1,5 +1,4 @@
-// Collaborative Sky (6.0) WS2 — the unattended-rig auto-driver for distributed
-// collaborative mosaics.
+// The unattended-rig auto-driver for distributed collaborative mosaics.
 //
 // The hub auto-flips a mosaic to `assembling` the moment the final panel master
 // lands, and to `complete` once the owner pushes the stitched output. But those
@@ -22,7 +21,7 @@
 //     below would never fire. The upload only runs when the user has recorded
 //     an UNATTENDED-UPLOAD consent (license + attribution + auto-upload opt-in);
 //     with no such consent the rig leaves uploads manual rather than shipping
-//     full-resolution pixels under a silent default (the WS4 consent contract).
+//     full-resolution pixels under a silent default.
 //   * OWNER  — refreshes the hub status; when the hub reports `assembling`
 //     (every panel uploaded) it runs [CollaborativeMosaicService.assembleMosaic]
 //     EXACTLY ONCE (pull + stitch + push), completing the mosaic.
@@ -128,8 +127,9 @@ class CollaborativeMosaicPoller {
       for (final project in projects) {
         final projectId = project.id;
         if (projectId == null) continue;
-        // A terminal action for this project is already running (a multi-minute
-        // native stitch) — skip until it resolves and clears the guard.
+        // A terminal action for this project is already in flight (a
+        // multi-minute native stitch) — skip until it resolves and clears the
+        // guard.
         if (_inFlight.contains(projectId)) continue;
         // Push any of this rig's captured+integrated panels into the hub FIRST
         // (the integrate→upload bridge), so the next status refresh can see the

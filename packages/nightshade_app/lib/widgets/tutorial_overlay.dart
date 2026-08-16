@@ -134,31 +134,23 @@ enum TutorialDirection { forward, backward }
 /// Where a tour should land when the step at [index] describes a panel that is
 /// not on screen, or null when it should stay put.
 ///
-/// The dashboard tour narrates Live Image Preview, Quick Capture, Session
-/// Progress and six more panels that the default dashboard layout does not
-/// contain: nine of its twelve steps talked about widgets the operator was not
-/// looking at, with no spotlight and nothing to point at, because their target
-/// keys resolve to widgets that were never built. A tour step whose subject is
-/// absent has nothing to teach, so it is passed over — in whichever direction
-/// the operator was already going, so Back does not bounce off it. Steps with
-/// no target at all (the centred welcome and completion cards) always stand.
+/// A tour step whose target key resolves to no widget has nothing to teach, so
+/// it is passed over — in whichever DIRECTION the operator was already going,
+/// so Back does not bounce off it. Steps with no target at all (the centred
+/// welcome and completion cards) always stand.
 ///
 /// Returns null at the ends of the tour and whenever the target is live, which
 /// is what makes the walk terminate.
 ///
-/// The WHOLE run of absent steps is passed over in one answer, not one step per
-/// call. Hopping a single step and re-entering from the next build walked the
-/// operator THROUGH the absent steps at one every 450 ms, and every one of them
-/// became the current step long enough to be announced: the live tree dump
-/// caught the dashboard tour parked on "step 6 of 12: Weather Status" and then
-/// "step 11 of 12: Active Sequence" on a dashboard that has neither panel. A
-/// step nobody should see must never become the current step.
+/// The WHOLE run of absent steps is passed over in ONE answer, never one step
+/// per build: hopping a single step and re-entering walks the operator through
+/// the absent steps, and each becomes the current step long enough to be
+/// announced. A step nobody should see must never become the current step.
 ///
-/// One step being absent among present siblings is a layout that does not carry
-/// that panel. NOTHING in the tour resolving is a different situation — the
-/// screen has not finished building, or the operator is somewhere else
-/// entirely — and racing to the end of a tour on that evidence would be worse
-/// than showing it, so the whole rule stands down.
+/// One step absent among present siblings is a layout that does not carry that
+/// panel. NOTHING resolving is a different situation — the screen has not
+/// finished building, or the operator is elsewhere — so the whole rule stands
+/// down rather than racing to the end of a tour on that evidence.
 @visibleForTesting
 int? tutorialStepIndexPastMissingTarget({
   required List<TutorialStep> steps,
@@ -306,11 +298,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
 
   /// Take the operator to the screen the current step is talking about.
   ///
-  /// This used to key off the step's `targetKey` against an eight-entry map of
-  /// `nav_*` ids. Almost no tour step uses one, so starting a tour left the
-  /// coach mark sitting on whatever screen the operator was on — "Click the
-  /// Profiles tab" over Settings, where there is no Profiles tab. Resolve the
-  /// route from the step itself instead, so every tour opens where it applies.
+  /// The route is resolved from the STEP, not from a map of `nav_*` target
+  /// keys almost no step carries — which would leave the coach mark on whatever
+  /// screen the operator was already on, saying "Click the Profiles tab" over a
+  /// screen that has none.
   void _navigateForStep(BuildContext context, TutorialStep step) {
     if (!context.mounted) return;
 

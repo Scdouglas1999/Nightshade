@@ -1,8 +1,7 @@
 // The Target-queue empty state must name the cause that actually produced the
 // empty queue. The scheduler's candidate query is project-scoped, so an active
-// project with no members hides a fully-populated catalog — and the old copy
-// sent that operator off to "add a target to your catalog, then set how many
-// frames you want in each filter", work they had already done.
+// project with no members hides a fully-populated catalog — and generic copy
+// sends that operator off to add targets and goals they already have.
 
 import 'dart:async';
 

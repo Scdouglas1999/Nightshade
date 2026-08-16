@@ -51,7 +51,7 @@ class _NarrowDesktopLayout extends ConsumerWidget {
 }
 
 /// Vertical icon strip showing one draggable button per palette item,
-/// for use under the narrow-desktop threshold (audit §4.7). Each icon is
+/// for use under the narrow-desktop threshold. Each icon is
 /// a `Draggable<NodePaletteItem>` whose drop is accepted by the same
 /// `DragTarget<Object>` in `sequence_tree.dart` that the expanded palette
 /// uses, so insertion semantics are identical.
@@ -97,7 +97,7 @@ class _NarrowNodePaletteRail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // §18: the flattening is memoized in a provider, so this rebuild (hover /
+    // The flattening is memoized in a provider, so this rebuild (hover /
     // resize) just reads the cached list instead of re-flattening the palette.
     final flat = ref.watch(flatNodePaletteProvider);
 
@@ -112,14 +112,14 @@ class _NarrowNodePaletteRail extends ConsumerWidget {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              // §19: single source of truth for the row height so the extent
+              // Single source of truth for the row height so the extent
               // can't drift from the tile + margin.
               itemExtent: _RailDraggable.rowExtent,
               itemCount: flat.length,
               itemBuilder: (context, index) {
                 final entry = flat[index];
                 // Resolve the category tint per-row from the live theme; the
-                // provider only carries the category name (§18). Icons reuse
+                // provider only carries the category name. Icons reuse
                 // the shared palette icon map (no duplicate switch).
                 return _RailDraggable(
                   item: entry.item,
@@ -161,7 +161,7 @@ class _RailDraggable extends ConsumerStatefulWidget {
     required this.colors,
   });
 
-  /// §19: the tile geometry is the single source of truth shared between this
+  /// The tile geometry is the single source of truth shared between this
   /// widget's build and the rail's `itemExtent`, so changing either can't
   /// silently desync the list metrics.
   static const double tileHeight = 36.0;

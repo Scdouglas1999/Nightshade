@@ -1,13 +1,14 @@
-// SET-5 and SET-11, the two library presets in the optics/camera steps.
+// The two library presets in the optics/camera steps.
 //
-// SET-5: picking Askar FRA400 filled the optics and left a green-ticked
+// Optics: picking Askar FRA400 fills the optics and leaves a green-ticked
 // "✓ Askar FRA400" beside the library button. Typing 1234 into the focal length
-// left that tick sitting over 1234 mm / 72 mm / f/13.71 — a scope that does not
-// exist — while the green check reads as "validated against the library".
+// must clear it, or the tick sits over 1234 mm / 72 mm / f/13.71 — a scope that
+// does not exist — while the green check reads as "validated against the
+// library".
 //
-// SET-11: choosing a camera preset on step 9 silently rewrote the pixel size
-// typed on step 8, and the review page's image scale was then computed from the
-// replacement with nothing on any screen saying so.
+// Camera: choosing a camera preset on step 9 must not silently rewrite the pixel
+// size typed on step 8, with the review page's image scale then computed from
+// the replacement and nothing on any screen saying so.
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

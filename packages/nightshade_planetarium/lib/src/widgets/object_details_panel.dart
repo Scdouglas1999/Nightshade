@@ -75,23 +75,24 @@ class ObjectDetailsPanel extends ConsumerWidget {
     final txtColor = textColor ?? Colors.white;
     final accent = accentColor ?? const Color(0xFF00E676);
 
-    final location = ref.watch(observerLocationProvider);
+    // Null until an observing site is on record. Altitude, rise/set and the
+    // visibility grade are all measured from the observer's horizon, so those
+    // sections are withheld rather than computed against a stand-in site.
+    final site = ref.watch(observerLocationProvider).site;
     // Minute resolution, not the 1 Hz clock: nothing this panel shows moves
     // visibly inside a second, and the rise/set solves below are 289-sample
     // sweeps that would otherwise be re-run on the UI isolate every tick.
     final obsTime = ref.watch(observationMinuteProvider);
 
-    // Calculate current altitude/azimuth
-    final (alt, az) = AstronomyCalculations.objectAltAz(
-      raDeg: object.coordinates.ra * 15, // Convert hours to degrees
-      decDeg: object.coordinates.dec,
-      dt: obsTime,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-    );
-
-    // Calculate visibility score
-    final visibilityScore = _calculateVisibilityScore(ref, alt);
+    final altAz = site == null
+        ? null
+        : AstronomyCalculations.objectAltAz(
+            raDeg: object.coordinates.ra * 15, // Convert hours to degrees
+            decDeg: object.coordinates.dec,
+            dt: obsTime,
+            latitudeDeg: site.latitude,
+            longitudeDeg: site.longitude,
+          );
 
     return Container(
       decoration: BoxDecoration(
@@ -115,13 +116,22 @@ class ObjectDetailsPanel extends ConsumerWidget {
               _buildHeader(txtColor, accent),
             const SizedBox(height: 12),
 
-            // Visibility score indicator (new)
-            Center(child: _buildVisibilityIndicator(visibilityScore)),
-            const SizedBox(height: 12),
+            if (site == null) ...[
+              _buildNoSiteNote(txtColor),
+              const SizedBox(height: 16),
+            ] else ...[
+              // Visibility score indicator (new)
+              Center(
+                child: _buildVisibilityIndicator(
+                  _calculateVisibilityScore(ref, site, altAz!.$1),
+                ),
+              ),
+              const SizedBox(height: 12),
 
-            // Quick stats bar (new)
-            _buildQuickStats(ref, alt, txtColor),
-            const SizedBox(height: 16),
+              // Quick stats bar (new)
+              _buildQuickStats(ref, site, altAz.$1, txtColor),
+              const SizedBox(height: 16),
+            ],
 
             // Coordinates section
             _buildCoordinatesSection(txtColor),
@@ -135,22 +145,24 @@ class ObjectDetailsPanel extends ConsumerWidget {
             _buildPhysicalPropertiesSection(txtColor),
             const SizedBox(height: 16),
 
-            // Current visibility section
-            _buildVisibilitySection(alt, az, txtColor, accent),
+            if (site != null) ...[
+              // Current visibility section
+              _buildVisibilitySection(altAz!.$1, altAz.$2, txtColor, accent),
 
-            if (showVisibilityGraph) ...[
+              if (showVisibilityGraph) ...[
+                const SizedBox(height: 16),
+                // Visibility graph (altitude over time)
+                _buildVisibilityGraph(ref, txtColor, accent),
+                const SizedBox(height: 16),
+                // Airmass chart
+                _buildAirmassChart(ref, txtColor, accent),
+              ],
+
               const SizedBox(height: 16),
-              // Visibility graph (altitude over time)
-              _buildVisibilityGraph(ref, txtColor, accent),
-              const SizedBox(height: 16),
-              // Airmass chart
-              _buildAirmassChart(ref, txtColor, accent),
+
+              // Rise/Transit/Set times
+              _buildRiseTransitSetSection(ref, site, txtColor),
             ],
-
-            const SizedBox(height: 16),
-
-            // Rise/Transit/Set times
-            _buildRiseTransitSetSection(ref, txtColor),
 
             // Extra content slot (e.g. imaging history)
             if (extraContent != null) ...[

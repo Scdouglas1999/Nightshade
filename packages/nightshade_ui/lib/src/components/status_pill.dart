@@ -39,12 +39,11 @@ class _StatusPillState extends State<StatusPill>
   @override
   void initState() {
     super.initState();
-    // The flash controller is created exactly ONCE for the life of the State.
-    // SingleTickerProviderStateMixin allows only one ticker, so recreating the
-    // controller on every status change (the old behaviour) threw "multiple
-    // tickers were created" and left an orphaned controller ticking with a
-    // negative elapsed time. We instead reuse the single controller and only
-    // re-trigger the flash animation when the status transitions.
+    // The flash controller is created exactly ONCE for the life of the State:
+    // SingleTickerProviderStateMixin allows only one ticker, so recreating it
+    // on a status change throws "multiple tickers were created" and leaves an
+    // orphaned controller ticking. The single controller is re-triggered on
+    // each status transition instead.
     _flashController = AnimationController(
       vsync: this,
       duration: NightshadeTokens.durationSmooth,

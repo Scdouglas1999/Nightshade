@@ -21,7 +21,7 @@ part of '../settings_provider.dart';
 
 /// Setters for per-device-type equipment-default knobs.
 extension EquipmentSettingsSection on AppSettingsNotifier {
-  // -------- Camera defaults --------
+  // Camera defaults
   Future<void> setDefaultGain(int value) async {
     await _saveSetting('default_gain', value.toString());
     _patchState((s) => s.copyWith(defaultGain: value));
@@ -32,7 +32,7 @@ extension EquipmentSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(defaultOffset: value));
   }
 
-  // -------- Mount defaults --------
+  // Mount defaults
   Future<void> setEnableMeridianFlip(bool value) async {
     await _saveSetting('enable_meridian_flip', value.toString());
     _patchState((s) => s.copyWith(enableMeridianFlip: value));
@@ -71,7 +71,7 @@ extension EquipmentSettingsSection on AppSettingsNotifier {
     );
   }
 
-  // -------- Focuser defaults --------
+  // Focuser defaults
   Future<void> setTempCompensation(bool value) async {
     await _saveSetting('temp_compensation', value.toString());
     _patchState((s) => s.copyWith(tempCompensation: value));
@@ -92,12 +92,10 @@ extension EquipmentSettingsSection on AppSettingsNotifier {
   /// transaction so the focuser configuration dialog can never persist a
   /// partial change.
   ///
-  /// The prior dialog issued three sequential writes and swallowed malformed
-  /// numeric input via `tryParse(...) ?? old`, so a non-finite coefficient or a
-  /// mid-write failure could persist an inconsistent trio while still reporting
-  /// success. Batching all three keys through [_saveSettings] makes persistence
-  /// atomic; [_patchState] runs only after the write resolves, so a failed
-  /// write leaves state unchanged and the dialog retryable.
+  /// All three keys go through one [_saveSettings], and [_patchState] runs
+  /// only after that write resolves, so a mid-write failure leaves state
+  /// unchanged and the dialog retryable rather than persisting an
+  /// inconsistent trio.
   ///
   /// Callers validate `tempCoefficient` is finite (the continuous compensator
   /// multiplies it by a temperature delta and rounds — a NaN/∞ coefficient
@@ -125,7 +123,7 @@ extension EquipmentSettingsSection on AppSettingsNotifier {
     );
   }
 
-  // -------- Guider defaults --------
+  // Guider defaults
   Future<void> setDitherScale(String value) async {
     await _saveSetting('dither_scale', value);
     _patchState((s) => s.copyWith(ditherScale: value));

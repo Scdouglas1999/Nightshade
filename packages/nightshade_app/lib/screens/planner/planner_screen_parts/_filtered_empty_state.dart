@@ -1,11 +1,7 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // Empty-state card shown when filters strip every candidate; ranks which filters caused the most exclusions and offers a one-tap reset.
 part of '../planner_screen.dart';
 
-// ============================================================================
 // Empty state (filters applied) — explains which filter excluded the most
-// ============================================================================
 
 class _FilteredEmptyState extends ConsumerWidget {
   final NightshadeColors colors;
@@ -136,7 +132,6 @@ class _FilteredEmptyState extends ConsumerWidget {
             // The scorer having nothing to offer is exactly when the two
             // sky-work surfaces are most useful: the planetarium answers "what
             // IS up right now", framing answers "does anything I own fit it".
-            // Both were reachable only by hunting for a tab until now.
             _NextStepsBlock(colors: colors),
             const SizedBox(height: NightshadeTokens.spaceLg),
             Align(

@@ -32,15 +32,9 @@ import 'rules/target_scheduler_rules.dart';
 import 'rules/timing_rules.dart';
 import 'rules/weather_safety_rules.dart';
 
-// =============================================================================
-// UNIFIED SEQUENCE VALIDATION
-// =============================================================================
+// Unified sequence validation.
 //
-// This file is the single source of truth for sequence validation. There was
-// historically a second engine inside `preflight_validation_dialog.dart` (the
-// "rich" model with category/resolutionHint, three severity levels) and a
-// third inside `live_validation_provider.dart`. Both have been folded into
-// the rule registry below.
+// This file is the single source of truth for sequence validation.
 //
 //   * Pure structural rules are sync and live under `rules/`.
 //   * Ref-aware rules (equipment connection, filter wheel content, app
@@ -48,8 +42,8 @@ import 'rules/weather_safety_rules.dart';
 //     [ValidationContext].
 //
 // Live in-tree validation (the per-node coloured border + counts in the tree
-// header) and the pre-flight dialog now both call into [SequenceValidator]
-// here. Add a new rule by adding it to [defaultSequenceValidators] /
+// header) and the pre-flight dialog both call into [SequenceValidator] here.
+// Add a new rule by adding it to [defaultSequenceValidators] /
 // [defaultRefAwareSequenceValidators]. Don't fork the engine.
 
 /// Severity of a validation issue. Three levels:
@@ -322,8 +316,8 @@ final List<SequenceValidator> defaultSequenceValidators =
       ParallelNodeRequiredSuccessesRule(),
       ConditionalNodeEmptyBranchRule(),
       LoopUnreachableTerminationRule(),
-      // A Loop at 1 iteration and a Conditional set to Always are both
-      // no-ops the builder used to render as ordinary configured nodes.
+      // A Loop at 1 iteration and a Conditional set to Always are both no-ops
+      // and must be flagged.
       NoOpLogicNodeRule(),
       PluginNodeConfigurationRule(),
       // SmartExposure validation.
@@ -492,15 +486,14 @@ List<ValidationIssue> validateSequence(Sequence sequence) {
   return issues;
 }
 
-/// Audit C3: typed exception thrown by start paths (executor.start(),
+/// Typed exception thrown by start paths (executor.start(),
 /// sequence_action_service.start(), the headless POST /sequencer/start
 /// handler) when pre-flight validation finds at least one
 /// [ValidationSeverity.error] issue.
 ///
-/// Carries the full [ValidationResult] so callers can surface ALL findings
-/// to the user instead of the historical "first error wins" `Exception`.
-/// Errors are a feature here; silent truncation of additional
-/// errors is a bug.
+/// Carries the full [ValidationResult] so callers surface ALL findings; a
+/// first-error-wins `Exception` truncates the rest and sends the operator back
+/// for another round per error.
 class SequenceValidationException implements Exception {
   /// Complete validation result. Includes errors, warnings, and info-level
   /// issues. Callers should typically only block on `result.errorCount`.
@@ -748,7 +741,7 @@ bool isContainerNode(SequenceNode node) {
     LiveStackingNode _ ||
     // Science: SciencePhotometry — leaf instruction.
     SciencePhotometryNode _ ||
-    // Audit §11 — plugin-contributed instruction. Leaf.
+    // Plugin-contributed instruction. Leaf.
     PluginInstructionNode _ => false,
   };
 }

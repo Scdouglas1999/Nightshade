@@ -107,9 +107,8 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
 
   /// Canonical TAN projection for a science [WcsSolution] + frame geometry,
   /// or null when the inputs are not projectable (zero/negative pixel scale
-  /// or dimensions). One shared implementation lives in
-  /// `services/wcs/gnomonic_projection.dart`; the previous per-file copies
-  /// of the spherical math have been removed.
+  /// or dimensions). The shared implementation lives in
+  /// `services/wcs/gnomonic_projection.dart`.
   GnomonicProjection? _projectionFor(
     WcsSolution wcs, {
     required int imageWidth,
@@ -662,11 +661,10 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
 
   /// Name the engine a science solve actually dispatches to.
   ///
-  /// The engine is picked by the plate-solver preference — the store the
-  /// Plate Solving page writes and the Rust dispatcher reads. This used to
-  /// read the `plate_solver` app-setting instead, a second store no UI writes
-  /// and whose seed is `'ASTAP'`, so every science record on a rig running
-  /// Auto with only astrometry.net installed was stamped "ASTAP".
+  /// The engine is picked by the plate-solver preference — the store the Plate
+  /// Solving page writes and the Rust dispatcher reads — never the
+  /// `plate_solver` app-setting, which no UI writes and which seeds to
+  /// `'ASTAP'` whatever is installed.
   ///
   /// Auto tries ASTAP and falls back to astrometry.net per frame, and the
   /// solve result carries no engine id, so when both are installed the only

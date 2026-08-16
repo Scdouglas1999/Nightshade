@@ -1,20 +1,15 @@
-// Regression (SKY-4, re-opened by a live re-drive): "Create region" must never
-// be a control that cannot work.
+// "Create region" must never be a control that cannot work.
 //
-// The live evidence this encodes, taken from the running desktop build against
-// a fresh profile with an empty target library:
+// On a fresh profile with an empty target library, Your Sky -> Name a region
+// with the mode left on "From a target" reports `button: Create region` with NO
+// [DISABLED] state, and clicking it leaves the dialog open with no error text,
+// no toast and no new node anywhere in the tree.
 //
-//   Your Sky -> Name a region, mode left on "From a target".
-//   The accessibility tree reports `button: Create region` with NO [DISABLED]
-//   state, and clicking it leaves the dialog open with no error text, no toast
-//   and no new node anywhere in the tree.
-//
-// Dimming the button was the earlier fix, and it did not reach the user: the
-// only signals a screen reader or an automated driver gets both said
-// "actionable", and the click did nothing. So in the one state where the mode
-// can never succeed, the sheet must not offer that action at all — it offers
-// the escape hatch its own empty-state copy names instead, and that control is
-// live.
+// Dimming the button does not reach the user: the only signals a screen reader
+// or an automated driver gets both say "actionable", and the click does nothing.
+// So in the one state where the mode can never succeed, the sheet does not offer
+// that action at all — it offers the escape hatch its own empty-state copy
+// names, and that control is live.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,6 +1,4 @@
-// =============================================================================
-// sequence_counts.dart — the node count the USER can see.
-// =============================================================================
+// The node count the USER can see.
 //
 // WHY THIS EXISTS: `Sequence.nodes` includes the implicit root container, a
 // node nobody put there and nobody can select or delete. Surfaces that quoted

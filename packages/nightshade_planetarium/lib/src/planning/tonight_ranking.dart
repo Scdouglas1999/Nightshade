@@ -161,8 +161,7 @@ List<TonightRanking> rankTonightTargets({
     longitudeDeg: longitudeDeg,
   );
   final window = darknessWindowOf(twilight);
-  // Midnight sun: there is no dark time to plan, and inventing a ranking would
-  // be the same lie in a new place.
+  // Midnight sun: there is no dark time to plan, so there is nothing to rank.
   if (window == null) return const [];
 
   final mid = window.start.add(

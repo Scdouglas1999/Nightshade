@@ -2,9 +2,7 @@ part of '../sequencer_handlers.dart';
 
 /// Recovery-mode HTTP handlers.
 extension _SequencerRecovery on SequencerHandlers {
-  // ==========================================================================
-  // Recovery Mode — HTTP handlers
-  // ==========================================================================
+  // Recovery mode — HTTP handlers.
   //
   // These mirror the NetworkBackend client calls in
   // `network_backend.dart > recoveryTryNow/recoveryAbort/updateRecoveryConfig/

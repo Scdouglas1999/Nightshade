@@ -7,9 +7,7 @@ import '../models/planning/target_suggestion.dart';
 import 'simbad_provider.dart';
 import 'target_suggestion_provider.dart';
 
-// ============================================================================
 // Planner-side sort options
-// ============================================================================
 
 /// UI-only sort modes for the planner workspace. These re-sort the already-
 /// scored suggestion list without touching the scoring service.
@@ -23,9 +21,7 @@ enum PlannerSortMode {
   catalogId,
 }
 
-// ============================================================================
-// Filter State
-// ============================================================================
+// Filter state
 
 /// Client-side filter state for narrowing down the suggestions list.
 ///
@@ -127,9 +123,7 @@ class SuggestionFilterState {
   }
 }
 
-// ============================================================================
 // Providers
-// ============================================================================
 
 /// Holds the current UI filter state. Defaults = no filtering.
 final suggestionFilterProvider = StateProvider<SuggestionFilterState>(
@@ -241,9 +235,7 @@ const Map<String, List<String>> _objectTypeAliases = {
   'asteroid': ['asteroid', 'minor planet'],
 };
 
-// ============================================================================
-// Derived / Convenience Providers
-// ============================================================================
+// Derived / convenience providers
 
 /// Extracts sorted unique constellation abbreviations from the full
 /// (unfiltered) suggestion list.
@@ -320,9 +312,7 @@ final availableSizeRangeProvider = Provider.autoDispose<(double, double)?>((
   );
 });
 
-// ============================================================================
 // Planner workspace providers
-// ============================================================================
 
 /// Per-filter breakdown of how many suggestions the planner UI excluded.
 /// Used by the empty-state hint to tell the user which constraint is hurting.

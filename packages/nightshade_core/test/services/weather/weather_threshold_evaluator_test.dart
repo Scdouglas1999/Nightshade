@@ -116,21 +116,14 @@ void main() {
     });
   });
 
-  /// Architecture-unification 2026-06-05 (Subsystem 2 step 2 — DUPLICATE
-  /// HUMIDITY GATE RECONCILIATION). The humidity ceiling now has exactly ONE
-  /// definition: the operator-configured `maxHumidityPercent` consumed by this
-  /// evaluator (folded into the pushed weather verdict → Rust `WeatherUnsafe`).
-  ///
-  /// Previously the Rust `create_standard_triggers` ALSO auto-added a
-  /// `HumidityThreshold` trigger with a HARDCODED 85% that ignored this setting,
-  /// so the same reading could be judged differently by the two gates. That
-  /// standard trigger has been removed; this test pins that the evaluator
-  /// honours whatever ceiling the operator configures (NOT a fixed 85), which is
-  /// the single source of truth both languages now share.
+  /// The humidity ceiling has exactly ONE definition: the operator-configured
+  /// `maxHumidityPercent` consumed by this evaluator and folded into the pushed
+  /// weather verdict (Rust `WeatherUnsafe`). A second, hardcoded ceiling
+  /// anywhere would let the two gates judge the same reading differently.
   group(
     'humidity gate uses the operator-configured ceiling (single source)',
     () {
-      test('a 70% operator ceiling makes 80% unsafe (stricter than old 85)', () {
+      test('a 70% operator ceiling makes 80% unsafe', () {
         const strict = WeatherThresholds(
           maxHumidityPercent: 70.0,
           maxWindSpeedKph: 30.0,

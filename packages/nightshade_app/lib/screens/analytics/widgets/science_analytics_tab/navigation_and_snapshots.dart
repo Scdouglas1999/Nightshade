@@ -47,8 +47,8 @@ Future<File> exportScienceShortcutReport({
 }
 
 /// Inline export button that routes to the consolidated [ScienceExportHub]
-/// pre-selected to a specific dataset. Replaces the per-card CSV writer so
-/// there is one canonical export surface (audit §4.14).
+/// pre-selected to a specific dataset, so there is one canonical export
+/// surface rather than a CSV writer per card.
 class _CardHubExportButton extends StatelessWidget {
   final String tooltip;
   final ScienceExportDataset dataset;
@@ -93,9 +93,9 @@ class _CardHubExportButton extends StatelessWidget {
 }
 
 /// Sticky jump-nav row pinning Photometry / Field Quality / Anomalies tabs at
-/// the top of the science analytics scroll view. Implements audit §4.13 so
-/// users do not have to scroll through several hundred pixels of dense panels
-/// to reach the section they care about.
+/// the top of the science analytics scroll view, so users do not have to
+/// scroll through several hundred pixels of dense panels to reach the section
+/// they care about.
 class _ScienceJumpNav extends ConsumerWidget {
   final NightshadeColors colors;
   final VoidCallback onPhotometry;
@@ -308,10 +308,9 @@ class _SectionHeading extends StatelessWidget {
   }
 }
 
-// Per-card CSV row builders were removed once the science analytics tab
-// stopped writing CSV inline. Exports now route exclusively through the
-// consolidated [ScienceExportHub] (audit §4.14), which builds its rows from
-// the DAO providers and therefore covers every session, not just the visible
+// The science analytics tab writes no CSV inline. Exports route exclusively
+// through the consolidated [ScienceExportHub], which builds its rows from the
+// DAO providers and therefore covers every session, not just the visible
 // snapshot.
 
 /// Which object's light curve to plot for a set of stored photometry rows.

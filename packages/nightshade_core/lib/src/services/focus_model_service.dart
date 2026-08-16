@@ -21,10 +21,8 @@ final focusModelServiceProvider = Provider<FocusModelService>((ref) {
 
 /// User-configurable thresholds that gate the focus regression model.
 ///
-/// Each value was previously a magic number
-/// inside `FocusModelService`. They are surfaced as a single config object so
-/// the autofocus settings panel can mutate them; defaults reproduce the prior
-/// behaviour exactly.
+/// Grouped into one config object so the autofocus settings panel can mutate
+/// them.
 class FocusModelConfig {
   /// Reject regressions whose absolute slope exceeds this many steps/°C.
   /// Was hardcoded `|slope| > 500`.
@@ -134,11 +132,9 @@ class FocusModel {
 
   /// Check if model is reliable enough to use against the default thresholds.
   ///
-  /// The defaults reproduce the prior
-  /// hardcoded `rSquared >= 0.7 && dataPointCount >= 5` behaviour. The
-  /// regression service routes through [isReliableWith] so user-configurable
-  /// thresholds in [FocusModelConfig] flow through instead of being silently
-  /// pinned at the historical defaults.
+  /// Defaults are `rSquared >= 0.7 && dataPointCount >= 5`. The regression
+  /// service routes through [isReliableWith] so the operator's
+  /// [FocusModelConfig] thresholds apply instead.
   bool get isReliable => isReliableWith(const FocusModelConfig());
 
   /// User-configurable reliability gate.
@@ -165,12 +161,10 @@ class FocusModel {
 
 /// Coarse confidence ladder for filter-offset estimation.
 ///
-/// Filter offsets used to be a raw mean of `focusPosition` per
-/// filter. If filters were sampled at different temperatures, temperature
-/// drift contaminated the offsets and was silently reported as a real
-/// per-filter shift. The fix subtracts the temperature-model prediction
-/// before averaging, but only when the temperature model is reliable. This
-/// enum surfaces the reliability ladder to the UI:
+/// Filters sampled at different temperatures carry temperature drift into
+/// their offsets, so the temperature-model prediction is subtracted before
+/// averaging — but only when that model is reliable. This enum surfaces the
+/// reliability ladder to the UI:
 ///
 /// - [high]: model R² ≥ threshold AND sample temperatures span ≥ 5°C.
 ///   Offsets are temperature-corrected and trustworthy.
@@ -191,9 +185,9 @@ class FilterOffset {
 
   /// Coarse confidence band — see [FilterOffsetConfidence].
   ///
-  /// Defaults to [FilterOffsetConfidence.low] for backwards
-  /// compatibility with persisted offsets that pre-date the fix; those were
-  /// computed by raw averaging and must not be advertised as "high".
+  /// Defaults to [FilterOffsetConfidence.low] for persisted offsets that carry
+  /// no band; those come from raw averaging and must not be advertised as
+  /// "high".
   final FilterOffsetConfidence confidenceBand;
 
   /// Human-readable explanation of the confidence band, suitable for UI
@@ -201,8 +195,8 @@ class FilterOffset {
   final String confidenceReason;
 
   /// True when the offset was computed after subtracting the temperature
-  /// model's prediction (the fix). False for raw-average fallbacks
-  /// and for offsets persisted before the fix shipped.
+  /// model's prediction. False for raw-average fallbacks and for persisted
+  /// offsets that carry no such correction.
   final bool temperatureCorrected;
 
   FilterOffset({
@@ -482,25 +476,19 @@ class FocusModelService {
 
   /// Update filter offsets based on collected data.
   ///
-  /// Previously this averaged each filter's raw `focusPosition` and
-  /// took the difference vs the reference filter. That conflated genuine
-  /// per-filter focus shift with the temperature-driven slope: a filter
-  /// sampled in winter would appear to have a large offset purely from
-  /// seasonal drift.
-  ///
-  /// The fix subtracts the temperature model's prediction at each sample's
+  /// The temperature model's prediction is subtracted at each sample's
   /// temperature before averaging, so the reported offset is the *additional*
-  /// per-filter shift on top of the shared temperature relationship.
-  /// Concretely, for each sample at temperature `T_x` with position `P_x` we
-  /// compute `corrected = P_x - slope * (T_x - T_ref)` where `T_ref` is the
-  /// median sample temperature (chosen because it is robust to outliers and
-  /// independent of which filter happens to be the reference).
+  /// per-filter shift on top of the shared temperature relationship: for a
+  /// sample at temperature `T_x` with position `P_x`,
+  /// `corrected = P_x - slope * (T_x - T_ref)`, where `T_ref` is the median
+  /// sample temperature (robust to outliers and independent of which filter is
+  /// the reference). Without it, a filter sampled in winter shows a large
+  /// offset that is really seasonal drift.
   ///
-  /// If the temperature model is missing or unreliable (R² below the
-  /// configured threshold), we fall back to the legacy raw-average behaviour
-  /// but flag the result with [FilterOffsetConfidence.low] so the UI can
-  /// warn the user instead of silently surfacing contaminated offsets as
-  /// "high confidence".
+  /// When the temperature model is missing or unreliable (R² below the
+  /// configured threshold), the raw average is used and flagged
+  /// [FilterOffsetConfidence.low] so the UI can warn rather than present
+  /// contaminated offsets as high confidence.
   Map<String, FilterOffset> _updateFilterOffsets(
     List<FocusHistoryPoint> points,
     String referenceFilter,
@@ -617,11 +605,9 @@ class FocusModelService {
 
       final offsetSteps = (filterAvg - refAvg).round();
 
-      // Per-filter scalar confidence retained for backward compatibility
-      // (the legacy code measured count + consistency on raw positions; we
-      // now do the same on temperature-corrected positions so a filter
-      // sampled across a temperature range no longer looks "inconsistent"
-      // purely because of drift).
+      // Per-filter scalar confidence: count + consistency, measured on the
+      // temperature-corrected positions so a filter sampled across a
+      // temperature range does not look inconsistent purely from drift.
       final variance =
           corrected
               .map((p) => math.pow(p - filterAvg, 2))

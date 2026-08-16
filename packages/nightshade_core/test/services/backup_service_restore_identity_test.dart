@@ -1,18 +1,18 @@
-// Two claims the Backup & Restore screen made that the app had never checked.
+// Two claims the Backup & Restore screen makes, and what makes them true.
 //
-// 1. WHERE backups live. `_getBackupDirectory` went straight to
-//    getApplicationDocumentsDirectory()/Nightshade/backups and ignored the
-//    configured data directory, so every install on one machine — the GUI, a
-//    headless daemon pinned to its own state dir, a scratch profile — read and
-//    WROTE into a single shared folder. "Recent Backups" listed bundles from
-//    databases the running instance had never seen, with nothing in the row to
-//    tell them apart, and Restore on a foreign row was one click away.
+// 1. WHERE backups live. `_getBackupDirectory` resolving to
+//    getApplicationDocumentsDirectory()/Nightshade/backups regardless of the
+//    configured data directory puts every install on one machine — the GUI, a
+//    headless daemon pinned to its own state dir, a scratch profile — into a
+//    single shared folder. "Recent Backups" then lists bundles from databases
+//    the running instance has never seen, with nothing in the row to tell them
+//    apart, and Restore on a foreign row is one click away.
 //
-// 2. WHAT a restore actually wrote. `_importProfiles` inserted with the
-//    bundle's own row id under InsertMode.insertOrIgnore and incremented its
-//    counter unconditionally. A profile whose id the local table had already
-//    reused was silently discarded, and the screen still reported it restored:
-//    "Restored 123 items" for a restore that wrote 122.
+// 2. WHAT a restore actually wrote. `_importProfiles` inserting with the
+//    bundle's own row id under InsertMode.insertOrIgnore and incrementing its
+//    counter unconditionally discards a profile whose id the local table has
+//    reused while still reporting it restored: "Restored 123 items" for a
+//    restore that wrote 122.
 
 import 'dart:convert';
 import 'dart:io';
@@ -58,8 +58,8 @@ void main() {
       );
 
       expect(dir.path, p.join(dataDir.path, 'backups'));
-      // The point of the fix: a scratch/daemon instance must NOT be able to
-      // read or write the developer's Documents bundles.
+      // A scratch/daemon instance must NOT be able to read or write the
+      // developer's Documents bundles.
       expect(dir.path, isNot(contains(docs.path)));
     });
 
@@ -194,13 +194,11 @@ void main() {
     });
 
     test('an ACTIVE profile in the bundle survives a merge', () async {
-      // The broader half of the same defect, and the one that fires on every
-      // real backup: `idx_profiles_single_active` is a partial unique index
-      // over is_active WHERE is_active = 1. A bundle always carries exactly one
-      // active profile and a live install always already has one, so the old
-      // importer's verbatim `isActive: true` insert violated the index and
-      // insertOrIgnore discarded the row — regardless of ids, which is why the
-      // free-id control case is not the whole story.
+      // `idx_profiles_single_active` is a partial unique index over is_active
+      // WHERE is_active = 1. A bundle always carries exactly one active profile
+      // and a live install always already has one, so a verbatim
+      // `isActive: true` insert violates the index and insertOrIgnore discards
+      // the row — whatever the ids are.
       final localId = await db.equipmentProfilesDao.createProfile(
         EquipmentProfilesCompanion.insert(name: 'My Rig'),
       );

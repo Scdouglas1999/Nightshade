@@ -511,9 +511,9 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   Widget _buildTargetPreviewRow(Sequence sequence, TargetHeaderNode header) {
     // The shared plan walk: loop multipliers applied, SmartExposure plans
-    // counted. The old local walk did neither, so a target whose only imager
-    // was a Smart Exposure rendered "No exposures" and a `Capture Loop ×10`
-    // reported a tenth of its integration.
+    // counted. A local walk that does neither renders "No exposures" for a
+    // target whose only imager is a Smart Exposure, and reports a tenth of the
+    // integration under a `Capture Loop ×10`.
     final planned = plannedCaptureUnder(sequence, header.id);
     final byFilter = planned.integrationSecsByFilter;
 

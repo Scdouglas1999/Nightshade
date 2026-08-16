@@ -1,12 +1,11 @@
-// WF-SS-N4: the tutorial overlay card published itself as
-// interactive-but-dead — `panel: Tutorial step 1 of 12: Welcome to Dashboard
-// [DISABLED]` on the live tree, at any step. The harness prints [DISABLED] on a
-// panel only when the node is focusable/selectable/checkable WITHOUT an enabled
-// state, and this card is focusable by construction: a `Focus(autofocus: true)`
-// takes the keyboard for the whole tour so Enter/Space/Backspace/Escape drive
-// it. So the overlay simultaneously claimed your keyboard and announced that it
-// was dead — the same focusable-without-enabled shape D-3 repaired on the
-// planetarium readout strip.
+// The tutorial overlay card must not publish itself as interactive-but-dead —
+// `panel: Tutorial step 1 of 12: Welcome to Dashboard [DISABLED]`, at any step.
+// A tree dump prints [DISABLED] on a panel only when the node is
+// focusable/selectable/checkable WITHOUT an enabled state, and this card is
+// focusable by construction: a `Focus(autofocus: true)` takes the keyboard for
+// the whole tour so Enter/Space/Backspace/Escape drive it. Undeclared, the
+// overlay claims your keyboard and announces that it is dead — the same
+// focusable-without-enabled shape as the planetarium readout strip.
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';

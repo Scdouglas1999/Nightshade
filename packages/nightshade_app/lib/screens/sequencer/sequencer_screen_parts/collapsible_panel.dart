@@ -13,7 +13,7 @@ class _CollapsiblePanel extends StatefulWidget {
   final VoidCallback onToggle;
 
   /// Called with the new width when the user drags the panel edge. The parent
-  /// persists this so the drag survives the next layout pass (audit §6).
+  /// persists this so the drag survives the next layout pass.
   final ValueChanged<double>? onWidthChanged;
   final Widget child;
 
@@ -70,7 +70,7 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
   void didUpdateWidget(_CollapsiblePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isCollapsed != widget.isCollapsed) {
-      // §6: only re-seed the expanded width on a collapse→expand transition,
+      // Only re-seed the expanded width on a collapse→expand transition,
       // so reopening the panel respects the latest (possibly user-dragged)
       // width handed down by the parent.
       if (widget.isCollapsed) {
@@ -82,10 +82,10 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
       }
     } else if (oldWidget.expandedWidth != widget.expandedWidth &&
         !widget.isCollapsed) {
-      // §6/§7: width changed while already expanded (responsive resize, or a
+      // Width changed while already expanded (responsive resize, or a
       // persisted drag flowing back in). Snap to the new width instantly by
       // jumping the controller to its end value instead of re-tweening — a
-      // re-tween mid-resize made the edge visibly lag the cursor.
+      // re-tween mid-resize makes the edge visibly lag the cursor.
       _currentExpandedWidth = widget.expandedWidth;
       _updateAnimation();
       if (_animationController.value != 1.0) {
@@ -155,8 +155,8 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
                 _currentExpandedWidth = newWidth;
                 _updateAnimation();
               });
-              // §6: bubble the dragged width up so the parent can persist it
-              // and it no longer snaps back on the next rebuild.
+              // Bubble the dragged width up so the parent can persist it;
+              // otherwise it snaps back on the next rebuild.
               widget.onWidthChanged?.call(newWidth);
             },
             child: widget.child,
@@ -169,7 +169,7 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
 
 /// Layout for very narrow desktop/tablet screens.
 ///
-/// Per audit §4.7: below the minimum-width threshold we keep a thin
+/// Below the minimum-width threshold we keep a thin
 /// draggable icon-only rail on the left so users can still drag nodes
 /// onto the tree. A "More..." button at the bottom of the rail opens the
 /// full node palette sheet for search/discovery. The properties FAB is

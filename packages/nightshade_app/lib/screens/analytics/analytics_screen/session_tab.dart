@@ -28,9 +28,8 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
 
     final allSessions =
         ref.watch(allSessionsProvider).valueOrNull ?? const <ImagingSession>[];
-    // The tab used to fall back to loose quick-capture snapshots the moment no
-    // session was running, so the night you had just finished was nowhere on
-    // the screen that is literally called "Session".
+    // A session is picked even when none is live, so the night that just
+    // finished is reachable from the tab named for it.
     final pickedSessionId =
         allSessions.any((session) => session.id == _selectedSessionId)
             ? _selectedSessionId
@@ -117,7 +116,7 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
     }
 
     // Shared with the History cards so one session can never be described two
-    // ways: an unclosed row used to read "0s" here and "46h 2m elapsed" there.
+    // ways.
     final elapsed = reviewSession == null
         ? null
         : sessionElapsed(
@@ -185,10 +184,8 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
     ];
 
     // The standalone bucket is a real thing — frames shot outside a sequence —
-    // but it was also the fallback whenever no session was under review, so a
-    // brand-new profile opened Analytics on a card headed "Quick Capture" with
-    // a duration, an exposure count and four blank charts for a night that had
-    // never happened. Show it only when it actually holds frames.
+    // but it is not the no-session fallback. Show it only when it actually
+    // holds frames.
     final standaloneImages =
         isStandaloneMode ? imagesAsyncValue.valueOrNull : null;
     final noStandaloneFrames = isStandaloneMode &&
@@ -615,11 +612,8 @@ const String kUntargetedSessionsFilter = 'Untargeted sessions';
 
 /// Options for the History tab's target filter — REAL targets.
 ///
-/// This used to return the distinct `imaging_sessions.name` values, i.e. a
-/// sequence-name filter wearing a "All Targets" label: the one row in `targets`
-/// never appeared in it, so a user with three targets over forty nights could
-/// not filter their history by target at all. Session names remain filterable
-/// through the search field beside the dropdown.
+/// The filter lists rows from `targets`, not session names; session names
+/// remain filterable through the search field beside the dropdown.
 ///
 /// The list is the names of the targets that the recorded sessions actually
 /// reference (a target with no sessions would filter to nothing), plus
@@ -675,10 +669,6 @@ bool sessionMatchesTargetFilter(
 }
 
 /// Picks which past session the Session tab is reviewing.
-///
-/// The tab is the natural place to go the morning after a run, but with no
-/// session live it used to show only loose quick-capture snapshots, so the
-/// night that just finished was unreachable from here.
 class _SessionReviewBar extends StatelessWidget {
   final NightshadeColors colors;
   final List<ImagingSession> sessions;

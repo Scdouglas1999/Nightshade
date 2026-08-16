@@ -453,10 +453,9 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
           ..clear()
           ..addAll(inlineErrors);
         _formErrors = List<String>.unmodifiable(unattachedErrors);
-        // Open every section that now carries an error so the inline message is
-        // actually on screen. Previously only the name did this, so a bad focal
-        // length inside a collapsed Optical Train section produced no visible
-        // marker at all.
+        // Open every section that carries an error so the inline message is
+        // actually on screen — an error inside a collapsed section leaves no
+        // visible marker at all.
         if (nameError != null) _expandedSections['identity'] = true;
         if (inlineErrors.containsKey(ProfileEditorField.focalLength) ||
             inlineErrors.containsKey(ProfileEditorField.reducer) ||

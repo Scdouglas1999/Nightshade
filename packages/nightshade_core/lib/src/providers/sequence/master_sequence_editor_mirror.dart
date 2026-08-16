@@ -24,29 +24,21 @@ const masterEditorMirrorDebounce = Duration(milliseconds: 400);
 
 /// MASTER -> SLAVE mirror of the OPEN sequence-editor canvas.
 ///
-/// The hardware-owning master GUI ([FfiBackend] with the embedded API server
-/// running) serializes its working/dirty open sequence and broadcasts it over
-/// the WS `/events` stream (`HostStateChanged` envelope,
-/// [HostMutationEntity.sequenceEditor]). A connected slave applies it in
-/// [applyRemoteSyncEvent] -> `_applySequenceEditorMirror`, so the slave's
-/// sequencer screen reflects the master's live canvas in real time — not just
-/// re-saved library sequences.
+/// The master serializes its working/dirty open sequence onto the WS `/events`
+/// stream as [HostMutationEntity.sequenceEditor]; a slave applies it in
+/// [applyRemoteSyncEvent], so the slave's sequencer screen shows the master's
+/// live canvas rather than only re-saved library sequences.
 ///
-/// Direction note: [remoteSequenceEditorSyncProvider] pushes a *slave's* edits
-/// UP to the master via REST save-full. This provider is the inverse: the
-/// master pushes its open canvas DOWN to slaves. They never both run on the
-/// same instance — the gate below requires a local [FfiBackend], which a slave
-/// (NetworkBackend) never has.
+/// Direction: [remoteSequenceEditorSyncProvider] pushes a *slave's* edits UP to
+/// the master via REST save-full; this provider is the inverse. They never both
+/// run on the same instance — the gate below requires a local [FfiBackend],
+/// which a slave (NetworkBackend) never has.
 ///
-/// Emission is gated so a plain offline desktop GUI (no slave, server off)
-/// never serializes the editor on every edit:
-///   * backend must be a local [FfiBackend] (the master owns hardware), AND
-///   * `appSettings.webServerEnabled` (the instance is actually serving).
-///
-/// Emission is suppressed while a run is active (execution state != idle/
-/// completed/failed): mid-run the canvas is locked and the run-state mirror in
-/// `_applySequencerEvent` owns slave parity, so mirroring a frozen canvas would
-/// be redundant and could fight the run-state path.
+/// Emission requires a local [FfiBackend] AND `appSettings.webServerEnabled`,
+/// so a plain offline desktop GUI never serializes the editor on every edit.
+/// It is suppressed while a run is active (execution state != idle/completed/
+/// failed): the canvas is locked mid-run and the run-state mirror in
+/// `_applySequencerEvent` owns slave parity.
 final masterSequenceEditorMirrorProvider = Provider<void>((ref) {
   Timer? debounce;
   var isDisposed = false;

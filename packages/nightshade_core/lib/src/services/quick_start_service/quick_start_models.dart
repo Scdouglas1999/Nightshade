@@ -1,8 +1,6 @@
 part of '../quick_start_service.dart';
 
-// =============================================================================
 // EquipmentSnapshot - Captures equipment state for quick session resumption
-// =============================================================================
 
 /// Represents a snapshot of equipment state at a point in time.
 /// Used to restore equipment settings when resuming a session.
@@ -199,9 +197,7 @@ class EquipmentSnapshot {
   }
 }
 
-// =============================================================================
 // QuickStartContext - Full context for quick session resumption
-// =============================================================================
 
 /// Contains all the information needed to quickly resume a previous session.
 /// This includes session details, target info, sequence progress, and equipment state.

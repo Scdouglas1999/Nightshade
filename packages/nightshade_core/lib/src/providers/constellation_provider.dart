@@ -23,15 +23,10 @@ import 'scheduler_provider.dart' show schedulerEngineProvider;
 import 'settings_provider.dart' show appSettingsProvider;
 import 'sky_atlas_provider.dart';
 
-/// Riverpod surface for Pillar C ("Constellation") — the community hub client.
+/// Riverpod surface for the Constellation community hub client.
 ///
-/// [constellationServiceProvider] assembles the orchestration service from the
-/// sky-atlas service (Pillar A, the source of the additive tile deltas), the
-/// settings-backed hub credentials, and the targets table (for the
-/// follow-the-night target mapping). The read providers expose the hub's
-/// shared-target listing ([swarmTilesProvider]) and the per-target handoff feed
-/// ([followTheNightProvider]) the Constellation screen's follow-the-night card
-/// renders (it is not yet wired into the planner/scheduler tabs).
+/// [followTheNightProvider] is read only by the Constellation screen's
+/// follow-the-night card; the planner and scheduler tabs do not consume it.
 
 /// Settings keys the hub credentials persist under (LAN-only, self-hosted).
 const String constellationHubUrlSettingKey = 'constellation.hub_url';
@@ -117,8 +112,8 @@ final constellationServiceProvider = Provider<ConstellationService>((ref) {
   );
 });
 
-/// WS2 — collaborative-mosaic orchestration over the configured hub. Reuses the
-/// same settings-backed hub credentials Pillar C resolves, the durable mosaic
+/// Collaborative-mosaic orchestration over the configured hub. Reuses the same
+/// settings-backed hub credentials Pillar C resolves, the durable mosaic
 /// DAOs, and the existing [MosaicProjectService] (the only real stitcher) for
 /// owner-side assembly. A no-hub config simply makes its calls throw an auth
 /// error, exactly like [ConstellationService].
@@ -128,7 +123,7 @@ final collaborativeMosaicServiceProvider = Provider<CollaborativeMosaicService>(
     return CollaborativeMosaicService(
       credentialsResolver: () => resolveConstellationCredentials(settings),
       accountIdResolver: () => resolveConstellationAccountId(settings),
-      // WS4 consent gate: the headless upload endpoint (no interactive sheet)
+      // Consent gate: the headless upload endpoint (no interactive sheet)
       // ships a panel master only under the operator's persisted license +
       // attribution choice; absence fails the upload closed.
       uploadConsentResolver: () => resolveMosaicUploadConsent(settings),
@@ -145,7 +140,7 @@ final collaborativeMosaicServiceProvider = Provider<CollaborativeMosaicService>(
   },
 );
 
-/// WS3 — live co-imaging orchestration over the configured hub. Reuses the same
+/// Live co-imaging orchestration over the configured hub. Reuses the same
 /// settings-backed hub credentials Pillar C resolves, the durable
 /// [CoImagingSessionsDao] (membership + assigned framing offset), and the
 /// per-tile contribution receipt store (for tagging which session deepened a
@@ -160,7 +155,7 @@ final coImagingSessionServiceProvider = Provider<CoImagingSessionService>((
     sessionsDao: ref.watch(coImagingSessionsDaoProvider),
     contributionsDao: ref.watch(constellationContributionsDaoProvider),
     logger: ref.watch(loggingServiceProvider),
-    // WS4 consent gate: reuse the SAME persisted collaborative-contribution
+    // Consent gate: reuse the SAME persisted collaborative-contribution
     // consent the mosaic upload path captures (license + attribution + the
     // unattended auto-upload opt-in), so an unattended co-imaging fold ships
     // under the operator's actual choice and FAILS CLOSED (no contribution)
@@ -184,11 +179,11 @@ final coImagingSessionServiceProvider = Provider<CoImagingSessionService>((
         attributionConsent: consent.attributionConsent,
       );
     },
-    // Capture-loop auto-contribute (WS3 Gap 2): a completed sub on the session
-    // target folds into the SAME shared-target tile through the existing
-    // additive-sum upload. We join the shared target locally first (so the cone
-    // centre resolves from the session's own coordinates without re-browsing),
-    // then drive the unchanged `contributeTarget` `.nst` path under the
+    // Capture-loop auto-contribute: a completed sub on the session target folds
+    // into the SAME shared-target tile through the existing additive-sum
+    // upload. The shared target is joined locally first (so the cone centre
+    // resolves from the session's own coordinates without re-browsing), then
+    // the unchanged `contributeTarget` `.nst` path runs under the
     // operator's consented license and return the TRUE delta the hub accepted so
     // the combined accounting equals what was fused (never a hardcoded +1).
     fusionContributor: (request) async {
@@ -221,7 +216,7 @@ final coImagingSessionServiceProvider = Provider<CoImagingSessionService>((
   );
 });
 
-/// WS3 Gap 3 — the client-side longitude-baton scheduler. A periodic tick that,
+/// The client-side longitude-baton scheduler. A periodic tick that,
 /// for each active co-imaging membership, evaluates the session target's
 /// altitude at the rig's configured site and claims/releases the baton on the
 /// rise/set, resuming/pausing the autopilot so an unattended appliance hands the
@@ -259,7 +254,7 @@ final coImagingBatonSchedulerProvider = Provider<CoImagingBatonScheduler>((
   return scheduler;
 });
 
-/// Owns the single, reconciled decision the WS3 longitude-baton scheduler hands
+/// Owns the single, reconciled decision the longitude-baton scheduler hands
 /// the one process-global autopilot each tick.
 ///
 /// It pauses/resumes the autopilot ONLY for a run it itself authored and ONLY
@@ -366,11 +361,10 @@ final coImagingMembershipsProvider = FutureProvider<List<CoImagingSessionRow>>((
   return ref.watch(coImagingSessionServiceProvider).activeMemberships();
 });
 
-/// The live combined-preview channel for one co-imaging session (WS3): yields a
+/// The live combined-preview channel for one co-imaging session: yields a
 /// snapshot immediately, then one [CoImagingPreview] per contribution / join as
-/// subs fuse — the "we're building this together, right now" signal. Backs the
-/// co-imaging card so its COMBINED integration / frames / rig count deepen in
-/// real time instead of only on a manual refresh.
+/// subs fuse. Backs the co-imaging card so its COMBINED integration / frames /
+/// rig count deepen in real time instead of only on a manual refresh.
 ///
 /// `autoDispose` so the long-lived SSE connection [CoImagingSessionService
 /// .watchPreview] opens is released the moment no card is watching it (leaving
@@ -422,11 +416,10 @@ final myContributionsProvider = FutureProvider<List<ContributionRecord>>((ref) {
 /// Pulling is a side-effecting fetch (it writes the cached blobs to disk), so
 /// this provider performs the pull and returns the resulting [SwarmTile] index.
 ///
-/// We pull with `finalized: false` — the additive `.nst` accumulator — because
-/// that is the only form [ConstellationService.pullTarget] actually folds into
-/// the local atlas (via `mergeSwarmDelta`) so the swarm's depth shows up in Your
-/// Sky. A `finalized: true` FITS pull is a display-only blob with no consumer,
-/// so it would leave the advertised "blended into Your Sky" payoff a no-op.
+/// Pull with `finalized: false` — the additive `.nst` accumulator — the only
+/// form [ConstellationService.pullTarget] folds into the local atlas (via
+/// `mergeSwarmDelta`). A `finalized: true` FITS pull is a display-only blob
+/// with no consumer, so nothing would reach Your Sky.
 final swarmTilesProvider = FutureProvider.family<List<SwarmTile>, int>((
   ref,
   targetId,

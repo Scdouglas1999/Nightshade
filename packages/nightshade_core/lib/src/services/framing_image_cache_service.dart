@@ -182,9 +182,8 @@ class FramingImageCacheService {
     try {
       await File(metaPath).writeAsString(jsonEncode(meta), flush: true);
     } catch (e, stack) {
-      // Sidecar is best-effort: the image is the source of truth. Log so a
-      // failure here is still visible (errors are a feature) but do not
-      // fail the whole save — the on-disk image is already good.
+      // Sidecar is best-effort: the image is the source of truth. Log the
+      // failure but do not fail the save — the on-disk image is already good.
       developer.log(
         'FramingImageCacheService: failed to write sidecar metadata at $metaPath: $e',
         name: 'FramingImageCache',

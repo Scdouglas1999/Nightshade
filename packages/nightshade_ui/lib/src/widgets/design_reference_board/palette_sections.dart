@@ -1,12 +1,8 @@
 part of '../design_reference_board.dart';
 
-// ===========================================================================
 // Section shell
-// ===========================================================================
 
-// ===========================================================================
 // Semantic palette
-// ===========================================================================
 
 class _SemanticPaletteSection extends StatelessWidget {
   const _SemanticPaletteSection({required this.colors});
@@ -52,9 +48,7 @@ class _SemanticPaletteSection extends StatelessWidget {
   }
 }
 
-// ===========================================================================
 // Domain palettes (chart series + gradients, annotation types, backends)
-// ===========================================================================
 
 class _DomainPaletteSection extends StatelessWidget {
   const _DomainPaletteSection({required this.colors});

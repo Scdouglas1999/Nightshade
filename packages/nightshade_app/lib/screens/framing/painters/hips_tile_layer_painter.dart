@@ -402,32 +402,25 @@ class HipsTileLayerPainter extends CustomPainter {
   /// `(1,1)`->north (the [HealpixNested.boundaries] corner labelling).
   ///
   /// A HiPS tile *image* is NOT a naive top-left raster of that `(ix, iy)`
-  /// lattice — but the precise pixel convention had to be derived AGAINST REAL
-  /// TILE CONTENT, not the IVOA spec text (an earlier spec-text reading produced
-  /// a spurious vertical flip that left visible diagonal seams across an extended
-  /// object and made stars look sheared/oval, worst at high declination). The
-  /// decisive test is seam continuity: two HEALPix diamonds that share a sky edge
-  /// must show byte-identical content along it. Measuring the edge-content
-  /// correlation of the committed real DSS2 tiles across every candidate
-  /// `(u,v) -> (tx,ty)` map (see the painter's `SEAM CONTINUITY` /
-  /// `STAR COINCIDENCE` tests) ranks
+  /// lattice, and the pixel convention is fixed against REAL TILE CONTENT, not
+  /// the IVOA spec text. The decisive test is seam continuity: two HEALPix
+  /// diamonds that share a sky edge must show byte-identical content along it.
+  /// Measuring the edge-content correlation of the committed real DSS2 tiles
+  /// across every candidate `(u,v) -> (tx,ty)` map (see the painter's
+  /// `SEAM CONTINUITY` / `STAR COINCIDENCE` tests) ranks
   ///
   ///   tx = v,   ty = u
   ///
-  /// far above all others — i.e. a pure transpose (swap the mesh axes, NO flip).
+  /// far above all others — a pure transpose (swap the mesh axes, NO flip).
   /// At the four corners that places south -> `(x=0,y=0)` (top-left),
   /// east -> `(x=0,y=w)` (bottom-left), west -> `(x=w,y=0)` (top-right),
-  /// north -> `(x=w,y=w)` (bottom-right). Rendering the real M31 fixture under
-  /// this map yields a continuous, seam-free galaxy with round stars and M32/M110
-  /// at their correct positions; the previous `ty = 1 - u` flip split the disk
-  /// along the tile diagonals.
+  /// north -> `(x=w,y=w)` (bottom-right).
   ///
-  /// Sampling with `tx = u, ty = v` instead transposes the other way (a 90°
-  /// rotation), and any of the flipped variants leaves the content discontinuous
-  /// at tile edges. Applying the correct transpose here — in the single shared
-  /// sampling primitive — fixes the primary, coarse-fallback and packed-Allsky
-  /// meshes identically (they all route through [_drawMesh] -> this method), so
-  /// the whole mosaic reads as one continuous field.
+  /// Sampling with `tx = u, ty = v` transposes the other way (a 90° rotation),
+  /// and any flipped variant leaves the content discontinuous at tile edges.
+  /// Applying the transpose here — in the single shared sampling primitive —
+  /// covers the primary, coarse-fallback and packed-Allsky meshes identically:
+  /// they all route through [_drawMesh] -> this method.
   int _emitVertex(
     Float32List positions,
     Float32List texCoords,

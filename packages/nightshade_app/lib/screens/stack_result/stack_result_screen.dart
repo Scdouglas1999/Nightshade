@@ -23,7 +23,7 @@ import '../../widgets/astro_image_viewer.dart';
 part 'stack_result_screen_parts/_export_seams.dart';
 part 'stack_result_screen_parts/_support_widgets.dart';
 
-/// Stack Result Viewer screen (component C9).
+/// Stack Result Viewer screen.
 ///
 /// Loads a persisted [StackAndShareResult] by [resultId] and renders its
 /// integrated image with an [AstroImageViewer], a stats panel, and export /
@@ -34,7 +34,7 @@ part 'stack_result_screen_parts/_support_widgets.dart';
 /// path-on-disk for re-sharing a previously exported master.
 ///
 /// When no result matches [resultId] the screen shows an [EmptyState] rather
-/// than a blank canvas (errors are a feature).
+/// than a blank canvas.
 class StackResultScreen extends ConsumerStatefulWidget {
   /// Database id of the [StackAndShareResult] to display, typically supplied via
   /// the `?id=` query parameter on the `/stack-result` route.
@@ -662,9 +662,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     };
   }
 
-  // ===========================================================================
   // Export / share
-  // ===========================================================================
 
   /// Suggested file name (no directory) for [result] in [format].
   String _suggestedFileName(StackAndShareResult result, String extension) {

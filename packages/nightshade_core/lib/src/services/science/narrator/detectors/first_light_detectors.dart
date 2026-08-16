@@ -3,7 +3,7 @@
 /// These read [NarratorContext.transientCandidates] (the cross-matched residuals
 /// from `api_difference_image`) and turn the genuinely exciting ones into feed
 /// events. Ids, severities, and evidence shapes are pinned by
-/// `docs/nightshade_5_0_contracts.md` §4:
+/// `docs/nightshade_5_0_contracts.md`:
 ///
 ///   * `first_light.transient`  — celebrate, pinned: a clean, *unnamed* point
 ///     source (`catalogMatch == null`, round PSF, `newSource`). The headline

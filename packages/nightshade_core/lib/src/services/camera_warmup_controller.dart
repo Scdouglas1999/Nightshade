@@ -20,10 +20,9 @@ import 'logging_service.dart';
 /// stall in cold-ambient conditions where the cooler power hits zero
 /// well before the sensor reaches an arbitrary target temperature.
 ///
-/// Extracted from `DeviceService` to isolate the periodic-timer state
-/// machine. The controller owns its own cancellation flag and timer so
-/// the parent never reaches into half-completed state during a backend
-/// swap or device-swap.
+/// Separate from `DeviceService` to isolate the periodic-timer state machine.
+/// The controller owns its own cancellation flag and timer so the parent never
+/// reaches into half-completed state during a backend swap or device-swap.
 class CameraWarmupController {
   CameraWarmupController({required Ref ref, required NightshadeBackend backend})
     : _ref = ref,

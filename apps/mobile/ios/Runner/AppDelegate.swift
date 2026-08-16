@@ -11,9 +11,8 @@ import WidgetKit
 // `NightshadeLiveActivityAttributes` (and therefore every ActivityContent we
 // build here) is gated to iOS 16.2 because the `ActivityContent` API itself
 // is 16.2+. On devices that fall outside that gate we fail loudly via a
-// FlutterError — silent fallbacks would let an operator believe Live
-// Activities are running when they are not (per repo policy: errors are a
-// feature).
+// FlutterError: a silent fallback would let an operator believe Live
+// Activities are running when they are not.
 //
 // Channel name (`nightshade/live_activity`) and method/argument names MUST
 // match `apps/mobile/lib/services/live_activity_service.dart`. Argument names
@@ -222,8 +221,8 @@ import WidgetKit
 
   /// APNs registration failed (no network, no entitlement on the profile, an
   /// APNs outage, or the Simulator which has no APNs). Surface the cause to
-  /// Dart (repo policy: errors are a feature) so the UI can show that cellular
-  /// alerts are unavailable rather than silently believing they work.
+  /// Dart so the UI can show that cellular alerts are unavailable rather than
+  /// leaving the operator believing they work.
   override func application(
     _ application: UIApplication,
     didFailToRegisterForRemoteNotificationsWithError error: Error
@@ -383,10 +382,10 @@ import WidgetKit
         suiteName: AppDelegate.watchComplicationAppGroupSuite
       )
     else {
-      // Loud failure (repo policy: errors are a feature). The App Group
-      // entitlement is missing on the Runner target. The complication
-      // would never see snapshots — surface the cause now rather than
-      // letting the watch face silently render the empty placeholder.
+      // Loud failure: the App Group entitlement is missing on the Runner
+      // target, so the complication would never see snapshots. Surface the
+      // cause now rather than letting the watch face silently render the
+      // empty placeholder.
       result(
         FlutterError(
           code: "app_group_unavailable",

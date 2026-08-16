@@ -1,5 +1,3 @@
-// Part of ../node_properties_panel.dart -- extracted for maintainability.
-//
 // The 'no node selected' placeholder and the central _NodeEditor dispatcher widget that picks the right per-node properties widget based on the selected node's runtime type.
 part of '../node_properties_panel.dart';
 
@@ -162,11 +160,10 @@ class _NodeEditor extends ConsumerWidget {
   }
 
   Widget _buildTypeSpecificProperties(WidgetRef ref) {
-    // Dispatch is a Dart-3 switch expression. The old 30-arm if/else
-    // chain was both hard to read and easy to break — adding a node type
-    // meant remembering to update an inert `else if` slot. The switch keeps
-    // every branch in one visual scan and binds the typed node directly
-    // (no more `as ExposureNode` casts in each arm).
+    // Dispatch is a Dart-3 switch expression: every branch is in one visual
+    // scan, the typed node binds directly (no `as ExposureNode` cast per arm),
+    // and a missing node type is a compile-time gap rather than a silent
+    // fall-through.
     final Widget propertiesWidget = switch (node) {
       ExposureNode n => _ExposureProperties(colors: colors, node: n),
       TargetHeaderNode n => TargetGroupProperties(colors: colors, node: n),
@@ -213,9 +210,8 @@ class _NodeEditor extends ConsumerWidget {
       InstructionSetNode n => _InstructionSetInfo(colors: colors, node: n),
     };
 
-    // Add timing section for nodes with meaningful duration. Uses the public
-    // NodeTimingSection (single source of truth) — the formerly-duplicated
-    // private _TimingSection has been removed.
+    // Add timing section for nodes with meaningful duration, through the public
+    // NodeTimingSection so there is one source of truth.
     if (hasMeaningfulDuration(node)) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

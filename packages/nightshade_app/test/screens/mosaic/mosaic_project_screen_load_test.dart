@@ -2,14 +2,13 @@
 // the router actually uses (`MosaicProjectScreen(projectId: id)` with no
 // injected path builders, so the durable artifacts directory is resolved async).
 //
-// Ship-blocker: the screen used to key its controller family on
-// `MosaicProjectControllerArgs` carrying two CLOSURES. The closures were rebuilt
-// on every `build`, so the args never compared equal, every frame created a
-// brand-new `MosaicProjectController`, whose constructor kicked a fresh `load()`,
-// whose completion rebuilt the screen — an unbounded rebuild/DB-read loop that
-// pinned the CPU and left the operator staring at a spinner with no way out.
+// `MosaicProjectControllerArgs` is the controller family's key, so every field
+// on it must be VALUE-comparable. A closure is rebuilt on every `build` and
+// never compares equal, so each frame creates a fresh `MosaicProjectController`,
+// whose constructor kicks a `load()`, whose completion rebuilds the screen — an
+// unbounded rebuild/DB-read loop that pins the CPU behind a spinner.
 //
-// These tests pin the three things that were broken:
+// These tests pin three things:
 //   1. exactly ONE controller is created for the screen's lifetime (no loop);
 //   2. the screen reaches a usable, rendered state (no indefinite spinner);
 //   3. every state the screen can be in — including the failure states — keeps

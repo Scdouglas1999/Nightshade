@@ -1,11 +1,11 @@
 // Focused truth tests for the CenteringDialog "Solve exposure" field.
 //
-// The regression these guard: pressing "Start Centering" used to parse the
-// field with `double.tryParse(text) ?? 5.0` and coerce any non-positive value
-// to 5.0, so a blank / malformed / zero / negative / out-of-range entry would
-// silently fire a five-second camera exposure the user never asked for — and
-// it flipped `_isCentering` and probed the solver *before* validating the
-// field. These tests pin the new contract:
+// What these guard: parsing the field with `double.tryParse(text) ?? 5.0` and
+// coercing any non-positive value to 5.0 turns a blank / malformed / zero /
+// negative / out-of-range entry into a silent five-second camera exposure the
+// user never asked for — and flipping `_isCentering` or probing the solver
+// before validating the field commits to the run before it is legal. The
+// contract:
 //
 //   * A bad entry does NO work — no solver detection, no centering service
 //     call, no camera exposure, no misleading "running" state — surfaces an

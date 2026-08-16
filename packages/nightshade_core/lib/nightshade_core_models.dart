@@ -110,7 +110,7 @@ export 'src/models/campaign_rollup.dart';
 // Durable multi-night campaign record (Phase B, v43).
 export 'src/models/campaign.dart';
 
-// Scheduler (W6-SCHED: RoboTarget-class dynamic scheduler)
+// Scheduler — RoboTarget-class dynamic scheduling.
 export 'src/models/scheduler/integration_goal.dart';
 export 'src/models/scheduler/target_constraint.dart';
 export 'src/models/scheduler/scheduler_decision.dart';
@@ -118,7 +118,7 @@ export 'src/models/scheduler/scheduler_status.dart';
 export 'src/models/scheduler/scheduler_readiness.dart';
 export 'src/models/scheduler/target_progress.dart';
 
-// Sequence import (W6-NINA-IMPORT: NINA / SGP sequence import)
+// Sequence import — NINA / SGP sequences.
 export 'src/models/import/canonical_sequence_node.dart';
 export 'src/models/import/import_result.dart';
 

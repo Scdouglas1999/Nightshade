@@ -18,7 +18,7 @@ class PolarAlignmentHistory extends Table {
     onDelete: KeyAction.cascade,
   )();
 
-  // === Initial Error Values ===
+  // Initial error values
 
   /// Initial azimuth error in arcseconds
   RealColumn get initialAzimuthError => real()();
@@ -29,7 +29,7 @@ class PolarAlignmentHistory extends Table {
   /// Initial total error in arcseconds
   RealColumn get initialTotalError => real()();
 
-  // === Final Error Values ===
+  // Final error values
 
   /// Final azimuth error in arcseconds
   RealColumn get finalAzimuthError => real()();
@@ -40,7 +40,7 @@ class PolarAlignmentHistory extends Table {
   /// Final total error in arcseconds
   RealColumn get finalTotalError => real()();
 
-  // === Timestamps ===
+  // Timestamps
 
   /// When alignment started
   DateTimeColumn get startedAt => dateTime()();
@@ -48,7 +48,7 @@ class PolarAlignmentHistory extends Table {
   /// When alignment completed
   DateTimeColumn get completedAt => dateTime()();
 
-  // === Metadata ===
+  // Metadata
 
   /// Whether alignment was auto-completed (reached threshold)
   BoolColumn get autoCompleted =>

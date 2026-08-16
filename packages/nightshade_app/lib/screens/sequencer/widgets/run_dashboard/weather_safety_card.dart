@@ -240,8 +240,8 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
 /// colour-graded against the user's configured safety thresholds.
 ///
 /// Renders nothing when no hardware weather device is connected — the status
-/// pill and data-source row above already convey the API-only case, and we
-/// must not invent numbers the rig isn't reporting (errors are a feature).
+/// pill and data-source row above already convey the API-only case, and
+/// numbers the rig is not reporting must not be invented here.
 /// Each row is shown only when its value is present; the colour grades
 /// green/amber/red relative to the threshold so an operator can see headroom
 /// at a glance (e.g. wind 24 km/h amber against a 30 km/h limit).

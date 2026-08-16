@@ -63,7 +63,7 @@ class InterpolationVariable {
 /// The canonical Dart-side variable catalog. Mirrors the Rust list in
 /// `expressions/catalog.rs::variable_catalog`.
 const List<InterpolationVariable> interpolationCatalog = [
-  // ---------------- Target -------------------------------------------
+  // Target
   InterpolationVariable(
     name: 'target.name',
     description: 'Name of the active target (e.g. "M42")',
@@ -113,7 +113,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '138.2',
     supportsFormat: true,
   ),
-  // ---------------- Filter -------------------------------------------
+  // Filter
   InterpolationVariable(
     name: 'filter',
     description: 'Currently selected filter name',
@@ -128,7 +128,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '3',
     supportsFormat: true,
   ),
-  // ---------------- Frame counters -----------------------------------
+  // Frame counters
   InterpolationVariable(
     name: 'frame',
     description: 'Current frame number within the active burst',
@@ -143,7 +143,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '30',
     supportsFormat: true,
   ),
-  // ---------------- Session ------------------------------------------
+  // Session
   InterpolationVariable(
     name: 'session.id',
     description: 'Unique identifier of the active imaging session',
@@ -165,7 +165,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '2026-01-15T22:14:33Z',
     supportsFormat: false,
   ),
-  // ---------------- Time ---------------------------------------------
+  // Time
   InterpolationVariable(
     name: 'time.now',
     description: 'Current UTC timestamp (ISO-8601)',
@@ -187,7 +187,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '2026-01-15',
     supportsFormat: false,
   ),
-  // ---------------- Moon ---------------------------------------------
+  // Moon
   InterpolationVariable(
     name: 'moon.phase',
     description: 'Moon illuminated fraction (0.0 – 1.0)',
@@ -202,7 +202,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '67.3',
     supportsFormat: true,
   ),
-  // ---------------- Weather ------------------------------------------
+  // Weather
   InterpolationVariable(
     name: 'weather.temp_c',
     description: 'Ambient temperature (°C) from the active weather source',
@@ -224,7 +224,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '21.2',
     supportsFormat: true,
   ),
-  // ---------------- Observer -----------------------------------------
+  // Observer
   InterpolationVariable(
     name: 'observer.name',
     description: 'Observer name from app settings',
@@ -253,7 +253,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '150',
     supportsFormat: true,
   ),
-  // ---------------- Equipment ----------------------------------------
+  // Equipment
   InterpolationVariable(
     name: 'equipment.camera',
     description: 'Camera make + model from the active equipment profile',
@@ -282,7 +282,7 @@ const List<InterpolationVariable> interpolationCatalog = [
     example: '130',
     supportsFormat: true,
   ),
-  // ---------------- Exposure -----------------------------------------
+  // Exposure
   InterpolationVariable(
     name: 'exposure.duration',
     description: 'Exposure duration of the active burst (seconds)',

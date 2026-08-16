@@ -1,13 +1,11 @@
 /// The one device-type table.
 ///
-/// Two mappings used to be copied per consumer — the remote-sync mirror
-/// (`remote_sync_handler.dart`) and the local device-event router
-/// (`device_service/event_handling.dart`) each carried their own wire-name
-/// switch and their own device-type → notifier switch. Adding a twelfth device
-/// type meant finding all of them; missing one produced a device that connects
-/// but never appears (or appears but never clears).
+/// Consumers — the remote-sync mirror (`remote_sync_handler.dart`), the local
+/// device-event router (`device_service/event_handling.dart`) — read these
+/// tables rather than carrying their own switch: a device type missing from
+/// one copy connects but never appears, or appears but never clears.
 ///
-/// Three mappings live here now:
+/// Three mappings live here:
 ///
 /// * [deviceTypeFromWireName] — the wire-name alias table.
 /// * [readDeviceConnectionNotifier] — the device-type → notifier table, for
@@ -23,7 +21,6 @@
 /// snapshots (e.g. `_FakeCameraNotifier` in
 /// `nightshade_app/test/screens/equipment/discovery_toast_currency_test.dart`),
 /// so the notifier's getters throw while the state object answers correctly.
-/// Every call site kept the object its retired copy read.
 ///
 /// Deliberately NOT consolidated here (they answer different questions and
 /// collapsing them would change behaviour):

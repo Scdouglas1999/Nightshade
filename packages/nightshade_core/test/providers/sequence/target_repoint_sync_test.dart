@@ -1,8 +1,8 @@
-// SEQ-13: re-pointing a target in the builder moved only the builder's copy of
-// the coordinates. The scheduler scores the `targets` table, so it went on
-// evaluating the position the operator had replaced — reporting alt 86.3° for a
-// target whose own card, at the same instant, read Alt −19.4°, and labelling
-// that pick "Live … what the rig would slew to next".
+// Re-pointing a target in the builder has to reach the catalog. Moving only the
+// builder's copy leaves the scheduler — which scores the `targets` table —
+// evaluating the position the operator replaced: alt 86.3° for a target whose
+// own card, at the same instant, reads Alt −19.4°, labelled "Live … what the
+// rig would slew to next".
 //
 // Two halves are covered here: the catalog write itself, and the editor edit
 // that has to trigger it.

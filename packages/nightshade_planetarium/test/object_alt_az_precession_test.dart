@@ -1,21 +1,20 @@
-// Regression: the alt/az the app states for a catalog object must be computed
-// for the sky of the requested instant, not for the sky of J2000.
+// The alt/az the app states for a catalog object is computed for the sky of the
+// requested instant, not for the sky of J2000.
 //
-// Found live at 40.00N / 105.00W. Clicking Vega at 2026-08-03 20:49:14 UTC the
-// object panel reported Alt 6.2 / Az 43.0. That is EXACTLY what you get by
-// feeding the unrotated J2000 catalog position to the horizontal transform;
-// precessing to the equinox of date first gives 6.14 / 42.90. The hour angle is
-// measured from the equinox of DATE, so skipping precession is not a rounding
-// error — a quarter century past J2000 the equinox has moved ~22 arcmin, and
-// the 1/cos(altitude) amplification pushed the azimuth error to 1.4 deg for a
-// near-zenith target (Pollux: app 214.0, truth 212.7).
+// At 40.00N / 105.00W, Vega at 2026-08-03 20:49:14 UTC reads Alt 6.2 / Az 43.0
+// straight out of the unrotated J2000 catalog position; precessing to the
+// equinox of date first gives 6.14 / 42.90. The hour angle is measured from the
+// equinox of DATE, so skipping precession is not a rounding error — a quarter
+// century past J2000 the equinox has moved ~22 arcmin, and the 1/cos(altitude)
+// amplification pushes the azimuth error to 1.4 deg for a near-zenith target
+// (Pollux: 214.0 unprecessed against 212.7 true).
 //
-// AstronomyCalculations.precessFromJ2000ToDate existed the whole time with zero
-// callers.
+// AstronomyCalculations.precessFromJ2000ToDate is the rotation every catalog
+// position passes through.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
-/// The audited site.
+/// The reference site.
 const _lat = 40.0;
 const _lon = -105.0;
 

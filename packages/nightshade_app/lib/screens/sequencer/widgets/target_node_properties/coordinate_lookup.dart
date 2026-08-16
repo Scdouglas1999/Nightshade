@@ -32,10 +32,9 @@ class TargetCoordinateMatch {
 ///  1. the target library — via the host over the wire when this is a remote
 ///     client, whose local `targets` table is never populated. That authority
 ///     split is the same one the Quick-Start wizard uses;
-///  2. the installed planetarium catalogs. `SeedData.seedTargets` is
-///     deliberately a no-op ("no hardcoded target data"), so on a fresh
-///     install the library is EMPTY and the catalogs are the only thing that
-///     can turn "M31" into 00h 42m 44s.
+///  2. the installed planetarium catalogs. No target data is seeded on a
+///     fresh install, so the library starts EMPTY and the catalogs are the
+///     only thing that can turn "M31" into 00h 42m 44s.
 ///
 /// Neither source is guaranteed to be present, which is why the editor
 /// reports "no match" rather than silently leaving the placeholder in place.

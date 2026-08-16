@@ -140,9 +140,9 @@ Widget _harness({
 }
 
 /// Wraps [IntegrationsSettings] with the REAL [pluginEnablementProvider]
-/// (no fake notifier), backed by [database] and [host]. Used to prove a switch
-/// tap drives the live [PluginHost] — running onEnable/onDisable — exactly as
-/// production does, instead of merely recording the call.
+/// (no fake notifier), backed by [database] and [host], so a switch tap drives
+/// the live [PluginHost] — running onEnable/onDisable — exactly as production
+/// does, instead of merely recording the call.
 Widget _liveHarness({
   required PluginHost host,
   required NightshadeDatabase database,
@@ -319,8 +319,8 @@ void main() {
   testWidgets('toggling a switch transitions the LIVE PluginHost',
       (tester) async {
     // Real notifier + real DB (no fake): the switch must drive the host's
-    // enabled state, not merely persist a bit. This is the regression the
-    // review flagged — a disabled plugin used to keep running this session.
+    // enabled state, not merely persist a bit — otherwise a disabled plugin
+    // keeps running for the rest of the session.
     final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
     addTearDown(() async => database.close());
     host = await _buildHost();
@@ -345,9 +345,9 @@ void main() {
 
   testWidgets('a disabled plugin shows "Disabled", never a green "Fired" pill',
       (tester) async {
-    // Regression for the status-pill ordering fix: error > disabled > fired >
-    // enabled. A plugin that fired earlier but is now disabled must read
-    // "Disabled", not a green success pill.
+    // Status-pill ordering: error > disabled > fired > enabled. A plugin that
+    // fired earlier but is now disabled must read "Disabled", not a green
+    // success pill.
     host = await _buildHost(discordEnabled: false);
 
     await tester.pumpWidget(_harness(

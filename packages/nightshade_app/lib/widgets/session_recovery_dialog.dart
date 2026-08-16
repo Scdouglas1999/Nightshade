@@ -82,11 +82,9 @@ class _SessionRecoveryDialogState extends ConsumerState<SessionRecoveryDialog> {
         ),
       ),
       actions: [
-        // Non-destructive escape hatch: the previous version forced the
-        // user to either discard everything or interact with every row.
-        // "Decide Later" closes the dialog without touching the sessions
-        // so they remain available via whatever entry-point originally
-        // surfaced this dialog (dashboard "Recover sessions" + startup
+        // Non-destructive escape hatch: "Decide Later" closes the dialog
+        // without touching the sessions, so they remain available from whatever
+        // entry point surfaced it (dashboard "Recover sessions" + startup
         // auto-open).
         NightshadeButton(
           onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
@@ -188,9 +186,9 @@ class _SessionRecoveryDialogState extends ConsumerState<SessionRecoveryDialog> {
     if (!mounted || _discardingAll) return;
     setState(() => _discardingAll = true);
 
-    // Track per-session failures so a single failed mark-aborted call
-    // doesn't silently leave the user thinking everything was discarded.
-    // Errors are a feature: surface them.
+    // Track per-session failures and surface them: a single failed
+    // mark-aborted call otherwise leaves the user believing everything was
+    // discarded.
     final failures = <SessionRecoveryInfo>[];
     final sessions = List<SessionRecoveryInfo>.of(_sessions);
     for (final session in sessions) {

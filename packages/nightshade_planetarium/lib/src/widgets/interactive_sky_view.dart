@@ -135,9 +135,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   /// double-tap reset, a keyboard zoom), in which case the view centre is what
   /// stays put.
   ///
-  /// Wheel zoom used to have no anchor at all: 23 notches took the field from
-  /// 60 deg to 2 deg with the centre byte-identical, so whatever the cursor was
-  /// over was thrown off screen and had to be dragged back after every step.
+  /// Wheel zoom anchors on the cursor: the sky point under it stays under it,
+  /// instead of sliding off screen as the field narrows.
   CelestialCoordinate? _zoomAnchorSky;
   Offset? _zoomAnchorPoint;
 
@@ -158,10 +157,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   //
   // Momentum is integrated by a per-frame ticker rather than a fixed-duration
   // AnimationController curve: on each tick the live velocity (px/s) is applied
-  // for the real elapsed dt and then exponentially decayed. This avoids the
-  // stutter of the old approach (which multiplied a constant velocity by a
-  // 1-t ramp on a fixed 800ms timeline, giving uneven motion at low frame
-  // rates and an abrupt stop at the end).
+  // for the real elapsed dt and then exponentially decayed, so the glide stays
+  // even at low frame rates and settles instead of stopping abruptly.
   late final Ticker _momentumTicker;
   Offset _panVelocity = Offset.zero;
   Duration _lastMomentumElapsed = Duration.zero;
@@ -330,9 +327,15 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
   @override
   Widget build(BuildContext context) {
+    final observer = ref.watch(observerLocationProvider);
+    final site = observer.site;
+    // Every coordinate on this chart — the horizon, the alt/az grid, what is
+    // even above ground — is measured from the observer's site. Without one the
+    // view says so instead of drawing somebody else's sky.
+    if (site == null) return const _NoObservingSiteSky();
+
     final viewState = ref.watch(skyViewStateProvider);
     final renderConfig = ref.watch(effectiveSkyRenderConfigProvider);
-    final location = ref.watch(observerLocationProvider);
     // Use minute-precision time for rendering to avoid rebuilds every second
     // The sky doesn't visibly change in one second, but rebuilding 60x/min hurts performance
     final observationMinute = ref.watch(observationMinuteProvider);
@@ -645,7 +648,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                             dsos: dsos.valueOrNull ?? const [],
                             constellations: constellations,
                             observationMinute: observationMinute,
-                            location: location,
+                            location: site,
                             selectedObject: selectedObject,
                             mountPosition: mountPosition,
                             sunPos: sunPos,
@@ -692,7 +695,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                               dsos: dsos.valueOrNull ?? const [],
                               constellations: constellations,
                               observationMinute: observationMinute,
-                              location: location,
+                              location: site,
                               selectedObject: selectedObject,
                               mountPosition: mountPosition,
                               sunPos: sunPos,
@@ -713,13 +716,13 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                                     viewState: viewState,
                                     start: _measureStart!,
                                     end: _measureEnd!,
-                                    latitude: location.latitude,
+                                    latitude: site.latitude,
                                     lstHours:
                                         viewState.viewMode ==
                                             SkyViewMode.horizontal
                                         ? AstronomyCalculations.localSiderealTime(
                                             observationMinute,
-                                            location.longitude,
+                                            site.longitude,
                                           )
                                         : null,
                                   )
@@ -735,6 +738,45 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
           ),
         );
       },
+    );
+  }
+}
+
+/// What the sky view shows before an observing site is on record.
+class _NoObservingSiteSky extends StatelessWidget {
+  const _NoObservingSiteSky();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFF05070F),
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.place_outlined, size: 32, color: Color(0xFF8A93A6)),
+              SizedBox(height: 12),
+              Text(
+                'No observing site set',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFFE6EAF2),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'Set your location in Settings to draw the sky over your site.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF8A93A6), fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

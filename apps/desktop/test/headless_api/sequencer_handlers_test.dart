@@ -147,15 +147,13 @@ void main() {
         final loaded = scoped.read(currentSequenceProvider);
         expect(loaded?.name, 'Remote run');
         expect(loaded?.databaseId, 42);
-        // Node ids are PRESERVED. This previously asserted `isNot('root')`,
-        // pinning a re-keying step that was measured on the running app to be a
-        // defect: because the copy keeps `databaseId` and saves back to the same
-        // library row, minting fresh UUIDs on open broke the two subsystems that
-        // treat a node's UUID as its durable identity —
-        // `SequenceRepository.saveSequence` (which upserts by id, so an emptied
-        // update set deleted and re-inserted every node row) and
-        // `SequenceDiffService` (which matches by id, so re-running an untouched
-        // sequence reported every node as both added AND removed). See
+        // Node ids are PRESERVED. The copy keeps `databaseId` and saves back
+        // to the same library row, so minting fresh UUIDs on open would break
+        // the two subsystems that treat a node's UUID as durable identity:
+        // `SequenceRepository.saveSequence` upserts by id, so an emptied
+        // update set deletes and re-inserts every node row, and
+        // `SequenceDiffService` matches by id, so re-running an untouched
+        // sequence reports every node as both added AND removed. See
         // nightshade_core's load_copy_for_editing_test.dart.
         expect(loaded?.rootNodeId, 'root');
         verify(() => repository.loadSequence(42)).called(1);
@@ -376,9 +374,7 @@ void main() {
       expect(body['field'], 'frameCount');
     });
 
-    // =====================================================================
     // Recovery Mode HTTP handlers
-    // =====================================================================
 
     test(
       'recovery/try-now defers to backend (DisconnectedBackend raises)',
@@ -704,11 +700,10 @@ void main() {
     }
   });
 
-  /// Live rig 2026-08-09: `POST /api/sequencer/update-observer-profile` with
-  /// `focalLengthMm` / `apertureMm` — the obvious spelling of the real keys —
-  /// answered `200 {"status":"ok"}` and dropped both values. The next frame
-  /// carried TELESCOP, INSTRUME and OBSERVER and no FOCALLEN or APTDIA, and
-  /// the only way to discover that was to read the FITS header.
+  /// `POST /api/sequencer/update-observer-profile` must name the keys it did
+  /// not understand. `focalLengthMm` / `apertureMm` — the obvious spelling of
+  /// the real keys — otherwise get a bare `200 {"status":"ok"}` and the only
+  /// way to discover the drop is a later FITS header missing FOCALLEN.
   group('the observer profile says what it understood', () {
     late ProviderContainer container;
     late SequencerHandlers handlers;

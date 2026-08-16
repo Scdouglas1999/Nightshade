@@ -465,13 +465,10 @@ class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
   }
 
   void _applyLoadedSettings(Map<String, String> settings) {
-    // Why: the dark-library UI historically wrote to
-    // `dark_library.auto_subtract` while the imaging pipeline only read
-    // `calibration.auto_calibrate`. This unifies both
-    // surfaces against the calibration store. If the user has a
-    // pre-unification value in the legacy key and the calibration key
-    // has not yet been set, lift the legacy value forward. This runs
-    // once because we delete the legacy key after lifting it.
+    // `calibration.auto_calibrate` is the authoritative key for both the
+    // dark-library UI and the imaging pipeline. A value left in the legacy
+    // `dark_library.auto_subtract` key is lifted forward when the
+    // authoritative key is unset, then deleted, so the lift runs once.
     var autoCalibrate = settings['calibration.auto_calibrate'] == 'true';
     final legacyDarkLibrary = settings['dark_library.auto_subtract'];
     final hasCalibrationKey = settings.containsKey(

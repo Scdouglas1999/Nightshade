@@ -1,10 +1,10 @@
-// Regression test: the objects the sky view and the search hand downstream must
-// know they are solar-system bodies.
+// The objects the sky view and the search hand downstream know they are
+// solar-system bodies.
 //
-// They were built as plain `Star(id: 'PLANET_Jupiter')`, so every surface that
-// asks "what is this?" answered "Star" — the object popup's Type row, and worse,
-// the observation_logs row written from it. This pins the construction sites;
-// the user-visible strings are pinned in nightshade_app's
+// Built as a plain `Star(id: 'PLANET_Jupiter')`, every surface that asks "what
+// is this?" answers "Star" — the object popup's Type row, and worse, the
+// observation_logs row written from it. This pins the construction sites; the
+// user-visible strings are pinned in nightshade_app's
 // solar_system_object_identity_test.dart.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,6 +41,11 @@ void main() {
         planetPositionsProvider.overrideWithValue(const [_jupiter]),
       ],
     );
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     container
         .read(skyViewStateProvider.notifier)
         .setCenter(_jupiter.ra, _jupiter.dec);
@@ -72,6 +77,11 @@ void main() {
 
   test('the unified search publishes typed solar-system bodies', () {
     final container = ProviderContainer();
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     addTearDown(container.dispose);
 
     final bodies = container.read(solarSystemSearchObjectsProvider);

@@ -302,9 +302,9 @@ class SessionService {
   /// succeed. If any write throws we rethrow WITHOUT clearing, so the session
   /// stays active and the caller (e.g. SequenceExecutor's `cleanupFailed`
   /// retry, or a later `endSession`) can re-run this and actually finalize the
-  /// row. The previous implementation cleared identity in a `finally` even on
-  /// failure, which left the DB row stuck `active` forever and made a retry a
-  /// ineffective retry (the early-return above would fire).
+  /// row. Clearing identity unconditionally (in a `finally`, say) would leave
+  /// the DB row stuck `active` forever, because the early return above then
+  /// makes every retry a no-op.
   Future<void> endSession({String status = 'completed'}) {
     if (_disposed) {
       return Future<void>.error(

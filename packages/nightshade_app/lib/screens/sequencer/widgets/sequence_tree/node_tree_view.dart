@@ -136,11 +136,10 @@ class _NodeTreeView extends ConsumerWidget {
     // `headerRow` to the DragTarget and then reading `headerRow` inside that
     // DragTarget's builder made the row its own descendant: every build
     // nested another DragTarget → AnimatedContainer → DragTarget … until the
-    // element tree blew the stack (~30k frames). In a release build a
-    // subtree that throws is replaced by ErrorWidget, which paints a bare
-    // grey rectangle — the "solid grey block over the rest of the tree" this
-    // fixes. Only collapsed containers took that branch, which is why it
-    // appeared on Collapse-all and vanished on Expand-all.
+    // element tree blows the stack (~30k frames). In a release build a
+    // subtree that throws is replaced by ErrorWidget, which paints a bare grey
+    // rectangle over the rest of the tree. Only collapsed containers take that
+    // branch, so it shows on Collapse-all and vanishes on Expand-all.
     final Widget baseRow = SequenceTreeContextMenu(
       nodeId: nodeId,
       colors: colors,

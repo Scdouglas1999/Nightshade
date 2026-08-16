@@ -209,9 +209,7 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          // The old `/focus-model` destination never existed in AppRouter, so
-          // tapping this card on the mobile Devices tab opened an unknown
-          // route. `focus-model` is a supported Settings alias for the merged
+          // `focus-model` is a supported Settings alias for the merged
           // Autofocus section. If this package is embedded without a router or
           // callback, leave the InkWell honestly disabled.
           onTap: onOpenFullScreen ??

@@ -1,16 +1,13 @@
 // Widget tests for the off-canvas ImagingPreviewToolbar.
 //
-// The imaging preview toolbar replaced the old on-image overlay bar: the six
-// cryptic overlay-toggle icons collapsed into a single labelled "Overlays"
-// popover, and the whole bar moved off the image canvas into a slim strip
-// above the live preview.
+// The toolbar is a slim strip ABOVE the live preview, not an on-image overlay
+// bar, and its overlay toggles live in a single labelled "Overlays" popover.
 //
-// These tests pin the load-bearing behaviour change: the Overlays menu must
-// still flip the SAME providers the old loose icons drove. We exercise the
-// catalog-overlay row because it toggles a plain StateProvider
-// (catalogOverlayEnabledProvider) we can read directly from the container —
-// no callback indirection — so a green assertion proves the menu→provider
-// wiring end to end, not just that a row rendered.
+// These tests pin that the Overlays menu flips the real providers. They
+// exercise the catalog-overlay row because it toggles a plain StateProvider
+// (catalogOverlayEnabledProvider) readable straight from the container — no
+// callback indirection — so a green assertion proves the menu→provider wiring
+// end to end, not just that a row rendered.
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -140,9 +140,8 @@ class SequenceTreeContextMenu extends ConsumerWidget {
           Icon(icon, size: 14, color: effectiveColor),
           const SizedBox(width: 10),
           // Flexible+ellipsis so the wider entries ("Group into
-          // Sequential Container") don't overflow the menu's default
-          // 256px width — overflow used to throw layout exceptions in
-          // tests on narrow surfaces.
+          // Sequential Container") do not overflow the menu's default
+          // 256px width on narrow surfaces.
           Flexible(
             child: Text(
               label,
@@ -644,10 +643,8 @@ class _InsertNodePickerState extends ConsumerState<_InsertNodePicker> {
     final categories = ref.watch(nodePaletteProvider);
 
     // Same relevance ranking as the two main palettes (see
-    // node_palette_search.dart). This picker used to filter on
-    // `name || description` and render the survivors in catalogue order, so
-    // typing "Dither" here still offered Smart Exposure first — the third
-    // copy of the bug the shared ranker exists to prevent.
+    // node_palette_search.dart), so a NAME hit outranks a DESCRIPTION hit here
+    // too.
     final filtered = rankNodePaletteMatches(categories, _query);
 
     return DraggableScrollableSheet(

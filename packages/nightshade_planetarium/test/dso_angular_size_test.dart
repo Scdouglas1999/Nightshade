@@ -1,16 +1,15 @@
-// Regression: SKY-6 — deep-sky objects were drawn with no angular size.
+// Deep-sky objects are drawn at their angular size.
 //
-// Found live. M31 (178' x 63') at a 2.0 degree field, NGC 7000 (120' x 30') at
-// 7.2 degrees, IC 5070 and NGC 6997 beside it: every one a fixed ~6-10 px
-// marker, three identical dots where a galaxy and its two companions should
-// have filled the frame. The catalogue data was present and right the whole
-// time — the details panel printed "120.0' x 30.0'" for the same object — so
-// the planetarium could not answer the one question it exists to answer:
-// does this fit my field?
+// Without it, M31 (178' x 63') at a 2.0 degree field, NGC 7000 (120' x 30') at
+// 7.2 degrees, and IC 5070 and NGC 6997 beside it are each a fixed ~6-10 px
+// marker: three identical dots where a galaxy and its two companions fill the
+// frame. The catalogue data is present and right — the details panel prints
+// "120.0' x 30.0'" for the same object — so the planetarium cannot answer the
+// one question it exists to answer: does this fit my field?
 //
-// Cause: the draw size was `sizeArcMin/60 * scale` clamped to a 40 px ceiling,
-// so past ~40 px every object rendered at the same size no matter how large it
-// really was, and no matter how far you zoomed in.
+// A draw size of `sizeArcMin/60 * scale` clamped to a 40 px ceiling renders
+// every object past ~40 px at the same size, however large it is and however
+// far the view is zoomed in.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 

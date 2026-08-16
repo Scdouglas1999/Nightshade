@@ -1,5 +1,4 @@
-// Collaborative Sky (6.0) WS2 / WS4 — the persisted consent that gates a mosaic
-// panel-master upload.
+// The persisted consent that gates a mosaic panel-master upload.
 //
 // A panel master is FULL-RESOLUTION integrated data — at least as revealing as
 // the raw subframes the Constellation contribute flow gates with its strongest

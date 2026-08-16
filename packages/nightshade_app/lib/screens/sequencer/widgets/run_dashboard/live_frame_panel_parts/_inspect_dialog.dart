@@ -1,5 +1,3 @@
-// Part of ../live_frame_panel.dart -- extracted for maintainability.
-//
 // Frame inspect dialog, preview and metadata rows.
 part of '../live_frame_panel.dart';
 

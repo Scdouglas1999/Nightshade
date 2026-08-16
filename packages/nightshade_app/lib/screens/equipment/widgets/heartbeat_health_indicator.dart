@@ -12,8 +12,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Three colors:
 ///   * Green: heartbeat is healthy (or the device just recovered).
 ///   * Amber: heartbeat reported degraded / reconnecting — tooltip
-///            carries the actual reason (errors are a feature:
-///            never paper over a real signal).
+///            carries the actual reason.
 ///   * Gray:  no heartbeat data for this device (e.g. heartbeat was
 ///            never started, or the device just disconnected and the
 ///            entry was cleared).

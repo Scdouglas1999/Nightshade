@@ -1,9 +1,7 @@
 part of '../connected_device_card.dart';
 
 extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
-  // ============================================================================
-  // Action Handlers
-  // ============================================================================
+  // Action handlers
 
   Future<void> _handleDisconnect() async {
     // Disconnecting a camera whose TEC is still active cuts cooler power
@@ -283,9 +281,8 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
   }
 
   /// Manually trigger a meridian flip now (outside the sequencer's automatic
-  /// watchdog). Flips and re-points to the mount's current sky position. Useful
-  /// when a remote operator is stalled at the meridian — there was previously
-  /// no manual "flip now" control anywhere.
+  /// watchdog). Flips and re-points to the mount's current sky position. The
+  /// manual path a remote operator needs when stalled at the meridian.
   Future<void> _handleManualMeridianFlip() async {
     final revision = _beginMountCommand();
     if (revision == null) return;
@@ -433,9 +430,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
       identical(ref.read(backendProvider), backend) &&
       identical(ref.read(mountCommandServiceProvider), service);
 
-  // ============================================================================
-  // Dome Action Handlers
-  // ============================================================================
+  // Dome action handlers
 
   bool _hasCurrentDomeAuthority(
     NightshadeBackend backend,
@@ -571,9 +566,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
     ref.read(equipmentSafetyCancelSnoozeActionProvider)();
   }
 
-  // ============================================================================
-  // Cover Calibrator Action Handlers
-  // ============================================================================
+  // Cover calibrator action handlers
 
   Future<void> _handleCoverToggle(bool isOpen) async {
     final coverState = ref.read(coverCalibratorStateProvider);

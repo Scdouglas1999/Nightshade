@@ -136,9 +136,8 @@ bool _needsWritableRetry(SqliteException e) =>
 /// conditions in the background isolate.
 ///
 /// Throws if the recovery itself fails (e.g. the OS refuses to rename the
-/// corrupt file because of an open file handle). Per project policy we
-/// surface that as a hard failure rather than silently continuing on a
-/// half-broken state.
+/// corrupt file because of an open file handle): a hard failure rather than
+/// continuing on a half-broken state.
 ///
 /// Also throws — deliberately, without touching the file — when the database
 /// could not be *reached* rather than could not be *parsed*: another instance
@@ -157,10 +156,9 @@ Future<IntegrityRecoveryReport> runIntegrityCheckAndRecover(File dbFile) async {
   } on SqliteException catch (e) {
     if (!await dbFile.exists()) {
       // The file was there a moment ago and is gone now: deleted underneath
-      // us, or its volume went away. There is nothing left to verify and —
-      // critically — nothing to quarantine. The old code reached its rotate
-      // path here and renamed whatever it could find; treat it as the fresh
-      // install the next open is about to create anyway.
+      // us, or its volume went away. Nothing left to verify and nothing to
+      // quarantine, so report the fresh install the next open is about to
+      // create anyway.
       return IntegrityRecoveryReport.freshInstall();
     }
     if (_needsWritableRetry(e)) {
@@ -653,17 +651,17 @@ Future<DatabaseRestoreOutcome?> applyPendingRestore(File dbFile) async {
   }
 
   // The recovery marker says exactly one thing: "the database you are using
-  // now is not yours." The swap above just made that false, so the marker has
-  // to go with it. Observed on the owner's rig on 2026-08-09: after a restore
-  // put back a profile, five sequences and fifty frames, every subsequent
-  // launch still announced "your existing settings, profiles, sessions and
-  // captures are not in the new database" — about a database that had all of
-  // them. Worse than merely stale: the quarantined file is now named
-  // `nightshade-replaced-*`, so `_findMostRecentBackup` finds nothing to
-  // offer and the notice degrades to an alarm the user cannot act on.
+  // now is not yours." The swap above makes that false, so the marker goes
+  // with it. A marker left behind after a restore that put back a profile,
+  // five sequences and fifty frames makes every subsequent launch announce
+  // "your existing settings, profiles, sessions and captures are not in the
+  // new database" about a database that holds all of them — and the
+  // quarantined file is by then named `nightshade-replaced-*`, so
+  // `_findMostRecentBackup` finds nothing to offer and the notice degrades to
+  // an alarm the user cannot act on.
   //
   // Only on success. A restore that failed leaves the user on the wrong
-  // database, where the marker is still telling the truth and must survive.
+  // database, where the marker is accurate and must survive.
   for (final marker in await _recoveryMarkerFiles(dir)) {
     try {
       await marker.delete();

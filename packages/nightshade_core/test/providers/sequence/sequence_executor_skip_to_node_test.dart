@@ -1,8 +1,7 @@
-// Verify SequenceExecutor.skipToNode forwards through the
-// backend to the native sequencer. The Rust side is exercised by the
-// existing `nightshade_sequencer` cargo tests; this file pins the Dart proxy
-// so a regression that drops the call (or sends the wrong node id) fires
-// loudly at `flutter test` time.
+// SequenceExecutor.skipToNode forwards through the backend to the native
+// sequencer. The Rust side is exercised by the `nightshade_sequencer` cargo
+// tests; this file pins the Dart proxy so dropping the call (or sending the
+// wrong node id) fires loudly at `flutter test` time.
 
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,10 +66,9 @@ void main() {
     });
 
     test('multiple sequential calls are all forwarded', () async {
-      // Regression guard: the executor must not coalesce repeated jumps
-      // (e.g. user clicking "Skip to here" on different nodes in rapid
-      // succession) — each call must reach the backend so the Rust side
-      // can update its `next_jump_target` correctly.
+      // The executor must not coalesce repeated jumps (e.g. a user clicking
+      // "Skip to here" on different nodes in rapid succession) — each call
+      // reaches the backend so the Rust side updates its `next_jump_target`.
       final executor = container.read(sequenceExecutorProvider);
       await executor.skipToNode('node-a');
       await executor.skipToNode('node-b');

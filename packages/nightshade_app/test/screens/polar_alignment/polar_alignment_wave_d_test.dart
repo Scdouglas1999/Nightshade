@@ -1,16 +1,16 @@
-// Wave D re-drive of the polar-alignment screen: three surfaces that
-// contradicted each other on the SAME screenshot.
+// Three polar-alignment surfaces that must not contradict each other on the
+// same screen:
 //
-//  * IMG-13 — the status headline read "Slewing to point 1 of 3" while the
-//    detail line and the footer read "Slewing to point 2...". The mount was
-//    moving to point 2, so the headline was the one that was wrong.
-//  * IMG-16 — after a completed run the bullseye printed "No measurement yet"
-//    and put the marker back at dead centre, while the row directly beneath it
-//    read Azimuth 3.2" · Altitude 0.6" · Total 3.2".
-//  * ND-3 — that same card showed a green "Alignment Complete — Final error:
-//    3.2"" beside a red "Worse" chip, with Before and After both rendering
-//    3.2": a verdict graded off a hundredth of an arcsecond, below the
-//    resolution either number is printed at.
+//  * a status headline reading "Slewing to point 1 of 3" while the detail line
+//    and the footer read "Slewing to point 2..." — the mount is moving to point
+//    2, so the headline is the one that is wrong;
+//  * a completed run whose bullseye prints "No measurement yet" and puts the
+//    marker back at dead centre, while the row directly beneath it reads
+//    Azimuth 3.2" · Altitude 0.6" · Total 3.2";
+//  * that same card showing a green "Alignment Complete — Final error: 3.2""
+//    beside a red "Worse" chip, with Before and After both rendering 3.2": a
+//    verdict graded off a hundredth of an arcsecond, below the resolution
+//    either number is printed at.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';

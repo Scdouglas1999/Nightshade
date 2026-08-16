@@ -7,9 +7,9 @@ import 'package:flutter/rendering.dart';
 /// The app theme puts snackbars in [SnackBarBehavior.floating], which anchors
 /// them to the bottom of the enclosing [Scaffold]. On a screen whose own
 /// primary controls live in a bottom bar — the Imaging screen's Snapshot / Loop
-/// / Duration strip — that put an opaque bar straight over the two most
-/// important buttons on the screen: unreadable, and partly un-tappable, for as
-/// long as the snackbar was up.
+/// / Duration strip — that puts an opaque bar over the two most important
+/// buttons on the screen, unreadable and partly un-tappable, for as long as the
+/// snackbar is up.
 ///
 /// A screen that owns a bottom bar wraps its content in [TransientBottomInset]
 /// declaring how far the snackbar must be lifted (see
@@ -19,18 +19,17 @@ import 'package:flutter/rendering.dart';
 ///
 /// ## Why the value is read from a notifier and not just from the tree
 ///
-/// This began as a pure [InheritedWidget], and that could not work for the toast
-/// it was built for. `_ImagingScreenActions` is an extension on
-/// `_ImagingScreenState`, so the `context` it raises "Capture failed: …" from is
-/// the ImagingScreen ELEMENT — an ancestor of the `TransientBottomInset` that
-/// the screen's own `build()` creates beneath it. `dependOnInheritedWidgetOfExactType`
-/// only ever searches ancestors, so it returned null and the inset was silently
-/// not applied: measured, that toast sat 24 px from the screen bottom (squarely
-/// over Snapshot/Loop) versus 71 px for one raised from a descendant.
+/// A pure [InheritedWidget] cannot serve every raiser.
+/// `dependOnInheritedWidgetOfExactType` only searches ANCESTORS, and
+/// `_ImagingScreenActions` is an extension on `_ImagingScreenState`, so the
+/// `context` it raises "Capture failed: …" from is the ImagingScreen element —
+/// an ancestor of the `TransientBottomInset` that screen's own `build()`
+/// creates beneath it. The lookup returns null and the inset is silently not
+/// applied.
 ///
 /// Inheriting downward is still the right model for descendants, so the widget
 /// stays and keeps working that way. It additionally publishes to
-/// [currentInset], which any context can read regardless of direction. The
+/// [currentInset], which any context can read regardless of direction, and that
 /// notifier is the authority the snackbar helper uses.
 class TransientBottomInset extends InheritedWidget {
   final double inset;

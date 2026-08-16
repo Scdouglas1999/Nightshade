@@ -1,4 +1,4 @@
-// Audit §11 — wire the `pluginNodeBlueprintsProvider` (defined in
+// Wires the `pluginNodeBlueprintsProvider` (defined in
 // `nightshade_core`) to the live `PluginNodeRegistry` (defined in
 // `nightshade_plugins`) so plugin-contributed sequence nodes show up
 // in the sequencer palette and react to plugins loading / unloading /
@@ -27,22 +27,12 @@ import 'package:nightshade_plugins/nightshade_plugins.dart';
 /// The palette therefore re-renders the moment plugin state changes,
 /// without the user having to restart the sequencer screen.
 ///
-/// Robustness: malformed `SequenceNodeDefinition` entries (empty ids,
-/// non-JSON default config, etc.) are skipped with a loud `developer.log`
-/// breadcrumb — per CLAUDE.md, a malformed plugin is a feature failure,
-/// not a silent palette corruption.
+/// Robustness: malformed `SequenceNodeDefinition` entries (empty ids, non-JSON
+/// default config, …) are skipped with a loud `developer.log` breadcrumb, so a
+/// malformed plugin reads as a plugin failure rather than as a silently
+/// corrupted palette.
 ///
-/// Use in the app entry point:
-///
-/// ```dart
-/// final container = ProviderContainer(
-///   overrides: [
-///     backendProvider.overrideWith(...),
-///     pluginNodeDispatcherOverride(),
-///     pluginNodePaletteBlueprintsOverride(),
-///   ],
-/// );
-/// ```
+/// Belongs in the app entry point's `ProviderContainer` overrides.
 Override pluginNodePaletteBlueprintsOverride() {
   return pluginNodeBlueprintsProvider.overrideWith((ref) {
     // Watch the registry-change stream. While the stream is loading we

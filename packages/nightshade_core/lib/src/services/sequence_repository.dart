@@ -340,13 +340,10 @@ class SequenceRepository {
   /// Serialize a node's coarse category for the persisted
   /// `sequence_nodes.node_type` column.
   ///
-  /// Single source of truth: delegates to the model's `node.category`
-  /// getter and maps the [NodeCategory] enum to its wire string. This
-  /// previously hand-classified every subtype here, which let the
-  /// persisted value drift from `node.category` (e.g. C6 reclassified
-  /// `MeridianFlipNode` to [NodeCategory.trigger] but this switch still
-  /// emitted 'instruction'). Deriving from the getter makes that class of
-  /// divergence structurally impossible.
+  /// Single source of truth: delegates to the model's `node.category` getter
+  /// and maps the [NodeCategory] enum to its wire string. Hand-classifying
+  /// subtypes here lets the persisted value drift from `node.category`;
+  /// deriving it makes that divergence impossible.
   String _getNodeCategory(SequenceNode node) =>
       _categoryWireString(node.category);
 
@@ -789,13 +786,11 @@ class SequenceRepository {
     return loadSequence(newDbId);
   }
 
-  // ---------------------------------------------------------------------------
   // Enum wire conversion for the DB `sequence_nodes.properties` blob.
   //
   // The tokens themselves live in `sequence_wire_codec.dart`, shared with the
   // sequence FILE codec: these are the DB codec's bindings to that vocabulary,
   // kept as members because the encoder/decoder parts call them unqualified.
-  // ---------------------------------------------------------------------------
 
   String _binningToString(BinningMode mode) => mode.name;
 

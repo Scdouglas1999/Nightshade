@@ -101,7 +101,7 @@ class IntegratedMaster {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  // --- v44 (Phase C) per-master plate-solved WCS (CD-matrix form) ---
+  // Per-master plate-solved WCS (CD-matrix form)
   // The eight FITS scalars ASTAP / `WcsInfo::from_plate_solve` emit. All null
   // until the master is plate-solved at integration time; when present they
   // light up the catalog annotation overlay AND colour calibration (both need a
@@ -130,7 +130,7 @@ class IntegratedMaster {
   /// CD matrix element (2,2).
   final double? wcsCd2_2;
 
-  // --- v44 (Phase C) finishing-artifact output paths ---
+  // Finishing-artifact output paths
   /// `<master>_bgx.fits` — the background-extracted (gradient-flattened) master.
   final String? backgroundExtractedPath;
 

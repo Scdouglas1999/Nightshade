@@ -100,10 +100,9 @@ extension _SequenceFileEncoder on SequenceFileService {
         'hfrThresholdPercent': node.hfrThresholdPercent,
         'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
         'triggerEveryNFrames': node.triggerEveryNFrames,
-        // Added focusDrift as a distinct trigger type
-        // with its own rolling-window parameters. Persist them so a
-        // saved-then-reloaded sequence preserves the trigger config —
-        // previously they would silently reset to defaults on import.
+        // focusDrift's rolling-window parameters. Persisted so a
+        // saved-then-reloaded sequence keeps the trigger config instead of
+        // resetting it to defaults on import.
         'focusDriftWindowSize': node.focusDriftWindowSize,
         'focusDriftMinIncreasingCount': node.focusDriftMinIncreasingCount,
         'focusDriftMinTotalIncrease': node.focusDriftMinTotalIncrease,
@@ -214,9 +213,9 @@ extension _SequenceFileEncoder on SequenceFileService {
         'resumeGuiding': node.resumeGuiding,
         'maxRetries': node.maxRetries,
         'failureAction': node.failureAction.name,
-        // Why: persist the override flag so reloading a sequence preserves
-        // whether the user explicitly overrode meridian flip behavior at the
-        // node level vs. pulling from Sequencer Settings (audit §1.2).
+        // Persist the override flag so reloading a sequence preserves whether
+        // the user explicitly overrode meridian-flip behaviour at the node
+        // level or pulls from Sequencer Settings.
         'useGlobalDefaults': node.useGlobalDefaults,
       },
       OpenDomeNode() => <String, dynamic>{'shutterOnly': node.shutterOnly},
@@ -292,7 +291,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'offset': node.offset,
         'binning': node.binning.name,
       },
-      // Audit §11 — plugin-contributed instruction. Round-trip the
+      // Plugin-contributed instruction. Round-trip the
       // plugin identifiers + opaque config so an exported sequence
       // loads back into the same node configuration (assuming the
       // plugin is installed on the importing side).
@@ -305,8 +304,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'iconHint': node.iconHint,
       },
       // Cover / calibrator nodes carry config (timeout, brightness) that must
-      // be exported — previously lumped into the empty-props group, silently
-      // dropping these fields on save/export.
+      // be exported; the empty-props group below would drop it.
       OpenCoverNode() => <String, dynamic>{'timeoutSecs': node.timeoutSecs},
       CloseCoverNode() => <String, dynamic>{'timeoutSecs': node.timeoutSecs},
       CalibratorOnNode() => <String, dynamic>{

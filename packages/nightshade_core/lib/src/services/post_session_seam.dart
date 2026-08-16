@@ -49,13 +49,11 @@ abstract class PostSessionSeam {
   /// `SaveFitsMasterArgs` JSON shape.
   Future<SaveFitsMasterResult> saveFitsMaster(Map<String, dynamic> args);
 
-  // ---------------------------------------------------------------------------
   // Smart Morning Report — Pillar 2 (optimizer) + Pillar 3 (finishing) +
   // algorithm-depth (drizzle / deconvolution / star reduction / narrowband).
   //
   // These wrap the `finishing_*` FFI functions. Each is JSON-in/typed-out, the
   // same thin-envelope contract as the four batch functions above.
-  // ---------------------------------------------------------------------------
 
   /// Predict the marginal-SNR integration curve + keep/cull recommendation from
   /// per-sub quality descriptors, weights, and exposures. Wraps
@@ -114,12 +112,10 @@ abstract class PostSessionSeam {
   /// Wraps `apiCombineChannels`; returns the written composite's `outputPath`.
   Future<String> combineChannels(Map<String, dynamic> args);
 
-  // ---------------------------------------------------------------------------
   // Mosaic M2 — panel-mosaic stitching.
   //
   // Wraps the `api_stitch_mosaic` FFI. JSON-in / typed-out, the same thin
   // envelope contract as the functions above.
-  // ---------------------------------------------------------------------------
 
   /// Project N plate-solved panel masters onto a shared gnomonic canvas and
   /// feather-blend them into one mosaic master. Wraps `apiStitchMosaic`.
@@ -358,8 +354,8 @@ class BridgePostSessionSeam implements PostSessionSeam {
   }
 
   /// Decode a `{outputPath}` envelope to its path string. Throws a
-  /// [FormatException] when the native call returned a non-object or omitted the
-  /// path, mirroring [_decodeObject]'s contract (errors are a feature).
+  /// [FormatException] when the native call returned a non-object or omitted
+  /// the path, mirroring [_decodeObject]'s contract.
   String _decodeOutputPath(String json) {
     final obj = _decodeObject(json);
     final path = obj['outputPath'];
@@ -419,8 +415,8 @@ class PerFrameRecord {
   /// **Load-bearing for the Smart Morning Report:** the marginal-SNR optimizer
   /// (`apiAnalyzeNight`) skips any sub whose `noise <= 0` from its variance
   /// sums, so the improvement curve / `targetSnr` collapse to zero unless this
-  /// rides through into the `qualities` map (`_analyzeAndStoreCurve`). It used
-  /// to be omitted, defaulting to 0 across the FFI and killing the feature.
+  /// rides through into the `qualities` map (`_analyzeAndStoreCurve`). Omitting
+  /// it defaults to 0 across the FFI and kills the feature.
   final double? noise;
 
   /// Per-sub sky-background level (ADU) from this sub's own measured

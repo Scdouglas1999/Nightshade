@@ -10,27 +10,13 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'run_dashboard/frame_detail_dialog.dart';
 
-/// Replay Debug — retrospective decision-tree scrubber.
-///
-/// Opened from the history tab via "Replay" on each run row. Renders
-/// every persisted [ReplayDecision] for the run in chronological order
-/// with filter chips (by category), full-text search, and a time-range
-/// slider that lets the user zoom into a specific window.
-///
-/// Each row exposes a "View details" expansion that pretty-prints the
-/// structured `details` map. The "Add note at this time" action
-/// pre-fills a [NotesService] note with the row's
-/// timestamp + summary so journaling the night the next morning is
-/// one click away.
 /// The window the time-range slider scrubs, as the UNION of the run's
 /// wall-clock span and the decisions actually on record.
 ///
-/// NEW-E3: the window used to be the run row's `started_at`/`ended_at` alone,
-/// so a decision written outside it — most commonly the completion decision
-/// persisted a beat after the run row was closed — could not be reached at ANY
-/// slider position, while the header still counted it ("1 of 2 decisions" over
-/// a list of one). A row the screen knows about must always be reachable, so
-/// the span stretches to hold every decision.
+/// A row the screen knows about must always be reachable, so the span stretches
+/// to hold every decision: the run row's `started_at`/`ended_at` alone excludes
+/// any decision written outside it — most commonly the completion decision,
+/// persisted a beat after the run row is closed — which the header still counts.
 ///
 /// Pure and public so the claim can be pinned without driving the screen.
 (DateTime, DateTime) replayScrubSpan(
@@ -47,6 +33,16 @@ import 'run_dashboard/frame_detail_dialog.dart';
   return (start, end);
 }
 
+/// Replay Debug — retrospective decision-tree scrubber.
+///
+/// Opened from the history tab via "Replay" on each run row. Renders every
+/// persisted [ReplayDecision] for the run in chronological order with filter
+/// chips (by category), full-text search, and a time-range slider that zooms
+/// into a specific window.
+///
+/// Each row exposes a "View details" expansion that pretty-prints the
+/// structured `details` map. The "Add note at this time" action pre-fills a
+/// [NotesService] note with the row's timestamp + summary.
 class ReplayDebugScreen extends ConsumerStatefulWidget {
   const ReplayDebugScreen({
     required this.sequenceRunId,
@@ -88,13 +84,11 @@ class ReplayDebugScreen extends ConsumerStatefulWidget {
 
   /// Convenience launcher.
   ///
-  /// NEW-E2: this used to `Navigator.of(context).push` a [MaterialPageRoute],
-  /// which lands ABOVE the page go_router owns inside the shell. Nav-rail
-  /// clicks then changed the location — and the rail's own selected
-  /// highlight — while this screen stayed on top, so the chrome advertised a
-  /// destination the app had not gone to and the operator's obvious escapes
-  /// looked inert. Going through the router keeps one navigation stack, so a
-  /// rail click replaces this screen like every other page.
+  /// Goes through the ROUTER, not `Navigator.push`: a [MaterialPageRoute] lands
+  /// ABOVE the page go_router owns inside the shell, so a nav-rail click would
+  /// change the location — and the rail's own highlight — while this screen
+  /// stayed on top. One navigation stack means a rail click replaces this
+  /// screen like every other page.
   static Future<void> push(
     BuildContext context, {
     required int sequenceRunId,
@@ -158,11 +152,11 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
         title: Text('Replay — ${widget.sequenceName}'),
         backgroundColor: colors.surface,
         actions: [
-          // A bare ✕ in the top-right of a full-screen route reads as CLOSE.
-          // Clicking it here only reset the filters, so the screen "refused to
-          // close" twice in a row during the live drive (NEW-E2). The
-          // filter-clear glyph and the spelled-out label say which of the two
-          // it is; leaving is the AppBar's own back control.
+          // A bare ✕ in the top-right of a full-screen route reads as CLOSE,
+          // and this control only resets the filters — so the screen would look
+          // like it refused to close. The filter-clear glyph and the
+          // spelled-out label say which of the two it is; leaving is the
+          // AppBar's own back control.
           IconButton(
             tooltip: 'Clear filters',
             icon: const Icon(LucideIcons.filterX, size: 18),

@@ -24,9 +24,8 @@ part 'polar_alignment/polar_history.dart';
 part 'polar_alignment/polar_controller.dart';
 
 /// Raised when [PolarAlignmentStateNotifier.startAlignment] is called with a
-/// configuration that fails validation. Unlike the previous silent-error
-/// behaviour, this *fails the awaited command* so callers cannot mistake a
-/// rejected start for a successful one.
+/// configuration that fails validation. It *fails the awaited command* so
+/// callers cannot mistake a rejected start for a successful one.
 class PolarAlignmentValidationException implements Exception {
   PolarAlignmentValidationException(this.errors);
 
@@ -61,9 +60,7 @@ class PolarAlignmentBackendChangedException implements Exception {
   String toString() => 'PolarAlignmentBackendChangedException: $message';
 }
 
-// =============================================================================
-// POLAR ALIGNMENT STATE PROVIDER
-// =============================================================================
+// Polar alignment state provider
 
 /// Main provider for polar alignment runtime state
 final polarAlignmentStateProvider =
@@ -363,8 +360,7 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     // (`Uint8List`) but as a JSON array of ints (`List<dynamic>`) — or, on some
     // transports, a base64 string — over the network. Decode all shapes and,
     // critically, reject a malformed payload *without* tearing down the event
-    // subscription (previously a non-`List<int>` silently blanked the preview,
-    // and a bad element type would throw out of the stream listener).
+    // subscription.
     final Uint8List bytes;
     try {
       bytes = _decodeImageBytes(data['image_data']);

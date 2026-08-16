@@ -1,10 +1,9 @@
 // ScienceReportExporter — markdown shape and content guard.
 //
-// We build an in-memory database, seed a session with light frames, a few
-// calibration rows, and a transparency sample, then assert that the
-// markdown output contains the section headers and the headline numbers.
-// The intent is that *any future regression* — a typo in a section title,
-// a unit swap, a missing field — fails the test.
+// An in-memory database is seeded with a session of light frames, a few
+// calibration rows and a transparency sample, and the markdown output is
+// asserted to contain the section headers and the headline numbers. Any drift —
+// a typo in a section title, a unit swap, a missing field — fails the test.
 
 import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';
@@ -221,7 +220,7 @@ void main() {
         '- **Ended (UTC):** ${session.endTime!.toUtc().toIso8601String()}',
       ),
     );
-    // The unlabelled forms the report used to print.
+    // The unlabelled forms must not appear: a bare local time is ambiguous.
     expect(md, isNot(contains('- **Started:**')));
     expect(md, isNot(contains('- **Ended:**')));
   });

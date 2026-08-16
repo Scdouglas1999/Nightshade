@@ -219,4 +219,4 @@ class _ResidualVectorPainter extends CustomPainter {
       residuals != old.residuals;
 }
 
-// --- Issues Card ---
+// Issues card

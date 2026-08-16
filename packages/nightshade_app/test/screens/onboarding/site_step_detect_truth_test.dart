@@ -1,14 +1,14 @@
-// SET-8/SET-9, observing-site step.
+// Observing-site step.
 //
-// SET-9: after "Use my current location" filled the coordinate fields in, the
-// banner directly above them still read "No site on record yet" and still
-// offered "Estimate from IP" — the screen denying the thing it had just done.
-// The offer was latched once at seed time and never re-derived. The same
-// detection also wrote 39.9527237 / -75.1635262 into the fields: seven
-// decimals, about a centimetre, for a lookup the app's own consent dialog
+// After "Use my current location" fills the coordinate fields in, the banner
+// directly above them must not still read "No site on record yet" and offer
+// "Estimate from IP" — the screen denying what it has just done. An offer
+// latched once at seed time and never re-derived does exactly that. The same
+// detection must not write 39.9527237 / -75.1635262 into the fields either:
+// seven decimals, about a centimetre, for a lookup the app's own consent dialog
 // calls accurate to roughly 10 km.
 //
-// SET-8: the consent dialog rendered ~680 px tall for two short paragraphs,
+// And the consent dialog must not render ~680 px tall for two short paragraphs,
 // its body floating between ~230 px of empty space above and ~225 px below.
 
 import 'package:drift/native.dart';

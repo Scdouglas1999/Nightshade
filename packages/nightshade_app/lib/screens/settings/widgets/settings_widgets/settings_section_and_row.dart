@@ -56,9 +56,9 @@ class SettingsSection extends StatelessWidget {
 /// The row a settings search asked to be shown, published to every
 /// [SettingRow] under the detail pane.
 ///
-/// Search used to hand back a section name and nothing else: typing "Alpaca"
-/// opened a long Connection page at the top with no indication of where the
-/// match was, even though the index knew exactly which row title had matched.
+/// The index knows which ROW title matched, so the row id is published rather
+/// than just the section: a section name alone opens a long page at the top
+/// with no indication of where the match is.
 class SettingsRowHighlight extends InheritedWidget {
   const SettingsRowHighlight({
     super.key,
@@ -235,11 +235,9 @@ class SettingRow extends StatelessWidget {
     // The row's title and its trailing control are ONE thing to a screen
     // reader.
     //
-    // Without this the switch is a correctly-toggled but ANONYMOUS node:
-    // measured on the running app, Settings > General exposed three toggle
-    // buttons reading "off/ON/ON" with empty names, so assistive technology
-    // could report that something was on without being able to say which
-    // setting it was. Merging binds each control to the label beside it.
+    // Without this the switch is a correctly-toggled but ANONYMOUS node —
+    // assistive tech can report that something is on without being able to say
+    // which setting it is. Merging binds each control to the label beside it.
     return MergeSemantics(
       child: _HighlightedRow(
         active: SettingsRowHighlight.targets(

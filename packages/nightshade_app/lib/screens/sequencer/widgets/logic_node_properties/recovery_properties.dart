@@ -212,7 +212,7 @@ class RecoveryProperties extends ConsumerWidget {
               },
             ),
           ),
-        // ===== Trigger config editors =====
+        // Trigger config editors
         if (node.triggerType == TriggerType.humidityThreshold)
           NodePropertyField(
             colors: colors,

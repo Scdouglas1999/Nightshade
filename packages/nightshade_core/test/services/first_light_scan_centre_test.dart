@@ -1,19 +1,18 @@
 // Pillar B ("First Light") — the difference scan and the Pillar A atlas fold
 // must centre on the SAME sky for the same `captured_images` row.
 //
-// THE BUG: the solve-persist hook built its scan WCS with
-// `raHours: image.solvedRa / 15.0`, but `captured_images.solved_ra` is
-// app-canonical HOURS on both the write side (the science pipeline persists
-// `SolvedResult.raHours`) and every other read side — `SkyAtlasService`
-// carries the same column straight across. The scan therefore differenced each
-// frame against the tile at 1/15 of its true RA (a frame at 20h was scanned as
-// if it were at 1h20m), so the search found nothing or garbage — silently, the
-// whole chain being fire-and-forget.
+// `captured_images.solved_ra` is app-canonical HOURS on both the write side
+// (the science pipeline persists `SolvedResult.raHours`) and every read side —
+// `SkyAtlasService` carries the same column straight across. A scan WCS built
+// with `raHours: image.solvedRa / 15.0` therefore differences each frame
+// against the tile at 1/15 of its true RA (a frame at 20h scanned as if it were
+// at 1h20m), so the search finds nothing or garbage — silently, the whole chain
+// being fire-and-forget.
 //
-// The invariant this pins is structural: the scan centre and the fold centre
-// are derived from one column, so they must agree by construction. The fold
-// centre is read back off the real atlas seam args rather than recomputed, so
-// a regression in either derivation flips the assertion.
+// The invariant is structural: the scan centre and the fold centre derive from
+// one column, so they agree by construction. The fold centre is read back off
+// the real atlas seam args rather than recomputed, so a drift in either
+// derivation flips the assertion.
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';

@@ -22,8 +22,7 @@ extension _SchedulerEngineScoring on SchedulerEngine {
     // above the configured darkness threshold. This makes the engine wait for
     // darkness at dusk and stop at dawn (the empty-eligible path in
     // _evaluateOnce stops the running sequence once every candidate is
-    // rejected). Previously the engine scored at `now` with no Sun awareness
-    // and would slew + expose in full daylight.
+    // rejected).
     final (sunAlt, _) = SkyCalculations.sunAltAz(
       time: now,
       latitudeDegrees: _site.latitudeDegrees,
@@ -216,12 +215,10 @@ extension _SchedulerEngineScoring on SchedulerEngine {
           detail: 'forced-window boost',
         ),
     ];
-    // Fold the soft factors into a total via the shared DECIDE aggregation
-    // contract. The engine uses ADDITIVE mode (Σ of weighted factors, NOT
-    // divided by the weight-sum) — that is the historical behaviour and is
-    // intentionally different from the planner/node NORMALIZED model. Only the
-    // aggregation primitive is shared; the weights and factor set are
-    // unchanged.
+    // Fold the soft factors into a total via the shared aggregation contract.
+    // The engine uses ADDITIVE mode (Σ of weighted factors, NOT divided by the
+    // weight-sum), deliberately different from the planner/node NORMALIZED
+    // model; only the aggregation primitive is shared.
     final total = WeightedScore.total([
       for (final f in factors)
         WeightedFactor(name: f.name, value: f.value, weight: f.weight),

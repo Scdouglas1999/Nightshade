@@ -255,10 +255,9 @@ void main() {
     });
 
     test('no active profile = silent (the missing-wheel rule reports it)', () {
-      // When the profile is null, SmartExposureFilterWheelMissingRule emits
-      // an info issue explaining the check was skipped. This rule defers to
-      // that instead of double-reporting; verifying behaviour here pins
-      // that contract in place.
+      // When the profile is null, SmartExposureFilterWheelMissingRule emits an
+      // info issue explaining that the check is skipped. This rule defers to it
+      // rather than double-reporting.
       final container = _container(profileFilters: null);
       final node = _smartNode([
         const FilterPlan(filterName: 'OIII', count: 5, durationSecs: 300),

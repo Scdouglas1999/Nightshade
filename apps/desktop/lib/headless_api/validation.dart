@@ -5,51 +5,30 @@ import 'package:shelf/shelf.dart';
 
 import 'response_helpers.dart';
 
-/// Map a flutter_rust_bridge [bridge_error.NightshadeError] to the HTTP status
-/// that best describes it. Device-operation errors that reach the headless
-/// error translator would otherwise all collapse to an opaque 500 — a remote
-/// tablet should instead see "not supported", "not connected", "bad request",
-/// etc. so it can react. Genuinely internal/driver faults stay 500.
-/// Extract a human-readable message from a flutter_rust_bridge
-/// [bridge_error.NightshadeError]. Its `toString()` leaks the freezed wrapper
-/// (`NightshadeError.operationFailed(field0: <msg>)`); unwrap to just `<msg>`
-/// so the wire response carries the actionable text a remote client should
-/// show, not the Dart class plumbing.
-/// Why this is an EXHAUSTIVE `map` and not `maybeMap` + a regex fallback:
-///
-/// The previous shape special-cased a handful of variants and fell back to
-///     RegExp(r'\(field0:\s*(.*)\)$')
-/// over `e.toString()`. That regex can only unwrap a variant with exactly one
-/// positional `field0`; every zero-arg and named-field variant fell straight
-/// through and the wire body carried the freezed constructor form. Remote and
-/// mobile clients render `message` verbatim, so the operator literally saw
-/// Dart plumbing. Observed live on a running instance with no frame captured:
-///   GET /api/camera/last-image
-///     -> {"error":"device_error","message":"NightshadeError.noImageAvailable()"}
-///   GET /api/imaging/raw-data              -> the same
-///   GET /api/run-watch/frame-thumbnail
-///     -> "Failed to fetch last image: NightshadeError.noImageAvailable()"
-/// 19 of the union's 36 variants leaked this way.
-///
-/// `map` (no `orElse`) is deliberate: when a variant is added to the bridge
-/// union, this function must stop compiling rather than silently start
-/// leaking again. Do not reintroduce a catch-all.
 /// Operator-readable sentence for an arbitrary thrown object, for handlers
 /// that build their own error body instead of letting
 /// [errorTranslationMiddleware] do it.
 ///
-/// Why it exists: `run_watch_handlers` composed
-/// `'Failed to fetch last image: $e'`, and `$e` on a bridge error is the
-/// freezed constructor form. Observed live with no frame captured:
-///   GET /api/run-watch/frame-thumbnail -> {"error":"image_unavailable",
-///     "message":"Failed to fetch last image: NightshadeError.noImageAvailable()"}
-/// Any handler interpolating a caught backend error into a user-facing
-/// string must route it through here.
+/// `$e` on a bridge error is the freezed constructor form, and remote clients
+/// render `message` verbatim — so any handler interpolating a caught backend
+/// error into a user-facing string must route it through here.
 String describeBackendError(Object error) =>
     error is bridge_error.NightshadeError
     ? _cleanBackendErrorMessage(error)
     : error.toString();
 
+/// Extract a human-readable message from a flutter_rust_bridge
+/// [bridge_error.NightshadeError]. Its `toString()` leaks the freezed wrapper
+/// (`NightshadeError.operationFailed(field0: <msg>)`); unwrap to just `<msg>`
+/// so the wire response carries the actionable text a remote client should
+/// show, not the Dart class plumbing.
+///
+/// An EXHAUSTIVE `map` with no `orElse`, never `maybeMap` plus a regex
+/// fallback: a regex over `e.toString()` can only unwrap a variant with one
+/// positional `field0`, so every zero-arg and named-field variant would leak
+/// the constructor form. Without `orElse`, a variant added to the bridge union
+/// stops this function compiling instead of silently leaking again. Do not
+/// reintroduce a catch-all.
 String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
   // `deviceId` is empty on the arms where the driver did not scope the
   // failure to one device; appending "(device )" there would be noise.
@@ -57,13 +36,13 @@ String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
       deviceId.isEmpty ? sentence : '$sentence (device $deviceId)';
 
   final message = e.map(
-    // --- Connection / presence -------------------------------------------
+    // Connection / presence
     deviceNotFound: (v) => 'Device not found: ${v.field0}',
     connectionFailed: (v) => 'Could not connect to ${v.deviceId}: ${v.reason}',
     alreadyConnected: (v) => 'Device already connected: ${v.field0}',
     notConnected: (v) => 'Device not connected: ${v.field0}',
     deviceDisconnected: (v) => 'Device ${v.deviceId} disconnected: ${v.reason}',
-    // --- Hardware / transport --------------------------------------------
+    // Hardware / transport
     hardwareError: (v) => 'Hardware error on ${v.deviceId}: ${v.message}',
     communicationError: (v) =>
         'Communication error with ${v.deviceId}: ${v.message}',
@@ -72,18 +51,18 @@ String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
         '${v.deviceId} timed out after ${v.timeoutSecs}s during ${v.operation}',
     connectionTimeout: (v) =>
         'Connecting to ${v.deviceId} timed out after ${v.timeoutSecs}s',
-    // --- Caller input -----------------------------------------------------
+    // Caller input
     invalidParameter: (v) => v.field0,
     invalidInput: (v) => v.field0,
     invalidDeviceId: (v) => scoped(v.reason, v.deviceId),
     parameterOutOfRange: (v) =>
         '${v.paramName} ${v.value} is outside the valid range '
         '${v.min} to ${v.max}',
-    // --- Operation --------------------------------------------------------
+    // Operation
     operationFailed: (v) => v.field0,
     notSupported: (v) => scoped(v.operation, v.deviceId),
     deviceBusy: (v) => '${v.deviceId} is busy: ${v.currentOperation}',
-    // --- Imaging ----------------------------------------------------------
+    // Imaging
     imageError: (v) => v.field0,
     cameraError: (v) => v.field0,
     noImageAvailable: (_) =>
@@ -92,12 +71,12 @@ String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
     // `reason` is already the complete operator-actionable sentence.
     exposureFailed: (v) => v.reason,
     downloadFailed: (v) => 'Image download failed: ${v.cameraId} - ${v.reason}',
-    // --- Host -------------------------------------------------------------
+    // Host
     ioError: (v) => v.field0,
     serializationError: (v) => v.field0,
     plateSolveError: (v) => v.field0,
     sequenceError: (v) => v.field0,
-    // --- Driver-stack specific -------------------------------------------
+    // Driver-stack specific
     ascomError: (v) =>
         'ASCOM driver ${v.progId} reported: ${v.message} (code ${v.errorCode})',
     alpacaError: (v) =>
@@ -111,7 +90,7 @@ String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
     comError: (v) =>
         'Windows COM call failed: ${v.message} '
         '(HRESULT 0x${v.hresult.toUnsigned(32).toRadixString(16)})',
-    // --- Process ----------------------------------------------------------
+    // Process
     internal: (v) => v.field0,
     cancelled: (_) => 'Operation cancelled',
     runtimeInitFailed: (v) => v.field0,
@@ -145,20 +124,10 @@ String _sanitizeErrorDetail(Object e) {
 
 /// The wire `error` code for a mapped backend status.
 ///
-/// The status alone was the code: everything `>= 500` was labelled
-/// `internal_error`. Live rig 2026-08-09, on a camera with no cooler:
-///
-/// ```
-/// POST /api/camera/cooling {"deviceId":"native:zwo:1","enabled":false}
-///   -> 501 {"error":"internal_error","message":"Operation not supported"}
-/// ```
-///
-/// The status was right and the code was a lie. `internal_error` says the
-/// appliance broke; the truth is that this camera does not have the capability,
-/// which no retry and no restart will change. The same mislabel covered 502 and
-/// 504 — a driver that is unreachable or slow is not an internal fault of the
-/// host either, and telling a client otherwise sends it looking in the wrong
-/// place. Only a genuine 500 is `internal_error`.
+/// Only a genuine 500 is `internal_error`. 501, 502 and 504 name the real
+/// condition instead: a capability the camera does not have, a driver that is
+/// unreachable, a driver that is slow. None of those is a fault of the host,
+/// and labelling them one sends a client looking in the wrong place.
 String _backendErrorCode(int statusCode) => switch (statusCode) {
   501 => 'not_supported',
   502 => 'device_unreachable',
@@ -167,6 +136,11 @@ String _backendErrorCode(int statusCode) => switch (statusCode) {
   _ => 'device_error',
 };
 
+/// Map a flutter_rust_bridge [bridge_error.NightshadeError] to the HTTP status
+/// that best describes it. Without this, every device-operation error reaching
+/// the headless error translator collapses to an opaque 500; a remote tablet
+/// needs "not supported", "not connected", "bad request" so it can react.
+/// Genuinely internal/driver faults stay 500.
 int _httpStatusForBackendError(bridge_error.NightshadeError e) {
   return e.maybeMap(
     notSupported: (_) => 501,
@@ -200,13 +174,12 @@ int _httpStatusForBackendError(bridge_error.NightshadeError e) {
 
 /// Validation helpers for headless API request payloads.
 ///
-/// Why: The previous pattern was `payload['x'] as String`, which throws a
-/// generic [TypeError] on missing or wrong-type fields. The catch block then
-/// formatted that error as `e.toString()` into a 500 response body, leaking
-/// stack traces and internal type names. These helpers raise a single
-/// [BadRequestError] type that the [errorMiddleware] (or per-handler glue)
-/// translates into a structured 400 response. Internal errors instead become
-/// 500 with a request-id reference and never echo `e.toString()` to the body.
+/// A missing or wrong-type field must become a structured 400 naming the
+/// field, never a [TypeError] the trap formats into a 500 body — that leaks
+/// stack traces and internal Dart type names to the wire. These helpers raise
+/// one [BadRequestError] type that [errorMiddleware] (or per-handler glue)
+/// translates. A genuine internal error becomes a 500 carrying a request-id
+/// reference and never echoes `e.toString()`.
 
 class BadRequestError implements Exception {
   final String field;
@@ -313,12 +286,10 @@ Future<Map<String, dynamic>> readJsonObject(Request request) async {
 /// Name the keys of [payload] this endpoint understood and the keys it did
 /// not, so a caller can see that a misspelled field had no effect.
 ///
-/// Live rig 2026-08-09: `POST /api/sequencer/update-observer-profile` with
-/// `focalLengthMm` / `apertureMm` — the obvious spelling of
-/// `telescopeFocalLengthMm` / `telescopeApertureMm` — answered
-/// `200 {"status":"ok"}` and dropped both values. The next frame carried
-/// `TELESCOP`, `INSTRUME` and `OBSERVER` and no `FOCALLEN` or `APTDIA`, and the
-/// only way to discover that was to read the FITS header.
+/// Without it, `POST /api/sequencer/update-observer-profile` carrying
+/// `focalLengthMm` — the obvious spelling of `telescopeFocalLengthMm` —
+/// answers `200 {"status":"ok"}` and drops the value, and the only way to
+/// discover that is a later FITS header missing `FOCALLEN`.
 ///
 /// Reporting rather than rejecting is deliberate. A 400 on an unknown key would
 /// be the stricter contract, but it turns a forward-compatible client — a phone
@@ -653,7 +624,6 @@ Map<String, Map<String, double>> optionalNestedDoubleMap(
   return parsed;
 }
 
-// ===========================================================================
 // Query-string parameter helpers (GET / query endpoints).
 //
 // Why a separate family from the JSON-body helpers above: query values arrive
@@ -661,11 +631,9 @@ Map<String, Map<String, double>> optionalNestedDoubleMap(
 // as "not supplied" for endpoints that document a default. These helpers fail
 // closed — a value that IS supplied but is malformed (unparseable, NaN /
 // Infinity, out of range, or non-whole for an int) raises [BadRequestError]
-// BEFORE any DAO / backend / service call, instead of the old
-// `int.tryParse(x) ?? default` pattern that silently mapped garbage onto the
-// default (or forwarded a NaN / negative downstream). Absence (or empty) still
-// yields the documented default via the `optional*` variants returning null.
-// ===========================================================================
+// BEFORE any DAO / backend / service call, rather than mapping garbage onto
+// the default or forwarding a NaN downstream. Absence (or empty) still yields
+// the documented default via the `optional*` variants returning null.
 
 /// Required finite [double] query parameter. Throws [BadRequestError] when the
 /// key is absent/empty, unparseable, non-finite (NaN/Infinity), or outside
@@ -776,11 +744,10 @@ void _checkRange(String field, double value, double? min, double? max) {
 
 /// Translates uncaught exceptions into structured error responses.
 ///
-/// Why a dedicated middleware: handlers previously returned 500 with
-/// `{"error": e.toString()}`, leaking stack traces and Dart type names. This
-/// middleware catches [BadRequestError] (-> 400 with structured body) and
-/// any other exception (-> 500 with `internal_error` + `requestId`). Full
-/// exception detail goes to the structured log only.
+/// No handler may ship `e.toString()` to the wire — that leaks stack traces
+/// and Dart type names. This middleware catches [BadRequestError] (-> 400 with
+/// a structured body) and any other exception (-> 500 with `internal_error` +
+/// `requestId`). Full exception detail goes to the structured log only.
 Middleware errorTranslationMiddleware({
   required void Function(String message, {Map<String, Object?>? fields})
   logError,

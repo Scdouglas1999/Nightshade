@@ -24,12 +24,10 @@ typedef FinderChartRegion = ({
 /// exported PDF is a durable artifact: it must wait for both spatial indexes
 /// and preserve load failures instead of treating them as empty catalogs.
 ///
-/// Takes the region as a parameter rather than reading the live view centre.
-/// A chart titled "Finder Chart: HIP42327" used to be filled from
-/// `fovFilteredStars/DsosProvider` — i.e. from wherever the user happened to
-/// have panned — so panning away from the selected object produced a PDF named
-/// for an object that appeared nowhere on it. The exporter now decides which
-/// region it is charting and asks for exactly that.
+/// Takes the region as a parameter rather than reading the live view centre, so
+/// a chart titled for an object cannot be filled from wherever the user
+/// happened to have panned. The exporter decides which region it is charting
+/// and asks for exactly that.
 final finderChartCatalogSnapshotProvider = FutureProvider.autoDispose
     .family<FinderChartCatalogSnapshot, FinderChartRegion>((ref, region) async {
   // Fail loudly on a catalog that could not load; an export must never silently
@@ -80,10 +78,8 @@ final finderChartCatalogSnapshotProvider = FutureProvider.autoDispose
 /// and its star field cannot disagree:
 ///
 ///  * When the chart is titled for an object ([subject] non-null) it is centred
-///    on that object. Previously the title came from the selection while the
-///    content came from the live view, so panning away from the selected object
-///    produced "Finder Chart: HIP42327" centred 8h37m of RA away, with HIP42327
-///    nowhere on the page.
+///    on that object, not on the live view — otherwise the title names an
+///    object that appears nowhere on the page.
 ///  * The pose is always [SkyViewMode.equatorial]. In the horizontal frame
 ///    `centerRA`/`centerDec` hold the preserved *inactive* equatorial pose, so
 ///    rendering or printing them reports a centre tens of degrees from where the

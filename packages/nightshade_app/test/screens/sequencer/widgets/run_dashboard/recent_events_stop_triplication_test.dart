@@ -1,11 +1,9 @@
-// WF-N4 / WF-STOP-N3 (Wave G), the RECENT EVENTS half.
+// One press of Stop is one row in RECENT EVENTS.
 //
-// "RECENT EVENTS still triplicates: three 'Sequence stopped' rows all at
-// 01:54:26 plus 'Decision logged - system_event #15: Sequence cancelled'
-// (g19-events.png) — the feed count is unchanged from Wave F."
-//
-// One operator Stop puts FOUR events on the wire, and the feed writer rendered
-// each one as its own row. The four, in the order the native side emits them:
+// A Stop puts FOUR events on the wire, and a feed writer that renders each one
+// as its own row triplicates it: three 'Sequence stopped' rows at the same
+// second plus 'Decision logged - system_event #15: Sequence cancelled'. The
+// four, in the order the native side emits them:
 //
 //   1. `ExecutorEvent::Error { message: "Sequence cancelled" }`
 //      — sequencer/src/executor/start.rs, the `NodeStatus::Cancelled` arm.
@@ -17,10 +15,10 @@
 //   4. `SequencerEvent::Stopped` again, published by the stop API itself
 //      — bridge/src/api/sequencer/lifecycle.rs:175.
 //
-// The existing collapse could never have caught them: it folds only ADJACENT
-// rows with byte-identical content, and these four rendered three different
-// messages ('Stopped by request', '', 'system_event #15: Sequence cancelled')
-// with the decision row sitting between them.
+// A collapse that folds only ADJACENT rows with byte-identical content cannot
+// catch them: the four render three different messages ('Stopped by request',
+// '', 'system_event #15: Sequence cancelled') with the decision row sitting
+// between them.
 //
 // The feed is how an operator reconstructs their night. One press of Stop is
 // one thing that happened.

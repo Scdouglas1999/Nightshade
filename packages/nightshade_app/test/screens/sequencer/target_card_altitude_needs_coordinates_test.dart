@@ -1,9 +1,9 @@
-// WE-SEQ-N2: the target card simultaneously said the coordinates were "Not
-// set" AND plotted a full altitude curve for them — "Alt 44.7° / Airmass 1.42 /
-// Rise 15:03 / Transit 21:06 / Set 03:08", the numbers for the 0h/+0°
-// placeholder at latitude 45. An observation plan for a pointing nobody chose
-// is worse than no plan: the operator schedules a night around a transit time
-// that belongs to a random patch of Pisces.
+// The target card must not say the coordinates are "Not set" AND plot a full
+// altitude curve for them — "Alt 44.7° / Airmass 1.42 / Rise 15:03 / Transit
+// 21:06 / Set 03:08", the numbers for the 0h/+0° placeholder at latitude 45. An
+// observation plan for a pointing nobody chose is worse than no plan: the
+// operator schedules a night around a transit time that belongs to a random
+// patch of Pisces.
 //
 // The desktop card is the one that shows the chart (mobile hides it), so this
 // pins the desktop card at both coordinate states.

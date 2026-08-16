@@ -32,7 +32,7 @@ enum NightReportSection {
 ///
 /// The narrative view splits these across the scroll ([section] =
 /// [NightReportSection.verdict] then [NightReportSection.findings]) so the
-/// findings land *after* the improvement curve, per design §1.
+/// findings land *after* the improvement curve.
 ///
 /// Pure presentation: the panel reads a seeded model and owns no state. A null
 /// (or fully-empty) [report] renders a tasteful "analysis pending" placeholder

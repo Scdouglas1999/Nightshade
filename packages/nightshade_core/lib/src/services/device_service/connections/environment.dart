@@ -183,10 +183,9 @@ extension _DeviceServiceEnvironmentConnections on DeviceService {
           // Preserve the status-read failure; safety must fail closed.
         }
         // A safety-monitor transport failure is an unsafe/unknown verdict,
-        // not a clean disconnected state. `setDisconnected` resets the model
-        // to its historical `isSafe: true` default, which could briefly show
-        // a green safety result after the driver status read failed. Retain
-        // the device id and publish an explicit fail-closed error instead.
+        // not a clean disconnected state: `setDisconnected` resets the model
+        // to `isSafe: true` and would show green after a failed status read.
+        // Retain the device id and publish an explicit fail-closed error.
         notifier.setError(e);
         rethrow;
       }

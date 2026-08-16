@@ -38,10 +38,9 @@ void main() {
   });
 
   test('the sequencer catalog is NOT the watermark vocabulary', () {
-    // The regression this file exists for: the picker was wired to the
-    // sequencer's expression catalog, most of which the watermark cannot
-    // resolve. If these ever converge legitimately, this test should be the
-    // thing that says so.
+    // Wiring the picker to the sequencer's expression catalog offers variables
+    // most of which the watermark cannot resolve. If the two ever converge
+    // legitimately, this test is what says so.
     final watermarkNames = watermarkVariableCatalog.map((v) => v.name).toSet();
     final unresolvable = interpolationCatalog
         .map((v) => v.name)

@@ -205,8 +205,8 @@ List<NarratorFilterIntegration> _aggregateFilterIntegration(
 }
 
 /// Keeps a [NarratorService] alive while a session is running. Watches the
-/// active session id; when it changes, the old service is disposed and a new
-/// one is started for the new session. Sessionless captures get a service with
+/// active session id; when it changes, the current service is disposed and a
+/// new one is started for the new session. Sessionless captures get a service with
 /// a null session id so the per-frame pushed detectors still work.
 final narratorServiceProvider = Provider<NarratorService>((ref) {
   final sessionId = ref.watch(

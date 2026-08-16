@@ -1,13 +1,13 @@
-// Regression test for mouse-wheel zoom.
+// Mouse-wheel zoom compounds.
 //
-// Every wheel notch used to restart the 300 ms zoom glide from the LIVE field
-// of view. Two notches 50 ms apart therefore both started from ~60 deg, so the
-// second one threw away the first one's progress. Measured on the shipped
-// build: 20 notches at 50 ms spacing moved the FOV 60.0 -> 50.0 — the effect of
-// one notch out of twenty — and it took 172 notches to reach an imaging field.
+// Restarting the 300 ms zoom glide from the LIVE field of view on every notch
+// makes two notches 50 ms apart both start from ~60 deg, so the second throws
+// away the first one's progress: 20 notches at 50 ms spacing move the FOV
+// 60.0 -> 50.0 — the effect of one notch out of twenty — and it takes 172
+// notches to reach an imaging field.
 //
-// The assertion below is the compounding property: N rapid notches must equal
-// N notches, whatever the spacing.
+// The assertion below is the compounding property: N rapid notches equal N
+// notches, whatever the spacing.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +35,11 @@ Future<ProviderContainer> _pumpSkyView(WidgetTester tester) async {
       ),
     ],
   );
+  // The sky is drawn from the observer's site; without one the view renders
+  // its no-site state instead.
+  container
+      .read(observerLocationProvider.notifier)
+      .setLocation(latitude: 40.0, longitude: -74.0);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,

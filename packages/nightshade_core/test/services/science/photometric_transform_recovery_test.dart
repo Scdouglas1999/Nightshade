@@ -108,11 +108,11 @@ void main() {
   });
 
   test('reported RMS is unbiased across noise draws', () {
-    // Averaged over many realisations the reported scatter must equal the
-    // injected scatter. Dividing the residual sum of squares by n instead of
-    // the residual degrees of freedom used to pull this to 0.65 at 6 stars and
-    // 0.86 at 12 — the wizard accepts fits from as few as 4 matched stars, so
-    // the small-N end is exactly where the number gets quoted.
+    // Averaged over many realisations the reported scatter equals the injected
+    // scatter. Dividing the residual sum of squares by n instead of the
+    // residual degrees of freedom pulls this to 0.65 at 6 stars and 0.86 at 12
+    // — and the wizard accepts fits from as few as 4 matched stars, so the
+    // small-N end is exactly where the number gets quoted.
     for (final n in [6, 12, 30, 100]) {
       var sum = 0.0;
       var trials = 0;

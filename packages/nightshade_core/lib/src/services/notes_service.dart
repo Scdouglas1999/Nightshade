@@ -89,15 +89,12 @@ class NotesService {
     if (!_mutations.isClosed) _mutations.add(null);
   }
 
-  // ---------------------------------------------------------------------
   // CRUD
-  // ---------------------------------------------------------------------
 
   /// Create a new note. Returns the freshly-persisted [JournalNote].
   ///
-  /// Errors are a feature here: empty [targetId] throws
-  /// [ArgumentError] rather than silently coercing to "Untargeted" —
-  /// the caller should resolve the target before reaching this layer.
+  /// An empty [targetId] throws [ArgumentError] rather than coercing to
+  /// "Untargeted": the caller resolves the target before reaching this layer.
   Future<JournalNote> addNote({
     required String targetId,
     int? sequenceRunId,
@@ -204,9 +201,7 @@ class NotesService {
     return affected;
   }
 
-  // ---------------------------------------------------------------------
   // Reads
-  // ---------------------------------------------------------------------
 
   Future<JournalNote?> getNoteById(String id) async {
     await _ensureSchema();
@@ -297,9 +292,7 @@ class NotesService {
     return rows.map(_rowToNote).toList();
   }
 
-  // ---------------------------------------------------------------------
   // Reactive streams
-  // ---------------------------------------------------------------------
 
   /// Live stream of notes for [targetId]. Emits an initial snapshot
   /// immediately, then a fresh list on every insert / update / delete.
@@ -327,9 +320,7 @@ class NotesService {
     }
   }
 
-  // ---------------------------------------------------------------------
   // Internals
-  // ---------------------------------------------------------------------
 
   JournalNote _rowToNote(QueryRow row) {
     return JournalNote(

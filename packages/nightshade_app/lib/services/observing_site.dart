@@ -9,18 +9,15 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 /// absent value.
 ///
 /// The planetarium's [twilightTimesProvider] and [moonInfoProvider] can never
-/// answer "I don't know": they take a latitude and a longitude, and the sky
-/// really does behave that way *somewhere*. With no site configured they are
-/// handed 0°N 0°E and hand back a complete, plausible night for the Gulf of
-/// Guinea — a dusk, a dawn, and a ~9 h imaging window that belong to nobody.
-/// Every surface that asked them directly therefore stated a stranger's night
-/// as the user's, with no hint that anything was assumed.
+/// answer "I don't know": given any latitude and longitude they return a
+/// complete, plausible night, so with no site configured they describe a place
+/// nobody is at.
 ///
 /// These providers republish the same facts through a type that *can* say
-/// "unknown", so a consumer holding `null` has nothing to render instead of
-/// something wrong. Consumers must gate on these, never on the coordinates:
-/// (0, 0) is a real point off the coast of Africa and an observer who is
-/// genuinely there is entitled to their twilight times.
+/// unknown, so a consumer holding `null` has nothing to render instead of
+/// something wrong. Consumers must gate on THESE, never on the coordinates:
+/// (0, 0) is a real point off the coast of Africa, and an observer genuinely
+/// there is entitled to their twilight times.
 ///
 /// Whether a site exists at all is [appObserverLocationProvider]'s call, so the
 /// whole app shares one definition and one place to improve it.

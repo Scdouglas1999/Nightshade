@@ -4,7 +4,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../collaborative_sky_providers.dart';
 
-/// A summary card for the shared calibration library (WS1): pull a sensor-matched
+/// A summary card for the shared calibration library: pull a sensor-matched
 /// master another member shared instead of re-shooting your own darks, with
 /// provenance + consent gating so you trust what you pull.
 ///

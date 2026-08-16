@@ -1,9 +1,10 @@
-// Regression: RECENT EVENTS is what a user reads their night from.
+// RECENT EVENTS is what a user reads their night from, so plumbing must not
+// fill it.
 //
-// On a fresh profile its ONLY entry was
+// On a fresh profile the only entry available is
 //   System  EventStreamReady  10:23:44 / Event stream subscription is active (debug)
-// — a raw internal name and a line that literally ends in "(debug)". One
-// connect then produced five rows stamped the same second:
+// — a raw internal name and a line that literally ends in "(debug)" — and one
+// connect produces five rows stamped the same second:
 //   Heartbeat started · Heartbeat stopped · Heartbeat started · Heartbeat
 //   stopped · Connected
 // Four of the five are monitor plumbing, and because the panel holds five rows

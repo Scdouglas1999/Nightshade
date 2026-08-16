@@ -1,13 +1,12 @@
-// Regression: the guider step must not overprint itself.
+// The guider step must not overprint itself.
 //
-// Observed live on the guider step of a virgin install at 1400x900 with no
-// guider hardware: the step gave the device picker a fixed 240 px box, which is
-// less than the picker's own chrome (heading, subtitle, Scan-again row,
-// per-backend status row, footnote) needs. The list slot collapsed, and the "No
-// devices found. Make sure your device is connected and powered on, then try
-// Scan again." empty state painted straight through the "No matching device? You
-// can skip this step..." footnote below it — two sentences on one line, both
-// unreadable. See shots/t1_13_overlap_crop.png in the audit.
+// A fixed 240 px box for the device picker is less than the picker's own chrome
+// (heading, subtitle, Scan-again row, per-backend status row, footnote) needs:
+// on a virgin install at 1400x900 with no guider hardware the list slot
+// collapses and the "No devices found. Make sure your device is connected and
+// powered on, then try Scan again." empty state paints straight through the "No
+// matching device? You can skip this step..." footnote below it — two sentences
+// on one line, both unreadable.
 //
 // Pinned here: no overflow and no overprint at the window sizes the wizard has
 // to survive.

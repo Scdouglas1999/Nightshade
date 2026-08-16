@@ -1,8 +1,6 @@
 part of '../connected_device_card.dart';
 
-// ============================================================================
-// Helper Widgets
-// ============================================================================
+// Helper widgets
 
 class _DeviceMetric {
   final String value;

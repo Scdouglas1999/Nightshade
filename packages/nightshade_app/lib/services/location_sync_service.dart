@@ -8,19 +8,15 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 /// Rust backend. Settings is the single source of truth; this only fans changes
 /// out. Uses `ref.listen` to avoid modifying providers during build.
 ///
-/// This deliberately does **not** auto-detect a location on first launch. It used
-/// to: with lat/lon at 0/0 it fetched an IP-geolocation estimate and persisted it
-/// as the observing site before the user had seen, let alone approved, it. That
-/// is unsafe in a way the user cannot see. Free IP services resolve to the ISP's
-/// egress point and disagree with each other — two virgin launches minutes apart
-/// on one machine recorded sites ~180 km apart — yet the dashboard then reports
-/// twilight times, the astro-dark countdown, and the imaging window off that
-/// guess with no hint that anything is approximate, and the summary screen shows
-/// it exactly as it shows a site the user typed.
+/// This deliberately does **not** auto-detect a location on first launch. Free
+/// IP services resolve to the ISP's egress point and disagree with each other
+/// by a hundred kilometres or more, yet a persisted estimate is rendered
+/// exactly like a site the user typed — twilight times, the astro-dark
+/// countdown and the imaging window all quoted off it with no hint that
+/// anything is approximate.
 ///
-/// 0/0 is the designed "not set" sentinel and every location-driven surface
-/// already has an honest empty state for it, so leaving it alone until the user
-/// acts is both safer and less code. The estimate is still one click away: the
+/// 0/0 is the designed "not set" sentinel and every location-driven surface has
+/// an honest empty state for it. The estimate stays one click away: the
 /// onboarding observing-site step offers it as a labelled suggestion, and
 /// Settings → Location has the same affordance.
 final locationSyncProvider = Provider<void>((ref) {
@@ -55,28 +51,32 @@ final locationSyncProvider = Provider<void>((ref) {
     });
   });
 
-  // Handle initial value if settings are already loaded
+  // Handle initial value if settings are already loaded.
+  //
+  // This pushes unconditionally, exactly as the listener above does. Gating it
+  // on "not 0/0" made the planetarium observer depend on whether any settings
+  // change had fired yet: before one, it held the package's Los Angeles
+  // constructor default; after one, the 0/0 sentinel. Both are wrong for an
+  // unconfigured site and neither is distinguishable from a real site, so the
+  // two paths agree on one value instead.
+  //
+  // "Is there a site at all" is not this provider's question to answer —
+  // `observerLocationProvider` is non-nullable geometry. Surfaces that must
+  // not invent a night gate on `observingSiteProvider` /
+  // `appObserverLocationProvider`, which return null at the 0/0 sentinel.
   final settingsAsync = ref.read(appSettingsProvider);
   settingsAsync.whenData((settings) {
-    // Only sync if we have a valid location
-    if (settings.latitude != 0.0 || settings.longitude != 0.0) {
-      Future.microtask(() async {
-        ref.read(observerLocationProvider.notifier).setLocation(
-              latitude: settings.latitude,
-              longitude: settings.longitude,
-              elevation: settings.elevation,
-            );
-
-        // Also sync to Rust backend
-        await _syncLocationToBackend(
-            ref, settings.latitude, settings.longitude, settings.elevation);
-      });
-    }
-    // Effective horizon must sync even when location is 0/0 (e.g. user
-    // hasn't set location yet but did set the horizon).
-    Future.microtask(() {
+    Future.microtask(() async {
+      ref.read(observerLocationProvider.notifier).setLocation(
+            latitude: settings.latitude,
+            longitude: settings.longitude,
+            elevation: settings.elevation,
+          );
       ref.read(planetariumEffectiveHorizonDegProvider.notifier).state =
           settings.effectiveHorizonDeg;
+
+      await _syncLocationToBackend(
+          ref, settings.latitude, settings.longitude, settings.elevation);
     });
   });
 });

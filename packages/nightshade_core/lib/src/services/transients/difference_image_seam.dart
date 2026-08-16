@@ -4,10 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
 /// Injectable seam over the `api_difference_image` FFI surface (Pillar B —
-/// "First Light", `docs/nightshade_5_0_contracts.md` §2.2).
+/// "First Light", `docs/nightshade_5_0_contracts.md`).
 ///
-/// **Why this exists.** The native difference entry point is a free function on
-/// the generated bridge taking a single JSON string and returning a JSON string.
+/// The native difference entry point is a free function on the generated bridge
+/// taking a single JSON string and returning a JSON string.
 /// Calling it directly from [FirstLightService] would make the service's
 /// orchestration — cross-matching, dismissal suppression, DAO persistence —
 /// only exercisable with the Rust dynamic library loaded. This seam mirrors the

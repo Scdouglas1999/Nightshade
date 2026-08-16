@@ -238,7 +238,7 @@ class HipsTileCache {
   /// Whether [dispose] has been called.
   bool get isDisposed => _disposed;
 
-  // --- internals -----------------------------------------------------------
+  // internals
 
   /// Evicts least-recently-used tiles until both [maxEntries] and [maxBytes]
   /// are satisfied, while keeping at least one tile resident so a freshly

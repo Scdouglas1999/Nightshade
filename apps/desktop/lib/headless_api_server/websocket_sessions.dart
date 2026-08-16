@@ -1,9 +1,7 @@
 part of '../headless_api_server.dart';
 
 extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
-  // ===========================================================================
-  // WebSocket Handler
-  // ===========================================================================
+  // WebSocket handler
 
   /// Upgrade wrapper that captures the query parameters off the original
   /// request before shelf_web_socket strips them. The replay logic lives

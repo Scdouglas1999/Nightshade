@@ -29,10 +29,10 @@ void main() {
       ),
     );
 
-    // 360 * AdaptiveDialogConstraints.defaultWidthFraction. This used to be
-    // 324 (a private 0.9) — the two dialog-sizing helpers now share one
-    // fraction, so a Responsive-sized dialog is no longer 2% narrower than an
-    // AdaptiveDialogConstraints-sized one at the same design width.
+    // 360 * AdaptiveDialogConstraints.defaultWidthFraction: the two
+    // dialog-sizing helpers share one fraction, so a Responsive-sized dialog
+    // and an AdaptiveDialogConstraints-sized one match at the same design
+    // width.
     const expectedWidth = 360 * AdaptiveDialogConstraints.defaultWidthFraction;
     expect(constraints.minWidth, closeTo(expectedWidth, 0.01));
     expect(constraints.maxWidth, closeTo(expectedWidth, 0.01));

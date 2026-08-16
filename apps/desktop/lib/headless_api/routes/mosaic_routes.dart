@@ -40,7 +40,7 @@ List<HeadlessRoute> buildMosaicRoutes(MosaicHandlers h) => <HeadlessRoute>[
     '/api/mosaic/recommended-exposure',
     h.handleRecommendExposure,
   ),
-  // Collaborative Sky WS2 — distributed collaborative-mosaic flow for an
+  // Collaborative Sky — distributed collaborative-mosaic flow for an
   // unattended rig. OWNER path: publish/claim/upload/assemble. PARTICIPANT path:
   // discover (list/get), join, status, and output-download — without join wired
   // the claim/upload routes are dead for non-owners.

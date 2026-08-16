@@ -11,14 +11,15 @@ import 'package:shelf/shelf.dart';
 /// valid range, instead of reaching the driver and surfacing as
 /// `500 internal_error`.
 ///
-/// Each case here was observed live against real hardware on the Windows rig:
+/// The cases come from real hardware on the Windows rig. Without the range
+/// guard each one reaches the driver:
 ///   * filter slot 99 on an 8-slot ZWO EFW -> 500 internal_error carrying the
 ///     driver's own "Invalid position 99. Valid range: 0-7".
 ///   * filter name "NoSuchFilter" -> 500 internal_error carrying a Dart
 ///     "Invalid argument(s): ..." string.
 ///   * cooling target -300C / +999C on an ASI1600MM-Cool advertising -40..30 ->
-///     200 {"status":"ok"}, and the impossible target was then reported back as
-///     the live setpoint.
+///     200 {"status":"ok"}, with the impossible target reported back as the
+///     live setpoint.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

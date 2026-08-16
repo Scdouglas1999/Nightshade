@@ -1,5 +1,3 @@
-// Part of ../stack_result_screen.dart -- extracted for maintainability.
-//
 // Action menu rows, stat rows and the linear RGBA renderers.
 part of '../stack_result_screen.dart';
 

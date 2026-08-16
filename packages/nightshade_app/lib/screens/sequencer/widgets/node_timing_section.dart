@@ -39,7 +39,7 @@ bool hasMeaningfulDuration(SequenceNode node) {
     // SmartExposure has a meaningful (and often very
     // large) duration — display the time estimate inline like ExposureNode.
     SmartExposureNode _ ||
-    // Audit §11 — plugin nodes carry an OPTIONAL per-node timeout that
+    // Plugin nodes carry an OPTIONAL per-node timeout that
     // bounds wall-clock cost; treat the duration as meaningful when the
     // operator supplied one, so the editor's timing section shows the
     // worst-case budget and the user can immediately tell which plugin

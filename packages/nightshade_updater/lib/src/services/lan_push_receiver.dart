@@ -31,12 +31,11 @@ class LanPushReceiver {
   static const Duration _authTimeout = Duration(seconds: 10);
 
   /// Hard cap on the total package bytes accepted over a single LAN push
-  /// connection, independent of what the manifest claims (§7A.7). A
-  /// malicious or mis-signed manifest could declare a giant
-  /// `compressedSize` and fill the filesystem before signature failure
-  /// is observed; this cap lets us bail before the disk is exhausted.
-  /// 1 GiB matches the largest legitimate Nightshade installer by an
-  /// order of magnitude, which leaves plenty of headroom.
+  /// connection, independent of what the manifest claims. A malicious or
+  /// mis-signed manifest can declare a giant `compressedSize` and fill the
+  /// filesystem before signature failure is observed; this cap bails out
+  /// before the disk is exhausted. 1 GiB clears the largest legitimate
+  /// Nightshade installer by an order of magnitude.
   static const int maxPackageBytes = 1024 * 1024 * 1024;
   static const int maxManifestBytes = 1024 * 1024;
 
@@ -114,11 +113,10 @@ class LanPushReceiver {
   /// before calling this method.
   ///
   /// Refuses to start if no `NIGHTSHADE_UPDATE_PUBLIC_KEY` was compiled
-  /// into the build (§7A.7): without a trusted public key the receiver
-  /// cannot verify the Ed25519 signature on the manifest, which means
-  /// any LAN-attached attacker who guesses the push secret could ship
-  /// arbitrary code. Better to be loudly disabled than silently
-  /// vulnerable.
+  /// into the build: without a trusted public key the receiver cannot
+  /// verify the Ed25519 signature on the manifest, so any LAN-attached
+  /// attacker who guesses the push secret could ship arbitrary code.
+  /// Loudly disabled beats silently vulnerable.
   Future<void> startServer() async {
     if (_server != null) return;
 
@@ -183,7 +181,7 @@ class LanPushReceiver {
 
     final reader = _SocketFrameReader(socket);
     try {
-      // --- Authentication phase ---
+      // Authentication phase
       final authenticated = await _authenticateClient(
         reader,
         socket,
@@ -455,7 +453,7 @@ class LanPushReceiver {
   /// [persistStagedManifest] runs ONLY after
   /// [UpdateVerifier.verifyDirectory] succeeds, so a tree that fails
   /// per-file hashing never gains a verified marker and
-  /// [UpdateService.applyUpdate] keeps refusing it (§7A.9).
+  /// [UpdateService.applyUpdate] keeps refusing it.
   ///
   /// Exposed for tests so the verified staging handoff can be exercised
   /// without opening a TCP listener.
@@ -489,9 +487,9 @@ class LanPushReceiver {
 
     // Persist the verified manifest + staged_verified marker so
     // UpdateService.applyUpdate() can recover the exact trusted manifest
-    // and confirm end-to-end verification before touching the install
-    // (§7A.9). This is the same handoff the HTTPS staging path performs
-    // in downloadAndStage(); it is reached ONLY here, after the manifest
+    // and confirm end-to-end verification before touching the install.
+    // This is the same handoff the HTTPS staging path performs in
+    // downloadAndStage(); it is reached ONLY here, after the manifest
     // signature, package size, and per-file hashes have all verified, so
     // the marker is never written over an unverified or partial tree.
     await persistStagedManifest(staging, manifest);

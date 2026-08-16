@@ -99,13 +99,11 @@ class SavePathChip {
 
 /// Maps the async save-path probe onto chip text.
 ///
-/// Pure and directly testable. The previous code did
-/// `status.valueOrNull ?? const _SavePathStatus(path: '', exists: false)`, so
-/// every moment before the probe resolved — and every re-run of it, e.g. after a
-/// settings or backend change — the bar claimed "No save path" / "No image
-/// output path configured" with the folder-X alarm icon, on a rig whose path was
-/// configured and fine. On a remote backend that window is a full network
-/// round-trip, and a probe that threw was reported as "path is missing".
+/// Pure and directly testable. A PENDING probe is not a missing path:
+/// defaulting an unresolved [AsyncValue] to `exists: false` claims "No save
+/// path" with the alarm icon on a rig whose path is configured and fine — for a
+/// full network round-trip on a remote backend, and permanently for a probe
+/// that threw.
 @visibleForTesting
 SavePathChip savePathChipFor(
   AsyncValue<SavePathStatus> status,
@@ -327,18 +325,16 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     ];
 
     final trailing = <Widget>[
-      // WD-COL-N4: at 900 px the pill group's last item was sliced mid-word
+      // The scrolling region always ends at a rule, whatever it is showing.
+      // Without one, at 900 px the pill group's last item is sliced mid-word
       // ("Simulated Cam") with the thermometer glyph painted straight against
-      // it and no separator, so the bar read as broken rather than scrolled.
-      // The scrolling region always ends at a rule now, whatever it is showing.
+      // it, so the bar reads as broken rather than scrolled.
       if (!widget.compact) ...[
-        // WE-EQ-N5 residual: the cap the E-fix added did NOT make the strip
-        // fit — at 1000 px it still scrolls, and the pill at the viewport
-        // edge was still sliced mid-word ("Si") and dissolved by the fade
-        // with nothing saying it had been cut. An ellipsis is how this app
-        // says "truncated" everywhere else, so the cut gets one; it is drawn
-        // OUTSIDE the viewport, flush against it, because inside it would be
-        // scrolled away with the text it describes.
+        // The strip still scrolls at 1000 px, so the pill at the viewport edge
+        // is sliced mid-word and dissolved by the fade with nothing saying it
+        // was cut. An ellipsis is how this app says "truncated" everywhere
+        // else, so the cut gets one — drawn OUTSIDE the viewport, flush against
+        // it, because inside it would scroll away with the text it describes.
         if (_pillsCutRight) _PillsCutMarker(colors: colors),
         if (_pillsOverflow)
           _PillsOverflowAffordance(
@@ -427,8 +423,7 @@ class _StatusBarState extends ConsumerState<StatusBar> {
                 // Expanded, not Flexible: a SingleChildScrollView shrink-wraps
                 // under a loose constraint, which would let the readouts drift
                 // left off the right edge. A tight fit makes the pill group take
-                // all the slack — the job the old Spacer did — and scroll only
-                // once the slack runs out.
+                // all the slack and scroll only once the slack runs out.
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     // Layout changes arrive as ScrollMetricsNotification;

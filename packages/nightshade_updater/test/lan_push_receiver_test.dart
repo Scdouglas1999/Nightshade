@@ -9,10 +9,10 @@ import 'package:nightshade_updater/src/services/lan_push_receiver.dart';
 import 'package:nightshade_updater/src/services/update_verifier.dart';
 
 Future<UpdateVerifier> _verifierWithKey() async {
-  // §7A.7: startServer refuses to run without a trusted key compiled
-  // in. Tests do not get `--dart-define=NIGHTSHADE_UPDATE_PUBLIC_KEY`,
-  // so we inject a freshly generated key explicitly. We never use it
-  // to verify a real manifest in this test.
+  // startServer refuses to run without a trusted key compiled in. Tests do
+  // not get `--dart-define=NIGHTSHADE_UPDATE_PUBLIC_KEY`, so a freshly
+  // generated key is injected explicitly. It never verifies a real manifest
+  // in this test.
   final keyPair = await Ed25519().newKeyPair();
   final publicKey = await keyPair.extractPublicKey();
   final base64Key = base64Encode(Uint8List.fromList(publicKey.bytes));

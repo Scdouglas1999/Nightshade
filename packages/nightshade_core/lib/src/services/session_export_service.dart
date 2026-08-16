@@ -257,9 +257,9 @@ class SessionExportService {
     return sum / values.length;
   }
 
-  /// A report metric cell: the formatted value with its unit, or an em dash with
-  /// NO unit when the value is missing (the old `-%` / `- C` placeholders read
-  /// like a measurement of nothing).
+  /// A report metric cell: the formatted value with its unit, or an em dash
+  /// with NO unit when the value is missing — a `-%` placeholder reads like a
+  /// measurement of nothing.
   static String _metric(double? value, int digits, String unit) =>
       value == null ? '&mdash;' : '${value.toStringAsFixed(digits)}$unit';
 

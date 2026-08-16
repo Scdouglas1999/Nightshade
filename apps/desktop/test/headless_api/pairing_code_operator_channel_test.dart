@@ -7,11 +7,11 @@
 // (line count unchanged across the request) and not stdout. On a headless
 // appliance with no GUI that made code pairing unusable.
 //
-// Root cause: the handler logged the code through `LoggingService`, which does
-// not write the on-disk log at all — that file carries only the native Rust
-// tracing output. `LoggingService` entries go to an in-memory ring buffer that
-// is SERVED OVER HTTP by `/api/logs/recent` and `/api/logs/tail`. So the code
-// was absent from the operator's disk while being harvestable by any already
+// Why logging is not the channel: `LoggingService` does not write the on-disk
+// log at all — that file carries only the native Rust tracing output. Its
+// entries go to an in-memory ring buffer that is SERVED OVER HTTP by
+// `/api/logs/recent` and `/api/logs/tail`. Logging the code therefore keeps it
+// off the operator's disk while making it harvestable by any already
 // authenticated client — the exact inverse of the documented intent.
 
 import 'dart:convert';
@@ -136,9 +136,8 @@ void main() {
         expect(body, isNot(contains(code)));
 
         // …and nothing an authenticated client can pull from /api/logs/*
-        // contains it either. This is the leak that made the old comment
-        // ("so an off-host attacker cannot harvest it from HTTP traces")
-        // untrue.
+        // contains it either, or the code would be harvestable over HTTP by
+        // anyone already holding a token.
         expect(remotelyReadableLogText(), isNot(contains(code)));
 
         // The log still records that pairing happened, and points the
@@ -180,9 +179,9 @@ void main() {
     /// "clear on success" line is unreachable while the client is limited.
     /// Without clearing here, an operator whose tablet tripped the limiter on
     /// a stale token (exactly what an appliance restart produces) stayed
-    /// locked out while holding a brand-new, valid token. Reproduced live
-    /// before this fix: a token issued seconds earlier still answered 429
-    /// "Too many authentication failures".
+    /// locked out while holding a brand-new, valid token. Observed live: a
+    /// token issued seconds earlier still answers 429 "Too many
+    /// authentication failures".
     test(
       'a successful pairing lifts the bearer-token failure lockout',
       () async {

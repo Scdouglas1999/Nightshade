@@ -1,9 +1,8 @@
 // The Dark Library "auto" switch is `calibration.auto_calibrate` - the same
 // boolean the Calibration page owns, and the gate on the whole calibrateFile()
-// call (dark AND flat AND bias). It used to be labelled 'Auto dark
-// subtraction' / 'Automatically subtract matching darks from light frames',
-// which understated its scope: turning it off there silently disabled flat and
-// bias correction as well. These tests pin the label to the behaviour.
+// call (dark AND flat AND bias). A label like 'Auto dark subtraction'
+// understates that scope: turning it off silently disables flat and bias
+// correction too. These tests pin the label to the behaviour.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

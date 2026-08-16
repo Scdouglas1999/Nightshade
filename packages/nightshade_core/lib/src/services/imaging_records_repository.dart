@@ -86,9 +86,7 @@ class ImagingRecordsRepository {
 
   bool get isRemote => _remote != null;
 
-  // ---------------------------------------------------------------------------
   // Sessions
-  // ---------------------------------------------------------------------------
 
   Future<List<db.ImagingSession>> getAllSessions() async {
     if (_remote != null) {
@@ -254,9 +252,7 @@ class ImagingRecordsRepository {
     await _sessionsDao!.updateNotes(id, notes);
   }
 
-  // ---------------------------------------------------------------------------
   // Captured images
-  // ---------------------------------------------------------------------------
 
   Future<db.CapturedImage?> getImageById(int id) async {
     if (_remote != null) {
@@ -568,11 +564,9 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
           distortion: distortion,
         );
 
-        // Fold dedup (Wave 0): a re-solved frame fires this hook again with the
-        // same captured-image id. The gate (extracted to [applyAtlasFoldDedup]
-        // so the production path and its regression test run the SAME logic)
-        // folds only when the row is not already stamped, and stamps only after
-        // a fold that actually ran.
+        // Fold dedup: a re-solved frame fires this hook again with the same
+        // captured-image id, so [applyAtlasFoldDedup] folds only when the row
+        // is not already stamped, and stamps only after a fold that ran.
         final foldSummary = await applyAtlasFoldDedup(
           image: image,
           imagesDao: imagesDao,
@@ -582,7 +576,7 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
           distortion: distortion,
         );
 
-        // Collaborative Sky WS3 Gap 2 — live co-imaging auto-contribute: a fold
+        // Live co-imaging auto-contribute: a fold
         // that ACTUALLY ran (non-null summary) means this rig's own-light delta
         // is now in the atlas, so any live co-imaging session whose target this
         // frame covers can fold the SAME sub into the shared-target tile and

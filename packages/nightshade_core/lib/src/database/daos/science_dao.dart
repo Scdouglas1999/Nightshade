@@ -542,9 +542,7 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .get();
   }
 
-  // =========================================================================
   // Standalone (sessionless) queries — for snapshots taken outside sequences
-  // =========================================================================
 
   Stream<List<FramePhotometricCalibrationRow>>
   watchSessionlessCalibrationsRecent({int limit = 50}) {
@@ -642,9 +640,7 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  // =========================================================================
   // Standalone (sessionless) EXPORT queries — complete, un-capped datasets
-  // =========================================================================
   //
   // The `watchSessionless*Recent({limit})` streams above are UI *preview* feeds:
   // they cap at a recent-data window so a list/chart stays cheap. Reusing them
@@ -725,9 +721,7 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     return (result.read(countExp) ?? 0) > 0;
   }
 
-  // =========================================================================
-  // Photometric Transform Coefficients
-  // =========================================================================
+  // Photometric transform coefficients
 
   Future<int> insertPhotometricTransform(
     PhotometricTransformsCompanion transform,
@@ -790,7 +784,6 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  // ===========================================================================
   // Paginated per-table reads for the remote read API.
   //
   // Why these are a separate group: existing per-session methods load the
@@ -799,7 +792,6 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   // history without dragging the full dataset over the network.
   // Each method accepts an optional `sessionId` filter and pagination
   // bounds. Callers MUST clamp `limit`/`offset` before delegating.
-  // ===========================================================================
 
   Future<List<PhotometryMeasurementRow>> listPhotometryPaginated({
     int? sessionId,

@@ -1,5 +1,4 @@
-// Collaborative Sky (6.0) WS2 — client-side orchestration for distributed
-// collaborative mosaics.
+// Client-side orchestration for distributed collaborative mosaics.
 //
 // [ConstellationClient] is the raw REST surface (publish / claim / upload /
 // download / assemble endpoints); this service is the workflow on top of it that
@@ -54,7 +53,7 @@ typedef MosaicAssemblyDirResolver = Future<String> Function(String mosaicId);
 /// sheet; the production wiring reads it from settings.
 typedef MosaicUploadConsentResolver = Future<MosaicUploadConsent?> Function();
 
-/// Client-side orchestration for WS2 collaborative mosaics.
+/// Client-side orchestration for collaborative mosaics.
 class CollaborativeMosaicService {
   CollaborativeMosaicService({
     required Future<ConstellationCredentials?> Function() credentialsResolver,
@@ -110,7 +109,7 @@ class CollaborativeMosaicService {
     return _clientFactory(creds);
   }
 
-  // --- Publish ---------------------------------------------------------------
+  // Publish
 
   /// Publish [projectId]'s panel grid to the hub as a collaborative mosaic.
   /// Persists `hub_mosaic_id` + `collab_role = owner` on the project. Returns the
@@ -239,7 +238,7 @@ class CollaborativeMosaicService {
     return projectId;
   }
 
-  // --- Claim -----------------------------------------------------------------
+  // Claim
 
   /// Claim [indices] of [projectId]'s published mosaic via the hub baton.
   /// Persists each panel's claim token + assigned account/rig provenance.
@@ -341,7 +340,7 @@ class CollaborativeMosaicService {
     }
   }
 
-  // --- Upload ----------------------------------------------------------------
+  // Upload
 
   /// Upload the locally-integrated master for [panelIndex] of [projectId] to the
   /// hub. Resolves the panel's `integrated_masters` master FITS (built by
@@ -351,7 +350,7 @@ class CollaborativeMosaicService {
   /// would be silently dropped by the stitch gate — pushes it under the held
   /// claim, and records the uploaded master id.
   ///
-  /// WS4 consent gate: a panel master is full-resolution integrated data, so it
+  /// Consent gate: a panel master is full-resolution integrated data, so it
   /// only leaves the device under an EXPLICIT sharing [license] + attribution
   /// ([attributionConsent]) choice — either passed directly (the interactive
   /// contribute sheet / the unattended poller, which present/resolve the choice)
@@ -428,7 +427,7 @@ class CollaborativeMosaicService {
     }
   }
 
-  // --- Assemble (owner) ------------------------------------------------------
+  // Assemble (owner)
 
   /// Owner-only central assembly for a mosaic the hub has moved to `assembling`:
   /// pull EVERY panel master the swarm uploaded into a temp dir, link each onto
@@ -544,7 +543,7 @@ class CollaborativeMosaicService {
     }
   }
 
-  // --- Read ------------------------------------------------------------------
+  // Read
 
   /// List open/claimable collaborative mosaics on the configured hub.
   Future<List<CollabMosaic>> listMosaics() async {
@@ -567,9 +566,9 @@ class CollaborativeMosaicService {
   }
 
   /// The authoritative contributor-credit list the hub materialized for this
-  /// mosaic (`GET /v1/attribution` keyed `mosaic`/[hubMosaicId]) — the WS5
-  /// contributor-credits UI source, read back consent-aware from the hub rather
-  /// than reconstructed from the browse payload.
+  /// mosaic (`GET /v1/attribution` keyed `mosaic`/[hubMosaicId]) — the source
+  /// for contributor credits, read back consent-aware from the hub rather than
+  /// reconstructed from the browse payload.
   Future<ArtifactAttribution> fetchMosaicAttribution(String hubMosaicId) async {
     final client = await _requireClient();
     try {
@@ -650,7 +649,7 @@ class CollaborativeMosaicService {
     }
   }
 
-  // --- Internals -------------------------------------------------------------
+  // Internals
 
   /// Resolve the consent a panel-master upload ships under, failing CLOSED.
   ///

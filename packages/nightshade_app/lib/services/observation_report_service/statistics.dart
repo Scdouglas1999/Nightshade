@@ -1,5 +1,3 @@
-// Part of ../observation_report_service.dart -- extracted for maintainability.
-//
 // Pure numeric helpers used by report summary tables.
 part of '../observation_report_service.dart';
 

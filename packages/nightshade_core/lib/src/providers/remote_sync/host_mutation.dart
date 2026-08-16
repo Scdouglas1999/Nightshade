@@ -25,10 +25,10 @@ void _applyHostMutation(Object reader, Map<String, dynamic> data) {
       // broadcasts `settings/updated` at very high frequency — the scheduler
       // persists runtime config (e.g. conditions_score) many times a second and
       // each persist emits a settings mutation (measured ~14/s on a live rig).
-      // Reacting per-event reloaded the entire "Plan Tonight" Recommendation tab
-      // dozens of times a second on a slave (it also previously, wrongly,
-      // invalidated the equipment-PROFILE providers — a settings change is not a
-      // profile change). appSettings is already re-pulled every 30s by
+      // Reacting per-event reloads the entire "Plan Tonight" Recommendation tab
+      // dozens of times a second on a slave, and a settings change is not a
+      // profile change, so it must not invalidate the equipment-PROFILE
+      // providers either. appSettings is already re-pulled every 30s by
       // hydrateRemoteSessionState (and on reconnect), so a genuine settings
       // change mirrors within one poll cycle without the churn.
       break;

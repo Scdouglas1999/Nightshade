@@ -348,15 +348,12 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                 // and the FFI backend maps THAT value — not the Dart `method`
                 // field — onto the native curve enum.
                 //
-                // This row used to be labelled "Method", bound to
-                // `focusSettings.method` and offer ['V-Curve','Hyperbolic',
-                // 'Parabolic']. `method` is the star metric, seeded from
-                // `afMethod`, whose only legal value is 'Star HFR' — so the
-                // closed dropdown matched no item and rendered blank on every
-                // launch, and picking a value here changed nothing about the
-                // run. Bind to the real setting, with the same vocabulary the
-                // Settings screen uses, and write edits through so the choice
-                // survives a restart.
+                // `focusSettings.method` is the star METRIC, seeded from
+                // `afMethod`, whose only legal value is 'Star HFR'; binding
+                // this row to it would render blank and change nothing about
+                // the run. Bound to the real setting, with the same vocabulary
+                // the Settings screen uses, and edits are written through so
+                // the choice survives a restart.
                 DropdownRow(
                   label: 'Curve fit',
                   value: curveFitting,

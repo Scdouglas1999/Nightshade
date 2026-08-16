@@ -1,12 +1,11 @@
-// Regression: Weather hid live sensor data behind the location gate.
+// Weather must not hide live sensor data behind the location gate.
 //
-// With a simulated weather station connected and its card on Equipment showing
-// temperature / humidity / cloud cover / rain rate updating, opening Weather on
-// a profile with no observing location rendered ONE empty state — "Location Not
-// Configured / Weather radar requires your observation location" — and nothing
-// else. The connected station's readings, the Hardware Sensors card and the
-// whole Safety Status block were not rendered at all, though none of them needs
-// a location. Only the radar does.
+// With a weather station connected and its card on Equipment showing
+// temperature / humidity / cloud cover / rain rate, a profile with no observing
+// location must still render the station's readings, the Hardware Sensors card
+// and the Safety Status block — none of them needs a location. Only the radar
+// does, so only the radar gets the "Location Not Configured / Weather radar
+// requires your observation location" empty state.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

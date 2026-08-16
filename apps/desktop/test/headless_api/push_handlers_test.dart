@@ -225,9 +225,9 @@ void main() {
 
     group('cross-device IDOR is rejected', () {
       // Pair a SECOND device. `attackerToken` authenticates device B; the
-      // requests below all target device A's deviceId. Pre-fix every handler
-      // trusted the body/query deviceId and only checked it was *some* paired
-      // device, so B could register/delete/mute A's safety-push.
+      // requests below all target device A's deviceId. Trusting the body/query
+      // deviceId and only checking it names *some* paired device would let B
+      // register, delete, or mute A's safety-push.
       const victimDeviceId = deviceId; // 'push-phone' from the outer setUp.
       const attackerDeviceId = 'attacker-phone';
       late String attackerToken;

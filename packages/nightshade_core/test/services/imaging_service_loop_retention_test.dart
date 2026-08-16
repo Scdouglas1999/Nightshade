@@ -1,11 +1,10 @@
 // Loop is a live-view mode, not an acquisition run.
 //
-// It used to call the same captureImage() as Snapshot, so every looped frame
-// was written full-size into the operator's configured light-frame folder
-// under the naming pattern and indexed in `captured_images`: a measured
-// ~7.5 MB/s, i.e. ~27 GB of `Unknown_NoFilter_*` lights per hour of framing,
-// with no control anywhere to say so. These tests pin the destination of a
-// loop frame to a reused scratch path, and pin that the opt-in still works.
+// Routing it through the acquisition path writes every looped frame full-size
+// into the operator's light-frame folder and indexes it in `captured_images` —
+// ~27 GB of `Unknown_NoFilter_*` lights per hour of framing. These tests pin
+// the destination of a loop frame to a reused scratch path, and pin that the
+// opt-in still works.
 
 import 'dart:async';
 import 'dart:io';
@@ -223,8 +222,9 @@ void main() {
 
     // Stop Loop / Abort both call this. It latches `_cancelRequested`, and the
     // ONLY place that clears it is inside `_capture` — which the loop reaches
-    // after testing the flag. So the next Loop press used to start and end
-    // without ever exposing: a silently dead button, no error, nothing logged.
+    // after testing the flag, so a latch left set makes the next Loop press
+    // start and end without ever exposing: a dead button, no error, nothing
+    // logged.
     service.cancelExposure();
 
     await service.startLoopCapture(

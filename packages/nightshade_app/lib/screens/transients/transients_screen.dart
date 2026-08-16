@@ -35,8 +35,8 @@ final _transientFilterProvider = StateProvider<TransientFilter>((ref) {
 ///
 /// The feed itself is a polling `StreamProvider` with no notion of a last
 /// attempt, and clicking refresh only invalidates it: without this the screen
-/// is byte-identical before and after a refresh, which is what made a broken
-/// upstream indistinguishable from a quiet sky.
+/// is byte-identical before and after a refresh, which makes a broken upstream
+/// indistinguishable from a quiet sky.
 final _lastAlertCheckProvider = StateProvider<DateTime?>((ref) => null);
 
 /// Whether TNS is actually usable: bot identity configured in Science settings

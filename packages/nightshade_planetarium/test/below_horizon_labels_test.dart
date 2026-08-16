@@ -1,20 +1,20 @@
-// Regression: nothing behind the observer's own ground gets named.
+// Nothing behind the observer's own ground gets named.
 //
-// Observed live in Alt/Az view looking az 134 / alt -12 with the ground plane and
-// horizon layers on: 'Fomalhaut' rendered as a bright labelled star in the middle
-// of the ground gradient (its true altitude there was -11.5 deg), and 'Alnair',
-// 'Peacock', 'GRUS', 'INDUS', 'SCULPTOR', 'TUCANA' and 'PHOENIX' were all drawn
-// over the ground. At midday the same view showed 'CRUX', 'Acrux', 'Mimosa',
-// 'Gacrux', 'CENTAURUS' and 'MUSCA' — objects never visible from 40N at all.
+// Alt/Az view looking az 134 / alt -12 with the ground plane and horizon layers
+// on draws 'Fomalhaut' as a bright labelled star in the middle of the ground
+// gradient (its true altitude there is -11.5 deg), with 'Alnair', 'Peacock',
+// 'GRUS', 'INDUS', 'SCULPTOR', 'TUCANA' and 'PHOENIX' all over the ground. At
+// midday the same view shows 'CRUX', 'Acrux', 'Mimosa', 'Gacrux', 'CENTAURUS'
+// and 'MUSCA' — objects never visible from 40N at all.
 //
 // The ground fill is painted after the sky objects in the horizontal frame, so
-// the star DOTS were already occluded; the label passes run after the ground, so
-// their text was still printed on top of the terrain. A named object on the
-// ground reads as an observable target, which is the single most misleading thing
-// a planning map can say.
+// the star DOTS are occluded; the label passes run after the ground, so without
+// this gate their text prints on top of the terrain. A named object on the
+// ground reads as an observable target, which is the single most misleading
+// thing a planning map can say.
 //
 // The equatorial frame paints no terrain, so nothing is occluded there and its
-// labels must be untouched (this also keeps the committed equatorial render
+// labels stay untouched (this also keeps the committed equatorial render
 // goldens unchanged).
 import 'dart:typed_data';
 import 'dart:ui' as ui;

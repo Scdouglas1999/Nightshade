@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../preflight_validation_dialog.dart -- extracted for maintainability.
-//
 // Header, state, results, simulation, summary and action section builders.
 part of '../preflight_validation_dialog.dart';
 
@@ -336,9 +334,9 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
                   value: '${simulation.issues.length}',
                   // Green only when the simulation actually walked something.
                   // An empty sequence simulates to 0 segments and therefore 0
-                  // issues, which used to paint a reassuring green "0" inside a
-                  // dialog whose header reads "Cannot Start Sequence" — the
-                  // simulation had not cleared the run, it had not evaluated it.
+                  // issues, which would paint a reassuring green "0" inside a
+                  // dialog headed "Cannot Start Sequence": the simulation did
+                  // not clear the run, it did not evaluate it.
                   tone: simulation.hasBlockingIssues
                       ? colors.error
                       : simulation.issues.isNotEmpty
@@ -692,11 +690,11 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
   /// Why Start cannot run, as a sentence fragment for [GatedAction.announce] —
   /// or null when it can.
   ///
-  /// WF-SCI-N3: with errors on the board the primary is inert, and the tree
-  /// published a plain `button: Start Sequence` beside its live siblings
-  /// `Re-check` and `Cancel`. Clicking it did nothing and said nothing, so a
-  /// blocked dialog was indistinguishable from a working one for anyone
-  /// reading the screen through assistive tech.
+  /// With errors on the board the primary is inert. Left undeclared it
+  /// publishes a plain `button: Start Sequence` beside its live siblings
+  /// `Re-check` and `Cancel` — clicking does nothing and says nothing, so a
+  /// blocked dialog is indistinguishable from a working one for anyone reading
+  /// the screen through assistive tech.
   String? _startBlockedReason({
     required bool canStart,
     required bool hasWarningsOnly,

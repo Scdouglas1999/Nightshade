@@ -1,25 +1,15 @@
 /// Typed exceptions thrown by [DeviceService] disconnect methods.
 ///
-/// Audit `EquipmentScreen._disconnectAllDevices` previously
-/// filtered "device not connected" errors out of its toast feed by
-/// running `e.toString().contains('not connected')` on a generic
-/// [Exception]. That is fragile — a localization change or a reword
-/// in `device_service.dart` would resurface a flood of "device not
-/// connected" toasts every time the user clicked "Disconnect All",
-/// because some devices in a profile are always selected-but-never-
-/// connected.
+/// A disconnect on a device with no `deviceId` in its `*StateProvider` throws
+/// [DeviceNotConnectedException]. Callers that iterate every device type (the
+/// equipment screen's bulk-disconnect button, [DeviceService.disconnectAll])
+/// catch that one type and continue, which keeps a profile's
+/// selected-but-never-connected devices out of the toast feed without matching
+/// on message text.
 ///
-/// The disconnect methods now throw [DeviceNotConnectedException] when
-/// invoked on a device that has no `deviceId` recorded in its
-/// `*StateProvider`. Callers that iterate every device type (the
-/// equipment screen's bulk-disconnect button, the bundled
-/// [DeviceService.disconnectAll]) catch this exception explicitly and
-/// continue; every other disconnect failure still propagates.
-///
-/// Errors are a feature: this exception is intentionally narrow. Do not
-/// broaden it to swallow generic disconnect failures (driver errors,
-/// stale handles, timeouts, etc.) — those still need to bubble up so the
-/// UI can warn the user.
+/// The exception stays narrow: broadening it to cover generic disconnect
+/// failures (driver errors, stale handles, timeouts) would swallow the
+/// failures the UI has to warn about.
 library;
 
 /// Thrown when a `DeviceService.disconnect<Type>()` is invoked on a device
@@ -51,18 +41,13 @@ class DeviceNotConnectedException implements Exception {
 /// that does not match any of Nightshade's known driver-prefix conventions
 /// (see `kKnownDeviceIdPrefixes` in `utils/device_id.dart`).
 ///
-/// This replaces the old "Camera not found: $id" string that the
-/// connect methods used to throw after running a full `discoverDevices`
-/// sweep on every connect attempt. Discovery is the wrong precondition for
-/// connect — it forces a fresh hardware scan to validate a reconnect of a
-/// known-good device, which fails whenever the discovery transient has
-/// blipped (USB hub flicker, backend swap, etc.).
-///
-/// We now do a cheap structural format check up front and delegate the
-/// real "is this device actually reachable?" decision to the backend's
-/// `connectDevice` call. Only an outright malformed id (no recognized
-/// driver prefix) trips this exception — every other failure must still
-/// propagate from the backend so the UI can surface it.
+/// Discovery is the wrong precondition for connect: requiring a fresh hardware
+/// scan to validate a reconnect fails whenever the discovery cache has blipped
+/// (USB hub flicker, backend swap). Connect does a cheap structural format
+/// check and leaves "is this device reachable?" to the backend's
+/// `connectDevice`, so only an outright malformed id (no recognized driver
+/// prefix) trips this exception; every other failure propagates from the
+/// backend.
 class InvalidDeviceIdException implements Exception {
   /// The device id that failed format validation.
   final String deviceId;
@@ -116,10 +101,10 @@ enum DeviceConnectProgressStatus {
 
 /// Progress event emitted by [DeviceService.connectAllFromProfile].
 ///
-/// Errors are a feature: a `failed` event always carries the backend's
-/// error verbatim so the UI can show it to the user. The stream does not
-/// throw — per-device failures are reported as `failed` events, never as
-/// stream errors, so a single bad device cannot abort the sweep.
+/// A `failed` event carries the backend's error verbatim so the UI can show
+/// it. The stream does not throw — per-device failures are reported as
+/// `failed` events, never as stream errors, so one bad device cannot abort the
+/// sweep.
 class DeviceConnectProgress {
   /// Friendly device category being connected, e.g. `'camera'`, `'mount'`.
   final String deviceType;

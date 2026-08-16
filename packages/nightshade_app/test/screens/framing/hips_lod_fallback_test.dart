@@ -285,9 +285,9 @@ void main() {
     expect(fallback.subY, expectedSubY);
 
     // RENDER: drawing the fallback (correct sub-cell sampling) must differ from
-    // drawing the WHOLE parent image stretched across the child mesh (the old
-    // misregistration bug). Use the real committed parent tile so the quadrants
-    // carry distinct content.
+    // drawing the WHOLE parent image stretched across the child mesh, which is
+    // the misregistration this guards. Use the real committed parent tile so
+    // the quadrants carry distinct content.
     //
     // Image decode (`ui.decodeImageFromList`) and `Picture.toImage` /
     // `Image.toByteData` are serviced by the engine only inside
@@ -325,8 +325,8 @@ void main() {
         props.allskyOrder,
       );
 
-      // Wrong path (what the OLD code did): the whole parent image stretched onto
-      // the child mesh as a primary tile, i.e. gridSize 1 / sub-cell (0,0).
+      // The wrong path: the whole parent image stretched onto the child mesh as
+      // a primary tile, i.e. gridSize 1 / sub-cell (0,0).
       final wholeStretchSnapshot = HipsResidentSnapshot(
         version: 1,
         selectedNorder: visibleSet.norder,

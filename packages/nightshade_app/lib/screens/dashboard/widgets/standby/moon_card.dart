@@ -27,11 +27,13 @@ class MoonCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final moon = ref.watch(moonInfoProvider);
     final waxing = _isWaxing(moon.phaseName);
-    // lat/lon both 0.0 is the "no site on record" sentinel. The moon does rise
-    // and set at Null Island, so the provider returns real times for a place the
-    // user has never been; blank them rather than pass them off as tonight's.
+    // The moon rises and sets everywhere, so [moonInfoProvider] returns real
+    // times whether or not a site is on record. Ask the observer whether it has
+    // one — comparing the coordinates against a sentinel reads a NULL latitude
+    // as "not zero, so a site exists" and puts a stranger's moonrise on the
+    // dashboard.
     final observer = ref.watch(observerLocationProvider);
-    final hasSite = observer.latitude != 0.0 || observer.longitude != 0.0;
+    final hasSite = observer.hasSite;
     // Same clock as the status bar and the header chip: a dashboard that shows
     // "now" in the site's zone and moonrise in the host's is worse than one
     // that is uniformly host-local.
@@ -140,8 +142,7 @@ class MoonCard extends ConsumerWidget {
     return true;
   }
 
-  /// HH:MM on the operator's chosen clock; [SystemClock] (the default while
-  /// "Use system time" is on) renders exactly what this used to.
+  /// HH:MM on the operator's chosen clock.
   static String _clock(DateTime? t, Clock clock) {
     if (t == null) return '--:--';
     final shown = clock.fromUtc(t.toUtc());

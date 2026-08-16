@@ -61,9 +61,9 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
     final atlas = _atlas(_devicePixelRatio);
     final spriteSize = atlas.starSpriteSize;
     final spriteHalf = spriteSize / 2;
-    // Sprite px-radius of the bright core. We scale the whole sprite so this
-    // core maps onto the star's screen radius; the surrounding halo then scales
-    // with it, reproducing the old PSF where glow grew with the star.
+    // Sprite px-radius of the bright core. The whole sprite is scaled so this
+    // core maps onto the star's screen radius, and the surrounding halo scales
+    // with it — glow grows with the star.
     final coreSpritePx = spriteHalf * SkySpriteAtlas.starCoreFraction;
 
     // Base-layer batch (dim + medium, plain sprite) lives in the primary
@@ -313,8 +313,8 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       if (processed >= maxStars) break;
       final magnitude = star.magnitude ?? 5.0;
       if (magnitude > magLimit) break;
-      // Labels are only drawn for the brightest stars (the overlay pass owns
-      // mag < 1.5; we extend labels to mag < 2.0 to match the old behaviour).
+      // Labels are only drawn for the brightest stars: the overlay pass owns
+      // the sprites below mag 1.5, labels run to mag 2.0.
       if (magnitude >= 2.0) break;
       // Only stars with a real designation are worth labelling. The catalogue
       // loader falls back to the bare HYG row id when a star has no proper,
@@ -494,10 +494,8 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
 
     var dsoCount = 0;
 
-    // Unified rendering: every visible DSO becomes one atlas quad. Tiny DSOs
-    // (below the old batch threshold) simply scale the glyph down — they no
-    // longer need a separate point-batch path because the atlas already batches
-    // everything into one call.
+    // Every visible DSO is one atlas quad; tiny ones just scale the glyph down,
+    // so no separate point-batch path is needed.
     for (final dso in dsos) {
       if (dsosDrawn >= maxDsos) break;
       final dsoMag = dso.magnitude ?? 99.0;
@@ -528,15 +526,13 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       final effectiveAlpha = animating ? popinAlpha * sbOpacity : sbOpacity;
 
       // Position angle rotation (galaxies/nebulae). Negative because the canvas
-      // Y axis is flipped, matching the old `canvas.rotate(-paRad)`.
+      // Y axis is flipped.
       final paRad = -((dso.positionAngle ?? 0) * SkyCanvasPainter._deg2rad);
 
-      // Per-DSO tint: glyph is white, so the atlas color is the DSO's body
-      // color with alpha = effectiveAlpha. The old shapes filled at ~0.5*alpha
-      // for their bodies; the baked glyph already carries that internal
-      // falloff, so we pass the full effective alpha here. `_dsoTintColor`
-      // reproduces the old per-subtype nebula colors (emission red, reflection
-      // blue, dark grey, planetary teal) that the deleted shape methods used.
+      // Per-DSO tint: the glyph is white, so the atlas color is the DSO's body
+      // color at the full effective alpha — the baked glyph already carries the
+      // internal falloff. `_dsoTintColor` supplies the per-subtype nebula
+      // colors (emission red, reflection blue, dark grey, planetary teal).
       final tint = _dsoTintColor(
         dso.type,
       ).withValues(alpha: effectiveAlpha.clamp(0.0, 1.0));
@@ -564,17 +560,15 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
         final markerPx = (dso.sizeArcMin ?? 5) / 60 * scale;
         displaySize = markerPx.clamp(6.0 + magSizeBonus, _extendedDsoMinPx);
 
-        // Apply pop-in scale animation by shrinking the glyph (the old code did
-        // a canvas.scale around the DSO center; scaling displaySize is
-        // equivalent for a centered sprite and stays inside the single batched
-        // call).
+        // Apply pop-in scale animation by shrinking the glyph: for a centered
+        // sprite that is equivalent to scaling the canvas, and it stays inside
+        // the single batched call.
         if (animating) {
           displaySize *= popinScale;
         }
 
         // Glyph scale: the glyph art fills the cell (with a small margin), so a
-        // scale of displaySize/glyphSize makes the visible glyph ~displaySize
-        // px, matching the old per-type shapes which drew within displaySize.
+        // scale of displaySize/glyphSize makes the visible glyph ~displaySize px.
         final glyphScale = (displaySize / glyphSize).clamp(0.01, 4.0);
 
         SkyCanvasPainter._ensureAtlasScratch(dsoCount + 1);
@@ -907,10 +901,9 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
   }
 
   /// Body tint for the baked DSO glyph. Differs from [_dsoTypeColor] (used for
-  /// labels) by reproducing the per-subtype nebula colors that the old
-  /// procedural shapes painted directly: emission/HII red, reflection blue,
-  /// dark-nebula blue-grey, planetary-nebula teal. Other types fall through to
-  /// the label color.
+  /// labels) in carrying the per-subtype nebula colors: emission/HII red,
+  /// reflection blue, dark-nebula blue-grey, planetary-nebula teal. Other types
+  /// fall through to the label color.
   Color _dsoTintColor(DsoType type) {
     switch (type) {
       case DsoType.emissionNebula:

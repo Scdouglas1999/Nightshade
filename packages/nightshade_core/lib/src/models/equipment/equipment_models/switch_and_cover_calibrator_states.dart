@@ -138,9 +138,7 @@ class SwitchState extends Equatable {
   ];
 }
 
-// ============================================================================
-// Cover Calibrator State
-// ============================================================================
+// Cover calibrator state
 
 /// Cover position status
 enum CoverStatus { notPresent, closed, moving, open, unknown, error }

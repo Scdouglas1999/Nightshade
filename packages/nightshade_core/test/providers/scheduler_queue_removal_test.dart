@@ -1,12 +1,12 @@
 // "Remove from scheduler" / "Clear all" make a target INELIGIBLE for the
-// autopilot (WF-N2 + WD-SEQ-N5, owner decision 3 of 2026-08-14).
+// autopilot.
 //
-// Removal used to delete the target's integration goals and constraints and
-// stop there. A goal-less target is a legal free-form candidate — that is the
-// contract an OSC rig with no goal rows relies on — so the autopilot picked the
-// very target the operator had just removed, and the row reappeared in the
-// queue on the next evaluation. Removal now records queue membership, and the
-// candidate loader drops removed targets before the engine ever scores them.
+// Deleting the target's integration goals and constraints is not enough: a
+// goal-less target is a legal free-form candidate — the contract an OSC rig
+// with no goal rows relies on — so the autopilot would pick the target the
+// operator just removed and the row would reappear on the next evaluation.
+// Removal records queue membership, and the candidate loader drops removed
+// targets before the engine scores them.
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

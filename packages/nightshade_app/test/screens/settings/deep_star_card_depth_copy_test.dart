@@ -1,10 +1,10 @@
-// Regression: the Deep-Star Tier card must quote the same HYG floor the
-// HYG/deep-tier merge seam actually uses.
+// The Deep-Star Tier card must quote the same HYG floor the HYG/deep-tier merge
+// seam actually uses.
 //
-// The card hard-coded "~mag 11.5" while the seam (kHygFaintFloorMag) had
-// already been corrected to 9.0 and the Layers panel was reporting 9.0 — so the
-// settings sheet contradicted the running renderer about where the bundled
-// catalog stops. It also called a self-hosted URL form an install.
+// A hard-coded "~mag 11.5" against a seam (kHygFaintFloorMag) of 9.0 that the
+// Layers panel also reports leaves the settings sheet contradicting the running
+// renderer about where the bundled catalog stops. The card must not call a
+// self-hosted URL form an install either.
 import 'dart:io';
 
 import 'package:flutter/material.dart';

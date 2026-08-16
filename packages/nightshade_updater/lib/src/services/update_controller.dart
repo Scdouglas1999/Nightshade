@@ -421,6 +421,9 @@ class UpdateController {
   int _opGeneration = 0;
   String? _activeOperation;
 
+  /// [applySafetyCheck] is the host's gate on [applyStagedUpdate]: it throws to
+  /// refuse the apply. Omitting it refuses every apply — see
+  /// [_denyUnwiredUpdateApply].
   UpdateController({
     required UpdateService service,
     required String currentVersion,
@@ -431,7 +434,7 @@ class UpdateController {
     DateTime Function()? now,
     Future<void> Function()? applySafetyCheck,
   }) : _service = service,
-       _applySafetyCheck = applySafetyCheck ?? _allowUpdateApply,
+       _applySafetyCheck = applySafetyCheck ?? _denyUnwiredUpdateApply,
        _currentVersion = currentVersion,
        _currentBuildNumber = currentBuildNumber,
        _channel = channel,
@@ -713,8 +716,8 @@ class UpdateController {
         },
       );
 
-      // §7A.9: by the time downloadAndStage returns, the staged tree has
-      // a `staged_verified.marker`. We can confidently move to staged.
+      // By the time downloadAndStage returns the staged tree carries a
+      // `staged_verified.marker`, so the state can move to staged.
       final staged = await _service.getStagedUpdate();
       if (staged == null) {
         // Defensive: downloadAndStage succeeded but the marker isn't on
@@ -978,9 +981,7 @@ class UpdateController {
   /// retained restore point exists on disk — i.e. an update was applied on
   /// this host and the next launch has not yet confirmed it healthy (the
   /// boot verifier reclaims the backup once it does). When false, the
-  /// handler returns 501. Async because it probes the filesystem; the
-  /// previous implementation hard-coded `false` because `UpdateService`
-  /// exposed no rollback path.
+  /// handler returns 501. Async because it probes the filesystem.
   Future<bool> rollbackSupported() => _service.hasRestorePoint();
 
   /// Roll back the last applied update by relaunching the external updater
@@ -1104,4 +1105,15 @@ class UpdateController {
   }
 }
 
-Future<void> _allowUpdateApply() async {}
+/// The apply gate used when the host wires none.
+///
+/// Applying restarts the process, so a controller with no host gate cannot
+/// know whether a sequence is running or the camera is exposing. It refuses
+/// rather than assume the rig is idle; hosts pass their own check to allow
+/// applies.
+Future<void> _denyUnwiredUpdateApply() async {
+  throw StateError(
+    'Update apply refused: no host safety check is wired into this '
+    'UpdateController, so imaging state cannot be verified.',
+  );
+}

@@ -1,8 +1,6 @@
 part of '../smart_night_dialog.dart';
 
-// =====================================================================
-// Safety & Watchdogs preview section
-// =====================================================================
+// Safety & watchdogs preview section
 
 /// A single parallel-watchdog callout surfaced in the plan preview.
 ///

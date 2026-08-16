@@ -55,10 +55,10 @@ class _NoopSafeRigService extends SafeRigService {
 }
 
 void main() {
-  // Simulator campaign 2026-07-28 (S1): a configured safety source that stops
-  // responding used to keep its optimistic `true` default and the rig was
-  // reported SAFE in fail-closed mode. The all-sources-absent escape could not
-  // catch it because one healthy source was still connected.
+  // A configured safety source that stops responding must not keep its
+  // optimistic `true` default and report the rig SAFE in fail-closed mode. The
+  // all-sources-absent escape cannot catch that while one healthy source is
+  // still connected.
   group('unreachable safety sources', () {
     late MockBackend backend;
 

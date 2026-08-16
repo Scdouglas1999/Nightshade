@@ -1,4 +1,4 @@
-// Collaborative Sky (6.0) WS1 — shared calibration library matching + merge.
+// Shared calibration library matching + merge.
 //
 // Exercises [CalibrationLibraryService] folding REMOTE candidates into the local
 // ranking, download-on-accept + merge with conflict resolution, the consent

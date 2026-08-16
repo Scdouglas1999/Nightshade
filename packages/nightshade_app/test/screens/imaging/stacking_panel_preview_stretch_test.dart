@@ -1,12 +1,10 @@
-// SCI-27: the stacked preview must render through the app's shared
-// auto-stretch, not through a local linear min/max map.
+// The stacked preview must render through the app's shared auto-stretch, not
+// through a local linear min/max map.
 //
-// The linear map this replaced rendered a real stacked light as a black
-// rectangle: on a star field the maximum is a saturated star and the minimum is
-// the sky floor, so every background pixel and every faint star landed on 0-3
-// of 255. Reproduction at the time of the fix (the deleted
-// `stackedPreviewGrayRgba`, 1000 +/- 50 ADU sky with saturated stars): median
-// output byte 0.
+// A linear map renders a real stacked light as a black rectangle: on a star
+// field the maximum is a saturated star and the minimum is the sky floor, so
+// every background pixel and every faint star lands on 0-3 of 255. On a
+// 1000 +/- 50 ADU sky with saturated stars the median output byte is 0.
 //
 // The stretch itself is the MAD-based STF in Rust (imaging/src/stretch.rs,
 // Rust-tested); what is pinned here is that the preview asks for it, with the

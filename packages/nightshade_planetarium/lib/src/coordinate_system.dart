@@ -5,9 +5,8 @@ import 'astronomy/astronomy_calculations.dart';
 /// Great-circle separation between two catalog positions.
 ///
 /// The one place in the package that turns a pair of [CelestialCoordinate]s
-/// into an angle. Callers used to hand-roll this, and the hand-rolled copies
-/// took RA in hours while the shared helper takes degrees — the kind of unit
-/// mismatch that reads correctly and is wrong by 15x.
+/// into an angle. RA is in DEGREES here — a hand-rolled copy taking RA in
+/// hours reads correctly and is wrong by 15x.
 extension CelestialSeparation on CelestialCoordinate {
   /// Angular distance to [other], in degrees.
   double separationDegrees(CelestialCoordinate other) =>

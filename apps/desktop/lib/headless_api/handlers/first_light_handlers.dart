@@ -28,12 +28,10 @@ class FirstLightHandlers {
   TransientDetectionsDao get _dao =>
       container.read(transientDetectionsDaoProvider);
 
-  /// Parse a `<id>` path segment as a detection id, or reject with the standard
-  /// 400 envelope every First Light route shared verbatim before this was
-  /// extracted (SLOP-DUP-003): `BadRequestError(field: 'id', expected:
-  /// 'integer', message: 'detection id must be an integer')`. The thrown error
-  /// is translated to the same wire shape by the error-translation middleware,
-  /// so the response is byte-identical to the inline blocks it replaced.
+  /// Parse a `<id>` path segment as a detection id, or reject with the 400
+  /// envelope every First Light route shares: `BadRequestError(field: 'id',
+  /// expected: 'integer', message: 'detection id must be an integer')`, which
+  /// the error-translation middleware renders on the wire.
   int _requireDetectionId(String id) {
     final detectionId = int.tryParse(id);
     if (detectionId == null) {
@@ -175,10 +173,10 @@ class FirstLightHandlers {
   }
 
   /// Default page size for the across-sessions REST feed — the most-recent
-  /// [_defaultCandidateLimit] detections, newest-first. A heavy multi-season run
-  /// can accumulate tens of thousands of rows; the old read returned the whole
-  /// all-time log on every poll. The recent set a client renders is unchanged;
-  /// `offset`/`limit` page deeper on demand.
+  /// [_defaultCandidateLimit] detections, newest-first. A heavy multi-season
+  /// run accumulates tens of thousands of rows, so an unbounded read would
+  /// ship the whole all-time log on every poll. `offset`/`limit` page deeper
+  /// on demand.
   static const int _defaultCandidateLimit = 200;
   static const int _maxCandidateLimit = 1000;
 

@@ -1,5 +1,5 @@
-// HTTP-001 regression: the request-size-limit middleware must NOT buffer an
-// unauthenticated chunked body up to the per-path cap before auth runs.
+// The request-size-limit middleware must NOT buffer an unauthenticated
+// chunked body up to the per-path cap before auth runs.
 //
 // The header-only Content-Length ceiling still rejects a declared over-limit
 // upload with 413 before auth (cheap, no body read), but a chunked body that
@@ -21,7 +21,7 @@ import '../headless_api/handler_test_helpers.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('HeadlessApiServer request-size limit ordering (HTTP-001)', () {
+  group('HeadlessApiServer request-size limit ordering', () {
     late ProviderContainer container;
     late HeadlessApiServer server;
     late Uri baseUri;

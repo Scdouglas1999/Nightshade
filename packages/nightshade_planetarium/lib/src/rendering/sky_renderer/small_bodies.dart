@@ -177,7 +177,7 @@ extension _SkyCanvasPainterSmallBodies on SkyCanvasPainter {
       final isBright = body.visualMag < 10.0;
 
       if (body.isComet) {
-        // --- Comet: fuzzy coma + tail ---
+        // Comet: fuzzy coma + tail
         final comaRadius = isBright ? 5.0 : 3.0;
         if (qualityConfig.useBlurEffects) {
           final comaPaint = _PaintCache.getBlurPaint(3, cometColor, alpha: 0.3);
@@ -242,7 +242,7 @@ extension _SkyCanvasPainterSmallBodies on SkyCanvasPainter {
           );
         }
       } else {
-        // --- Asteroid: diamond shape ---
+        // Asteroid: diamond shape
         final ds = isBright ? 4.0 : 2.5;
         final path = Path()
           ..moveTo(offset.dx, offset.dy - ds)

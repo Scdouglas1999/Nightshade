@@ -1,17 +1,15 @@
-// Regression: no surface may state a site-derived fact when no observing site
-// is on record.
+// No surface may state a site-derived fact when no observing site is on record.
 //
 // The planetarium astronomy providers cannot answer "I don't know" — they take
 // a latitude and a longitude, and with none configured they are handed 0°N 0°E
-// and return a complete, plausible night for the Gulf of Guinea. Four surfaces
-// consumed them ungated and reported that night as the user's: the cockpit sky
-// panel, the command-bar night chip, the standby night timeline, and the
-// planetarium Tonight tab.
+// and return a complete, plausible night for the Gulf of Guinea. Consumed
+// ungated, the cockpit sky panel, the command-bar night chip, the standby night
+// timeline and the planetarium Tonight tab all report that night as the user's.
 //
-// The fix routes all four through `siteTwilightTimesProvider` /
-// `siteMoonTimesProvider`, which are `null` when there is no site. These tests
-// pump the real production widgets so removing a gate from a widget's build
-// fails here — a test that only exercised the providers would survive it.
+// All four route through `siteTwilightTimesProvider` / `siteMoonTimesProvider`,
+// which are `null` when there is no site. These tests pump the real production
+// widgets so removing a gate from a widget's build fails here — a test that only
+// exercised the providers would survive it.
 //
 // The twilight fixture is deliberately fully populated: that is exactly what
 // the calculator hands back for 0/0, so "no fields are null" must not be enough

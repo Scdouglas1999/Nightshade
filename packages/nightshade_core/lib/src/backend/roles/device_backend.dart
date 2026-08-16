@@ -81,14 +81,8 @@ class HardwareDomeStatus {
 /// [EnvironmentalStatusBackend]: lightweight test backends must not be forced
 /// to fake dome telemetry.
 ///
-/// Why this exists: the dome card's azimuth / shutter readouts were
-/// structurally unpopulatable — `DomeStateNotifier.updateAzimuth` and
-/// `updateShutterStatus` had no callers outside their own declaration, so a
-/// connected dome rendered `Azimuth ---` / `Shutter Unknown` forever and the
-/// "Open Shutter" button never flipped to "Close Shutter" no matter what the
-/// hardware did. The read existed at every other layer (Rust
-/// `api_get_dome_status`, headless `GET /api/dome/status`); only the Dart
-/// backend role and the poll were missing.
+/// Backs the dome card's azimuth / shutter readouts and the Open/Close Shutter
+/// label, which read hardware state rather than the last command sent.
 abstract interface class DomeStatusBackend {
   Future<HardwareDomeStatus> getHardwareDomeStatus(String deviceId);
 }
@@ -117,9 +111,7 @@ abstract interface class DomeStatusBackend {
 /// owned by the focuser/camera drivers in Rust, and the orchestration is
 /// stateless from the Dart side.
 abstract class DeviceBackend {
-  // =========================================================================
   // Device Discovery & Connection
-  // =========================================================================
 
   /// Discover available devices of a specific type
   Future<List<DeviceInfo>> discoverDevices(DeviceType deviceType);
@@ -147,20 +139,18 @@ abstract class DeviceBackend {
   /// discovery cache, and emits `device_discovered` / `device_lost` events for
   /// any deltas. Wired to the equipment-screen "Rescan equipment" button.
   ///
-  /// Why this must be a backend op and not a direct `bridge_api` FFI call: on a
+  /// This is a backend op and not a direct `bridge_api` FFI call because on a
   /// remote client (phone) a direct FFI call rescans the *phone's* empty local
   /// backend and falsely reports success. Routing through the active backend
   /// makes rescan reach the HOST that actually owns the hardware buses.
   ///
   /// Completes when the host-side diff pass finishes. The UI awaits this for
   /// its spinner and only reports success on genuine completion. Throws if the
-  /// routed call fails (e.g. transport error on a remote client) — errors are a
-  /// feature and must surface, not be swallowed behind a fake success toast.
+  /// routed call fails (e.g. transport error on a remote client), so the
+  /// failure reaches the operator instead of a success toast.
   Future<void> rescanDevices();
 
-  // =========================================================================
-  // Camera Control
-  // =========================================================================
+  // Camera control
 
   /// Start a camera exposure
   ///
@@ -227,9 +217,7 @@ abstract class DeviceBackend {
     String deviceId,
   );
 
-  // =========================================================================
-  // Mount Control
-  // =========================================================================
+  // Mount control
 
   /// Slew mount to coordinates
   Future<void> mountSlewToCoordinates(String deviceId, double ra, double dec);
@@ -273,9 +261,7 @@ abstract class DeviceBackend {
   /// Find mount home position
   Future<void> mountFindHome(String deviceId);
 
-  // =========================================================================
-  // Focuser Control
-  // =========================================================================
+  // Focuser control
 
   /// Move focuser to absolute position
   Future<void> focuserMoveTo(String deviceId, int position);
@@ -314,9 +300,7 @@ abstract class DeviceBackend {
   /// Cancel autofocus
   Future<void> autofocusCancel();
 
-  // =========================================================================
-  // Filter Wheel Control
-  // =========================================================================
+  // Filter wheel control
 
   /// Set filter wheel position
   Future<void> filterWheelSetPosition(String deviceId, int position);
@@ -330,9 +314,7 @@ abstract class DeviceBackend {
   /// Set filter by name
   Future<void> filterWheelSetByName(String deviceId, String name);
 
-  // =========================================================================
-  // Rotator Control
-  // =========================================================================
+  // Rotator control
 
   /// Move rotator to absolute angle
   Future<void> rotatorMoveTo(String deviceId, double angle);
@@ -357,9 +339,7 @@ abstract class DeviceBackend {
   /// the "Sync to image PA" plate-solve workflow needs the Sync semantic.
   Future<void> rotatorSyncToPa(String deviceId, double pa);
 
-  // =========================================================================
-  // Dome Control
-  // =========================================================================
+  // Dome control
 
   /// Open the dome shutter
   Future<void> domeOpenShutter(String deviceId);
@@ -383,9 +363,7 @@ abstract class DeviceBackend {
   /// Abort dome slew/movement
   Future<void> domeAbortSlew(String deviceId);
 
-  // =========================================================================
-  // Cover Calibrator Control
-  // =========================================================================
+  // Cover calibrator control
 
   /// Open the cover
   Future<void> coverOpen(String deviceId);
@@ -399,9 +377,7 @@ abstract class DeviceBackend {
   /// Turn the calibrator light off
   Future<void> calibratorOff(String deviceId);
 
-  // =========================================================================
-  // Equipment Status
-  // =========================================================================
+  // Equipment status
 
   /// Get camera status
   /// Returns typed CameraStatus with all sensor and cooling information
@@ -423,9 +399,7 @@ abstract class DeviceBackend {
   /// Returns typed RotatorStatus with position and movement info
   Future<RotatorStatus> getRotatorStatus(String deviceId);
 
-  // =========================================================================
-  // Device Capabilities
-  // =========================================================================
+  // Device capabilities
 
   /// Get camera capabilities
   /// Returns null if the device is not connected or capabilities unavailable
@@ -447,9 +421,7 @@ abstract class DeviceBackend {
   /// Returns null if the device is not connected or capabilities unavailable
   Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId);
 
-  // =========================================================================
-  // Device Health Monitoring
-  // =========================================================================
+  // Device health monitoring
 
   /// Start heartbeat monitoring for a device
   ///

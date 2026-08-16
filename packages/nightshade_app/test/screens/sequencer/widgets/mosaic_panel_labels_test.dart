@@ -1,10 +1,9 @@
 // Every active mosaic panel must carry a legible number.
 //
-// The panel number used to be centred in its cell, which put the middle
-// panel of any odd grid directly under the drag-centre handle - both are
-// drawn at exactly the planner's centre point. With a 3x3 grid and "Active
-// panels: 9" in the summary, the operator could not tell which cell in the
-// picture was panel 5, or which one they were about to toggle off.
+// A panel number centred in its cell puts the middle panel of any odd grid
+// directly under the drag-centre handle — both are drawn at exactly the
+// planner's centre point — so the operator cannot tell which cell is panel 5,
+// or which one they are about to toggle off.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

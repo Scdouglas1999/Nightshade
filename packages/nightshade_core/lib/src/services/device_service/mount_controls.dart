@@ -1,9 +1,7 @@
 part of '../device_service.dart';
 
 extension _DeviceServiceMountControls on DeviceService {
-  // ===========================================================================
-  // Mount Control
-  // ===========================================================================
+  // Mount control
 
   /// Get the currently connected mount device ID.
   Future<String?> _getMountDeviceId() async {

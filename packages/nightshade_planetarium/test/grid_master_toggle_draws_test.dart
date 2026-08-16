@@ -1,16 +1,15 @@
-// Regression: flipping the "Coordinate grid" master must actually draw a grid.
+// Flipping the "Coordinate grid" master draws a grid.
 //
 // The renderer needs the master AND a frame flag — `paint_lifecycle.dart` gates
 // on `showCoordinateGrid && (showEquatorialGrid || showAltAzGrid)` — and all
-// three default to `false` in `const SkyRenderConfig()`. Nothing in the app ever
-// seeded one, so on a stock install the first action in that group (turn on
-// "Coordinate grid") moved the switch and changed the sky by 99 pixels out of
-// 712,800, all of them a single marker glyph.
+// three default to `false` in `const SkyRenderConfig()`. With no frame flag
+// seeded, the first action in that group on a stock install (turn on
+// "Coordinate grid") moves the switch and changes the sky by 99 pixels out of
+// 712,800, all of them a single marker glyph: a control that reports success
+// and does nothing.
 //
-// An earlier fix reorganised the panel so the master reads first with the frame
-// switches indented and disabled beneath it. That made the hierarchy legible but
-// relocated the defect onto the master, on the default path — the control still
-// reported success and did nothing.
+// Indenting the frame switches under the master makes the hierarchy legible but
+// leaves that default path intact, so the assertion is on what gets drawn.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -24,6 +23,11 @@ void main() {
 
   test('turning the master on from defaults draws a grid', () {
     final container = ProviderContainer();
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     addTearDown(container.dispose);
 
     final before = container.read(skyRenderConfigProvider);
@@ -48,6 +52,11 @@ void main() {
 
   test('the frame chosen matches the view the user is looking at', () {
     final container = ProviderContainer();
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     addTearDown(container.dispose);
 
     container
@@ -71,6 +80,11 @@ void main() {
 
   test('an existing frame choice is respected, not overwritten', () {
     final container = ProviderContainer();
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     addTearDown(container.dispose);
 
     final notifier = container.read(skyRenderConfigProvider.notifier);
@@ -90,6 +104,11 @@ void main() {
 
   test('toggling the master off and on remembers the frame', () {
     final container = ProviderContainer();
+    // The sky is drawn from the observer's site; without one the view renders
+    // its no-site state instead.
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40.0, longitude: -74.0);
     addTearDown(container.dispose);
 
     final notifier = container.read(skyRenderConfigProvider.notifier);

@@ -1,13 +1,12 @@
-// Regression: tapping a star must hand out the star the chart LABELLED.
+// Tapping a star hands out the star the chart LABELLED.
 //
-// Found live: the sky draws "Capella"; clicking it opened the object panel
+// The sky draws "Capella"; a strictly-nearest hit test opens the object panel
 // headed "HYG118360" at "mag 1.0". HYG lists the Capella system as two rows
 // 9 arcsec apart — Aa (mag 0.08, "Capella") and Ab (mag 0.96, the unnamed
 // component). At any field wider than a fraction of a degree that separation is
-// well under one pixel, so the renderer draws ONE glyph with ONE label while the
-// hit test took the strictly nearest row — making the pick a coin flip between
-// a star and its own companion, and the reported magnitude a magnitude too
-// faint.
+// well under one pixel, so the renderer draws ONE glyph with ONE label, and
+// picking the strictly nearest row makes the result a coin flip between a star
+// and its own companion with the reported magnitude a magnitude too faint.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +41,11 @@ Future<Star?> _tapCentreAt(WidgetTester tester, double fovDegrees) async {
       planetPositionsProvider.overrideWithValue(const []),
     ],
   );
+  // The sky is drawn from the observer's site; without one the view renders
+  // its no-site state instead.
+  container
+      .read(observerLocationProvider.notifier)
+      .setLocation(latitude: 40.0, longitude: -74.0);
   // Aim exactly at the FAINT companion, so the nearest-row rule would pick it.
   container
       .read(skyViewStateProvider.notifier)

@@ -47,12 +47,11 @@ final RegExp _exceptionPrefix = RegExp(
 /// Turn the orchestrator's raw exception string into something an imager can
 /// act on.
 ///
-/// The failure path used to render `e.toString()` verbatim, so the operator was
-/// shown the Rust union's Dart wrapper — `NightshadeError.imageError(field0:
-/// …)`, positional-field label and all — instead of the sentence inside it.
-/// This unwraps the payload (nested wrappers included), keeps the raw text for
-/// the technical-details disclosure, and attaches a next step for the causes we
-/// can name one for.
+/// `e.toString()` renders the Rust union's Dart wrapper —
+/// `NightshadeError.imageError(field0: …)`, positional-field label and all —
+/// rather than the sentence inside it. This unwraps the payload (nested
+/// wrappers included), keeps the raw text for the technical-details disclosure,
+/// and attaches a next step for the causes that have one.
 StackShareFailure describeStackShareFailure(String raw) {
   var message = raw.trim();
   // Peel layer by layer: an app exception can carry a bridge union, which can
@@ -98,7 +97,7 @@ StackShareFailure describeStackShareFailure(String raw) {
   );
 }
 
-/// Launcher dialog for the **Stack-and-Share Loop** (component C9).
+/// Launcher dialog for the **Stack-and-Share Loop**.
 ///
 /// Summarises the lights selected for [sessionId] (target, per-filter frame
 /// counts, total integration, frame count), lets the operator tune the run
@@ -107,7 +106,7 @@ StackShareFailure describeStackShareFailure(String raw) {
 /// live [NightshadeProgressBar] with the current phase and frame counters. On
 /// success it auto-pops and navigates to the result viewer
 /// (`/stack-result?id=<resultId>`); on failure it surfaces the error inline as a
-/// [NightshadeAlert] (errors are a feature — never silently swallowed).
+/// [NightshadeAlert].
 ///
 /// Show it with [StackAndShareDialog.show], which wires the dialog into a
 /// [NightshadeDialog] scaffold via `showDialog`.

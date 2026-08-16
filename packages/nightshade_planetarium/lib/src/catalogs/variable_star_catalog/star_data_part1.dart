@@ -1,7 +1,7 @@
 part of '../variable_star_catalog.dart';
 
 const List<VariableStarData> variableStarCatalogStarsPart1 = [
-  // ===== MIRA LONG PERIOD VARIABLES =====
+  // Mira long-period variables
   VariableStarData(
     name: 'Mira',
     designation: 'omi Cet',
@@ -225,7 +225,7 @@ const List<VariableStarData> variableStarCatalogStarsPart1 = [
     spectralType: 'M5e-M8eII',
   ),
 
-  // ===== CEPHEIDS =====
+  // Cepheids
   VariableStarData(
     name: 'Delta Cephei',
     designation: 'del Cep',
@@ -398,7 +398,7 @@ const List<VariableStarData> variableStarCatalogStarsPart1 = [
     spectralType: 'F5-F8Ib/II',
   ),
 
-  // ===== ECLIPSING BINARIES =====
+  // Eclipsing binaries
   VariableStarData(
     name: 'Algol',
     designation: 'bet Per',
@@ -527,7 +527,7 @@ const List<VariableStarData> variableStarCatalogStarsPart1 = [
     spectralType: 'M2eIab+B0-2V',
   ),
 
-  // ===== SEMI-REGULAR VARIABLES =====
+  // Semi-regular variables
   VariableStarData(
     name: 'Betelgeuse',
     designation: 'alp Ori',

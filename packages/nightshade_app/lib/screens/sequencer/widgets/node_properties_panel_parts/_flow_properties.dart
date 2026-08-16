@@ -1,5 +1,3 @@
-// Part of ../node_properties_panel.dart -- extracted for maintainability.
-//
 // Properties widgets for flow-control nodes: target group, loop, delay, wait-time, conditional, parallel, recovery.
 part of '../node_properties_panel.dart';
 
@@ -126,15 +124,18 @@ class _LoopProperties extends ConsumerWidget {
                       colors: colors,
                       label: 'Civil Dawn',
                       onPressed: () {
-                        final location = ref.read(observerLocationProvider);
+                        // Twilight is a property of a place. With no site on
+                        // record there is no dawn to set the wait against.
+                        final site = ref.read(observerLocationProvider).site;
+                        if (site == null) return;
                         final now = DateTime.now();
 
                         // Calculate for today first
                         var twilight =
                             AstronomyCalculations.calculateTwilightTimes(
                           date: now,
-                          latitudeDeg: location.latitude,
-                          longitudeDeg: location.longitude,
+                          latitudeDeg: site.latitude,
+                          longitudeDeg: site.longitude,
                         );
 
                         var target = twilight.civilDawn;
@@ -144,8 +145,8 @@ class _LoopProperties extends ConsumerWidget {
                           twilight =
                               AstronomyCalculations.calculateTwilightTimes(
                             date: now.add(const Duration(days: 1)),
-                            latitudeDeg: location.latitude,
-                            longitudeDeg: location.longitude,
+                            latitudeDeg: site.latitude,
+                            longitudeDeg: site.longitude,
                           );
                           target = twilight.civilDawn;
                         }
@@ -162,15 +163,18 @@ class _LoopProperties extends ConsumerWidget {
                       colors: colors,
                       label: 'Nautical Dawn',
                       onPressed: () {
-                        final location = ref.read(observerLocationProvider);
+                        // Twilight is a property of a place. With no site on
+                        // record there is no dawn to set the wait against.
+                        final site = ref.read(observerLocationProvider).site;
+                        if (site == null) return;
                         final now = DateTime.now();
 
                         // Calculate for today first
                         var twilight =
                             AstronomyCalculations.calculateTwilightTimes(
                           date: now,
-                          latitudeDeg: location.latitude,
-                          longitudeDeg: location.longitude,
+                          latitudeDeg: site.latitude,
+                          longitudeDeg: site.longitude,
                         );
 
                         var target = twilight.nauticalDawn;
@@ -180,8 +184,8 @@ class _LoopProperties extends ConsumerWidget {
                           twilight =
                               AstronomyCalculations.calculateTwilightTimes(
                             date: now.add(const Duration(days: 1)),
-                            latitudeDeg: location.latitude,
-                            longitudeDeg: location.longitude,
+                            latitudeDeg: site.latitude,
+                            longitudeDeg: site.longitude,
                           );
                           target = twilight.nauticalDawn;
                         }

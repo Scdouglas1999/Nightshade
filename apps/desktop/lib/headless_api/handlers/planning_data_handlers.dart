@@ -39,9 +39,7 @@ class PlanningDataHandlers {
   int? _intParam(Request request, String key) =>
       optionalQueryInt(request.url.queryParameters, key, min: 1);
 
-  // ===========================================================================
   // Integration goals
-  // ===========================================================================
 
   /// GET /api/integration-goals?targetId=
   Future<Response> handleGetIntegrationGoals(Request request) async {
@@ -143,9 +141,7 @@ class PlanningDataHandlers {
     }
   }
 
-  // ===========================================================================
   // Scheduler queue membership
-  // ===========================================================================
 
   /// GET /api/scheduler/removed-targets
   Future<Response> handleGetSchedulerRemovedTargets(Request request) async {
@@ -210,9 +206,7 @@ class PlanningDataHandlers {
     }
   }
 
-  // ===========================================================================
   // Target constraints
-  // ===========================================================================
 
   /// GET /api/target-constraints?targetId=
   Future<Response> handleGetTargetConstraints(Request request) async {
@@ -315,9 +309,7 @@ class PlanningDataHandlers {
     }
   }
 
-  // ===========================================================================
   // Horizon profiles
-  // ===========================================================================
 
   /// GET /api/horizon-profiles
   Future<Response> handleGetHorizonProfiles(Request request) async {
@@ -355,9 +347,7 @@ class PlanningDataHandlers {
     }
   }
 
-  // ===========================================================================
   // Projects
-  // ===========================================================================
 
   /// GET /api/projects
   Future<Response> handleGetProjects(Request request) async {

@@ -40,6 +40,10 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      // A pass is a topocentric event: prediction needs a site on record.
+      container
+          .read(observerLocationProvider.notifier)
+          .setLocation(latitude: 40, longitude: -74);
       container.read(passPredictionProvider);
 
       container.read(showSatellitesProvider.notifier).state = true;
@@ -87,6 +91,9 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    container
+        .read(observerLocationProvider.notifier)
+        .setLocation(latitude: 40, longitude: -74);
     container.read(passPredictionProvider);
     container.read(showSatellitesProvider.notifier).state = true;
     await Future<void>.delayed(Duration.zero);
@@ -107,4 +114,37 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(container.read(passPredictionProvider).passes, isEmpty);
   });
+
+  test(
+    'with no site on record the prediction says so instead of running',
+    () async {
+      var computeCalls = 0;
+      final container = ProviderContainer(
+        overrides: [
+          satelliteTleProvider.overrideWith((ref) async => const [_elements]),
+          passPredictionComputerProvider.overrideWithValue(({
+            required elements,
+            required latitude,
+            required longitude,
+            required startTime,
+            required predictionWindow,
+          }) async {
+            computeCalls++;
+            return const <SatellitePass>[];
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(passPredictionProvider);
+      container.read(showSatellitesProvider.notifier).state = true;
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(computeCalls, 0);
+      final state = container.read(passPredictionProvider);
+      expect(state.isComputing, isFalse);
+      expect(state.passes, isEmpty);
+      expect(state.error, contains('observing site'));
+    },
+  );
 }

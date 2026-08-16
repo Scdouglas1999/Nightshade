@@ -22,7 +22,7 @@ const String _stagedManifestFile = 'manifest.json';
 /// Marker proving the staged tree was end-to-end verified (manifest
 /// signature + package hash + per-file hashes). Apply-time refuses to
 /// touch the install or copy `updater.exe` unless this marker exists
-/// and its content matches the staged manifest. (§7A.9)
+/// and its content matches the staged manifest.
 const String _stagedVerifiedMarker = 'staged_verified.marker';
 
 /// Filename of the per-file expected-hashes JSON consumed by the Rust
@@ -32,14 +32,14 @@ const String _stagedVerifiedMarker = 'staged_verified.marker';
 const String _expectedHashesFile = 'expected_hashes.json';
 
 /// Deadline for the two small metadata fetches (`/api/version` and the
-/// manifest). An update host that accepts the connection and never answers
-/// used to hold the controller's single operation slot forever, which turned
-/// every later check/download/apply into a `StateError` until the process
-/// restarted.
+/// manifest), so they stay bounded: the controller has a single operation slot,
+/// and a host that accepts the connection and never answers would hold it until
+/// the process restarts, turning every later check/download/apply into a
+/// `StateError`.
 const Duration defaultUpdateHttpTimeout = Duration(seconds: 20);
 
 /// One-shot UI banner queued after [getStagedUpdate] discards a
-/// corrupted marker (§7A.12). The next consumer that reads + clears
+/// corrupted marker. The next consumer that reads + clears
 /// this gets a single chance to surface the message; the banner is not
 /// re-emitted on subsequent reads.
 class UpdateNotice {
@@ -92,10 +92,10 @@ class UpdateService {
     Future<Directory> Function()? applicationSupportDirectoryProvider,
     String? currentPlatform,
     String? currentArch,
-    // SEC-001: OTA sources must use https. This default-off escape hatch
-    // only exists for trusted local testing (e.g. a loopback mock server)
-    // and is sourced from a compile-time define so production builds can
-    // never silently allow http. Leave it false in any shipped build.
+    // OTA sources must use https. This default-off escape hatch exists
+    // only for trusted local testing (e.g. a loopback mock server) and is
+    // sourced from a compile-time define so production builds can never
+    // silently allow http. Leave it false in any shipped build.
     bool allowInsecureUpdateSource = const bool.fromEnvironment(
       'NIGHTSHADE_ALLOW_INSECURE_UPDATE_SOURCE',
     ),
@@ -134,12 +134,12 @@ class UpdateService {
   /// Verification/extraction deliberately run to a clean terminal state.
   bool get canCancelDownload => _currentDownloadToken != null;
 
-  /// SEC-001: refuse any update source URL that is not https.
+  /// Refuse any update source URL that is not https.
   ///
   /// An update fetched over plaintext http can be transparently rewritten
-  /// by a network attacker. While the manifest signature check is the
-  /// primary defence, requiring https closes the downgrade/observation
-  /// surface and matches the vendor download URLs the build scripts emit.
+  /// by a network attacker. The manifest signature check is the primary
+  /// defence; requiring https closes the downgrade/observation surface and
+  /// matches the vendor download URLs the build scripts emit.
   /// http is permitted only when [_allowInsecureUpdateSource] is explicitly
   /// enabled (default off) for trusted local testing.
   void _assertSecureUpdateUrl(String rawUrl, String purpose) {
@@ -295,8 +295,9 @@ class UpdateService {
       _assertManifestCompatibility(manifest);
 
       // Offer when the semver is strictly newer, or when it matches the
-      // current semver but carries a higher build (same-version hotfix).
-      // An identical version+build is never offered (no self-update loop).
+      // current semver but carries a higher build (a rebuild of the same
+      // version). An identical version+build is never offered, so there is
+      // no self-update loop.
       if (manifest.isNewerBuildThan(_currentVersion, _currentBuildNumber)) {
         // Check if we can upgrade from current version
         if (!manifest.canUpgradeFrom(_currentVersion)) {
@@ -363,13 +364,13 @@ class UpdateService {
     DownloadProgressCallback? onProgress,
     void Function()? onVerifying,
   }) async {
-    // SEC-001: the download must be cryptographically authenticated to the
-    // vendor key. If this build has no trusted update public key compiled
-    // in (NIGHTSHADE_UPDATE_PUBLIC_KEY), it cannot authenticate ANY
-    // manifest, so OTA auto-update is disabled by design. Refuse loudly
-    // rather than fall back to hash-only acceptance of a self-referential
-    // manifest (which would be an RCE / supply-chain hole). This mirrors
-    // the LAN push receiver, which refuses to start without a trusted key.
+    // The download is cryptographically authenticated to the vendor key.
+    // A build with no trusted update public key compiled in
+    // (NIGHTSHADE_UPDATE_PUBLIC_KEY) cannot authenticate ANY manifest, so
+    // OTA auto-update is disabled by design. Refusing loudly beats falling
+    // back to hash-only acceptance of a self-referential manifest, which
+    // is an RCE / supply-chain hole. The LAN push receiver takes the same
+    // posture and refuses to start without a trusted key.
     if (!_verifier.hasTrustedPublicKey) {
       throw UpdateException(
         'OTA auto-update is disabled: this build has no trusted update '
@@ -379,8 +380,8 @@ class UpdateService {
       );
     }
 
-    // SEC-001: reject plaintext download sources (unless explicitly allowed
-    // for trusted local testing) before spending any bandwidth.
+    // Reject plaintext download sources (unless explicitly allowed for
+    // trusted local testing) before spending any bandwidth.
     _assertSecureUpdateUrl(manifest.downloadUrl, 'package download');
 
     // Get staging directory
@@ -476,10 +477,10 @@ class UpdateService {
 
   /// Check if there's a staged update ready to apply.
   ///
-  /// Marker corruption is treated as a destructive event: the staged
-  /// directory is wiped (the bytes on disk are not trustworthy because
-  /// we have lost their provenance) and a one-shot UI banner is queued
-  /// so the user knows their staged update was discarded (§7A.12).
+  /// Marker corruption is a destructive event: the staged directory is
+  /// wiped (the bytes on disk have lost their provenance and are not
+  /// trustworthy) and a one-shot UI banner is queued so the user learns
+  /// the staged update was discarded.
   Future<StagedUpdate?> getStagedUpdate() async {
     final staging = await _getStagingDirectory();
     final markerFile = File(path.join(staging.path, 'ready.json'));
@@ -541,17 +542,16 @@ class UpdateService {
   /// 3. Hash-verify every applied file against `expected_hashes.json`.
   /// 4. Launch the new version (if `--launch-after`).
   ///
-  /// We refuse to spawn the updater unless [_stagedVerifiedMarker] is
-  /// present and matches the staged manifest hash AND the staged manifest's
-  /// vendor Ed25519 signature re-verifies against the trusted key compiled
-  /// into this build (PERSIST-001). The marker alone is only a cheap
-  /// consistency check — its value is sha256(manifest), which an attacker
-  /// who can write the staging dir can recompute after swapping the
-  /// manifest + tree + marker — so the signature is the authoritative
-  /// apply-time gate and fails closed when no trusted key is present
-  /// (§7A.9, consistent with the SEC-001 download-time posture). On
-  /// `Process.start` failure we restore the in-memory status to staged
-  /// instead of `exit(0)`-ing into a half-broken state (§7A.5).
+  /// The updater is spawned only when [_stagedVerifiedMarker] is present
+  /// and matches the staged manifest hash AND the staged manifest's vendor
+  /// Ed25519 signature re-verifies against the trusted key compiled into
+  /// this build. The marker alone is a cheap consistency check — its value
+  /// is sha256(manifest), which an attacker who can write the staging dir
+  /// can recompute after swapping the manifest + tree + marker — so the
+  /// signature is the authoritative apply-time gate and fails closed when
+  /// no trusted key is present, matching the download-time posture. On
+  /// `Process.start` failure the in-memory status returns to staged rather
+  /// than `exit(0)`-ing into a half-broken state.
   Future<void> applyUpdate() async {
     final staged = await getStagedUpdate();
     if (staged == null) {
@@ -567,21 +567,21 @@ class UpdateService {
       );
     }
 
-    // §7A.9: prove the marker matches the staged manifest before we
-    // touch any byte of the install. If the marker is missing or stale,
-    // the staging tree is not trusted. This is a cheap consistency check
-    // only — see the signature gate below for the authoritative trust.
+    // The marker matches the staged manifest before any byte of the
+    // install is touched. A missing or stale marker means the staging tree
+    // is not trusted. This is a cheap consistency check only — the
+    // signature gate below carries the authoritative trust.
     await _assertVerifiedMarkerMatches(stagingRoot, manifest);
 
-    // PERSIST-001: the marker above hashes the manifest with sha256, which
-    // an attacker who can write the staging dir can recompute after
-    // swapping the manifest + extracted tree + marker. The authoritative
-    // apply-time gate is the vendor Ed25519 signature: re-verify it against
-    // the trusted key compiled into this build before we touch any byte of
-    // the install. This mirrors the SEC-001 download-time posture and fails
-    // closed — a build with no trusted key cannot authenticate any update,
-    // and an unsigned / invalidly signed staged manifest is rejected — so a
-    // hash-only forgery cannot pass even though the marker matches.
+    // The marker above hashes the manifest with sha256, which an attacker
+    // who can write the staging dir can recompute after swapping the
+    // manifest + extracted tree + marker. The authoritative apply-time gate
+    // is the vendor Ed25519 signature, re-verified against the trusted key
+    // compiled into this build before any byte of the install is touched.
+    // This mirrors the download-time posture and fails closed — a build
+    // with no trusted key cannot authenticate any update, and an unsigned
+    // or invalidly signed staged manifest is rejected — so a hash-only
+    // forgery cannot pass even though the marker matches.
     if (!_verifier.hasTrustedPublicKey) {
       throw UpdateException(
         'Refusing to apply staged update: this build has no trusted update '
@@ -703,8 +703,8 @@ class UpdateService {
         mode: ProcessStartMode.detached,
       );
     } catch (e) {
-      // §7A.5: spawn failed. Do NOT exit(0) — the user is still here and
-      // the staged tree is still valid. Drop the pending marker so a
+      // Spawn failed. Do NOT exit(0) — the user is still here and the
+      // staged tree is still valid. Drop the pending marker so a
       // half-finished apply does not confuse next launch, then surface
       // the failure so the UI can re-arm the "Apply" button.
       try {
@@ -723,9 +723,9 @@ class UpdateService {
       );
     }
 
-    // §7A.5: a detached process with pid==0 means CreateProcess returned
-    // but we have no handle to wait on; treat as failure rather than
-    // letting exit(0) destroy the only diagnostic.
+    // A detached process with pid==0 means CreateProcess returned but left
+    // no handle to wait on; that counts as failure rather than letting
+    // exit(0) destroy the only diagnostic.
     if (updaterProcess.pid == 0) {
       try {
         if (await pendingFile.exists()) {
@@ -753,17 +753,17 @@ class UpdateService {
       level: 800,
     );
 
-    // §7A.5: hold the parent open for 500 ms so the OS commits the
-    // child process and our log flush actually hits disk before exit(0)
-    // tears down stdio. Without this the child can fail-to-start with
-    // no trace in the user-visible log.
+    // Hold the parent open for 500 ms so the OS commits the child process
+    // and the log flush reaches disk before exit(0) tears down stdio.
+    // Without it a child that fails to start leaves no trace in the
+    // user-visible log.
     await Future<void>.delayed(const Duration(milliseconds: 500));
     await _flushDeveloperLog();
 
     exit(0);
   }
 
-  /// Whether a manual rollback to the previous version is currently
+  /// Whether a manual rollback to the pre-update build is currently
   /// possible. True only while a retained restore point exists — i.e. an
   /// update was applied on this host and the next boot has not yet
   /// confirmed it healthy (the boot verifier wipes the backup dir once it
@@ -782,8 +782,8 @@ class UpdateService {
 
   /// Roll back the last applied update by relaunching the external updater
   /// in `--rollback` mode. The updater restores the retained restore point
-  /// (the previous version's files) over the install, deletes the files the
-  /// update added, then relaunches the restored build.
+  /// (the pre-update files) over the install, deletes the files the update
+  /// added, then relaunches the restored build.
   ///
   /// Like [applyUpdate], this calls `exit(0)` on success — the host process
   /// is handed off to the updater. On spawn failure it surfaces an
@@ -1062,7 +1062,7 @@ class UpdateService {
 /// Persist the verified manifest plus the staged_verified marker into a
 /// staging directory. Both download paths (HTTPS pull + LAN push) call
 /// this once verification has succeeded so apply-time has a single
-/// trusted handoff (§7A.9). Exposed at the library level so the
+/// trusted handoff. Exposed at the library level so the
 /// LAN push receiver can reuse it without duplicating filenames.
 Future<void> persistStagedManifest(
   Directory stagingDir,

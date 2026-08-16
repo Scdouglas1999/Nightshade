@@ -1,15 +1,14 @@
-// Regression for a live defect: the profile editor destroyed the reducer.
+// The profile editor must not destroy the reducer.
 //
 // A profile carries its optical train as a PAIR — `telescopeFocalLength` is the
 // OTA's native focal length, `focalLength` is what the rig actually images at
 // (post reducer/barlow) and is the value that reaches the FITS FOCALLEN card,
 // the plate-solve scale hint, the framing FOV and the guider px->arcsec
-// conversion. The first-run wizard was the only surface that could write the
-// two apart; the Equipment > Edit Profile dialog had no reducer field at all,
-// seeded its one Focal Length box from the telescope column, and wrote that
-// same number back into BOTH on save. Opening a 0.80x-reduced profile and
-// pressing "Save Changes" with zero edits therefore rewrote 440.0 mm / f/4.4
-// into 550.0 mm / f/5.5 — a silent 25% image-scale error.
+// conversion. An editor with no reducer field, seeding one Focal Length box from
+// the telescope column and writing that same number back into BOTH on save,
+// turns "Save Changes" with zero edits on a 0.80x-reduced profile into
+// 440.0 mm / f/4.4 rewritten as 550.0 mm / f/5.5 — a silent 25% image-scale
+// error.
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';

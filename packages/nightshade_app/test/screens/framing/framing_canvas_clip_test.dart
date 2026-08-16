@@ -117,10 +117,10 @@ void main() {
   // without a clip and inside a `clipRect(canvasBounds)` (exactly the clip the
   // canvas [ClipRect] installs). At each zoom it asserts the clip is what keeps
   // the survey background inside the canvas: the unclipped render MUST bleed at
-  // zoom > 1 (proving the draw rect overruns the canvas — the bug condition),
-  // and the clipped render must NOT bleed at any zoom (proving the fix contains
-  // it). This is a pure `dart:ui` rasterisation, so it is fast and deterministic
-  // (no slow widget-tree GPU capture).
+  // zoom > 1 (proving the draw rect overruns the canvas), and the clipped render
+  // must NOT bleed at any zoom (proving the clip contains it). This is a pure
+  // `dart:ui` rasterisation, so it is fast and deterministic (no slow
+  // widget-tree GPU capture).
   test(
       'survey background is contained by a canvas clip at every zoom '
       '(0.5x, 1x, 2x, 4x); unclipped it bleeds past the canvas at zoom > 1',

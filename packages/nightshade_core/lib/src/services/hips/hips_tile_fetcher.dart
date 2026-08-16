@@ -53,11 +53,10 @@
 //     timeout + `package:http`, fully unit-testable with `package:http/testing`
 //     [MockClient].
 //
-// Errors are a feature (project policy): there are no silent fallbacks here. A
-// network failure, a non-200 status, an empty/oversized body, an undecodable
-// image, or a malformed properties document each throw a typed exception the
-// caller must handle. Surfacing the failure is the whole point — a blank or
-// wrong tile painted silently would be a far worse bug than a logged error.
+// No silent fallbacks: a network failure, a non-200 status, an empty or
+// oversized body, an undecodable image, and a malformed properties document
+// each throw a typed exception the caller must handle. A blank or wrong tile
+// painted without a word is the failure this prevents.
 
 import 'dart:async';
 import 'dart:convert';
@@ -368,7 +367,7 @@ class HipsTileFetcher {
     }
   }
 
-  // --- internals -----------------------------------------------------------
+  // internals
 
   /// Performs the GET for [url], honouring [token] cancellation and the size
   /// cap, and returns the response body bytes. Throws the typed HTTP/decode

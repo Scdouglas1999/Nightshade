@@ -6,9 +6,8 @@ import 'package:crypto/crypto.dart';
 
 import '../db/hub_database.dart';
 
-/// Access scopes a bearer token may carry. Mirrors the contract (§5): clients
-/// `read` shared tiles, imagers `contribute`, operators `admin`. `admin`
-/// implies the lower scopes.
+/// Access scopes a bearer token may carry: clients `read` shared tiles,
+/// imagers `contribute`, operators `admin`. `admin` implies the lower scopes.
 enum HubScope {
   read,
   contribute,
@@ -35,7 +34,7 @@ enum HubScope {
 
 /// Fine-grained collaborative actions a scoped token may permit beyond the
 /// coarse [HubScope] — the "contribute to this mosaic, not delete it" verbs the
-/// Collaborative Sky workstreams need (WS4). The wire name is the stable string
+/// Collaborative Sky needs. The wire name is the stable string
 /// embedded in a scoped token's JSON; it is kept in lock-step with the client
 /// `CollaborativeAction` in `nightshade_core` so a grant minted on one side is
 /// understood by the other.
@@ -56,7 +55,7 @@ enum CollabAction {
   attributionRead('attribution.read', HubScope.read),
   tokenMint('token.mint', HubScope.read),
   moderate('moderate', HubScope.admin),
-  // Read-class verbs governing the WS1-3 browse/detail gates. Declaring them on
+  // Read-class verbs governing the browse/detail gates. Declaring them on
   // the read handlers lets a resource-bound grant ("contribute to mosaic 42")
   // read ITS OWN resource while being confined OUT of every other resource and
   // the global lists — closing the action-less read-gate scope leak. Hub-only,
@@ -114,7 +113,7 @@ class ScopedGrant {
 
   /// When non-null, the grant is bound to a single RESOURCE — the `(type, id)`
   /// of the collaborative artifact it may act on (e.g. `('mosaic', '42')`).
-  /// This is WS4's load-bearing per-resource scoping: a `mosaic.upload` grant
+  /// This per-resource scoping is load-bearing: a `mosaic.upload` grant
   /// bound to mosaic 42 permits nothing on mosaic 99. A grant with a
   /// [resourceType] but no [resourceId] (or vice-versa) is malformed and binds
   /// nothing; both must be present for a binding to take effect.

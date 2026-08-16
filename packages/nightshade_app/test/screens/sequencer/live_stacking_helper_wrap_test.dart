@@ -6,7 +6,7 @@
 // half - "Broadcast only keeps memory clean; Recor..." - removing exactly the
 // clause that names the alternative the operator is choosing between.
 //
-// The fix is in the shared theme (NightshadeTheme inputDecorationTheme), so
+// The wrap is set in the shared theme (NightshadeTheme inputDecorationTheme), so
 // this asserts on the rendered helper Text, which is what the operator reads.
 
 import 'package:flutter/material.dart';

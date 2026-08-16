@@ -21,9 +21,9 @@ final equipmentHealthServiceProvider = Provider<EquipmentHealthService>((ref) {
   return const EquipmentHealthService();
 });
 
-/// The devices we are currently connected to, as health descriptors.
+/// The currently connected devices, as health descriptors.
 ///
-/// Split out of [deviceHealthSnapshotsProvider] so the heartbeat poller
+/// Separate from [deviceHealthSnapshotsProvider] so the heartbeat poller
 /// ([deviceLastContactProvider]) can follow the connected set without
 /// depending on the snapshot list it feeds — the timestamps flow
 /// descriptors → poller → snapshots, never in a cycle.

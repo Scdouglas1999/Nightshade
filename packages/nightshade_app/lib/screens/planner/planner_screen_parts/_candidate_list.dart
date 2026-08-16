@@ -1,11 +1,7 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // Candidate list with cursor-driven pagination, the per-target row (info + altitude panel), score/integration/stat chips, and the skeleton placeholder used while suggestions are loading.
 part of '../planner_screen.dart';
 
-// ============================================================================
 // Candidate list with pagination
-// ============================================================================
 
 class _CandidateList extends ConsumerWidget {
   final List<TargetSuggestion> candidates;
@@ -23,11 +19,9 @@ class _CandidateList extends ConsumerWidget {
   /// A candidate card needs roughly 1000-1150px to be comfortable: ~610px of
   /// intrinsic info content (name, chip row, one-line rationale, four buttons)
   /// plus the altitude panel, which `clampPanelWidth` caps at 380px. Every
-  /// pixel beyond that used to become dead space in the middle of the card —
-  /// ~1240px (54% of the card) on a 2560px window, growing linearly with the
-  /// window — while only three of 1200+ candidates fit on screen. Splitting
-  /// into columns spends the extra width on MORE candidates instead of more
-  /// void.
+  /// pixel beyond that is dead space in the middle of the card — over half of
+  /// it on a 2560px window — so splitting into columns spends the extra width
+  /// on MORE candidates instead of more void.
   static int _columnsFor(double availableWidth) {
     if (!availableWidth.isFinite || availableWidth <= 0) return 1;
     // Capped at 4: this workstation's maximised window is 5120px wide, where a

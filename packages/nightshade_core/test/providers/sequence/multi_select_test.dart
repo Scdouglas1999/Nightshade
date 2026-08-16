@@ -89,10 +89,9 @@ void main() {
           .loadSequence(_abcdTree(), discardUnsaved: true);
       // Select both B (parent) and B1 (its child).
       c.read(multiSelectedNodeIdsProvider.notifier).selectAll(['B', 'B1']);
-      // The fix: ancestorsOnly drops B1; removing B then takes the subtree
-      // with it. Previously, iterating over both threw a "node not found"
-      // when the second iteration tried to find B1 — that's the audit hit
-      // this test pins.
+      // ancestorsOnly drops B1; removing B then takes the subtree with it.
+      // Iterating over both instead throws "node not found" on the second
+      // iteration, which is what this pins.
       c.read(multiSelectedNodeIdsProvider.notifier).deleteSelected();
 
       final result = c.read(currentSequenceProvider)!;

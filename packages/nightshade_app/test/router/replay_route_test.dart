@@ -14,15 +14,15 @@ Iterable<GoRoute> _allRoutes(List<RouteBase> routes) sync* {
   }
 }
 
-/// NEW-E2. Replay was pushed with `Navigator.push` onto the shell's navigator,
-/// i.e. ABOVE the page go_router owns. Clicking a nav-rail destination changed
-/// the location under it: the rail repainted Analytics as selected, accent bar
-/// and all, while the header still read `Replay — New Sequence` six seconds
-/// later. Two clicks on the top-right ✕ also left it up.
+/// A screen pushed with `Navigator.push` onto the shell's navigator sits ABOVE
+/// the page go_router owns. Clicking a nav-rail destination then changes the
+/// location under it — the rail repaints Analytics as selected, accent bar and
+/// all, while the header still reads `Replay — New Sequence` — and the
+/// top-right ✕ leaves it up.
 ///
-/// The structural fix is that Replay is a route like every other page, so a
-/// `go()` from the rail replaces it. This pins the two halves that make that
-/// true: the route exists inside the shell, and the launcher targets it.
+/// Replay is therefore a route like every other page, so a `go()` from the rail
+/// replaces it. This pins the two halves that make that true: the route exists
+/// inside the shell, and the launcher targets it.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

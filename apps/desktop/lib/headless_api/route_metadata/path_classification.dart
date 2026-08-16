@@ -306,11 +306,11 @@ String requiredAuthScopeNameForEndpoint({
   // Host settings. Paired controllers MIRROR these by design — the
   // guiding screen reads settle/dither defaults, the phone-side sequence
   // serializer bakes the host's dither/AF/meridian defaults, and the
-  // slave sync re-pulls the snapshot every 30s. Blanket-admin (the
-  // previous shape, via `adminOnlyPathPrefixes`) broke all of that for
-  // every default-scope pairing: the phone showed "Guiding defaults
-  // unavailable: Access denied" and silently serialized fallback defaults
-  // into sequences it started. GET serves the curated
+  // slave sync re-pulls the snapshot every 30s. Blanket-admin (via
+  // `adminOnlyPathPrefixes`) breaks all of that for every default-scope
+  // pairing: the phone shows "Guiding defaults unavailable: Access denied"
+  // and silently serializes fallback defaults into sequences it starts.
+  // GET serves the curated
   // `exportRemoteSettings()` wire model (no credentials), so read is
   // control-scope; every mutation stays admin. The Home Assistant
   // sub-route carries a bearer token and stays admin for ALL methods.

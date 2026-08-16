@@ -15,9 +15,9 @@ typedef StackResultPreviewPersister =
 /// The native stacker is a process-wide singleton: starting a Stack-and-Share
 /// run would call `apiStackingStart`/`apiStackingStartFromData` and clobber the
 /// reference frame and accumulated buffer of whatever is currently running.
-/// Rather than silently corrupting an active session, [StackAndShareService.run]
-/// refuses to start and surfaces this exception so the UI can tell the operator
-/// to stop live stacking first — errors are a feature here.
+/// Rather than corrupting an active session, [StackAndShareService.run] refuses
+/// to start and surfaces this exception, so the UI can tell the operator to
+/// stop live stacking first.
 class LiveStackBusyException implements Exception {
   /// Human-readable explanation suitable for direct display.
   final String message;
@@ -28,8 +28,8 @@ class LiveStackBusyException implements Exception {
   String toString() => 'LiveStackBusyException: $message';
 }
 
-/// Thrown when every follower frame was refused by the stacker, leaving only
-/// the reference in the integration.
+/// Thrown when the stacker refuses every follower frame, leaving only the
+/// reference in the integration.
 ///
 /// A per-frame rejection is survivable — the run counts it and carries on — but
 /// a "stack" containing exactly one sub is not a stack, and persisting it would

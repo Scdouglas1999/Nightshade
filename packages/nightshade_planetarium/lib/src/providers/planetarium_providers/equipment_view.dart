@@ -1,8 +1,6 @@
 part of '../planetarium_providers.dart';
 
-// ============================================================================
-// Mount Position Provider
-// ============================================================================
+// Mount position provider
 
 /// Tracking status for the mount
 enum MountTrackingStatus { disconnected, parked, slewing, tracking, stopped }
@@ -70,9 +68,7 @@ final mountPositionProvider =
       return MountPositionNotifier();
     });
 
-// ============================================================================
-// Selected Object Provider
-// ============================================================================
+// Selected object provider
 
 /// Currently selected celestial object.
 ///
@@ -81,13 +77,12 @@ final mountPositionProvider =
 /// observability) is derived per-frame by [selectedObjectAltAzProvider] /
 /// [selectedObjectVisibilityProvider] from the planetarium clock.
 ///
-/// It used to cache an `currentAltAz` / `visibility` tuple computed at
-/// selection time. That made the HUD lie the moment the user did the one thing
-/// the time controls exist for: after clicking TONIGHT the bar still read
-/// "Selected Alt: 63.6 deg" in above-horizon green for a target that was by
-/// then 17 deg BELOW the horizon. A planning altitude that does not move when
-/// you scrub time is worse than no altitude at all, so the cache is gone rather
-/// than merely refreshed.
+/// Caching a `currentAltAz` / `visibility` tuple at selection time makes the
+/// HUD lie the moment the user does the one thing the time controls exist for:
+/// after clicking TONIGHT the bar still reads "Selected Alt: 63.6 deg" in
+/// above-horizon green for a target that is by then 17 deg BELOW the horizon.
+/// A planning altitude that does not move when you scrub time is worse than no
+/// altitude at all, so no such cache exists here.
 class SelectedObjectState {
   final CelestialObject? object;
   final CelestialCoordinate? coordinates;
@@ -120,7 +115,8 @@ final selectedObjectProvider =
     });
 
 /// The selected object's altitude/azimuth **at the planetarium's current
-/// observation time**, or null when nothing is selected.
+/// observation time**, or null when nothing is selected or no site is on
+/// record.
 ///
 /// Minute precision (the sky's own clock granularity) keeps this from rebuilding
 /// the HUD every second; an object moves at most ~0.25 deg per minute.
@@ -128,39 +124,39 @@ final selectedObjectAltAzProvider = Provider<(double alt, double az)?>((ref) {
   final coords = ref.watch(selectedObjectProvider.select((s) => s.coordinates));
   if (coords == null) return null;
 
-  final location = ref.watch(observerLocationProvider);
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return null;
   final time = ref.watch(observationMinuteProvider);
 
   return AstronomyCalculations.objectAltAz(
     raDeg: coords.raDegrees,
     decDeg: coords.dec,
     dt: time,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
+    latitudeDeg: site.latitude,
+    longitudeDeg: site.longitude,
   );
 });
 
 /// Rise / transit / set for the selected object on the planetarium's current
-/// observation date, or null when nothing is selected.
+/// observation date, or null when nothing is selected or no site is on record.
 final selectedObjectVisibilityProvider = Provider<ObjectVisibility?>((ref) {
   final coords = ref.watch(selectedObjectProvider.select((s) => s.coordinates));
   if (coords == null) return null;
 
-  final location = ref.watch(observerLocationProvider);
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return null;
   final date = ref.watch(_currentNightDateProvider);
 
   return AstronomyCalculations.calculateObjectVisibility(
     raDeg: coords.raDegrees,
     decDeg: coords.dec,
     date: date,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
+    latitudeDeg: site.latitude,
+    longitudeDeg: site.longitude,
   );
 });
 
-// ============================================================================
-// Equipment FOV Provider
-// ============================================================================
+// Equipment FOV provider
 
 /// Equipment configuration for FOV display
 class EquipmentFOVState {

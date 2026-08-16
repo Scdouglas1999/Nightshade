@@ -1,9 +1,8 @@
-// P1 — Remote/mobile settings coverage + fail-loud.
+// Remote/mobile settings coverage + fail-loud.
 //
-// Covers the cluster's Finding #2 fixes:
-// * Settings the remote wire model CAN carry (Image Grading,
-// Adaptive exposure) now round-trip through `_toRemoteSettings`
-//     instead of being silently dropped when saved over a NetworkBackend.
+//   * Settings the remote wire model CAN carry (Image Grading, Adaptive
+//     exposure) round-trip through `_toRemoteSettings` instead of being
+//     silently dropped when saved over a NetworkBackend.
 //   * Settings the wire model CANNOT carry (e.g. park-on-unsafe-weather)
 //     FAIL LOUD on a remote save instead of silently no-op'ing.
 //   * Inbound `settings.changed` events for the newly-mapped keys are

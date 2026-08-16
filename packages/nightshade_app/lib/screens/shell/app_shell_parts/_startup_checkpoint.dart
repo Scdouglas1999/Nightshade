@@ -1,5 +1,3 @@
-// Part of ../app_shell.dart -- extracted for maintainability.
-//
 // Startup checkpoint discovery, recovery dialog and close-confirmation helpers.
 part of '../app_shell.dart';
 
@@ -17,11 +15,10 @@ enum AppCheckpointRecoveryChoice {
 
 /// What a failed recovery attempt actually left behind.
 ///
-/// The dialog used to assert, unconditionally, that "the checkpoint is still
-/// available. Retry resume or discard it to start fresh" — directly under the
-/// executor's own `Exception: No valid checkpoint to resume from`. One of those
-/// two sentences was always wrong. [checkpointStillResumable] is re-read from
-/// the backend after the failure so the modal states what is true now.
+/// [checkpointStillResumable] is re-read from the backend AFTER the failure, so
+/// the modal states what is true now. Asserting unconditionally that "the
+/// checkpoint is still available" puts a claim directly under the executor's
+/// own `No valid checkpoint to resume from`, and one of the two must be wrong.
 @visibleForTesting
 class CheckpointAttemptFailure {
   final Object error;
@@ -64,12 +61,10 @@ const List<String> _kCheckpointFileNames = <String>[
 ///
 /// Anchored to the folder that holds the *open database*, not the platform
 /// application-support folder. Every Nightshade GUI on a machine shares one
-/// support folder, so the old anchor let a second instance — pointed at its
-/// own database via `NIGHTSHADE_DATABASE_DIR` — be offered the first
-/// instance's interrupted run: a "Recover Sequence?" modal naming a sequence
-/// that has no row in the database the user actually has open, whose only
-/// dismissal (Discard) then deleted the *other* instance's recovery state.
-/// Anchoring on the database directory makes that structurally impossible: a
+/// support folder, so anchoring there offers a second instance — pointed at its
+/// own database via `NIGHTSHADE_DATABASE_DIR` — the first instance's
+/// interrupted run, and its Discard deletes the OTHER instance's recovery
+/// state. On the database directory that is structurally impossible: a
 /// checkpoint can only ever be found beside the database whose run wrote it.
 ///
 /// The `checkpoints/` subfolder mirrors `resolveHostCheckpointDirectory` in
@@ -94,8 +89,8 @@ Future<Directory> resolveGuiCheckpointDirectory({
 /// provably belongs to it — and [SingleInstanceLock] guarantees no other
 /// Nightshade is running against it, so nothing can be moved out from under a
 /// live process. With the override set, the legacy file may belong to any of
-/// several databases; adopting it would re-create the very defect this
-/// relocation removes, so it is left alone (and ignored) instead.
+/// several databases; adopting it would re-create the cross-database mix-up
+/// this guards against, so it is left alone (and ignored) instead.
 ///
 /// Never throws: a failed adoption must not stop the app from configuring the
 /// checkpoint directory it will write tonight's recovery data to.
@@ -240,9 +235,9 @@ Widget buildCheckpointRecoveryDialog({
         label: 'Discard',
         variant: ButtonVariant.destructive,
       ),
-      // Offering "Retry Resume" for a checkpoint the backend has just told us
-      // is no longer resumable is the same lie as the old message: the button
-      // can only fail again. Discard (and "Not now") remain.
+      // Offering "Retry Resume" for a checkpoint the backend has just reported
+      // as no longer resumable gives a button that can only fail again.
+      // Discard (and "Not now") remain.
       if (canRetry)
         NightshadeButton(
           onPressed: () => Navigator.of(context).pop(

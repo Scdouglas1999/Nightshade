@@ -26,20 +26,14 @@ final remoteSequenceEditorSyncProvider = Provider<void>((ref) {
   Timer? debounce;
   Future<bool>? saveInFlight;
   var saveAgain = false;
-  // Tracks whether the provider has been disposed. We cannot call
-  // `ref.read(...)` inside an `onDispose` continuation because the
-  // container is already in tear-down — that throws
-  //   "Tried to read a provider from a ProviderContainer that was
-  //    already disposed"
-  // (see widgets/ui_scale_test.dart failure, where the host
-  // ProviderScope unmounts and bubbles the throw up to the test
-  // runner). The previous "unawaited(flushPending(reason:
-  // 'provider_dispose'))" line tried to do a best-effort final save
-  // during tear-down but in practice that save NEVER completes — by
-  // the time the microtask runs the container is gone and the very
-  // first `ref.read` inside flushPending throws. Backend swaps are different:
-  // the lifecycle hook below runs while the outgoing transport is alive and
-  // the notifier awaits it before disposal.
+  // Tracks whether the provider has been disposed. Nothing may call
+  // `ref.read(...)` from an `onDispose` continuation: the container is already
+  // in tear-down and the read throws "Tried to read a provider from a
+  // ProviderContainer that was already disposed". That rules out a
+  // best-effort final save on dispose — by the time the microtask runs the
+  // container is gone and the first read inside flushPending throws. Backend
+  // swaps are different: the lifecycle hook below runs while the outgoing
+  // transport is alive and the notifier awaits it before disposal.
   var isDisposed = false;
 
   late Future<void> Function({required String reason, bool drainLatest})

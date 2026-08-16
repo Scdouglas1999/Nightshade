@@ -12,12 +12,11 @@ typedef ShutdownStep = ({String name, Future<void> Function() action});
 ///
 /// Why this exists: the headless daemon's SIGINT/SIGTERM handler safes the rig
 /// and then tears down its services (mDNS, relay uplink, HTTP server, OTA
-/// stack, auto-save, provider container). Before this coordinator only the
-/// rig-safing call was time-bounded; a single hung `stop()` (a dead WebSocket,
-/// an HTTP server draining a stuck request) left the daemon wedged with the
-/// `exit()` unreachable, and a second Ctrl+C was silently swallowed — so the
-/// operator's only escape was SIGKILL. That is exactly the unattended-safety
-/// failure the safing path is meant to prevent.
+/// stack, auto-save, provider container). Time-bounding only the rig-safing
+/// call is not enough — one hung `stop()` (a dead WebSocket, an HTTP server
+/// draining a stuck request) wedges the daemon with `exit()` unreachable and
+/// swallows a second Ctrl+C, leaving SIGKILL as the operator's only escape.
+/// That is exactly the unattended-safety failure the safing path prevents.
 ///
 /// Correctness contract (pinned by tests):
 ///   * The safing + teardown sequence runs EXACTLY ONCE.

@@ -101,11 +101,11 @@ abstract class MeridianFlipSettings with _$MeridianFlipSettings {
   const MeridianFlipSettings._();
 
   const factory MeridianFlipSettings({
-    // === Mode Control ===
+    // Mode control
     /// Enable standalone monitoring when no sequence is running
     @Default(false) bool standaloneMonitoringEnabled,
 
-    // === Trigger Conditions ===
+    // Trigger conditions
     /// Which method to use for determining flip timing
     @Default(MeridianTriggerMethod.minutesPastMeridian)
     MeridianTriggerMethod triggerMethod,
@@ -123,7 +123,7 @@ abstract class MeridianFlipSettings with _$MeridianFlipSettings {
     /// Only used with onTrackingLimitHit trigger method.
     @Default(0.0) double trackingLimitWaitMinutes,
 
-    // === Flip Sequence Options ===
+    // Flip sequence options
     /// Pause guider before flip
     @Default(true) bool pauseGuidingBeforeFlip,
 
@@ -139,7 +139,7 @@ abstract class MeridianFlipSettings with _$MeridianFlipSettings {
     /// Resume guiding after flip (if was running)
     @Default(true) bool resumeGuidingAfterFlip,
 
-    // === Error Handling ===
+    // Error handling
     /// Maximum retry attempts
     @Default(3) int maxRetries,
 
@@ -149,7 +149,7 @@ abstract class MeridianFlipSettings with _$MeridianFlipSettings {
     /// Action to take on permanent failure
     @Default(FlipFailureAction.pauseAndAlert) FlipFailureAction failureAction,
 
-    // === Notifications ===
+    // Notifications
     /// Play sound alert when flip starts/completes/fails
     @Default(false) bool soundAlertOnFlip,
 

@@ -94,12 +94,10 @@ void main() {
     );
   });
 
-  // Amended when Framing stopped requiring a live camera: a disconnect used to
-  // drop the card to `noCameraSpecs`, which is what made framing and mosaic
-  // planning impossible with the rig packed away. The invariant this test was
-  // written for — the narrowed watch must still NOTICE a disconnect — is
-  // unchanged and is what the assertions below check; the noticed state is now
-  // "these are the values I remember" rather than "I know nothing".
+  // The narrowed watch must still NOTICE a disconnect. Framing does not
+  // require a live camera, so the noticed state is "these are the values I
+  // remember" rather than `noCameraSpecs` — framing and mosaic planning stay
+  // usable with the rig packed away.
   test('a disconnect still re-runs it', () async {
     final backend = MockBackend();
     var statusQueries = 0;

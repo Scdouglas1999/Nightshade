@@ -165,7 +165,7 @@ class _RmsStat extends StatelessWidget {
       if (px < 1.0) return colors.warning;
       return colors.error;
     }
-    // No scale available: fixed arcsec thresholds (legacy behaviour).
+    // No scale available: fall back to fixed arcsec thresholds.
     if (v < 1.0) return colors.success;
     if (v < 2.0) return colors.warning;
     return colors.error;

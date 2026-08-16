@@ -125,9 +125,9 @@ class AuxiliaryHandlers {
       // rather than failing the whole request — one bad device shouldn't blind
       // the caller to other working ones.
       //
-      // §6a-fixed: emit a stable `read_failed` code rather than the legacy
-      // pattern of shipping the raw exception message, which would leak
-      // Dart type names. Full detail is logged for operator triage.
+      // Emit a stable `read_failed` code rather than the raw exception
+      // message, which would leak Dart type names onto the wire. The full
+      // detail is logged for operator triage.
       final logger = container.read(loggingServiceProvider);
       final deviceStatuses = <Map<String, dynamic>>[];
       for (final d in switchDevices) {

@@ -108,14 +108,12 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalPct = rollup.totalPercentComplete;
-    // The card describes three different populations and used to give all of
-    // them the same words. `totalCapturedIntegrationSecs` and the per-filter
-    // table count ACCEPTED light frames; the session rows print each session's
-    // own `total_integration_secs`, which counts everything it captured. One
-    // target with two rejected 300s lights therefore read "Total integration
-    // 0.0h" and "No frames captured for this target yet" beside a session row
-    // saying "0.17h integration". Both numbers are computed here so the card
-    // can name them instead of contradicting itself.
+    // The card describes three different populations.
+    // `totalCapturedIntegrationSecs` and the per-filter table count ACCEPTED
+    // light frames; the session rows print each session's own
+    // `total_integration_secs`, which counts everything it captured. Both
+    // numbers are computed here so the card can name them rather than
+    // contradict itself.
     final capturedSecs = rollup.sessions
         .fold<double>(0, (sum, s) => sum + s.sessionIntegrationSecs);
     final acceptedSecs = rollup.totalCapturedIntegrationSecs;
@@ -254,8 +252,8 @@ class _Body extends StatelessWidget {
                   Text(
                     capturedSecs > 0
                         // The table counts accepted frames, so "no frames
-                        // captured" was flatly false for a target whose whole
-                        // night had been rejected in the grader.
+                        // captured" would be false for a target whose whole
+                        // night was rejected in the grader.
                         ? 'No accepted frames yet — '
                             '${_formatHours(capturedSecs)} captured across '
                             '${rollup.sessionCount} '

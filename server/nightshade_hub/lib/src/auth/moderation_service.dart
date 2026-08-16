@@ -3,10 +3,9 @@ import 'package:uuid/uuid.dart';
 import '../db/hub_database.dart';
 import 'token_service.dart';
 
-/// Account moderation (Collaborative Sky WS4, concern 3 — block abusive
-/// accounts). The operational lever that stops an abuser WITHOUT deleting the
-/// account (deletion FK-cascades away the contribution/attribution history a
-/// dispute needs).
+/// Account moderation — the operational lever that stops an abuser WITHOUT
+/// deleting the account (deletion FK-cascades away the contribution /
+/// attribution history a dispute needs).
 ///
 /// A suspend stamps `accounts.suspended_at` (the kill switch
 /// [TokenService.resolve] fails closed on), writes an append-only

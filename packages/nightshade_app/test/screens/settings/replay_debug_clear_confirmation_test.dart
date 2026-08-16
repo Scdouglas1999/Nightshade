@@ -1,8 +1,8 @@
-// Regression: "Clear all replay history" asked for consent to an unknown
-// quantity — the confirmation named a database table ("This deletes every row
-// in the sequence_decisions table") and never said how much was there — and
-// its destructive action was rendered as plain text identical to Cancel, while
-// the equivalent profile-delete dialog uses a filled red button.
+// "Clear all replay history" must not ask for consent to an unknown quantity: a
+// confirmation naming a database table ("This deletes every row in the
+// sequence_decisions table") without saying how much is there, and rendering its
+// destructive action as plain text identical to Cancel, is weaker than the
+// profile-delete dialog's filled red button.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';

@@ -1,5 +1,3 @@
-// Part of ../session_review_controller.dart -- extracted for maintainability.
-//
 // The immutable SessionReviewState view-model.
 part of '../session_review_controller.dart';
 
@@ -26,15 +24,14 @@ class SessionReviewState {
   final List<IntegratedMaster> masters;
 
   /// The persisted master that actually belongs to the scope under review — the
-  /// one the hero image, the smart panels (improvement curve, growth,
-  /// annotations) and the finishing actions (colour calibration, background
-  /// extraction) operate on. Null when this session/target has no master yet.
+  /// one the hero image, the smart panels and the finishing actions operate on.
+  /// Null when this session/target has no master yet.
   ///
   /// Resolved from the `integrated_master_frames` fold records for the subs in
-  /// scope, NOT from "newest master in the library": `integrated_masters.target_id`
-  /// is frequently NULL, so the old `masters.first` fallback rendered another
-  /// night's stack under this night's heading and pointed the finishing actions
-  /// at the wrong file.
+  /// scope, NOT from "newest master in the library":
+  /// `integrated_masters.target_id` is frequently NULL, so a `masters.first`
+  /// fallback renders another night's stack under this night's heading and
+  /// points the finishing actions at the wrong file.
   final IntegratedMaster? reviewedMaster;
 
   /// True while subs are loading.
@@ -53,7 +50,7 @@ class SessionReviewState {
   /// A user-facing error from the last failed action, or null.
   final String? error;
 
-  // --- Smart Morning Report (Pillar 5) data backbone ------------------------
+  // Smart morning report (Pillar 5) data backbone
 
   /// The Night Doctor's verdict for this scope (score + headline + findings),
   /// or null before [SessionReviewController.loadSmartData] has run / produced

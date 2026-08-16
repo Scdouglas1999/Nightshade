@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 
 /// On-disk store for collaborative-mosaic panel masters and the finished
-/// stitched output (Collaborative Sky WS2 — distributed mosaics).
+/// stitched output.
 ///
 /// Mirrors [SubframeStore] / [CalibrationMasterStore]: every blob is kept as
 /// its own immutable file written via temp-then-rename, so a crash mid-write

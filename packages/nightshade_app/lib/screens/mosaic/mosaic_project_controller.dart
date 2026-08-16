@@ -63,9 +63,9 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   final IntegratedMastersDao _mastersDao;
   final MosaicProjectService _service;
 
-  /// WS2 collaborative-mosaic orchestration. Null when no hub-aware service was
-  /// wired (the local-only review path); the collaborative actions then report a
-  /// clear error rather than crashing.
+  /// Collaborative-mosaic orchestration. Null on the local-only review path,
+  /// where no hub-aware service is wired; the collaborative actions then report
+  /// a clear error rather than crashing.
   final CollaborativeMosaicService? _collaborative;
 
   /// Whether a Constellation hub is actually configured/signed-in (resolved from
@@ -185,7 +185,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
   }
 
-  /// One consistent read of everything the screen renders. Split out of [load]
+  /// One consistent read of everything the screen renders, separate from [load]
   /// so the whole read can be bounded by a single timeout.
   Future<_MosaicProjectSnapshot> _readSnapshot() async {
     final project = await _projectsDao.getById(_projectId);
@@ -329,11 +329,9 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Collaborative mosaics (WS2) — publish / claim / upload / assemble over the
+  // Collaborative mosaics — publish / claim / upload / assemble over the
   // hub. Each mirrors the integrate/stitch shape: set the right busy flag, call
   // the collaborative service, reload, and surface errors WITHOUT rethrowing.
-  // ---------------------------------------------------------------------------
 
   /// Whether the collaborative actions are available: a hub-aware service was
   /// wired AND a Constellation hub is actually configured/signed-in. The screen
@@ -544,8 +542,8 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   }
 
   /// Upload one integrated panel's master to the hub under the user's chosen
-  /// sharing [license] + [attributionConsent] (WS4 consent contract — the
-  /// caller presents the contribute sheet first), then reload.
+  /// sharing [license] + [attributionConsent] — the caller presents the
+  /// contribute sheet first — then reload.
   Future<void> uploadPanelMaster(
     int panelIndex, {
     required ContributionLicense license,

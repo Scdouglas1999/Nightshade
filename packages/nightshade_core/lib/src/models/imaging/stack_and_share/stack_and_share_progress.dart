@@ -137,8 +137,8 @@ class StackedFrameSelection {
   ///
   /// Carried per-frame because the engine can refuse individual subs: the
   /// integration time a finished stack reports has to be the time that is
-  /// actually IN it, which the selection-wide total cannot express once some
-  /// of the selected frames were rejected.
+  /// actually IN it, which the selection-wide total cannot express once any of
+  /// the selected frames are rejected.
   final double exposureSecs;
 
   const StackedFrameSelection({

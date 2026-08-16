@@ -43,9 +43,9 @@ void main() {
     });
 
     test('autoDarkSubtractEnabledProvider reads calibrationSettings', () async {
-      // Why: previously this provider read `dark_library.auto_subtract`
-      // while the calibration pipeline read `calibration.auto_calibrate`.
-      // After the unification they must share the same backing value.
+      // This provider and the calibration pipeline share one backing value:
+      // `dark_library.auto_subtract` and `calibration.auto_calibrate` must not
+      // diverge.
       final notifier = container.read(calibrationSettingsProvider.notifier);
       await notifier.setAutoCalibrate(true);
 

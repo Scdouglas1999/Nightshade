@@ -2,7 +2,7 @@
 //  * capability-aware gain/offset/binning validation (with null = camera
 //    default preserved), and
 //  * defensive numeric parsing of wire event data (int vs double vs string),
-//    which previously crashed the event stream on integer JSON payloads.
+//    which otherwise crashes the event stream on integer JSON payloads.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/backend/device_capabilities.dart';

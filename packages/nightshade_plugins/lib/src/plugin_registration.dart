@@ -66,18 +66,10 @@ class ExamplePluginDescriptor {
 /// The canonical set of user-facing example plugins Nightshade registers at
 /// startup, in registration order.
 ///
-/// Event-name mapping is explicit and verified against each plugin's
-/// `eventBus.emit(...)` call site:
-///   * Discord  -> `plugin.discord.sent`
-///       (`discord_webhook_plugin.dart`, on HTTP 200/204)
-///   * Pushover -> `plugin.pushover.sent`
-///       (`pushover_notification_plugin.dart`, on `status == 1`)
-///   * Home Assistant -> `plugin.home_assistant.service_called`
-///       (`home_assistant_plugin.dart`, on a 2xx service call; the design
-///        brief's hypothetical `plugin.home_assistant.toggled` is NOT what
-///        the plugin emits, so we bind to the real event name)
-///   * Weather Logger -> no discrete fired-event; activity is the reading
-///       count, so [firedEvent] is `null`.
+/// Each [ExamplePluginDescriptor.firedEvent] must be the event name the plugin
+/// actually passes to `eventBus.emit(...)`, or the activity tracker watches a
+/// name nothing emits. The Weather Logger has no discrete success signal —
+/// activity is its reading count — so its `firedEvent` is null.
 final List<ExamplePluginDescriptor> kUserFacingExamplePlugins =
     List<ExamplePluginDescriptor>.unmodifiable([
       const ExamplePluginDescriptor(
@@ -248,12 +240,10 @@ class PluginActivityTracker {
 
       final context = _host.contextFor(descriptor.id);
       if (context == null) {
-        // Plugin not registered (e.g. it failed to load, or this tracker was
-        // built before registration completed). We intentionally do not
-        // silently swallow this: the registration provider is the single
-        // source that loads these plugins, and the activity-tracker provider
-        // depends on it, so a missing context here is a wiring bug. Surface
-        // it loudly per the project's "errors are a feature" rule.
+        // Plugin not registered (it failed to load, or this tracker was built
+        // before registration completed). The activity-tracker provider depends
+        // on the registration provider, so a missing context is a wiring bug,
+        // not a state to render around.
         throw PluginException(
           'PluginActivityTracker: no context for "${descriptor.id}". '
           'Ensure pluginRegistrationProvider has completed before reading '

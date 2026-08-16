@@ -556,8 +556,8 @@ void main() {
     );
 
     test('a .csv request writes the CSV the user asked for', () async {
-      // The whole point of the button: one file the AstroBin importer reads.
-      // It used to answer a .csv filename with a .json + .md pair.
+      // The whole point of the button: a .csv request writes one file the
+      // AstroBin importer reads, not a .json + .md pair.
       final csvPath = p.join(tempDir.path, 'rsr-astrobin.csv');
 
       final written = await service().exportAstroBinAcquisition(

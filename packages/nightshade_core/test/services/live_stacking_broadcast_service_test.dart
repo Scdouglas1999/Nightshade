@@ -357,22 +357,19 @@ void main() {
       expect(LiveStackingNode(authToken: 'x').isPublic, isFalse);
     });
 
-    test(
-      'copyWith explicit null KEEPS authToken (Phase 5 plain semantics)',
-      () {
-        // PHASE-5: LiveStackingNode.copyWith dropped the `_unset` sentinel.
-        // Null and omitted are now indistinguishable — both keep. The
-        // editor clears via rebuild-explicit (see live_stacking_properties
-        // .dart::_rebuildWithCleared).
-        final n = LiveStackingNode(authToken: 'secret');
-        final stillSecret = n.copyWith(authToken: null);
-        expect(stillSecret.authToken, 'secret');
-        expect(stillSecret.isPublic, isFalse);
-      },
-    );
+    test('copyWith explicit null KEEPS authToken (plain `??` semantics)', () {
+      // LiveStackingNode.copyWith carries no `_unset` sentinel: null and
+      // omitted are indistinguishable and both keep. The editor clears via
+      // rebuild-explicit (see
+      // live_stacking_properties.dart::_rebuildWithCleared).
+      final n = LiveStackingNode(authToken: 'secret');
+      final stillSecret = n.copyWith(authToken: null);
+      expect(stillSecret.authToken, 'secret');
+      expect(stillSecret.isPublic, isFalse);
+    });
 
     test('authToken cleared via rebuild-explicit makes broadcast public', () {
-      // PHASE-5: pin the rebuild-explicit recipe used by the editor.
+      // The rebuild-explicit recipe used by the editor.
       final n = LiveStackingNode(authToken: 'secret');
       final cleared = LiveStackingNode(
         id: n.id,
@@ -430,9 +427,7 @@ void main() {
     });
   });
 
-  // ===========================================================================
   // Master kill switch (Settings → "Disable broadcast everywhere")
-  // ===========================================================================
   group('LiveStackingBroadcastService master kill switch', () {
     test('killSwitchEnabled defaults to false', () {
       final c = _container();

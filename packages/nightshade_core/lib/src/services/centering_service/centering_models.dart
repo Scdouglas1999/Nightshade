@@ -5,9 +5,8 @@ part of '../centering_service.dart';
 /// disconnect/hang from a single transient blip that the poll loop can ride
 /// out.
 ///
-/// Errors are a feature — surfacing this as a typed exception (rather than
-/// silently waiting out the 60s wall-clock cap) lets callers and tests
-/// observe the actual failure mode instead of "centering timed out".
+/// Typed rather than a wait-out of the 60 s wall-clock cap, so callers and
+/// tests see the actual failure mode instead of "centering timed out".
 class CenteringMountUnresponsiveException implements Exception {
   /// Number of consecutive failed `getMountStatus` calls before giving up.
   final int consecutiveFailures;

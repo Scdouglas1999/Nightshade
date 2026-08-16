@@ -1,9 +1,7 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // "Discover" tab: a segmented Your Sky | Constellation toggle hosting the
-// personal all-sky atlas and the community swarm view. These are the
-// less-frequent discovery surfaces that used to hold their own rail slots; they
-// now nest here, one tap inside Plan Tonight, leaving the rail for nightly tools.
+// personal all-sky atlas and the community swarm view — the less-frequent
+// discovery surfaces, nested one tap inside Plan Tonight so the rail stays for
+// nightly tools.
 part of '../planner_screen.dart';
 
 /// Which view the "Discover" tab's inner segmented control shows.

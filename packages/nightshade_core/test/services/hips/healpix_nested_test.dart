@@ -416,7 +416,7 @@ void main() {
     });
   });
 
-  group('input validation (errors are a feature)', () {
+  group('input validation throws rather than clamping', () {
     test('out-of-range declination throws', () {
       final h = HealpixNested(4);
       expect(() => h.ang2pixNest(0, 91), throwsA(isA<HealpixArgumentError>()));

@@ -1,9 +1,7 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiImagePolarOperations on _FfiBackendBase {
-  // =========================================================================
-  // Image Processing
-  // =========================================================================
+  // Image processing
 
   @override
   Future<List<StarCrop>> getStarCropsFromLastImage(
@@ -73,7 +71,6 @@ mixin _FfiImagePolarOperations on _FfiBackendBase {
     );
   }
 
-  // =========================================================================
   @override
   Stream<Map<String, dynamic>> get polarAlignmentEvents =>
       _polarAlignController.stream;

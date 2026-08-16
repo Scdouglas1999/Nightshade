@@ -5,8 +5,9 @@
 // panel is not merely below the fold there, it is on a page the operator is not
 // looking at. That makes the screen the first thing outside `_CompactTabLayout`
 // to move the tab index, and moving it from a Riverpod listener drives
-// `TabController.index =` inside build, whose synchronous listener callback
-// used to write the same index straight back into the provider mid-build.
+// `TabController.index =` inside build — whose synchronous listener callback
+// would otherwise write the same index straight back into the provider
+// mid-build.
 
 import 'dart:async';
 

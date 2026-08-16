@@ -1,8 +1,7 @@
 // Stack-and-Share Loop — share-card renderer.
 //
 // The canonical, UI-free image-composition logic for the Stack-and-Share
-// feature lives here. It owns three concerns that used to be duplicated
-// inside `LiveStackingBroadcastService`:
+// feature. It owns three concerns:
 //
 //   1. **Percentile auto-stretch** of raw 16-bit luminance frames
 //      (0.5%/99.5% black/white points) — the difference between a frame
@@ -21,9 +20,8 @@
 //     the overlay + watermark composited on top.
 //
 // Pure Dart (the `image` package only) so the desktop, mobile, and headless
-// builds all share one path, and so it is trivially unit-testable without a
-// Flutter binding. Per project policy this code surfaces errors (a short
-// buffer throws) rather than silently serving garbage.
+// builds all share one path, and so it is unit-testable without a Flutter
+// binding. A short buffer throws rather than rendering garbage.
 
 import 'dart:typed_data';
 
@@ -41,9 +39,7 @@ import '../models/imaging/stack_and_share_models.dart'
 class ShareCardRenderer {
   const ShareCardRenderer();
 
-  // ===========================================================================
   // Public API — mono u16 source (needs stretching)
-  // ===========================================================================
 
   /// Render a single-channel u16 luminance buffer to a watermarked,
   /// stat-overlaid JPEG.
@@ -74,9 +70,7 @@ class ShareCardRenderer {
     return Uint8List.fromList(img.encodeJpg(bitmap, quality: quality));
   }
 
-  // ===========================================================================
   // Public API — already-stretched RGBA source
-  // ===========================================================================
 
   /// Render an already-stretched 8-bit RGBA buffer to a watermarked,
   /// stat-overlaid PNG (lossless — the preferred archival/share format for the
@@ -110,9 +104,7 @@ class ShareCardRenderer {
     return Uint8List.fromList(img.encodeJpg(bitmap, quality: quality));
   }
 
-  // ===========================================================================
   // Stretch + decode helpers
-  // ===========================================================================
 
   /// Percentile-stretch a u16 luminance buffer into a 3-channel RGB
   /// [img.Image], optionally aspect-fit downscaled to the target box.
@@ -235,9 +227,7 @@ class ShareCardRenderer {
     return img.copyResize(bitmap, width: outW, height: outH);
   }
 
-  // ===========================================================================
   // Overlay compositing (watermark + stat panel)
-  // ===========================================================================
 
   /// Draw the stat panel then the watermark onto [bitmap], in place. The
   /// watermark is drawn last so it always sits on top of the panel when the
@@ -261,8 +251,8 @@ class ShareCardRenderer {
   /// [fontForHeight].
   ///
   /// Exposed (not private) so tests can assert which font a given spec/height
-  /// resolves to — e.g. that the 720px broadcast frame keeps the historical
-  /// arial48 watermark rather than silently dropping to arial24.
+  /// resolves to — that the 720px broadcast frame keeps the arial48 watermark
+  /// rather than dropping to arial24.
   img.BitmapFont fontForSpec(ShareCardSpec spec, int imageHeight) {
     return switch (spec.fontScale) {
       ShareCardFontScale.small => img.arial14,
@@ -322,7 +312,7 @@ class ShareCardRenderer {
   /// this method exists to fix — a caption ending in "..." is honest about being
   /// shortened, one sliced mid-glyph by the card edge is not.
   ///
-  /// Exposed so a regression test can assert the fit without rendering.
+  /// Exposed so a test can assert the fit without rendering.
   ({img.BitmapFont font, List<List<String>> rows}) fitCaption(
     img.BitmapFont preferred,
     List<String> segments,
@@ -653,9 +643,7 @@ class ShareCardRenderer {
     }
   }
 
-  // ===========================================================================
   // Watermark (bottom-left, drop shadow)
-  // ===========================================================================
 
   /// Draw the watermark [text] onto [bitmap] in place, bottom-left, with a
   /// subtle dark drop shadow under a white fill — the convention Astrobin /
@@ -690,9 +678,7 @@ class ShareCardRenderer {
     );
   }
 
-  // ===========================================================================
   // Percentile stretch
-  // ===========================================================================
 
   /// Compute the 0.5%/99.5% percentile black/white points for the stretch.
   ///

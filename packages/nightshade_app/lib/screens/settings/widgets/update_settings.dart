@@ -223,6 +223,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
     Future<Object?> Function(NetworkBackend backend) action, {
     NetworkBackend? expectedBackend,
     String? acceptedMessage,
+    String Function(Object? result)? describeResult,
   }) async {
     if (_busy) return;
     final backend = expectedBackend ?? _backend;
@@ -239,10 +240,12 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
       // Keep the whole command on the backend captured at admission. A host
       // switch between tap and dispatch must never update the newly-selected
       // rig.
-      await action(backend);
+      final result = await action(backend);
       if (mounted && identical(ref.read(backendProvider), backend)) {
         context.showSuccessSnackBar(
-          acceptedMessage ?? '$label request accepted',
+          describeResult?.call(result) ??
+              acceptedMessage ??
+              '$label request accepted',
         );
         // The job is queued asynchronously on the host. Poll even if the
         // first snapshot still says idle so a fast admission race cannot
@@ -395,11 +398,9 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           _InfoCard(
             colors: colors,
             icon: LucideIcons.info,
-            // The old sentence ("the local desktop app updates itself through
-            // its own installer") was not true of any shipped build: nothing
-            // configures the desktop updater's server URL, and the Linux build
-            // is a tarball with no installer at all. Point at the check that
-            // actually exists.
+            // Point at the check that actually exists: nothing configures the
+            // desktop updater's server URL, and the Linux build is a tarball
+            // with no installer at all.
             text: 'This page manages updates on a REMOTE appliance; connect to '
                 'a rig to use it. For this copy of Nightshade, use Settings > '
                 'About > Check for updates.',
@@ -665,7 +666,24 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
         ),
         if (_isAbortable(state))
           NightshadeButton(
-            onPressed: _busy ? null : () => _run('Abort', _doAbort),
+            onPressed: _busy
+                ? null
+                : () => _run(
+                      'Abort',
+                      _doAbort,
+                      // The host reports which jobs it actually cancelled, and
+                      // an empty list is its answer rather than a failure — so
+                      // say which happened instead of "request accepted" over
+                      // a no-op.
+                      describeResult: (result) {
+                        final cancelled = result is List ? result.length : 0;
+                        return cancelled == 0
+                            ? 'Nothing was in flight to abort'
+                            : 'Abort accepted: '
+                                '$cancelled job${cancelled == 1 ? '' : 's'} '
+                                'cancelled';
+                      },
+                    ),
             label: 'Abort',
             icon: LucideIcons.x,
             variant: ButtonVariant.ghost,
@@ -728,7 +746,8 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
     return backend.rollbackUpdate();
   }
 
-  Future<RemoteJob> _doAbort(NetworkBackend backend) {
+  /// The ids of the jobs the host cancelled; empty when nothing was in flight.
+  Future<List<String>> _doAbort(NetworkBackend backend) {
     return backend.abortUpdate();
   }
 

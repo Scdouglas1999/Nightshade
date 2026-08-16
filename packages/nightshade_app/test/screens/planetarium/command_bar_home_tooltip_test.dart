@@ -1,11 +1,10 @@
-// Regression: the home button's tooltip must describe where home actually is.
+// The home button's tooltip must describe where home actually is.
 //
-// The reset action was fixed long ago to centre on the observer's ZENITH,
-// because RA 0h / Dec 0 sat 14 deg below the horizon at the audited site and
-// "reset view" therefore pointed the map at the ground. The tooltip was never
-// updated and went on promising "center 0,0" — observed live: pressing the
-// reset hotkey moved the centre to RA 10h34m45s / Dec +40 00' at LST 10:34,
-// the zenith, not 0,0.
+// The reset action centres on the observer's ZENITH, because RA 0h / Dec 0 can
+// sit below the horizon and "reset view" would then point the map at the ground.
+// A tooltip promising "center 0,0" contradicts it: pressing the reset hotkey
+// moves the centre to the zenith — RA 10h34m45s / Dec +40 00' at LST 10:34 —
+// not to 0,0.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,7 +57,8 @@ void main() {
         .read(observerLocationProvider.notifier)
         .setLocation(latitude: 40.0, longitude: -105.0);
 
-    final (_, dec) = container.read(skyViewHomeCenterProvider);
-    expect(dec, closeTo(40.0, 0.001));
+    final home = container.read(skyViewHomeCenterProvider);
+    expect(home, isNotNull, reason: 'a site is set, so the zenith is defined');
+    expect(home!.$2, closeTo(40.0, 0.001));
   });
 }

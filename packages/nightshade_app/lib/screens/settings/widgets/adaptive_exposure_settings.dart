@@ -89,10 +89,10 @@ class _AdaptiveExposureSettingsState
     final colors = NightshadeColors.of(context);
     final settingsAsync = ref.watch(appSettingsProvider);
 
-    // Rebuilt on SettingsPage / SettingsSection / SettingRow like every other
-    // leaf (audit 2026-07-29): this page used to return a bare Column, and the
-    // desktop host mounts leaves with no padding of its own, so it rendered
-    // without cards and with its switch sliced off by the window edge.
+    // Built on SettingsPage / SettingsSection / SettingRow like every other
+    // leaf: the desktop host mounts leaves with NO padding of its own, so a
+    // bare Column renders without cards and with its controls sliced off by the
+    // window edge.
     return settingsAsync.when(
       loading: () => SettingsLoadingState(isMobile: widget.isMobile),
       error: (e, _) => SettingsErrorState(

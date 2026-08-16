@@ -11,9 +11,7 @@ String _sanitizeDeviceText(String value) => value
     .trim();
 
 mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
-  // =========================================================================
   // Device Discovery & Connection
-  // =========================================================================
 
   @override
   Future<List<DeviceInfo>> discoverDevices(DeviceType deviceType) async {
@@ -85,18 +83,12 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
 
   /// Probe a specific INDI/Alpaca endpoint, propagating failure.
   ///
-  /// This used to catch everything and return an empty list. The bridge is
-  /// honest — it maps a refused connection to `NightshadeError::connection_failed`
-  /// — but the swallow turned "nothing answered at that address" into "answered,
-  /// and reported no devices". The INDI server dialog's Test Connection then
-  /// showed a green tick reading "Connected. Found 0 devices." for a host with
-  /// nothing listening, and its own failure branch was unreachable code.
-  ///
-  /// The one caller that genuinely must not abort on an unreachable address is
-  /// the startup sweep in `unified_discovery_provider`, and it already wraps
-  /// this in its own try/catch that reports the failure per backend. So the
-  /// swallow was not protecting anything; it was only hiding the truth from
-  /// every other caller.
+  /// A refused connection reaches the caller as
+  /// `NightshadeError::connection_failed`, so "nothing answered at that
+  /// address" is never reported as "answered, and listed no devices". The one
+  /// caller that must survive an unreachable address — the startup sweep in
+  /// `unified_discovery_provider` — wraps this call itself and reports the
+  /// failure per backend.
   Future<List<bridge.DeviceInfo>> _discoverAddressDevices({
     required String label,
     required String host,
@@ -144,9 +136,7 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
         .toList();
   }
 
-  // =========================================================================
-  // Camera Control
-  // =========================================================================
+  // Camera control
 
   @override
   Future<void> cameraStartExposure({

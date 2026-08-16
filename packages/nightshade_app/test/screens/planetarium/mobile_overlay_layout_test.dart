@@ -1,18 +1,17 @@
 // Orientation-aware overlay placement tests for the mobile planetarium.
 //
-// The mobile planetarium overlays (tool rail, compass, mini-map, time panel,
-// FAB column) used to be pinned with hard-coded offsets tuned for portrait and
-// overlapped/clipped in landscape. [MobileOverlaySlots] now recomputes every
-// overlay rectangle from the live viewport + SafeArea so the layout re-flows on
-// rotate. Because the geometry is a pure value type, we can verify it at every
-// supported phone size in BOTH orientations without pumping the GPU sky view
-// (which the existing planetarium_screen_test.dart documents as out of scope).
+// [MobileOverlaySlots] recomputes every overlay rectangle (tool rail, compass,
+// mini-map, time panel, FAB column) from the live viewport + SafeArea, so the
+// layout re-flows on rotate; hard-coded offsets tuned for portrait overlap and
+// clip in landscape. The geometry is a pure value type, so it can be verified at
+// every supported phone size in BOTH orientations without pumping the GPU sky
+// view (which planetarium_screen_test.dart documents as out of scope).
 //
 // Asserts, per the mobile-responsive standard:
 //   * no two floating overlays overlap,
 //   * every overlay sits inside the viewport (nothing clipped),
-//   * a portrait -> landscape rotate keeps overlays in bounds and collision-free
-//     (the regression that motivated this work).
+//   * a portrait -> landscape rotate keeps overlays in bounds and
+//     collision-free.
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

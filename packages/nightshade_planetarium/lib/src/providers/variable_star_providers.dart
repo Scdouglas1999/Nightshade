@@ -1,16 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../catalogs/variable_star_catalog.dart';
 
-// ============================================================================
-// Variable Star Toggle Provider
-// ============================================================================
+// Variable star toggle provider
 
 /// Whether variable star overlay is enabled
 final showVariableStarsProvider = StateProvider<bool>((ref) => false);
 
-// ============================================================================
-// Variable Star Data Provider
-// ============================================================================
+// Variable star data provider
 
 /// Provides the full list of variable stars from the embedded catalog.
 /// Only returns data when the toggle is enabled.

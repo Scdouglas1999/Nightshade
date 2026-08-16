@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -90,8 +92,15 @@ class RunningSequenceMiniBar extends ConsumerWidget {
                       onTap: () {
                         try {
                           context.go(kSequencerRoutePath);
-                        } catch (_) {
-                          // Router not ready — ignore.
+                        } catch (e, stack) {
+                          developer.log(
+                            '[RunningSequenceMiniBar] Could not return to the '
+                            'sequencer: $e',
+                            name: 'RunningSequenceMiniBar',
+                            level: 900,
+                            error: e,
+                            stackTrace: stack,
+                          );
                         }
                       },
                       borderRadius:

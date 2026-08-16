@@ -1,14 +1,14 @@
-// Regression: the last toast on screen contradicted the live state.
+// The last toast on screen must not contradict the live state.
 //
 // Clicking Connect / Disconnect on a device row eight times as fast as the
-// mouse allows left the snackbars replaying one at a time long after the clicks
-// stopped: the status bar carried "Disconnected camera" while the same frame
-// showed `1 connected`, the row reading Disconnect, and a live sensor
+// mouse allows leaves the snackbars replaying one at a time long after the
+// clicks stop: the status bar carries "Disconnected camera" while the same
+// frame shows `1 connected`, the row reading Disconnect, and a live sensor
 // temperature of 20.0 C. Snackbars queue; device state does not. Only the
 // newest statement about a device can be true.
 //
-// The same drive found the copy asymmetric — "Connected to Simulated Camera"
-// (device name, title case) against "Disconnected camera" (generic, lowercase).
+// The copy also has to be symmetric — "Connected to Simulated Camera" (device
+// name, title case) against "Disconnected camera" (generic, lowercase).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -125,8 +125,7 @@ void main() {
     await tester.tap(find.widgetWithText(NightshadeButton, 'Disconnect').first);
     await tester.pump();
     // Long enough for the superseded snackbar's exit animation to finish and
-    // the replacement to come up — not the four seconds the old one would have
-    // sat there for.
+    // the replacement to come up — well short of a full four-second dwell.
     await tester.pump(const Duration(milliseconds: 600));
 
     expect(

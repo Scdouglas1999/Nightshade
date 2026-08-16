@@ -1,15 +1,15 @@
-// Regression: pre-flight could not see an evening target set under it.
+// Pre-flight sees an evening target set under it.
 //
-// `calculateObjectVisibility` scans local noon to local noon. A target that is
-// already above the horizon when that window opens — everything that culminates
-// in the afternoon, i.e. the whole early-evening half of the sky — used to come
-// back with the NEXT day's rise and a set hunted forward to match it, so both
-// ends sat ~24 h after the events they described.
+// `calculateObjectVisibility` scans local noon to local noon. A target already
+// above the horizon when that window opens — everything that culminates in the
+// afternoon, i.e. the whole early-evening half of the sky — otherwise comes back
+// with the NEXT day's rise and a set hunted forward to match it, so both ends
+// sit ~24 h after the events they describe.
 //
 // The "target sets mid-block" conflict is gated on `end.isAfter(setTime)`, and
-// no node ending tonight is after a set instant reported for tomorrow night. So
+// no node ending tonight is after a set instant reported for tomorrow night, so
 // a six-hour block on a target that drops below the horizon three hours in
-// passed pre-flight in silence.
+// passes pre-flight in silence.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 

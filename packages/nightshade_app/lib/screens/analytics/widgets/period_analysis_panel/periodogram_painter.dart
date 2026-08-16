@@ -1,8 +1,6 @@
 part of '../period_analysis_panel.dart';
 
-// =============================================================================
 // Custom painters for the periodogram and phase-fold plots
-// =============================================================================
 
 /// Paints the Lomb-Scargle power spectrum.
 class _PeriodogramPainter extends StatelessWidget {

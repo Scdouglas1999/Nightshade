@@ -1,11 +1,10 @@
-// Widget tests for the reusable field-help affordances (C10).
+// Widget tests for the reusable field-help affordances.
 //
 // `FieldHelpLabel` and `helpAffordance` are shared across the onboarding spine,
-// the equipment-profile editor, and the hardware-preset editor. These tests
+// the equipment-profile editor and the hardware-preset editor. These tests
 // prove they render the label + help icon, enforce the mutually-exclusive
-// help-payload contract (errors are a feature — a misconfigured affordance must
-// throw, not render an empty mysterious icon), and expose the help text to the
-// accessibility tree.
+// help-payload contract (a misconfigured affordance must throw, not render an
+// empty mysterious icon), and expose the help text to the accessibility tree.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons/lucide_icons.dart';

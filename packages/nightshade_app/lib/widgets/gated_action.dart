@@ -3,24 +3,19 @@ import 'package:flutter/material.dart';
 /// Wraps an action control that is currently unavailable so the REASON travels
 /// with it — into the accessibility tree, not just into a hover tooltip.
 ///
-/// Why this exists (COL2-3, WD-COL-N2 — both third-strike items):
+/// `onPressed: null` plus an inline reason is not enough. A disabled control
+/// whose accessible NAME still reads exactly like the enabled one is
+/// indistinguishable in a tree dump from a live control: both read as "a plain
+/// `button: X` with no `[DISABLED]`", and a click on either produces no
+/// snackbar, no inline error, no log line.
 ///
-/// Two separate live drives reported a gated control as "a plain `button: X`
-/// with no `[DISABLED]`, and clicking it did nothing at all — no snackbar, no
-/// inline error, no log line". The code at both sites already passed
-/// `onPressed: null` and already rendered an inline reason, so every re-fix
-/// landed on a build that read correct and a screen that read broken, with no
-/// way to tell which implementation was on screen.
-///
-/// A disabled control whose accessible NAME still reads exactly like the
-/// enabled one is indistinguishable in a tree dump from a live control. So when
-/// [blockedReason] is non-null the announced name becomes
+/// So when [blockedReason] is non-null the announced name becomes
 /// `"<label> — unavailable: <reason>"`. That single string is the discriminator:
 ///
 ///   * a dump that shows the bare label proves the gate did not apply (the
 ///     control really is live, and an inert click is a different defect);
 ///   * a dump that shows the reason proves this build is the one running, so a
-///     "still broken" report cannot be a stale-binary artifact again.
+///     "still broken" report cannot be a stale-binary artifact.
 ///
 /// It changes no pixels: `Semantics` here only annotates.
 class GatedAction extends StatelessWidget {

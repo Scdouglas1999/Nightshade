@@ -1,6 +1,6 @@
 part of '../flat_wizard_screen.dart';
 
-// --- Quick Capture Controls ---
+// Quick capture controls
 
 class _QuickCaptureControls extends ConsumerWidget {
   const _QuickCaptureControls();
@@ -65,7 +65,7 @@ class _QuickCaptureControls extends ConsumerWidget {
   }
 }
 
-// --- Batch Capture Controls ---
+// Batch capture controls
 
 class _BatchCaptureControls extends ConsumerWidget {
   const _BatchCaptureControls();
@@ -130,7 +130,7 @@ class _BatchCaptureControls extends ConsumerWidget {
   }
 }
 
-// --- Sky Flats Controls ---
+// Sky flats controls
 
 class _SkyFlatsControls extends ConsumerWidget {
   const _SkyFlatsControls();

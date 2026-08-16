@@ -324,11 +324,10 @@ class ExposureProgressOverlay extends StatelessWidget {
   ///
   /// The countdown MUST stop here. `ExposureProgress` keeps ticking after a
   /// cancel — the native waiter goes on publishing progress until the driver
-  /// reports not-exposing or the duration deadline passes — so the ring ran on
-  /// to "97% · 1.0s remaining" seconds after the operator was told the frame
-  /// was cancelled, i.e. the screen counted down to a frame that will never
-  /// arrive. Nothing is known about how long the driver takes to honour an
-  /// abort, so this state is indeterminate by construction.
+  /// reports not-exposing or the duration deadline passes — so a running ring
+  /// counts down to a frame that will never arrive. Nothing is known about how
+  /// long the driver takes to honour an abort, so this state is indeterminate
+  /// by construction.
   final bool isAborting;
 
   const ExposureProgressOverlay({

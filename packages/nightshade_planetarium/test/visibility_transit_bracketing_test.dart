@@ -1,21 +1,12 @@
-// Regression: rise / transit / set must describe ONE up-period.
+// Rise / transit / set describe ONE up-period.
 //
 // `calculateObjectVisibility` scans local noon to local noon. For every object
-// that is already above the horizon when that window opens — the whole
-// early-evening half of the sky — the first crossing found is a SET and the
-// next RISE belongs to the following day. The solver used to keep that late
-// rise and then hunt forward for a set to match it, so both ends landed ~24 h
-// after the events they described while the transit stayed on the right day:
-//
-//   Denver, night of 2024-01-15, RA 22h Dec +20
-//     rise 2024-01-16 07:03   transit 2024-01-15 14:20   set 2024-01-16 21:30
-//
-// The target actually rose at 07:07 and set at 21:33 on the 15th. Three
-// separate consumers had grown workarounds for this: the Smart Night emitter
-// shifts crossings by whole sidereal days to find the period that overlaps the
-// dark window, `TargetWindow.isVisibleAt` short-circuits to a live altitude
-// solve ("a target at the zenith came back as 'rises at 03:41' tomorrow"), and
-// the night scorer stopped gating its "rises late" warning on riseTime at all.
+// already above the horizon when that window opens — the whole early-evening
+// half of the sky — the first crossing found is a SET and the next RISE belongs
+// to the following day. Keeping that late rise and hunting forward for a set to
+// match it puts both ends ~24 h after the events they describe while the
+// transit stays on the right day, and every consumer of the window then has to
+// work around it.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 

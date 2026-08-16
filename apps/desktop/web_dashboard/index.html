@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- CSP: connect-src restricted to same origin + same-origin WebSockets only (§2.4).
-       The previous "http://*:*" wildcard allowed an attacker-controlled page served
-       from the dashboard origin to relay credentials to any host on the network. -->
+  <!-- CSP: connect-src restricted to same origin + same-origin WebSockets only.
+       A wildcard such as "http://*:*" would let an attacker-controlled page served
+       from the dashboard origin relay credentials to any host on the network. -->
   <!-- No external font/CDN origins: an observatory is routinely offline, and
        the server's own CSP response header is `style-src 'self'` (see
        security_headers), so a Google Fonts <link> could never load anyway —
-       it only cost a doomed DNS/TCP attempt plus a CSP console error on every
+       it costs only a doomed DNS/TCP attempt plus a CSP console error on every
        page load. The --font-sans/--font-mono stacks in dashboard.css already
        fall back to the platform UI font. `frame-ancestors` is deliberately
        absent here: it is ignored when delivered via <meta> (browsers log an
@@ -42,7 +42,7 @@
         <span class="top-bar-version">Web Dashboard</span>
       </div>
       <div class="top-bar-right">
-        <!-- Theme toggle (§Phase F dashboard-polish). Light/dark is persisted to
+        <!-- Theme toggle. Light/dark is persisted to
              localStorage (nightshade_theme); first load honours
              prefers-color-scheme. Themes are pure CSS-variable swaps applied via
              the data-theme attribute on <html>; the glyph + label flip in JS. -->
@@ -51,9 +51,9 @@
                 aria-pressed="false">
           <span class="theme-toggle-glyph" aria-hidden="true">&#9788;</span>
         </button>
-        <!-- Manual server URL input is hidden unless ?debug=1 is set on the URL,
-             to satisfy §2.4 (CSP connect-src restricted to same origin). The
-             dashboard initialises serverUrl from window.location.origin. -->
+        <!-- Manual server URL input is hidden unless ?debug=1 is set on the URL:
+             the CSP restricts connect-src to the same origin, and the dashboard
+             initialises serverUrl from window.location.origin. -->
         <label for="server-url" class="top-bar-label sr-only" id="server-url-label">Server URL</label>
         <input id="server-url" class="server-url-input" type="text" placeholder="http://host:port" hidden aria-labelledby="server-url-label">
         <!-- Compact re-entry point for the pairing/token bar once it
@@ -85,7 +85,7 @@
     </div>
 
     <!-- Quick navigation to major remote surfaces.
-         §W7E hash routes: each data-route value below maps to a hash
+         Each data-route value below maps to a hash
          (#/run, #/gallery, #/logs, #/devices, #/sequences) so the
          dashboard URL is sharable / bookmarkable. The legacy scroll-to-
          panel buttons stay (panel-* targets) because they remain useful
@@ -192,7 +192,7 @@
           </div>
           <hr class="section-divider">
 
-          <!-- Cooling controls (§2.17). Why a single 'Set' button rather than
+          <!-- Cooling controls. Why a single 'Set' button rather than
                live slider streaming: ASCOM cooler APIs are not idempotent at
                high rates, and a fat-finger on a phone could spam temperature
                setpoints. -->
@@ -209,7 +209,7 @@
           </div>
           <hr class="section-divider">
 
-          <!-- Sub-frame controls (§2.17). The four inputs map to the
+          <!-- Sub-frame controls. The four inputs map to the
                cameraExpose body's x/y/width/height; the Full Frame button
                resets to the sensor's full size from cameraStatus. -->
           <div class="control-row">
@@ -228,7 +228,7 @@
 
           <hr class="section-divider">
 
-          <!-- Flat wizard launcher (§2.17 W5-WIZARDS).
+          <!-- Flat wizard launcher.
                Opens a 3-step modal: filter selection → ADU target → run.
                Calibration progress arrives via WS `imaging` events; results
                are displayed inline so the user knows the converged exposure
@@ -299,7 +299,7 @@
 
           <!-- Press-and-hold d-pad. Each direction starts a slew on pointerdown and
                stops it on pointerup/pointerleave/pointercancel; release == stop.
-               Keyboard: focus the d-pad container and use Arrow keys (§2.7, §2.15). -->
+               Keyboard: focus the d-pad container and use Arrow keys. -->
           <div class="mount-dpad" id="mount-dpad" role="group" aria-label="Mount slew direction pad. Press and hold a direction to slew, release to stop. Use arrow keys when focused." tabindex="0">
             <div></div>
             <button id="btn-mount-n" class="btn dpad-btn" data-axis="1" data-direction="1" aria-label="Slew North (hold)">&#9650;</button>
@@ -320,7 +320,7 @@
 
           <hr class="section-divider">
 
-          <!-- Goto / object slew (§2.17). Why typed RA/Dec instead of a sky-
+          <!-- Goto / object slew. Why typed RA/Dec instead of a sky-
                picker: phones are bad at sky-pickers; an operator pairing for
                a session already knows the coordinates or the catalog name.
                The autocomplete dropdown pulls from /api/targets/search so
@@ -345,7 +345,7 @@
 
           <hr class="section-divider">
 
-          <!-- Plate-solve + sync (§2.17 W5-WIZARDS).
+          <!-- Plate-solve + sync.
                Why two buttons: the operator sometimes wants a read-out (RA/Dec/
                scale/PA/RMS) without disturbing the mount, and sometimes wants
                the combined "solve and tell the mount where it really is" flow.
@@ -363,7 +363,7 @@
 
           <hr class="section-divider">
 
-          <!-- Polar alignment launcher (§2.17 W5-WIZARDS).
+          <!-- Polar alignment launcher.
                The full PA wizard lives in the modal; this panel just opens it
                and shows live phase + error magnitude from the
                polarAlignment-category WS events so the operator can monitor
@@ -408,7 +408,7 @@
             <span class="status-value info" id="fw-current-name">--</span>
           </div>
           <hr class="section-divider">
-          <!-- §2.17 — click-to-rotate: each filter row triggers
+          <!-- Click-to-rotate: each filter row triggers
                filterWheelSetPosition(deviceId, slotIndex). Offsets are loaded
                from /api/focus-model/filter-offsets so the operator can decide
                whether the autofocus offset is currently applied per filter. -->
@@ -546,7 +546,7 @@
 
           <hr class="section-divider">
 
-          <!-- Mosaic planner launcher (§2.17 W5-WIZARDS).
+          <!-- Mosaic planner launcher.
                3-step modal: tile count → overlap → preview/time-estimate →
                build. The build step calls /api/mosaic/generate-sequence then
                hands the generated nodes off to /api/sequencer/load so the
@@ -561,7 +561,7 @@
 
           <hr class="section-divider">
 
-          <!-- Framing assistant launcher (§2.17 W5-WIZARDS).
+          <!-- Framing assistant launcher.
                2-step modal: pick target (search) → FOV preview + rotation
                slider → save framing. "Save framing" stores the chosen sky-PA
                on the target row so future sequences inherit the framing,
@@ -719,10 +719,8 @@
       </div>
 
       <!-- =====================================================================
-           §2.17 ops panels (W5-WEB-OPS-PANELS)
-           All ids/classes in this section use the `ops-` prefix so the
-           parallel W5-WEB-WIZARDS-PLATESOLVE-PA branch can land its panels
-           with a distinct prefix and a cherry-pick merge stays mechanical.
+           Ops panels. Every id and class in this section carries the `ops-`
+           prefix so the panels stay addressable as a group from app.js.
            ===================================================================== -->
 
       <!-- ===== Sequence Load + Run Panel (ops) ===== -->
@@ -966,7 +964,7 @@
       </div>
 
       <!-- =====================================================================
-           §W7E — Image gallery panel.
+           Image gallery panel.
            Driven by GET /api/images?limit=24 plus
            GET /api/images/<id>/thumbnail. Click a thumbnail to open a
            modal with the larger preview. Reload comes via WS
@@ -996,7 +994,7 @@
       </div>
 
       <!-- =====================================================================
-           §W7E — Server log tail panel.
+           Server log tail panel.
            Subscribes to GET /api/logs/tail (SSE). The handler emits an
            initial ring-buffer replay then live entries; we cap the in-
            page list at 500 rows to keep memory bounded. Server-side log
@@ -1034,7 +1032,7 @@
     </div><!-- /dashboard-grid -->
 
     <!-- =====================================================================
-         §W7E — Gallery preview modal. A larger view of the selected
+         Gallery preview modal. A larger view of the selected
          thumbnail. Image source is /api/images/<id>/thumbnail with a
          maxWidth query param so the backend resizes before sending.
          ===================================================================== -->
@@ -1053,7 +1051,7 @@
     </div>
 
     <!-- =====================================================================
-         §W7E — Login overlay. Shown on first visit when no bearer token
+         Login overlay. Shown on first visit when no bearer token
          and no HttpOnly session cookie are present. The dashboard
          normally renders behind it; we keep both visible so the user
          can see the server is alive even when they haven't authenticated.
@@ -1100,7 +1098,7 @@
   <!-- Toast container — aria-live polite so screen readers announce notifications. -->
   <div class="toast-container" id="toast-container" role="region" aria-live="polite" aria-label="Notifications"></div>
 
-  <!-- Pairing modal (§2.1) -->
+  <!-- Pairing modal -->
   <div class="modal-backdrop" id="pair-modal" role="dialog" aria-modal="true" aria-labelledby="pair-modal-title" aria-describedby="pair-modal-desc" hidden>
     <div class="modal">
       <h2 class="modal-title" id="pair-modal-title">Pair this browser</h2>
@@ -1121,7 +1119,7 @@
   </div>
 
   <!-- =====================================================================
-       Wizard Modals (§2.17 W5-WIZARDS)
+       Wizard Modals
        Each modal uses a stacked-step pattern: the .wizard-step containers
        are hidden by default and .wizard-step.active is shown one at a time.
        The header progress dots are driven by app.js so the operator can

@@ -112,10 +112,9 @@ void main() {
       // and the GPU sky renderer for no extra coverage.
       final container =
           ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
-      // Why dispose: ObservationTimeNotifier owns a periodic Timer
-      // (lib/src/providers/planetarium_providers.dart §147). Without
-      // dispose, the timer keeps firing and the test framework reports
-      // a pending timer at teardown.
+      // Why dispose: ObservationTimeNotifier owns a periodic Timer. Without
+      // dispose, the timer keeps firing and the test framework reports a
+      // pending timer at teardown.
       addTearDown(container.dispose);
 
       final initial = container.read(observationTimeProvider);
@@ -163,7 +162,7 @@ void main() {
       expect(fast.isRealTime, isFalse,
           reason: 'Fast-forward must leave real-time mode; otherwise the '
               'next periodic tick would overwrite the simulated time '
-              'with DateTime.now() (planetarium_providers §151).');
+              'with DateTime.now().');
       expect(fast.speedMultiplier, 2.0,
           reason: 'Speed multiplier must persist exactly so the periodic '
               'timer applies `Duration(seconds: multiplier.round())` per '
@@ -177,8 +176,7 @@ void main() {
         'skyViewState_clampsAtCelestialPoles: setCenter with extreme '
         'inputs near RA wrap and Dec ±90° clamps to valid celestial '
         'coordinates', () {
-      // Why this matters: the arrow-key handler in _handleKeyEvent
-      // (planetarium_screen.dart §598) calls
+      // Why this matters: the arrow-key handler in _handleKeyEvent calls
       // skyViewStateProvider.notifier.setCenter directly with a clamp
       // expression. If a refactor changes the notifier's own clamp,
       // holding the down-arrow key near Dec=+90 could send Dec to +180
@@ -207,8 +205,8 @@ void main() {
           reason: 'Dec must clamp to -90 at the south celestial pole '
               'for the same reason as +90.');
 
-      // RA wraps at 24h. setCenter currently clamps (not wraps) — that
-      // is the documented behaviour in planetarium_providers §215.
+      // RA wraps at 24h. setCenter clamps rather than wraps — the documented
+      // behaviour in planetarium_providers.
       // Pushing RA = 30h should land on 24h, and pushing -5h should
       // land on 0h. We pin both ends so a future "wrap instead of
       // clamp" refactor is a deliberate decision, not a silent change.
@@ -306,10 +304,9 @@ void main() {
             reason: 'typeFilter=all must include galaxies, nebulae, and '
                 'clusters — three fixtures, three results.');
 
-        // Narrow to galaxies. updateFilters re-runs search internally
-        // when there is an active query (planetarium_providers §1617),
-        // so the result list updates without an explicit second
-        // search() call.
+        // Narrow to galaxies. updateFilters re-runs search internally when
+        // there is an active query, so the result list updates without an
+        // explicit second search() call.
         notifier.updateFilters(
           const SearchFilters(typeFilter: SearchObjectTypeFilter.galaxies),
         );
@@ -342,8 +339,8 @@ void main() {
         'searchProvider_findsObjectByCommonName: a common-name query '
         'resolves to the matching catalog object', () async {
       // Andromeda Galaxy is in the well-known-names map keyed to M31 /
-      // NGC224 (planetarium_providers §1533). The search code adds the
-      // normalized ids of every matching well-known entry to
+      // NGC224. The search code adds the normalized ids of every matching
+      // well-known entry to
       // wellKnownIds and then matches any DSO whose normalised id is in
       // that set.
       final container = buildContainer([

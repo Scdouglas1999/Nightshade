@@ -106,7 +106,7 @@ void main() {
       find.textContaining('Check the flat panel is switched on'),
       findsOneWidget,
     );
-    // The solver's own reason, which previously had no reader anywhere.
+    // The solver's own per-filter reason, surfaced rather than dropped.
     expect(
       find.text('R: Max exposure reached but still under target'),
       findsOneWidget,

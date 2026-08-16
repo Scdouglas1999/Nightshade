@@ -71,8 +71,8 @@ const bool kPluginEnabledByDefault = true;
 /// `null`/empty input. Malformed JSON is NOT silently swallowed: it is logged
 /// at WARNING with the offending value and then treated as "no explicit
 /// choices", which fails *closed to enabled* (the safe, fresh-install state).
-/// Errors are a feature — the log makes a corrupted settings row diagnosable
-/// instead of mysteriously turning integrations off.
+/// The log is what makes a corrupted settings row diagnosable instead of
+/// mysteriously turning integrations off.
 Map<String, bool> _decodeEnablementMap(String? raw) {
   if (raw == null || raw.isEmpty) {
     return const <String, bool>{};
@@ -188,7 +188,7 @@ class PluginEnablementNotifier extends AsyncNotifier<Set<String>> {
   ///      persisted a choice the live host failed to honour — the persisted
   ///      state and the running host never diverge. A no-op transition (the
   ///      host is already in the target state) is fine. A genuine lifecycle
-  ///      failure surfaces rather than being swallowed (errors are a feature).
+  ///      failure surfaces rather than being swallowed.
   ///   2. Persist the choice — reads the current persisted choice map (so
   ///      unrelated, possibly not-yet-managed ids survive), writes the single
   ///      changed entry, and saves the whole map back under
@@ -276,20 +276,8 @@ class SettingsPluginEnablementStore implements PluginEnablementStore {
   }
 }
 
-/// Concrete store the app layer uses to override C3's
-/// `pluginEnablementStoreProvider`.
-///
-/// Wire-up at the app/composition root:
-/// ```dart
-/// ProviderScope(
-///   overrides: [
-///     pluginEnablementStoreProvider.overrideWith(
-///       (ref) => ref.watch(settingsPluginEnablementStoreProvider),
-///     ),
-///   ],
-///   child: ...,
-/// );
-/// ```
+/// Concrete store the app layer overrides `pluginEnablementStoreProvider`
+/// with at its composition root.
 final settingsPluginEnablementStoreProvider =
     Provider<SettingsPluginEnablementStore>((ref) {
       return SettingsPluginEnablementStore(ref.watch(settingsDaoProvider));

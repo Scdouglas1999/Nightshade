@@ -299,13 +299,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   /// The "Settings Tour" nudge, anchored over the pane it can safely cover.
   ///
-  /// It used to wrap the WHOLE screen and float: at 1600x900 the card landed on
-  /// top of the Remote Access leaf's "Manage Pairing" button, which could not be
-  /// clicked until the card was dismissed with Maybe Later. Reserving the band
-  /// across the whole screen is what previously pushed the sidebar's ADVANCED
-  /// group off-screen, so the band is held inside the pane the card actually
-  /// sits over — the detail pane on desktop, the single pane on a phone — and
-  /// the section navigator keeps its full height either way.
+  /// The reserved band is held INSIDE the pane the card sits over — the detail
+  /// pane on desktop, the single pane on a phone — so the section navigator
+  /// keeps its full height. A floating card over the whole screen covers
+  /// controls beneath it, and reserving the band across the whole screen pushes
+  /// the sidebar's last group off-screen.
   Widget settingsTourPrompt(BuildContext context, {required Widget child}) {
     final l10n = context.l10n;
     return ContextualTourPrompt(
@@ -325,9 +323,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// its design width, so the single-pane (list -> detail) flow is used.
   static const double _splitPaneMinWidth = 720;
 
-  // ---------------------------------------------------------------------------
   // Mobile
-  // ---------------------------------------------------------------------------
 
   Widget _buildMobileLayout(
     NightshadeColors colors,
@@ -398,9 +394,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Desktop
-  // ---------------------------------------------------------------------------
 
   Widget _buildDesktopLayout(
     NightshadeColors colors,

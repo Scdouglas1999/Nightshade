@@ -145,9 +145,7 @@ class LightCurvePanel extends ConsumerWidget {
   }
 }
 
-// ============================================================================
 // Header / summary widgets
-// ============================================================================
 
 class _Header extends StatelessWidget {
   const _Header({
@@ -283,9 +281,7 @@ class _Metric extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Painter — magnitude (Δmag) vs time
-// ============================================================================
 
 class _LightCurvePainter extends CustomPainter {
   _LightCurvePainter({
@@ -416,9 +412,7 @@ class _LightCurvePainter extends CustomPainter {
   }
 }
 
-// ============================================================================
-// Activity provider — listens for Science Photometry executor events
-// ============================================================================
+// Activity provider — listens for science photometry executor events
 
 /// Snapshot of what the light-curve panel knows about the currently-
 /// executing (or most recently executed) photometry node in this run.

@@ -19,11 +19,10 @@ String describeFirstLightError(Object error) {
 /// The body for the First Light error empty-state: a sentence a person can act
 /// on, then the raw detail.
 ///
-/// The error object alone reached the screen verbatim — a live capture read
-/// "Could not load candidates / FormatException: Invalid radix-10 number (at
-/// character 1) / tile-1 / ^", caret diagram and all, which tells an operator
-/// nothing about whether their night's data is gone. The technical text is
-/// still shown (support needs it) but it is no longer the whole message.
+/// A raw error object — "FormatException: Invalid radix-10 number (at
+/// character 1)", caret diagram and all — tells an operator nothing about
+/// whether their night's data is gone. The technical text is still shown
+/// because support needs it, but it is not the whole message.
 String firstLightErrorBody(Object error) {
   return 'Nightshade could not read the candidate list. Your frames and any '
       'detections already found are untouched — this is a read problem, not '

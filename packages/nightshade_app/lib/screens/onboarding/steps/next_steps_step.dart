@@ -107,10 +107,10 @@ class OnboardingNextStepsStep extends ConsumerWidget {
                   icon: NightshadeIcons.aperture,
                   label: 'Telescope',
                   // The optics step marks a library scope whose numbers were
-                  // edited as "— edited". Dropping that marker here restated a
-                  // model name beside an image scale computed from a focal
-                  // length that model does not have — the wizard's closing
-                  // statement about the rig, and the one place it was untrue.
+                  // edited as "— edited". Carrying that marker here keeps the
+                  // wizard's closing statement about the rig from pairing a
+                  // model name with an image scale computed from a focal length
+                  // that model does not have.
                   value: telescopeSummaryLabel(
                     draft,
                     ref.watch(hardwarePresetsServiceProvider).allTelescopes(),

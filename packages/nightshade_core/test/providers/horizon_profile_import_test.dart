@@ -93,11 +93,10 @@ void main() {
     });
   });
 
-  // An imported survey used to be reduced to eight numbers and the rest of the
-  // file thrown away, so one 29° tree at azimuth 190 marked the whole S sector
-  // (157.5°–202.5°) as blocked and the planner refused targets that were
-  // clear. `altitudeAtAzimuth` is the single question every visibility
-  // decision in the app asks — the planner's filter and the planetarium's
+  // An imported survey must keep its samples, not collapse to the eight
+  // sector maxima: one 29° tree at azimuth 190 would otherwise block the whole
+  // S sector (157.5°–202.5°). `altitudeAtAzimuth` is the single question every
+  // visibility decision asks — the planner's filter and the planetarium's
   // 360-entry terrain table both call it — so these pin its answer.
   group('imported surveys keep their resolution', () {
     /// One sample every 10°, flat 5° except a 29° obstruction at azimuth 190.

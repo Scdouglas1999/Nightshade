@@ -2,13 +2,11 @@
 
 part of '../sequence_models.dart';
 
-// =============================================================================
-// SEQUENCE
-// =============================================================================
+// Sequence
 
 /// Complete sequence.
 ///
-/// **Tree representation contract** (W1.7 refactor):
+/// **Tree representation contract**:
 ///
 ///   * `nodes` (a flat `Map<String, SequenceNode>`) remains the canonical
 ///     content store and the on-disk serialization shape. Every node carries
@@ -36,18 +34,10 @@ part of '../sequence_models.dart';
 ///     a tree-wide rewrite — so reorder/insert/remove cost is bounded by the
 ///     parent's sibling count, not by the total tree size.
 ///
-/// Phase 3 conversion (Step 3): the lazy index fields that previously
-/// lived on this class were hoisted to [SequenceTreeIndex] in Step 1, and
-/// `SequenceProgressNotifier.updateProgress` was rewritten in Step 2 to
-/// stop depending on the pre-freezed `?? this.X` quirk. With both blockers
-/// cleared, this class is now freezed-backed — `copyWith`, `==`, and
-/// `hashCode` are generated.
-///
-/// Construction: use [Sequence.create] when you want the legacy "auto-fill
-/// id + createdAt + modifiedAt" ergonomics. The bare freezed factory
-/// requires every load-bearing field explicitly — useful for code paths
-/// (deserialization, database load, file import) that already have the
-/// authoritative values.
+/// Construction: use [Sequence.create] for auto-filled id + createdAt +
+/// modifiedAt. The bare freezed factory requires every load-bearing field
+/// explicitly — useful for code paths (deserialization, database load, file
+/// import) that already have the authoritative values.
 @freezed
 abstract class Sequence with _$Sequence {
   const Sequence._();
@@ -56,7 +46,7 @@ abstract class Sequence with _$Sequence {
   /// auto-generated UUID, no `DateTime.now()` defaults. Use this from
   /// code paths that already have the authoritative `id` / timestamps
   /// (deserialization, database load, etc.); use [Sequence.create] from
-  /// app / UI code that wants the historical defaulting behaviour.
+  /// app / UI code that wants id / timestamp defaulting.
   const factory Sequence({
     required String id,
     int? databaseId,
@@ -101,18 +91,13 @@ abstract class Sequence with _$Sequence {
     );
   }
 
-  // ---------------------------------------------------------------------
   // Derived tree-index API (delegates to [SequenceTreeIndex]).
   //
-  // The lazy `late final` index fields that previously lived on this class
-  // were hoisted to the sibling [SequenceTreeIndex] in Phase 3 Step 1 so
-  // freezed-generated equality / hashCode do not see them. The per-instance
-  // cache lives in `sequenceTreeIndexCache` ([Expando]) and is keyed by
-  // instance identity — which preserves the previous "compute once on first
-  // access, then reuse" semantic exactly: a fresh `Sequence` built from the
-  // same `nodes` map starts with an empty cache and re-derives the index
-  // on first access.
-  // ---------------------------------------------------------------------
+  // The index lives off the model so freezed-generated equality / hashCode do
+  // not see it. Its per-instance cache is `sequenceTreeIndexCache` ([Expando]),
+  // keyed by instance identity: each `Sequence` computes the index once on
+  // first access, and a fresh instance built from the same `nodes` map starts
+  // with an empty cache.
 
   /// Materialized [SequenceTreeIndex] for this sequence, lazily built on
   /// first access and cached on the instance via [Expando]. Hot-path code
@@ -601,5 +586,4 @@ abstract class SequenceProgress with _$SequenceProgress {
   }
 }
 
-// =============================================================================
 // Science — SciencePhotometryNode + transparency-adaptive support.

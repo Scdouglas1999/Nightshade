@@ -65,12 +65,10 @@ extension _SequenceTimeEstimatorNodeDurations on SequenceTimeEstimator {
       // Handle loop nodes specially - the timeline still renders detail for a
       // SINGLE iteration (with a "1 of N" warning), but the cumulative clock
       // must advance by the full loop so downstream nodes + the
-      // meridian/dawn conflict checks see the real end time. Previously the
-      // clock only advanced one pass, so a Count loop under-reported its
-      // duration by the loop factor (e.g. Loop(count=50) over a 5-min body
-      // showed ~5 min instead of ~250 min). For unbounded / condition-based
-      // loops the iteration count isn't known statically, so we keep the
-      // single-pass estimate (documented by the warning note).
+      // meridian/dawn conflict checks see the real end time: advancing one
+      // pass under-reports a Count loop by the loop factor. For unbounded or
+      // condition-based loops the iteration count is not known statically, so
+      // the single-pass estimate stands and the warning note says so.
       if (node is LoopNode) {
         final loopNote = _getLoopIterationNote(node);
         final loopStartTime = currentTime;
@@ -389,12 +387,11 @@ extension _SequenceTimeEstimatorNodeDurations on SequenceTimeEstimator {
                     1000)
                 .round(),
       ),
-      // Audit §11 — plugin nodes execute opaque user-authored logic.
-      // We cannot estimate their duration without round-tripping into
-      // the plugin, so we use the optional per-node timeout as the
-      // upper bound; with no timeout configured the estimator returns
-      // zero (matching how it treats NotificationNode and other
-      // short-running side effects).
+      // Plugin nodes execute opaque user-authored logic, whose duration
+      // cannot be estimated without round-tripping into the plugin, so the
+      // optional per-node timeout is the upper bound. With no timeout
+      // configured the estimator returns zero, matching how it treats
+      // NotificationNode and other short-running side effects.
       PluginInstructionNode() =>
         node.timeoutSecs != null && node.timeoutSecs! > 0
             ? Duration(seconds: node.timeoutSecs!)

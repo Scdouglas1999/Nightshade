@@ -58,12 +58,12 @@ Future<AppVersionInfo> loadMobileAppVersion() async {
 /// monitor has declared a session lost (attempt is 0-based).
 ///
 /// Ramps 5 s → 10 s → 20 s → 30 s and then holds at 30 s forever. Retrying
-/// without end is the point: losing WiFi for longer than the grace period used
-/// to be terminal — the app dropped to the connection screen and stayed there,
-/// so restoring the network minutes later still left "Please reconnect" on
-/// screen even though a cold start reconnects instantly from the same saved
-/// server. A 30 s idle poll costs far less than a user who wakes to an app
-/// that quit watching their run hours ago.
+/// without end is the point: without it, losing WiFi for longer than the grace
+/// period is terminal — the app drops to the connection screen and stays
+/// there, so restoring the network minutes later still leaves "Please
+/// reconnect" on screen even though a cold start reconnects instantly from the
+/// same saved server. A 30 s idle poll costs far less than a user who wakes to
+/// an app that quit watching their run hours ago.
 @visibleForTesting
 Duration lostSessionRetryDelay(int attempt) {
   const schedule = <Duration>[
@@ -197,10 +197,9 @@ void main() async {
   };
 
   // Real product version, read from the built package the same way the desktop
-  // entry point does. This used to be a hardcoded `2.6.0+6` literal that went
-  // stale by four major versions: the About screen advertised "Version 2.6.0"
-  // on a 6.0.0+24 build, and — per appVersionProvider's own contract — a wrong
-  // version here silently drives the OTA update comparison and the plugin host.
+  // entry point does — never a literal. Per appVersionProvider's contract a
+  // wrong version here drives the OTA update comparison and the plugin host,
+  // and misroutes every bug report filed from the About screen.
   final appVersion = await loadMobileAppVersion();
 
   runApp(
@@ -715,10 +714,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // Saved Servers entry point on the DEFAULT connection screen
-                  // (previously reachable only from the legacy companion
-                  // dashboard). Lets an operator who manages multiple rigs roam
-                  // between previously-paired hosts without re-discovering.
+                  // Saved Servers entry point on the DEFAULT connection screen.
+                  // Lets an operator who manages multiple rigs roam between
+                  // previously-paired hosts without re-discovering.
                   Center(
                     child: NightshadeButton(
                       onPressed: _openSavedServers,

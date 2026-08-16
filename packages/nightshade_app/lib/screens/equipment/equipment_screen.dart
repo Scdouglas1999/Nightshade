@@ -28,9 +28,7 @@ part 'equipment_screen/profile_undo.dart';
 part 'equipment_screen/progress_dashboard.dart';
 part 'equipment_screen/sidebar_onboarding.dart';
 
-// ============================================================================
 // Providers for equipment screen state
-// ============================================================================
 
 /// Provider for currently selected profile in the equipment screen
 final selectedEquipmentProfileIdProvider = StateProvider<int?>((ref) {
@@ -55,9 +53,7 @@ final equipmentStatusRailCollapsedProvider =
 final dismissedMismatchSignatureProvider =
     StateProvider<String?>((ref) => null);
 
-// ============================================================================
 // Constants for sidebar dimensions
-// ============================================================================
 
 const double _sidebarExpandedWidth = 240.0;
 const double _sidebarMinWidth = 200.0;
@@ -74,9 +70,7 @@ const double _statusRailCollapsedWidth = 44.0;
 /// between two side panels.
 const double _railBreakpoint = 900.0;
 
-// ============================================================================
-// Equipment Screen
-// ============================================================================
+// Equipment screen
 
 class EquipmentScreen extends ConsumerStatefulWidget {
   const EquipmentScreen({super.key});
@@ -167,14 +161,14 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
       // Equipment is the host the floating card cannot share a corner with.
-      // Measured at 1000x800 on a fresh install: the card (x 745-985,
-      // y 620-745) sat on the DISCOVERY panel header's Scan All / Collapse
-      // buttons and abutted the mount card's Unpark / Track / Home / Flip row;
-      // at 1600x900 it covered the STATUS rail's "Ready to image" blockers
+      // Measured at 1000x800 on a fresh install, the card (x 745-985,
+      // y 620-745) lands on the DISCOVERY panel header's Scan All / Collapse
+      // buttons and abuts the mount card's Unpark / Track / Home / Flip row;
+      // at 1600x900 it covers the STATUS rail's "Ready to image" blockers
       // block. Those are live, non-scrollable controls in exactly the corner
       // the nudge anchors to — the case
       // [ContextualTourPrompt.reserveSpaceForCard] exists for. Every other
-      // screen keeps the floating default (see CON-44).
+      // screen keeps the floating default.
       reserveSpaceForCard: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -297,9 +291,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     );
   }
 
-  // ============================================================================
-  // Profile Operations
-  // ============================================================================
+  // Profile operations
 
   Future<void> _showProfileEditor(
       BuildContext context, EquipmentProfileModel? profile) async {
@@ -342,10 +334,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   /// Point the app at [profile] for this session without touching which
   /// profile loads at startup.
   ///
-  /// `setActiveProfile` is the app's single, remote-aware activation
-  /// authority (it pushes the row into the native executor before committing
-  /// SQLite), and it was already reachable from Settings → Equipment Profiles
-  /// — just not from the screen where the profiles actually live.
+  /// `setActiveProfile` is the app's single, remote-aware activation authority:
+  /// it pushes the row into the native executor before committing SQLite.
   Future<void> _activateProfile(EquipmentProfileModel profile) async {
     final profileId = profile.id;
     if (profileId == null) return;
@@ -567,9 +557,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     }
   }
 
-  // ============================================================================
-  // Device Connection Operations
-  // ============================================================================
+  // Device connection operations
 
   Future<void> _connectAllDevices(EquipmentProfileModel profile) async {
     final deviceService = ref.read(deviceServiceProvider);
@@ -658,16 +646,11 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     // card and means "connect this profile's devices" — the sweep above, which
     // already includes the profile's safety monitor and switch.
     //
-    // This used to best-effort connect `unifiedSafetyMonitorsProvider.first`
-    // whenever no safety monitor was connected, whether or not the profile
-    // listed one. That provider is fed by the discovery cache, so two identical
-    // presses produced different rigs: the first press connected the profile's
-    // four devices, and a press after the Discovery panel had re-scanned
-    // connected those four PLUS an unassigned simulated safety monitor — the
-    // header read "5 connected · 1 unsaved" while the profile card and status
-    // bar both still read 4/4, and the extra device silently vanished on the
-    // next launch because it was never in the profile. A device that is not in
-    // the profile is assigned in Discovery, deliberately, once.
+    // Reaching past the profile — e.g. to the discovery cache's first safety
+    // monitor — makes two identical presses connect different rigs, and leaves
+    // a device the header counts that the profile does not, so it vanishes on
+    // the next launch. A device that is not in the profile is assigned in
+    // Discovery, deliberately, once.
 
     if (!mounted) return;
 
@@ -710,9 +693,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     }
   }
 
-  // ============================================================================
   // Settings
-  // ============================================================================
 
   void _showSettings(BuildContext context) {
     // On a phone this becomes a full-screen route (settings is content-heavy);

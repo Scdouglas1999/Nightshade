@@ -68,7 +68,6 @@ extension AppSettingsStateCopyWith on AppSettingsState {
     String? alpacaServerHost,
     int? alpacaServerPort,
     bool? alpacaAutoDiscover,
-    bool? useSimulationMode,
     // Remote Access / Web Server
     bool? webServerEnabled,
     int? webServerPort,
@@ -263,7 +262,6 @@ extension AppSettingsStateCopyWith on AppSettingsState {
       alpacaServerHost: alpacaServerHost ?? this.alpacaServerHost,
       alpacaServerPort: alpacaServerPort ?? this.alpacaServerPort,
       alpacaAutoDiscover: alpacaAutoDiscover ?? this.alpacaAutoDiscover,
-      useSimulationMode: useSimulationMode ?? this.useSimulationMode,
       // Remote Access / Web Server
       webServerEnabled: webServerEnabled ?? this.webServerEnabled,
       webServerPort: webServerPort ?? this.webServerPort,

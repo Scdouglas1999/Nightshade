@@ -1,8 +1,6 @@
 part of '../guiding_provider.dart';
 
-// =============================================================================
-// PHD2 STAR IMAGE PROVIDER - Polls star image for guide star view
-// =============================================================================
+// PHD2 star image provider - polls star image for guide star view
 
 /// Provider for star image polling configuration
 final starImageSizeProvider = StateProvider<int>((ref) => 50);
@@ -117,9 +115,7 @@ class StarImageNotifier extends StateNotifier<AsyncValue<Phd2StarImage>> {
   }
 }
 
-// =============================================================================
-// TARGET DISPLAY HISTORY PROVIDER - Tracks error history for target display
-// =============================================================================
+// Target display history provider - tracks error history for target display
 
 /// Maximum number of error points to keep
 const int maxTargetHistoryPoints = 50;

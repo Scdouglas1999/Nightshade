@@ -20,12 +20,10 @@ class NightshadeChip extends StatelessWidget {
   ///
   /// This is NOT the same state as `onTap == null`, which means "this chip is a
   /// status label and was never an option". A disabled chip is an option that
-  /// exists but is currently unavailable, and it has to READ that way: callers
-  /// used to express it by passing a null [onTap], which rendered a chip
-  /// pixel-identical to an unselected one, so an unavailable choice looked like
-  /// a choice the operator simply had not clicked yet — and a screen reader was
-  /// told nothing at all. Disabling dims the chip, announces it as a disabled
-  /// button, and shows the not-allowed cursor.
+  /// exists but is currently unavailable, and it has to READ that way: it is
+  /// dimmed, announced as a disabled button, and shows the not-allowed cursor.
+  /// Expressing it with a null [onTap] instead renders a chip pixel-identical
+  /// to an unselected one and tells a screen reader nothing.
   final bool enabled;
 
   const NightshadeChip({

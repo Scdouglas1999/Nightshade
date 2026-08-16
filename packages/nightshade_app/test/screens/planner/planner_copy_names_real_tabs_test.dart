@@ -1,15 +1,12 @@
-// CON-53 -> WE-EQ-N1: the relocated-defect shape.
+// Any user-visible copy under screens/planner that sends the reader to a NAMED
+// tab must name a tab PlannerTab actually renders.
 //
-// CON-53 filed "Plan Tonight tells you to use Plan Tonight". The Wave D repair
-// replaced that with "build one in the Target Queue tab" — and there is no
-// Target Queue tab; it was merged into Schedule
-// (planner_screen_parts/_schedule_tab.dart), leaving
-// `plannerTabTargetQueue` as an orphan string with no live UI referent.
-//
-// One false direction was swapped for another because nothing checked the
-// claim against the tab list. This test is that check: any user-visible copy
-// under screens/planner that sends the reader to a NAMED tab must name a tab
-// PlannerTab actually renders.
+// Both directions are easy to get wrong: "Plan Tonight tells you to use Plan
+// Tonight" is circular, and "build one in the Target Queue tab" names a tab that
+// does not exist — Target Queue lives inside Schedule
+// (planner_screen_parts/_schedule_tab.dart), leaving `plannerTabTargetQueue` as
+// an orphan string with no live UI referent. This test is the check against the
+// tab list.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -91,11 +88,11 @@ void main() {
     );
   });
 
-  // WF-EQ-N3: the second repair named a REAL surface but pointed the wrong way.
-  // "build one in the Scheduler queue below" is true only at a stacked width;
-  // at 1600x900 the Scheduler queue panel occupies the right-hand column,
-  // starting at the same y as the card (29-schedule.png, 37-queue.png). These
-  // layouts are responsive by design, so no string in them can own a direction.
+  // Naming a REAL surface is not enough if the copy also points a direction:
+  // "build one in the Scheduler queue below" is true only at a stacked width,
+  // while at 1600x900 the Scheduler queue panel occupies the right-hand column,
+  // starting at the same y as the card. These layouts are responsive by design,
+  // so no string in them can own a direction.
   test('no planner copy points the reader in a physical direction', () {
     final dir = Directory('lib/screens/planner');
     expect(dir.existsSync(), isTrue,

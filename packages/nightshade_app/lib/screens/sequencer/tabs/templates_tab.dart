@@ -13,13 +13,11 @@ import '../widgets/sequencer_tab_header.dart';
 import '../../../utils/count_label.dart';
 import '../sequence_counts.dart';
 
-// ---------------------------------------------------------------------------
 // File split: the rest of this library lives in `templates_tab_parts/`.
 // Built-in template data (large hand-built node-tree literals) is kept in
 // `_builtin_templates.dart` because it is data, not widgets; the remaining
 // part files group widgets by purpose. All parts share this file's library
 // scope via the `part` mechanism.
-// ---------------------------------------------------------------------------
 
 part 'templates_tab_parts/_builtin_templates.dart';
 part 'templates_tab_parts/_builtin_core_nodes.dart';
@@ -39,8 +37,7 @@ final sequenceTemplatesProvider =
   final repository = ref.watch(sequenceRepositoryProvider);
   final dbTemplates = await repository.loadAllTemplates();
   // Built-ins are part of the product catalog, not an empty-database
-  // placeholder. Previously they all disappeared as soon as the user saved
-  // their first custom template.
+  // placeholder, so they stay listed alongside the user's own.
   return [...dbTemplates, ..._getBuiltInTemplates()];
 });
 
@@ -118,9 +115,8 @@ class TemplatesTab extends ConsumerWidget {
           if (!isMobile && snippets.isNotEmpty) const SizedBox(height: 16),
 
           // Content — a single scroll view holding the bundled "Starters"
-          // (the old Samples tab, merged in here) followed by the user's
-          // saved / built-in templates. Both honour the search box; the
-          // category chips filter the templates section only.
+          // followed by the user's saved / built-in templates. Both honour the
+          // search box; the category chips filter the templates section only.
           Expanded(
             child: ListView(
               children: [

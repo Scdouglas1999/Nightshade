@@ -90,9 +90,9 @@ void main() {
 
   test('the file reader accepts the DB spelling of continue', () {
     // The DB format writes 'continue' where the file format writes
-    // 'continueExecution'. The file reader used to fall back to `retry` on
-    // anything it did not recognise, so a node that crossed from the DB side
-    // came back as "retry the failed step" instead of "carry on".
+    // 'continueExecution'. A reader that falls back to `retry` on anything it
+    // does not recognise turns a node that crossed from the DB side into
+    // "retry the failed step" instead of "carry on".
     final node = SequenceFileService().nodeFromMap(const {
       'id': 'recovery',
       'nodeType': 'recovery',

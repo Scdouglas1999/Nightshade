@@ -4,18 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Regression cover for the "the app never idles" class of defect.
+/// Cover for the "the app never idles" class of defect.
 ///
 /// A repeating `AnimationController` re-schedules a frame on every vsync for as
 /// long as it runs, whether or not anything it drives is on screen. One of them
 /// anywhere in the tree is enough to stop the whole application from ever going
 /// idle, which the operator experiences as every screen running at a degraded
-/// framerate. Nightshade shipped exactly that: a shell-mounted overlay pulsed an
-/// icon it only draws during an autofocus run, so the app produced ~45 frames a
-/// second from launch to quit with a 2%-busy GPU and nothing to draw.
+/// framerate: a shell-mounted overlay pulsing an icon it only draws during an
+/// autofocus run produces ~45 frames a second from launch to quit with a
+/// 2%-busy GPU and nothing to draw.
 ///
-/// These tests pin the invariant that made that possible: the shared animated
-/// components in this package must come to rest when they are not being drawn.
+/// These tests pin the invariant: the shared animated components in this
+/// package come to rest when they are not being drawn.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

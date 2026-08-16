@@ -1,13 +1,12 @@
-/// Regression test: the hydrated "last backup" timestamp must reach listeners.
+/// The hydrated "last backup" timestamp reaches listeners.
 ///
 /// `statusStream` seeds late subscribers with the current status, but a listener
 /// that attaches BEFORE the lifecycle provider finishes hydrating — which is
-/// what happens when the settings Backup screen is built during boot — was
-/// handed the pre-hydration status and never heard about the hydrated one,
-/// because `start()` mutated `_status` without emitting. The Backup & Restore
-/// screen therefore showed "Last Full Backup: Never" on a machine whose
-/// `autosave.last_backup_at` had been persisted hours earlier and which had
-/// backup files sitting on disk (observed on the Linux desktop build).
+/// what happens when the settings Backup screen is built during boot — gets the
+/// pre-hydration status and never hears about the hydrated one if `start()`
+/// mutates `_status` without emitting. The Backup & Restore screen then shows
+/// "Last Full Backup: Never" on a machine whose `autosave.last_backup_at` was
+/// persisted hours earlier and which has backup files sitting on disk.
 library;
 
 import 'package:flutter_test/flutter_test.dart';

@@ -2,9 +2,7 @@ part of '../bridge_stub.dart';
 
 extension _NativeBridgeStorageAndImageOperations
     on _NativeBridgeImplementation {
-  // =========================================================================
-  // Rotator Control (API methods)
-  // =========================================================================
+  // Rotator control (API methods)
 
   /// Move rotator to absolute angle
   Future<void> apiRotatorMoveTo({
@@ -68,9 +66,7 @@ extension _NativeBridgeStorageAndImageOperations
     await gen_api.apiRotatorSyncToPa(deviceId: deviceId, pa: pa);
   }
 
-  // =========================================================================
-  // Equipment Profiles (API methods)
-  // =========================================================================
+  // Equipment profiles (API methods)
 
   /// Get all profiles
   Future<List<EquipmentProfile>> apiGetProfiles() async {
@@ -112,9 +108,7 @@ extension _NativeBridgeStorageAndImageOperations
     return gen_api.apiGetActiveProfile();
   }
 
-  // =========================================================================
   // Settings (API methods)
-  // =========================================================================
 
   /// Initialize profile storage
   Future<void> apiInitProfileStorage({required String storagePath}) async {
@@ -148,9 +142,7 @@ extension _NativeBridgeStorageAndImageOperations
     gen_api.apiUpdateSettings(settings: settings);
   }
 
-  // =========================================================================
   // Location (API methods)
-  // =========================================================================
 
   /// Get observer location
   Future<ObserverLocation?> apiGetLocation() async {

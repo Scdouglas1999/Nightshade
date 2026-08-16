@@ -29,24 +29,14 @@ class HelpTutorialsSettings extends ConsumerWidget {
       isMobile: isMobile,
       hideHeader: isMobile,
       children: [
-        // Onboarding & First-Light IA (C13): this is the single replay hub
-        // for the guided first-run flows. Each flow auto-launches at most
-        // once on the single startup spine; every one of them is replayable
-        // here on demand. "Capture your first light" and "Re-run equipment
-        // setup" are new replay entry points (Flow A previously had none).
-        // CON-62: five rows that all do the same kind of thing — "run this
-        // flow" — wore three verbs (Start / Re-run / Open) and two button
-        // treatments (one filled primary among four outlines) in a single
-        // column, so the list read as if the rows differed in kind. They do
-        // not: every one of them starts something. One verb, one treatment.
+        // The single replay hub for the guided first-run flows: each
+        // auto-launches at most once on the startup spine and is replayable
+        // here on demand.
         //
-        // Wave F found both remainders: the ROW TITLES still mixed Title Case
-        // and sentence case in one list, and the treatment split had merely
-        // MOVED (Tutorial Tours drew filled-primary "Start" buttons directly
-        // beneath the outline ones). Every row title on this page is now
-        // sentence case — the register the rest of Settings uses, and the one
-        // that keeps "Capture your first light" identical to the wording the
-        // onboarding Next Steps card already uses for the same flow. Section
+        // Every row here does the same kind of thing — start a flow — so they
+        // all wear ONE verb and ONE button treatment; a filled primary among
+        // outlines reads as if the rows differed in kind. Row titles are
+        // sentence case, the register the rest of Settings uses; section
         // HEADERS stay Title Case, as they are app-wide. The titles are
         // mirrored into settings_search_index.g.dart, regenerated with
         // `dart run tools/production/settings_search_index_gen.dart`.
@@ -142,12 +132,12 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 icon: LucideIcons.play,
                 failureMessage:
                     'Could not restart the onboarding tour. Please try again.',
-                // Reset the DAO row + in-memory pointer. The first-launch
-                // tour overlay is replay-only now (no longer on the startup
-                // spine): resetting flips firstLaunchTourStatusProvider back
-                // to pending, and OnboardingTourReplayLauncher (mounted at the
-                // app-shell level) watches that provider and re-mounts the
-                // overlay immediately — no restart needed.
+                // Reset the DAO row + in-memory pointer. The first-launch tour
+                // overlay is replay-only, off the startup spine: resetting
+                // flips firstLaunchTourStatusProvider back to pending, and
+                // OnboardingTourReplayLauncher (mounted at the app-shell level)
+                // watches that provider and re-mounts the overlay immediately —
+                // no restart needed.
                 onPressed: () async {
                   await ref.read(onboardingTourProvider.notifier).reset();
                 },
@@ -579,13 +569,9 @@ class _TutorialRowState extends State<_TutorialRow> {
             // Action button
             NightshadeButton(
               label: _buttonText,
-              // CON-62(b): this row's button used to be a filled primary
-              // until the tour was completed, so five FILLED "Start" buttons
-              // rendered directly beneath the five OUTLINE "Start" buttons of
-              // Guided Flows — one page, one verb, two treatments. A page of
-              // equal-weight replay rows has no primary among them; the
-              // completion state is already published by the icon, the status
-              // line and the verb itself.
+              // A page of equal-weight replay rows has no primary among them:
+              // the completion state is already published by the icon, the
+              // status line and the verb itself.
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
               isLoading: _isRunning,

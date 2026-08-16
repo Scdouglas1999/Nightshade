@@ -325,7 +325,7 @@ class SequenceImporter {
     // Mapper-sourced issues (e.g. indeterminate exposure counts under an
     // unbounded loop) precede the structural-validator output: they describe
     // information lost during the source→canonical→Sequence translation that
-    // the assembled-Sequence validators can no longer see.
+    // the assembled-Sequence validators cannot see.
     final issues = <ValidationIssue>[
       ...mapped.validationIssues,
       ..._validate(mapped.sequence),

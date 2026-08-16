@@ -1,10 +1,8 @@
-// Collaborative Sky (6.0) WS2 — the unattended owner auto-assembly /
-// participant auto-download poller.
+// The unattended owner auto-assembly / participant auto-download poller.
 //
 // Drives [CollaborativeMosaicPoller.pollOnce] against a real in-memory DB (real
 // MosaicProjectsDao) and a FAKE [CollaborativeMosaicService] that returns a hub
-// status sequence pending -> assembling -> complete. Pins the two "make it
-// real" guarantees:
+// status sequence pending -> assembling -> complete. Pins two guarantees:
 //
 //   * an OWNER project auto-fires assembleMosaic EXACTLY ONCE when the hub flips
 //     to `assembling` (and never again under repeated polls / while a long
@@ -279,11 +277,9 @@ void main() {
     expect(service.assembleCalls, 0);
   });
 
-  // ---------------------------------------------------------------------------
   // Auto-upload — the integrate→upload bridge that lets a truly unattended rig
   // push its captured panels into the hub (so the hub can ever reach
   // `assembling`), gated on the persisted unattended-upload consent.
-  // ---------------------------------------------------------------------------
 
   /// Seed an owner project with one claimed + integrated + not-yet-uploaded
   /// panel (the exact state an unattended rig is stuck in after capturing).

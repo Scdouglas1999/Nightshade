@@ -6,16 +6,16 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
 
 class _MockLoggingService extends Mock implements LoggingService {}
 
-/// Regression cover for the Plan Tonight / "Image this target tonight" builder
-/// refusing every non-circumpolar target with "no usable imaging window".
+/// The Plan Tonight / "Image this target tonight" builder must not refuse every
+/// non-circumpolar target with "no usable imaging window".
 ///
 /// [TargetVisibilityInfo]'s rise/set describe ONE noon-to-noon day, chosen by
 /// whatever date the scorer passed in — the night scorer passes the night
 /// MIDPOINT, which for a night straddling midnight is the morning-after date.
-/// The crossings that come back therefore belong to the following diurnal
-/// cycle, and clipping tonight's dark window with them deleted the whole
-/// window. These tests pin the crossing-to-interval mapping, in both
-/// directions, and pin that real clipping still happens.
+/// The crossings that come back then belong to the following diurnal cycle, and
+/// clipping tonight's dark window with them deletes the whole window. These
+/// tests pin the crossing-to-interval mapping in both directions, and pin that
+/// real clipping still happens.
 void main() {
   const profile = EquipmentProfileModel(
     id: 1,

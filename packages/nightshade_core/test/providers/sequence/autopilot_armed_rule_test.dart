@@ -1,6 +1,5 @@
-// WD-SEQ-N6: starting a run by hand while Unattended Autopilot is engaged used
-// to say nothing at all — pre-flight listed Disk space / Dark Library /
-// Equipment Health and never mentioned that the scheduler was holding the rig.
+// Pre-flight must say that the scheduler is holding the rig when a run is
+// started by hand while Unattended Autopilot is engaged.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/scheduler/scheduler_status.dart';

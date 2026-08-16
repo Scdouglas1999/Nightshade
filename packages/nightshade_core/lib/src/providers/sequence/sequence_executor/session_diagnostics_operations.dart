@@ -5,7 +5,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
     _activeSequenceId = sequenceId;
     _sessionStartedAt = DateTime.now();
 
-    // --- Notification router active-sequence override -----------------
+    // Notification router active-sequence override.
     try {
       final router = _ref.read(notificationRouterProvider);
       router.setActiveSequence(sequenceId);
@@ -23,7 +23,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       );
     }
 
-    // --- Optical-train baseline capture -------------------------------
+    // Optical-train baseline capture.
     try {
       final baseline = _captureOpticalTrainBaseline();
       if (baseline == null) {
@@ -60,9 +60,9 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
   /// Finalize post-session diagnostics + clear the notification router
   /// override at session end.
   ///
-  /// Called exactly once per run via `_finalizeRun`. Safe to call when
-  /// session hooks never fired (e.g. start failed mid-way): the
-  /// `_activeSequenceId` guard short-circuits cleanly.
+  /// Called exactly once per run via `_finalizeRun`. Safe to call when no
+  /// session hook fired (e.g. start failed mid-way): the `_activeSequenceId`
+  /// guard short-circuits cleanly.
   void _captureSessionEndHooks() {
     final sequenceId = _activeSequenceId;
     final sessionStart = _sessionStartedAt;
@@ -77,7 +77,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       return;
     }
 
-    // --- Notification router clear --------------------------------------
+    // Notification router clear.
     try {
       final router = _ref.read(notificationRouterProvider);
       router.setActiveSequence(null);
@@ -93,21 +93,20 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       );
     }
 
-    // --- Optical-train post-session snapshot + drift ------------------
+    // Optical-train post-session snapshot + drift.
     OpticalTrainBaseline? postSnapshot;
     try {
       // Keep the FULL analysis, not just the snapshot it collapses into.
-      // Rebuilding an `OpticalTrainDiagnostics` from an
-      // `OpticalTrainBaseline` — as this used to — drops the
-      // `tiltMeasured` / `collimationMeasured` flags onto their fail-OPEN
-      // constructor defaults, which turns "we never measured it" into "we
-      // measured it and it was 0", i.e. the best possible reading.
+      // Rebuilding an `OpticalTrainDiagnostics` from an `OpticalTrainBaseline`
+      // drops the `tiltMeasured` / `collimationMeasured` flags onto their
+      // fail-OPEN constructor defaults, which turns "never measured" into
+      // "measured at 0", i.e. the best possible reading.
       //
       // Those defaults stay fail-open on purpose: the analyzer is the only
       // caller entitled to omit them, because it alone knows what it looked
-      // at. The fix is to stop reconstructing here at all — carry the real
-      // analysis forward — rather than to flip a default that would then
-      // silently downgrade the analyzer's own honest readings.
+      // at. So nothing is reconstructed here — the real analysis is carried
+      // forward — rather than flipping a default that would then silently
+      // downgrade the analyzer's own honest readings.
       final postDiagnostics = _analyzeOpticalTrain();
       postSnapshot = postDiagnostics == null
           ? null
@@ -176,7 +175,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       );
     }
 
-    // --- Post-session health summary ---------------------------------
+    // Post-session health summary.
     try {
       final dbSessionId = _ref.read(sessionStateProvider).dbSessionId;
       if (dbSessionId == null) {
@@ -208,7 +207,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       );
     }
 
-    // --- Per-session diagnostics persistence --------------------------
+    // Per-session diagnostics persistence.
     // Recovery history + optical-train baseline/current live only in
     // volatile in-memory providers, which the NEXT run overwrites. Persist
     // them keyed to this session so a historical run report can reload THAT
@@ -256,7 +255,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       );
     }
 
-    // --- Smart Night guide-RMS history --------------------------------
+    // Smart Night guide-RMS history.
     try {
       final dbSessionId = _ref.read(sessionStateProvider).dbSessionId;
       if (dbSessionId != null) {
@@ -359,26 +358,13 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
   /// Build the post-session diagnostics summary from the run stats +
   /// USB disconnect log.
   ///
-  /// The summary surfaces:
-  ///   * USB disconnects that occurred during this run (not the rolling
-  ///     24 h window — the user already saw earlier flakes the last time
-  ///     they opened the report).
-  ///   * Total focuser moves recorded across the run (sourced from
-  ///     `liveSequenceStatsProvider.autofocusRuns` — an autofocus run
-  ///     equals N moves of the focuser).
-  ///   * Cooler temperature samples outside the setpoint band.
-  ///   * Sky-brightness min / max / median from the adaptive-exposure
-  ///     tracker's calibrated mag/arcsec² samples.
+  /// USB disconnects are scoped to THIS run, not the rolling 24 h window: the
+  /// operator already saw earlier flakes the last time they opened the report.
   ///
-  /// It deliberately does NOT carry the run's warning messages.
-  /// `SequenceRunStats.warningMessages` is persisted with the run and the
-  /// Session Report prints every entry verbatim in its own "Warnings"
-  /// section; copying the same list into [PostSessionHealthSummary.noticedConcerns]
-  /// made `postSessionEquipmentHealthSummary` re-render each one as a
-  /// "Noticed but Did Not Fire" diagnostic further down the SAME dialog, so a
-  /// single "no focuser connected" warning was printed to the operator twice.
-  /// `noticedConcerns` is reserved for concerns the report does not already
-  /// state — anything added here must not exist in `warningMessages`.
+  /// [PostSessionHealthSummary.noticedConcerns] is reserved for concerns the
+  /// report does not already state — anything added there must not exist in
+  /// `SequenceRunStats.warningMessages`, which the Session Report already
+  /// prints verbatim in its own "Warnings" section.
   PostSessionHealthSummary _buildPostSessionHealthSummary({
     DateTime? sessionStartedAt,
   }) {

@@ -21,21 +21,9 @@ import 'database_provider.dart';
 import 'scheduler_provider.dart';
 import 'settings_provider.dart';
 
-/// Riverpod plumbing for the multi-night planner (component C6).
-///
-/// Wires the already-built planning services ([ProjectService] /
-/// [ForecastPlanningService]) and the [OpenMeteoCloudProvider] forecast feed
-/// into the provider graph the planner UI consumes:
-///
-///   * [activeProjectIdProvider] — the operator's currently-focused project,
-///     persisted across launches in `app_settings`.
-///   * [projectListProvider] — the live list of projects, re-listed on every
-///     [ProjectService] mutation.
-///   * [projectProgressProvider] — per-project accrued-vs-remaining roll-up
-///     that recomputes whenever captures, goals, or membership change.
-///   * [activeProjectProgressProvider] — the roll-up for the active project.
-///   * [weekForecastProvider] — the seven-night "This Week" forecast scored
-///     against the active project's still-incomplete targets.
+/// Riverpod plumbing for the multi-night planner: [ProjectService] /
+/// [ForecastPlanningService] and the [OpenMeteoCloudProvider] forecast feed,
+/// wired into the provider graph the planner UI consumes.
 ///
 /// Fail-closed throughout: a missing observing location throws (matching the
 /// planner screen's `_plannerOptimizationProvider`), and a forecast-feed
@@ -249,16 +237,9 @@ final projectListProvider = StreamProvider<List<Project>>((ref) {
 
 /// Per-project accrued-vs-remaining roll-up.
 ///
-/// Recomputes whenever any of the three inputs to [ProjectService.buildProgress]
-/// change:
-///   * `captured_images` ([allDbImagesProvider]) — accrued frames are derived
-///     live from history, so a new (or deleted/re-graded) frame must refresh
-///     the roll-up;
-///   * integration goals ([integrationGoalsStreamProvider]) — editing a goal
-///     changes the remaining count;
-///   * project membership ([projectListProvider], which fires on every
-///     [ProjectService] mutation including add/remove target) — attaching or
-///     detaching a target changes which targets roll up.
+/// Accrued frames are derived live from capture history, so the roll-up
+/// recomputes on every input to [ProjectService.buildProgress]: captures,
+/// integration goals, and project membership.
 ///
 /// `autoDispose` so a closed project detail view stops recomputing.
 final projectProgressProvider = FutureProvider.autoDispose
@@ -318,18 +299,14 @@ class ForecastSite {
 /// The hourly cloud feed for a site, keyed ONLY on (lat, lng).
 ///
 /// Deliberately decoupled from the capture/goal/active-project triggers: a
-/// seven-night cloud forecast does not change frame-to-frame, so it must not be
-/// refetched every time a sub lands or a goal is tweaked. During an active
-/// imaging run subs arrive every few minutes; coupling the fetch to them would
-/// hammer the free (rate-limited) Open-Meteo endpoint and, once throttled,
-/// degrade the forecast into a fail-closed "unavailable" state for the
-/// operator. [weekForecastProvider] does the capture/goal-driven candidate
-/// recompute and simply re-reads this cached [RadarFetchResult].
+/// seven-night forecast does not change frame-to-frame, and a fetch tied to
+/// arriving subs would exhaust the free Open-Meteo endpoint's rate limit and
+/// leave the strip "unavailable". [weekForecastProvider] does the
+/// capture/goal-driven candidate recompute and re-reads this cached
+/// [RadarFetchResult].
 ///
 /// `autoDispose` so the feed (and its HTTP client) is torn down when the
-/// planner view closes. Re-fetch on demand with
-/// `ref.invalidate(weekForecastCloudProvider(site))` (the strip's Retry path
-/// invalidates [weekForecastProvider], which transitively re-reads this).
+/// planner view closes.
 final weekForecastCloudProvider = FutureProvider.autoDispose
     .family<RadarFetchResult, ForecastSite>((ref, site) async {
       // The provider owns an http.Client, so dispose it once we have the result to
@@ -348,32 +325,16 @@ final weekForecastCloudProvider = FutureProvider.autoDispose
 /// The seven-night "This Week" forecast, scored against the active project's
 /// still-incomplete targets.
 ///
-/// Pipeline:
-///   1. Read the observing location from [appSettingsProvider]. An unset
-///      location (lat == 0 && lng == 0) throws [StateError] — the same
-///      fail-loud guard the planner screen's `_plannerOptimizationProvider`
-///      uses, since a forecast at (0,0) is meaningless.
-///   2. Read the hourly cloud feed from [weekForecastCloudProvider] (keyed only
-///      on the site). That provider owns the HTTP fetch; this combiner never
-///      triggers a network call directly, so the capture/goal recompute below
-///      reuses the cached frames instead of refetching. On a network/API
-///      failure the feed is an error [RadarFetchResult], which the forecast
-///      service maps to [WeekForecast.unavailable] (fail-closed — never a
-///      fabricated clear week).
-///   3. Assemble the [ProjectTargetCandidate] set, recomputing when captures /
-///      goals / membership / active-project change:
-///        * If a project is active, use its still-incomplete targets — the
-///          ones the operator actually still needs data on. A target whose
-///          goals are fully met is dropped (completion removes it from future
-///          nights), so the week reflects remaining work.
-///        * If no project is active, fall back to every catalog target with a
-///          configured-but-unmet integration goal, so the strip is still
-///          useful (a "what can I shoot this week" view) rather than empty.
-///          We build this fallback from the integration-goal stack rather than
-///          the scheduler candidate set because the candidate set does not
-///          carry per-filter accrued-vs-goal progress, which is exactly the
-///          "incomplete" signal we need here.
-///   4. Build the week with [ForecastPlanningService.buildWeek].
+/// An unset observing location (lat == 0 && lng == 0) throws [StateError],
+/// matching the planner screen's `_plannerOptimizationProvider`: a forecast at
+/// (0,0) is meaningless. A network/API failure arrives as an error
+/// [RadarFetchResult] and maps to [WeekForecast.unavailable], never a
+/// fabricated clear week.
+///
+/// With no active project the candidate set falls back to every catalog target
+/// with an unmet integration goal, built from the goal stack rather than the
+/// scheduler candidate set — the candidate set carries no per-filter
+/// accrued-vs-goal progress, which is the "incomplete" signal needed here.
 ///
 /// `autoDispose` so the forecast is torn down when the planner view closes.
 final weekForecastProvider = FutureProvider.autoDispose<WeekForecast>((

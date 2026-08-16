@@ -1,16 +1,10 @@
-// E-SKY-3: the guide graph's Time / Scale selectors publish the button role but
-// NOT the value they are set to.
+// The guide graph's Time / Scale selectors must publish the value they are set
+// to, not just the button role.
 //
-// The a11y fix that gave the two selectors a button role wrapped them in
-// `Semantics(button: true, label: label, value: value, excludeSemantics: true)`.
-// `excludeSemantics` drops the child `Text('5m')`, and `SemanticsProperties
-// .value` is not published on the Linux AT-SPI bridge for a plain button — a
-// direct probe of both nodes reported interfaces
-// ['Accessible','Action','Collection','Component'], no Value, no Text, and an
-// empty description. The live tree read `button: Time:` / `button: Scale:` and
-// a grep for `5m`, `15m` and `±2"` over the whole tree returned nothing: the
-// selected scale had become unreadable, where before the fix the merged node
-// was at least named `Time: 5m`.
+// `Semantics(button: true, label: label, value: value, excludeSemantics: true)`
+// drops the child `Text('5m')`, and `SemanticsProperties.value` is not
+// published on the Linux AT-SPI bridge for a plain button — the node then reads
+// `button: Time:` with the selected scale nowhere in the tree.
 //
 // The pin is on the NAME, because the name is the one field every bridge
 // publishes. The value stays set as well, for the platforms that do read it.

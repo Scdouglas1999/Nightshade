@@ -8,9 +8,8 @@ import 'dashboard_widget_registry.dart';
 /// Opens the dashboard widget picker as an adaptive modal: a centered,
 /// viewport-capped dialog on tablet/desktop and a bottom sheet on a phone.
 ///
-/// This replaces the old `showDialog(WidgetPickerDialog())` call so the picker
-/// never renders as a fixed desktop-sized dialog on a narrow phone (rule 9 of
-/// the mobile responsive standard).
+/// Adaptive rather than a plain `showDialog`, so the picker never renders as a
+/// fixed desktop-sized dialog on a narrow phone.
 Future<void> showWidgetPickerModal(BuildContext context) {
   return showAdaptiveModal<void>(
     context: context,

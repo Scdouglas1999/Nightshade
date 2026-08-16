@@ -1,8 +1,8 @@
-// SEQ-15: the toolbar's "Slew to Target" fired a real, unconfirmed slew —
-// during a run, and to targets below the horizon — with zero feedback. No
-// dialog, no toast, no "Slewing" state, and `grep -ic slew` over the whole
-// session log returned 0. The only way to discover the mount had moved was to
-// open another screen and read the Equipment panel.
+// The toolbar's "Slew to Target" must not fire a real, unconfirmed slew —
+// during a run, or to a target below the horizon — with zero feedback: no
+// dialog, no toast, no "Slewing" state, and nothing in the session log, so the
+// only way to discover the mount moved is to open another screen and read the
+// Equipment panel.
 //
 // These tests drive the real toolbar: the control must be locked while the
 // executor owns the mount, and must ask before moving it when idle.

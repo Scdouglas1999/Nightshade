@@ -2,12 +2,11 @@ part of '../sequence_executor.dart';
 
 extension _SequenceExecutorEventOperations on SequenceExecutor {
   void _handleSequencerEvent(NightshadeEvent event) {
-    // WF-N1 — this line used to be logged unconditionally, once per backend
-    // event. At ~5 events/s it consumed LoggingService's whole 1000-entry ring
-    // in about three minutes, so Settings ▸ Advanced ▸ Logs showed nothing but
-    // SequenceExecutor DBG rows and offered no other source at all. Rate-limited
-    // PER EVENT TYPE so a chatty type (InstructionProgress) collapses while a
-    // rare one (Stopped, Error) is still traced the moment it arrives, and the
+    // Unconditional, this line runs once per backend event: at ~5 events/s it
+    // fills LoggingService's whole 1000-entry ring in about three minutes and
+    // Settings ▸ Advanced ▸ Logs shows nothing else. Rate-limited PER EVENT
+    // TYPE so a chatty type (InstructionProgress) collapses while a rare one
+    // (Stopped, Error) is still traced the moment it arrives, and the
     // suppressed count rides along on the next admitted line.
     final trace = _eventTraceLimiter.admit(
       '${event.category.name}/${event.eventType}',
@@ -20,10 +19,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     // A dither that actually settled. This is the only event emitted when the
     // mount is dithered, and it covers both a Dither node and the far more
     // common per-burst `dither_every` pulse, which produces no sequencer event
-    // at all. `SequenceRunStats.recordDither()` had no call site anywhere, so
-    // the Session Report's "Dithers" figure was a hard zero for every run while
-    // the guider was pulsing between subs all night. Counting the Dither NODE's
-    // own completion as well would double-count every node-driven dither, which
+    // at all — so it is the ONE site that may call
+    // `SequenceRunStats.recordDither()`. Counting the Dither NODE's own
+    // completion as well would double-count every node-driven dither, which
     // all reach the guider through this same event.
     if (event.category == EventCategory.guiding &&
         event.eventType == 'DitherCompleted') {
@@ -36,10 +34,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
 
-    // SEQ-18 — the frames a node captured live in their own slot, which no
-    // other instruction reporting against the same node can overwrite. See
-    // [applySequencerEventToNodeExposureTally]; the display strings below are
-    // still written, but they are no longer what the card counts with.
+    // The frames a node captured live in their own slot, which no other
+    // instruction reporting against the same node can overwrite — see
+    // [applySequencerEventToNodeExposureTally]. The display strings below are
+    // still written, but the card counts with the tally, not with them.
     applySequencerEventToNodeExposureTally(
       _ref.read(nodeExposureTallyProvider.notifier),
       event,
@@ -129,7 +127,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         final total = event.data['total'] as int? ?? 0;
         final filter = event.data['filter'] as String?;
         // One vocabulary for the two wordings this node's progress line can
-        // take — see [exposure_progress_vocabulary.dart] and SEQ-18.
+        // take — see [exposure_progress_vocabulary.dart].
         final exposureDetail = formatExposureStartedDetail(
           frame,
           total,
@@ -177,17 +175,14 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         // short subs are no longer floored to integer-second deltas.
         if (durationSecs > 0) {
           final defaults = _ref.read(sequencerDefaultsProvider);
-          _recordFrameDurationSample(
-            durationSecs + defaults.frameDownloadOverheadSecs,
-          );
+          _eta.recordFrame(durationSecs + defaults.frameDownloadOverheadSecs);
         }
         progressNotifier.updateProgress(completedExposures: frame);
-        // Idempotent: this handler and the DeviceService-driven pump in
-        // `sequence_progress.dart` both see every ExposureCompleted, and both
-        // used to read-modify-write the integration total, so each frame's
-        // shutter time was added twice (verified on the live rig: 9.0 s of real
-        // exposure reported as 18.0 s). Keyed on the originating event so
-        // whichever subscriber gets there first wins and the other is a no-op.
+        // Idempotent, keyed on the ORIGINATING EVENT: this handler and the
+        // DeviceService-driven pump in `sequence_progress.dart` both see every
+        // ExposureCompleted, so whichever subscriber gets there first wins and
+        // the other is a no-op. An unkeyed read-modify-write counts each
+        // frame's shutter time twice.
         progressNotifier.recordCompletedFrameIntegration(
           eventKey: '${event.timestamp}:$frame',
           durationSecs: durationSecs,
@@ -422,10 +417,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       case 'Completed':
       case 'SequenceCompleted':
         // Natural completion. Exactly-once teardown that ALSO ends the durable
-        // session as completed (previously it finalised only the sequence_runs
-        // row and left the sessions row "active" after a normal night). A
-        // duplicate/aliased Completed is ignored by the guard in
-        // [_onTerminalEvent].
+        // session as completed. A duplicate/aliased Completed is ignored by
+        // the guard in [_onTerminalEvent].
         _onTerminalEvent(SequenceExecutionState.completed, 'completed');
         break;
 
@@ -657,8 +650,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
   /// Thumbnail — translate a typed FrameAccepted / FrameRejected
   /// event into a captured_images row tagged with the producing node id.
-  /// Fire-and-forget; failures are logged so the strip's "errors are a
-  /// feature" contract holds, but they never block the run.
+  /// Fire-and-forget; failures are logged so the strip can show them, but they
+  /// never block the run.
   void _registerSequenceFrame({
     required NightshadeEvent event,
     required bool isAccepted,
@@ -694,9 +687,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     // alongside the existing rejected-frame reject_path. The thumbnail
     // strip uses whichever field is populated to load the inline
     // preview. `save_path` may legitimately be null on legacy emit
-    // sites that did not thread the path through (defaulting to empty
-    // string preserves the old "no thumbnail yet" colour-bordered
-    // tile fallback rather than skipping the row entirely).
+    // sites that did not thread the path through; defaulting to empty
+    // string keeps the "no thumbnail yet" colour-bordered tile rather
+    // than skipping the row entirely.
     final filePath = isAccepted
         ? (event.data['save_path'] as String? ?? '')
         : (event.data['reject_path'] as String? ?? '');
@@ -838,10 +831,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           // not send the capture payload.
           frameType: capture.frameType?.toLowerCase() ?? attribution.frameType,
           // Capture settings as the camera actually reported them for this
-          // exposure — the same values stamped into the FITS header. They used
-          // to come from the node config instead, which is what the sequence
-          // ASKED for; a camera that clamped or ignored a requested gain left
-          // the row and the file disagreeing about the same frame.
+          // exposure — the same values stamped into the FITS header. The node
+          // config only says what the sequence ASKED for, so a camera that
+          // clamps or ignores a requested gain leaves the row and the file
+          // disagreeing about the same frame.
           gain: capture.gain ?? attribution.gain,
           offset: capture.offset ?? attribution.offset,
           binX: capture.binX ?? attribution.binX,
@@ -979,12 +972,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   /// wheel outside the sequence, or a frame that lands before the instruction
   /// event is processed.
   ///
-  /// Shared with [_registerSequenceFrame] on purpose. The two used to resolve
-  /// the filter differently for the SAME frame: registration used this chain
-  /// (and wrote `captured_images.filter = 'R'`) while the run-stats bucket
-  /// used only `SequencerEvent.ExposureCompleted.filter`, a field the native
-  /// event does not even carry, so `stats_json.targetBreakdown` filed the same
-  /// four frames under `"Unknown"`. One frame, two answers, both persisted.
+  /// ONE filter resolution, shared with [_registerSequenceFrame]: registration
+  /// and the run-stats bucket both persist the filter for the same frame, so a
+  /// second resolution chain gives one frame two recorded answers.
   String? _resolveActiveFilter() =>
       _ref.read(sequenceProgressProvider).currentFilter ??
       _ref.read(filterWheelStateProvider).currentFilterName;
@@ -1031,9 +1021,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   /// [capture] is the truth the camera reported for THIS exposure — the same
   /// values the FITS header and the `captured_images` row were written from —
   /// and the producing node's configuration is the fallback for a host that
-  /// sends no capture payload. Both used to be replaced by literals
-  /// (`gain: 0, offset: 0, binningX: 1, binningY: 1`) and a `?? 2.0` exposure
-  /// time, so the Imaging tab could label a 300 s sub "2 s, gain 0, bin 1".
+  /// sends no capture payload. The preview is stamped with the values the FITS
+  /// header and the DB row were written from — never with literals, which is
+  /// how the Imaging tab comes to label a 300 s sub "2 s, gain 0, bin 1".
   ExposureSettings _previewSettingsForFrame(
     FrameCapture? capture,
     double durationSecs,
@@ -1098,13 +1088,11 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
   /// Record the verdict of a meridian flip into the live run stats.
   ///
-  /// Why this exists: the flip is the most dangerous unattended operation the
-  /// app performs, and until this handler landed it was invisible to the run
-  /// record. A trigger-driven flip that physically slewed the mount across the
-  /// pier still finished the night with `meridianFlips: 0`, and a flip whose
-  /// post-flip plate-solve recenter FAILED finished with `errorMessages: []`
-  /// on a run reported as `completed` — i.e. potentially mis-framed or
-  /// empty-sky frames presented to the operator as a clean session.
+  /// The flip is the most dangerous unattended operation the app performs, so
+  /// the run record has to carry its verdict: unrecorded, a trigger-driven flip
+  /// that slewed the mount across the pier finishes the night with
+  /// `meridianFlips: 0`, and a flip whose post-flip recenter FAILED finishes
+  /// with `errorMessages: []` on a run reported as `completed`.
   ///
   /// The three outcomes map to three different truths:
   ///  * clean success (one attempt, no failed steps) -> count it, nothing more;
@@ -1167,10 +1155,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         _logger.error(message, source: 'SequenceExecutor');
         _recordRunError(message);
         progressNotifier.updateProgress(message: message);
-        // Same escalation the generic Error handler performs: a run still
-        // claiming a healthy `running` state after its flip failed is the
-        // cry-wolf inverse — the dashboard must show needs-attention until the
-        // authoritative terminal event lands.
+        // Same escalation the generic Error handler performs: a failed flip
+        // may have left the rig mis-framed or slewing, so the run must not go
+        // on claiming a healthy `running` state — the dashboard shows
+        // needs-attention until the authoritative terminal event lands.
         if (_ref.read(sequenceExecutionStateProvider) ==
             SequenceExecutionState.running) {
           progressNotifier.updateState(SequenceExecutionState.recovering);
@@ -1303,20 +1291,16 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     await Future.wait(batch.map((w) => w.catchError((Object _) {})));
   }
 
-  // =========================================================================
-  // 2026-06-04 follow-up — live-stacking auto-feed
+  // Live-stacking auto-feed.
   //
   // The Rust `LiveStacking` instruction node is arm-only: it registers a
   // broadcast session on the Rust side and returns immediately, delegating
   // frame ingestion to Dart (see the single-frame OSC note in
-  // `native/.../node/instructions/live_stacking.rs`). Before this wiring
-  // existed, nothing on the Dart side ever fed accepted frames into the
-  // stacker/broadcast, so the feature was inert during real runs and the
-  // LAN broadcast served `{"active": false}` forever. This closes that gap:
-  // each accepted sequence frame is registered with the in-process stacker
-  // (first frame == reference, automatically) and the rendered stack is
-  // published to `LiveStackingBroadcastService` for the HTTP endpoints.
-  // =========================================================================
+  // `native/.../node/instructions/live_stacking.rs`). Dart is therefore the
+  // only thing that can feed the stacker: each accepted sequence frame is
+  // registered with the in-process stacker (first frame == reference,
+  // automatically) and the rendered stack is published to
+  // `LiveStackingBroadcastService` for the HTTP endpoints.
 
   /// Locate the enabled [LiveStackingNode] in the running sequence, if any.
   /// Returns the first enabled live-stacking node found; `null` means the

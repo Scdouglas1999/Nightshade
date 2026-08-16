@@ -182,7 +182,7 @@ void main() {
       expect(oiii, equals(ha));
       expect(sii, equals(ha));
 
-      // The whole point of the fix: broadband channels are NOT all identical.
+      // Broadband channels are NOT all identical.
       expect(
         {l, r, g, b}.length,
         greaterThan(1),

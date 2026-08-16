@@ -1,14 +1,12 @@
-// SEQ-20 residual — the target card's LIVE readout rendered whole minutes.
+// The target card's LIVE readout must not render whole minutes.
 //
-// The planned figure was fixed in an earlier wave ("4 planned exposures - 12s",
-// previously "0m"), but Wave D found the running readout untouched: at seven
-// seconds into a 4x3s target the card read "0/4 done - 0m / 1m", and at forty
-// seconds "2/4 done - 1m / 1m", while the panel directly above it in the same
-// card read "~34s". Two halves of one card, two different units, one of them
-// reporting real captured photons as zero.
+// At seven seconds into a 4x3s target a minute-granular readout says "0/4 done -
+// 0m / 1m", and at forty seconds "2/4 done - 1m / 1m", while the panel directly
+// above it in the same card says "~34s": two halves of one card, two different
+// units, one of them reporting real captured photons as zero.
 //
 // This pins the running readout to the same shared compact duration format the
-// planned line beside it already uses.
+// planned line beside it uses.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

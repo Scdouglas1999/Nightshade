@@ -134,8 +134,8 @@ class FirstNightWizardNotifier extends StateNotifier<FirstNightWizardState> {
   /// Jump directly to a step (used by Settings → Help "Resume" deep-link).
   Future<void> goToStep(int index) async {
     if (index < 0 || index > _maxStepIndex) {
-      // Errors are a feature: out-of-range index is a programmer bug, not
-      // user input.
+      // An out-of-range index is a caller bug, not user input: clamping it
+      // would park the wizard on an arbitrary step.
       throw ArgumentError(
         'FirstNightWizardNotifier.goToStep: index $index outside '
         '[0..$_maxStepIndex]',
@@ -195,15 +195,13 @@ final firstNightWizardProvider =
 /// Set when the modal opens and cleared when the user finishes it, skips it
 /// forever, or closes it — but deliberately NOT when they follow a "Show me on
 /// the X screen" deep link, because that parks the walkthrough on a screen
-/// rather than ending it. Following that link used to land the user on the
-/// Sequencer and immediately raise a *second* offer — "Sequencer Tour: learn
-/// how to create and run automated imaging sequences" — describing the ground
-/// the walkthrough step they were on had just covered. One guided flow at a
-/// time; the per-screen nudges wait their turn.
+/// rather than ending it. One guided flow at a time: while this is set, the
+/// destination screen's own tour offer stays quiet instead of pitching the
+/// ground the walkthrough step just covered.
 ///
 /// Session-scoped on purpose. Deriving it from the persisted step row would
-/// mean a user who clicked Next once and never came back had all per-screen
-/// tour offers suppressed forever.
+/// suppress every per-screen tour offer forever for a user who clicked Next
+/// once and never came back.
 final guidedFlowActiveProvider = StateProvider<bool>((ref) => false);
 
 /// Stable category name for the first-launch onboarding tour persisted in
@@ -382,8 +380,8 @@ class OnboardingTourNotifier extends StateNotifier<int> {
     state = state - 1;
   }
 
-  /// Jump to a specific step index. Throws if out of range — errors are a
-  /// feature; an out-of-range index here is a caller bug.
+  /// Jump to a specific step index. Throws if out of range: an out-of-range
+  /// index here is a caller bug.
   void goToStep(int index) {
     if (index < 0 || index >= totalSteps) {
       throw ArgumentError(

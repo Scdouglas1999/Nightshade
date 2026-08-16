@@ -154,12 +154,12 @@ enum SchedulerRunEnding {
 
   /// The run died on its own: a failed Center, a mount fault, a node error.
   /// Nobody decided anything, so the autopilot re-dispatches — one failed run
-  /// must not end the unattended night (WE-SEQ-N1).
+  /// must not end the unattended night.
   failed,
 
   /// Somebody outside the autopilot ended it: the operator's Stop, or a
   /// takeover that loaded a different plan. The autopilot pauses and asks
-  /// before touching the rig again (WF-N3).
+  /// before touching the rig again.
   stoppedByOperator,
 
   /// The executor has not settled yet (a stop or finalization still in flight),

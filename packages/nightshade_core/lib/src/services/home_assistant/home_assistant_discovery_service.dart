@@ -101,9 +101,7 @@ class HomeAssistantDiscoveryService {
     await _stop();
   }
 
-  // ---------------------------------------------------------------------
   // Session lifecycle
-  // ---------------------------------------------------------------------
 
   Future<void> _restart() async {
     await _stop();
@@ -230,9 +228,7 @@ class HomeAssistantDiscoveryService {
     );
   }
 
-  // ---------------------------------------------------------------------
   // Discovery + state publishing
-  // ---------------------------------------------------------------------
 
   bool get _domeConnected =>
       _ref.read(domeStateProvider).connectionState ==
@@ -386,9 +382,7 @@ class HomeAssistantDiscoveryService {
     return states;
   }
 
-  // ---------------------------------------------------------------------
   // Commands from Home Assistant
-  // ---------------------------------------------------------------------
 
   void _handleCommand(String topic, String payload) {
     final payloads = _payloads;

@@ -148,13 +148,12 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // WF-N5: reports an unattended night queued rather than opening as a
-          // modal. Renders nothing when the queue is empty.
+          // Reports from an unattended night queue here rather than opening as
+          // a modal. Renders nothing when the queue is empty.
           const PendingSessionReportsCard(),
-          // Header. CON-52: this tab used an 18px title with the subtitle in a
-          // separate row below, while Templates and Sequence Library used 24px
-          // with the subtitle inside the title block — and only this one
-          // punctuated it. All four now share `SequencerTabTitle`.
+          // Header. All four Sequencer tabs share `SequencerTabTitle`, so the
+          // type scale, the subtitle placement and the punctuation cannot
+          // drift between them.
           Row(
             children: [
               Icon(LucideIcons.history, size: 20, color: colors.primary),
@@ -318,8 +317,8 @@ class _HistoryFilterBarState extends ConsumerState<_HistoryFilterBar> {
       }
     });
 
-    // CON-51: on a screen whose own empty state says "No runs yet", seven live
-    // filter chips invite the operator to narrow a set with nothing in it. The
+    // On a screen whose own empty state says "No runs yet", seven live filter
+    // chips would invite the operator to narrow a set with nothing in it. The
     // UNFILTERED run list is the honest test — not `filteredRunsProvider`,
     // which is empty whenever the current filter matches nothing and would
     // disable the very chips needed to widen it again.
@@ -775,10 +774,10 @@ class _RunCard extends ConsumerWidget {
               const SizedBox(width: 4),
 
               // Status badge. Declared as a live status rather than left as a
-              // bare coloured label: the AT-SPI tree published these as
-              // `Stopped (resumable) [DISABLED]` / `Completed [DISABLED]`,
-              // announcing every run outcome as if the row were dimmed out
-              // (Wave D, WD-SEQ-N3).
+              // bare coloured label: without the declaration the AT-SPI tree
+              // publishes these as `Stopped (resumable) [DISABLED]` /
+              // `Completed [DISABLED]`, announcing every run outcome as if the
+              // row were dimmed out.
               Semantics(
                 container: true,
                 enabled: true,

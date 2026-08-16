@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:nightshade_hub/nightshade_hub.dart';
 import 'package:test/test.dart';
 
-/// WS4 residual guards that need no HTTP harness:
-///  * the cross-package wire lock-step (the #1 named WS4 risk — the hub and
-///    `nightshade_core` cannot import each other and agree only by identical
-///    wire strings, so a rename on one side breaks delegation/consent at runtime
-///    with NO compile error). This reads the client enum source and pins it
-///    against the typed hub enums.
+/// Trust / consent / identity guards that need no HTTP harness:
+///  * the cross-package wire lock-step: the hub and `nightshade_core` cannot
+///    import each other and agree only by identical wire strings, so a rename
+///    on one side breaks delegation/consent at runtime with NO compile error.
+///    This reads the client enum source and pins it against the typed hub
+///    enums.
 ///  * consent-record revocation stamps `revoked_at` (the retraction leg).
 ///  * attribution recompute drops a credit that falls to zero (the retraction
 ///    leg on the attribution ledger).

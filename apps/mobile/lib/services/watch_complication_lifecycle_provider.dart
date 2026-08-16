@@ -51,20 +51,12 @@ class WatchComplicationLifecycleController {
   WatchComplicationSnapshot? _lastPublishedSnapshot;
   bool _disposed = false;
 
-  /// Throttle floor — one publish every 30 seconds. The brief calls this
-  /// out explicitly: the test verifies that many sequence-progress events
-  /// produce at most one reload per 30 s. We picked 30 s rather than the
-  /// Live Activity's 2 s because:
-  ///
-  ///   * The watch complication has a 60 s fallback refresh from the
-  ///     TimelineProvider anyway, so the worst-case stale window is
-  ///     bounded even without a host push.
-  ///   * `WidgetCenter.reloadAllTimelines()` is a system call that
-  ///     reschedules every widget the app provides; spamming it is
-  ///     wasteful.
-  ///   * Operator-facing accuracy at 30 s is plenty for "frame 12/120,
-  ///     weather clear" — long exposures take many minutes, dither
-  ///     pauses are tens of seconds.
+  /// Throttle floor — one publish every 30 seconds, not the Live Activity's
+  /// 2 s. The complication falls back to its own TimelineProvider refresh every
+  /// 60 s, so a tighter push buys no freshness, and every push costs a
+  /// `WidgetCenter.reloadAllTimelines()` that reschedules every widget the app
+  /// provides. At 30 s "frame 12/120, weather clear" is still accurate to the
+  /// operator: exposures run for minutes, dither pauses for tens of seconds.
   static const Duration _minPublishInterval = Duration(seconds: 30);
 
   /// Install Riverpod listeners. Idempotent — calling twice is a

@@ -313,14 +313,18 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
   required ObservationTimeState time,
 }) {
   if (!orientation.isActive) return null;
+  // Pointing the phone at the sky answers "what am I looking at" only for an
+  // observer at a known place, so with no site there is no RA/Dec to return.
+  final site = location.site;
+  if (site == null) return null;
 
   final lst =
-      AstronomyCalculations.localSiderealTime(time.time, location.longitude);
+      AstronomyCalculations.localSiderealTime(time.time, site.longitude);
 
   final (raDeg, dec) = AstronomyCalculations.horizontalToEquatorial(
     altDeg: orientation.altitude,
     azDeg: orientation.azimuth,
-    latitudeDeg: location.latitude,
+    latitudeDeg: site.latitude,
     lstHours: lst,
   );
 

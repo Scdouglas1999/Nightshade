@@ -33,8 +33,8 @@ class PairedDevices extends Table {
   /// are stored as `view`, `control`, or `admin`; fine-grained grants use the
   /// host API's canonical `resource:level,...` form.
   ///
-  /// The default deliberately matches the historical pairing grant so rows
-  /// migrated from v3 remain usable without accidentally gaining admin access.
+  /// The default matches the grant v3 rows were paired under, so migrated rows
+  /// stay usable without gaining admin access.
   TextColumn get authGrantSpec =>
       text().withDefault(const Constant('control'))();
 

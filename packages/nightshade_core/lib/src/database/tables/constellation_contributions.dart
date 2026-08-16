@@ -1,23 +1,11 @@
 import 'package:drift/drift.dart';
 
-/// Pillar C ("Constellation") persistence — per-(hub, tile) federation receipts.
-///
-/// The swarm shares one storage substrate and one solve hook with Pillars A/B,
-/// which is exactly why an unguarded "contribute"/"pull" loop silently corrupts
-/// the shared community co-add. This table is the durable receipt that makes the
-/// federation idempotent and honest:
-///
-///   * CONTRIBUTION side — a per-tile high-water mark so re-contributing the
-///     same field ships only the new night (true delta) instead of the whole
-///     accumulator from epoch. The persisted [contributionId] is the remote
-///     receipt id that also unblocks the privacy "Retract" action.
-///   * PULL side — a per-tile high-water of the community depth last pulled, so
-///     re-pulling a tile with no new community frames is a cheap no-op instead
-///     of re-folding the entire community stack into the local overlay every
-///     press.
-///   * JOIN side — the joined-target rehydration row so a remote companion (or a
-///     relaunched host) can re-render the user's federation state without a live
-///     hub round-trip.
+/// Per-(hub, tile) federation receipts, the record that keeps contributing and
+/// pulling idempotent: a per-tile contribution high-water so re-contributing a
+/// field ships only the new night, a per-tile pulled-depth high-water so
+/// re-pulling an unchanged tile is a no-op, and the joined-target row a
+/// relaunched host rehydrates from. The persisted [contributionId] is the
+/// remote receipt id the privacy "Retract" action needs.
 ///
 /// Identity is `(hubKey, tileId, healpixOrder)` — one receipt per tile per hub.
 /// [hubKey] is the federation endpoint identity (a normalized hub base URL); the
@@ -48,7 +36,7 @@ class ConstellationContributions extends Table {
   /// future order change is detectable rather than silently mis-addressing).
   IntColumn get healpixOrder => integer()();
 
-  // --- Contribution high-water (true-delta export anchor) ------------------
+  // Contribution high-water (true-delta export anchor)
 
   /// Anchor timestamp for the next `exportDelta(since:)` — the fold time of the
   /// newest own-light fold already shipped to this hub. Null = nothing shipped
@@ -65,7 +53,7 @@ class ConstellationContributions extends Table {
   /// Remote receipt id returned by the hub for this tile's contribution.
   /// Unblocks the privacy "Retract" action (subtract exactly what was shipped).
   ///
-  /// CONSENT/LICENSE (WS4): the AUTHORITATIVE consent + license record for a
+  /// CONSENT/LICENSE: the AUTHORITATIVE consent + license record for a
   /// contribution lives on the hub (`consent_records`, joined to the hub's
   /// contribution row by `consent_id`), recorded BEFORE any bytes are stored and
   /// stamped `revoked_at` on retraction. The client transmits the user's license
@@ -85,7 +73,7 @@ class ConstellationContributions extends Table {
   RealColumn get contributedIntegrationSeconds =>
       real().withDefault(const Constant(0))();
 
-  // --- Pull high-water (re-pull idempotency) -------------------------------
+  // Pull high-water (re-pull idempotency)
 
   /// Community depth last pulled for this tile, as advertised by the hub. A
   /// re-pull whose advertised frames equal this is a no-op (the overlay already
@@ -94,9 +82,9 @@ class ConstellationContributions extends Table {
   RealColumn get lastPulledIntegrationSeconds => real().nullable()();
   DateTimeColumn get lastPulledAt => dateTime().nullable()();
 
-  // --- Co-imaging session link ---------------------------------------------
+  // Co-imaging session link
 
-  /// The live co-imaging session (WS3) this tile's contributions belong to, if
+  /// The live co-imaging session this tile's contributions belong to, if
   /// any — the hub's `coimaging_sessions.id`, mirrored locally so a swarm
   /// contribution receipt can be attributed to a coordinated session rather
   /// than a one-off async contribution. Null for a plain (non-session) tile
@@ -104,7 +92,7 @@ class ConstellationContributions extends Table {
   /// [CoImagingSessions], keyed by the same `(hubKey, sessionId)`.
   TextColumn get sessionId => text().nullable()();
 
-  // --- Join rehydration ----------------------------------------------------
+  // Join rehydration
 
   /// Whether the user has joined the target this tile belongs to on this hub.
   BoolColumn get joined => boolean().withDefault(const Constant(false))();

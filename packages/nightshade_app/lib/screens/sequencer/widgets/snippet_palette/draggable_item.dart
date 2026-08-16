@@ -286,10 +286,9 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                 _buildOverflowMenu(iconSize: 14),
                 const SizedBox(width: 4),
               ],
-              // The '+' used to be a bare Icon painted only on hover, so the
-              // panel's own "tap to insert" promise had no handler behind it
-              // and only a drag (or the hidden double-click) inserted
-              // anything. It is now an always-visible button.
+              // The '+' is a real, always-visible button, so the panel's own
+              // "tap to insert" promise has a handler behind it — a bare
+              // hover-only Icon leaves drag as the only working path.
               Semantics(
                 // Semantics publishes isEnabled only when this field is given;
                 // omitting it makes assistive tech announce a live control as

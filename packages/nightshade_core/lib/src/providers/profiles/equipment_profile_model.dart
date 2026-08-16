@@ -1,9 +1,5 @@
 part of '../profiles_provider.dart';
 
-// ============================================================================
-// Equipment Profile Model (UI-friendly)
-// ============================================================================
-
 /// A fully-typed model representing an equipment profile
 class EquipmentProfileModel {
   final int? id;

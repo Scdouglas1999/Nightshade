@@ -1,11 +1,10 @@
 // An unavailable control has to say why.
 //
-// Live finding IMG-10: with the built-in guider running, Pause changed nothing
-// anywhere — not the button, not the state chip, not the status bar, not the
-// log. Pause is a PHD2 command and the screen correctly passes no handler for
-// the built-in guider, but "no handler" reached the operator as a button that
-// looked ordinary and did nothing, over the one control whose entire job is to
-// tell them corrections are suspended.
+// Pause is a PHD2 command, and the screen correctly passes no handler for the
+// built-in guider. Left unexplained, "no handler" reaches the operator as a
+// button that looks ordinary and changes nothing anywhere — not the button, not
+// the state chip, not the status bar, not the log — over the one control whose
+// entire job is to tell them corrections are suspended.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/phd2/guide_controls_panel.dart';

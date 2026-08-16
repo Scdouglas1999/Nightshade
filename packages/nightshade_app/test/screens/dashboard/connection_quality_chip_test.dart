@@ -32,16 +32,15 @@ void main() {
     expect(find.text('Local'), findsNothing);
   });
 
-  // A failed "Connect to Server" leaves a DisconnectedBackend installed. That
-  // is not a NetworkBackend, and the quality provider used to collapse
-  // "not a NetworkBackend" into ConnectionQuality.local — so the dashboard's
-  // command bar showed a quiet grey "Local" chip while the shell's red banner
-  // two rows above said the app was not connected to a server. One of the two
-  // was lying, and the chip is the one the operator reads to answer "is this
-  // machine driving my mount".
+  // A failed "Connect to Server" leaves a DisconnectedBackend installed, which
+  // is not a NetworkBackend. Collapsing "not a NetworkBackend" into
+  // ConnectionQuality.local puts a quiet grey "Local" chip on the command bar
+  // while the shell's red banner two rows above says the app is not connected —
+  // and the chip is the one the operator reads to answer "is this machine
+  // driving my mount".
   //
-  // Drives the REAL provider off the real backendProvider, so the fix cannot
-  // be reduced to a label lookup.
+  // Drives the REAL provider off the real backendProvider, so a label lookup
+  // alone cannot satisfy this.
   testWidgets('a machine with no backend is not labelled Local',
       (tester) async {
     await tester.pumpWidget(

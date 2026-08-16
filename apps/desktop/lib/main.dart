@@ -118,12 +118,11 @@ void main(List<String> args) async {
 
   // Single-instance invariant, checked before any window or database work.
   // The GUI and the headless service resolve the SAME default database path,
-  // so "launch it twice" or "run both on this machine" used to point two
-  // SQLite writers at one file — and the second opener's SQLITE_BUSY was
-  // misread as corruption, which quarantined the user's real database and
-  // replaced it with an empty one. Refuse here, in the same shape as the
-  // --serve/--remote-host conflict above, so the operator gets a sentence
-  // instead of a data-loss incident.
+  // so launching twice would point two SQLite writers at one file — and the
+  // second opener's SQLITE_BUSY reads as corruption, which quarantines the
+  // operator's real database and replaces it with an empty one. Refuse here,
+  // in the same shape as the --serve/--remote-host conflict above, so the
+  // operator gets a sentence instead of a data-loss incident.
   //
   // Advisory: the authoritative claim is taken when the database is actually
   // opened, so a launch that races past this still fails safely.
@@ -213,16 +212,16 @@ void main(List<String> args) async {
   final logger = container.read(loggingServiceProvider);
   await logger.ensureInitialized();
 
-  // EQP-23 — the GUI could end with six devices connected and leave nothing
-  // behind: no shutdown record, no safing, a log whose last line was an
-  // unrelated warning. Two halves fix that. (1) Every session stamps a record
-  // and a normal quit marks it clean, so a session that just vanishes is
-  // visible at the NEXT launch instead of being indistinguishable from a
-  // normal one. (2) The death paths this process can actually see — a stop
-  // signal from a logout, `systemctl stop`, or Ctrl+C on a terminal launch —
-  // now record and safe the rig on the way out, exactly as the headless daemon
-  // has always done. Framework errors are recorded, never acted on: an
-  // overflow is not a reason to park a mount mid-sequence.
+  // A GUI that dies with devices connected must not leave nothing behind: no
+  // shutdown record, no safing, a log whose last line is an unrelated warning.
+  // Two halves prevent that. (1) Every session stamps a record and a normal
+  // quit marks it clean, so a session that just vanishes is visible at the
+  // NEXT launch instead of being indistinguishable from a normal one. (2) The
+  // death paths this process can actually see — a stop signal from a logout,
+  // `systemctl stop`, or Ctrl+C on a terminal launch — record and safe the rig
+  // on the way out, as the headless daemon does. Framework errors are
+  // recorded, never acted on: an overflow is not a reason to park a mount
+  // mid-sequence.
   final lastGasp = DesktopLastGasp(
     recordFile: resolveDesktopSessionRecordFile(bootPaths.dataDirectory),
     safeRig: () async {
@@ -276,9 +275,8 @@ void main(List<String> args) async {
   // a silent death.
   ShellExit.register(lastGasp.recordCleanExit);
 
-  // Plugin nodes execute on the machine that owns the imaging hardware.
-  // Register bundled plugins before the UI can start a sequence; historically
-  // registration happened only after opening Settings > Integrations.
+  // Plugin nodes execute on the machine that owns the imaging hardware, so
+  // bundled plugins must be registered before the UI can start a sequence.
   if (remoteTarget == null) {
     try {
       await initializeBundledPluginRuntime(container);

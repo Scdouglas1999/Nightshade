@@ -1,16 +1,15 @@
-// Regression tests for the guiding readouts that used to state things that
-// were not true.
+// The guiding readouts state only what has been measured.
 //
-// 1. GuideGraphAdvanced hard-coded an arcsecond suffix on values the guiding
-//    screen supplies in guide-camera pixels, so the same three numbers
-//    appeared twice on one card with contradictory units ("RA: 0.53 px" in the
-//    card header, "RA: 0.53\"" in the row directly beneath it).
-// 2. The same readouts defaulted to 0, so a guider that had never produced a
-//    guide step advertised "Tot: 0.00" — a perfect-guiding claim with no
+// 1. A hard-coded arcsecond suffix on values the guiding screen supplies in
+//    guide-camera pixels puts the same three numbers on one card twice with
+//    contradictory units ("RA: 0.53 px" in the card header, "RA: 0.53\"" in
+//    the row directly beneath it), so GuideGraphAdvanced carries the unit it
+//    is given.
+// 2. A readout that defaults to 0 lets a guider that has never produced a
+//    guide step advertise "Tot: 0.00" — a perfect-guiding claim with no
 //    measurement behind it.
-// 3. GuideStarView drew an error-red frame whenever SNR was 0, which is the
-//    value an idle guider reports, so a rig that was simply not guiding looked
-//    like it had lost the star.
+// 3. An error-red frame at SNR 0 marks an idle guider, which reports exactly
+//    that value, as a rig that has lost the star.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -53,7 +52,7 @@ void main() {
       expect(find.text('0.53 px'), findsOneWidget);
       expect(find.text('0.57 px'), findsOneWidget);
       expect(find.text('0.78 px'), findsOneWidget);
-      // The old build appended '"' unconditionally.
+      // The unit suffix must follow the unit actually being displayed.
       expect(find.text('0.53"'), findsNothing);
     });
 

@@ -1,9 +1,5 @@
 part of '../design_reference_board.dart';
 
-// ===========================================================================
-// Small shared building blocks
-// ===========================================================================
-
 void _noop() {}
 void _noopBool(bool _) {}
 void _noopNullableBool(bool? _) {}

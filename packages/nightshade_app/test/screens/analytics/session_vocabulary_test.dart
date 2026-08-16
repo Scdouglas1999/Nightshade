@@ -1,15 +1,14 @@
-// SCI-34 and SCI-46, both about what Analytics means by "session".
+// What Analytics means by "session", on two tabs.
 //
-// SCI-34: the Session tab's empty state printed the HISTORY tab's copy verbatim
-// ("No session history" / "Complete an imaging session to see history here"), so
-// the tab whose subject is the session in progress told the user to go do the
-// thing they had just done, and read as a duplicate of the tab beside it.
+// The Session tab's subject is the session in progress, so printing the HISTORY
+// tab's copy verbatim ("No session history" / "Complete an imaging session to
+// see history here") tells the user to go do the thing they have just done, and
+// reads as a duplicate of the tab beside it.
 //
-// SCI-46: after 32 frames of manual loop capture, Analytics ▸ Session showed
-// "Quick Capture · 32 exposures · 1m 4s" while History listed only the failed
-// sequence run with 0 frames. Loop captures carry no imaging_sessions row, so
-// the only frames the profile owned were invisible to History entirely and it
-// under-reported the night.
+// Loop captures carry no imaging_sessions row, so after 32 frames of manual loop
+// capture, Analytics ▸ Session shows "Quick Capture · 32 exposures · 1m 4s"
+// while History lists only the failed sequence run with 0 frames — the only
+// frames the profile owns, invisible to History entirely.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

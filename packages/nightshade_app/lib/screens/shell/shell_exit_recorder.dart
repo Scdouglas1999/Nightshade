@@ -1,16 +1,12 @@
 /// Where the shell announces that THIS quit was the operator's decision.
 ///
 /// The desktop entry point keeps a last-gasp session record so a launch can
-/// tell that the previous session ended with no shutdown path at all (window
-/// black, process gone, six devices still connected — EQP-23). That record is
+/// tell the previous session ended with no shutdown path at all. That record is
 /// only trustworthy if a normal quit says so on the way out; otherwise every
-/// ordinary close looks like a crash and the notice becomes noise.
+/// ordinary close looks like a crash.
 ///
-/// The shell owns the close decision (`AppShell._onCloseRequested` runs the
-/// confirmation and flushes pending edits) but knows nothing about the record,
-/// and the entry point owns the record but never sees the close. This is the
-/// seam between them: the entry point registers a recorder, the shell calls it
-/// immediately before destroying the window.
+/// The entry point registers a recorder; the shell calls it immediately before
+/// destroying the window.
 ///
 /// The callback MUST be synchronous — `windowManager.destroy()` follows it, and
 /// a write that needs another turn of the event loop is a write that never

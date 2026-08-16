@@ -10,27 +10,24 @@
 // per-node override that beats the global settings." Expressing that intent
 // means flipping `useGlobalDefaults` to `false` as a side-effect of the edit.
 //
-// Earlier this auto-flip lived inside `MeridianFlipNode.copyWith`, but
-// that made the data model carry hidden UX behavior: any caller of `copyWith`
-// — including JSON round-trippers, sequence importers, diffing tools, and
-// programmatic mutators that legitimately want to preserve
-// `useGlobalDefaults` — got the side-effect silently. It also made the class
-// incompatible with `freezed`-generated `copyWith` (which is a vanilla
-// field-replace), blocking the broader sequence-models freezed migration
-// (Phase 4 in the migration sequence; see PHASE-2-NOTE markers in
-// `sequence_models.dart`).
+// That rule does not belong in `MeridianFlipNode.copyWith`: the data model
+// would carry hidden UX behavior, and every caller of `copyWith` — JSON
+// round-trippers, sequence importers, diffing tools, and programmatic mutators
+// that legitimately want to preserve `useGlobalDefaults` — would get the
+// side-effect silently. It would also make the class incompatible with a
+// `freezed`-generated `copyWith`, which is a vanilla field-replace.
 //
-// This helper now owns that UX rule. Editor widgets must funnel their
-// per-field edits through [applyMeridianFlipEdit] instead of calling
-// `node.copyWith(field: value)` directly. Programmatic call sites keep
-// calling `copyWith` (now a plain field-replace) and decide for themselves
-// whether to touch `useGlobalDefaults`.
+// So this helper owns the UX rule. Editor widgets must funnel their per-field
+// edits through [applyMeridianFlipEdit] instead of calling
+// `node.copyWith(field: value)` directly. Programmatic call sites keep calling
+// `copyWith` — a plain field-replace — and decide for themselves whether to
+// touch `useGlobalDefaults`.
 
 import 'package:nightshade_core/nightshade_core.dart';
 
 /// Applies a user edit from the meridian-flip properties panel to [current].
 ///
-/// Behaviour mirrors what `MeridianFlipNode.copyWith` historically did:
+/// Rules:
 ///
 /// * If any of the 11 flip-config fields is supplied with a non-null value
 ///   (`triggerMethod`, `minutesPastMeridian`, `minutesBeforeLimit`,

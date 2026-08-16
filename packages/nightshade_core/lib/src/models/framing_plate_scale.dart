@@ -2,24 +2,18 @@ import 'dart:ui' show Size, Rect, Offset;
 
 /// Single source of truth for the framing canvas's astrometric scale.
 ///
-/// Historically the framing subsystem carried **three divergent scales**: the
-/// survey-image painter ([FramingSurveyImagePainter]) computed a fit-to-canvas
-/// draw rectangle, the FOV/reticle overlay assumed a separate "px-per-degree"
-/// derived from a hardcoded `60` (one degree == 60px) constant, and the gesture
-/// hit-testing math re-derived yet another mapping from pan/zoom. Those three
-/// could (and did) drift out of agreement, so a reticle drawn over one part of
-/// the sky would not actually correspond to the pixels the survey background
-/// occupied there.
+/// The survey-image painter, the FOV/reticle overlay and the gesture
+/// hit-testing math must all use the same angular-to-pixel mapping, or a
+/// reticle stops corresponding to the pixels the survey background occupies
+/// under it. This immutable value object is that mapping.
 ///
-/// [FramingPlateScale] collapses all of that into one immutable value object.
 /// It is constructed from the *known astrometry of the loaded survey image*
 /// (its angular field of view, in degrees, and its pixel dimensions) and then
 /// answers two questions that every framing painter and gesture handler must
 /// agree on:
 ///
 ///  * [pixelsPerDegree] — how many on-screen logical pixels span one degree of
-///    sky, given the current canvas size and zoom. This replaces the hardcoded
-///    `60` and the per-painter re-derivations.
+///    sky, given the current canvas size and zoom.
 ///  * [drawRectFor] — the exact destination rectangle the survey background is
 ///    drawn into, given canvas size, zoom and pan. Painters and gesture math
 ///    share this *one* geometry so overlays line up with the imagery to the
@@ -101,9 +95,6 @@ class FramingPlateScale {
   /// canvas — the angular-to-pixel mapping is isotropic because both the width
   /// and height fits preserve [imageAspect], and the survey cutout's pixel
   /// aspect matches its FOV aspect.
-  ///
-  /// This is the value that replaces the hardcoded `60`px/deg assumption that
-  /// previously lived in the framing overlays.
   double pixelsPerDegree(Size canvasSize, double zoom) {
     return drawSizeFor(canvasSize, zoom).width / surveyFovWidthDeg;
   }

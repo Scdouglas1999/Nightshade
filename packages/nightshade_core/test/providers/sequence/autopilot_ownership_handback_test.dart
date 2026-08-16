@@ -1,13 +1,12 @@
-// WE-SEQ-N3: after the autopilot had dispatched once, pre-flight stopped
-// warning that the scheduler was armed — for a plan the OPERATOR built
-// afterwards, i.e. exactly the case where two owners have already contended for
-// one telescope.
+// Pre-flight keeps warning that the scheduler is armed for a plan the OPERATOR
+// built after the autopilot dispatched — exactly the case where two owners have
+// contended for one telescope.
 //
 // AutopilotArmedRule returns early when the editor slot is owned by the
 // autopilot (correct in itself: the scheduler must not be warned about itself),
-// but "New Sequence" never handed that ownership back. `loadSequence` did, so
-// the defect was invisible to anyone who reclaimed the slot by opening a saved
-// plan instead of building a new one.
+// so every manual entry point has to hand that ownership back. `loadSequence`
+// does; "New Sequence" must too, or the gap is invisible to anyone who reclaims
+// the slot by opening a saved plan instead of building a new one.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/scheduler/scheduler_status.dart';

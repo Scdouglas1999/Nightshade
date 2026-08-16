@@ -23,21 +23,17 @@ part 'quick_start_wizard_dialog/_review_step.dart';
 
 part 'quick_start_wizard_dialog/_wizard_helpers.dart';
 
-// =============================================================================
 // WIZARD STATE
-// =============================================================================
 
 /// Fallback baselines used only when no matching setting / Smart-Night
-/// recommendation is available. Named constants instead of bare magic
-/// numbers so the wizard's intent is auditable and so a "fresh install"
-/// fallback never silently masks a missing settings field.
+/// recommendation is available. Named so a "fresh install" fallback never
+/// silently masks a missing settings field.
 ///
-/// Why these particular numbers:
 ///   * 120 s broadband is a standard LRGB sub for a tracked rig.
 ///   * 300 s narrowband is the historical default for Ha/OIII/SII at
-///     f/5–f/7 in Bortle 6–8 — the regime most beginners point at.
-///   * -10 C is the fallback cooler setpoint used only when the active
-///     equipment profile doesn't carry a `defaultCoolingTemp`.
+///     f/5–f/7 in Bortle 6–8.
+///   * -10 C is the cooler setpoint used only when the active equipment
+///     profile carries no `defaultCoolingTemp`.
 const double _kWizardBroadbandFallbackSecs = 120.0;
 const double _kWizardNarrowbandFallbackSecs = 300.0;
 const double _kWizardCoolingTempFallbackC = -10.0;
@@ -114,9 +110,7 @@ extension _ExposurePresetLabel on _ExposurePreset {
   }
 }
 
-// =============================================================================
 // WIZARD DIALOG
-// =============================================================================
 
 class QuickStartWizardDialog extends ConsumerStatefulWidget {
   const QuickStartWizardDialog({super.key});
@@ -140,10 +134,10 @@ class _QuickStartWizardDialogState
   bool _isSearching = false;
   DbTarget? _selectedTarget;
 
-  // A finished search that found nothing used to render as silence: no list,
-  // no message, empty RA/Dec. These carry the outcome so step 1 can say
-  // which of "your library has no such target", "your library is empty" and
-  // "the lookup itself failed" actually happened.
+  // These carry the outcome so step 1 can say which of "your library has no
+  // such target", "your library is empty" and "the lookup itself failed"
+  // happened. Without them a finished search that found nothing renders as
+  // silence: no list, no message, empty RA/Dec.
   String _lastSearchQuery = '';
   bool _searchCompleted = false;
   Object? _searchError;
@@ -270,9 +264,7 @@ class _QuickStartWizardDialogState
     super.dispose();
   }
 
-  // ---------------------------------------------------------------------------
   // Sequence generation
-  // ---------------------------------------------------------------------------
 
   Future<void> _createSequence() => _finishWizard(asTemplate: false);
 
@@ -529,7 +521,7 @@ class _QuickStartWizardDialogState
         // Why: the wizard reflects the user's explicit choices from earlier
         // pages (autofocus enabled, guiding enabled, etc.); persist those as
         // per-node overrides so subsequent changes in Sequencer Settings
-        // don't quietly undo what the operator picked here (audit §1.2).
+        // don't quietly undo what the operator picked here.
         useGlobalDefaults: false,
       );
       final currentTarget = nodes[targetHeaderId] as TargetHeaderNode;

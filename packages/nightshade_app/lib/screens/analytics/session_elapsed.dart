@@ -4,14 +4,9 @@ import 'package:nightshade_core/nightshade_core.dart'
 
 /// Where a session's elapsed figure comes from.
 ///
-/// The History cards and the Session tab used to answer "how long did this
-/// session run" from two different expressions: History took
-/// `now - startTime` whenever `end_time` was null, so a session the app never
-/// closed (crash, power loss) accrued fictional elapsed time forever, while the
-/// Session tab took `(endTime ?? startTime) - startTime` and printed a flat
-/// "0s" for the same row. Both surfaces now go through [sessionElapsed] and
-/// carry the basis, so a number is only ever shown when the app can stand
-/// behind it.
+/// The History cards and the Session tab both go through [sessionElapsed] and
+/// carry the basis, so one session is never described two ways and a figure is
+/// only shown when the app can stand behind it.
 enum SessionElapsedBasis {
   /// `end_time` is set: the figure is the session's real span.
   closed,

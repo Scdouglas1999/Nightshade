@@ -630,7 +630,5 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     );
   }
 
-  // =========================================================================
-  // Step 3: Compute fit
-  // =========================================================================
+  // Step 3: compute fit
 }

@@ -173,8 +173,8 @@ void main() {
         ),
       );
 
-      // Values carry their unit (SCI-47): matched pairs count stars, the
-      // residual is pixels.
+      // Values carry their unit: matched pairs count stars, the residual is
+      // pixels.
       expect(find.text('42.5 stars'), findsOneWidget);
       expect(find.text('0.37 px'), findsOneWidget);
     });

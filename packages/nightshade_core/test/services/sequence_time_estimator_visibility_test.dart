@@ -91,7 +91,7 @@ void main() {
     );
 
     // Guard the premise: the window really does report a rise that has not
-    // happened yet, which is what the old interval test tripped over.
+    // happened yet, which is the case a plain interval test gets wrong.
     expect(testCase.window.riseTime!.isAfter(testCase.scheduled), isTrue);
     expect(testCase.window.altitudeAt(testCase.scheduled), greaterThan(60.0));
 

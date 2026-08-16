@@ -13,7 +13,7 @@ import 'widgets/night_report_panel.dart';
 /// The *narrative* rendering of the one [SessionReviewController] state: a
 /// top-to-bottom story of the night, read like a morning report.
 ///
-/// Order (design §1): hero master (with overlays) → Night-Doctor verdict
+/// Order: hero master (with overlays) → Night-Doctor verdict
 /// (headline + score) → "proof it's optimal" integration-improvement curve →
 /// the ranked finding cards ("what I fixed/found") → multi-night growth curve →
 /// a calibrated / annotated detail row. The verdict and findings are two slots
@@ -48,7 +48,7 @@ class NarrativeView extends ConsumerWidget {
 
           // ── Verdict: big headline + 0..100 score ring. ───────────────────
           // Verdict header only here; the ranked finding cards render after the
-          // improvement curve (design §1 order). A null report degrades to the
+          // improvement curve. A null report degrades to the
           // "analysis pending" placeholder in this slot.
           NightReportPanel(
             report: report,
@@ -377,14 +377,14 @@ class _ActionCard extends StatelessWidget {
 /// Reconciles the Night Doctor's verdict with the frame grader that the
 /// Workbench tab of this same screen renders.
 ///
-/// WD-SCI-N5: a four-frame run scored **100 / 100 — "A clean night, no problems
-/// detected" — 0 findings** in this view while the Workbench badged every one of
-/// its four subs red POOR at HFR 5.7 against a cull line of 3.5. The two panels
-/// read different inputs: the night report is a session-level degradation score
-/// built from session-level findings, the badges come from
-/// [FrameQualityAssessmentService] per frame. Advisory badges never changing
-/// acceptance is documented policy; a night on which *every* frame is graded
-/// POOR being reported as having nothing wrong with it is not.
+/// The two panels read different inputs: the night report is a session-level
+/// degradation score built from session-level findings, the badges come from
+/// [FrameQualityAssessmentService] per frame. So a four-frame run can score
+/// **100 / 100 — "A clean night, no problems detected" — 0 findings** here
+/// while the Workbench badges every one of its four subs red POOR at HFR 5.7
+/// against a cull line of 3.5. Advisory badges never changing acceptance is
+/// documented policy; a night on which *every* frame is graded POOR being
+/// reported as having nothing wrong with it is not.
 ///
 /// So the same grader the Workbench uses is read here, and when it disagrees
 /// with a clean verdict the disagreement is stated instead of being left for the
@@ -434,8 +434,8 @@ class _GradedSubsDisagreement extends StatelessWidget {
 /// per-frame grader, or null when the two do not disagree.
 ///
 /// Pure, and public, so the reconciliation can be pinned without driving the
-/// whole review screen: the defect it exists for (WD-SCI-N5) is a claim, and a
-/// claim is exactly what a unit test can hold.
+/// whole review screen: it states a claim, and a claim is exactly what a unit
+/// test can hold.
 String? gradedSubsDisagreementMessage({
   required List<DbCapturedImage> subs,
   required NightReport? report,

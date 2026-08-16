@@ -21,7 +21,7 @@ class _TransportsSection extends ConsumerWidget {
   }
 }
 
-// ---- Common helper: secure-field row ----------------------------------------
+// Common helper: secure-field row
 
 /// Masked input for secrets stored in flutter_secure_storage.
 ///
@@ -159,7 +159,7 @@ class _SecretFieldRowState extends State<_SecretFieldRow> {
   }
 }
 
-// ---- Common helper: form-preparation contract -------------------------------
+// Common helper: form-preparation contract
 
 /// Outcome of validating (and, on success, persisting) a transport's
 /// on-screen form before a Save or a Test-send.
@@ -178,16 +178,15 @@ class _PrepResult {
   const _PrepResult.fail(this.message) : ok = false;
 }
 
-// ---- Common helper: retryable transport-config error card -------------------
+// Common helper: retryable transport-config error card
 
 /// Shared error state for a transport section whose config provider failed to
-/// load (a corrupt or unavailable stored blob now surfaces as an error instead
-/// of silently reverting to defaults). Renders the failure detail and a working
-/// Retry that re-runs the provider's build, replacing the old dead static
-/// banner. The persisted blob holds only non-secret fields (credentials live in
-/// the OS keyring), so surfacing [error] cannot leak a secret. Each section
-/// resets its controller-initialisation flag before showing this so a retry
-/// that loads a changed config re-seeds the fields.
+/// load: a corrupt or unavailable stored blob surfaces as an error rather than
+/// silently reverting to defaults. Renders the failure detail and a Retry that
+/// re-runs the provider's build. The persisted blob holds only non-secret
+/// fields — credentials live in the OS keyring — so surfacing [error] cannot
+/// leak a secret. Each section resets its controller-initialisation flag before
+/// showing this, so a retry that loads a changed config re-seeds the fields.
 Widget _transportErrorSection({
   required String title,
   required Object error,
@@ -213,7 +212,7 @@ Widget _transportErrorSection({
   );
 }
 
-// ---- Common helpers: pure field validators ----------------------------------
+// Common helpers: pure field validators
 //
 // Shared by every transport section so validation semantics ("empty = the
 // conventional default", "non-blank must be well-formed") are identical
@@ -342,7 +341,7 @@ String? _validateWebhookBodyTemplate(String raw) {
   return null;
 }
 
-// ---- Common helper: Save button with truthful saving state ------------------
+// Common helper: save button with truthful saving state
 
 /// Shared Save control for the transport sections. Owns the "saving…" state,
 /// a synchronous duplicate-submit guard, and error handling so each section's
@@ -406,7 +405,7 @@ class _SaveButtonState extends State<_SaveButton> {
   }
 }
 
-// ---- Common helper: test-send button with inline result ---------------------
+// Common helper: test-send button with inline result
 
 class _TestSendButton extends ConsumerStatefulWidget {
   final NotificationTransportKind kind;
@@ -498,4 +497,4 @@ class _TestSendButtonState extends ConsumerState<_TestSendButton> {
   }
 }
 
-// ---- Email ------------------------------------------------------------------
+// Email

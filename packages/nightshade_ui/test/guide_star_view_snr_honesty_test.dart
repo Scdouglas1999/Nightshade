@@ -1,11 +1,11 @@
-// WF-SN-N3: the Guide Star panel badged a bright, just-selected star `SNR: 0.0`
-// whenever the loop was stopped.
+// The Guide Star panel never badges a bright, just-selected star `SNR: 0.0`
+// because the loop is stopped.
 //
-// Live repro: Guiding ▸ Stop the loop (the cached frame stays on screen) ▸
-// Deselect ▸ Auto Select. The panel rendered the star crop with crosshairs on
-// it and the badge read "SNR: 0.0" — for a star the log says was chosen out of
-// 107 detections. The same panel read "SNR: 445.9" while looping, and pressing
-// Loop Exposures again produced "SNR: 70.6" within 12 s. Zero is what an
+// Repro: Guiding ▸ Stop the loop (the cached frame stays on screen) ▸ Deselect
+// ▸ Auto Select. The panel renders the star crop with crosshairs on it while
+// the badge reads "SNR: 0.0" — for a star the log says was chosen out of 107
+// detections. The same panel reads "SNR: 445.9" while looping, and pressing
+// Loop Exposures again produces "SNR: 70.6" within 12 s. Zero is what an
 // unmeasured field arrives as, and on a badge coloured red below 5 it reads as
 // the worst star in the sky rather than as "not measured".
 import 'dart:typed_data';

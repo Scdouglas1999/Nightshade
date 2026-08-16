@@ -128,7 +128,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
 
   /// Whether the assessor has any measurement to judge this frame on.
   ///
-  /// Calibration frames (and lights whose analysis never ran) carry none, and
+  /// Calibration frames (and lights whose analysis has not run) carry none, and
   /// the assessor's score is a decrement-only walk from a 75 default — with
   /// nothing to decrement it returns "Good" for a frame nobody measured.
   static bool _hasQualityMeasurement(DbCapturedImage image) =>
@@ -152,12 +152,11 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     const assessor = FrameQualityAssessmentService();
-    // Only frames the assessor can actually judge are handed to it. Its
+    // Only frames the assessor can actually judge are handed to it: its
     // advisory score starts at 75 and is only ever decremented by a metric, so
     // a frame with no HFR, no star count, no guiding RMS and no stored quality
-    // score — every dark, flat and bias — came back "Good, 75 score" and was
-    // counted in the Good chip. The session summary claimed 12 good frames
-    // when 8 had been assessed good and 4 had never been measured at all.
+    // score — every dark, flat and bias — would come back "Good, 75" without
+    // having been measured, and be counted in the Good chip.
     final gradable =
         widget.images.where(_hasQualityMeasurement).toList(growable: false);
     final ungradedCount = widget.images.length - gradable.length;

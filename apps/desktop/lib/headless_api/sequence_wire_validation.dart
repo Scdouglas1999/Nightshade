@@ -3,13 +3,13 @@
 /// Why this exists at all, given `SequenceValidatorService` in
 /// `nightshade_core`: the headless appliance's canonical run flow is
 /// `POST /api/sequencer/load` -> `POST /api/sequencer/start`, and neither call
-/// ever builds a Dart [Sequence]. `load` handed the caller's raw JSON straight
+/// ever builds a Dart [Sequence]. `load` hands the caller's raw JSON straight
 /// to `sequencerLoadJson` and the bare `start` branch calls
-/// `backend.sequencerStart()` directly, so the whole Dart validator stack —
-/// `TargetCoordinatesUnsetRule` included — was skipped for exactly the rig
-/// nobody is standing next to. A target still on the RA 0h / Dec +0° sentinel
-/// therefore slewed an unattended remote mount into Pisces and filed every
-/// frame under its default name.
+/// `backend.sequencerStart()` directly, so without this pass the whole Dart
+/// validator stack — `TargetCoordinatesUnsetRule` included — is skipped for
+/// exactly the rig nobody is standing next to. A target left on the RA 0h /
+/// Dec +0° sentinel then slews an unattended remote mount into Pisces and
+/// files every frame under its default name.
 ///
 /// Validating the wire artifact rather than a reconstructed Dart model is
 /// deliberate: this string is precisely the tree the Rust executor will run,

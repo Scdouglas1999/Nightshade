@@ -11,10 +11,8 @@ class _HealthGradeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // §4.25: a duplicate inline A..F mapping used to live here. The
-    // shared `OpticalHealthScore` model owns the bands now so any other
-    // surface (analytics, exports) renders the same letter for the same
-    // raw scores.
+    // `OpticalHealthScore` owns the A..F bands so every surface (analytics,
+    // exports) renders the same letter for the same raw scores.
     final health = diagnostics.healthScore;
     final gradeColor = _gradeColor(health.grade, colors);
 
@@ -166,7 +164,7 @@ class _ScoreBar extends StatelessWidget {
   }
 }
 
-// --- Tilt Assessment Card ---
+// Tilt assessment card
 
 class _TiltAssessmentCard extends StatelessWidget {
   final OpticalTrainDiagnostics diagnostics;

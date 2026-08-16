@@ -5,14 +5,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Compact, honest "guiding active" indicator for the live-preview overlay.
 ///
-/// This is the senior-approved reinterpretation of roadmap item #3. A literal
-/// "registered guide box" overlay is architecturally impossible from the data
-/// we have: PHD2's guide-star lock position is expressed in *guide-camera*
+/// A literal "registered guide box" overlay is not derivable from the data
+/// available: PHD2's guide-star lock position is expressed in *guide-camera*
 /// pixel coordinates ([lockPositionProvider]), which have no spatial mapping
-/// onto the *main-camera* preview being displayed. Drawing a box there would
-/// be a fabricated overlay — exactly the kind of silent lie this project
-/// forbids. Instead we surface the one thing we can state truthfully: PHD2 is
-/// actively guiding right now, and here is its live RMS.
+/// onto the *main-camera* preview being displayed, so a box drawn there would
+/// be fabricated. This surfaces the one thing that can be stated truthfully:
+/// PHD2 is actively guiding right now, and here is its live RMS.
 ///
 /// Visibility is deliberately strict so the chip can never claim guiding when
 /// it is not:

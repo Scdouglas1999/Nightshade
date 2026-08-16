@@ -9,9 +9,7 @@ import 'database_provider.dart';
 import 'profiles_provider.dart';
 import 'settings_provider.dart';
 
-// ============================================================================
-// Service Provider
-// ============================================================================
+// Service provider
 
 /// Provider for the target suggestion service.
 final targetSuggestionServiceProvider = Provider<TargetSuggestionService>((
@@ -21,9 +19,7 @@ final targetSuggestionServiceProvider = Provider<TargetSuggestionService>((
   return TargetSuggestionService(loggingService: logging);
 });
 
-// ============================================================================
-// Configuration Provider
-// ============================================================================
+// Configuration provider
 
 /// Provider for target suggestion configuration.
 ///
@@ -41,9 +37,7 @@ final targetSuggestionConfigProvider = StateProvider<TargetSuggestionConfig>((
   );
 });
 
-// ============================================================================
-// Refresh Trigger Provider
-// ============================================================================
+// Refresh trigger provider
 
 /// Simple counter provider to trigger suggestion refresh.
 ///
@@ -51,9 +45,7 @@ final targetSuggestionConfigProvider = StateProvider<TargetSuggestionConfig>((
 /// force a rebuild of the suggestions list.
 final refreshSuggestionsProvider = StateProvider<int>((ref) => 0);
 
-// ============================================================================
 // Tonight's Suggestions Provider
-// ============================================================================
 
 String? _catalogTargetsCachePath;
 List<db.Target>? _catalogTargetsCache;
@@ -61,21 +53,11 @@ Future<List<db.Target>>? _catalogTargetsLoadFuture;
 
 /// Provider that generates target suggestions for tonight's imaging session.
 ///
-/// ADVISORY night-outlook supplement (architecture-unification plan, §1): this
-/// is NOT the authoritative "what runs tonight" order. The headline pick comes
-/// from `schedulerPreviewDecisionProvider` (a read-only preview of the live
-/// autopilot). These suggestions add whole-night context — peak altitude,
-/// transit time, imaging-window hours, framing-fit — beneath that headline.
-///
-/// This provider:
-/// - Watches the suggestion config for filter/sort settings
-/// - Watches app settings for observer latitude/longitude
-/// - Watches the refresh trigger for manual refresh
-/// - Fetches targets and sessions from the database
-/// - Calls TargetSuggestionService to score and filter targets
-///
-/// Returns a list of [TargetSuggestion] objects sorted and filtered according
-/// to the current configuration.
+/// ADVISORY night-outlook supplement: this is NOT the authoritative "what runs
+/// tonight" order. The headline pick comes from
+/// `schedulerPreviewDecisionProvider` (a read-only preview of the live
+/// autopilot); these suggestions add whole-night context — peak altitude,
+/// transit time, imaging-window hours, framing-fit — beneath it.
 final tonightSuggestionsProvider =
     FutureProvider.autoDispose<List<TargetSuggestion>>((ref) async {
       // Watch configuration for filter/sort changes
@@ -294,9 +276,7 @@ Future<List<db.Target>> _readCatalogTargets(
   return targets;
 }
 
-// ============================================================================
-// Convenience Providers
-// ============================================================================
+// Convenience providers
 
 /// Provider that returns the best single suggestion for tonight.
 final bestSuggestionProvider =

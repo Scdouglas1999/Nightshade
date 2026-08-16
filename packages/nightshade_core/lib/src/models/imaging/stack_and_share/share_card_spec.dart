@@ -14,9 +14,9 @@ enum ShareCardLayout {
 /// The renderer normally derives the bitmap font from the rendered image
 /// height (~4% of height) so an overlay scales sensibly from a thumbnail to a
 /// 4K master. Some callers need a fixed size instead — notably the live
-/// broadcast, which historically drew its watermark at the largest built-in
-/// font (arial48) regardless of the 720px thumbnail it renders at, and must
-/// keep that look so the outreach overlay does not shrink.
+/// broadcast, which draws its watermark at the largest built-in font (arial48)
+/// regardless of the 720px thumbnail it renders at, so the outreach overlay
+/// does not shrink.
 enum ShareCardFontScale {
   /// Pick the font from the rendered image height (the default, scales).
   scaleToHeight,
@@ -82,8 +82,8 @@ class ShareCardSpec {
 
   /// Glyph-size policy for the watermark + stat overlay. Defaults to
   /// [ShareCardFontScale.scaleToHeight] so an overlay scales with the rendered
-  /// image; callers that need a fixed glyph size (e.g. the broadcast's
-  /// historical arial48 watermark) override it.
+  /// image; callers that need a fixed glyph size (e.g. the broadcast's arial48
+  /// watermark) override it.
   final ShareCardFontScale fontScale;
 
   const ShareCardSpec({

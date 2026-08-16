@@ -156,11 +156,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         false,
       ),
 
-      // Sequencer Execution
-      useSimulationMode: effectiveSimulationMode(
-        _parseBool(allSettings['use_simulation_mode'], false),
-      ),
-
       // Remote Access / Web Server
       webServerEnabled: _parseBool(allSettings['web_server_enabled'], false),
       webServerPort: _parseInt(allSettings['web_server_port'], 8080),
@@ -588,9 +583,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'alpaca_server_port': s.alpacaServerPort.toString(),
       'alpaca_auto_discover': s.alpacaAutoDiscover.toString(),
 
-      // Sequencer Execution
-      'use_simulation_mode': s.useSimulationMode.toString(),
-
       // Remote Access / Web Server
       'web_server_enabled': s.webServerEnabled.toString(),
       'web_server_port': s.webServerPort.toString(),
@@ -851,10 +843,9 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         return decoded.map((k, v) => MapEntry(k.toString(), v == true));
       }
     } catch (_) {
-      // Treat parse errors as no-data; "errors are a
-      // feature" doesn't apply to disk-side persisted values we
-      // don't control the format of — fall back to empty rather than
-      // crashing settings load.
+      // Treat parse errors as no-data: this blob's format is not under this
+      // code's control, so an unreadable value falls back to empty rather
+      // than crashing settings load.
     }
     return const {};
   }

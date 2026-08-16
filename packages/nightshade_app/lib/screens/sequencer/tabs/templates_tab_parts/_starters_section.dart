@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // The "Starters" section: the bundled, read-only SAMPLE sequences that used
 // to live in a separate "Samples" tab. They are merged into the Templates tab
 // here, delineated as built-in starters (with a "Starter" badge) above the
@@ -105,7 +103,7 @@ class _StarterCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Trust-patch §B: "Replace with this starter" calls loadSequence, which
+    // "Replace with this starter" calls loadSequence, which
     // replaces the current sequence — disable while running.
     final canEdit = ref.watch(canEditSequenceProvider);
     return Container(

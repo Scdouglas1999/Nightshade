@@ -3,11 +3,11 @@ import 'dart:convert';
 
 /// One tracked guide star surfaced by the built-in multi-star guider.
 ///
-/// The internal guider tracks up to 8 reference stars natively, but only its
-/// PHD2-shaped *aggregate* stats (RMS/SNR/star mass) historically reached Dart.
-/// This per-star DTO rides alongside the guiding status JSON (no FRB regen) so
-/// the guider UI can show a real star list (per-star SNR + lock + residual)
-/// instead of an empty panel. See `builtin_guider.rs::BuiltinGuideTrackedStar`.
+/// The internal guider tracks up to 8 reference stars natively. The
+/// PHD2-shaped *aggregate* stats (RMS/SNR/star mass) ride the guiding status;
+/// this DTO carries the per-star detail alongside that same status JSON (no
+/// FRB regen), so the guider UI can show a real star list (per-star SNR + lock
+/// + residual). See `builtin_guider.rs::BuiltinGuideTrackedStar`.
 class GuideStar {
   /// Stable 0-based index/identity within the tracked-star list.
   final int id;

@@ -1,13 +1,13 @@
-// SCI-37 / SCI-38, both on the Captured Images rail and its frame inspector.
+// The score on the Captured Images rail and in its frame inspector.
 //
-// SCI-37: every tile of a clean 32-frame session read "75 score" while the
-// stored quality_score for those same frames ran 83.94-85.38 and was distinct
-// per frame. Two different numbers were both "the score", the one on screen was
-// not the one in the database, and neither was labelled with its scale.
+// Every tile of a clean 32-frame session reading "75 score" while the stored
+// quality_score for those same frames runs 83.94-85.38 and is distinct per frame
+// makes two different numbers both "the score", with the one on screen not the
+// one in the database and neither labelled with its scale.
 //
-// SCI-38: the inspector's summary line read "Good — Low star count (39)" on
-// every frame of that same clean session, so the app's explanation contradicted
-// its own verdict.
+// And the inspector's summary line reading "Good — Low star count (39)" on every
+// frame of that same clean session makes the explanation contradict its own
+// verdict.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

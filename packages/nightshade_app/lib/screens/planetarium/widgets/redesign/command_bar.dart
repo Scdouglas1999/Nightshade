@@ -15,9 +15,8 @@ import '../../../../widgets/tutorial_keys/planetarium_keys.dart';
 /// Top command bar for the redesigned planetarium shell.
 ///
 /// One slim, full-width strip of icon-button segments (Search · View · Layers ·
-/// Tools · Mount · Panels) that replaces the old left rail + right FilterSidebar
-/// + top-overlay toggle cluster + mobile FAB column. Each segment uses the same
-/// [CommandBarIconButton] visual idiom so the whole bar reads as one language.
+/// Tools · Mount · Panels). Each segment uses the same [CommandBarIconButton]
+/// visual idiom so the whole bar reads as one language.
 ///
 /// The bar is the only chrome that mounts persistent controls; the Layers panel
 /// (visibility) and the Plan/Object panel (Tonight/Catalog/Lists/Search/Info)
@@ -69,10 +68,10 @@ class PlanetariumCommandBar extends ConsumerWidget {
       child: Row(
         children: [
           const SizedBox(width: 8),
-          // ---- Search ------------------------------------------------------
+          // Search
           _SearchEntry(onTap: onOpenSearch, compact: compact),
           const _BarDivider(),
-          // ---- View --------------------------------------------------------
+          // View
           CommandBarIconButton(
             icon: NightshadeIcons.home,
             // Home is the observer's zenith, not RA 0h / Dec 0 — see
@@ -106,7 +105,7 @@ class PlanetariumCommandBar extends ConsumerWidget {
             _BarHostedButton(child: ProjectionSelectorButton(colors: colors)),
           ],
           const _BarDivider(),
-          // ---- Layers ------------------------------------------------------
+          // Layers
           CommandBarIconButton(
             icon: NightshadeIcons.list,
             tooltip: 'Layers',
@@ -114,7 +113,7 @@ class PlanetariumCommandBar extends ConsumerWidget {
             onTap: onToggleLayers,
           ),
           const _BarDivider(),
-          // ---- Tools (overflow) -------------------------------------------
+          // Tools (overflow)
           _ToolsMenu(
             colors: colors,
             compact: compact,
@@ -124,12 +123,12 @@ class PlanetariumCommandBar extends ConsumerWidget {
             onExportChart: onExportChart,
           ),
           const Spacer(),
-          // ---- Mount (only when connected) --------------------------------
+          // Mount (only when connected)
           if (mountConnected) ...[
             _MountControls(mountState: mountState),
             const _BarDivider(),
           ],
-          // ---- Panels ------------------------------------------------------
+          // Panels
           CommandBarIconButton(
             key: PlanetariumTutorialKeys.search,
             icon: LucideIcons.panelRight,
@@ -165,11 +164,10 @@ class _SearchEntry extends StatelessWidget {
       message: 'Search the sky',
       position: NightshadeTooltipPosition.bottom,
       // A bare InkWell publishes a focusable, tappable node with NO button role
-      // and no enabled state, and its two child Texts merge into it: the live
-      // tree read `panel: Search\nCtrl+K [DISABLED]` — the search box telling
-      // assistive tech it was interactive and dead at the same time. The
-      // keyboard shortcut goes in the name because `excludeSemantics` drops the
-      // chip that draws it.
+      // and no enabled state, and its two child Texts merge into it — assistive
+      // tech is told the search box is interactive and dead at the same time.
+      // The keyboard shortcut goes in the name because `excludeSemantics` drops
+      // the chip that draws it.
       child: Semantics(
         button: true,
         enabled: true,
@@ -357,11 +355,10 @@ class _ToolsMenu extends ConsumerWidget {
       );
     }
 
-    // WF-SS-N3: the hover message was already trigger-borne, but a
-    // `PopupMenuButton`'s icon carries no accessible name of its own, so this
-    // control dumped as a bare `button: ` beside its named siblings — the
-    // whole Tools overflow was anonymous to the keyboard and to a screen
-    // reader. The tooltip is the name here, exactly as in
+    // A `PopupMenuButton`'s icon carries no accessible name of its own, so
+    // without this the control dumps as a bare `button: ` beside its named
+    // siblings and the whole Tools overflow is anonymous to the keyboard and
+    // to a screen reader. The tooltip is the name here, exactly as in
     // [CommandBarIconButton].
     return NightshadeTooltip(
       message: 'Tools',
@@ -375,8 +372,8 @@ class _ToolsMenu extends ConsumerWidget {
         ),
         // The name lives on the icon: `PopupMenuButton` builds an
         // `IconButton` whose semantics node a parent annotation cannot get
-        // onto, so this bar's Tools control dumped as a bare `button: `
-        // beside its named siblings (WF-SS-N3).
+        // onto, so this bar's Tools control would dump as a bare `button: `
+        // beside its named siblings.
         icon: Icon(NightshadeIcons.settings2,
             size: 18, color: colors.textSecondary, semanticLabel: 'Tools'),
         onSelected: (value) {

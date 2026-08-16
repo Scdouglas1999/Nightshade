@@ -1,16 +1,15 @@
-// Regression: the deep tier was asked to hand off at a magnitude the bundled
-// catalog never reaches.
+// The deep tier hands off at a magnitude the bundled catalog actually reaches.
 //
 // At an imaging FOV the chart renders essentially empty — a measured 3-5
 // stars/sq deg against the 100-200 a real Lyra field carries to mag 12 — and
 // the reason is the catalog. Counting the installed HYG file: 119,626 rows,
 // 83,124 at mag <= 9, 107,938 at <= 10, 117,914 at <= 12, with the per-bin gain
 // turning over after mag 9 (41,975 stars in 8-9, 24,814 in 9-10, 7,580 in
-// 10-11). It is complete to about 9. `kHygFaintFloorMag` nevertheless claimed
-// 11.5, so the deep tier — the one thing that can fill that field — was told to
-// drop everything brighter than 11.5. A user who installed a Tycho-2-depth
-// tileset (complete to ~11) would have thrown away nearly all of it and kept
-// the empty field they installed it to fix.
+// 10-11). It is complete to about 9. A `kHygFaintFloorMag` of 11.5 tells the
+// deep tier — the one thing that can fill that field — to drop everything
+// brighter than 11.5, so a user who installs a Tycho-2-depth tileset (complete
+// to ~11) throws away nearly all of it and keeps the empty field the tileset
+// was installed to fix.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

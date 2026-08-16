@@ -371,15 +371,9 @@ class RunDashboardBudgetProgress {
 /// currently-active TargetHeader. Returns `null` when no target is
 /// active or the active target has no budget configured.
 ///
-/// Reads:
-/// * `runDashboardActiveTargetProvider` — the in-flight target.
-/// * `runDashboardSessionFilterTotalsProvider` — accepted-frame
-///   integration per filter for the active session.
-///
-/// Computes the resolved per-filter caps locally (cheap; same math as
-/// the Rust side) and asserts the "budget met" flag when every cap is
-/// reached. The Rust runtime is still the authoritative gate — this
-/// provider exists purely to render the panel.
+/// Computes the resolved per-filter caps locally (cheap; the same math as the
+/// Rust side) and asserts the "budget met" flag when every cap is reached. The
+/// Rust runtime is the authoritative gate — this provider is render-only.
 final runDashboardActiveBudgetProvider =
     Provider<RunDashboardBudgetProgress?>((ref) {
   final target = ref.watch(runDashboardActiveTargetProvider);
@@ -469,21 +463,21 @@ class RunDashboardEvent {
       );
 }
 
-/// Collapse runs of identical adjacent events into one row carrying a count.
-///
-/// Identity is the rendered content (category/title/message/severity), not
-/// `eventId`: these are genuinely distinct events that happen to say the same
-/// thing, which is exactly the case a reader gains nothing from seeing repeated.
-/// Only ADJACENT events collapse, so an interleaved different event still breaks
-/// the run and the ordering stays truthful. The retained row keeps the NEWEST
-/// occurrence's identity and timestamp — "when did this last happen" is the
-/// useful question.
 /// Identical rows further apart than this are separate happenings, not a
 /// repeat: two stops of two different runs read the same but were two
 /// operator decisions twenty minutes apart, and folding them rewrites the
 /// night. Live repeat storms (a flapping condition) land within seconds.
 const _collapseWindow = Duration(minutes: 10);
 
+/// Collapse runs of identical adjacent events into one row carrying a count.
+///
+/// Identity is the rendered content (category/title/message/severity), not
+/// `eventId`: these are genuinely distinct events that happen to say the same
+/// thing, which is exactly the case a reader gains nothing from seeing
+/// repeated. Only ADJACENT events collapse, so an interleaved different event
+/// still breaks the run and the ordering stays truthful. The retained row keeps
+/// the NEWEST occurrence's identity and timestamp — "when did this last happen"
+/// is the useful question.
 List<RunDashboardEvent> collapseRepeatedEvents(
   Iterable<RunDashboardEvent> events,
 ) {
@@ -590,9 +584,8 @@ bool isOperatorStopNotice(ns_events.NightshadeEvent event) {
 /// and the cancel-notice lifecycle decision are NOT evidence — every
 /// cancellation path emits them, including a weather/dome ParkAndAbort with
 /// nobody present (the trigger monitor cancels through the same
-/// is_cancelled machinery), so claiming "Stopped by request" off them
-/// invents an operator action that never happened: the cry-wolf shape,
-/// inverted.
+/// is_cancelled machinery), so claiming "Stopped by request" off them invents
+/// an operator action nobody took.
 bool _isOperatorStopEvidence(ns_events.NightshadeEvent event) =>
     _stopDecision(event)?.author == SequenceStopAuthor.operatorPress;
 
@@ -930,9 +923,7 @@ final runDashboardRecentEventsProvider =
   ).take(limit).toList(growable: false);
 });
 
-// ============================================================================
 // Critical event escalation
-// ============================================================================
 
 /// State of critical events that the user has *not* dismissed yet.
 ///
@@ -998,8 +989,8 @@ final runDashboardCriticalEventsProvider = StateNotifierProvider<
   return RunDashboardCriticalEventsNotifier(ref);
 });
 
-/// Count of oldest critical events that were dropped from
-/// [runDashboardCriticalEventsProvider] once the retention cap was exceeded.
+/// Count of oldest critical events dropped from
+/// [runDashboardCriticalEventsProvider] once the retention cap is exceeded.
 /// The banner renders a "+N earlier critical events not shown" marker so the
 /// truncation is honest rather than silent. Reset on "Dismiss all".
 final runDashboardDroppedCriticalCountProvider = StateProvider<int>((ref) => 0);

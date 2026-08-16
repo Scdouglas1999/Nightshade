@@ -7,6 +7,21 @@ import '../database/database.dart' show CapturedImage, ImagingSession, Target;
 import '../models/sequence/sequence_models.dart';
 import 'quick_start_service.dart';
 
+/// Thrown when carry-over cannot be determined at all, as opposed to being
+/// determined to be nothing.
+///
+/// A service built with neither DAOs nor host snapshots has no history to
+/// read; returning an empty list would tell the caller the operator banked no
+/// integration on this target, which restarts a multi-night budget at zero.
+class SessionCarryOverUnavailable implements Exception {
+  final String message;
+
+  const SessionCarryOverUnavailable(this.message);
+
+  @override
+  String toString() => 'SessionCarryOverUnavailable: $message';
+}
+
 /// One unfinished previous-session carry-over for a target.
 ///
 /// "Last night you got 4h12m on M31 toward an 8h budget. Resume?"
@@ -218,10 +233,13 @@ class SessionHandoffService {
   /// "previous night" — it's a different campaign sortie and should
   /// surface only via the campaign rollup, not the resume banner.
   ///
-  /// Returns an empty list when neither DAOs nor [libraryTargets] /
-  /// [capturedImages] / [sessions] snapshots were supplied, when the
-  /// sequence has no target headers, or when no matching prior session
-  /// frames exist.
+  /// Returns an empty list when the sequence has no target headers or no
+  /// matching prior-session frames exist.
+  ///
+  /// Throws [SessionCarryOverUnavailable] when neither DAOs nor the
+  /// [libraryTargets] / [capturedImages] / [sessions] snapshot trio were
+  /// supplied: with no history to read, "none found" would be a claim this
+  /// service cannot make.
   Future<List<SessionCarryOver>> detectCarryOver({
     required Sequence sequence,
     List<Target>? libraryTargets,
@@ -234,7 +252,10 @@ class SessionHandoffService {
         libraryTargets != null && capturedImages != null && sessions != null;
     if (!useHostSnapshot &&
         (_sessionsDao == null || _imagesDao == null || _targetsDao == null)) {
-      return const <SessionCarryOver>[];
+      throw const SessionCarryOverUnavailable(
+        'No session/image/target source: pass the DAOs or a full '
+        'libraryTargets + capturedImages + sessions snapshot.',
+      );
     }
 
     final headers = sequence.targetHeaders;

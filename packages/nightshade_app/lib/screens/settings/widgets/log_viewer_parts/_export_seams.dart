@@ -1,5 +1,3 @@
-// Part of ../log_viewer.dart -- extracted for maintainability.
-//
 // Log export scope, target-picker seam and default export directory.
 part of '../log_viewer.dart';
 
@@ -18,10 +16,9 @@ typedef LogExportTargetPicker = Future<ExportTarget?> Function(
   String suggestedName,
 );
 
-/// Export used to write straight to the ROOT of the user's Documents folder
-/// with no picker and no size warning — 18 MB of concatenated rotated logs
-/// appeared next to their personal files, and not in the `exports/` directory
-/// every other in-app export uses. This asks, and defaults to `exports/`.
+/// Exports go through a picker and default to `exports/`, the directory every
+/// other in-app export uses, with a size warning: a log bundle is tens of
+/// megabytes of concatenated rotated files.
 final logExportTargetPickerProvider = Provider<LogExportTargetPicker>((ref) {
   return (suggestedName) async => chooseExportTarget(
         suggestedName: suggestedName,

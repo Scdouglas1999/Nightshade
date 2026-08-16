@@ -2,17 +2,17 @@
 //
 // WHY THIS EXISTS
 // ---------------
-// `NightshadeSwitch` is built from a bare `GestureDetector`. It has no
-// `Semantics`, no `toggled` state and nothing focusable, so measured on the
-// running app the entire Settings screen exposed ZERO checkable nodes and only
-// five focusable ones. A keyboard-only user could not reach a single one of the
-// 664 setting rows, and a screen reader could not report whether any of them was
-// on or off. `NightshadeCheckbox` was in the same state.
+// A design-system control built from a bare `GestureDetector` — no
+// `Semantics`, no `toggled` state, nothing focusable — costs far more than
+// itself: measured on the running app, one such switch left the entire
+// Settings screen with ZERO checkable nodes and five focusable ones, so a
+// keyboard-only user could not reach any of the 664 setting rows and a screen
+// reader could not report whether any of them was on or off.
 //
-// That is not an obscure regression — it is the most-used control in the product
-// — and it survived because nothing checked. Seven sibling components in the same
-// directory DO wrap themselves in `Semantics`, so this was an omission, not a
-// decision, and an omission recurs unless something fails.
+// These are the most-used controls in the product, and most sibling components
+// in the same directory DO wrap themselves in `Semantics` — so a bare one is
+// an omission rather than a decision, and an omission recurs unless something
+// fails.
 //
 // The rule: a component that handles a tap must either describe itself with
 // `Semantics`, or delegate to a widget that does (Material's own widgets, or

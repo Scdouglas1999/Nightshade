@@ -55,12 +55,10 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
 
     // Grid spacing and sampling step both scale continuously with the field.
     //
-    // These used to be fixed ladders bottoming out at 0.25h of RA (3.75 deg)
-    // and a 5 deg declination spacing, with a fixed sampling step. A segment is
-    // only emitted between two CONSECUTIVE on-screen samples, so below roughly
-    // a 4 deg field consecutive samples landed screens apart and the grid
-    // silently stopped being drawn at all — across the entire range an imager
-    // actually works in.
+    // A segment is only emitted between two CONSECUTIVE on-screen samples, so
+    // a fixed ladder (0.25h of RA, 5 deg of declination) leaves consecutive
+    // samples screens apart below a ~4 deg field and the grid stops being drawn
+    // at all — across the whole range an imager works in.
     final targetSpacingDeg = fov / 4.0;
     final decSpacing = _chooseSpacing(_decSpacingLadderDeg, targetSpacingDeg);
 
@@ -160,8 +158,8 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
       canvas.drawPath(path, paint);
     }
 
-    // Labels are drawn at every zoom now that they follow the view center — at
-    // a framing field the coordinate readout is more useful, not less.
+    // Labels are drawn at every zoom: they follow the view center, and at a
+    // framing field the coordinate readout is more useful, not less.
     _drawGridLabels(canvas, size, center, scale, raSpacing, decSpacing);
   }
 
@@ -182,10 +180,9 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
     final centerRaHours = cull.centerRaDeg / 15.0;
 
     // Label each line where it passes closest to the view center, rather than
-    // on the celestial equator / the RA 0h meridian. Those two reference lines
-    // are usually nowhere near the field, so at anything but a very wide view
-    // the labels were simply absent — which is why labelling used to be
-    // switched off below 20 degrees entirely.
+    // on the celestial equator / the RA 0h meridian: those two reference lines
+    // are usually nowhere near the field, so anything but a very wide view
+    // would carry no labels at all.
     final (minDec, maxDec) = cull.decWindow;
     final raHalf = cull.raHalfWindowHours;
 
@@ -277,8 +274,7 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
     double scale,
   ) {
     // Calculate zenith position (altitude 90 degrees)
-    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
-    // time separately in each layer, several times per frame.
+    // Memoized per paint (see [_lstHours]).
     final lst = _lstHours;
     final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
       altDeg: 90.0,
@@ -330,8 +326,7 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
       config.gridColor.withValues(alpha: 0.3),
     );
 
-    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
-    // time separately in each layer, several times per frame.
+    // Memoized per paint (see [_lstHours]).
     final lst = _lstHours;
 
     // Draw altitude circles
@@ -499,8 +494,7 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
   ) {
     if (!config.showMeridian) return;
 
-    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
-    // time separately in each layer, several times per frame.
+    // Memoized per paint (see [_lstHours]).
     final lst = _lstHours;
 
     // Draw line from horizon to zenith along the meridian (azimuth 0/180)

@@ -11,9 +11,8 @@ import '../providers/database_provider.dart';
 /// frames that satisfy the [StackAndShareConfig] gates (frame-type, accepted,
 /// and quality threshold).
 ///
-/// This is surfaced loudly by the UI rather than silently producing an empty
-/// stack — per project policy, "errors are a feature": a Stack-and-Share run
-/// with nothing to stack is a user-visible problem (wrong session selected,
+/// Surfaced by the UI rather than producing an empty stack: a Stack-and-Share
+/// run with nothing to stack is a user-visible problem (wrong session selected,
 /// quality threshold too aggressive, all frames rejected), not a no-op.
 class NoLightsToStackException implements Exception {
   /// Human-readable scope of the failed selection, e.g.

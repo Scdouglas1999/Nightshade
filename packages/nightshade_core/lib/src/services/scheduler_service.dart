@@ -93,9 +93,9 @@ class SchedulerService {
 
   /// Calculate Local Sidereal Time in hours.
   ///
-  /// [SkyCalculations.localSiderealTimeHours] is the same arithmetic this
-  /// method used to carry inline (whole-second day fraction, GMST normalized
-  /// to [0,360) before the longitude is added in hours).
+  /// Delegates to [SkyCalculations.localSiderealTimeHours]: whole-second day
+  /// fraction, GMST normalized to [0,360) before the longitude is added in
+  /// hours.
   double _calculateLST(DateTime utcTime, double longitudeDegrees) =>
       SkyCalculations.localSiderealTimeHours(utcTime, longitudeDegrees);
 
@@ -111,14 +111,13 @@ class SchedulerService {
   /// This is the canonical "time-to-set" helper used by the Run Dashboard
   /// and the planetarium altitude card so both surfaces agree to the
   /// second. The math is a Newton-style binary search on the analytical
-  /// rise/set hour-angle equation, with two refinements vs the old 5-min
-  /// probe loop:
+  /// rise/set hour-angle equation:
   ///
   ///   * Closed-form hour-angle: `cos(H) = (sin(alt) - sin(δ)sin(φ)) /
   ///     (cos(δ)cos(φ))`. The sidereal rotation of Earth (one solar day ≈
-  ///     0.9972 sidereal day) lets us convert the hour-angle delta to a
-  ///     wall-clock delta directly. No probing.
-  ///   * Circumpolar / never-rises detection up-front so the caller gets
+  ///     0.9972 sidereal day) converts the hour-angle delta to a wall-clock
+  ///     delta directly, with no probing.
+  ///   * Circumpolar / never-rises detection up-front, so the caller gets
   ///     `null` (never sets) or `Duration.zero` (already below) without a
   ///     12 h timeout.
   ///

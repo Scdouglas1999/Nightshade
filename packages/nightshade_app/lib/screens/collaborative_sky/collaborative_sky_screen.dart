@@ -266,7 +266,7 @@ class _ConnectedBody extends ConsumerWidget {
   }
 }
 
-/// Live co-imaging sessions (WS3) — the flashiest flow: N rigs deepening one
+/// Live co-imaging sessions — N rigs deepening one
 /// target together, right now. Owns the "Start session" affordance (the anchor
 /// side of co-imaging) alongside the browse list.
 class _CoImagingSection extends ConsumerStatefulWidget {
@@ -417,9 +417,9 @@ class _CoImagingCardWiredState extends ConsumerState<_CoImagingCardWired> {
             .watch(coImagingPreviewProvider(widget.session.sessionId))
             .valueOrNull
         : null;
-    // Credit rigs from the hub's authoritative, consent-aware attribution rather
-    // than the raw participant roster (WS4 consent contract); the card falls
-    // back to the roster names until this resolves.
+    // Credit rigs from the hub's authoritative, consent-aware attribution
+    // rather than the raw participant roster; the card falls back to the roster
+    // names until this resolves.
     final attribution = ref
         .watch(coImagingAttributionProvider(widget.session.sessionId))
         .valueOrNull;
@@ -627,7 +627,7 @@ class _CoImagingCardWiredState extends ConsumerState<_CoImagingCardWired> {
   }
 }
 
-/// Collaborative mosaics (WS2) — split a panel grid across a club, fuse centrally.
+/// Collaborative mosaics — split a panel grid across a club, fuse centrally.
 class _MosaicsSection extends ConsumerWidget {
   const _MosaicsSection();
 
@@ -690,8 +690,8 @@ class _MosaicCardWired extends ConsumerWidget {
         .watch(collaborativeMosaicDetailProvider(summary.mosaicId))
         .valueOrNull;
     // Credit contributors from the hub's authoritative attribution rather than
-    // reconstructing them from the browse payload (WS4 consent contract); the
-    // card falls back to the embedded names until this resolves.
+    // reconstructing them from the browse payload; the card falls back to the
+    // embedded names until this resolves.
     final attribution = ref
         .watch(collaborativeMosaicAttributionProvider(summary.mosaicId))
         .valueOrNull;
@@ -710,7 +710,7 @@ class _MosaicCardWired extends ConsumerWidget {
   }
 }
 
-/// Shared calibration library (WS1) — never shoot the same dark twice.
+/// Shared calibration library — never shoot the same dark twice.
 class _SharedLibrarySection extends ConsumerWidget {
   const _SharedLibrarySection();
 

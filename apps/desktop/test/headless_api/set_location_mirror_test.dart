@@ -1,15 +1,15 @@
-// Regression test for the location store-split bug.
+// The location lives in two stores and both must be written.
 //
-// `POST /api/settings/location` writes the canonical backend (native) location
-// store, which `GET /api/settings/location` and the planetarium read. But the
-// scheduler and "tonight" suggestion subsystems read observer lat/lon straight
-// from the Drift `settingsDao`, which on a headless appliance is otherwise only
-// ever populated by the GUI settings flow (never run there). Before the fix, a
-// remote client that set its location through the API got a working planetarium
-// but a permanently "No observer location configured" scheduler.
+// `POST /api/settings/location` writes the canonical backend (native) store,
+// which `GET /api/settings/location` and the planetarium read. The scheduler
+// and "tonight" suggestion subsystems read observer lat/lon from the Drift
+// `settingsDao`, which on a headless appliance is otherwise only populated by
+// the GUI settings flow that never runs there — so without the mirror a remote
+// client gets a working planetarium and a permanently "No observer location
+// configured" scheduler.
 //
-// `handleSetLocation` now mirrors the location into `settingsDao`. This test
-// pins that mirror so the two stores cannot silently diverge again.
+// This test pins the mirror in `handleSetLocation` so the two stores cannot
+// silently diverge.
 import 'dart:convert';
 
 import 'package:drift/native.dart';

@@ -1,7 +1,5 @@
-// =============================================================================
-// live_frame_panel_unbounded_height_test.dart — the Live Frame tile must lay
-// out at a FINITE height when the dashboard gives it none.
-// =============================================================================
+// The Live Frame tile must lay out at a FINITE height when the dashboard gives
+// it none.
 //
 // Found live, not by reading: ticking Dashboard > Widgets > "Live Frame" made
 // the dashboard's whole primary column render blank while the picker still

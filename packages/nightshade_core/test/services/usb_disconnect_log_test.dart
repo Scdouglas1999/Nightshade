@@ -4,8 +4,7 @@
 // and pruning behaviour. The log feeds
 // `DeviceHealthSnapshot.disconnectCountLast24h` (consumed by the
 // pre-flight USB stability rule) and the post-session diagnostics
-// summary, so a regression that broke the cutoff would silently make
-// both checks vacuous.
+// summary, so a broken cutoff silently makes both checks vacuous.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/services/usb_disconnect_log.dart';

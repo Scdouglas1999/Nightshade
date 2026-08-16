@@ -12,7 +12,7 @@
 //
 //   2. PATH ADDRESSING vs LIVE-VERIFIED DSS2. The Dir-bucketed tile path and the
 //      Allsky path the fetcher GETs must match the byte-exact layout the CDS
-//      DSS2 pyramids actually serve (HiPS 1.0 §4.5:
+//      DSS2 pyramids actually serve (per IVOA HiPS 1.0:
 //      `Norder{k}/Dir{d}/Npix{n}.{ext}`, `Dir = floor(npix/10000)*10000`, and
 //      `Norder{k}/Allsky.{ext}`). The DSS2 red/blue base URLs in
 //      [HipsSurveyRegistry] are the live-verified ones, so the built URLs are

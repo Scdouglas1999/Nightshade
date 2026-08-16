@@ -1,16 +1,13 @@
-// Regression coverage: a sequenced run must advance the counters on its own
-// `imaging_sessions` row.
+// A sequenced run advances the counters on its own `imaging_sessions` row.
 //
-// Observed live (2026-07-25): `/api/sessions` reported session 61 with
-// totalExposures: 0, successfulExposures: 0, totalIntegrationSecs: 0.0, while
-// captured_images rows 169-171 carried sessionId: 61. The session claimed
-// nothing had been captured while its own frames pointed back at it.
-//
-// Root cause: `SessionStateNotifier.recordExposureComplete` — the only thing
-// that feeds SessionService, which is the only thing that writes those columns
-// — was called exclusively from the ad-hoc capture surfaces (imaging screen,
-// dashboard quick actions). The sequencer's frame-registration path stamped
-// `session_id` onto every row it wrote but never advanced the aggregate.
+// `SessionStateNotifier.recordExposureComplete` is the only thing that feeds
+// SessionService, which is the only thing that writes those columns. Called
+// exclusively from the ad-hoc capture surfaces (imaging screen, dashboard quick
+// actions), it leaves the sequencer's frame-registration path stamping
+// `session_id` onto every row it writes while the aggregate never moves:
+// `/api/sessions` then reports a session with totalExposures: 0,
+// successfulExposures: 0, totalIntegrationSecs: 0.0 while its own
+// captured_images rows point back at it.
 
 import 'dart:async';
 

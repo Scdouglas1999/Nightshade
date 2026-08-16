@@ -354,10 +354,10 @@ extension _ImagingServiceCapturePipeline on ImagingService {
             captureTimestamp.isBefore(
               exposureStartedAt.subtract(const Duration(seconds: 5)),
             )) {
-          // After a timeout, the "last image" can be the PREVIOUS frame
-          // still sitting in the camera buffer. Saving it would silently
-          // duplicate an old exposure under new metadata — fail loudly
-          // instead so the user/sequencer knows this frame was lost.
+          // After a timeout, the "last image" can be the PREVIOUS frame still
+          // sitting in the camera buffer. Saving it would silently duplicate an
+          // earlier exposure under new metadata, so this fails loudly and the
+          // user/sequencer learns the frame is lost.
           throw ImagingException(
             message:
                 'Exposure timed out and the camera returned a stale image '
@@ -448,10 +448,10 @@ extension _ImagingServiceCapturePipeline on ImagingService {
             if (!persistFrame) {
               // A live-view frame. It still has to reach the disk so "solve the
               // latest camera frame", annotation and the preview loader keep
-              // working, but it reuses ONE scratch path per camera instead of
-              // accumulating: looping 5 s subs used to write a fresh 23 MB FITS
-              // (~7.5 MB/s, ~27 GB/hour) into the operator's LIGHT folder and
-              // index every one of them as a light frame.
+              // working, but it reuses ONE scratch path per camera instead
+              // of accumulating: looping 5 s subs at ~23 MB a frame is
+              // ~27 GB/hour of the operator's LIGHT folder, each indexed as a
+              // light frame.
               savedFilePath = path.join(
                 nightshadeTemp.path,
                 'liveview_${ImagingService._scratchKey(deviceId)}.fits',

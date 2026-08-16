@@ -1,11 +1,10 @@
-// Regression: the window chrome must be reachable without sight of it.
+// The window chrome must be reachable without sight of it.
 //
-// Observed live: `tree | grep -iE "notification|account|settings|minimi|close"`
-// returned nothing from the title bar. None of the four icon buttons and none
-// of the three window controls appeared in the accessibility tree at all — an
-// InkWell contributes a tap action but no role and no name, and a Tooltip
-// contributes a tooltip rather than a label. The Settings gear is the only
-// route to Settings, so Settings was unreachable to assistive tech.
+// An InkWell contributes a tap action but no role and no name, and a Tooltip
+// contributes a tooltip rather than a label, so undeclared none of the four icon
+// buttons and none of the three window controls appear in the accessibility tree
+// at all. The Settings gear is the only route to Settings, which would make
+// Settings unreachable to assistive tech.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

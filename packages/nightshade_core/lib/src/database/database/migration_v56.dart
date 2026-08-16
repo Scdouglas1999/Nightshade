@@ -1,24 +1,23 @@
 part of '../database.dart';
 
 extension _NightshadeDatabaseMigrationV56 on NightshadeDatabase {
-  /// Version 56 (Collaborative Sky — Wave 0, "shared trust substrate"): the
-  /// durable foundation the 6.0 collaborative workstreams ride on. Purely
-  /// additive — no destructive drops; every change is a new column or a new
-  /// table.
+  /// Version 56 — the shared trust substrate the collaborative features ride
+  /// on. Purely additive: no destructive drops; every change is a new column or
+  /// a new table.
   ///
   ///   * `calibration_tags` gains sharing/provenance columns — `shared_by`,
   ///     `shared_at`, `license`, `provenance_json`, `published_remote_id` — so a
   ///     locally-tagged master can record who shared it, when, under what
   ///     license, with what provenance, and (when the user published it) the hub
-  ///     master id to retract by (WS1 shared calibration libraries).
+  ///     master id to retract by, for shared calibration libraries.
   ///   * `mosaic_panels` gains distribution columns — `assigned_rig_id`,
   ///     `assigned_user_id`, `claim_token`, `uploaded_master_id` — so a panel of
   ///     a collaborative mosaic can be claimed by a rig/user and tracked to the
-  ///     uploaded panel master (WS2 distributed mosaics).
+  ///     uploaded panel master.
   ///   * `constellation_contributions` gains `session_id` — links a per-tile
-  ///     swarm receipt to a live co-imaging session (WS3).
+  ///     swarm receipt to a live co-imaging session.
   ///   * New `co_imaging_sessions` table (+ its unique `(hub_key, session_id)`
-  ///     index) — client-side membership of live co-imaging sessions (WS3).
+  ///     index) — client-side membership of live co-imaging sessions.
   ///
   /// `calibration_tags` and `mosaic_panels` are raw-DDL tables (the dominant
   /// v27+ convention), so their new columns are retrofitted with guarded
@@ -38,7 +37,7 @@ extension _NightshadeDatabaseMigrationV56 on NightshadeDatabase {
   /// not always emit the `@TableIndex` on the migration path).
   Future<void> _upgradeSchemaV56(Migrator m, int from) async {
     if (from < 56) {
-      // WS1 — calibration master sharing / provenance.
+      // Calibration master sharing / provenance.
       if (!await _columnExists('calibration_tags', 'shared_by')) {
         await customStatement(
           'ALTER TABLE calibration_tags ADD COLUMN shared_by TEXT',
@@ -65,7 +64,7 @@ extension _NightshadeDatabaseMigrationV56 on NightshadeDatabase {
         );
       }
 
-      // WS2 — collaborative mosaic publish/role/status on the project itself, so
+      // Collaborative mosaic publish/role/status on the project itself, so
       // an owner's local project remembers the hub mosaic it published, its
       // collaborative role (owner|participant), and the hub-side lifecycle
       // (published|assembling|complete).
@@ -89,7 +88,7 @@ extension _NightshadeDatabaseMigrationV56 on NightshadeDatabase {
         'ON mosaic_projects (hub_mosaic_id)',
       );
 
-      // WS2 — collaborative mosaic panel distribution.
+      // Collaborative mosaic panel distribution.
       if (!await _columnExists('mosaic_panels', 'assigned_rig_id')) {
         await customStatement(
           'ALTER TABLE mosaic_panels ADD COLUMN assigned_rig_id TEXT',
@@ -111,14 +110,14 @@ extension _NightshadeDatabaseMigrationV56 on NightshadeDatabase {
         );
       }
 
-      // WS3 — co-imaging session link on the swarm contribution receipt.
+      // Co-imaging session link on the swarm contribution receipt.
       if (!await _columnExists('constellation_contributions', 'session_id')) {
         await customStatement(
           'ALTER TABLE constellation_contributions ADD COLUMN session_id TEXT',
         );
       }
 
-      // WS3 — client-side co-imaging session membership table.
+      // Client-side co-imaging session membership table.
       if (!await _tableExists('co_imaging_sessions')) {
         await m.createTable(coImagingSessions);
         await customStatement(

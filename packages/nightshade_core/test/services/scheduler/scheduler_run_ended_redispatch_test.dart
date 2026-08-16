@@ -1,13 +1,12 @@
-// One failed run must not end the unattended night (WE-SEQ-N1), the generated
-// plan must be able to start from a parked mount (WE-SEQ-N5), and the dawn park
-// must answer the same ownership question every other engine-initiated teardown
-// answers (Wave E refutation of SEQ-12).
+// One failed run must not end the unattended night, the generated plan must be
+// able to start from a parked mount, and the dawn park must answer the same
+// ownership question every other engine-initiated teardown answers.
 //
-// All three are the same defect shape as SEQ-12: `_status.currentTargetId` is
-// the LAST THING DISPATCHED, not "the run I own". Only a natural completion
-// reaches the engine's trigger stream, so after a failure/abort/operator stop
-// the field stays pinned, hysteresis reports isSwitch=false, and the autopilot
-// keeps choosing the same target every tick while dispatching nothing.
+// All three have one shape: `_status.currentTargetId` is the LAST THING
+// DISPATCHED, not "the run I own". Only a natural completion reaches the
+// engine's trigger stream, so after a failure/abort/operator stop the field
+// stays pinned, hysteresis reports isSwitch=false, and the autopilot keeps
+// choosing the same target every tick while dispatching nothing.
 //
 // The sink models the executor (which run is loaded, whether ANY run is in
 // flight) rather than counting calls, because both questions — "is the run I
@@ -128,7 +127,7 @@ SchedulerCandidate _candidate({
 }
 
 void main() {
-  group('SchedulerEngine — a dispatched run that ended (WE-SEQ-N1)', () {
+  group('SchedulerEngine — a dispatched run that ended', () {
     test('the next eligible tick dispatches again after a run FAILS', () async {
       final sink = _ExecutorSink();
       final engine = SchedulerEngine(
@@ -232,7 +231,7 @@ void main() {
   });
 
   group('SchedulerEngine — generated plan starts from a parked mount', () {
-    test('the plan unparks before it slews (WE-SEQ-N5)', () {
+    test('the plan unparks before it slews', () {
       final engine = SchedulerEngine(
         site: _site,
         sequenceSink: _ExecutorSink(),
@@ -305,8 +304,8 @@ void main() {
           reason:
               'safeTheRig(park: true) PAUSES the running sequence first, so an '
               'unowned dawn park ends the operator\'s exposure with no '
-              'ownership check and no warning — the exact reasoning SEQ-12 '
-              'used to gate the other two engine-initiated teardowns. '
+              'ownership check and no warning — the same reasoning that gates '
+              'the other two engine-initiated teardowns. '
               'calls=${sink.calls}',
         );
         expect(sink.activeRunId, 'operator-manual-run');

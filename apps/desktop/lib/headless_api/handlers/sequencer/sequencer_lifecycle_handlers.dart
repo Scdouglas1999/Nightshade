@@ -82,19 +82,14 @@ extension _SequencerLifecycle on SequencerHandlers {
     });
   }
 
-  /// Start the sequencer via the canonical [SequenceExecutor.start] path.
+  /// Start the sequencer via the canonical [SequenceExecutor.start] path —
+  /// never `backend.sequencerStart()` directly, which skips pre-flight
+  /// validation, the session row, the sequence_runs row, the checkpoint timer,
+  /// the disk-space watchdog and the session-lifecycle hooks.
   ///
-  /// Audit C3 — historical bug: this handler called
-  /// `backend.sequencerStart()` directly, bypassing the executor entirely.
-  /// That skipped pre-flight validation, the session row, the
-  /// sequence_runs row, the checkpoint timer, the disk-space watchdog,
-  /// and the session-lifecycle hooks. Headless clients were the lowest-
-  /// rigor start path in the whole app.
-  ///
-  /// Now the handler reaches the same `SequenceExecutor` instance the
-  /// UI does. Validation errors come back as a structured 400 with the
-  /// full issue list (no first-error truncation) so a remote dashboard
-  /// can render the same pre-flight panel the desktop dialog does.
+  /// Validation errors come back as a structured 400 carrying the full issue
+  /// list (no first-error truncation) so a remote dashboard can render the
+  /// same pre-flight panel the desktop dialog does.
   Future<Response> _handleSequencerStart(Request request) async {
     _logInfo('[API] POST /api/sequencer/start');
     final commandId = commandCorrelator?.beginCommand(
@@ -111,12 +106,11 @@ extension _SequencerLifecycle on SequencerHandlers {
     var nativeStartAttempted = false;
     // True between opening this start's `imaging_sessions` row and the native
     // executor accepting the run. A start the executor then REFUSES must not
-    // leave the row behind: measured on the live rig 2026-08-09, a start whose
-    // sequence had failed to load answered `409 no_sequence_loaded` and still
-    // left session id 3 — name copied from an earlier run, zero exposures,
-    // status completed — sitting in `GET /api/sessions` as a night that never
-    // happened. Cleared once `sequencerStart()` returns, because from then on
-    // the run owns the row and finalization closes it.
+    // leave the row behind — a start that answers `409 no_sequence_loaded`
+    // would otherwise strand a session named after an earlier run, zero
+    // exposures, status completed, sitting in `GET /api/sessions` as a night
+    // that never happened. Cleared once `sequencerStart()` returns, because
+    // from then on the run owns the row and finalization closes it.
     var openedSessionForThisStart = false;
     try {
       if (hasInEditorSequence) {
@@ -152,10 +146,9 @@ extension _SequencerLifecycle on SequencerHandlers {
         // null and the first TakeExposure failed "No camera connected" — a
         // string the executor classifies as a device *disconnect*, which sent
         // the run into the recovery loop waiting for hardware that was never
-        // assigned. Reproduced on the live rig 2026-08-09: start answered
-        // `{"status":"started"}`, the run sat at
+        // assigned: start answers `{"status":"started"}`, the run sits at
         // `recovering / Device disconnected, progress 0.0` with no frames, and
-        // `GET /api/devices/connected` listed the camera the whole time.
+        // `GET /api/devices/connected` lists the camera the whole time.
         await _wireConnectedDevicesIntoNativeExecutor(backend);
         await _restoreNativeSavePath(backend);
         // Refuse, before anything is opened, a run that needs a guider, dome
@@ -229,17 +222,14 @@ extension _SequencerLifecycle on SequencerHandlers {
     });
   }
 
-  /// Stop the sequencer via the canonical [SequenceExecutor.stop] path.
+  /// Stop the sequencer via the canonical [SequenceExecutor.stop] path —
+  /// never `backend.sequencerStop()` directly, which leaves the session row,
+  /// run row and progress timers dangling.
   ///
-  /// Audit C3 — historical bug: this handler bypassed the executor and
-  /// only called `backend.sequencerStop()`, leaving the session row, run
-  /// row, and progress timers dangling. It also discarded the checkpoint
-  /// unconditionally with no way for the operator to opt out.
-  ///
-  /// The new wire contract accepts an optional `preserveCheckpoint`
-  /// boolean (defaults to `true` for parity with the desktop Stop
-  /// button — operator-initiated stops keep the resume point). Callers
-  /// that want a destructive reset-style stop pass `false`.
+  /// The wire contract accepts an optional `preserveCheckpoint` boolean,
+  /// defaulting to `true` for parity with the desktop Stop button:
+  /// operator-initiated stops keep the resume point. Callers that want a
+  /// destructive reset-style stop pass `false`.
   Future<Response> _handleSequencerStop(Request request) async {
     _logInfo('[API] POST /api/sequencer/stop');
     bool preserveCheckpoint = true;
@@ -272,21 +262,18 @@ extension _SequencerLifecycle on SequencerHandlers {
     //   POST /api/sequencer/stop -> 200 {"status":"stopped","preserveCheckpoint":true}
     // which reports a run stopped when none was in flight.
     //
-    // Fail SAFE, not merely honest: a failed status read still runs the stop,
-    // because a stop that silently declines to act is worse than a redundant
-    // one.
+    // A failed status read still runs the stop: a stop that silently declines
+    // to act is worse than a redundant one.
     //
     // This is a DENY-list of terminal/idle states, not an allow-list of active
     // ones, and that direction is deliberate. `ExecutorState` also contains
     // `Stopping` and `Recovering`, both of which are runs very much in flight
     // — a sequence sitting in `recovering` (retrying after unsafe weather, a
     // lost guide star, a failed slew) is exactly what an operator hits Stop
-    // for. An allow-list of {running, paused} answered `wasRunning: false` for
-    // it, which is the one lie this whole change exists to remove: telling the
-    // operator nothing was running when something was. Caught by driving a
-    // real run on the local instance, which reported `state: "recovering"`.
-    // Any state added later therefore counts as running until it is
-    // explicitly listed as terminal here.
+    // for. An allow-list of {running, paused} would answer `wasRunning: false`
+    // there, telling the operator nothing was running when something was. Any
+    // state added later therefore counts as running until it is explicitly
+    // listed as terminal here.
     var wasRunning = true;
     try {
       final status = await container
@@ -472,9 +459,8 @@ extension _SequencerLifecycle on SequencerHandlers {
     // Drop the previous load's summary FIRST. A load that is then rejected —
     // by the wire validator or by the native deserializer — must not leave the
     // last successful sequence's name and targets behind for the next start to
-    // label a run with. Live rig 2026-08-09: a `load` that failed on a missing
-    // field was followed by a `start`, and the start opened a session named
-    // after a sequence from twenty minutes earlier.
+    // label a run with — a `load` that fails on a missing field followed by a
+    // `start` would open a session named after the previous sequence.
     _lastLoadedWire = null;
 
     final rejection = _rejectInvalidWireSequence(json);
@@ -486,7 +472,15 @@ extension _SequencerLifecycle on SequencerHandlers {
     // executor owns the tree from here on and exposes no way to ask it for the
     // sequence name or its targets, so if this is dropped the headless run has
     // nothing to label a session with. See [_openSessionRowForNativeRun].
-    _lastLoadedWire = _WireSequenceSummary.parse(json);
+    _lastLoadedWire = _WireSequenceSummary.parse(
+      json,
+      onError: (error) => _logWarning(
+        '[API] POST /api/sequencer/load: could not summarize the loaded wire '
+        'sequence ($error). The native executor holds it and the run may '
+        'proceed, but it will open no imaging_sessions row and the '
+        'guider/dome/cover pre-flight has no role list to check.',
+      ),
+    );
     return jsonOk({'status': 'loaded'});
   }
 
@@ -541,12 +535,11 @@ extension _SequencerLifecycle on SequencerHandlers {
     } on SequenceValidationException catch (e) {
       return jsonBadRequest(e.toJsonBody());
     } on ActiveImagingSessionException catch (e) {
-      // A previous run can leave its durable session row `active` (seen after a
-      // run that failed on its first frame), and every later start is then
-      // refused. That refusal used to surface as `500 internal_error`, which
-      // reads as a host crash and tells the caller nothing about the way out.
-      // Match the shape `analytics_handlers` already uses for this exception and
-      // name the recovery.
+      // A run that failed on its first frame can leave its durable session row
+      // `active`, and every later start is then refused. A stale active row
+      // answers 409 naming the recovery — the shape `analytics_handlers` uses
+      // for this exception — not a 500 that reads as a host crash and tells
+      // the caller nothing about the way out.
       return jsonConflict({
         'error': 'active_session_exists',
         'message':

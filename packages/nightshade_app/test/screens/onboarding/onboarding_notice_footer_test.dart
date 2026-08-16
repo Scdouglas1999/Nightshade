@@ -1,13 +1,12 @@
-// Regression: the onboarding wizard's validation message must never occupy the
-// same space as the footer buttons.
+// The onboarding wizard's validation message must never occupy the same space
+// as the footer buttons.
 //
-// The defect: validation was surfaced with `context.showWarningSnackBar(...)`.
-// A Material SnackBar docks to the bottom of the Scaffold — exactly where the
-// wizard footer sits — so the amber band covered Back / Next / Save profile
-// completely AND intercepted taps on them. Observed live on the drivers, camera
-// and capture-folder steps at 1400x900 and at 800x600: the wizard said "pick at
-// least one driver" while removing the buttons needed to act on it, and a click
-// on Back at that moment did nothing.
+// `context.showWarningSnackBar(...)` cannot carry it: a Material SnackBar docks
+// to the bottom of the Scaffold — exactly where the wizard footer sits — so the
+// amber band covers Back / Next / Save profile completely AND intercepts taps on
+// them. On the drivers, camera and capture-folder steps at 1400x900 and at
+// 800x600 the wizard says "pick at least one driver" while removing the buttons
+// needed to act on it, and a click on Back does nothing.
 //
 // The invariants pinned here:
 //   1. the message renders (the user is still told what is wrong),
@@ -40,8 +39,7 @@ NightshadeDatabase _newDb() =>
     NightshadeDatabase.forTesting(NativeDatabase.memory());
 
 /// Window sizes to prove this at: the desktop reference, two small desktop
-/// windows that previously showed the defect, and a phone (the phone layout has
-/// its own footer implementation).
+/// windows, and a phone (the phone layout has its own footer implementation).
 const _sizes = <(String, Size)>[
   ('1400x900', Size(1400, 900)),
   ('1000x700', Size(1000, 700)),
@@ -338,7 +336,8 @@ void main() {
     expect(find.textContaining('Focal length'), findsWidgets);
 
     // Focal length fixed, aperture still impossible: the band must move on to
-    // the field that is now blocking, not vanish and not keep the old text.
+    // the field that is now blocking, neither vanishing nor keeping the
+    // previous message.
     await container.read(onboardingDraftProvider.notifier).setOpticalTrain(
           focalLengthMm: 600,
           apertureMm: 0.0001,

@@ -1,11 +1,7 @@
-// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
-//
 // Polar alignment error visualizations: the sparkline error-trend chart (public ErrorTrendChart), the bullseye overlay painter, and the radar-style live error indicator.
 part of '../polar_alignment_screen.dart';
 
-// =============================================================================
-// Task 4.5: Error Trend Sparkline Chart
-// =============================================================================
+// Task 4.5: error trend sparkline chart
 
 class ErrorTrendChart extends StatelessWidget {
   final NightshadeColors colors;
@@ -149,9 +145,7 @@ class _SparklinePainter extends CustomPainter {
   }
 }
 
-// =============================================================================
 // Bullseye and polar error visualization painters
-// =============================================================================
 
 class _BullseyeOverlayPainter extends CustomPainter {
   final NightshadeColors colors;
@@ -345,15 +339,11 @@ class _PolarErrorPainter extends CustomPainter {
 
     // The centre mark is where a measurement WOULD sit if the mount were
     // perfectly aligned. Filled, it is indistinguishable from a measurement of
-    // zero — which is what an untouched (or failed) run used to show while the
-    // numbers under it read "--". With nothing measured it is an empty target.
+    // zero, so with nothing measured it is an empty target.
     //
-    // The gate is the MEASUREMENT, not the phase. Gating on `adjusting` meant a
-    // finished run — the one moment the operator most wants to see where they
-    // ended up — snapped the marker back to dead centre and captioned itself
-    // "No measurement yet" while the row beneath it read Azimuth 3.2" ·
-    // Altitude 0.6" · Total 3.2" and the centre panel read "Alignment
-    // Complete — Final error: 3.2"".
+    // The gate is the MEASUREMENT, not the phase: gating on `adjusting` snaps a
+    // finished run's marker back to dead centre and captions it "No measurement
+    // yet" while the row beneath reports the final error.
     final hasMeasurement = error != null && phase != PolarAlignPhase.idle;
     if (hasMeasurement) {
       final targetRadius = 8.0 + pulseValue * 4;

@@ -408,7 +408,7 @@ class _CalibrationLibrarySettingsState
     }
   }
 
-  /// Publish a local master to the configured hub (WS1 share) after collecting
+  /// Publish a local master to the configured hub after collecting
   /// the consent/license. On a remote client the action routes to the appliance
   /// over REST; locally it goes straight through [CalibrationLibraryService].
   Future<void> _publish(CalibrationMasterRecord record) async {

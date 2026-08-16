@@ -1,8 +1,6 @@
 part of '../profile_editor_dialog.dart';
 
-// =============================================================================
-// Helper Widgets
-// =============================================================================
+// Helper widgets
 
 /// Collapsible section card
 class _SectionCard extends StatelessWidget {

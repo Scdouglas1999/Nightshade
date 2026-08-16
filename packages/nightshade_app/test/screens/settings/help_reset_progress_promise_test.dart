@@ -1,15 +1,9 @@
-// WD-N8: "Reset All Progress" promised a tour it did not bring back.
+// "Reset All Progress" confirms that "you will see the welcome tour again", so
+// the tour has to come back IN THIS SESSION.
 //
-// Live on 2026-08-13: Settings → Help & Tutorials → Reset All Progress →
-// confirm ("This will clear all tutorial progress and you will see the welcome
-// tour again."). Returning to the Dashboard in the same session showed no tour
-// and no nudge — a grep of the accessibility tree for "tour|tutorial" came
-// back empty.
-//
-// The rows ARE deleted from the database. What was not done is telling the
-// running app: the dismissed coach-mark set is held in memory, and the
-// first-launch tour's status is a cached future, so both still said "already
-// seen" for the rest of the session.
+// Deleting the rows from the database is not enough: the dismissed coach-mark
+// set is held in memory and the first-launch tour's status is a cached future,
+// so without invalidating both they keep saying "already seen".
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

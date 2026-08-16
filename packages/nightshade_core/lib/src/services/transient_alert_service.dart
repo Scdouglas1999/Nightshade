@@ -68,7 +68,7 @@ class TransientAlertService {
   /// Expiration time of the current cache.
   DateTime? _cacheExpiry;
 
-  /// The enabled upstreams and TNS bot identity used to populate the cache.
+  /// The enabled upstreams and TNS bot identity the cache was populated from.
   /// Filtering-only changes can reuse a cache, but enabling a new source or
   /// changing credentials must fetch again instead of serving a stale
   /// snapshot for another 15 minutes.

@@ -73,10 +73,10 @@ void main() {
     }
 
     group('getSuggestionsForTonight', () {
-      // COL2-7: tonight's #1 imaging pick was "gam Cyg / IC1318", typed Star at
-      // mag 2.2 — a naked-eye point source ranked above every nebula in the
-      // list, with the exposure suggestion and the magnitude sort inheriting
-      // its stellar magnitude.
+      // A sizeless star otherwise takes tonight's #1 imaging pick: "gam Cyg /
+      // IC1318", typed Star at mag 2.2 — a naked-eye point source above every
+      // nebula in the list, with the exposure suggestion and the magnitude sort
+      // inheriting its stellar magnitude.
       test('does not offer a sizeless star as an imaging target', () async {
         final suggestions = await service.getSuggestionsForTonight(
           config: const TargetSuggestionConfig(minAltitude: 0.0, minScore: 0.0),

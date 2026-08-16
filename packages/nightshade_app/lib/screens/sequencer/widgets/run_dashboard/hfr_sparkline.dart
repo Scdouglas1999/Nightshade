@@ -2,12 +2,10 @@ import 'package:flutter/material.dart';
 
 /// HFR-over-time sparkline for the Run dashboard.
 ///
-/// One painter for every dashboard surface that plots the run's HFR trend
-/// (the quality panel's tile and the live-frame badge). They used to carry
-/// independent implementations under the same name, which disagreed on the
-/// flat-series clamp, on the stroke width and — visibly — on which way up the
-/// trend was drawn, so two tiles on one dashboard rendered the same night
-/// differently.
+/// One painter for every dashboard surface that plots the run's HFR trend (the
+/// quality panel's tile and the live-frame badge), so two tiles on one
+/// dashboard cannot disagree about the flat-series clamp, the stroke width or
+/// which way up the trend is drawn.
 ///
 /// Orientation is the invariant worth stating: **lower HFR is better focus, so
 /// it is drawn HIGHER on screen.** No axes — the caller's min–max label carries

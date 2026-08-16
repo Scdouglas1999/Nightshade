@@ -8,7 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../your_sky/sky_atlas_format.dart';
 import '../collaborative_sky_format.dart';
 
-/// A card for one live co-imaging session (WS3): N rigs JOIN the SAME target and
+/// A card for one live co-imaging session: N rigs JOIN the SAME target and
 /// their subs co-add through the additive fusion pipeline, so effective
 /// integration scales with rig count and imaging continues across longitudes.
 ///
@@ -50,9 +50,7 @@ class CoImagingSessionCard extends StatelessWidget {
   ///
   /// Membership is NOT contribution: a rig can be joined (pointed at a framing
   /// slot) while every sub stays on the device because the operator declined
-  /// the sharing consent. Telling that user they are pooling light is the most
-  /// consequential thing this card can get wrong, so the caption is gated on
-  /// this flag, not on [joined] alone.
+  /// the sharing consent. The caption is gated on this flag, not on [joined].
   final bool? contributing;
 
   /// Opens the sharing-consent flow from the joined-but-not-contributing state,

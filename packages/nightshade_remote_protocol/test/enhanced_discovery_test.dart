@@ -52,10 +52,9 @@ void main() {
   });
 
   group('isLocalNetworkHost — Tailscale CGNAT (100.64.0.0/10)', () {
-    // Why these specific bounds: the /10 boundary is precisely 100.64.0.0
-    // through 100.127.255.255. The previous implementation accepted neither
-    // and made QR pairing unusable on Tailscale tailnets where every node
-    // address lives inside this block.
+    // The /10 boundary is precisely 100.64.0.0 through 100.127.255.255, and
+    // every Tailscale node address lives inside it, so QR pairing depends on
+    // both bounds being accepted.
     test('accepts lower boundary 100.64.0.0', () {
       expect(isLocalNetworkHost('100.64.0.0'), isTrue);
       expect(isLocalNetworkHost('100.64.0.1'), isTrue);
@@ -113,9 +112,9 @@ void main() {
     });
 
     test('accepts fc00::/7 unique-local (Tailscale ULA)', () {
-      // Tailscale tailnets get a /48 inside fd7a:115c::/32, which lives in
-      // the fc00::/7 ULA range. The previous implementation did not accept
-      // these and silently rejected Tailscale-over-IPv6 QR payloads.
+      // Tailscale tailnets get a /48 inside fd7a:115c::/32, which lives in the
+      // fc00::/7 ULA range — rejecting it rejects Tailscale-over-IPv6 QR
+      // payloads.
       expect(isLocalNetworkHost('fd7a:115c:a1e0::1'), isTrue);
       expect(isLocalNetworkHost('fd00::1'), isTrue);
       expect(isLocalNetworkHost('fc00::1'), isTrue);
@@ -429,12 +428,11 @@ void main() {
     });
   });
 
-  // Regression: a live host that REJECTS the credential must not be reported
-  // as unreachable. A Nightshade host invalidates every paired token when it
+  // A live host that REJECTS the credential must not be reported as
+  // unreachable. A Nightshade host invalidates every paired token when it
   // restarts, so a stale token against a healthy host is the commonest failure
-  // an operator hits — and the saved-servers screen used to render it as
-  // "Could not reach <name> at <host>", sending people to debug their network
-  // instead of pairing again.
+  // an operator hits, and "Could not reach <name> at <host>" sends them to
+  // debug their network instead of pairing again.
   group('probeServer distinguishes auth rejection from unreachability', () {
     Future<int> serveStatus(
       int statusCode, {

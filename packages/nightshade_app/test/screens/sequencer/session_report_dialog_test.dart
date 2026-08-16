@@ -270,8 +270,8 @@ void main() {
       _fakeReport(errors: const ['Guider lost star', 'Recovered']),
     );
 
-    // Errors and Warnings are now distinct sections so the user can
-    // visually triage by severity (trust-patch §B item 7).
+    // Errors and Warnings are distinct sections so the user can visually
+    // triage by severity.
     expect(find.text('Errors'), findsOneWidget);
     expect(find.text('Guider lost star'), findsOneWidget);
     expect(find.text('Recovered'), findsOneWidget);
@@ -319,10 +319,9 @@ void main() {
     expect(find.text('Retry'), findsNWidgets(3));
   });
 
-  // WD-SEQ-N1 — pressing Stop was reported as a failure in three places at
-  // once. The report titled itself "Stopped (resumable)" and carried a red
-  // "Errors - Sequence cancelled" section six inches to the left of that
-  // title. A deliberate user action is not a critical fault.
+  // Pressing Stop must not be reported as a failure: a report titled "Stopped
+  // (resumable)" carrying a red "Errors - Sequence cancelled" section beside
+  // that title states a critical fault for a deliberate user action.
   testWidgets('a run the operator stopped has no Errors section',
       (tester) async {
     await _pump(

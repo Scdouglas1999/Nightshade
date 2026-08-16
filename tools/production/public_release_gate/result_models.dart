@@ -1,5 +1,3 @@
-// Part of ../public_release_gate.dart -- extracted for maintainability.
-//
 // Small immutable result models used by the conservative release gate.
 part of '../public_release_gate.dart';
 

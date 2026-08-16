@@ -186,8 +186,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
         child: AdaptivePanelLayout(
           primary: canvas,
           panelSide: PanelSide.end,
-          // Desktop/tablet keep the familiar right-hand sidebar; the previous
-          // ResizablePanel(initialWidth: 320, min 250, max 500) maps onto these.
+          // Desktop/tablet keep the familiar right-hand sidebar.
           initialPanelWidth: 320,
           minPanelWidth: 250,
           maxPanelWidth: 500,
@@ -420,7 +419,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
     final notifier = ref.read(framingProvider.notifier);
     // setTarget records this as the last framed target (single settings key)
     // so it restores across app restarts WITHOUT writing a row into the
-    // targets library, which previously polluted Analytics → Projects.
+    // targets library, which would pollute Analytics → Projects.
     notifier.setTarget(target);
     ref.read(targetSearchProvider.notifier).clear();
     _searchController.text = target.name;
@@ -482,9 +481,9 @@ class _FramingViewState extends ConsumerState<FramingView> {
     FramingTarget target,
     double rotation,
   ) async {
-    // Carry the DRAWN mosaic through. Previously the panels on the canvas were
-    // dropped and a single header went in at the grid centre, with nothing in
-    // the dialog or the confirmation to say the mosaic had been discarded.
+    // Carry the DRAWN mosaic through: inserting a single header at the grid
+    // centre would drop the canvas panels with nothing in the dialog or the
+    // confirmation to say the mosaic had been discarded.
     final framingState = ref.read(framingProvider);
     final panels = framingState.mosaicEnabled
         ? framingState.mosaicPanels

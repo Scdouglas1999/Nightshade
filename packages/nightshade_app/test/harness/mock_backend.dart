@@ -127,6 +127,13 @@ MockBackend mockBackend() {
   // whole validation run (which broke every sequencer-screen widget test).
   // `true` matches the local FFI backend the harness stands in for.
   when(() => backend.dispatchPluginNodesLocally).thenReturn(true);
+  // The sequencer toolbar's SIMULATION badge reads this on every build. An
+  // unstubbed mocktail method returns null, which type-errors the read into
+  // an error state the badge then treats as "no claim" — the badge would be
+  // right by accident. `false` is what the harness backend actually drives:
+  // it installs no simulated device ops.
+  when(() => backend.sequencerIsSimulationMode())
+      .thenAnswer((_) async => false);
   // dispose() returns void; mocktail won't auto-stub void getters/setters but
   // void methods are fine. Still, set up explicitly so `verify(() => ...)`
   // works for tests that want to assert disposal.

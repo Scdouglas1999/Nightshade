@@ -94,9 +94,8 @@ class _StripBody extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (error, _) {
-        // Errors are a feature, not a silent fallback. We
-        // surface a tiny inline marker so the user knows the strip
-        // crashed rather than "showed nothing because of a bug".
+        // A tiny inline marker rather than an empty strip: with no marker, a
+        // crash here is indistinguishable from a node that captured nothing.
         final colors = NightshadeColors.of(context);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),

@@ -171,16 +171,10 @@ final catalogStateProvider =
 
 /// The one HYG star catalog in the process.
 ///
-/// There used to be two: this provider at magnitude 15 answering only the
-/// boolean "is this the fallback list", and a second instance at magnitude 12
-/// inside `loadedStarsProvider` that the renderer and search actually drew
-/// from. Each parsed the same ~120k-row CSV in its own isolate and retained its
-/// own `List<Star>` for the process lifetime, and the fallback banner reported
-/// on the catalog that was *not* on screen.
-///
-/// Magnitude 12 is the depth the renderer needs; the per-frame magnitude limit
-/// filters below that. Every consumer now shares this instance, so the parse
-/// happens once and what the banner describes is what the sky shows.
+/// Every consumer shares this instance, so the ~120k-row CSV is parsed once and
+/// the fallback banner describes the catalog that is on screen. Magnitude 12 is
+/// the depth the renderer needs; the per-frame magnitude limit filters below
+/// that.
 final starCatalogProvider = Provider<HygStarCatalog>((ref) {
   return HygStarCatalog(magnitudeLimit: 12.0);
 });

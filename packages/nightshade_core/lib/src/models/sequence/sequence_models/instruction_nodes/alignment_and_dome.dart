@@ -24,16 +24,14 @@ class MeridianFlipNode extends SequenceNode {
   /// Whether this node should pull its effective configuration from the global
   /// `globalMeridianFlipSettingsProvider` at execution time.
   ///
-  /// Why: the Sequencer Settings panel exposes a 16-row "Meridian Flip"
-  /// section that operators reasonably expect to govern flip behavior. Fresh
-  /// nodes (from the palette / quick-start wizard / canonical importers) carry
-  /// `useGlobalDefaults: true` so any subsequent change in Sequencer Settings
-  /// takes effect without per-node editing. The node's own fields still exist
-  /// to allow explicit per-node overrides.
+  /// Fresh nodes (from the palette / quick-start wizard / canonical importers)
+  /// carry `useGlobalDefaults: true`, so a change in Sequencer Settings takes
+  /// effect without per-node editing. The node's own fields remain as explicit
+  /// per-node overrides.
   ///
-  /// Sticky-override UX: when an operator edits one of the 11 flip-config
-  /// fields in the properties panel, this flag flips to `false` so the edit
-  /// beats the global setting. That side-effect is owned by
+  /// Editing one of the 11 flip-config fields in the properties panel flips
+  /// this to `false` so the edit beats the global setting. That side-effect is
+  /// owned by
   /// `applyMeridianFlipEdit(...)` in the editor layer (see
   /// `packages/nightshade_app/lib/screens/sequencer/widgets/`
   /// `meridian_flip_edit_helper.dart`) — NOT by [copyWith], which is a plain

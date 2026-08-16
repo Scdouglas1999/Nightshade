@@ -98,11 +98,10 @@ Map<String, Object?> _buildInventory(String root) {
     ..._sequenceNodeUnits(root),
     ..._dirUnits(root, '$_appLib/widgets', 'widget', 'shared-widgets'),
     ..._dirUnits(root, 'apps/mobile/lib', 'mobile', 'mobile'),
-    // Everything below was missing until 2026-08-09, and its absence is why
-    // "394 of 402 units swept" was a statement about one package's screen tree
-    // rather than about the product. New trees use PATH-QUALIFIED ids; the five
-    // sources above keep their basename ids so the existing status.json history
-    // still matches.
+    // The trees below are what make the swept total a statement about the
+    // product rather than about one package's screen tree. They use
+    // PATH-QUALIFIED ids; the five sources above keep their basename ids so the
+    // existing status.json history still matches.
     ..._treeUnits(root, 'apps/desktop/lib', 'desktop', 'desktop-app'),
     ..._treeUnits(
       root,

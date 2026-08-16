@@ -103,12 +103,10 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
   /// name suggests: `rootNodeId` is nullable in the model, in the `sequences`
   /// table and in the `.nseq.json` schema (the importer only checks it is a
   /// String *if present*), and the id-remapping copy paths resolve it through
-  /// a lookup that can miss. Both `addNode` and `addTargetHeader` used to bail
-  /// out on those documents, which is how Framing's "Add to Sequence -> Add
-  /// target" could close its dialog having written nothing at all: there was
-  /// no root to hang the header from, so it was hung nowhere. Refusing to
-  /// insert is not a safer answer than repairing the spine — it just moves the
-  /// failure somewhere the user cannot fix it.
+  /// a lookup that can miss. Repairing the spine beats refusing to insert:
+  /// bailing out on those documents lets a caller close its dialog having
+  /// written nothing, which moves the failure somewhere the user cannot fix
+  /// it.
   String _ensureRootNode(Map<String, SequenceNode> nodes) {
     final declaredId = _currentSequence!.rootNodeId;
     if (declaredId != null && nodes.containsKey(declaredId)) return declaredId;
@@ -184,15 +182,12 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
   /// If there are existing instruction nodes directly under the root (not wrapped
   /// in a target), those instructions will become children of the new target.
   ///
-  /// Throws [NoActiveSequenceException] when no sequence is loaded — previously
-  /// this silently created an unnamed sequence, hiding the UX failure that the
-  /// user hadn't opened or created one yet. UI callers should catch and prompt
-  /// (e.g. "Create a new sequence named '${targetNode.targetName}'?").
+  /// Throws [NoActiveSequenceException] when no sequence is loaded; UI callers
+  /// catch and prompt (e.g. "Create a new sequence named
+  /// '${targetNode.targetName}'?").
   ///
   /// A sequence that IS loaded but has no usable root is repaired rather than
-  /// refused — see [_ensureRootNode]. The bare `if (rootNodeId == null) return`
-  /// this replaced is what made Framing's "Add to Sequence -> Add target"
-  /// unable to add a target: it returned normally having written nothing.
+  /// refused — see [_ensureRootNode].
   void addTargetHeader(TargetHeaderNode targetNode) {
     if (_currentSequence == null) {
       throw NoActiveSequenceException(
@@ -306,11 +301,11 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
   /// scheduler evaluates.
   ///
   /// The builder tree and the `targets` table are two copies of "where is this
-  /// object", and only the run path used to reconcile them — so between an edit
-  /// and the next run the autopilot kept scoring the OLD coordinates while the
-  /// card the operator was looking at showed the new ones. Fire-and-forget: the
-  /// edit itself is synchronous and must not wait on (or fail with) a database
-  /// write, and the sync swallows its own errors.
+  /// object"; the run path reconciles them at start and this write reconciles
+  /// them at edit time, so the autopilot scores the coordinates on the card the
+  /// operator is looking at. Fire-and-forget: the edit itself is synchronous
+  /// and must not wait on (or fail with) a database write, and the sync
+  /// swallows its own errors.
   void _syncRepointedTarget(SequenceNode? previous, SequenceNode next) {
     if (next is! TargetHeaderNode) return;
     final ref = _ref;
@@ -326,12 +321,10 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
   /// Same sync, for the edits that replace the WHOLE document instead of one
   /// node: undo and redo.
   ///
-  /// A Wave E refuter reached the identical two-copies divergence through
-  /// Ctrl+Z — the builder card showed the restored coordinates while the
-  /// scheduler kept scoring the ones that had just been undone, so the STALE
-  /// copy was the one the operator never confirmed. Hanging the sync off
-  /// `updateNode` alone was the "fixed one producer" shape; this is the other
-  /// producer of a re-point.
+  /// Ctrl+Z reaches the same two-copies divergence: the builder card shows the
+  /// restored coordinates while the scheduler keeps scoring the ones just
+  /// undone, leaving the operator's confirmed copy the stale one. Hanging the
+  /// sync off `updateNode` alone covers one producer; this is the other.
   ///
   /// Only headers whose coordinates actually differ between the two snapshots
   /// are pushed (the per-node guard does that), so an undone rename or priority
@@ -378,9 +371,9 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     if (parent == null) return;
 
     final children = List<String>.from(parent.childIds);
-    // `removeAt` / `insert` throw RangeError on out-of-range indices, which
-    // matches the legacy behaviour: callers passing stale Flutter
-    // `ReorderableListView` indices learn loudly rather than silently no-op.
+    // `removeAt` / `insert` throw RangeError on out-of-range indices: callers
+    // passing stale Flutter `ReorderableListView` indices learn loudly rather
+    // than silently no-op.
     final item = children.removeAt(oldIndex);
     children.insert(newIndex, item);
 

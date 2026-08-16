@@ -1,9 +1,9 @@
-// Wave 3 / Living Sky — master/slave PROVIDER parity regression net.
+// Living Sky — master/slave PROVIDER parity net.
 //
-// The slave-blind bug class (region detail / First Light feed reading an EMPTY
-// local store on a companion tablet instead of the host's data) shipped because
-// the backend-branching read providers had no test asserting that, in slave
-// (NetworkBackend) mode, they surface the HOST's data rather than empty local
+// The slave-blind failure (region detail / First Light feed reading an EMPTY
+// local store on a companion tablet instead of the host's data) is invisible
+// unless the backend-branching read providers are asserted in slave
+// (NetworkBackend) mode to surface the HOST's data rather than empty local
 // state. These tests pin that branch for every Living Sky read surface a slave
 // is expected to mirror:
 //

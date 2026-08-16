@@ -1,8 +1,6 @@
 part of '../smart_night_dialog.dart';
 
-// =====================================================================
 // Inline widgets
-// =====================================================================
 
 class _StepChip extends StatelessWidget {
   final String label;

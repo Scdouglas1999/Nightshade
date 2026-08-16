@@ -14,9 +14,9 @@
 //   * "Start Over" delegates to backend.discardCheckpoint() and hides
 //     the banner.
 //
-// A regression here would either (a) leave the user with no way to
-// recover an interrupted mosaic without restarting the app, or (b)
-// duplicate the resume dialog for every paused sequence — both bad.
+// Breaking either half would leave the user with no way to recover an
+// interrupted mosaic without restarting the app, or duplicate the resume dialog
+// for every paused sequence.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -357,8 +357,6 @@ class PlateSolveService {
     if (result.success) {
       // `PlateSolveResult.ra` is in DEGREES across every solve path (FFI,
       // network host, and the local fallback parsers), so log it as degrees.
-      // Earlier this claimed hours, which was wrong and made the log line
-      // disagree with the actual value by 15x.
       logging.info(
         'Plate solve succeeded: RA ${result.ra.toStringAsFixed(4)}° '
         'Dec ${result.dec.toStringAsFixed(4)}° · '
@@ -401,11 +399,9 @@ class PlateSolveService {
   ///                           directory; without it ASTAP cannot match stars
   ///                           and never writes a `.wcs`.
   ///   * `-wcs`              — REQUIRED so ASTAP emits the `.wcs` sidecar this
-  ///                           parser reads. Omitting it was the original bug:
-  ///                           ASTAP would run, write nothing, and the missing
-  ///                           `.wcs` looked like "No WCS file created" — a
-  ///                           silent failure that masked the backend's real
-  ///                           error.
+  ///                           parser reads. Without it ASTAP runs, writes
+  ///                           nothing, and the missing sidecar reads as "No
+  ///                           WCS file created" rather than the real error.
   Future<PlateSolveResult> _solveWithAstap(
     String imagePath,
     PlateSolverConfig config,
@@ -457,18 +453,17 @@ class PlateSolveService {
   /// The exact ASTAP command line for [imagePath] under [config].
   ///
   /// Exposed (and tested) on its own because the hints are the difference
-  /// between a solve that lands in a second and one that grinds or fails: the
-  /// audit found the app computing `1.29"/px` during onboarding, printing it on
-  /// the profile card, and then never telling the solver — `grep -i fov` over a
-  /// whole session's log returned nothing.
+  /// between a solve that lands in a second and one that grinds or fails: an
+  /// app that computes `1.29"/px` during onboarding, prints it on the profile
+  /// card, and never passes it to the solver leaves `grep -i fov` over a whole
+  /// session's log empty.
   ///
   /// **This is the FALLBACK path, not the one production runs.** Every normal
   /// solve goes through the backend to Rust and the argument vector is built by
   /// `platesolve.rs::build_astap_args`; this local spawn only happens when the
-  /// backend call throws. IMG-14 was "fixed" here three waves running while
-  /// every live solve stayed blind, so a change to the solver's arguments has
-  /// to land in the Rust builder — and be pinned by its `astap_arg_tests` —
-  /// before it means anything on a rig.
+  /// backend call throws. A change to the solver's arguments therefore has to
+  /// land in the Rust builder — and be pinned by its `astap_arg_tests` — before
+  /// it means anything on a rig.
   @visibleForTesting
   static List<String> astapArguments(
     String imagePath,
@@ -622,9 +617,9 @@ class PlateSolveService {
   ///
   /// Routed through the imaging backend so it runs against the machine that
   /// owns the solver binaries: locally on the host (FFI), and on the HOST
-  /// (over HTTP) when this is a remote phone client. This is the fix for the
-  /// phone probing its own (empty) filesystem and showing a false "Set up
-  /// plate solver" banner. The host-side detection ultimately calls the Rust
+  /// (over HTTP) when this is a remote phone client. A phone that probes its
+  /// own (empty) filesystem instead shows a false "Set up plate solver"
+  /// banner. The host-side detection ultimately calls the Rust
   /// `api_platesolve_detect` so platform-specific path enumeration stays in
   /// one place (`platesolve_paths.rs`).
   Future<ps_model.PlateSolverDetection> detect() async {
@@ -763,9 +758,8 @@ class PlateSolveService {
     _validateSolverAvailability(detection, pref);
 
     // Fall back to the user-configured defaults (Settings → Plate Solving →
-    // Solve parameters) when the caller doesn't pin an explicit value. This is
-    // what makes those knobs meaningful on the desktop solve path; previously
-    // they only affected the headless handlers and this method hard-coded 60s.
+    // Solve parameters) when the caller doesn't pin an explicit value, so the
+    // desktop solve path honours the same knobs as the headless handlers.
     final appSettings = _ref.read(appSettingsProvider).valueOrNull;
     final effectiveTimeout =
         timeoutSeconds ?? appSettings?.plateSolveTimeout ?? 60;

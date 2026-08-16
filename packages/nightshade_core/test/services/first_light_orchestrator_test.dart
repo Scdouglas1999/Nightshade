@@ -18,9 +18,7 @@ import 'package:nightshade_core/src/services/first_light/first_light_orchestrato
 import 'package:nightshade_core/src/services/imaging_service.dart';
 import 'package:nightshade_core/src/services/plate_solve_service.dart';
 
-// ===========================================================================
 // Fakes
-// ===========================================================================
 
 /// Imaging service whose [captureImage] returns a caller-supplied frame, or
 /// throws a caller-supplied error, so each test can drive the exposure stage.
@@ -89,9 +87,7 @@ class _FakePlateSolveService extends PlateSolveService {
   }
 }
 
-// ===========================================================================
 // Builders
-// ===========================================================================
 
 CapturedImageData _makeCaptured({
   String? filePath = '/tmp/first_light.fits',

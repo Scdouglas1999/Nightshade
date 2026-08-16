@@ -7,9 +7,7 @@ library;
 import 'device_capabilities.dart' show TrackingRate;
 import 'device_types.dart' show CameraState, PierSide;
 
-// =========================================================================
-// Camera Status
-// =========================================================================
+// Camera status
 
 /// Current status of a connected camera
 class CameraStatus {
@@ -117,9 +115,7 @@ class CameraStatus {
   }
 }
 
-// =========================================================================
-// Mount Status
-// =========================================================================
+// Mount status
 
 /// Current status of a connected mount
 class MountStatus {
@@ -243,9 +239,7 @@ class MountStatus {
   }
 }
 
-// =========================================================================
-// Focuser Status
-// =========================================================================
+// Focuser status
 
 /// Current status of a connected focuser
 class FocuserStatus {
@@ -299,9 +293,7 @@ class FocuserStatus {
   };
 }
 
-// =========================================================================
-// Filter Wheel Status
-// =========================================================================
+// Filter wheel status
 
 /// Current status of a connected filter wheel
 class FilterWheelStatus {
@@ -348,9 +340,7 @@ class FilterWheelStatus {
   };
 }
 
-// =========================================================================
-// Rotator Status
-// =========================================================================
+// Rotator status
 
 /// Current status of a connected rotator
 class RotatorStatus {

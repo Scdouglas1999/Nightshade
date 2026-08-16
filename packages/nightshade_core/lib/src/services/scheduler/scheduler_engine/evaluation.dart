@@ -82,10 +82,10 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
       reason: reason,
     );
 
-    // Re-evaluate while idle/paused is a read-only operator preview. Mutating
-    // currentTargetId here used to make a later Start see isSwitch=false and
-    // skip dispatch entirely; paused re-evaluations could similarly claim a
-    // target switch the sequencer never performed.
+    // Re-evaluating while idle or paused is a read-only operator preview:
+    // mutating currentTargetId here would make a later Start see
+    // isSwitch=false and skip dispatch, or claim a target switch the sequencer
+    // never performed.
     if (_status.state != SchedulerState.running) {
       _publishDecision(outcome.decision);
       return;
@@ -393,11 +393,10 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
   /// when imaging was stopped, or null when the tick changed nothing.
   Future<String?> _handleNoEligibleTarget(DateTime now) async {
     final running = _status.state == SchedulerState.running;
-    // Whether the autopilot has a run of its OWN in progress. A tick that
-    // stopped unconditionally destroyed any sequence the operator had started
-    // by hand — mid-exposure, every 60 s, all night — because the autopilot
-    // shares one executor with the manual Start button and had no idea which
-    // run it was ending.
+    // Whether the autopilot has a run of its OWN in progress. It shares one
+    // executor with the manual Start button, so a tick that stopped
+    // unconditionally would kill a sequence the operator started by hand,
+    // mid-exposure, every 60 s, all night.
     final ownedTarget = _status.currentTargetName;
     // Ownership is decided by the run the autopilot dispatched still being the
     // executor's active run — asked of the sink, which can see the executor —
@@ -424,14 +423,13 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
       // stopSequence below is redundant on the park path but harmless — the
       // executor is idempotent on stop and parkForEndOfNight already pauses.
       if (!_parkedForEndOfNight) {
-        // The THIRD engine-initiated teardown, and the one SEQ-12's fix did not
-        // enumerate. parkForEndOfNight routes to SafeRigService.safeTheRig(
-        // park: true), which PAUSES the running sequence before parking — so an
-        // unowned dawn park ends the operator's exposure mid-frame with no
-        // ownership check and no warning, which is the exact reasoning that
-        // gated the other two. Parking an idle rig at sunrise is still right
-        // (the mount may be tracking into the ground), so the gate is "somebody
-        // else is running", not "not mine".
+        // The THIRD engine-initiated teardown. parkForEndOfNight routes to
+        // SafeRigService.safeTheRig(park: true), which PAUSES the running
+        // sequence before parking — so an unowned dawn park would end the
+        // operator's exposure mid-frame with no ownership check and no warning,
+        // the same reasoning that gates the other two. Parking an idle rig at
+        // sunrise is still right (the mount may be tracking into the ground),
+        // so the gate is "somebody else is running", not "not mine".
         if (!ownsRun && _executorHasActiveRun()) {
           // WARNING: the night ended without a park.
           _log(
@@ -532,10 +530,10 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
   /// Map the first per-constraint failure into a compact operator-facing
   /// summary. Falls back to the raw text when no shorter form fits.
   ///
-  /// WD-SEQ-N4: the matching ladder lives in
-  /// `services/scheduler/rejection_labels.dart` so the queue row's STATUS chip
-  /// and this record cannot drift apart again. Do NOT re-add a local ladder
-  /// here — `scheduler_rejection_labels_test.dart` covers both renderings.
+  /// The matching ladder lives in `services/scheduler/rejection_labels.dart`
+  /// so the queue row's STATUS chip and this record cannot drift apart. Do NOT
+  /// re-add a local ladder here — `scheduler_rejection_labels_test.dart` covers
+  /// both renderings.
   String _summarizeRejection(List<String> reasons) {
     if (reasons.isEmpty) return 'rejected';
     return schedulerRejectionSummary(

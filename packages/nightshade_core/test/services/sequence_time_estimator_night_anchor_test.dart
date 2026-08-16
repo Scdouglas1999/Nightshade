@@ -1,15 +1,15 @@
-// Regression: a sequence that starts AFTER local midnight was scored against
-// the following night.
+// A sequence that starts AFTER local midnight is scored against the night it
+// runs in.
 //
-// `calculateObjectVisibility` scans one local-noon-to-noon window and reads
-// only the calendar day of the instant it is given. A run beginning at 01:00
-// therefore had its rise/transit/set solved for the night that starts twelve
-// hours LATER, so every set time came back roughly a day late and the
-// "target sets before this block finishes" conflicts that pre-flight exists to
-// raise were silently unreachable.
+// `calculateObjectVisibility` scans one local-noon-to-noon window and reads only
+// the calendar day of the instant it is given. A run beginning at 01:00
+// otherwise has its rise/transit/set solved for the night that starts twelve
+// hours LATER, so every set time comes back roughly a day late and the "target
+// sets before this block finishes" conflicts pre-flight exists to raise become
+// unreachable.
 //
-// Same root cause as the planetarium's "Best Targets Tonight" card, which
-// reported transit times a sidereal day out for the same reason.
+// The planetarium's "Best Targets Tonight" card reports transit times a sidereal
+// day out for the same reason.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -65,9 +65,8 @@ void main() {
       longitude: longitude,
     )['target1']!;
 
-    // Same night in, same window out. Before the fix the 01:00 start was
-    // solved for the night beginning twelve hours later, so these differed by
-    // about a sidereal day.
+    // Same night in, same window out: an 01:00 start solved for the night
+    // beginning twelve hours later differs by about a sidereal day.
     expect(afterMidnightWindow.riseTime, eveningWindow.riseTime);
     expect(afterMidnightWindow.transitTime, eveningWindow.transitTime);
     expect(afterMidnightWindow.setTime, eveningWindow.setTime);

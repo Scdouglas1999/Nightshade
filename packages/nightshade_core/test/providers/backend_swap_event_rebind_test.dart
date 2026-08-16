@@ -1,8 +1,8 @@
-// CONC-002 regression: polarAlignmentStateProvider and autofocusOverlayProvider
-// historically bound to a single backend.eventStream in their constructor and
-// never re-bound when the active backend was swapped (local FFI <-> network).
-// After a reconnect they went deaf. These tests swap the backend and assert
-// events from the NEW backend still drive the notifiers.
+// polarAlignmentStateProvider and autofocusOverlayProvider re-bind when the
+// active backend is swapped (local FFI <-> network). Binding once to
+// backend.eventStream in the constructor leaves them deaf after a reconnect.
+// These tests swap the backend and assert events from the NEW backend still
+// drive the notifiers.
 
 import 'dart:async';
 import 'dart:typed_data';

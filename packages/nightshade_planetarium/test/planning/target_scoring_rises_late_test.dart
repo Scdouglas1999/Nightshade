@@ -128,10 +128,10 @@ void main() {
     'a target that only clears the minimum in the last third of the night is '
     'still warned, with the time it actually becomes usable',
     () {
-      // The inverse guard. This target is above the GEOMETRIC horizon early
-      // enough that the old rise-time gate stayed silent, but does not reach
-      // the site minimum until the last third of the night — the operator must
-      // still be told, and told when it becomes USABLE.
+      // The inverse guard: this target clears the GEOMETRIC horizon early but
+      // does not reach the site minimum until the last third of the night. A
+      // gate on rise time alone stays silent; the operator must still be told,
+      // and told when it becomes USABLE.
       const minAltitude = 15.0;
       final threshold = nightStart.add(
         Duration(

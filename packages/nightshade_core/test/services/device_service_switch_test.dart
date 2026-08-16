@@ -584,8 +584,8 @@ void main() {
     });
 
     test('throws and does NOT mutate state when the bridge fails', () async {
-      // Errors are a feature here — silent fallbacks would lie
-      // about hardware state.
+      // A swallowed bridge failure would leave the channel state claiming a
+      // hardware position that was never set.
       const deviceId = TestFixtures.switchId;
       final notifier = container.read(switchStateProvider.notifier);
       notifier.setConnecting(deviceId, 'Test');

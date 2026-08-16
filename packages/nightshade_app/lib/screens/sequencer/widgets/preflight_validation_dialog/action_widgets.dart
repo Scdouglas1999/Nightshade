@@ -83,18 +83,17 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
 
     final label = widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence';
 
-    // WD-SCI-N3: this is the green primary of the whole pre-flight dialog and
-    // it was a bare GestureDetector, so the tree published `panel: Start
-    // Anyway` — no role, no state — beside its own siblings `button: Re-check`
-    // and `button: Cancel`. It also could not be reached from the keyboard.
-    // Declaring the role + enabled state and routing Enter/Space through an
-    // ActivateIntent puts it on the same footing as every NightshadeButton.
-    // WF-SCI-N3: the role/keyboard half above was not enough. A direct AT-SPI
-    // probe of the blocked dialog read `Start Sequence` with `sensitive` and
-    // no `enabled` — indistinguishable, to anyone reading the tree or hearing
-    // it, from the live button beside it, and carrying no reason. The reason
-    // now travels in the NAME, the same discriminator `GatedAction` exists to
-    // provide everywhere else.
+    // This is the green primary of the whole pre-flight dialog. A bare
+    // GestureDetector publishes no role and no state — a `panel:` beside its
+    // own `button: Re-check` and `button: Cancel` siblings — and cannot be
+    // reached from the keyboard. Declaring the role + enabled state and routing
+    // Enter/Space through an ActivateIntent puts it on the same footing as
+    // every NightshadeButton.
+    //
+    // The refusal REASON travels in the NAME: without it an AT-SPI probe of
+    // the blocked dialog reads `Start Sequence` with `sensitive` and no
+    // `enabled`, indistinguishable from the live button beside it. That is the
+    // discriminator `GatedAction` provides everywhere else.
     return Semantics(
       button: true,
       enabled: isEnabled,
@@ -164,9 +163,7 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
   }
 }
 
-// =============================================================================
 // Pre-flight category section
-// =============================================================================
 //
 // Compact collapsible-style group for the new pre-flight categories.
 // Renders an icon + title + (optional) trailing action button (e.g.

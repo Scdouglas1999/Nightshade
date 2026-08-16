@@ -58,7 +58,7 @@
 //     and the framing overlays use; C6 passes the viewport straight through to
 //     [HipsTileSelection.computeVisibleTiles] without re-deriving any geometry.
 //
-// ## Errors are a feature
+// ## Failure handling
 //
 // A fetch failure is surfaced, not swallowed: failed tiles are recorded in the
 // snapshot's [HipsResidentSnapshot.failures] and re-thrown to an injected
@@ -306,7 +306,7 @@ class HipsTileLoader extends ChangeNotifier {
     super.dispose();
   }
 
-  // --- recompute orchestration --------------------------------------------
+  // Recompute orchestration
 
   /// Runs the recompute for [_pendingViewport]: opens a new generation,
   /// computes the visible set, republishes the resident snapshot

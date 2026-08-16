@@ -1,5 +1,3 @@
-// Part of ../main.dart -- extracted for maintainability.
-//
 // (Re)connect, disconnect, relay-tunnel, persistence, and
 // checkpoint-resume operations. These take a resolved [DiscoveredServer]
 // (handed over by the discovery/pairing ops mixin) and perform the actual
@@ -126,7 +124,7 @@ mixin _MobileReconnectOps on _MobileConnectionState {
       // instance); a failed connect leaves the existing backend in place.
       // Keying success on a backend *swap* — rather than merely `is
       // NetworkBackend` — means a stale prior NetworkBackend session (from a
-      // previous rig) can no longer be mistaken for a successful relay connect.
+      // previous rig) cannot be mistaken for a successful relay connect.
       final priorBackend = ref.read(backendProvider);
       await _connectToServer(relayServer);
 
@@ -533,7 +531,7 @@ mixin _MobileReconnectOps on _MobileConnectionState {
     });
     // Ensure backend is disconnected. Drop cached APNs registration so a later
     // connect to a (possibly different) desktop re-POSTs the token rather than
-    // assuming it is already registered there (Blocker #8).
+    // assuming it is already registered there.
     _pushRegistration?.reset();
     try {
       await ref.read(backendProvider.notifier).disconnect();
@@ -575,9 +573,9 @@ mixin _MobileReconnectOps on _MobileConnectionState {
         if (!context.mounted) return;
 
         // Keep recovery actionable until the selected operation succeeds.
-        // Closing the prompt before a failed resume/discard used to strand
-        // the checkpoint for the rest of this connection because
-        // `_checkpointChecked` remains true.
+        // `_checkpointChecked` stays true for the rest of this connection, so
+        // the prompt must survive a failed resume/discard or the checkpoint is
+        // stranded until the operator reconnects.
         while (true) {
           if (!context.mounted) return;
           final shouldResume = await CheckpointResumeDialog.show(context, info);

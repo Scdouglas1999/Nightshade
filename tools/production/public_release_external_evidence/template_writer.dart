@@ -1,5 +1,3 @@
-// Part of ../public_release_external_evidence.dart -- extracted for maintainability.
-//
 // Generates strict evidence templates without weakening verifier behavior.
 part of '../public_release_external_evidence.dart';
 

@@ -5,9 +5,7 @@ extension _BackupSequenceCodec on BackupService {
     return SequenceFileService().sequenceToMap(sequence);
   }
 
-  // =========================================================================
   // Private import methods
-  // =========================================================================
 
   Future<int> _importSettings(
     Map<String, dynamic> settingsMap, {
@@ -54,7 +52,7 @@ extension _BackupSequenceCodec on BackupService {
         if (activeIndex == null && raw['isActive'] == true) activeIndex = i;
       }
       // A pre-`isDefault` bundle carries only `isActive`; fall back to that,
-      // then to the first profile, so the app always has a startup target.
+      // then to the first profile, so a startup target always exists.
       defaultIndex ??= activeIndex ?? 0;
       activeIndex ??= defaultIndex;
     }

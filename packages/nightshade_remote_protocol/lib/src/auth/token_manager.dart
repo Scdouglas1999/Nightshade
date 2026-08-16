@@ -98,9 +98,7 @@ class TokenManager {
 
   TokenManager(this._database);
 
-  // ============================================================================
-  // Token Generation
-  // ============================================================================
+  // Token generation
 
   /// Generate a cryptographically secure 32-byte token
   /// Returns the token as a hex-encoded string (64 characters)
@@ -125,9 +123,7 @@ class TokenManager {
     return '${_codeWords[firstWordIndex]}-${_codeWords[secondWordIndex]}-${number.toString().padLeft(4, '0')}';
   }
 
-  // ============================================================================
-  // Pairing Management
-  // ============================================================================
+  // Pairing management
 
   /// Start a new pairing session
   /// Returns the pairing code to display to the user
@@ -194,10 +190,9 @@ class TokenManager {
   ///
   /// [tokenLifetime] sets the `expires_at` column on the persisted
   /// `paired_devices` row, enforced by [verifySessionToken] and by the
-  /// headless auth-middleware sweep. The previous behaviour (no DB-side
-  /// expiry) is preserved by passing `null`, but callers SHOULD always
-  /// provide a finite lifetime — the headless server's `PairingService`
-  /// passes its `_defaultSessionTokenLifetime` here.
+  /// headless auth-middleware sweep. `null` means no DB-side expiry; callers
+  /// SHOULD always pass a finite lifetime — the headless server's
+  /// `PairingService` passes its `_defaultSessionTokenLifetime` here.
   Future<PairingCompletion> completePairing({
     required String pairingCode,
     required String deviceId,
@@ -429,9 +424,7 @@ class TokenManager {
     return TokenSweepResult(expiredTokens: expired, revokedTokens: revoked);
   }
 
-  // ============================================================================
-  // Helper Methods
-  // ============================================================================
+  // Helper methods
 
   /// Convert bytes to hex string
   String _bytesToHex(Uint8List bytes) {

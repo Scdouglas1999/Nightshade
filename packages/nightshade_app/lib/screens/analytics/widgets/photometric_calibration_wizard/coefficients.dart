@@ -296,7 +296,5 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
     }
   }
 
-  // =========================================================================
-  // Step 4: Save
-  // =========================================================================
+  // Step 4: save
 }

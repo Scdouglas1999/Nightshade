@@ -1,5 +1,3 @@
-// Part of ../log_viewer.dart -- extracted for maintainability.
-//
 // Level filter button and action toggle controls.
 part of '../log_viewer.dart';
 

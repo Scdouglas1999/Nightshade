@@ -1,9 +1,5 @@
 part of '../transient_alert_provider.dart';
 
-// =============================================================================
-// Queue Transient Action
-// =============================================================================
-
 final _transientQueueFlightsProvider =
     Provider<Map<String, Future<CelestialTarget?>>>((ref) => {});
 
@@ -161,9 +157,7 @@ TargetType _mapTransientTypeToTargetType(TransientType type) {
   }
 }
 
-// =============================================================================
-// Refresh Action
-// =============================================================================
+// Refresh action
 
 /// Force refresh the transient alerts by clearing the service cache.
 ///

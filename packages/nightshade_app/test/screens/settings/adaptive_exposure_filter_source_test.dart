@@ -1,8 +1,8 @@
 // Adaptive Exposure must read the same "which filters exist" source of truth
 // as the rest of the app (effectiveFiltersProvider = connected wheel, else
-// profile). It used to read only activeEquipmentProfileProvider, so with a
-// filter wheel connected and no filters saved on the profile the page claimed
-// 'No filter wheel on active profile' while Autofocus listed all seven.
+// profile). Reading only activeEquipmentProfileProvider makes the page claim
+// 'No filter wheel on active profile' with a wheel connected, while Autofocus
+// lists every slot.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,8 +75,8 @@ void main() {
     await _pump(tester, profileFilters: const []);
     await tester.pump();
 
-    // The old copy asserted 'No filter wheel on active profile', which is
-    // false as soon as a wheel is connected or assigned.
+    // 'No filter wheel on active profile' is false as soon as a wheel is
+    // connected or assigned.
     expect(find.textContaining('on active profile —'), findsNothing);
     expect(
       find.textContaining(

@@ -1,10 +1,10 @@
 // The per-filter row has to reach the filter that is actually running.
 //
-// Live finding IMG-19: with the profile's seven filters the Visualizations row
-// was cut off by the window edge after `B` (a fifth card sliced in half), with
-// no scrollbar, arrow, or any other affordance that more cards existed — and
-// `Ha`, the filter with live data (`Ha / 7.86s / 13/30`), plus OIII and SII
-// were unreachable at the default 1600x900 window.
+// With the profile's seven filters the Visualizations row runs past the window
+// edge after `B` (a fifth card sliced in half). Without a scrollbar, arrow or
+// any other affordance saying more cards exist, `Ha` — the filter with live data
+// (`Ha / 7.86s / 13/30`) — plus OIII and SII are unreachable at the default
+// 1600x900 window.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/flat_wizard/widgets/flat_preview_panel.dart';

@@ -1,4 +1,4 @@
-// Collaborative Sky WS3 — client-side orchestration for live co-imaging.
+// Client-side orchestration for live co-imaging.
 //
 // [CoImagingSessionService] is the workflow on top of the raw
 // [ConstellationClient] co-imaging endpoints: it CREATEs / JOINs a live session,
@@ -28,7 +28,7 @@ part 'coimaging_session_service/coimaging_types.dart';
 part 'coimaging_session_service/baton_scheduler.dart';
 part 'coimaging_session_service/internals.dart';
 
-/// Client-side orchestration for live co-imaging sessions (WS3).
+/// Client-side orchestration for live co-imaging sessions.
 class CoImagingSessionService {
   CoImagingSessionService({
     required Future<ConstellationCredentials?> Function() credentialsResolver,
@@ -92,7 +92,7 @@ class CoImagingSessionService {
   ) =>
       ConstellationClient(hubBaseUrl: c.hubBaseUrl, bearerToken: c.bearerToken);
 
-  // --- Create / join / leave ----------------------------------------------
+  // Create / join / leave
 
   /// Open a live co-imaging session on a target and persist this rig's owner
   /// membership (anchor framing offset + membership token) durably.
@@ -234,7 +234,7 @@ class CoImagingSessionService {
     }
   }
 
-  // --- Combined accounting -------------------------------------------------
+  // Combined accounting
 
   /// Report this rig's contribution (frames + integration it just folded into the
   /// shared-target tile) to the session's COMBINED accounting, presenting the
@@ -248,7 +248,7 @@ class CoImagingSessionService {
     ContributionLicense? license,
     bool? attributionConsent,
   }) async {
-    // WS4 consent gate: this report records the rig's license + attribution in
+    // Consent gate: this report records the rig's license + attribution in
     // the hub's per-participant attribution ledger, so it must reflect the
     // operator's ACTUAL choice — never a silent ccBy + public default. When the
     // caller did not pass an explicit consent (e.g. the headless contribute
@@ -335,12 +335,12 @@ class CoImagingSessionService {
     );
   }
 
-  // --- Gap 1: framing-offset pointing --------------------------------------
+  // Framing-offset pointing
 
   /// The (raDeg, decDeg) pointing DELTA this rig should add to the session
-  /// target's centre so its optical centre sits at `centre + offset` — turning
-  /// the hub's persisted, previously cosmetic framing slot into a real coverage
-  /// tile that rejects walking / correlated noise.
+  /// target's centre so its optical centre sits at `centre + offset`, making
+  /// the hub's framing slot a real coverage tile that rejects walking /
+  /// correlated noise.
   ///
   /// The hub assigns the offset as a true angular nudge in arcseconds
   /// (`framing_offset_*_arcsec`); converting the RA arcsec component to an RA
@@ -477,7 +477,7 @@ class CoImagingSessionService {
     return math.acos(cosSep.clamp(-1.0, 1.0)) / d2r;
   }
 
-  // --- Gap 2: capture-loop auto-contribute ---------------------------------
+  // Capture-loop auto-contribute
 
   /// Drive one completed sub all the way through the co-imaging pipeline, in the
   /// order that keeps accounting honest:
@@ -489,24 +489,21 @@ class CoImagingSessionService {
   ///   (c) tag `constellation_contributions.session_id` so the deepened tile
   ///       records which session drove it.
   ///
-  /// FUSION-FAILURE GUARD: if a fuser is wired and it deepens nothing (upload
-  /// failed, or no local tile overlapped the cone), accounting is NOT advanced —
-  /// the combined-integration display can never claim depth the fusion did not
-  /// receive. Returns the hub's combined accounting, or null when the guard
-  /// tripped (nothing was fused, so nothing was reported).
+  /// When a fuser is wired and it deepens nothing (upload failed, or no local
+  /// tile overlapped the cone), accounting is not advanced and this returns
+  /// null, so the combined-integration display cannot claim depth the fusion
+  /// never received.
   ///
-  /// HONEST ACCOUNTING: when a fuser is wired, the COMBINED accounting is
-  /// advanced by the TRUE delta the fuser actually pushed
-  /// ([CoImagingFusionResult.framesPushed] / `integrationSecondsPushed`) — not a
-  /// hardcoded `framesDelta` / `exposureSeconds` — so the headline depth equals
-  /// what the fusion received. [framesDelta] / [exposureSeconds] are used only in
-  /// the legacy no-fuser wiring (the caller fused already and reports its own
-  /// delta).
+  /// With a fuser wired, the combined accounting advances by the delta the
+  /// fuser actually pushed ([CoImagingFusionResult.framesPushed] /
+  /// `integrationSecondsPushed`); [framesDelta] / [exposureSeconds] are used
+  /// only in the no-fuser wiring, where the caller fused and reports its own
+  /// delta.
   ///
-  /// WS4 CONSENT GATE: data leaves the device here, so the operator's persisted
-  /// sharing license + attribution preference is resolved up front and FAILS
-  /// CLOSED — when no consent record exists the sub is NOT contributed (returns
-  /// null) rather than shipping under a silent ccBy + public default.
+  /// Data leaves the device here, so the operator's persisted sharing license +
+  /// attribution preference is resolved up front and fails closed: with no
+  /// consent record the sub is not contributed (returns null) rather than
+  /// shipping under a silent ccBy + public default.
   Future<CoImagingAccounting?> recordCompletedSub(
     String sessionId, {
     required double exposureSeconds,
@@ -516,7 +513,7 @@ class CoImagingSessionService {
     ContributionLicense? license,
     bool? attributionConsent,
   }) async {
-    // WS4 consent gate (fail closed): resolve the operator's persisted sharing
+    // Consent gate (fail closed): resolve the operator's persisted sharing
     // license + attribution before anything leaves the device. A null record
     // means the user has not consented — skip the contribution entirely.
     final consent = await _resolveContributionConsent(
@@ -592,7 +589,7 @@ class CoImagingSessionService {
     return accounting;
   }
 
-  // --- Longitude baton -----------------------------------------------------
+  // Longitude baton
 
   /// Current baton holder for the session.
   Future<CoImagingBatonState> batonState(String sessionId) async {
@@ -684,7 +681,7 @@ class CoImagingSessionService {
     );
   }
 
-  // --- Browse / live preview ----------------------------------------------
+  // Browse / live preview
 
   /// Browse active sessions on the configured hub.
   Future<List<CoImagingSession>> listSessions() async {

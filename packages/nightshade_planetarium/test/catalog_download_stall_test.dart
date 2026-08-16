@@ -7,14 +7,15 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 /// A catalog download must not be able to hang the app.
 ///
-/// All three download paths opened a client, awaited `send`, and then `await
-/// for`-ed the body with no timeout on either. Worse, the cancellation token was
-/// polled only from inside the chunk handler — so when a connection stalled with
-/// no further chunks, no poll ever ran: the progress bar froze at whatever
-/// percentage it had reached and the Cancel button did nothing, forever.
+/// A download path that opens a client, awaits `send` and then `await for`s the
+/// body with no timeout on either cannot see a dead connection. Neither can a
+/// cancellation token polled only from inside the chunk handler: when a
+/// connection stalls with no further chunks no poll runs, the progress bar
+/// freezes at whatever percentage it reached, and the Cancel button does
+/// nothing, forever.
 ///
-/// Every test here bounds its own wait, so a regression fails the suite instead
-/// of hanging it.
+/// Every test here bounds its own wait, so a failure fails the suite instead of
+/// hanging it.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

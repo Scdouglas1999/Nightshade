@@ -103,9 +103,9 @@ void main() {
   test(
     'a socket that never identifies itself is not reported as PHD2',
     () async {
-      // The defect this guards: a bare TCP connect proves only that *something*
-      // holds the port, so anything else listening on 4400 used to be reported
-      // to the operator as "PHD2 answered".
+      // A bare TCP connect proves only that *something* holds the port, so
+      // anything else listening on 4400 must not be reported as "PHD2
+      // answered".
       final server = await _FakePhd2Server.start(versionLine: null);
       addTearDown(server.close);
 

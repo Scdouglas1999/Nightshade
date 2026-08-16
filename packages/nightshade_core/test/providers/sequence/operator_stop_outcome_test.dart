@@ -1,19 +1,17 @@
-// WE-SEQ-N6: pressing the SAME Stop button recorded the autopilot's run as
-// `Failed` (plus a Critical toast) while the hand-started run 30 minutes
-// earlier was recorded `Stopped (resumable)`.
+// The SAME Stop button records the same outcome whichever instruction is
+// running.
 //
-// The live evidence: Stop pressed while a Slew was in flight. A slew that the
-// stop cancels comes back as a node FAILURE carrying "Slew: Operation
-// cancelled", so the native run ends with `SequenceFailed` rather than
-// `Stopped` — while a stop during an exposure ends with `Stopped`. The operator
-// performed one deliberate action and got two different verdicts depending on
-// which instruction happened to be running.
+// Stop pressed while a Slew is in flight cancels the slew, which comes back as
+// a node FAILURE carrying "Slew: Operation cancelled", so the native run ends
+// with `SequenceFailed` rather than `Stopped` — while a stop during an exposure
+// ends with `Stopped`. Left there, one deliberate action gets two different
+// verdicts: `Failed` plus a Critical toast for the autopilot's run,
+// `Stopped (resumable)` for a hand-started one.
 //
-// The discriminator here is deliberately NOT the message text (a Wave E refuter
-// showed what substring-matching "cancelled" costs: real faults whose text
-// contains the word get swallowed). It is the executor's own state: an explicit
-// stop is IN FLIGHT, so whatever terminal the native reports is the outcome of
-// that stop.
+// The discriminator is deliberately NOT the message text — substring-matching
+// "cancelled" swallows real faults whose text contains the word. It is the
+// executor's own state: an explicit stop is IN FLIGHT, so whatever terminal the
+// native reports is the outcome of that stop.
 import 'dart:async';
 
 import 'package:drift/native.dart';
@@ -191,9 +189,9 @@ void main() {
   });
 
   test('the stop origin reaches the native backend verbatim', () async {
-    // Wave L refutation L4: nothing below the renderer pinned the origin
-    // mechanism. The scheduler's stop must arrive at the backend as
-    // origin='scheduler'; a bare operator stop as null.
+    // The origin mechanism is pinned below the renderer: the scheduler's stop
+    // arrives at the backend as origin='scheduler', a bare operator stop as
+    // null.
     final (container, executor) = build();
     final origins = <String?>[];
     when(() => backend.sequencerStop(origin: any(named: 'origin'))).thenAnswer((
@@ -216,10 +214,9 @@ void main() {
   test(
     "a human's retry of a failed autopilot stop claims the episode",
     () async {
-      // Wave L refutation L5: the retry re-drives the retained finalization,
-      // and the origin must upgrade toward the operator — their press is real
-      // and must be recorded ('only a stop you command yourself is always
-      // recorded'). The reverse never downgrades.
+      // The retry re-drives the retained finalization, and the origin upgrades
+      // toward the operator: their press is real and must be recorded. The
+      // reverse never downgrades.
       final (container, executor) = build();
       final origins = <String?>[];
       var failFirst = true;

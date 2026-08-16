@@ -1,9 +1,8 @@
-// Regression: swipe-delete + Undo of a *container* node in the mobile
-// sequence editor must restore the subtree with each child linked exactly
-// once. The previous `_restoreSubtree` re-added the captured root with its
-// childIds intact and then re-added every descendant, and since the editor's
-// `addNode` appends to the parent's child list with no dedup, undo duplicated
-// every child (childIds went [c1, c2] -> [c1, c2, c1, c2]).
+// Swipe-delete + Undo of a *container* node in the mobile sequence editor must
+// restore the subtree with each child linked exactly once. Re-adding the
+// captured root with its childIds intact and then re-adding every descendant
+// duplicates them, because the editor's `addNode` appends to the parent's child
+// list with no dedup (childIds go [c1, c2] -> [c1, c2, c1, c2]).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

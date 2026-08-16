@@ -6,12 +6,9 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 /// The package must load the HYG catalog exactly once.
 ///
-/// Two chains used to run side by side: `starCatalogProvider` at magnitude 15,
-/// which existed only to answer "is this the fallback list", and a private
-/// `HygStarCatalog(magnitudeLimit: 12.0)` inside `loadedStarsProvider`, which is
-/// what the renderer and search actually drew. Both parsed the same ~120k-row
-/// CSV in their own isolate and retained their own `List<Star>`, and the
-/// fallback banner therefore reported on a catalog that was not on screen.
+/// A second chain would parse the same ~120k-row CSV in its own isolate and
+/// retain its own `List<Star>`, and whichever one the fallback banner reads
+/// would not be the catalog on screen.
 void main() {
   late Directory tempDir;
 

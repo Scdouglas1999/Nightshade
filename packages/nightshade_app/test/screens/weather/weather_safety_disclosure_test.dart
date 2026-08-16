@@ -22,8 +22,8 @@ void main() {
   group('weatherSafetyStatusText', () {
     test('says NOT MONITORING when weather safety is off', () {
       final text = weatherSafetyStatusText(
-        // The provider hands the UI `safe` here purely because it had no
-        // verdict to give. This is the exact case that used to read green.
+        // The provider hands the UI `safe` here purely because it has no
+        // verdict to give — the case that must not read as a green all-clear.
         status: WeatherSafetyStatus.safe,
         monitoring: false,
       );

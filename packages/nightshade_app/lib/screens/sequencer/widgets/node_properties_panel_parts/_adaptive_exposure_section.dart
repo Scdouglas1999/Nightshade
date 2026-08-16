@@ -35,7 +35,7 @@ class _AdaptiveExposureSectionState
   }
 
   void _clearOverride() {
-    // Rebuild explicitly: ExposureNode.copyWith now uses plain
+    // Rebuild explicitly: ExposureNode.copyWith uses plain
     // `?? this.adaptiveExposure` semantics, so a null arg means "keep
     // current". The only way to set adaptiveExposure back to null
     // ("inherit global default") is to construct a fresh node.
@@ -366,9 +366,9 @@ class _PerFilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A filter not present in the map inherits the global enable flag (rather
-    // than the old `perFilterEnabled.isEmpty` heuristic, which flipped every
-    // other filter off the instant the user toggled the first one).
+    // A filter not present in the map inherits the global enable flag. An
+    // `isEmpty` heuristic instead would flip every other filter off the instant
+    // the user toggled the first one.
     final hasExplicit = cfg.perFilterEnabled.containsKey(filter);
     final enabled = cfg.perFilterEnabled[filter] ?? cfg.enabled;
     final min = cfg.perFilterMinSecs[filter];

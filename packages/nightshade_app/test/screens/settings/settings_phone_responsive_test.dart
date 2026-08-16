@@ -158,8 +158,7 @@ void main() {
           reason: 'Back from the detail pane must restore the grouped list '
               'at $label.');
 
-      // ...and the rest of the taxonomy is still reachable from there, which
-      // is the claim the old EQUIPMENT assertion was reaching for.
+      // …and the rest of the taxonomy is still reachable from there.
       final list = find.byType(Scrollable).last;
       await tester.scrollUntilVisible(find.text('EQUIPMENT'), 100,
           scrollable: list);

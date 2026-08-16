@@ -36,12 +36,9 @@ drift.CapturedImage _light({
 /// [FrameGradeRules.gradeFrame] path so the two graders can never disagree.
 void main() {
   group('FrameGradeRules.gradeFrame eccentricity/FWHM are out-of-band', () {
-    // Regression: gradeFrame used to read eccentricity/FWHM via dynamic
-    // dispatch on `(img as dynamic).eccentricity` / `.fwhm`. The generated
-    // CapturedImage data class carries NEITHER field, so those reads always
-    // raised NoSuchMethodError and were caught into a silent `null` — the
-    // eccentricity and FWHM rules could never fire. They are now supplied by
-    // the caller, exactly like gradeStats.
+    // The generated CapturedImage data class carries neither eccentricity nor
+    // FWHM, so the caller supplies them, exactly like gradeStats. Reading them
+    // off the row would leave both rules unable to fire.
 
     const eccRule = FrameGradeRules(maxEccentricity: 0.6);
     const fwhmRule = FrameGradeRules(maxFwhm: 4.0);

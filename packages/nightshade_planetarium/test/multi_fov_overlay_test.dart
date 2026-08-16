@@ -85,9 +85,9 @@ void main() {
   testWidgets('a preset pinned EAST of the view center is drawn to its LEFT', (
     tester,
   ) async {
-    // Regression: the overlay used to add the RA offset to x, mirroring every
-    // rig about the view center — a target 2° east was drawn 2° west, so the
-    // box an imager frames with sat on the wrong side of the sky.
+    // Adding the RA offset to x mirrors every rig about the view center — a
+    // target 2° east draws 2° west, putting the box an imager frames with on
+    // the wrong side of the sky.
     late WidgetRef captured;
     await tester.pumpWidget(_host((ref) => captured = ref));
     final notifier = captured.read(fovPresetsProvider.notifier);
@@ -108,9 +108,9 @@ void main() {
   testWidgets('a preset near RA 0h stays on screen with the view at 23.9h', (
     tester,
   ) async {
-    // Regression: the raw RA difference (0.2h - 23.9h = -23.7h) used to be
-    // scaled straight into pixels, throwing the rig thousands of pixels off
-    // canvas. M31 and everything else near the 0h seam simply lost its FOV box.
+    // The raw RA difference here is -23.7h; scaled straight into pixels it
+    // throws the rig thousands of pixels off canvas and every target near the
+    // 0h seam loses its FOV box.
     late WidgetRef captured;
     await tester.pumpWidget(
       _host((ref) => captured = ref, centerRaHours: 23.9),

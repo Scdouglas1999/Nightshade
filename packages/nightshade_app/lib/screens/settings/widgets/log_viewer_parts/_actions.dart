@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../log_viewer.dart -- extracted for maintainability.
-//
 // Level formatting, clipboard, export, download and clear actions of _LogViewerState.
 part of '../log_viewer.dart';
 

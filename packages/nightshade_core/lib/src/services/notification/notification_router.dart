@@ -54,9 +54,8 @@ class NotificationRouter {
   /// Recently-emitted content signatures per transport kind, for
   /// cross-producer de-duplication.
   ///
-  /// After the architecture-unification collapse the router is the single
-  /// producer for every transport, but it is driven from SEVERAL converging
-  /// inputs that describe one physical happening:
+  /// The router is the single producer for every transport, but it is driven
+  /// from several converging inputs that describe one physical happening:
   ///   * its own [attachEventStream] subscription (core event stream), which
   ///     the classifier may map to the same category from more than one wire
   ///     event — an operator Stop arrives as BOTH a sequencer `Error` carrying
@@ -66,11 +65,9 @@ class NotificationRouter {
   ///     event history — a different representation of the SAME backend events
   ///     with no shared id to dedup on).
   ///
-  /// Without dedup one operator Stop published THREE identical toasts and three
-  /// RECENT EVENTS rows, 86 microseconds apart (WF-N4 / WF-STOP-N3), and one
-  /// failed connect said the same refusal twice (WD-EQ-3). The router is the
-  /// one place every producer converges, so this is where the repetition is
-  /// collapsed — keyed on what the operator SEES, not on the producer.
+  /// The converging inputs share no id, so the key is what the operator SEES,
+  /// not the producer: the router is the one place they all pass through, and
+  /// without the dedup one operator Stop reaches the operator three times.
   ///
   /// Per transport kind, never global: an at-idle external alert (webhook,
   /// e-mail, MQTT) must not be swallowed because the UI already said it.
@@ -123,7 +120,7 @@ class NotificationRouter {
              )
            : matrix;
 
-  // ----- Public surface ----------------------------------------------------
+  // Public surface
 
   NotificationRoutingMatrix get matrix => _matrix;
 
@@ -311,23 +308,20 @@ class NotificationRouter {
   /// Route the Run Dashboard critical-events bridge's phone-push through the
   /// single systemPush producer.
   ///
-  /// The bridge escalates every `isCriticalEvent` (banner + toast + audible);
-  /// historically it ALSO owned a parallel phone-push via the push service.
-  /// That parallel feed is collapsed here: the bridge now forwards its push
-  /// through the router so there is exactly ONE systemPush producer.
+  /// The bridge escalates every `isCriticalEvent` (banner + toast + audible)
+  /// and forwards its phone-push through here, so there is exactly ONE
+  /// systemPush producer.
   ///
   /// Some bridge-flagged events (generic system errors / FITS save failures)
-  /// have no [NotificationCategory] and the classifier path will not push
-  /// them, so this entry point forces a `critical` phone push with the copy
-  /// the bridge already rendered (`Critical · <category>` / detail). For
-  /// events the classifier DOES recognise (e.g. a guiding StarLost), the
-  /// router's own core-stream subscription also pushes — the systemPush
-  /// content-signature dedup in [_dispatch]/here collapses the pair so the
-  /// operator still gets exactly one page.
+  /// have no [NotificationCategory] and the classifier path will not push them,
+  /// so this entry point forces a `critical` push with the copy the bridge
+  /// already rendered (`Critical · <category>` / detail). For events the
+  /// classifier does recognise (a guiding StarLost, say) the router's own
+  /// core-stream subscription also pushes; the systemPush content-signature
+  /// dedup collapses the pair into one page.
   ///
   /// Respects the master push gate (the transport's `enabled` config) and the
-  /// matrix master `enabled` flag, mirroring the legacy bridge which honoured
-  /// `pushCriticalAlerts`.
+  /// matrix master `enabled` flag.
   void routeBridgeCriticalPush({
     required String title,
     required String body,
@@ -418,7 +412,7 @@ class NotificationRouter {
   NotificationTransport? transportOf(NotificationTransportKind kind) =>
       _transports[kind];
 
-  // ----- Internal: event mapping ------------------------------------------
+  // Internal: event mapping
 
   void _onEvent(NightshadeEvent event) {
     if (!_matrix.enabled) return;
@@ -441,14 +435,11 @@ class NotificationRouter {
       return;
     }
 
-    // OTA "update available" is an operator-driven system event the
-    // shared classifier deliberately does not route to a notification
-    // category. The (now demoted) PushNotificationService used to surface it
-    // as a phone push from its own subscription; since that subscription is
-    // gone, the router preserves the push here so paired phones still learn a
-    // new build is available. Routed as `custom` with explicit in-app +
-    // systemPush transports so it does not depend on the user's `custom`
-    // matrix wiring.
+    // OTA "update available" is an operator-driven system event the shared
+    // classifier deliberately does not route to a notification category. The
+    // router pushes it here instead, so paired phones still learn a new build
+    // is available. Routed as `custom` with explicit in-app + systemPush
+    // transports so it does not depend on the user's `custom` matrix wiring.
     if (event.category == EventCategory.system &&
         event.eventType == 'UpdateAvailable') {
       final latest =
@@ -528,7 +519,7 @@ class NotificationRouter {
     return ctx;
   }
 
-  // ----- Internal: filters / dispatch -------------------------------------
+  // Internal: filters / dispatch
 
   NotificationRoutingRule _ruleFor(NotificationCategory category) {
     final activeSeq = _activeSequenceId;
@@ -637,18 +628,11 @@ class NotificationRouter {
   ///
   /// ## Why the key is normalized
   ///
-  /// The first version of this keyed on the exact rendered strings, and the
-  /// case it was written for defeated it by ONE CHARACTER: two producers of the
-  /// same guider refusal emitted
-  ///
-  ///   Built-in guider requires an active profile with a guide focal length
-  ///   Built-in guider requires an active profile with a guide focal length.
-  ///
-  /// so the operator read the identical sentence twice (WD-EQ-3, still open
-  /// after two waves). Trailing sentence punctuation and whitespace are
-  /// cosmetic differences between producers of ONE statement, never a
-  /// difference the operator can act on, so they are stripped before keying —
-  /// as is letter case, and internal whitespace runs.
+  /// Trailing sentence punctuation, letter case and internal whitespace runs
+  /// are differences between PRODUCERS of one statement, never differences the
+  /// operator can act on, so they are stripped before keying: two producers of
+  /// the same refusal can otherwise differ by a single full stop and both be
+  /// shown.
   ///
   /// `?` is deliberately NOT stripped: a question and a statement are different
   /// notifications.
@@ -659,10 +643,8 @@ class NotificationRouter {
     final now = _now();
     final seen = _recentSignatures.putIfAbsent(kind, () => {});
     seen.removeWhere((_, when) => now.difference(when) > window);
-    // One shared rule, in `notification_signature.dart`. WD-EQ-3 outlived two
-    // fixes because each surface had its own copy of "same statement?"; the
-    // toast overlay's copy still keyed on the exact strings while this one
-    // normalized. There is now one implementation and both call it.
+    // One shared rule, in `notification_signature.dart`: every surface that
+    // asks "have I already said this?" calls the same implementation.
     final signature = notificationContentSignature(
       discriminator: kind.name,
       title: title,
@@ -674,7 +656,7 @@ class NotificationRouter {
     return false;
   }
 
-  // ----- Default templates ------------------------------------------------
+  // Default templates
 
   static String _defaultTitleTemplate(NotificationCategory category) {
     switch (category) {
@@ -754,9 +736,8 @@ class NotificationRouter {
       // Only the wire may name the author: `stop.cause` reads "Sequence
       // stopped", "Sequence stopped by request", "Sequence stopped by
       // autopilot" or "Sequence stopped by the disk-space watchdog" depending
-      // on what the executor's decision row proved. This template used to say
-      // "by request" for every stop, so a weather abort at 3 a.m. claimed a
-      // human had asked for it.
+      // on what the executor's decision row proved. A fixed "by request" here
+      // would have a weather abort at 3 a.m. claim a human asked for it.
       case NotificationCategory.sequenceStopped:
         return '\${stop.cause} at \${time.clock}.';
       case NotificationCategory.frameCaptured:
@@ -764,7 +745,7 @@ class NotificationRouter {
       case NotificationCategory.exposureFailed:
         return 'Exposure failed: \${frame.reason}.';
       case NotificationCategory.equipmentDisconnected:
-        // WD-EQ-2a: names the device, never its wire id. The classifier
+        // Names the device, never its wire id. The classifier
         // resolves `equipment.device_name` through `friendlyNameFromDeviceId`
         // and falls back to the device type, so this sentence always has a
         // subject. The type is deliberately not repeated in front of the name

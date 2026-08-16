@@ -1,15 +1,16 @@
-// Regression: the headless server must actually INJECT its CommandCorrelator
-// into the handlers that register commands.
+// The headless server must actually INJECT its CommandCorrelator into the
+// handlers that register commands.
 //
-// `HeadlessApiServer` built its correlator, exposed it, and swept it on a timer,
-// and `_stampEventForBroadcast` was ready to stamp outgoing events — but
-// `_initializeHandlers()` constructed `DeviceHandlers(container, ...)` and
-// `SequencerHandlers(container)` without passing it. `commandCorrelator` is an
-// optional named parameter and every call site guards with
-// `commandCorrelator?.beginCommand(...)`, so the omission failed silently and in
-// the pass-making direction: action POSTs returned no `commandId`, every emitted
-// event carried `correlatingCommandId: null`, nothing threw, and the whole
-// correlation feature advertised by /api/docs was dead.
+// `HeadlessApiServer` can build its correlator, expose it, sweep it on a timer,
+// and have `_stampEventForBroadcast` ready to stamp outgoing events, and still
+// correlate nothing if `_initializeHandlers()` constructs
+// `DeviceHandlers(container, ...)` and `SequencerHandlers(container)` without
+// passing it. `commandCorrelator` is an optional named parameter and every call
+// site guards with `commandCorrelator?.beginCommand(...)`, so the omission
+// fails silently and in the pass-making direction: action POSTs return no
+// `commandId`, every emitted event carries `correlatingCommandId: null`,
+// nothing throws, and the correlation feature advertised by /api/docs is
+// dead.
 //
 // Crucially, the existing unit tests over `commandCompletionEventTypes`
 // (command_correlator_test.dart) could NOT catch this: that table was always
@@ -145,8 +146,8 @@ void main() {
   );
 
   test('POST /api/mount/slew registers a command on the device handlers', () async {
-    // DeviceHandlers was missing the same injection, so cover it too rather than
-    // fixing one handler and assuming the other.
+    // DeviceHandlers needs the same injection, so cover it too rather than
+    // pinning one handler and assuming the other.
     //
     // `mount.slew` is the route used here (not `camera.expose`) because it calls
     // `beginCommand` immediately after payload validation. `camera.expose`

@@ -1,9 +1,9 @@
 // Imaging → Focus must show the temperature-compensation model.
 //
-// The Focus tab used to carry only Manual Focus and Autofocus. The model those
-// autofocus runs build had exactly two surfaces: the mobile Devices tab, and a
-// Settings page documented "Remote-only". An operator running autofocus on this
-// very screen could never see the slope/R² their own runs produced.
+// Without it, the model those autofocus runs build has only two surfaces — the
+// mobile Devices tab and a Settings page documented "Remote-only" — so an
+// operator running autofocus on this very screen cannot see the slope/R² their
+// own runs produced.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

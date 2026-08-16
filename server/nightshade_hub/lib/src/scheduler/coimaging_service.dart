@@ -8,7 +8,7 @@ import '../db/hub_database.dart';
 import 'follow_the_night.dart';
 import 'handoff_service.dart';
 
-/// Live co-imaging session coordinator (Collaborative Sky WS3 — work-splitting).
+/// Live co-imaging session coordinator — work-splitting across rigs.
 ///
 /// Multiple rigs JOIN the SAME target and their subs co-add through the EXISTING
 /// additive fusion pipeline (`FusionService` on the session's shared-target
@@ -61,7 +61,7 @@ class CoImagingService {
   final HandoffService _handoff;
   final int _healpixOrder;
 
-  /// Optional WS4 consent ledger. When present, each combined-accounting report
+  /// Optional consent ledger. When present, each combined-accounting report
   /// revokes the consent row the PREVIOUS report recorded for this participant
   /// before overwriting the participant's single `consent_id`, so a rig
   /// streaming N subs into one session leaves exactly one live consent row (the
@@ -829,7 +829,7 @@ class CoImagingParticipantRow {
   final String joinedAt;
   final String updatedAt;
 
-  /// The WS4 share license + named-vs-anonymous choice recorded with this rig's
+  /// The share license + named-vs-anonymous choice recorded with this rig's
   /// most-recent combined-accounting report. `attribution_consent` defaults to
   /// credited (true) for a row written before the column existed; the close
   /// attribution renders the contributor anonymously when it is false.

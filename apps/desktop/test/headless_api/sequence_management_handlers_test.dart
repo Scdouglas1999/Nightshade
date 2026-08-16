@@ -136,12 +136,10 @@ void main() {
     test(
       'save-full rejects a malformed payload as 400 without leaking internals',
       () async {
-        // Regression: this path used to answer `500 internal_error` with
-        // `e.toString()` pasted into the caller-visible message, which both
-        // invited a retry storm (500 reads as "the host broke") and shipped
-        // Dart class names over the wire. A bad `nodes` encoding is a CLIENT
-        // error, so it must be a 400 whose message names the offending field
-        // and nothing else.
+        // A bad `nodes` encoding is a CLIENT error, so it must be a 400 whose
+        // message names the offending field and nothing else. A 500 carrying
+        // `e.toString()` reads as "the host broke", invites a retry storm, and
+        // ships Dart class names over the wire.
         final response = await translateHandlerErrors(
           handlers.handleSaveFullSequence(
             Request(

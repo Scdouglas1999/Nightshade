@@ -1,4 +1,4 @@
-// Component C8 (widget half) — the Flutter-side GPU HiPS framing tile layer.
+// The Flutter-side GPU HiPS framing tile layer.
 //
 // This is the [ConsumerWidget] the framing screen inserts into the framing
 // render path's `Stack` as the bottom-most *imagery* layer (above the starfield
@@ -9,15 +9,15 @@
 //      (target, survey, zoom, pan, rotation) it measures the real canvas with a
 //      [LayoutBuilder], resolves the SAME [FramingPlateScale] the survey
 //      background and overlays use (via the shared canvas resolution rule), and
-//      pushes that exact viewport into the C6 [HipsTileLoader] through the C7
+//      pushes that exact viewport into the [HipsTileLoader] through the
 //      [hipsResidentTilesProvider] notifier. The loader debounces / dedups /
 //      cancels internally, so this widget may push on every frame without
 //      thrashing the network.
 //   2. **Resolve survey metadata.** A HiPS view needs the survey `properties`
 //      (order range + tile width + preferred format) to drive LOD selection.
 //      This widget watches the single shared [framingHipsPropertiesProvider]
-//      (fetched once per survey through the C5 fetcher, also consumed by the
-//      attribution badge), so a survey switch fetches the document once, pan/zoom
+//      (fetched once per survey, also consumed by the attribution
+//      badge), so a survey switch fetches the document once, pan/zoom
 //      never re-fetch it, and there is exactly one fetch / cache / error surface
 //      per survey.
 //   3. **Paint the resident snapshot.** It watches [hipsResidentTilesProvider]
@@ -42,7 +42,7 @@
 // z-index without adding a single parameter to [FramingCanvas]. It is wrapped in
 // an [IgnorePointer] so pan/rotate gestures fall through to the canvas beneath.
 //
-// ## Errors are a feature
+// ## Failure surfacing
 //
 // A `properties` fetch failure is surfaced (logged via the loader's error sink
 // path and exposed through [HipsLayerPropertiesState]); the layer then stays
@@ -70,11 +70,10 @@ import '../painters/hips_tile_layer_painter.dart';
 /// Drop it into the framing `Stack` at the background imagery z-index. It is a
 /// [ConsumerStatefulWidget] (rather than a plain [ConsumerWidget]) only so it can
 /// schedule the post-frame viewport push (which needs `mounted` across the frame
-/// boundary). It no longer owns any per-survey `properties` fetch state machine:
-/// the survey `properties` are resolved by the single shared
-/// [framingHipsPropertiesProvider] (fetched once per survey through the C5
-/// fetcher), which both this layer and the attribution badge consume — so there
-/// is exactly one fetch / one cache / one error surface per survey.
+/// boundary). Survey `properties` are resolved by the single shared
+/// [framingHipsPropertiesProvider] (fetched once per survey), which both this
+/// layer and the attribution badge consume — so there is exactly one fetch /
+/// one cache / one error surface per survey.
 class HipsTileLayer extends ConsumerStatefulWidget {
   const HipsTileLayer({super.key});
 

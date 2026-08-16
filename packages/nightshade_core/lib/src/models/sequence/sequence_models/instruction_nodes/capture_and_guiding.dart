@@ -2,9 +2,7 @@
 
 part of '../../sequence_models.dart';
 
-// =============================================================================
-// INSTRUCTION NODES
-// =============================================================================
+// Instruction nodes
 
 /// Slew to target instruction
 class SlewNode extends SequenceNode {

@@ -1,9 +1,5 @@
 part of '../catalog_manager.dart';
 
-// =============================================================================
-// Types for the unified catalog API.
-// =============================================================================
-
 /// Static description of a catalog the headless API knows how to manage.
 class CatalogDescriptor {
   final String name;
@@ -11,8 +7,8 @@ class CatalogDescriptor {
   final String description;
   final String fileName;
 
-  /// File names this catalog used to be materialized under (see
-  /// [CatalogSource.legacyFileNames]).
+  /// Superseded file names this catalog may already be materialized under
+  /// (see [CatalogSource.legacyFileNames]).
   final List<String> legacyFileNames;
 
   final String metadataFileName;

@@ -28,9 +28,9 @@ class DarkLibraryMatchTolerances {
 
   /// Construct a tolerances object. Both values must be finite and >= 0.
   ///
-  /// Errors are a feature here, so we throw on out-of-range
-  /// input instead of silently clamping. A negative tolerance is almost
-  /// certainly a configuration mistake the user wants to know about.
+  /// Out-of-range input throws instead of clamping: a negative tolerance is a
+  /// configuration mistake, and clamping it would silently widen or narrow
+  /// which darks match.
   const DarkLibraryMatchTolerances({
     this.exposureSecs = 0.5,
     this.temperatureC = 1.0,

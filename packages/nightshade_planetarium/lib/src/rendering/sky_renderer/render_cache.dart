@@ -3,11 +3,11 @@
 part of '../sky_renderer.dart';
 
 class _PaintCache {
-  // ===== Cached MaskFilters (expensive to create) =====
+  // Cached MaskFilters (expensive to create)
   static final Map<double, MaskFilter> _blurFilters = {};
   static const int _maxBlurFilterEntries = 64;
 
-  // ===== Reusable Paint objects for common operations =====
+  // Reusable paint objects for common operations
   // These are created once and reused by updating their properties
   static final Paint _fillPaint = Paint();
   static final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;
@@ -297,16 +297,18 @@ final StarPsfShaderCache _starPsfShaderCache = StarPsfShaderCache();
 /// Cache invalidates when view center moves >0.5 degrees or zoom changes >5%.
 /// The full set of view parameters a cached [ui.Picture] was projected with.
 ///
-/// The projection depends on the pose (center + FOV), the roll, the projection
-/// formula, the view frame, and — in [SkyViewMode.horizontal] — sidereal time.
-/// Keying only on (centerRA, centerDec, fov) was wrong in three ways:
+/// The key must carry every input the projection reads, or a replayed picture
+/// describes a view the user is no longer in:
 ///
-/// * rotating the view replayed geometry at the old roll while the stars turned
-///   under it;
-/// * switching stereographic <-> orthographic replayed stale geometry;
-/// * worst, in the horizontal frame `centerRA`/`centerDec` never change while
-///   panning, so the key reported a hit on every frame and the cached geometry
-///   stayed glued to the screen while the whole star field slid beneath it.
+/// * the pose (center + FOV);
+/// * the roll — rotating the view leaves geometry at the old roll while the
+///   stars turn under it;
+/// * the projection formula — stereographic <-> orthographic replays stale
+///   geometry;
+/// * the view frame and, in [SkyViewMode.horizontal], sidereal time:
+///   `centerRA`/`centerDec` never change while panning there, so a key without
+///   them hits on every frame and the cached geometry stays glued to the screen
+///   while the star field slides beneath it.
 class _CachedPose {
   double _ra = double.nan;
   double _dec = double.nan;

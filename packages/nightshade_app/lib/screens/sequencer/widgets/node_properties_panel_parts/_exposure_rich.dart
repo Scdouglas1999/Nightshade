@@ -57,10 +57,9 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
 
     // Gain/offset use null == "inherit profile default". Any *non-null* stored
     // value is, by definition, an explicit override — even when it happens to
-    // equal the current profile default or zero. The old heuristic (treating
-    // gain==0 or gain==profileDefault as "inherited") silently demoted real
-    // overrides to defaults on reopen, so a deliberate gain of 0 looked
-    // inherited and would drift if the profile changed.
+    // equal the current profile default or zero. Treating gain==0 or
+    // gain==profileDefault as inherited demotes a real override on reopen, so a
+    // deliberate gain of 0 would drift when the profile changed.
     if (node.gain != null) {
       _userOverrides.add('gain');
     }
@@ -142,10 +141,8 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
       binningY: _effectiveBinningY(profile),
       filter: node.filter,
       // A test exposure is an out-of-sequence preview, so it captures as a
-      // SNAPSHOT (not written into the sequence's frame set). Honouring the
-      // node's frameType here is desirable but is currently asserted as
-      // snapshot by exposure_properties_recommendation_test.dart, which lives
-      // outside this area's edit scope — see skipped item #26.
+      // SNAPSHOT (not written into the sequence's frame set).
+      // exposure_properties_recommendation_test.dart pins that.
       frameType: FrameType.snapshot,
       fastReadout: false,
     );
@@ -194,7 +191,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
         ref.watch(smartNightExposureContextProvider).valueOrNull;
     final exposureRecommendation =
         exposureContext?.recommendForFilter(node.filter);
-    // Trust-patch §B: belt-and-suspenders gate. The parent _NodeEditor
+    // Belt-and-suspenders gate. The parent _NodeEditor
     // already wraps the editor body in IgnorePointer when running; wrap the
     // largest properties form in IgnorePointer too so an extraction refactor
     // can't un-gate the dozens of inputs below.
@@ -822,9 +819,7 @@ class _LongValueWarning extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Sky-brightness adaptive exposure UI block for the
 // _ExposureProperties panel. Off by default; expanding shows SNR / reference
 // / min / max + per-filter overrides + a live preview the user can glance
 // at to see what the next burst will actually capture at.
-// ============================================================================

@@ -1,5 +1,3 @@
-// Part of ../session_handlers.dart -- extracted for maintainability.
-//
 // Thumbnail sidecars, regeneration, backfill, and ranged image downloads.
 part of '../session_handlers.dart';
 
@@ -336,10 +334,9 @@ extension SessionThumbnailHandlers on SessionHandlers {
 
   /// FITS download with HTTP Range support (RFC 7233).
   ///
-  /// Mobile clients on flaky cellular need partial-content resumption;
-  /// a 30 MB FITS that dropped at byte 27 MB was previously unrecoverable
-  /// because the server only served full bodies. We now parse the
-  /// `Range` request header and emit:
+  /// Mobile clients on flaky cellular need partial-content resumption — a
+  /// 30 MB FITS that drops at byte 27 MB must resume, not restart. The `Range`
+  /// request header is parsed and answered with:
   ///   * 200 OK + `accept-ranges: bytes` when no Range header is sent.
   ///   * 206 Partial Content + `content-range` for valid Range requests.
   ///   * 416 Requested Range Not Satisfiable for malformed/unsatisfiable
@@ -369,10 +366,10 @@ extension SessionThumbnailHandlers on SessionHandlers {
       });
     }
 
-    // Stat the file. A permission-denied here is a 403; a generic I/O
-    // error is a 500. We deliberately surface these rather than letting
-    // the middleware turn everything into a 500 ("errors are
-    // a feature" — distinguish real failure modes).
+    // Stat the file. A permission-denied here is a 403; a generic I/O error
+    // is a 500. Surface both rather than letting the middleware collapse them
+    // into one opaque 500 — the caller cannot act on a code that cannot
+    // distinguish "fix the permissions" from "the disk is failing".
     final int fileLength;
     final DateTime mtime;
     try {

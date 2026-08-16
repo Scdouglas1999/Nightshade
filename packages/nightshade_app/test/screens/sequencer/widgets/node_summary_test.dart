@@ -1,8 +1,6 @@
-// =============================================================================
-// node_summary_test.dart — PURE unit tests for the at-a-glance summary
-// classifier (`node_summary.dart`, C1). No widget pump: these exercise the
-// dependency-free `nodeSummary` / `summaryHasInlineEdits` logic directly.
-// =============================================================================
+// PURE unit tests for the at-a-glance summary classifier (`node_summary.dart`,
+// C1). No widget pump: these exercise the dependency-free `nodeSummary` /
+// `summaryHasInlineEdits` logic directly.
 //
 // Three things are pinned here:
 //   1. Per-type fragment shape — each major node renders the expected

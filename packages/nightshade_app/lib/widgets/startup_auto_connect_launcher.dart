@@ -7,19 +7,19 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// One-shot launcher that runs equipment auto-connect once per process on the
 /// LOCAL hardware-owning master GUI (desktop [FfiBackend]).
 ///
-/// Why this exists: `ProfileService.autoConnectOnStartup()` was dead code — the
-/// Settings "Auto-connect equipment" toggle told the user their gear would
-/// connect on launch, but nothing ever called it. This widget is the production
-/// call site. It mirrors [AutoDiscoveryLauncher]'s pattern (post-first-frame,
-/// fire-once, fire-and-forget) but adds strict role gating.
+/// The production call site for `ProfileService.autoConnectOnStartup()`, which
+/// is what the Settings "Auto-connect equipment" toggle promises. Mirrors
+/// [AutoDiscoveryLauncher]'s pattern (post-first-frame, fire-once,
+/// fire-and-forget) with strict role gating.
 ///
-/// Role gating (contract): a passive remote/mobile *slave* launch must NEVER
+/// Role gating (contract): a passive remote/mobile SLAVE launch must NEVER
 /// drive host hardware merely because the host-synced setting is true, so this
 /// runs ONLY when the active backend is a local [FfiBackend]. A
-/// [NetworkBackend] (mobile app, or a desktop GUI launched with `--remote-host`)
-/// is skipped; those clients can still call `ProfileService.loadProfile`
-/// explicitly. Persisted device ids mean auto-connect does not need to wait for
-/// discovery, so it does not race [AutoDiscoveryLauncher]/`QuickStartChecker`.
+/// [NetworkBackend] (mobile app, or a desktop GUI launched with
+/// `--remote-host`) is skipped; those clients can still call
+/// `ProfileService.loadProfile` explicitly. Persisted device ids mean
+/// auto-connect does not wait for discovery, so it does not race
+/// [AutoDiscoveryLauncher] / `QuickStartChecker`.
 ///
 /// Backend-classification race: at the first frame the desktop GUI may still be
 /// swapping `DisconnectedBackend -> FfiBackend`. The launcher stays ARMED on the
@@ -96,7 +96,7 @@ class _StartupAutoConnectLauncherState
     if (_classify(ref.read(backendProvider))) return;
 
     // Diagnostic only. Logs that classification is slow but leaves the launcher
-    // armed — it must NOT resolve to a permanent skip like the old bounded wait.
+    // ARMED — a bounded wait here would resolve to a permanent skip.
     _slowClassificationTimer = Timer(_slowClassificationWarning, () {
       if (!_consumed && mounted) {
         _logger.info(

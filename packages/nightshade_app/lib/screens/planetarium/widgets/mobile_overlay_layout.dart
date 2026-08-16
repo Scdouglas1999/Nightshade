@@ -4,11 +4,11 @@ import 'package:flutter/widgets.dart';
 ///
 /// The mobile planetarium is a single full-bleed sky canvas with floating
 /// overlays (top status bar, left tool rail, bottom info bar, time-travel
-/// panel, compass HUD, mini-map and the FAB column). Historically these were
-/// pinned with hard-coded `Positioned(top:/bottom:)` offsets tuned for a tall
-/// portrait phone. When the device rotated to landscape — where the height
-/// collapses to ~360 px — those offsets put the tool rail, time panel, compass
-/// and mini-map on top of one another and ran the FAB column off the bottom.
+/// panel, compass HUD, mini-map and the FAB column). Hard-coded
+/// `Positioned(top:/bottom:)` offsets tuned for a tall portrait phone stack the
+/// tool rail, time panel, compass and mini-map on top of one another in
+/// landscape — where the height collapses to ~360 px — and run the FAB column
+/// off the bottom.
 ///
 /// [MobileOverlaySlots] recomputes every overlay's rectangle from the *current*
 /// viewport size and [SafeArea] insets, so the same layout code lands correctly
@@ -88,21 +88,21 @@ class MobileOverlaySlots {
     // The usable vertical band; never let it invert on a tiny viewport.
     final bandBottom = contentBottom < contentTop ? contentTop : contentBottom;
 
-    // ---- Left tool rail ----------------------------------------------------
+    // Left tool rail
     // Bounded between the top and bottom bars; the rail itself scrolls, so its
     // *box* never needs to grow past this band. This is what keeps the rail
     // from ever colliding with the bottom panels in landscape.
     final leftRail =
         Rect.fromLTRB(left, contentTop, left + railWidth, bandBottom);
 
-    // ---- FAB column (bottom-right) -----------------------------------------
+    // FAB column (bottom-right)
     final fabLeft = _clamp(right - fabColumnSize.width, left, right);
     final fabTop =
         _clamp(bandBottom - fabColumnSize.height, contentTop, bandBottom);
     final fabColumn = Rect.fromLTWH(
         fabLeft, fabTop, fabColumnSize.width, fabColumnSize.height);
 
-    // ---- Time-travel panel + compass + mini-map ----------------------------
+    // Time-travel panel + compass + mini-map
     // The right edge holds the FAB column (bottom) and the mini-map; the
     // compass and time panel share the remaining space differently per
     // orientation:

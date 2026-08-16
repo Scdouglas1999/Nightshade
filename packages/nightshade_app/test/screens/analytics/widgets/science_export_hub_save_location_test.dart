@@ -1,7 +1,6 @@
-// The science hub used to write its CSVs straight into a hard-coded
-// ~/Documents/Nightshade/exports with no save dialog at all — ignoring the
-// directory the install actually keeps its data in, and sharing one folder with
-// every other instance on the machine. Every other export in the app asks.
+// The science hub asks where to save its CSVs, like every other export in the
+// app. A hard-coded path ignores the directory this install keeps its data in
+// and shares one folder with every other instance on the machine.
 
 import 'dart:io';
 

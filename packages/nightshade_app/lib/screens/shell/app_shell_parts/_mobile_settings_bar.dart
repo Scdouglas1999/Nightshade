@@ -1,5 +1,3 @@
-// Part of ../app_shell.dart -- extracted for maintainability.
-//
 // The mobile settings bar shown in the shell chrome.
 part of '../app_shell.dart';
 

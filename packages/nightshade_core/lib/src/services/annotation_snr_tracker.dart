@@ -1,8 +1,6 @@
 part of 'annotation_service.dart';
 
-// ==========================================================================
 // SNR monitoring and progressive annotation reveal
-// ==========================================================================
 
 extension AnnotationSnrTracker on AnnotationService {
   /// Calculate magnitude limit based on current SNR

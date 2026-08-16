@@ -7,7 +7,7 @@ part of '../interactive_sky_view.dart';
 /// narrow fields an astrophotographer actually frames at, a star chart is
 /// mostly empty sky — the HYG catalogue carries about three stars per square
 /// degree, so a 1.5 degree field around M42 contains roughly a dozen of them.
-/// The fix is real imagery behind the chart, and the imagery stack lives above
+/// Real imagery behind the chart fills it, and the imagery stack lives above
 /// this package (it needs HTTP, HEALPix and a tile cache).
 ///
 /// So [InteractiveSkyView] exposes this *slot* instead of taking a dependency

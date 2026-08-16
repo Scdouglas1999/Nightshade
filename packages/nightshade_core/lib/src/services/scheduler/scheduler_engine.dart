@@ -72,7 +72,7 @@ class SchedulerEngine {
   final DateTime Function() _clock;
 
   /// Where diagnostics go besides `dart:developer`. See `scheduler_log.dart`
-  /// for why a second destination exists at all (WF-N1).
+  /// for why a second destination exists at all.
   final SchedulerLogSink? _logSink;
   StreamSubscription<SchedulerTriggerEvent>? _triggerSubscription;
   Timer? _tickTimer;
@@ -307,34 +307,17 @@ class SchedulerEngine {
   /// null when it has none out.
   ///
   /// Exposed so pre-flight can tell the autopilot's OWN generated plan from a
-  /// plan the operator built afterwards — the editor-ownership flag alone said
-  /// "autopilot" for both, which suppressed the armed-autopilot warning in
-  /// exactly the case where two owners had already contended for the rig
-  /// (WE-SEQ-N3).
+  /// plan the operator built afterwards; the editor-ownership flag alone reads
+  /// "autopilot" for both and suppresses the armed-autopilot warning.
   String? get dispatchedRunId => _dispatchedRunId;
 
-  /// Reconcile the engine's belief with the executor before an evaluation acts
-  /// on it.
-  ///
-  /// `_status.currentTargetId` records the last target DISPATCHED, not the run
-  /// the autopilot owns. Only a natural completion reaches the trigger stream,
-  /// so when the dispatched run ends any other way — a failed Center, an abort,
-  /// the operator's Stop — the field stays pinned, hysteresis reports
-  /// `isSwitch == false`, and the autopilot re-chooses the same target every
-  /// tick while dispatching nothing. One failed run ended the whole unattended
-  /// night, with every surface still reporting "Running / Active target".
-  ///
-  /// The distinction that makes this safe is [_executorHasActiveRun]: clearing
-  /// the target when the rig is FREE re-arms the next dispatch; leaving it alone
-  /// when another run is active is what stops the autopilot slewing away from a
-  /// sequence the operator started by hand.
   /// Write one diagnostic to BOTH destinations.
   ///
   /// `dart:developer` keeps the line visible under a debugger; [_logSink] is
   /// what makes it survive into the in-app Logs viewer, `/api/logs`, and the
-  /// exported diagnostic dump in a shipping build (WF-N1). Every scheduler
-  /// diagnostic goes through here — a bare `developer.log` in this engine is a
-  /// line nobody can read after the fact.
+  /// exported diagnostic dump in a shipping build. Every scheduler diagnostic
+  /// goes through here — a bare `developer.log` in this engine is a line nobody
+  /// can read after the fact.
   void _log(SchedulerLogLevel level, String message, {Object? error}) {
     developer.log(
       message,
@@ -349,6 +332,20 @@ class SchedulerEngine {
     _logSink?.call(level, error == null ? message : '$message: $error');
   }
 
+  /// Reconcile the engine's belief with the executor before an evaluation acts
+  /// on it.
+  ///
+  /// `_status.currentTargetId` records the last target DISPATCHED, not the run
+  /// the autopilot owns. Only a natural completion reaches the trigger stream,
+  /// so a dispatched run that ends any other way — a failed Center, an abort,
+  /// the operator's Stop — leaves the field pinned, hysteresis reporting
+  /// `isSwitch == false`, and the autopilot re-choosing the same target every
+  /// tick while dispatching nothing.
+  ///
+  /// [_executorHasActiveRun] is what makes clearing it safe: clearing the
+  /// target when the rig is FREE re-arms the next dispatch, while leaving it
+  /// alone when another run is active is what stops the autopilot slewing away
+  /// from a sequence the operator started by hand.
   void _reconcileDispatchedRun(String reason) {
     final runId = _dispatchedRunId;
     if (runId == null) return;
@@ -378,9 +375,9 @@ class SchedulerEngine {
     }
 
     if (ending == SchedulerRunEnding.stoppedByOperator) {
-      // WF-N3: the operator stopped the run the autopilot had started. Taking
-      // the rig back ~44 s later — which is what clearing the target below
-      // does — overrules them silently. Stand down instead and say so, so the
+      // The operator stopped the run the autopilot started. Taking the rig
+      // back ~44 s later — which is what clearing the target below does —
+      // overrules them silently. Stand down instead and say so, so the
       // scheduler surface can offer "Autopilot paused — resume?".
       _pauseForOperatorStop(reason, runId);
       return;

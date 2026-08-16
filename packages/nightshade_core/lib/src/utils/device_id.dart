@@ -1,12 +1,11 @@
 /// Single source of truth for device-identity logic in Nightshade.
 ///
-/// Historically, device-id parsing, equality/matching, canonicalization, and
-/// friendly-name resolution were re-implemented in many places with subtly
-/// different logic — which caused repeated bugs (the PHD2 guider was
-/// mis-handled in three separate spots; native ZWO names showed raw ids).
+/// Device-id parsing, equality/matching, canonicalization, and friendly-name
+/// resolution live here as one [DeviceId] value type plus a small set of free
+/// functions. Re-implementing any of them elsewhere drifts: a PHD2 guider
+/// mis-handled in one spot, native ZWO names printed as raw ids in another.
 ///
-/// This file consolidates all of that into one [DeviceId] value type plus a
-/// small set of free functions. Every call-site that needs to parse a device
+/// Every call-site that needs to parse a device
 /// id, compare two ids for "is the connected device the one the profile
 /// assigned", canonicalize PHD2 variants, or derive a fallback display name
 /// MUST route through here rather than re-deriving the logic.
@@ -80,8 +79,7 @@ const String kPhd2CanonicalId = 'phd2_guider';
 /// A parsed, canonicalizable device identity.
 ///
 /// Construct via [DeviceId.parse] (tolerant — never throws) or
-/// [DeviceId.parseStrict] (throws [FormatException] on a malformed id, in
-/// keeping with "errors are a feature").
+/// [DeviceId.parseStrict] (throws [FormatException] on a malformed id).
 class DeviceId {
   /// The exact raw id as supplied (untrimmed, original case preserved).
   final String raw;
@@ -179,8 +177,8 @@ class DeviceId {
   }
 
   /// Parse [raw], throwing [FormatException] when the id does not match any
-  /// known Nightshade driver-prefix convention. "Errors are a feature": a
-  /// malformed id must never be silently accepted into hardware dispatch.
+  /// known Nightshade driver-prefix convention: a malformed id must never be
+  /// silently accepted into hardware dispatch.
   factory DeviceId.parseStrict(String raw) {
     final id = DeviceId.parse(raw);
     if (!isValidDeviceIdFormat(raw)) {
@@ -265,17 +263,16 @@ bool isValidDeviceIdFormat(String deviceId) {
 /// unchanged.
 ///
 /// Equivalent to `DeviceId.parse(id).canonical` for PHD2 ids, but preserves
-/// the original (untrimmed, original-case) string for non-PHD2 ids — which is
-/// exactly what the old `equipment_screen._canonicalGuiderId` did.
+/// the original (untrimmed, original-case) string for non-PHD2 ids.
 String canonicalGuiderId(String id) {
   if (isPhd2WireToken(id.toLowerCase())) return kPhd2CanonicalId;
   return id;
 }
 
 /// Whether [id] is any PHD2 representation (`phd2`, `phd2_guider`,
-/// `phd2:host:port`, `phd2://…`). Single source of truth for the PHD2
-/// short-circuit that previously lived inline in `DeviceService`,
-/// `profile_sidebar`, and `equipment_screen`.
+/// `phd2:host:port`, `phd2://…`). The single source of truth for the PHD2
+/// short-circuit; `DeviceService`, `profile_sidebar` and `equipment_screen` all
+/// route through it rather than inlining their own.
 bool isPhd2DeviceId(String id) => isPhd2WireToken(id.trim().toLowerCase());
 
 /// Canonical id of the built-in multi-star guider, as minted by
@@ -292,9 +289,8 @@ const String kBuiltinGuiderDisplayName = 'Built-in Multi-Star Guider';
 /// `sim_<type>_<index>` id.
 ///
 /// Verbatim from `bridge/src/api/discovery.rs` (`("sim_camera_1",
-/// "Simulated Camera")` …) — WD-EQ-2: the backend knew these names all along,
-/// but any surface that only had the id printed `sim_filterwheel_1` at the
-/// operator.
+/// "Simulated Camera")` …). The backend carries these names; a surface that
+/// only has the id otherwise prints `sim_filterwheel_1` at the operator.
 const Map<String, String> kSimulatorDeviceDisplayNames = {
   'camera': 'Simulated Camera',
   'mount': 'Simulated Mount',
@@ -319,12 +315,12 @@ const Map<String, String> kSimulatorDeviceDisplayNames = {
 /// backend's connected list nor the discovery cache knows the device's model
 /// name, and by the run dashboard's event feed.
 ///
-/// WD-EQ-2: the simulator and built-in-guider arms were missing, so every id
-/// an operator can actually produce without hardware fell through to
-/// `return deviceId` and the Dashboard's RECENT EVENTS read
+/// The simulator and built-in-guider arms matter: without them every id an
+/// operator can produce without hardware falls through to `return deviceId` and
+/// the Dashboard's RECENT EVENTS reads
 /// `Guider · native:builtin_guider:multi_star`. `device_display_name_test.dart`
 /// pins those ids AND cross-checks this against the app's richer
-/// `formatDeviceId`, so the two formatters cannot answer differently again.
+/// `formatDeviceId`, so the two formatters cannot answer differently.
 String friendlyNameFromDeviceId(String deviceId) {
   if (deviceId.toLowerCase().startsWith(kBuiltinGuiderIdPrefix)) {
     return kBuiltinGuiderDisplayName;
@@ -395,14 +391,10 @@ String? _simulatorDisplayName(String deviceId) {
 // Fuzzy fallback matcher
 // =========================================================================
 //
-// Ported verbatim (logic-for-logic) from `profile_sidebar._deviceIdsMatch`.
-// This is the legacy token/normalize matcher that lets a profile id which
-// has drifted from the connected id (index/format changes, vendor-name
-// reordering) still count as "the same device". The PHD2 short-circuit that
-// lived at the top of the old function is handled upstream by canonical
-// equality in [DeviceId.matches], so it is intentionally NOT duplicated here.
-// Including it here too would be harmless (canonical equality already caught
-// it), so for a faithful standalone port we keep it as a fast path.
+// The token/normalize matcher that lets a profile id which has drifted from
+// the connected id (index/format changes, vendor-name reordering) still count
+// as "the same device". The PHD2 short-circuit is handled upstream by canonical
+// equality in [DeviceId.matches] and is deliberately not duplicated here.
 
 bool _fuzzyDeviceIdsMatch(String profileId, String connectedId) {
   final p = profileId.trim().toLowerCase();

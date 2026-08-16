@@ -42,8 +42,8 @@ import 'widgets/weather_safety_settings.dart';
 ///
 /// The [key] is the stable deep-link identifier used by
 /// `context.go('/settings?section=<key>')` and is part of the app's navigation
-/// contract — see [SettingsCatalog]. [build] returns the SAME detail widget the
-/// old `_buildContent` switch produced for this section.
+/// contract — see [SettingsCatalog]. [build] returns the detail widget for this
+/// section.
 class SettingsSectionDef {
   /// Stable deep-link key, e.g. `'location'`.
   final String key;
@@ -58,13 +58,13 @@ class SettingsSectionDef {
   /// 'Drivers').
   ///
   /// The rendered row titles are NOT listed here; they come from
-  /// [kSettingsSearchTerms], which is generated from the section widgets. This
-  /// list used to be the whole index, and it silently rotted: 243 of 496 setting
-  /// rows could not be found by typing their own visible title.
+  /// [kSettingsSearchTerms], which is GENERATED from the section widgets. A
+  /// hand-written index rots silently — a row that cannot be found by typing
+  /// its own visible title looks like a missing setting.
   final List<String> keywords;
 
   /// Builds the detail pane for this section. [isMobile] is threaded through to
-  /// every settings widget exactly as the old switch did.
+  /// every settings widget.
   final Widget Function(bool isMobile) build;
 
   const SettingsSectionDef({
@@ -115,10 +115,9 @@ class SettingsGroupDef {
 
 /// Resolves localized section labels at build time.
 ///
-/// Most sections have a localized label key (`settingsXxx`); a few that were
-/// always literal strings in the old `_categories` list keep those literals.
-/// Building the catalog through a [BuildContext] lets labels follow the active
-/// locale instead of being frozen at first build.
+/// Most sections have a localized label key (`settingsXxx`); a few keep
+/// literals. Building the catalog through a [BuildContext] lets labels follow
+/// the active locale instead of being frozen at first build.
 List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
   final l10n = context.l10n;
   String t(String key) => l10n.text(key);

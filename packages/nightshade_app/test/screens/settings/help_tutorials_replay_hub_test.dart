@@ -1,10 +1,9 @@
-// Widget tests for the Help & Tutorials replay hub (Onboarding & First-Light
-// IA, C13).
+// Widget tests for the Help & Tutorials replay hub.
 //
-// These assert the consolidation outcome:
-//   * the new "Capture your first light" and "Re-run equipment setup" replay
-//     rows render (Flow A previously had no replay entry),
-//   * the superseded "Quick Start Tour" step-tour row is gone,
+// These assert:
+//   * the "Capture your first light" and "Re-run equipment setup" replay rows
+//     render,
+//   * no "Quick Start Tour" step-tour row remains,
 //   * "Re-run equipment setup" resets the onboarding draft and routes to the
 //     `/onboarding` spine.
 //
@@ -192,10 +191,10 @@ void main() {
       reason: 'precondition: the draft is dirty before the reset',
     );
 
-    // CON-62: every row in this list starts something, so every row's button
-    // is labelled "Start" — three verbs for one action was the defect. The row
-    // TITLE is what distinguishes them, so target the button inside
-    // the equipment-setup row via its SettingRow ancestor title.
+    // Every row in this list starts something, so every row's button is
+    // labelled "Start". The row TITLE is what distinguishes them, so target the
+    // button inside the equipment-setup row via its SettingRow ancestor
+    // title.
     final equipmentRow = find.ancestor(
       of: find.text('Re-run equipment setup'),
       matching: find.byType(SettingRow),

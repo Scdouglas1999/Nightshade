@@ -39,12 +39,11 @@ class AdaptivePanel {
   const AdaptivePanel({required this.title, required this.child, this.icon});
 }
 
-/// The desktop-resizable / tablet-fixed / phone-collapsing replacement for the
-/// old `ResizablePanel` split.
+/// The desktop-resizable / tablet-fixed / phone-collapsing panel split.
 ///
 /// * **Desktop** (`w >= 768`, i.e. [BreakpointTokens.isAtLeastDesktop]):
-///   [primary] beside the [secondary] panel(s) with a draggable divider —
-///   equivalent to today's `ResizablePanel` so screens do not regress.
+///   [primary] beside the [secondary] panel(s) with a draggable divider,
+///   matching `ResizablePanel`'s geometry.
 /// * **Tablet** (`600 <= w < 768`): fixed-ratio columns (no drag handle).
 /// * **Phone portrait** (`w < 600`): the secondary panel(s) collapse per
 ///   [phoneStrategy] — a toggled bottom sheet, or a segmented switch between
@@ -198,9 +197,7 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Desktop / tablet splits
-  // ---------------------------------------------------------------------------
 
   Widget _secondaryColumn() {
     final children = <Widget>[];
@@ -268,9 +265,7 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Phone collapse
-  // ---------------------------------------------------------------------------
 
   Widget _buildPhoneCollapsed(BuildContext context) {
     switch (widget.phoneStrategy) {
@@ -301,13 +296,12 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
 
     final body = LayoutBuilder(
       builder: (context, constraints) {
-        // Reserving only works while the region can actually SEAT the handle.
-        // The shell hands this layout a degenerate height on transient frames
+        // Reserving only works while the region can actually SEAT the handle:
+        // the shell hands this layout a degenerate height on transient frames
         // (a keyboard inset landing before the sibling capture bar has
-        // resized), and a Column asked to fit a ~56dp handle into ~43dp
-        // overflows — which is how a 13px overflow appeared on the 360x640
-        // imaging screen. Under the floor, fall back to the old overlay so a
-        // transient frame degrades to "handle on top" rather than an error.
+        // resized), and a Column asked to fit a ~56dp handle into less than
+        // that overflows. Under the floor, overlay the handle instead so a
+        // transient frame degrades rather than throwing.
         final canReserve =
             !constraints.hasBoundedHeight ||
             constraints.maxHeight >= _sheetHandleReserveFloor;
@@ -406,9 +400,7 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
   }
 }
 
-// =============================================================================
 // Resize handle (desktop)
-// =============================================================================
 
 class _ResizeHandle extends StatefulWidget {
   final PanelSide side;
@@ -457,9 +449,7 @@ class _ResizeHandleState extends State<_ResizeHandle> {
   }
 }
 
-// =============================================================================
 // Phone bottom sheet
-// =============================================================================
 
 class _SheetHandleButton extends StatelessWidget {
   final String label;
@@ -606,9 +596,7 @@ class _PhoneSheet extends StatelessWidget {
   }
 }
 
-// =============================================================================
 // Segmented control (phone)
-// =============================================================================
 
 class _SegmentSpec {
   final String label;

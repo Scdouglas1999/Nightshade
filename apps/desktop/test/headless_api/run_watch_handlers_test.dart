@@ -60,6 +60,40 @@ void main() {
       expect(sequencer['progress'], isA<Map>());
     });
 
+    test('a failed progress read reports unknown, not idle', () async {
+      final failing = ProviderContainer(
+        overrides: [
+          sequenceProgressProvider.overrideWith(
+            (ref) => throw StateError('provider not wired'),
+          ),
+        ],
+      );
+      addTearDown(failing.dispose);
+      final failingHandlers = RunWatchHandlers(
+        container: failing,
+        eventBroadcast: ctrl.stream,
+      );
+      addTearDown(failingHandlers.dispose);
+
+      final response = await translateHandlerErrors(
+        failingHandlers.handleSnapshot(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final progress =
+          (body['sequencer'] as Map)['progress'] as Map<String, Object?>;
+      // A read that threw must never render as a rig sitting idle at 0/0.
+      expect(progress['state'], 'unknown');
+      expect(progress['message'], contains('Progress unavailable'));
+      expect(progress['completedExposures'], isNull);
+      expect(progress['totalExposures'], isNull);
+      expect(progress['elapsedSecs'], isNull);
+      expect(progress['progressPercent'], isNull);
+    });
+
     test(
       'frame-thumbnail returns no_camera when no devices are connected',
       () async {

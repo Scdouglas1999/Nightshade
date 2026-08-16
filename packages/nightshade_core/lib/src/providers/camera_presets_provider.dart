@@ -40,11 +40,10 @@ const String kUnityGainPresetId = 'unity_gain';
 /// from the connected camera's [CameraRecommendedSettings] on the
 /// disconnected/connecting -> connected edge.
 ///
-/// Why a provider (and not a direct call in [CameraStateNotifier]): the seed
-/// needs the camera's gain range (from [equipmentCameraCapabilitiesProvider])
-/// and the preset notifier, both of which are Riverpod-scoped. Watching the
-/// camera state here keeps the seeding declarative and testable, and mirrors
-/// the connect-edge pattern used by `capabilityRefreshOnConnectProvider`.
+/// The seed needs the camera's gain range (from
+/// [equipmentCameraCapabilitiesProvider]) and the preset notifier, both of
+/// which are Riverpod-scoped, so it lives here rather than in
+/// [CameraStateNotifier].
 ///
 /// Read this once during app bootstrap (`container.read(...)`) so the listener
 /// is attached before the first camera connects. It lives for the lifetime of

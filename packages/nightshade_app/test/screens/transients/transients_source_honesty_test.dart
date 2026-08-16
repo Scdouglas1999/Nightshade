@@ -129,9 +129,8 @@ void main() {
   testWidgets(
     'a rig with only unavailable sources enabled is told none is being checked',
     (tester) async {
-      // The state the shipped default produced: the strip used to read
-      // "AAVSO: 0 alerts, checked 23:14", which is a dead feed reported as a
-      // quiet sky.
+      // The state the shipped default produces. "AAVSO: 0 alerts, checked
+      // 23:14" reports a dead feed as a quiet sky.
       await _pumpAlerts(
         tester,
         enabledSources: const [TransientSource.aavso],

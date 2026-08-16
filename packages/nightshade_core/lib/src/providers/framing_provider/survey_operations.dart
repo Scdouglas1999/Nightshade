@@ -1,24 +1,17 @@
 part of '../framing_provider.dart';
 
 extension _FramingSurveyOperations on FramingNotifier {
-  /// Load survey image, preferring an offline cache, then network.
+  /// Load the survey cutout for the current target, preferring the on-disk
+  /// cache, then Aladin HiPS2FITS, then NASA SkyView.
   ///
-  /// Order of operations (offline-first):
-  ///  1. Compute the angular FOV to request for the current target/equipment.
-  ///  2. Probe the on-disk framing cache. A cached snapshot is served only when
-  ///     both the image file *and* the FOV companion sidecar (written by a
-  ///     previous successful fetch — see [_fovSidecarPath]) are present. Without
-  ///     a stored FOV we cannot reconstruct the [FramingPlateScale] registration
-  ///     linkage, so the entry is treated as a miss and we fetch over the
-  ///     network instead (never a silent, scale-less fallback).
-  ///  3. Fetch from Aladin HiPS2FITS, falling back to NASA SkyView.
-  ///
-  /// On any successful load the decoded image is paired with the requested FOV
-  /// into a [FramingPlateScale] — the single source of truth the framing
-  /// painters and gesture handlers project through. If both the cache and both
-  /// network endpoints fail the existing surfaced [FramingState.imageError] is
-  /// preserved (errors are a feature; no silent fallback).
-  /// Load the survey cutout for the current target.
+  /// A cached snapshot is served only when both the image file *and* its FOV
+  /// companion sidecar ([_fovSidecarPath]) are present: without the stored FOV
+  /// the [FramingPlateScale] registration linkage cannot be rebuilt, so the
+  /// entry is a MISS and the fetch goes to the network rather than serving a
+  /// scale-less image. Every successful load pairs the decoded image with the
+  /// requested FOV into that plate scale, which is what the framing painters
+  /// and gesture handlers project through. When cache and both endpoints fail,
+  /// the surfaced [FramingState.imageError] stands.
   ///
   /// [canvasWidthLogicalPx], when supplied, sizes the requested cutout's pixel
   /// resolution to the canvas so wide displays get sharp imagery (see
@@ -48,7 +41,7 @@ extension _FramingSurveyOperations on FramingNotifier {
       final (requestWidth, requestHeight) = await _computeRequestFov();
       if (!_isCurrentSurveyRequest(token, target, source)) return;
 
-      // ---- OFFLINE-FIRST: serve a pinned cache entry when available. --------
+      // Offline-first: serve a pinned cache entry when available.
       final served = await _tryServeFromCache(
         token: token,
         target: target,
@@ -59,7 +52,7 @@ extension _FramingSurveyOperations on FramingNotifier {
       if (!_isCurrentSurveyRequest(token, target, source)) return;
       if (served) return;
 
-      // ---- NETWORK: Aladin HiPS2FITS primary, NASA SkyView fallback. -------
+      // Network: Aladin HiPS2FITS primary, NASA SkyView fallback.
       final url = _buildAladinUrl(
         target.raDegrees,
         target.decDegrees,
@@ -332,8 +325,8 @@ extension _FramingSurveyOperations on FramingNotifier {
   /// Read-modify-write: it only augments a sidecar the cache service already
   /// wrote (i.e. an image the user pinned). When no sidecar exists there is no
   /// pinned image to register against, so there is nothing to record and the
-  /// method is a no-op. Best-effort: a write failure is logged (errors are a
-  /// feature) but never fails the network load — the in-memory image is good.
+  /// method is a no-op. Best-effort: a write failure is logged but never fails
+  /// the network load — the in-memory image is good.
   Future<void> _recordRequestFov({
     required double raHours,
     required double decDegrees,

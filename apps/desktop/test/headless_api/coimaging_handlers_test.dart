@@ -10,17 +10,16 @@ import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
-/// Collaborative Sky WS3 — the unattended-rig headless mirror for the three
-/// "make it real" hooks (framing-offset slew, capture-loop auto-contribute,
-/// altitude baton tick). These exercise the new endpoints end-to-end through the
-/// real provider graph; with no hub configured the service seam fails closed,
+/// The unattended-rig headless mirror of the three Collaborative Sky hooks
+/// (framing-offset slew, capture-loop auto-contribute, altitude baton tick).
+/// These exercise the endpoints end-to-end through the real provider graph; with no hub configured the service seam fails closed,
 /// which is exactly the contract an appliance relies on (no silent slew/claim
 /// without a hub). The deep coordination behaviour is covered by the hub +
 /// nightshade_core suites.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('CoImagingHandlers (WS3 wiring)', () {
+  group('CoImagingHandlers wiring', () {
     late ProviderContainer container;
     late NightshadeDatabase db;
     late CoImagingHandlers handlers;

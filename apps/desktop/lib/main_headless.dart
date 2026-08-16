@@ -210,11 +210,11 @@ void main(List<String> args) async {
     stdout.writeln('[OK] Profile and settings storage initialized');
 
     // Single-instance invariant. The headless service and the GUI resolve the
-    // SAME default database path, so running both on one machine used to put
-    // two SQLite writers on one file — and the loser's SQLITE_BUSY was misread
-    // as corruption, quarantining the operator's real database. Refuse before
-    // any service starts. Use NIGHTSHADE_DATABASE_DIR to give this daemon its
-    // own data directory if it is genuinely meant to run alongside a GUI.
+    // SAME default database path, so running both on one machine would put two
+    // SQLite writers on one file — and the loser's SQLITE_BUSY reads as
+    // corruption, quarantining the operator's real database. Refuse before any
+    // service starts. Use NIGHTSHADE_DATABASE_DIR to give this daemon its own
+    // data directory if it is genuinely meant to run alongside a GUI.
     final contended = await SingleInstanceLock.probe(
       await resolveDefaultDatabaseFile(),
     );
@@ -264,7 +264,7 @@ void main(List<String> args) async {
     // The backend notifier's local-backend wiring is fire-and-forget for the
     // synchronous reads below (the rest of bootstrap reads `backendProvider`
     // synchronously and `useLocalBackend()` installs the FfiBackend before any
-    // reads occur on this isolate — the original pre-refactor behaviour). We
+    // reads occur on this isolate). We
     // DO capture the future so startup auto-connect can deterministically await
     // the FfiBackend swap before it activates a profile / connects hardware,
     // instead of racing a still-`DisconnectedBackend` container.
@@ -390,8 +390,8 @@ void main(List<String> args) async {
         // platform errors internally and routes them through onWarning. This
         // catch-all is a belt-and-braces guard against a programming error
         // (e.g. a future maintainer making the constructor itself throw) so
-        // a coding regression in the discovery surface can't take down the
-        // whole headless daemon.
+        // a coding fault in the discovery surface can't take down the whole
+        // headless daemon.
         runtimeLogger.warning(
           'Unexpected mDNS registration failure: $e\n$st',
           source: _headlessLogSource,
@@ -404,12 +404,12 @@ void main(List<String> args) async {
       );
     }
 
-    // wire push notifications to the API server so weather aborts,
-    // sequence failures, and guiding-lost events are delivered as
+    // Wire push notifications to the API server so weather aborts, sequence
+    // failures, and guiding-lost events are delivered as
     // `type:'push_notification'` envelopes to connected phones during
-    // unattended overnight runs. GUI mode (desktop_app_bootstrap.dart:234)
-    // already does this; headless mode previously did not, so phones never
-    // saw a push notification for a sequence failure on a Pi-hosted server.
+    // unattended overnight runs. Parity with GUI mode
+    // (desktop_app_bootstrap.dart), which wires the same stream — without it a
+    // phone gets no push for a failure on a Pi-hosted server.
     try {
       final pushService = container.read(pushNotificationServiceProvider);
       apiServer.setPushNotificationStream(
@@ -420,10 +420,9 @@ void main(List<String> args) async {
         source: _headlessLogSource,
       );
     } catch (e, st) {
-      // Push wiring failure is non-fatal — the rest of the server still
-      // works — but the operator needs to know that overnight push
-      // notifications are off. Surface a hard warning instead of a quiet
-      // fallback (the user's "errors are a feature" directive).
+      // Push wiring failure is non-fatal — the rest of the server still works
+      // — but it is logged at error, not swallowed: the operator has to know
+      // that overnight push notifications are off before they rely on them.
       runtimeLogger.error(
         'Failed to wire push notifications: $e\n$st',
         source: _headlessLogSource,
@@ -504,8 +503,8 @@ void main(List<String> args) async {
       );
     }
 
-    // Collaborative Sky WS3 Gap 3 — eager-mount the longitude-baton scheduler so
-    // an unattended appliance self-drives the hand-off: each tick evaluates every
+    // Eager-mount the longitude-baton scheduler so an unattended appliance
+    // self-drives the hand-off: each tick evaluates every
     // active co-imaging membership's target altitude at the configured site and
     // claims/releases the baton on the rise/set, resuming/pausing the autopilot.
     // The provider is otherwise lazy, so without this read it would never tick on
@@ -603,8 +602,8 @@ void main(List<String> args) async {
     // [HeadlessShutdown].
     final shutdownCoordinator = HeadlessShutdown(
       safeRig: safeRigForShutdown,
-      // Ordered exactly as the previous inline teardown: quiesce the local
-      // watchdogs, then withdraw discovery/mDNS and the relay uplink BEFORE the
+      // Order is load-bearing: quiesce the local watchdogs, then withdraw
+      // discovery/mDNS and the relay uplink BEFORE the
       // HTTP server so peers stop dialing a port that is about to close, then
       // detach the update controller before stopping the server, then dispose
       // the OTA stack, auto-save, and finally the provider container.

@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // Core beginner, broadband, and narrowband node-tree factories.
 part of '../templates_tab.dart';
 

@@ -1,8 +1,6 @@
 part of '../framing_provider.dart';
 
-// =============================================================================
-// COMPUTED FOV PROVIDER
-// =============================================================================
+// Computed FOV provider
 
 /// Equipment status for framing
 enum EquipmentStatus {
@@ -115,7 +113,6 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
       final status = await backend.getCameraStatus(profile.cameraId!);
 
       // Use actual sensor dimensions from connected camera
-      // Now returns typed CameraStatus from all backends
       if (status.sensorWidth > 0 && status.sensorHeight > 0) {
         pixelsX = status.sensorWidth;
         pixelsY = status.sensorHeight;
@@ -127,12 +124,11 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
 
         cameraMessage = null; // No message needed - using real data
 
-        // Write-through: sensor size does not change, so having read it once
-        // from the live camera the app never needs the rig powered up again to
-        // frame a target. Failing to record it is not a reason to withhold the
-        // FOV we just computed, and its error must not be reported as "could
-        // not query camera specs" — hence its own catch rather than the
-        // enclosing one.
+        // Write-through: sensor size does not change, so once it is read from
+        // the live camera, framing a target no longer needs the rig powered up.
+        // A failed record is not a reason to withhold the FOV just computed,
+        // and its error must not surface as "could not query camera specs" —
+        // hence its own catch rather than the enclosing one.
         try {
           await settingsDao.rememberSensorSpec(
             profile.cameraId!,
@@ -257,9 +253,7 @@ String _extractDeviceName(String deviceId) {
   return deviceId;
 }
 
-// =============================================================================
-// SIMBAD NAME RESOLVER
-// =============================================================================
+// SIMBAD name resolver
 
 /// Resolved object from SIMBAD
 class SimbadResult {
@@ -452,20 +446,7 @@ class SimbadResolver {
   }
 }
 
-// =============================================================================
-// TARGET SEARCH PROVIDER — REMOVED 2026-05-16 (audit §2.5).
-//
-// The duplicate `TargetSearchState` / `TargetSearchNotifier` / `targetSearchProvider`
-// previously lived here. The screen-local autoDispose version at
-// `packages/nightshade_app/lib/screens/framing/framing_search_provider.dart`
-// is the canonical implementation. Every importer of `nightshade_core` had to
-// `hide TargetSearchState, targetSearchProvider` to avoid the symbol collision;
-// removing the duplicate eliminates that workaround.
-// =============================================================================
-
-// =============================================================================
-// COORDINATE CONVERSION UTILITIES
-// =============================================================================
+// Coordinate conversion utilities
 
 class CoordinateUtils {
   /// Parse RA from string (supports HH:MM:SS, HHhMMmSSs, decimal hours/degrees)

@@ -1,13 +1,12 @@
 // Pins `applySequencerEventToSequenceProviders` against the event names and
 // payload shapes the backend ACTUALLY emits.
 //
-// Every one of these cases used to fail. The pump matched `Sequence`-prefixed
-// lifecycle names that no producer emits (the FFI mapper emits the bare
-// `Started` / `Paused` / `Resumed` / `Stopped` / `Completed`, plus the terminal
-// `SequenceFailed`), and read a `success` bool from `NodeCompleted` where the
-// wire carries a `status` string. The pre-existing tests in
-// `device_service_test.dart` only ever fed the fictional names, which is how
-// both survived: green suite, no coverage of the real wire.
+// The FFI mapper emits the bare `Started` / `Paused` / `Resumed` / `Stopped` /
+// `Completed`, plus the terminal `SequenceFailed`; a pump that matches
+// `Sequence`-prefixed lifecycle names matches nothing any producer sends. The
+// same goes for reading a `success` bool from `NodeCompleted`, where the wire
+// carries a `status` string. Tests that feed the fictional names stay green
+// over both.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -242,7 +241,7 @@ void main() {
   });
 
   group('camera card is released when the run leaves the exposing path', () {
-    test('a stop mid-exposure clears Exposing (it used to stick)', () {
+    test('a stop mid-exposure clears Exposing (no sticky Exposing)', () {
       apply(
         _event('ExposureStarted', {
           'frame': 1,

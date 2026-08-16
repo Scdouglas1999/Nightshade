@@ -1,11 +1,11 @@
 // The solver must be TOLD the scale the app already knows.
 //
-// Live finding IMG-14 (residual): the position hint landed
-// (`-ra 0.000000 -spd 90.000000 -r 30.00`) but `grep -i fov` over the whole
-// session log returned nothing and neither ASTAP invocation carried `-fov`,
-// even though onboarding had computed and stored `1.29"/px` for the train and
-// the profile card was printing it. Determining the scale unaided is the slow
-// half of a solve and the half that fails on a sparse field.
+// A position hint alone is not enough: an invocation can land
+// `-ra 0.000000 -spd 90.000000 -r 30.00` and carry no `-fov` at all, leaving
+// `grep -i fov` over a whole session log empty while onboarding has already
+// computed and stored `1.29"/px` for the train and the profile card prints it.
+// Determining the scale unaided is the slow half of a solve and the half that
+// fails on a sparse field.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/services/plate_solve_service.dart';
 

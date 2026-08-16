@@ -1,13 +1,9 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../connected_device_card.dart -- extracted for maintainability.
-//
 // Move, rotate and dome-slew command dialogs.
 part of '../connected_device_card.dart';
 
 extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
-  // ============================================================================
   // Dialogs
-  // ============================================================================
 
   void _showMoveDialog(BuildContext context) async {
     final focuserState = ref.read(focuserStateProvider);

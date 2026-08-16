@@ -54,9 +54,7 @@ class ImagingHandlers {
     return jsonBadRequest({..._hostOnlyProcessingBody, 'operation': operation});
   }
 
-  // ===========================================================================
-  // Plate Solving
-  // ===========================================================================
+  // Plate solving
 
   Future<Response> handlePlateSolve(Request request) async {
     _logInfo('[API] POST /api/plate-solve');
@@ -150,9 +148,7 @@ class ImagingHandlers {
     };
   }
 
-  // ===========================================================================
-  // Plate Solver Setup
-  // ===========================================================================
+  // Plate solver setup
   //
   // These run on the HOST, which owns the solver binaries + catalog. Remote
   // (phone) clients route their settings-page detect/verify/get/set calls
@@ -254,9 +250,7 @@ class ImagingHandlers {
     return jsonOk({'status': 'saved'});
   }
 
-  // ===========================================================================
-  // Image Processing
-  // ===========================================================================
+  // Image processing
 
   Future<Response> handleGetImageStats(Request request) async {
     return _rejectClientPixelUpload('POST /api/imaging/stats');

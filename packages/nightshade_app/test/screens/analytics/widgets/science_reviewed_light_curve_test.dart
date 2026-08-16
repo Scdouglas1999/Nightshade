@@ -111,8 +111,8 @@ void main() {
   testWidgets('a reviewed session plots the photometry it actually recorded',
       (tester) async {
     // The stored rows name V-TEST; the live selection names nothing, so the
-    // global fallback is 'target_primary'. Before the fix that mismatch alone
-    // hid the whole curve.
+    // global fallback is 'target_primary'. That mismatch alone must not hide
+    // the curve.
     await tester.pumpWidget(_tab(_storedCurve(4, 'V-TEST')));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));

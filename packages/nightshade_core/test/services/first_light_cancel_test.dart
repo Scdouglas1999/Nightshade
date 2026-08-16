@@ -1,10 +1,9 @@
-// Regression test: the first-light flow must be stoppable.
+// The first-light flow is stoppable.
 //
-// Observed on the running build: the flow's progress modal offered no cancel,
-// and closing it left the exposure running on the sensor — Imaging went on
-// reading "Exposing... 999858.8s remaining" and the camera stayed unusable
-// until the process was restarted. `reset()` was not a cancel: it cleared the
-// UI state and left the device exposing.
+// A progress modal with no cancel leaves the exposure running on the sensor
+// when it is closed — Imaging goes on reading "Exposing... 999858.8s remaining"
+// and the camera stays unusable until the process restarts. `reset()` is not a
+// cancel: it clears the UI state and leaves the device exposing.
 import 'dart:async';
 import 'dart:typed_data';
 

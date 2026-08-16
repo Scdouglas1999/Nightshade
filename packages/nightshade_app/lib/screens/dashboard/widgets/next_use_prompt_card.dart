@@ -26,7 +26,7 @@ const double _kMobileHorizontalMargin = 16.0;
 /// Keeping the lookup here — at the presentation boundary — is what lets the
 /// core model stay Flutter-free. Every key used by [kNextUseSteps] MUST appear
 /// here; an unknown key surfaces as a [StateError] rather than silently
-/// rendering a wrong or blank icon (errors are a feature in this codebase).
+/// rendering a wrong or blank icon.
 IconData _iconForKey(String iconKey) {
   switch (iconKey) {
     case 'sparkles':
@@ -49,18 +49,16 @@ IconData _iconForKey(String iconKey) {
 /// Post-onboarding "what should I do first?" nudge.
 ///
 /// Surfaces the next first-real-use action ([nextUsePromptProvider]) once the
-/// rig is ready and the first-launch coach is finished. Modeled on
-/// [SmartNightPromptCard]: a bottom-centre [DashboardGlassCard] that slides and
-/// fades in. The two prompts share the bottom-centre anchor, so this card
-/// suppresses itself whenever the Smart Night prompt is eligible to show —
-/// Smart Night ("plan tonight") takes precedence, then this card walks the user
-/// through framing, solving, focus, and first light.
+/// rig is ready and the first-launch coach is finished: a bottom-centre
+/// [DashboardGlassCard] that slides and fades in, walking the user through
+/// framing, solving, focus and first light. It shares that anchor with
+/// [SmartNightPromptCard] and stands down whenever the Smart Night prompt is
+/// eligible, which takes precedence.
 ///
-/// Dismissal goes through [TutorialProgressDao.dismissPromptForScreen] using the
-/// `next_use.<id>` screen id, so it is progress-aware and retires the step
-/// permanently — the same write path [nextUseDismissedActionsProvider] watches,
-/// so the prompt re-resolves to the next eligible step (or nothing) the instant
-/// the user dismisses.
+/// Dismissal goes through [TutorialProgressDao.dismissPromptForScreen] on the
+/// `next_use.<id>` screen id — the same write path
+/// [nextUseDismissedActionsProvider] watches, so the prompt re-resolves to the
+/// next eligible step (or nothing) the instant the user dismisses.
 class NextUsePromptCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
@@ -374,15 +372,11 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
 /// Whether the Smart Night prompt is base-eligible to occupy the bottom-centre
 /// slot, so [NextUsePromptCard] can stand down.
 ///
-/// Mirrors the eligibility inputs of [SmartNightPromptCard] that are expressed
-/// as public providers: an active profile with usable optics
-/// ([smartNightOpticsReadyProvider]), the auto-prompt setting, no active
-/// sequence, a real observer location, and no Smart Night draft already pending
-/// for tonight. The card's private equipment-ready grace timer and its
-/// per-day "Not now" dismissal are deliberately *not* mirrored: both only delay
-/// or hide Smart Night, so treating Smart Night as eligible whenever the base
-/// conditions hold keeps the two prompts mutually exclusive without ever
-/// double-showing.
+/// Mirrors only the eligibility inputs [SmartNightPromptCard] exposes as public
+/// providers. Its private equipment-ready grace timer and per-day "Not now"
+/// dismissal are deliberately NOT mirrored: both only delay or hide Smart
+/// Night, so treating it as eligible whenever the base conditions hold keeps
+/// the two prompts mutually exclusive without ever double-showing.
 final _smartNightPromptEligibleProvider = Provider<bool>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return false;

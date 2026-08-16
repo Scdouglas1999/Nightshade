@@ -1,7 +1,6 @@
-// NEW-C2 / NEW-C3 remaining halves — three controls that still publish the
-// wrong thing about themselves.
+// Three controls that must not publish the wrong thing about themselves.
 //
-// From the Wave F tree, verbatim:
+// Undeclared, the tree reads:
 //   * Imaging: `panel: Overlays [DISABLED]` — a live popup trigger announced as
 //     an inert panel. (The harness prints [DISABLED] on a node that is
 //     interactive but carries no enabled/sensitive state.)
@@ -79,7 +78,7 @@ void main() {
             d.hasAction(SemanticsAction.tap),
       ),
       isTrue,
-      reason: 'NEW-C2: it published as `panel: Overlays [DISABLED]`',
+      reason: 'undeclared it publishes as `panel: Overlays [DISABLED]`',
     );
     expect(
       overlays.length,
@@ -132,7 +131,7 @@ void main() {
         ),
         isTrue,
         reason:
-            'NEW-C3: "${pair.$1}" and "${pair.$2}" arrived as two adjacent, '
+            'unmerged, "${pair.$1}" and "${pair.$2}" arrive as two adjacent, '
             'unassociated nodes',
       );
       // And the label is not left stranded on a node of its own.

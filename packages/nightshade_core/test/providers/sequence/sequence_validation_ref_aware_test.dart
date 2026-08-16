@@ -183,10 +183,9 @@ void main() {
       expect(issues.where((i) => i.title.contains('Camera')), isEmpty);
     });
 
-    // Pre-flight used to list ONE missing guider as two consecutive
-    // warnings — a generic "No Guider Connected" summary plus the per-node
-    // "Guider Not Connected", identical hint and all — which double-counted
-    // it in the "N warnings" badge.
+    // ONE missing guider is ONE warning per affected node, with no generic
+    // summary alongside it: a duplicate pair double-counts in the
+    // "N warnings" badge.
     test('reports a missing guider once per affected node, with no '
         'duplicate summary', () {
       final container = _container(

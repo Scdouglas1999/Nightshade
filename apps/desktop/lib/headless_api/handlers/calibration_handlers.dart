@@ -1,9 +1,9 @@
 // Remote calibration library management.
 //
-// Exposes CRUD + upload endpoints for the three calibration data stores
-// (dark_library, flat_history, defect_maps) that previously had no
-// REST surface. Operators running a headless Pi/embedded host can now
-// manage their calibration library from a remote client without SSH.
+// CRUD + upload endpoints for the three calibration data stores
+// (dark_library, flat_history, defect_maps), so an operator on a headless
+// Pi/embedded host manages their calibration library from a remote client
+// without SSH.
 //
 // Endpoints (all under /api/calibration):
 //
@@ -114,9 +114,7 @@ class CalibrationHandlers {
     return getApplicationSupportDirectory();
   }
 
-  // ===========================================================================
   // Helpers — JSON shape
-  // ===========================================================================
 
   Future<Map<String, dynamic>> _darkEntryToWire(DarkLibraryEntry entry) async {
     final file = File(entry.filePath);
@@ -199,9 +197,7 @@ class CalibrationHandlers {
     };
   }
 
-  // ===========================================================================
   // Helpers — query-param parsing
-  // ===========================================================================
 
   int? _parseIntParam(Map<String, String> params, String name) {
     final raw = params[name];

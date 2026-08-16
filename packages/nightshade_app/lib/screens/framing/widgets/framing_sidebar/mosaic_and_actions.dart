@@ -276,13 +276,12 @@ class FramingMosaicSection extends ConsumerWidget {
 /// Actions surface at the bottom of the framing sidebar.
 ///
 /// The canonical, guided "resolve → frame → solve → slew" flow lives in
-/// [FramingActionRail] (component C7) — there is no longer a second, inline
-/// Slew button here, so the slew/survey controls are not duplicated across two
-/// surfaces. This panel mounts that single rail and then exposes only the
-/// supplementary utility actions the rail does not own (add the framed target
-/// to a sequence, save it, cache the survey cutout, and reload it). The survey
-/// source and rotation are read from `framingProvider`, so the rail and the
-/// [FramingControlsSection] dropdown stay in lockstep automatically.
+/// [FramingActionRail], which owns slew; this panel mounts that single rail and
+/// exposes only the supplementary utility actions the rail does not own (add
+/// the framed target to a sequence, save it, cache the survey cutout, and
+/// reload it), so the slew/survey controls are not duplicated across two
+/// surfaces. The survey source and rotation are read from `framingProvider`, so
+/// the rail and the [FramingControlsSection] dropdown stay in lockstep.
 class FramingActionsPanel extends ConsumerWidget {
   final NightshadeColors colors;
   final FramingState framingState;

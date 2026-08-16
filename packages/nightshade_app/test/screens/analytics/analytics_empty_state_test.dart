@@ -1,12 +1,11 @@
-// CON-45 / CON-48: the Analytics tabs must present one empty state, and
-// Diagnostics must stop being the one tab with a page title and an essay.
+// The Analytics tabs must present ONE empty state, and Diagnostics must not be
+// the one tab with a page title and an essay.
 //
-// Wave D measured, on one screen: Session centred with a full stop, History
-// with no stops, Projects left-aligned with two, Equipment Stats with no empty
-// state at all, Diagnostics with a star glyph — four structures, two
-// punctuation rules, and not one of the five offering an action. Diagnostics
-// additionally rendered an H1 ("Optical Train Diagnostics") and a ~95-word
-// paragraph that none of its four siblings had.
+// Left unpinned they drift: Session centred with a full stop, History with no
+// stops, Projects left-aligned with two, Equipment Stats with no empty state at
+// all, Diagnostics with a star glyph — four structures, two punctuation rules,
+// and not one of the five offering an action, plus a Diagnostics H1 ("Optical
+// Train Diagnostics") and a ~95-word paragraph none of its siblings carry.
 
 import 'dart:io';
 
@@ -115,7 +114,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byType(AnalyticsEmptyState), findsOneWidget);
-    // The action CON-45 said none of the five tabs offered.
+    // Every tab's empty state offers an action.
     expect(find.text('Go to Imaging'), findsOneWidget);
   });
 
@@ -148,7 +147,7 @@ void main() {
     );
   });
 
-  group('Diagnostics chrome (CON-48)', () {
+  group('Diagnostics chrome', () {
     testWidgets('the Analytics tab prints no page title and no essay',
         (tester) async {
       await tester.pumpWidget(_host(const DiagnosticsTabContent()));

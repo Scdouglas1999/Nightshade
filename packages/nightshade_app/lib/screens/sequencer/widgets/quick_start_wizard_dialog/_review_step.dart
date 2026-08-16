@@ -1,12 +1,9 @@
-// Part of ../quick_start_wizard_dialog.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../quick_start_wizard_dialog.dart';
 
 extension _ReviewStep on _QuickStartWizardDialogState {
-  // ===========================================================================
   // STEP 5: REVIEW
-  // ===========================================================================
 
   Widget _buildReviewStep(NightshadeColors colors) {
     final enabledFilters = _filterConfigs.where((f) => f.enabled).toList();

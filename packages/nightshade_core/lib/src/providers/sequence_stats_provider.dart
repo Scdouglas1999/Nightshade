@@ -13,9 +13,7 @@ import '../utils/duration_format.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 
-// =============================================================================
-// POST-SESSION STATISTICS MODEL
-// =============================================================================
+// Post-session statistics model
 
 /// Statistics collected during a sequence execution run.
 class SequenceRunStats {
@@ -284,9 +282,7 @@ class FilterStats {
   double integrationSecs = 0.0;
 }
 
-// =============================================================================
-// PARSED STATS FOR UI DISPLAY
-// =============================================================================
+// Parsed stats for UI display
 
 /// Parsed stats from a SequenceRun for easy UI consumption.
 class ParsedRunStats {
@@ -356,9 +352,7 @@ class ParsedRunStats {
   String formatDuration(double secs) => formatIntegrationSeconds(secs);
 }
 
-// =============================================================================
-// PROVIDERS
-// =============================================================================
+// Providers
 
 /// Provider for accessing the sequence runs DAO.
 final sequenceRunsDaoProvider = Provider<SequenceRunsDao>((ref) {

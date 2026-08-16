@@ -322,7 +322,6 @@ class CatalogManager {
     _eventController.close();
   }
 
-  // ===========================================================================
   // Unified catalog API for the headless `/api/catalog/...` surface.
   //
   // The legacy per-type methods (`downloadStarCatalog`, `downloadDsoCatalog`,
@@ -331,17 +330,16 @@ class CatalogManager {
   // that exposes a single "name → result" surface so a REST client can talk
   // about "the catalog named `stars`" without caring about the underlying
   // source/file shape.
-  // ===========================================================================
 
   /// Canonical list of catalogs the headless API knows how to manage.
   /// Keyed by the catalog `name` exposed on the wire (`stars`, `dso`,
   /// `annotation`).
   ///
-  /// Derived from the legacy [CatalogSource] constants ([hygStarCatalog],
-  /// [openNgcCatalog], [gladePlusCatalog]) so the two catalog subsystems have a
-  /// SINGLE source of truth for the download URLs, asset names, hashes, and
-  /// file names — the desktop/mobile `CatalogSettingsScreen` (legacy) and the
-  /// headless `/api/catalog` surface (unified) can no longer drift.
+  /// Derived from the [CatalogSource] constants ([hygStarCatalog],
+  /// [openNgcCatalog], [gladePlusCatalog]) so the two catalog subsystems share
+  /// one source of truth for download URLs, asset names, hashes and file names,
+  /// and the `CatalogSettingsScreen` and the headless `/api/catalog` surface
+  /// cannot drift.
   static final Map<String, CatalogDescriptor> knownCatalogs = {
     'stars': _descriptorFrom(
       source: hygStarCatalog,

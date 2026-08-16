@@ -205,9 +205,7 @@ void main() {
         reason: 'DashboardScreen must produce at least the harness Scaffold.');
   });
 
-  // ===========================================================================
-  // W11-DEEPER: behavior tests beyond the smoke pump above.
-  // ===========================================================================
+  // Behavior tests beyond the smoke pump above.
 
   testWidgets(
       'tile_count_matches_active_subsystems: enabling exactly N tiles renders '
@@ -238,9 +236,9 @@ void main() {
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(enabled),
         ),
-        // Running shows the cockpit grid. (Terminal states with nothing
-        // loaded/connected now correctly show the standby briefing, so
-        // `completed` no longer forces the grid.)
+        // RUNNING shows the cockpit grid. Terminal states with nothing loaded
+        // or connected show the standby briefing, so `completed` does not force
+        // the grid.
         sequenceExecutionStateProvider.overrideWith(
           (ref) => SequenceExecutionState.running,
         ),
@@ -348,9 +346,9 @@ void main() {
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(enabled),
         ),
-        // Running shows the cockpit grid. (Terminal states with nothing
-        // loaded/connected now correctly show the standby briefing, so
-        // `completed` no longer forces the grid.)
+        // RUNNING shows the cockpit grid. Terminal states with nothing loaded
+        // or connected show the standby briefing, so `completed` does not force
+        // the grid.
         sequenceExecutionStateProvider.overrideWith(
           (ref) => SequenceExecutionState.running,
         ),

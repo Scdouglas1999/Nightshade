@@ -19,8 +19,8 @@ String formatDeviceId(String id) {
 
   // Built-in multi-star guider has a fixed canonical ID. Recognize it before
   // the generic native:vendor:index path so the display name reads cleanly.
-  // WD-EQ-2: the name is the constant nightshade_core and the Rust discovery
-  // record share, so the two Dart formatters cannot drift.
+  // The name is the constant nightshade_core and the Rust discovery record
+  // share, so the two Dart formatters cannot drift.
   if (lowerId.startsWith(kBuiltinGuiderIdPrefix)) {
     return kBuiltinGuiderDisplayName;
   }

@@ -64,7 +64,7 @@ String resolveDesktopDataRoot({
 /// Resolves and creates this instance's log directory, publishing the same
 /// root to `NIGHTSHADE_DATA_DIR` for the Rust side.
 ///
-/// Split out of [initialiseDesktopLogging] so the path decision is reachable
+/// Separate from [initialiseDesktopLogging] so the path decision is reachable
 /// without the native bridge: everything after this point in the bootstrap
 /// requires a loadable `libnightshade_bridge`.
 Future<({String dataRoot, String logDirectory})> prepareDesktopLogDirectory({
@@ -116,10 +116,8 @@ Future<DesktopBootPaths> initialiseDesktopLogging() async {
 
   await bridge.NativeBridge.init(logDirectory: logDir);
   if (!bridge.NativeBridge.isNativeAvailable) {
-    // Name the CURRENT platform's library and layout. This used to hard-code
-    // the Windows .dll paths, so a Linux or macOS operator hitting a stale /
-    // missing bridge was told to go look in `build\windows\x64\runner\Release`
-    // — a dead end that does not exist on their machine.
+    // Name the CURRENT platform's library and layout, so the hint points at a
+    // path that exists on the operator's machine.
     final (libName, bundleHint) = switch (Platform.operatingSystem) {
       'windows' => (
         'nightshade_bridge.dll (plus libraw.dll)',

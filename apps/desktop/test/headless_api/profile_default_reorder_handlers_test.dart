@@ -1,5 +1,5 @@
 // Exercises the dedicated set-default / clear-default / reorder profile
-// endpoints (LIM-1 / LIM-2) against a real in-memory Drift DB.
+// endpoints against a real in-memory Drift DB.
 //
 // The generic saveProfile path runs `remoteProfileToDbRow`, which deliberately
 // preserves a host row's `isDefault`/`sortOrder`, so a slave looping

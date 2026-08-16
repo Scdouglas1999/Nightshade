@@ -50,11 +50,10 @@ void main() {
     });
 
     // A lit rail item is the shell's strongest claim about where the operator
-    // is. `primaryIndexForLocation` used to be exact-match only and the shell
-    // defaulted an unmatched location to 0, so every route no rail destination
-    // hosts — Tonight, the Flat Wizard, the mosaic / session-review /
-    // stack-result viewers, /diagnostics/dump, /settings/plate-solving — lit up
-    // Dashboard while showing something else entirely.
+    // is. Defaulting an unmatched location to 0 lights Dashboard for every route
+    // no rail destination hosts — Tonight, the Flat Wizard, the mosaic /
+    // session-review / stack-result viewers, /diagnostics/dump,
+    // /settings/plate-solving — while showing something else entirely.
     test('non-rail routes select nothing rather than falling back to Dashboard',
         () {
       for (final location in [

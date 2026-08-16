@@ -386,10 +386,10 @@ class PeriodAnalysisService {
   /// which is set by the time baseline (~ baseline * bandwidth), not by how
   /// finely the grid was oversampled.
   ///
-  /// The previous form assumed an exponential null (Pr = exp(-z)), which holds
-  /// only for the unnormalized power. Fed a [0,1] power it returned ~1.0 for
-  /// every input, so no detection could ever clear the panel's 0.01/0.001
-  /// significance thresholds.
+  /// The null distribution has to match the power that is fed in: an
+  /// exponential null (Pr = exp(-z)) holds only for the UNNORMALIZED power, and
+  /// fed a [0,1] power it returns ~1.0 for every input, which no detection can
+  /// clear.
   static double _falseAlarmProbability({
     required double peakPower,
     required int n,

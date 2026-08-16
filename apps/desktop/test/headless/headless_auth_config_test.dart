@@ -1,5 +1,5 @@
-// Regression tests for parseHeadlessAuthConfig, extracted from
-// main_headless.dart into apps/desktop/lib/headless/headless_auth_config.dart.
+// Tests for parseHeadlessAuthConfig
+// (apps/desktop/lib/headless/headless_auth_config.dart).
 //
 // parseHeadlessAuthConfig reads BOTH CLI args and Platform.environment. A Dart
 // test process cannot inject env vars, so these tests assert the CLI-driven

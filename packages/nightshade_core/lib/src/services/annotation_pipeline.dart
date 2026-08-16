@@ -1,17 +1,13 @@
 part of 'annotation_service.dart';
 
-// ==========================================================================
 // Annotation pipeline: plate solve -> catalog search -> merge logic
-// ==========================================================================
 
 /// Thrown when a catalog/DB query inside the annotation pipeline genuinely
 /// fails (the query threw, the underlying file/DB read errored, etc.).
 ///
-/// Errors are a feature: previously each catalog query site caught its own
-/// exception, logged it, and continued with a partial/empty object list. That
-/// made a genuinely BROKEN query (corrupt catalog file, I/O error, malformed
-/// row) indistinguishable from a legitimate "0 objects in this frame" result —
-/// the user just saw "0 objects found".
+/// A broken query (corrupt catalog file, I/O error, malformed row) must stay
+/// distinguishable from a legitimate "0 objects in this frame" result, which
+/// otherwise reach the user as the same "0 objects found".
 ///
 /// A query that succeeds but matches nothing is NOT a failure and must NOT
 /// throw this; it simply contributes no objects. This exception is reserved
@@ -80,9 +76,7 @@ extension AnnotationPipeline on AnnotationService {
     _logger.info('New image detected: ${image.filePath}', source: 'Annotation');
 
     try {
-      // =====================================================================
       // PRE-FLIGHT CHECK 1: Verify CatalogManager is initialized
-      // =====================================================================
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.checking();
 
@@ -98,9 +92,7 @@ extension AnnotationPipeline on AnnotationService {
         return;
       }
 
-      // =====================================================================
       // PRE-FLIGHT CHECK 2: Verify at least one catalog is installed
-      // =====================================================================
       final dsoStatus = await _catalogManager.getDsoCatalogStatus();
       if (!isCurrent()) return;
       final starStatus = await _catalogManager.getStarCatalogStatus();
@@ -128,9 +120,7 @@ extension AnnotationPipeline on AnnotationService {
         source: 'Annotation',
       );
 
-      // =====================================================================
       // PRE-FLIGHT CHECK 3: Verify backend is available
-      // =====================================================================
       if (backend is DisconnectedBackend) {
         _logger.error(
           'Backend disconnected, cannot plate solve',
@@ -141,9 +131,7 @@ extension AnnotationPipeline on AnnotationService {
         return;
       }
 
-      // =====================================================================
       // STEP 1: Plate Solve
-      // =====================================================================
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.plateSolving();
       _logger.info(
@@ -241,9 +229,7 @@ extension AnnotationPipeline on AnnotationService {
         source: 'Annotation',
       );
 
-      // =====================================================================
       // STEP 2: Create PlateSolveData
-      // =====================================================================
       //
       // The catalog search radius is derived from the field size, so a solver
       // that reports a centre and a scale but leaves the field at zero (the
@@ -284,9 +270,7 @@ extension AnnotationPipeline on AnnotationService {
       // Store plate solve for progressive re-annotation
       _lastPlateSolve = plateSolveData;
 
-      // =====================================================================
       // STEP 3: Calculate initial SNR-based magnitude limit
-      // =====================================================================
       final currentSnr = image.stats.snr;
       double initialMagnitudeLimit;
 
@@ -311,9 +295,7 @@ extension AnnotationPipeline on AnnotationService {
       _currentSnrMagnitudeLimit = initialMagnitudeLimit;
       _lastAnnotationTime = DateTime.now();
 
-      // =====================================================================
       // STEP 4: Search Catalogs
-      // =====================================================================
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.searching();
 
@@ -350,9 +332,7 @@ extension AnnotationPipeline on AnnotationService {
         _revealedObjectIds.add(obj.id);
       }
 
-      // =====================================================================
       // STEP 5: Update providers with result
-      // =====================================================================
       _ref.read(currentAnnotationProvider.notifier).state = annotation;
       _ref.read(annotationStateProvider.notifier).state =
           AnnotationState.complete(annotation.objects.length);
@@ -463,12 +443,10 @@ extension AnnotationPipeline on AnnotationService {
       source: 'Annotation',
     );
 
-    // =======================================================================
     // Query BOTH annotation catalog and DSO catalog, then merge results.
     // The annotation catalog (GLADE+/HyperLEDA/OpenNGC merged) has richer
     // data for galaxies, while the standalone DSO catalog may have objects
     // the annotation catalog misses (and vice-versa).
-    // =======================================================================
 
     // Temporary map for deduplication: keyed by normalized name or position.
     final deduplicatedById = <String, CelestialObjectAnnotation>{};

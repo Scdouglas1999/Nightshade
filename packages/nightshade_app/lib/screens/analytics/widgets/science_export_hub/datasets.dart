@@ -1,13 +1,10 @@
-// Part of ../science_export_hub.dart -- extracted for maintainability.
-//
 // The seven science export dataset descriptors.
 part of '../science_export_hub.dart';
 
 /// A science dataset's CSV projection: its published header, where its rows
 /// come from (standalone and per session), and how one row becomes one line.
 ///
-/// The seven datasets used to carry seven copies of the same five-step builder,
-/// which is how the header of one could drift from the shape of its rows.
+/// Header and row builder live together so they cannot drift.
 class _ExportDataset<T> {
   const _ExportDataset({
     required this.header,

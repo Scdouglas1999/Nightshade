@@ -236,9 +236,7 @@ class NightshadeError implements Exception {
     return NightshadeError.fromString(exception.toString());
   }
 
-  // =========================================================================
-  // Convenience Constructors
-  // =========================================================================
+  // Convenience constructors
 
   /// Create a device not found error
   factory NightshadeError.deviceNotFound(String deviceId) {
@@ -358,9 +356,7 @@ class NightshadeError implements Exception {
     );
   }
 
-  // =========================================================================
-  // Classification Methods
-  // =========================================================================
+  // Classification methods
 
   /// Whether this is a hardware-level error
   bool get isHardwareError => category == BackendErrorCategory.hardware;

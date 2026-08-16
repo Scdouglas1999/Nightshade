@@ -1,18 +1,12 @@
-// =============================================================================
-// node_palette_search.dart — relevance ranking for the node palette's search.
-// =============================================================================
+// Relevance ranking for the node palette's search.
 //
-// WHY THIS EXISTS: both palette surfaces (the toolbox pane inside
-// `sequencer_screen.dart` and the standalone `NodePalette`) used to filter on
-// `name.contains(q) || description.contains(q)` and then render the survivors
-// in catalogue order. That let a DESCRIPTION hit outrank an exact NAME hit:
-// typing "Dither" put "Smart Exposure" ("…handles rotation + dither") above
-// the Dither node, "loop" put "Instruction Set" ("…sequentially (no loop)")
-// above Loop, and "start guiding" put "Photometry Run" above Start Guiding.
-// The first row is the one people click, so the palette handed them the wrong
-// node.
+// A NAME hit must outrank a DESCRIPTION hit. Filtering on
+// `name.contains(q) || description.contains(q)` in catalogue order puts
+// "Smart Exposure" above the Dither node for "dither", and "Instruction Set"
+// above Loop for "loop" — and the first row is the one people click.
 //
-// Ranking is shared here so the two surfaces cannot drift apart again.
+// Both palette surfaces (the toolbox pane inside `sequencer_screen.dart` and
+// the standalone `NodePalette`) share this ranking so they cannot drift apart.
 
 import 'package:nightshade_core/nightshade_core.dart';
 

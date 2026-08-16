@@ -1,22 +1,20 @@
-// WD-EQ-2, second strike on the two-implementations trap.
-//
 // Two Dart formatters turn a device id into words:
 //   * nightshade_core `friendlyNameFromDeviceId` — the no-discovery fallback
 //     used by DeviceService AND by the run dashboard's RECENT EVENTS feed;
 //   * nightshade_app `formatDeviceId` — the richer UI formatter.
-// Wave D added a humanizer that called the first one; Wave E found the
-// Dashboard still reading `Guider · native:builtin_guider:multi_star`,
-// `Filter Wheel · sim_filterwheel_1`, `Focuser · sim_focuser_1`, because the
-// first formatter had no arm for any id a hardware-free operator can produce.
+// A formatter with no arm for the ids a hardware-free operator produces leaves
+// the Dashboard reading `Guider · native:builtin_guider:multi_star`,
+// `Filter Wheel · sim_filterwheel_1`, `Focuser · sim_focuser_1`.
 //
-// These tests pin the exact ids from that dump and then assert both formatters
-// agree, so fixing one and shipping the other cannot happen silently again.
+// These tests pin those exact ids and assert both formatters agree, so fixing
+// one and shipping the other cannot happen silently.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/utils/device_format_utils.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  group('friendlyNameFromDeviceId names the ids Wave E saw on screen', () {
+  group('friendlyNameFromDeviceId names the ids a hardware-free rig produces',
+      () {
     test('the built-in guider', () {
       expect(
         friendlyNameFromDeviceId('native:builtin_guider:multi_star'),
@@ -73,7 +71,7 @@ void main() {
         expect(
           friendlyNameFromDeviceId(id),
           isNot(id),
-          reason: '$id reached the Dashboard feed verbatim in Wave E',
+          reason: '$id reaches the Dashboard feed verbatim',
         );
       }
     });

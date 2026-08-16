@@ -69,9 +69,8 @@ final schedulerConfigUserDirtyProvider = StateProvider<bool>((ref) => false);
 /// Scoring weights), so it is the authority. Everything that gates on "is this
 /// target high enough" reads it here instead of carrying a private constant:
 /// the Smart Night sequence builder, the mosaic panel altitude waits, and the
-/// threshold line the altitude charts draw. Those used to hold their own 30°
-/// while the scheduler held 25°, so the app both admitted and refused the same
-/// 27° target on one screen.
+/// threshold line the altitude charts draw. A private constant anywhere lets
+/// one screen admit a target another refuses.
 ///
 /// Per-target overrides (`targets.min_altitude`, carried on
 /// `ForecastTarget.minAltitudeDeg`) are a deliberate exception: a specific

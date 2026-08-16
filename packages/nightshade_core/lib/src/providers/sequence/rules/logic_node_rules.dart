@@ -1,9 +1,7 @@
 import '../../../models/sequence/sequence_models.dart';
 import '../sequence_validation.dart';
 
-// =============================================================================
-// LOGIC-NODE RULES
-// =============================================================================
+// Logic-node rules.
 //
 // Rules dedicated to the four "logic" node types (Recovery / Parallel /
 // Conditional). EmptyContainerRule in `structure_rules.dart` covers the
@@ -18,9 +16,7 @@ import '../sequence_validation.dart';
 ///
 /// Three failure modes:
 ///   1. No [TriggerType] set — there is nothing to trigger the recovery
-///      action, so the node can never fire. (Distinct from the executor's
-///      missing-trigger fallback: the executor used to silently treat an
-///      unset trigger as "never trigger", hiding the misconfiguration.)
+///      action, so the node can never fire.
 ///   2. [RecoveryActionType.customBranch] selected but the node has no
 ///      child branch — the executor would have nothing to execute when the
 ///      trigger fires.
@@ -290,9 +286,7 @@ class ConditionalNodeEmptyBranchRule implements SequenceValidator {
   }
 }
 
-// =============================================================================
-// LOOP TERMINATION ANALYSIS
-// =============================================================================
+// Loop termination analysis.
 
 /// Warns about Loop nodes whose termination condition is provably
 /// unreachable inside any reasonable session window.
@@ -386,12 +380,10 @@ class LoopUnreachableTerminationRule implements SequenceValidator {
   }
 }
 
-// =============================================================================
-// NO-OP LOGIC NODES
-// =============================================================================
+// No-op logic nodes.
 
-/// Flags logic nodes that were dropped in but never configured, and so do
-/// exactly nothing.
+/// Flags logic nodes dropped in but never configured, which do exactly
+/// nothing.
 ///
 /// Both cases are the palette's opening state:
 ///
@@ -402,9 +394,9 @@ class LoopUnreachableTerminationRule implements SequenceValidator {
 ///
 /// Neither is an error: both are valid states the executor handles, and a
 /// deliberate count of 1 is legal. But both silently do the harmless thing
-/// instead of the thing the operator added the node for, and the sequence
-/// tree gave no sign of it. INFO severity, so the header badge and the node
-/// border say "look at this" without blocking a start.
+/// instead of the thing the operator added the node for, and the sequence tree
+/// otherwise gives no sign of it. INFO severity, so the header badge and the
+/// node border say "look at this" without blocking a start.
 ///
 /// Note that this rule does NOT invent a better default (a count of 2? 10?):
 /// what the operator meant is unknowable here, so the honest move is to show

@@ -1,10 +1,9 @@
 part of '../database.dart';
 
 extension _NightshadeDatabaseMigrationV45 on NightshadeDatabase {
-  /// Version 45 (Mosaic M2 — durable mosaic projects): the `mosaic_projects` +
-  /// `mosaic_panels` tables, making a mosaic a first-class durable entity that
-  /// links the grid configuration → per-panel capture targets → per-panel
-  /// integrated masters → the final stitched mosaic master.
+  /// Version 45: the `mosaic_projects` + `mosaic_panels` tables, making a
+  /// mosaic a durable entity linking the grid configuration → per-panel
+  /// capture targets → per-panel integrated masters → the stitched master.
   ///
   /// `mosaic_projects` persists one row per mosaic (target region + grid: rows ×
   /// cols, overlap %, position angle), its lifecycle `status`
@@ -21,11 +20,9 @@ extension _NightshadeDatabaseMigrationV45 on NightshadeDatabase {
   /// (`customSelect`/`customInsert`), mirroring [CampaignsDao] /
   /// [NarrowbandCompositesDao].
   ///
-  /// Like v41/v42/v43/v44 these are raw-DDL changes (the dominant v27+
-  /// convention) and do NOT require a Drift codegen pass.
-  /// `_createMosaicTables()` uses `CREATE TABLE/INDEX IF NOT EXISTS`, so the
-  /// helper is idempotent and also runs from `onCreate` (fresh installs) so a
-  /// fresh DB gets the tables too.
+  /// Raw-DDL changes, no Drift codegen pass. `_createMosaicTables()` uses
+  /// `CREATE TABLE/INDEX IF NOT EXISTS`, so it is idempotent and also runs
+  /// from `onCreate`.
   Future<void> _upgradeSchemaV45(Migrator m, int from) async {
     if (from < 45) {
       await _createMosaicTables();

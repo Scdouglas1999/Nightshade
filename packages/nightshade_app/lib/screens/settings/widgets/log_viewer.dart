@@ -35,7 +35,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
   String _searchQuery = '';
   bool _autoScroll = true;
   // 1 Hz live-tail timer. Suspended when the app is backgrounded so a
-  // hidden settings tab doesn't keep polling the log buffer (§4.33).
+  // hidden settings tab doesn't keep polling the log buffer.
   Timer? _refreshTimer;
 
   final ScrollController _scrollController = ScrollController();

@@ -120,8 +120,7 @@ Future<UpdateStack?> provisionUpdateStack({
 
 /// Load or generate the LAN-push authentication secret. Persisted under
 /// the application-support directory so it survives restarts. Used by
-/// both GUI and headless bootstraps; previously inlined in
-/// `desktop_app_bootstrap.dart`.
+/// both GUI and headless bootstraps.
 ///
 /// Exposed at library level so unit tests can pre-seed a fixed secret in
 /// the AppData root.

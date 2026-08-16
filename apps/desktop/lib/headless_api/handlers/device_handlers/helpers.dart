@@ -1,23 +1,14 @@
 part of '../device_handlers.dart';
 
-// ===========================================================================
 // Helpers
-// ===========================================================================
 
 /// Parse the wire `frameType` string into a [FrameType].
 ///
-/// Why this rejects instead of defaulting: the previous `default:` arm
-/// silently coerced ANY unrecognised string to [FrameType.light].
-/// Observed on the live rig against a real ZWO ASI1600MM-Cool:
-///   POST /api/camera/expose {"frameType":"banana"} -> 200 {"status":"exposing"}
-/// The frame was captured and recorded as a light. A typo in a calibration
-/// script therefore silently mislabels darks/flats as lights, both in the
-/// image record and in the FITS `IMAGETYP` keyword, and the operator is
-/// never told. An unknown frame type is a bad request, not a light frame.
-///
-/// [FrameType.snapshot] is a declared enum value and was missing from the
-/// switch, so `"snapshot"` also fell through to `light`; it is mapped here
-/// so that adding the rejection arm does not start rejecting a valid type.
+/// An unrecognised string is a bad request, never [FrameType.light]: coercing
+/// it would let a typo in a calibration script mislabel darks and flats as
+/// lights in both the image record and the FITS `IMAGETYP` keyword, with
+/// nothing said to the operator. Every declared enum value — [FrameType.snapshot]
+/// included — is mapped here so the rejection arm only catches real typos.
 FrameType _parseFrameType(String type) {
   switch (type.toLowerCase()) {
     case 'light':

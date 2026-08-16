@@ -21,11 +21,9 @@ part 'flat_wizard_service/exposure_event_keys.dart';
 class FlatWizardService {
   final NightshadeBackend backend;
 
-  // Image download timeout was previously
-  // a hardcoded `Duration(seconds: 60)` constant. It is now sourced from
-  // [FlatWizardGlobalSettings.imageDownloadTimeoutSeconds] (default 60s) so
-  // operators with very large sensors or slow USB hubs can tune it without a
-  // recompile. Defaults are passed in via the provider constructor below.
+  // Image download timeout, from
+  // [FlatWizardGlobalSettings.imageDownloadTimeoutSeconds] (default 60 s), so
+  // very large sensors or slow USB hubs can be tuned without a recompile.
   final Duration imageDownloadTimeout;
 
   /// Default maximum binary-search iterations used by [quickCalibrate]. Wired
@@ -107,28 +105,20 @@ class FlatWizardService {
       );
     }
 
-    // ---- Effective full-scale ADU ----
+    // Effective full-scale ADU
     // The DRIVER-reported max-ADU is authoritative, and bit depth is only a
     // last-resort fallback when no driver value exists.
     //
-    // This used to take `min(status.maxAdu, (1 << bitDepth) - 1)` on the theory
-    // that a 12/14-bit sensor "cannot reach" a 16-bit ADU. That confuses ADC
-    // resolution with the pixel container: 12- and 14-bit astro CMOS drivers
-    // left-justify their samples into the 16-bit pixel word, so an ASI1600MM
-    // (bitDepth 12) genuinely produces values up to 65504 — measured live: a
-    // 2 ms frame read min 3856 / max 5792 / median 4464 (all exact multiples of
-    // 16) and a saturated frame clipped at 65504. The min() therefore pinned the
-    // flat target at 50% of 4095 = 2048, BELOW the camera's own bias floor at
-    // the shortest possible exposure, so flat calibration could never converge
-    // on that camera — it drove exposure to the minimum and reported
-    // `minExposureReached` forever.
+    // Bit depth is ADC resolution, not the pixel container: 12- and 14-bit
+    // astro CMOS drivers left-justify their samples into the 16-bit word, so an
+    // ASI1600MM (bitDepth 12) reads up to 65504. Capping full scale at
+    // `(1 << bitDepth) - 1` would put the flat target below such a camera's own
+    // bias floor and convergence could never be reached.
     //
     // Measured ADU (`FlatFrameCapture.adu` = `image.stats.mean`) is in pixel
-    // container units, so the target must be scaled by the container's full
-    // scale — which is exactly what `CameraStatus.maxAdu` reports. Trusting the
-    // driver can only be wrong if a driver misreports its own MaxADU; being
-    // wrong high merely lengthens flats, whereas the bit-depth guess made them
-    // unreachable.
+    // container units, so the target scales by the container's full scale,
+    // which is what `CameraStatus.maxAdu` reports. A driver overstating its
+    // MaxADU only lengthens flats.
     final bitDepth = caps?.bitDepth;
     int? maxAduCandidate;
     if (status != null && status.maxAdu > 0) {
@@ -139,7 +129,7 @@ class FlatWizardService {
     final rangeKnown = maxAduCandidate != null;
     final maxAdu = maxAduCandidate ?? FlatExposureCalculator.fallbackMaxAdu;
 
-    // ---- Gain ----
+    // Gain
     // Unknown is NOT permission to command a control. Fail closed to the
     // driver default unless at least one authoritative surface explicitly
     // reports support and neither explicitly rejects it.
@@ -155,7 +145,7 @@ class FlatWizardService {
       gain = _clampToRange(gain, caps?.gainMin, caps?.gainMax);
     }
 
-    // ---- Offset ----
+    // Offset
     final offsetSupported =
         (caps?.canSetOffset == true || status?.canSetOffset == true) &&
         caps?.canSetOffset != false &&
@@ -166,7 +156,7 @@ class FlatWizardService {
       offset = _clampToRange(offset, caps?.offsetMin, caps?.offsetMax);
     }
 
-    // ---- Binning ----
+    // Binning
     var binX = (profileBinX ?? fallbackBinX ?? 1);
     var binY = (profileBinY ?? fallbackBinY ?? 1);
     if (binX < 1) binX = 1;
@@ -868,8 +858,7 @@ class FlatWizardService {
         // Fall back to the single canonical proportional-adjustment engine
         // (the same [calculateNextExposure] that drives the standalone wizard
         // screen and the headless /api/flat-wizard handlers via
-        // [calibrateFilter]). Previously this used a second, divergent copy in
-        // FlatExposureCalculator; collapsed to one source of truth.
+        // [calibrateFilter]).
         exposure = calculateNextExposure(
           currentExposure: exposure,
           currentAdu: adu,

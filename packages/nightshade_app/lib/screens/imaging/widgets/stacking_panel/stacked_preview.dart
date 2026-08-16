@@ -187,9 +187,7 @@ class _StackedPreviewState extends State<_StackedPreview> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Preview pixel conversion
-// ---------------------------------------------------------------------------
 
 /// Renders a u16 stacked buffer to display-ready RGBA8.
 ///

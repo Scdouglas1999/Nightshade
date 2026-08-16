@@ -1,5 +1,3 @@
-// Part of ../mosaic_project_controller.dart -- extracted for maintainability.
-//
 // Mosaic project state and its snapshot value type.
 part of '../mosaic_project_controller.dart';
 
@@ -40,28 +38,28 @@ class MosaicProjectState {
   /// True while [MosaicProjectController.stitchProject] is running.
   final bool isStitching;
 
-  /// True while [MosaicProjectController.publishToHub] is running (WS2).
+  /// True while [MosaicProjectController.publishToHub] is running.
   final bool isPublishing;
 
-  /// True while a claim action is running (WS2).
+  /// True while a claim action is running.
   final bool isClaiming;
 
-  /// True while a panel-master upload is running (WS2).
+  /// True while a panel-master upload is running.
   final bool isUploading;
 
-  /// True while [MosaicProjectController.assembleFromHub] is running (WS2).
+  /// True while [MosaicProjectController.assembleFromHub] is running.
   final bool isAssembling;
 
-  /// True while [MosaicProjectController.joinAsParticipant] is running (WS2).
+  /// True while [MosaicProjectController.joinAsParticipant] is running.
   final bool isJoining;
 
-  /// True while [MosaicProjectController.refreshStatus] is running (WS2).
+  /// True while [MosaicProjectController.refreshStatus] is running.
   final bool isRefreshing;
 
-  /// True while [MosaicProjectController.downloadOutput] is running (WS2).
+  /// True while [MosaicProjectController.downloadOutput] is running.
   final bool isDownloading;
 
-  /// When the claims this rig currently holds expire on the hub (WS2), or null
+  /// When the claims this rig currently holds expire on the hub, or null
   /// when nothing is held. Taken from the hub's own claim grant rather than a
   /// client-side copy of the TTL, so what the operator is shown is the time the
   /// hub will actually re-open their panels.
@@ -105,18 +103,18 @@ class MosaicProjectState {
       isRefreshing ||
       isDownloading;
 
-  /// The hub mosaic id once this project has been published (WS2), or null.
+  /// The hub mosaic id once this project has been published, or null.
   String? get hubMosaicId => project?.hubMosaicId;
 
   /// True once this project has been published to the hub as a collaborative
-  /// mosaic (WS2).
+  /// mosaic.
   bool get isPublished => project?.isPublished ?? false;
 
   /// The hub-side collaborative lifecycle (published|assembling|complete), or
-  /// null when not a collaborative mosaic (WS2).
+  /// null when not a collaborative mosaic.
   String? get collabStatus => project?.collabStatus;
 
-  /// Panels not yet claimed for distributed capture (WS2) — the claim-all set.
+  /// Panels not yet claimed for distributed capture — the claim-all set.
   List<MosaicProjectPanel> get unclaimedPanels =>
       panels.where((p) => !p.isClaimed).toList(growable: false);
 
@@ -139,12 +137,12 @@ class MosaicProjectState {
   /// joined a peer's as a participant).
   bool get isOwner => project?.collabRole == 'owner';
 
-  /// Integrated panels not yet uploaded to the hub (WS2) — the upload-all set.
+  /// Integrated panels not yet uploaded to the hub — the upload-all set.
   List<MosaicProjectPanel> get integratedNotUploaded => panels
       .where((p) => p.integratedMasterId != null && !p.isUploaded)
       .toList(growable: false);
 
-  /// Count of panels whose master has been uploaded to the hub (WS2).
+  /// Count of panels whose master has been uploaded to the hub.
   int get panelsUploaded => panels.where((p) => p.isUploaded).length;
 
   /// Number of panels that carry an integrated per-panel master — the

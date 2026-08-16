@@ -45,8 +45,8 @@ String _phaseWireKey(RecoveryPhase p) {
 
 RecoveryPhase _phaseFromWire(dynamic raw) {
   // Rust serde emits unit variants as JSON strings. Anything else is a
-  // protocol contract violation and we surface the failure loudly per the
-  // "errors are a feature" rule — no silent default phase.
+  // protocol contract violation: throwing keeps a mis-shaped payload from
+  // resolving to a default phase the recovery UI would then report as real.
   final s = raw is String ? raw : raw.toString();
   switch (s) {
     case 'Waiting':
@@ -117,8 +117,8 @@ class RecoveryCause extends Equatable {
       case 'Custom':
         return customLabel ?? 'Custom recovery';
       default:
-        // Unknown variant — surface honestly. "Errors are a
-        // feature." We do not fall back to "Recovering" silently.
+        // Unknown variant — named as unknown rather than silently
+        // reported as "Recovering".
         return 'Unknown ($kind)';
     }
   }

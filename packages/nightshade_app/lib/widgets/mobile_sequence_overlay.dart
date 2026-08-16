@@ -9,11 +9,11 @@ import 'sequence_progress_card.dart';
 /// Overlay widget that displays mobile sequence progress only while a sequence
 /// is actively running (or paused) on mobile devices.
 ///
-/// §12: the run *controls* (pause/stop/skip) live in `MobilePlaybackBar` inside
-/// the builder body, so this overlay carries no second control surface — it is
-/// the ambient progress card only.
+/// The run *controls* (pause/stop/skip) live in `MobilePlaybackBar` inside the
+/// builder body, so this overlay carries no second control surface — it is the
+/// ambient progress card only.
 ///
-/// §15: the overlay's visibility matches `MobilePlaybackBar` — both hide on
+/// The overlay's visibility matches `MobilePlaybackBar` — both hide on
 /// the terminal `completed` / `failed` / idle states. The end-of-session report
 /// dialog (opened from `sequencer_screen.dart`) is the post-run surface, so the
 /// floating card disappears together with the controls instead of lingering on
@@ -26,7 +26,7 @@ class MobileSequenceOverlay extends ConsumerWidget {
     final executionState = ref.watch(sequenceExecutionStateProvider);
 
     // Only show while running / paused. Idle and the terminal completed /
-    // failed states hide the overlay (§15).
+    // failed states hide the overlay.
     final isActive = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
     if (!isActive) {
@@ -34,9 +34,8 @@ class MobileSequenceOverlay extends ConsumerWidget {
     }
 
     return Positioned.fill(
-      // §13: the outer `IgnorePointer(ignoring: false)` was a no-op and has
-      // been removed. The progress card keeps its own `IgnorePointer` so taps
-      // fall through to the tree behind it.
+      // The progress card carries its own `IgnorePointer` so taps fall through
+      // to the tree behind it; no outer one is needed.
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.stretch,

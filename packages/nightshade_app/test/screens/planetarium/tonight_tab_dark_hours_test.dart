@@ -1,11 +1,10 @@
-// Regression: the Tonight tab headlined a transit altitude.
+// The Tonight tab must not headline a transit altitude.
 //
-// "Best Targets Tonight" printed each target's transit altitude in the success
-// slot and its transit TIME underneath — a number every object at
-// declination == latitude shares, at an hour that on 2026-08-02 at 40N/105W was
-// 09:24 in broad daylight on a panel showing Sunset 22:16. The card now leads
-// with the hours the target is actually usable inside darkness and the moment
-// it peaks INSIDE that window.
+// Transit altitude is a number every object at declination == latitude shares,
+// and its transit TIME can fall in broad daylight — 09:24 at 40N/105W on a panel
+// showing Sunset 22:16. So "Best Targets Tonight" leads with the hours the
+// target is actually usable inside darkness and the moment it peaks INSIDE that
+// window.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,7 +42,7 @@ const _moon = MoonTimes(
 );
 
 /// A dec-40 galaxy at 40N: transit altitude ~90°, but it culminates at 09:24
-/// local — the exact shape the old sort put at the top of the list.
+/// local — high but unobservable, the shape an altitude-only sort ranks first.
 final _zenithGalaxy = TonightTarget(
   object: const DeepSkyObject(
     id: 'NGC6685',
@@ -119,10 +118,9 @@ void main() {
     );
   });
 
-  // Regression: the header tooltip used to be hand-written prose claiming the
-  // list used "the same score the planner uses", which was untrue of the
-  // shipped 70/30 blend. It now has to come from the ranker itself so the words
-  // cannot drift away from the weights again.
+  // The header tooltip comes from the RANKER itself, so the words cannot drift
+  // away from the weights — hand-written prose describing the blend goes stale
+  // the moment the weights change.
   testWidgets('the header tooltip is the ranker\'s own disclosed rule',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;

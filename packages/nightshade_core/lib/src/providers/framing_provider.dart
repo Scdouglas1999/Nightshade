@@ -29,16 +29,12 @@ part 'framing_provider/models.dart';
 part 'framing_provider/support.dart';
 part 'framing_provider/survey_operations.dart';
 
-// =============================================================================
-// ASTRONOMY HTTP CLIENT
-// =============================================================================
+// Astronomy HTTP client
 
 /// Shared HTTP client for astronomy server requests.
 /// Uses standard certificate verification — no SSL bypass.
 
-// =============================================================================
-// FRAMING STATE NOTIFIER
-// =============================================================================
+// Framing state notifier
 
 class FramingNotifier extends StateNotifier<FramingState> {
   final Ref _ref;
@@ -537,9 +533,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
     );
   }
 
-  // ===========================================================================
-  // MOSAIC METHODS
-  // ===========================================================================
+  // Mosaic methods
 
   /// Enable or disable mosaic mode
   void setMosaicEnabled(bool enabled) {
@@ -745,9 +739,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// mosaic wizard's "Create Project" writes), and return the new
   /// `mosaic_projects.id`.
   ///
-  /// This is the durable counterpart to the old export-to-targets path, which
-  /// only wrote orphaned `targets` rows that no project or sequence could
-  /// consume. The grid geometry (rows/cols/overlap), center, and per-panel FOV
+  /// The grid geometry (rows/cols/overlap), center, and per-panel FOV
   /// are taken straight from the live framing state, so the persisted project
   /// matches the panels the user sees on the canvas. The scheduler/sequencer
   /// can then drive the project via the `/mosaic/:id` screen.
@@ -785,8 +777,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// Persists the currently-framed target as the "last framed target" so it can
   /// be restored across app restarts. Writes a SINGLE settings key (overwritten
   /// each call) — this deliberately does NOT create a row in the `targets`
-  /// library table, which previously polluted Analytics → Projects with
-  /// phantom targets the user never deliberately added.
+  /// library table, which would pollute Analytics → Projects with phantom
+  /// targets the user never deliberately added.
   Future<void> persistLastFramedTarget(FramingTarget target) async {
     final dao = _ref.read(settingsDaoProvider);
     await dao.setSetting(_lastFramedTargetKey, jsonEncode(target.toJson()));
@@ -796,8 +788,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
   ///
   /// Routed through [TargetLibraryService.ensureCatalogTarget], which dedups
   /// against existing rows (by catalog id / name / coordinates) and handles both
-  /// the local SQLite (FFI) and remote host (NetworkBackend) backends. Explicit
-  /// "Save target" presses therefore no longer stack duplicate rows.
+  /// the local SQLite (FFI) and remote host (NetworkBackend) backends, so
+  /// repeated "Save target" presses do not stack duplicate rows.
   Future<void> saveTarget() async {
     final target = state.target;
     if (target == null) return;
@@ -855,14 +847,11 @@ const String _lastFramedTargetKey = 'framing.lastTarget';
 /// Factory for the HTTP client the survey-image fetch uses.
 ///
 /// Seam so a test can decide what the network does instead of depending on
-/// whether the machine running it happens to be online. The survey fetch allows
-/// each endpoint 30s, which is right for an operator on a slow link but is also
-/// the whole budget of a default Dart test — so a host WITH network guarantees a
-/// timeout, and a host without one passes by accident. That is what made
-/// `framing_plate_scale_state_test` pass locally and fail on CI.
+/// whether the machine running it happens to be online: the survey fetch allows
+/// each endpoint 30s, which is also the whole budget of a default Dart test.
 ///
 /// Production keeps the real client; tests override this with one that fails
-/// immediately, which is what the offline-cache tests were always asserting.
+/// immediately.
 final framingSurveyHttpClientFactoryProvider = Provider<http.Client Function()>(
   (ref) => http.Client.new,
 );

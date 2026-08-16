@@ -1,5 +1,3 @@
-// Part of ../image_thumbnail_strip.dart -- extracted for maintainability.
-//
 // The individual thumbnail widget and its state.
 part of '../image_thumbnail_strip.dart';
 
@@ -194,12 +192,10 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             ),
                           ),
                           // Quality badge (GOOD / NEEDS REVIEW / POOR) is added
-                          // AFTER the thumbnail so it paints ON TOP of it. As the
-                          // Stack's first child it was covered by every thumbnail
-                          // that loaded (Image.memory, BoxFit.cover, infinite
-                          // width/height), so the chip only ever appeared on frames
-                          // whose image FAILED to load — exactly inverting the cull
-                          // workflow it exists for.
+                          // AFTER the thumbnail so it paints ON TOP of it: as
+                          // the Stack's first child it is covered by every
+                          // thumbnail that loads (Image.memory, BoxFit.cover,
+                          // infinite width/height).
                           //
                           // An unmeasured frame gets an explicit UNRATED chip
                           // rather than a missing badge, so "no grade" reads as a

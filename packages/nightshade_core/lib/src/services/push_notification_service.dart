@@ -106,13 +106,12 @@ class PushNotificationConfig {
 
 /// Mobile-push output broadcaster.
 ///
-/// Architecture-unification, Subsystem 3 (collapsed): this service NO LONGER
-/// owns its own event-stream subscription or any event->notification
-/// classification. The [NotificationRouter] is now the single producer of
-/// mobile pushes — its [SystemPushTransport] calls [enqueue] for every
-/// systemPush-routed notification. This service's only remaining job is to
-/// broadcast those [PushNotification]s onto its stream, which the embedded
-/// web server fans out to paired phones over WebSocket.
+/// This service owns no event-stream subscription and classifies nothing:
+/// [NotificationRouter] is the single producer of mobile pushes, and its
+/// [SystemPushTransport] calls [enqueue] for every systemPush-routed
+/// notification. The job here is to broadcast those [PushNotification]s onto
+/// its stream, which the embedded web server fans out to paired phones over
+/// WebSocket.
 ///
 /// The [PushNotificationConfig] lives here because it is the systemPush
 /// feed's config: [SystemPushTransport] reads it (via [config]) to apply the

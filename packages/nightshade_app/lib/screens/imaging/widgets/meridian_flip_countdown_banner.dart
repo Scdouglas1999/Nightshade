@@ -6,29 +6,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Non-intrusive status banner that surfaces the live meridian-flip countdown
-/// in the imaging-tab banner stack.
-///
-/// The flip is **always** performed automatically — by the Rust `meridian_flip`
-/// trigger (an always-on watchdog) or, during a running sequence, by the
-/// in-sequence flip node. This banner is therefore *status only*: it never
-/// offers a manual-action button (that would contradict "automatic watchdog")
-/// and it auto-hides whenever a flip is not armed, so it stays quiet on every
-/// idle night.
-///
-/// Visual language mirrors [MeridianFlipProgressDialog] (rotate/flip iconography,
-/// `colors.warning` as the flip-imminent accent) and renders exclusively through
-/// the design system — no hardcoded colors, no ad-hoc styles.
-///
-/// State comes from [meridianCountdownProvider] (a read-only projection); this
-/// widget never mutates flip state.
-///
-/// The 15-second wall-clock tick lives HERE, not in the provider: a
-/// [Timer.periodic] created in [initState] and cancelled in [dispose] invalidates
-/// the (timer-free) provider each tick so the remaining-time readout counts down.
-/// Owning the timer in the widget means it is cancelled synchronously when the
-/// tree is torn down, so it never leaks past disposal (an autoDispose periodic
-/// stream did, tripping the widget-test pending-timer assertion).
 /// Session-scoped record of the severity at which the operator dismissed the
 /// meridian-flip banner. The banner stays hidden while the live severity is at
 /// or below this level, and re-appears the moment the flip escalates to a more
@@ -40,6 +17,23 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 final meridianBannerDismissedSeverityProvider =
     StateProvider<int?>((ref) => null);
 
+/// Non-intrusive status banner that surfaces the live meridian-flip countdown
+/// in the imaging-tab banner stack.
+///
+/// The flip is **always** performed automatically — by the Rust `meridian_flip`
+/// trigger (an always-on watchdog) or, during a running sequence, by the
+/// in-sequence flip node. This banner is therefore *status only*: it never
+/// offers a manual-action button, which would contradict "automatic watchdog",
+/// and it auto-hides whenever a flip is not armed. State comes from
+/// [meridianCountdownProvider], a read-only projection; this widget never
+/// mutates flip state.
+///
+/// The 15-second wall-clock tick lives HERE, not in the provider: a
+/// [Timer.periodic] created in [initState] and cancelled in [dispose]
+/// invalidates the (timer-free) provider each tick so the remaining-time
+/// readout counts down. Owning the timer in the widget means it is cancelled
+/// synchronously when the tree is torn down, so it cannot leak past disposal
+/// the way an autoDispose periodic stream does.
 class MeridianFlipCountdownBanner extends ConsumerStatefulWidget {
   const MeridianFlipCountdownBanner({super.key});
 
@@ -244,7 +238,7 @@ class _DismissButton extends StatelessWidget {
 /// Resolved presentation for a given countdown state, or `null` to render
 /// nothing. Pure function so the render rules are exhaustively testable.
 _BannerSpec? _resolveSpec(MeridianCountdownState state) {
-  // === Not armed ===
+  // Not armed
   // Keep it quiet by default: a disabled/disconnected flip is not worth a
   // banner on the imaging tab. The honest explanation already lives in the
   // sequence editor's watchdog badge and the meridian-flip settings.
@@ -252,7 +246,7 @@ _BannerSpec? _resolveSpec(MeridianCountdownState state) {
     return null;
   }
 
-  // === Armed, tracking-limit method (no numeric countdown) ===
+  // Armed, tracking-limit method (no numeric countdown)
   // minutesBeforeLimit / onTrackingLimitHit decisions live entirely in the Rust
   // trigger evaluator. We must not fabricate a countdown; surface an honest
   // "monitored by the sequencer" info banner instead.
@@ -266,7 +260,7 @@ _BannerSpec? _resolveSpec(MeridianCountdownState state) {
     );
   }
 
-  // === Armed, flip imminent (countdown at or past zero) ===
+  // Armed, flip imminent (countdown at or past zero)
   final remaining = state.timeToFlip!;
   if (remaining <= Duration.zero) {
     return _BannerSpec(
@@ -281,7 +275,7 @@ _BannerSpec? _resolveSpec(MeridianCountdownState state) {
     );
   }
 
-  // === Armed, live numeric countdown ===
+  // Armed, live numeric countdown
   final isWarning = remaining < MeridianFlipCountdownBanner.kWarningThreshold;
   return _BannerSpec(
     severity: isWarning

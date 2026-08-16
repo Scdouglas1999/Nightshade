@@ -1,17 +1,15 @@
-// Part of ../settings_screen.dart -- extracted for maintainability.
-//
 // Settings search synonyms, ranking and row matching helpers.
 part of '../settings_screen.dart';
 
 /// Words a user types for a setting that the owning page never says.
 ///
-/// The app's own vocabulary was missing the page that owns it: the Dashboard
-/// empty state says "Set a capture directory to track free space" and the
-/// status bar says "No save path", but Files & Storage titles that row "Image
-/// output" — so "capture folder", "disk", "free space" and "save path" all
-/// returned nothing. Kept small and deliberate: a synonym that is too generous
-/// makes the search match everything, which is the failure mode the derived
-/// index replaced.
+/// The app's own vocabulary does not always match the owning page's: the
+/// Dashboard says "Set a capture directory to track free space" and the status
+/// bar says "No save path", while Files & Storage titles that row "Image
+/// output".
+///
+/// Kept small and deliberate: a synonym that is too generous makes the search
+/// match everything.
 const Map<String, List<String>> kSettingsSearchSynonyms = {
   'files-storage': [
     'capture folder',

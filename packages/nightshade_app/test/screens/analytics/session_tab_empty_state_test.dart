@@ -104,9 +104,9 @@ void main() {
           'report',
     );
     expect(find.byType(ResponsiveStatStrip), findsNothing);
-    // SCI-34: this tab's empty state used to be the History tab's copy verbatim
-    // ("No session history"), which told the user to go do what they had just
-    // done on a tab whose subject is the session in progress.
+    // This tab's subject is the session in progress, so its empty state must
+    // not be the History tab's copy — that tells the user to go do what they
+    // have just done.
     expect(find.text('Nothing captured yet'), findsOneWidget);
     expect(find.text('No session history'), findsNothing);
   });

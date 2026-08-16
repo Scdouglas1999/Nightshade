@@ -14,11 +14,10 @@ List<SideNavTab> sideNavigationTabs(BuildContext context) {
         label: dest.label(l10n),
         description: dest.description(l10n),
       ),
-    // Scheduler merged into Plan Tonight as a tab (§UX consolidation,
-    // W8-SCHED-MERGE). Reach it via Plan Tonight → Target Queue or
-    // `/planner?tab=scheduler`.
-    // Diagnostics merged into Analytics as a tab (§UX consolidation).
-    // Reach it via Analytics → Diagnostics or `/analytics?tab=diagnostics`.
+    // Scheduler lives inside Plan Tonight as a tab. Reach it via
+    // Plan Tonight → Target Queue or `/planner?tab=scheduler`.
+    // Diagnostics lives inside Analytics as a tab. Reach it via
+    // Analytics → Diagnostics or `/analytics?tab=diagnostics`.
   ];
 }
 

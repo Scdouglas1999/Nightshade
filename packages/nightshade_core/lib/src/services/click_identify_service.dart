@@ -1,8 +1,6 @@
 part of 'annotation_service.dart';
 
-// ==========================================================================
 // Click-to-identify query logic
-// ==========================================================================
 
 extension ClickIdentifyService on AnnotationService {
   /// Identify an object at specific pixel coordinates

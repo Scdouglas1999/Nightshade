@@ -40,25 +40,17 @@ final backupImportReaderProvider = Provider<BackupImportReader>(
   (ref) => (file) => File(file.path).readAsBytes(),
 );
 
-/// Resolves where a downloaded backup lands. Not `getSaveLocation`: Android and
-/// iOS have no save dialog (`getSavePath` throws UnimplementedError), so
-/// downloading a backup from a remote host was dead on a phone. There the file
-/// goes to a sandbox path and [_downloadBackup] finishes with the share sheet.
 /// Outcome of the last restore, held until the operator dismisses it.
 ///
 /// A restore rewrites the database under a running app, so from that moment
-/// every screen is showing in-memory state that disagrees with what is on disk
-/// — and the operator is usually about to observe. Saying that once in a
-/// snackbar that fades after five seconds leaves nothing on screen to
-/// contradict an app that looks perfectly normal.
+/// every screen shows in-memory state that disagrees with what is on disk — and
+/// the operator is usually about to observe.
 ///
-/// Deliberately a provider and not [State]: the condition it describes outlives
-/// the Backup & Restore screen, and the very next thing the operator does is
-/// leave it. Held in screen state the reminder was cleared by walking away —
-/// i.e. by exactly the action that makes it matter — rather than by the
-/// operator acknowledging it. Being in-memory (never persisted) is the right
-/// lifetime for it: restarting Nightshade is what resolves the condition, and
-/// a restart clears the provider for free.
+/// A provider and not [State]: the condition outlives the Backup & Restore
+/// screen, and leaving that screen is the very next thing the operator does, so
+/// screen state would be cleared by exactly the action that makes it matter.
+/// In-memory and never persisted is the right lifetime — restarting Nightshade
+/// is what resolves the condition, and a restart clears the provider for free.
 final restoreRestartNoticeProvider = StateProvider<String?>((ref) => null);
 
 final backupDownloadSavePickerProvider =
@@ -412,6 +404,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     }
   }
 
+  /// Downloads a backup from a remote host.
+  ///
+  /// Android and iOS have no save dialog — `getSavePath` throws
+  /// UnimplementedError — so on those platforms the file goes to a sandbox path
+  /// and this finishes with the share sheet instead.
   Future<void> _downloadBackup(BackupListEntry backup) async {
     if (_rejectIfBusy() || _rejectIfBackendChanged()) return;
     final backend = ref.read(backendProvider);

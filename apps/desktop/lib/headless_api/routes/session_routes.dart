@@ -39,10 +39,8 @@ List<HeadlessRoute> buildSessionRoutes(SessionHandlers h) => <HeadlessRoute>[
     h.handleGetSessionImages,
   ),
   HeadlessRoute(HttpMethod.get, '/api/images', h.handleGetAllImages),
-  // Legacy alias for mobile clients that pre-date /api/images. Why
-  // kept: §2.2 of the audit consolidates the two servers into
-  // HeadlessApiServer; dropping the legacy path would break pinned
-  // mobile builds in the field.
+  // Legacy alias for mobile clients that pre-date /api/images. Kept because
+  // dropping the path would break pinned mobile builds in the field.
   HeadlessRoute(HttpMethod.get, '/api/images/recent', h.handleGetRecentImages),
   HeadlessRoute(
     HttpMethod.get,

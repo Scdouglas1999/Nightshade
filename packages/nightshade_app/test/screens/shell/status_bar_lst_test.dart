@@ -1,11 +1,11 @@
-// Regression: the shell status bar must not state a local sidereal time for a
-// site the operator never gave it.
+// The shell status bar must not state a local sidereal time for a site the
+// operator never gave it.
 //
 // `localSiderealTimeProvider` reads the planetarium's observer, whose default is
 // **Los Angeles** (`PlanetariumObserver`), and `locationSyncProvider` only pushes
 // the real site once one is configured — its two paths also disagree about the
-// documented 0/0 "not set" sentinel, so an unconfigured rig showed either LA's or
-// Greenwich's sidereal time. The chip rendered that as a crisp "LST 21:14" in the
+// documented 0/0 "not set" sentinel, so an unconfigured rig yields either LA's or
+// Greenwich's sidereal time. The chip renders that as a crisp "LST 21:14" in the
 // accent colour, indistinguishable from a real reading, and LST is precisely what
 // an imager reads to decide what is transiting.
 import 'package:flutter/material.dart';

@@ -5,16 +5,12 @@ import '../catalogs/minor_planet_catalog.dart';
 import 'element_refresh_providers.dart';
 import 'planetarium_providers.dart';
 
-// ============================================================================
-// Minor Planet Toggle Provider
-// ============================================================================
+// Minor planet toggle provider
 
 /// Whether asteroid/comet overlay is enabled
 final showMinorPlanetsProvider = StateProvider<bool>((ref) => false);
 
-// ============================================================================
-// Minor Planet Position Provider
-// ============================================================================
+// Minor planet position provider
 
 /// State for minor planet positions.
 class MinorPlanetPositionState {

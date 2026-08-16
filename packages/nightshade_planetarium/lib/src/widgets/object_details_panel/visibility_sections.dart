@@ -151,8 +151,11 @@ extension _ObjectDetailsPanelVisibilitySections on ObjectDetailsPanel {
     );
   }
 
-  Widget _buildRiseTransitSetSection(WidgetRef ref, Color txtColor) {
-    final location = ref.watch(observerLocationProvider);
+  Widget _buildRiseTransitSetSection(
+    WidgetRef ref,
+    ({double latitude, double longitude}) site,
+    Color txtColor,
+  ) {
     final obsTime = ref.watch(observationMinuteProvider);
     // Rise/set computed against the user's effective
     // horizon (e.g. 20° to clear trees), not the mathematical 0°. The same
@@ -168,8 +171,8 @@ extension _ObjectDetailsPanelVisibilitySections on ObjectDetailsPanel {
         // from midnight until noon — the panel would report a rise/transit/set
         // a whole sidereal day away from the one the user is observing.
         nightDate: AstronomyCalculations.nightDateOf(obsTime),
-        latitudeDeg: location.latitude,
-        longitudeDeg: location.longitude,
+        latitudeDeg: site.latitude,
+        longitudeDeg: site.longitude,
         minAltitude: horizonDeg,
       )),
     );
@@ -221,6 +224,37 @@ extension _ObjectDetailsPanelVisibilitySections on ObjectDetailsPanel {
     );
   }
 
+  /// Stands in for every section this panel measures from the observer's
+  /// horizon while no observing site is on record.
+  Widget _buildNoSiteNote(Color txtColor) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: txtColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            LucideIcons.mapPin,
+            size: 14,
+            color: txtColor.withValues(alpha: 0.6),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Set an observing site to see altitude, rise and set times.',
+              style: TextStyle(
+                color: txtColor.withValues(alpha: 0.7),
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatTime(DateTime? dt) {
     if (dt == null) return '--:--';
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
@@ -255,13 +289,15 @@ extension _ObjectDetailsPanelVisibilitySections on ObjectDetailsPanel {
     );
   }
 
-  // ============================================================================
-  // Task 2: Quick Stats Bar Widget
-  // ============================================================================
+  // Quick stats bar
 
   /// Build a quick stats bar showing altitude, transit time, and moon distance
-  Widget _buildQuickStats(WidgetRef ref, double altitude, Color txtColor) {
-    final location = ref.watch(observerLocationProvider);
+  Widget _buildQuickStats(
+    WidgetRef ref,
+    ({double latitude, double longitude}) site,
+    double altitude,
+    Color txtColor,
+  ) {
     final obsTime = ref.watch(observationMinuteProvider);
 
     // Calculate transit time
@@ -273,8 +309,8 @@ extension _ObjectDetailsPanelVisibilitySections on ObjectDetailsPanel {
         // stats bar cannot quote a different night's transit than the panel it
         // sits in.
         nightDate: AstronomyCalculations.nightDateOf(obsTime),
-        latitudeDeg: location.latitude,
-        longitudeDeg: location.longitude,
+        latitudeDeg: site.latitude,
+        longitudeDeg: site.longitude,
         minAltitude: 0,
       )),
     );
@@ -328,14 +364,15 @@ extension _ObjectDetailsPanelVisibilitySections on ObjectDetailsPanel {
     );
   }
 
-  // ============================================================================
-  // Task 3: Visibility Score Indicator
-  // ============================================================================
+  // Visibility score indicator
 
   /// Calculate visibility score (0-100) based on altitude, moon phase, and twilight
-  int _calculateVisibilityScore(WidgetRef ref, double altitude) {
+  int _calculateVisibilityScore(
+    WidgetRef ref,
+    ({double latitude, double longitude}) site,
+    double altitude,
+  ) {
     final obsTime = ref.watch(observationMinuteProvider);
-    final location = ref.watch(observerLocationProvider);
 
     // Start with base score of 0
     var score = 0.0;
@@ -366,8 +403,8 @@ extension _ObjectDetailsPanelVisibilitySections on ObjectDetailsPanel {
     // Full darkness (sun < -18°) = 15 points
     final sunAlt = AstronomyCalculations.sunAltitude(
       dt: obsTime,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
+      latitudeDeg: site.latitude,
+      longitudeDeg: site.longitude,
     );
     if (sunAlt < -18) {
       score += 15; // Astronomical darkness

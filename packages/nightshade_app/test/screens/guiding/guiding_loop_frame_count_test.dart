@@ -1,13 +1,12 @@
-// IMG-9 — the `Frame Count` row in Star Statistics read `0` for the whole of a
-// Loop Exposures run, directly beneath an SNR and a Star Mass that updated on
-// every loop frame. All three rows read as describing the same frames, so one
-// of them was lying: `frameCount` counts guide STEPS, and looping takes no
-// corrections.
+// The `Frame Count` row in Star Statistics sits directly beneath an SNR and a
+// Star Mass that update on every loop frame, so all three read as describing the
+// same frames. `frameCount` counts guide STEPS and looping takes no corrections,
+// so reporting it during a Loop Exposures run prints `0` under two live rows.
 //
-// Owner's call: while looping the row reports the loop's own frames, counting
-// again from one for each new loop. The counting and per-loop reset are pinned
-// at the provider in nightshade_core's guide_loop_frame_count_test.dart; this
-// pins which number the screen puts on that row.
+// While looping the row reports the loop's own frames, counting again from one
+// for each new loop. The counting and per-loop reset are pinned at the provider
+// in nightshade_core's guide_loop_frame_count_test.dart; this pins which number
+// the screen puts on that row.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

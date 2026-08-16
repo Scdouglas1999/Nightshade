@@ -37,8 +37,8 @@ T? enumFromWire<T extends Enum>(List<T> values, Object? raw) {
 T enumFromWireOr<T extends Enum>(List<T> values, Object? raw, T fallback) =>
     enumFromWire(values, raw) ?? fallback;
 
-/// The token both codecs wrote for [AutofocusMethod.quadratic] before it was
-/// renamed. Still on disk in older sequences and files.
+/// The legacy spelling of [AutofocusMethod.quadratic], still on disk in older
+/// sequences and files.
 const String kAutofocusQuadraticLegacyToken = 'parabolic';
 
 AutofocusMethod autofocusMethodFromWire(Object? raw) {

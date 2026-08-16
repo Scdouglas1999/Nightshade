@@ -249,7 +249,7 @@ void main() {
     final wrappedChild = seq.nodes[t.firstChildId]!;
     final newParent = seq.nodes[wrappedChild.parentId!]!;
     expect(newParent, isA<ParallelNode>());
-    // Both originally selected siblings now live under the same new parent.
+    // Both selected siblings end up under the same new parent.
     expect(seq.nodes[t.secondChildId]!.parentId, wrappedChild.parentId);
     expect(newParent.parentId, t.containerId);
   });
@@ -355,9 +355,8 @@ void main() {
   });
 
   // Order is semantically load-bearing in a sequence (unpark must precede
-  // slew), and drag-and-drop inside a long scrolling tree is the wrong tool
-  // for moving one row. Right-click is the reflex; it used to offer no way
-  // to reorder at all.
+  // slew), and drag-and-drop inside a long scrolling tree is the wrong tool for
+  // moving one row. Right-click is the reflex, so it carries the reorder.
   testWidgets('Move Up shifts the node one slot earlier among its siblings',
       (tester) async {
     final t = _containerWithTwoChildren();
@@ -509,12 +508,10 @@ void main() {
     expect(ditherY, lessThan(smartY));
   });
 
-  // The empty-search fix landed on the three palette surfaces that render
-  // `NodePalette` / `_NodePaletteContent`, but the Insert Above / Insert
-  // Below picker is a FOURTH surface reading the same ranker. It kept
-  // rendering a ListView with zero children, so a search that matched
-  // nothing left the sheet body blank below the search box — the exact
-  // symptom the fix was for.
+  // Besides the three palette surfaces that render `NodePalette` /
+  // `_NodePaletteContent`, the Insert Above / Insert Below picker is a FOURTH
+  // surface reading the same ranker. A ListView with zero children leaves the
+  // sheet body blank below the search box when a search matches nothing.
   testWidgets('Insert picker explains a search that matches nothing',
       (tester) async {
     final t = _containerWithTwoChildren();

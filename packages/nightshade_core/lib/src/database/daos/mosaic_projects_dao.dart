@@ -16,9 +16,8 @@ import '../database.dart';
 /// [CampaignsDao] and [NarrowbandCompositesDao]. It is deliberately NOT a
 /// `@DriftAccessor`.
 ///
-/// Per project policy this DAO never silently swallows failures: SQLite errors
-/// propagate, and reads map nullable columns to the model's well-defined
-/// nullable fields rather than guessing.
+/// SQLite errors propagate; reads map nullable columns to the model's nullable
+/// fields.
 class MosaicProjectsDao {
   MosaicProjectsDao(this._db);
 
@@ -27,7 +26,7 @@ class MosaicProjectsDao {
   static const String _columns =
       'id, target_id, name, rows, cols, overlap_pct, position_angle_deg, '
       'status, output_master_id, created_at, updated_at, '
-      // v56 (Collaborative Sky WS2): publish/role/status.
+      // v56: collaborative publish/role/status.
       'hub_mosaic_id, collab_role, collab_status';
 
   /// Insert a mosaic project row and return its id. [createdAt]/[updatedAt]
@@ -90,7 +89,7 @@ class MosaicProjectsDao {
   }
 
   /// Collaborative projects the unattended owner/participant poller still has
-  /// work to drive (WS2): published to a hub (`hub_mosaic_id` set) and not yet
+  /// work to drive: published to a hub (`hub_mosaic_id` set) and not yet
   /// `complete`. Scopes the poll sweep to the handful of in-flight collaborative
   /// mosaics rather than every local project. Newest first.
   Future<List<MosaicProject>> listActiveCollaborative() async {
@@ -105,7 +104,7 @@ class MosaicProjectsDao {
     return rows.map(_map).toList();
   }
 
-  /// Fetch the local project linked to [hubMosaicId] (WS2), or null when this
+  /// Fetch the local project linked to [hubMosaicId], or null when this
   /// device has not joined/published that hub mosaic. Used by the join flow to
   /// reuse an existing local mirror instead of creating a duplicate project.
   Future<MosaicProject?> getByHubMosaicId(String hubMosaicId) async {

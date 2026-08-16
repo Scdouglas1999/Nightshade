@@ -30,9 +30,8 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
     // but the scene is split across two painters. The base layer lays out the
     // DSO / solar-system / grid labels; the overlay layer then lays out the
     // bright-star names on top. Seeding the overlay with the base layer's
-    // placements is what stops those two sets from colliding — previously each
-    // started empty and star names were drawn straight through DSO and planet
-    // labels.
+    // placements is what stops those two sets from colliding; an overlay that
+    // starts empty draws star names straight through DSO and planet labels.
     if (renderScope == SkyRenderScope.overlay) {
       _labelManager.seed(SkyCanvasPainter._baseLabelRects);
     }
@@ -244,12 +243,11 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
       }
     }
     // In the HORIZONTAL frame the ground goes down here, AFTER the sky objects,
-    // so it genuinely occludes them. That frame is "the sky from where I
-    // stand", so the ground is real terrain; drawn beneath the objects (as both
-    // frames used to do) every below-horizon star, DSO and even the Sun punched
-    // straight through the terrain fill and it read as a translucent wash. The
-    // gradient is fully transparent above the horizon line, so objects that are
-    // genuinely up are unaffected either way.
+    // so it genuinely occludes them: that frame is "the sky from where I
+    // stand", and terrain drawn beneath the objects lets every below-horizon
+    // star, DSO and the Sun punch through as a translucent wash. The gradient
+    // is fully transparent above the horizon line, so objects that are
+    // genuinely up are unaffected.
     if (_drawBase && viewState.viewMode == SkyViewMode.horizontal) {
       _drawGroundAndHorizon(canvas, size, center, scale);
     }

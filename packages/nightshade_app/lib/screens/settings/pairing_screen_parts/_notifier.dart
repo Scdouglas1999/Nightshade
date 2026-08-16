@@ -1,5 +1,3 @@
-// Part of ../pairing_screen.dart -- extracted for maintainability.
-//
 // Pairing state, notifier and its provider.
 part of '../pairing_screen.dart';
 

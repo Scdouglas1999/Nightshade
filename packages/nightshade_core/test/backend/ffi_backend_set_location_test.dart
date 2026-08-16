@@ -1,19 +1,16 @@
-// Regression guard for `FfiBackend.setLocation` honoring its `Future<void>`
-// contract.
+// `FfiBackend.setLocation` honours its `Future<void>` contract.
 //
-// The bug this pins: `setLocation` invoked `apiSetLocation(...)` WITHOUT
-// awaiting it, so the returned `Future<void>` completed before the native
-// write resolved. A failed observer-location write surfaced only as a dropped,
-// unhandled async error — never to the caller — and an await-then-read pair
-// could observe stale state.
+// Invoking `apiSetLocation(...)` WITHOUT awaiting it completes the returned
+// `Future<void>` before the native write resolves: a failed observer-location
+// write then surfaces only as a dropped, unhandled async error — never to the
+// caller — and an await-then-read pair can observe stale state.
 //
-// These tests drive the REAL `FfiBackend` (NOT a mock backend), so the seam
-// cannot silently regress. In the no-native test runtime the bridge's
+// These tests drive the REAL `FfiBackend` (NOT a mock backend), so the seam is
+// exercised end to end. In the no-native test runtime the bridge's
 // `apiSetLocation` rejects (the native library is required and absent). The
-// fixed, awaited `setLocation` therefore propagates that rejection out of
-// `await backend.setLocation(...)`. Under the old dropped-Future code the same
-// call completed normally and the rejection vanished — so this test fails
-// closed if the `await` is ever removed again.
+// awaited `setLocation` therefore propagates that rejection out of
+// `await backend.setLocation(...)`; a dropped Future would let the call
+// complete normally with the rejection lost.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';

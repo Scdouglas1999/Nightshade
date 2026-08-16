@@ -1,8 +1,6 @@
 part of '../framing_provider.dart';
 
-// =============================================================================
-// FRAMING STATE
-// =============================================================================
+// Framing state
 
 /// State of the framing assistant
 class FramingState {
@@ -383,9 +381,7 @@ enum SurveySource {
   const SurveySource(this.displayName, this.surveyCode);
 }
 
-// =============================================================================
-// MOSAIC SUPPORT
-// =============================================================================
+// Mosaic support
 
 /// Configuration for a mosaic pattern in the framing assistant.
 ///

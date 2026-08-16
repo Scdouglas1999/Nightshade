@@ -5,9 +5,8 @@ import '../providers/settings_provider.dart' show AppSettingsState;
 
 /// Canonical, in-memory view of the ONE logical safety configuration.
 ///
-/// Consolidation (Phase 2, 2026-06-22). Historically the single logical
-/// "is it safe to image, and what do we do when it isn't" config was split
-/// across THREE persistence stores, which let the copies drift:
+/// "Is it safe to image, and what do we do when it isn't" is one logical
+/// config split across THREE persistence stores:
 ///
 ///   1. [WeatherSettings] table (via `weatherSettingsDao`) — the weather
 ///      *threshold* values and the weather-safety park/resume toggles.
@@ -18,12 +17,11 @@ import '../providers/settings_provider.dart' show AppSettingsState;
 ///      auto-stop / auto-close-roof toggles plus the last acknowledgement.
 ///
 /// [SafetyConfig] is the single read shape that stitches those three together.
-/// It is a plain value object: it does NOT own persistence. The owning store
-/// for each field is documented inline so the write path ([SafetyConfigStore])
-/// can route each field back to exactly the column/key it has always lived in
-/// — no destructive migration, existing persisted data stays readable.
+/// It is a plain value object and owns no persistence; the owning store for
+/// each field is documented inline so the write path ([SafetyConfigStore])
+/// routes each field back to the column/key it lives in.
 class SafetyConfig {
-  // --- Weather thresholds (owned by WeatherSettings table) ------------------
+  // Weather thresholds (owned by WeatherSettings table)
   /// Max safe relative humidity (%) before hardware-weather is judged unsafe.
   final double maxHumidityPercent;
 
@@ -48,7 +46,7 @@ class SafetyConfig {
   /// Preferred radar provider.
   final RadarProviderType preferredProvider;
 
-  // --- Weather-safety toggles (owned by WeatherSettings table) --------------
+  // Weather-safety toggles (owned by WeatherSettings table)
   /// Master enable for weather-safety monitoring. Also the default backing the
   /// safety-monitor `autoStopOnUnsafe` / `autoCloseRoofOnUnsafe` flags.
   final bool weatherSafetyEnabled;
@@ -59,7 +57,7 @@ class SafetyConfig {
   /// Auto-resume imaging when weather clears.
   final bool autoResumeEnabled;
 
-  // --- Policy flags (owned by app_settings key/value) -----------------------
+  // Policy flags (owned by app_settings key/value)
   /// Fail-mode policy for when no usable safety/weather data is available.
   final SafetyFailMode safetyFailMode;
 
@@ -70,7 +68,7 @@ class SafetyConfig {
   /// Policy: park before astronomical dawn at end of night.
   final bool parkBeforeDawn;
 
-  // --- Safety-monitor cadence (owned by settings key/value) -----------------
+  // Safety-monitor cadence (owned by settings key/value)
   /// Safety-monitor poll interval (seconds).
   final int checkIntervalSeconds;
 
@@ -110,10 +108,9 @@ class SafetyConfig {
     required this.autoCloseRoofOnUnsafe,
   });
 
-  /// Derived: auto-park-on-unsafe as the safety-monitor endpoint reports it.
-  /// Single definition so the two endpoints can no longer compute it
-  /// differently. Mirrors the historical
-  /// `parkOnUnsafeWeather && weatherSettings.autoParkEnabled`.
+  /// Derived: auto-park-on-unsafe as the safety-monitor endpoint reports it,
+  /// `parkOnUnsafeWeather && weatherSettings.autoParkEnabled`. One definition,
+  /// so the two endpoints cannot compute it differently.
   bool get autoParkOnUnsafe => parkOnUnsafeWeather && autoParkEnabled;
 }
 
@@ -134,9 +131,8 @@ class SafetyConfigStore {
 
   SafetyConfigStore(this._db);
 
-  // settings key/value keys — verbatim copies of the constants that used to
-  // live privately in SafetyMonitorHandlers. Kept identical so existing rows
-  // remain readable and the wire shape is unchanged.
+  // settings key/value keys. These strings are on-disk contract: changing one
+  // orphans every persisted row that uses it.
   static const String kCheckIntervalKey = 'safety_check_interval_seconds';
   static const String kWarningDelayKey = 'safety_warning_delay_seconds';
   static const String kRequiredSafeDurationKey =
@@ -232,7 +228,7 @@ class SafetyConfigStore {
     );
   }
 
-  // --- Write path: each setter routes to the field's owning store ----------
+  // Write path: each setter routes to the field's owning store
 
   /// Persist the weather-side half of the auto-park-on-unsafe policy
   /// (`autoParkEnabled` in the WeatherSettings table).

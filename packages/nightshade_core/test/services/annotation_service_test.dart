@@ -356,10 +356,9 @@ void main() {
     'AnnotationCatalogQueryException instead of swallowing it into []',
     () async {
       // Drive a REAL query failure into the pipeline's site-1 catch by handing
-      // findObjectsInFov an annotation catalog whose searchNearby throws.
-      // Before the fix this was caught, logged, and converted into an empty list
-      // — indistinguishable from "no objects in this frame". Now it must
-      // re-throw a typed AnnotationCatalogQueryException so the failure surfaces.
+      // findObjectsInFov an annotation catalog whose searchNearby throws. It
+      // must re-throw a typed AnnotationCatalogQueryException: an empty list
+      // is indistinguishable from "no objects in this frame".
       final tempDir = await Directory.systemTemp.createTemp(
         'annotation_query_failure_test_',
       );

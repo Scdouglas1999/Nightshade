@@ -139,9 +139,9 @@ class TargetIntegrationPreview {
   });
 }
 
-/// Errors the builder throws when an input is missing or invalid. The
-/// wizard catches these and surfaces them as blocking error states
-/// (rather than silently skipping the rule — errors are a feature).
+/// Errors the builder throws when an input is missing or invalid. The wizard
+/// catches these and surfaces them as blocking error states rather than
+/// skipping the rule.
 class SmartNightBuildException implements Exception {
   final String message;
   const SmartNightBuildException(this.message);

@@ -1,27 +1,21 @@
 import 'package:drift/drift.dart';
 
-/// Collaborative Sky (WS3 — Live Co-Imaging) client-side membership.
+/// Client-side membership in a live co-imaging session.
 ///
-/// When this rig JOINs a live co-imaging session at a hub, the hub assigns it a
-/// participant slot (a small framing offset so rigs don't all frame identically)
-/// and hands back a membership/claim token. This table is the durable local
-/// record of that membership so a relaunched host — or a remote companion app —
-/// can re-render which sessions the rig is in, with what role and framing
-/// offset, without a live hub round-trip. It is the co-imaging twin of the
-/// per-tile [ConstellationContributions] receipt: the swarm contribution
-/// high-water rides on `constellation_contributions.session_id`, while the
-/// session's identity / role / assigned offset live here.
+/// When this rig joins a session at a hub, the hub assigns it a participant
+/// slot (a small framing offset so rigs don't all frame identically) and hands
+/// back a membership/claim token. The durable local record lets a relaunched
+/// host — or a remote companion app — re-render which sessions the rig is in,
+/// with what role and framing offset, without a live hub round-trip.
 ///
 /// Identity is `(hubKey, sessionId)` — one membership row per session per hub.
 /// [hubKey] is the normalized federation endpoint URL, matching
-/// [ConstellationContributions.hubKey] so the two join cleanly. Enum-ish text
-/// columns (role) are stored as stable text, matching the convention in
-/// `tables/constellation_contributions.dart` / `tables/narrator_events.dart`.
+/// [ConstellationContributions.hubKey] so the two join cleanly. Enum-ish
+/// columns (role) are stored as stable text.
 ///
-/// Intentionally additive and FK-free: a membership receipt must survive the
-/// local deletion / re-fold of any atlas tile it relates to, and the remote
-/// session is the source of truth for liveness — [active] is the locally-cached
-/// view of it.
+/// Additive and FK-free: a membership receipt must survive the local deletion
+/// or re-fold of any atlas tile it relates to, and the remote session is the
+/// source of truth for liveness — [active] is the locally-cached view of it.
 @DataClassName('CoImagingSessionRow')
 @TableIndex(
   name: 'idx_coimaging_sessions_key',

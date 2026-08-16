@@ -1,8 +1,8 @@
-// SET-23: the profile detail pane drew "400 mm", "72 mm", "f/5.6", "120",
-// "30", "-10°C" as filled, rounded, bordered input boxes — the same chrome as
-// the editable fields beside them and as the live Binning selector directly
-// beneath. Clicking one produced no focus ring and swallowed every keystroke,
-// so within one card identical chrome was half live and half dead.
+// The profile detail pane must not draw read-only values — "400 mm", "72 mm",
+// "f/5.6", "120", "30", "-10°C" — as filled, rounded, bordered input boxes: the
+// same chrome as the editable fields beside them and as the live Binning
+// selector directly beneath. Clicking one produces no focus ring and swallows
+// every keystroke, so one card's identical chrome is half live and half dead.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

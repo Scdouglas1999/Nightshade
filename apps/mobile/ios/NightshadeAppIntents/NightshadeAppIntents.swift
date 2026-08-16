@@ -21,9 +21,9 @@
 // `VoiceControlLifecycleController` translates the action into a call
 // on `sequenceExecutorProvider.pause` / `.resume`.
 //
-// Per repo policy: NO silent fallbacks. Every error path produces a
-// dialog Siri can speak — e.g. "Nightshade has no current sequence to
-// pause" — rather than a no-op.
+// NO silent fallbacks: every error path produces a dialog Siri can
+// speak — e.g. "Nightshade has no current sequence to pause" — because a
+// no-op is indistinguishable from success to the person who spoke.
 //
 // Apple's AppIntents framework requires iOS 16.0+. We gate the whole
 // file behind that minimum.
@@ -358,8 +358,8 @@ enum NightshadeAppIntentDispatcher {
           with: wireId
         )
       } else {
-        // Loud failure (repo policy). If the selector is missing the
-        // AppDelegate was modified incorrectly and we'd otherwise no-op.
+        // Loud failure: a missing selector means the AppDelegate no longer
+        // exposes the entry point, and the action would otherwise no-op.
         NSLog(
           "[NightshadeAppIntents] AppDelegate does not respond to " +
           "dispatchVoiceAction(_:). Voice action %@ dropped.",

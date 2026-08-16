@@ -96,8 +96,8 @@ void main() {
         // RFC 4918 §9.3.1: a spec-compliant server answers 409 Conflict when
         // MKCOL's parent collection is missing. The parent of the first
         // relative segment is the base URL's own path, so a base folder the
-        // operator has not created by hand used to fail every single push
-        // with "remote state conflict (HTTP 409)".
+        // operator has not created by hand fails every push with "remote state
+        // conflict (HTTP 409)" unless the ancestors are created first.
         final existing = <String>{
           '/',
           '/remote.php/',

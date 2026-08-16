@@ -38,9 +38,8 @@ class EventReplayBuffer {
   void append(NightshadeEvent event) {
     if (event.seq == null) {
       // Why throw not silently accept: a pre-stamped event is the only
-      // legitimate input here. Silently storing seq=null would break the
-      // since-query replay path with no diagnostic. "errors are
-      // a feature".
+      // legitimate input here. Storing seq=null would break the since-query
+      // replay path at read time, far from the caller that caused it.
       throw ArgumentError(
         'EventReplayBuffer.append requires a stamped event (seq != null)',
       );

@@ -1,5 +1,3 @@
-// Part of ../calibration_library_settings.dart -- extracted for maintainability.
-//
 // Master tiles, badges, freshness chips and the matching preview.
 part of '../calibration_library_settings.dart';
 
@@ -214,7 +212,7 @@ class _MatchingPreviewState extends State<_MatchingPreview> {
   final _filter = TextEditingController();
   final _binX = TextEditingController(text: '1');
   final _binY = TextEditingController(text: '1');
-  // Camera + sensor geometry feed the WS1 quality gate: a shared master is only
+  // Camera + sensor geometry feed the quality gate: a shared master is only
   // foldable when shot on the same camera + sensor dimensions, so leaving these
   // blank refuses every remote candidate (the gate fails closed).
   final _camera = TextEditingController();

@@ -1,16 +1,15 @@
-// Regression: the desktop status bar must not silently cut off its trailing
-// readouts in a small window.
+// The desktop status bar must not silently cut off its trailing readouts in a
+// small window.
 //
-// Observed live on a virgin install: the bar was a bare `Row` with a `Spacer`,
-// so once the pills and readouts exceeded the window width the overflow was
-// simply clipped at the right edge — no ellipsis, no scroll, no indication that
-// anything was missing. At 1000x700 the clock and LST readouts were gone
-// entirely; at 800x600 the save-path chip was cut mid-word ("No s").
+// A bare `Row` with a `Spacer` clips the overflow at the right edge once the
+// pills and readouts exceed the window width — no ellipsis, no scroll, no
+// indication anything is missing. At 1000x700 the clock and LST readouts are
+// gone entirely; at 800x600 the save-path chip is cut mid-word ("No s").
 //
-// The fix gives the device-pill group the slack (and lets it scroll when there
-// is none) while the readouts on the right stay pinned and whole. Both halves
-// are pinned here: "make it scroll" would be a regression if it also lost the
-// right-alignment on a wide window.
+// So the device-pill group takes the slack (and scrolls when there is none)
+// while the readouts on the right stay pinned and whole. Both halves are pinned
+// here: "make it scroll" is wrong if it also loses the right-alignment on a wide
+// window.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';
@@ -124,12 +123,12 @@ void main() {
   // over here". Below the desktop breakpoint each pill therefore shows one word
   // instead of two.
   //
-  // WHICH word was originally the wrong way round: dropping the label left the
-  // Camera, Mount and Guider pills all reading the identical value
-  // "Disconnected" (live at 900x800), distinguished only by a 12 px monochrome
-  // glyph. The state is already carried by the dot and the muted icon, so the
-  // device name — the part that differs per pill — is what keeps the slot until
-  // the device connects and its value starts carrying information.
+  // WHICH word matters: dropping the label leaves the Camera, Mount and Guider
+  // pills all reading the identical value "Disconnected" at 900x800,
+  // distinguished only by a 12 px monochrome glyph. The state is already carried
+  // by the dot and the muted icon, so the device name — the part that differs
+  // per pill — keeps the slot until the device connects and its value starts
+  // carrying information.
   testWidgets('a narrow bar names the devices instead of repeating the state',
       (tester) async {
     await _pumpBar(tester, const Size(800, 600));
@@ -234,8 +233,8 @@ void main() {
       0,
       reason: 'a wide bar must not become scrollable',
     );
-    // The pill group absorbs the slack exactly as the Spacer used to, so the
-    // readouts stay pinned to the right edge instead of drifting left.
+    // The pill group absorbs the slack, so the readouts stay pinned to the
+    // right edge instead of drifting left.
     final barRect = tester.getRect(find.byType(StatusBar));
     final scrollerRect = tester.getRect(_pillScroller().first);
     expect(scrollerRect.left, closeTo(barRect.left, 0.5));
@@ -256,12 +255,11 @@ void main() {
     await _disposeBar(tester);
   });
 
-  // WD-COL-N4: at 900x760 the last visible pill was sliced mid-word
-  // ("Simulated Cam") with the thermometer glyph painted straight against it
-  // and no separator, and Mount / Guider / Focus were simply absent with
-  // nothing on screen saying they existed. The 24 px fade is not a control —
-  // with a mouse there was nothing to click — and it left no gap, so the cut
-  // read as a rendering fault.
+  // At 900x760 the last visible pill is sliced mid-word ("Simulated Cam") with
+  // the thermometer glyph painted straight against it and no separator, while
+  // Mount / Guider / Focus are absent with nothing on screen saying they exist.
+  // The 24 px fade is not a control — with a mouse there is nothing to click —
+  // and it leaves no gap, so the cut reads as a rendering fault.
   testWidgets('an overflowing bar offers a reachable way to the rest',
       (tester) async {
     await _pumpBar(tester, const Size(900, 760));

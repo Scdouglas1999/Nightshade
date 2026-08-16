@@ -35,16 +35,33 @@ String pushDeliverySubtitleFor(AsyncValue<PushDeliveryTargets> async) {
       'while it is open on your network.';
 }
 
-/// Why the three original event switches are shown but inoperable.
+/// Subtitle for one of the three built-in event switches.
 ///
-/// They are persisted (and synced to remote controllers) but no delivery path
-/// reads them — per-event routing replaced them and nothing migrated the
-/// wiring. Left operable they were three armed-looking guarantees for an
-/// unattended night that could never fire; they stay visible so an operator who
-/// set one recognises it, and say where the working control is.
-const String _legacyEventFlagReason =
-    'Superseded by per-event routing — this switch no longer sends anything. '
-    'Set it under Notification Routing.';
+/// The three settings are live, not decorative: `NotificationService.notify`
+/// refuses the entire dispatch for an event family whose flag is off (see
+/// `_shouldNotifyForEvent`), so with one off that family plays no alert sound,
+/// posts nothing in-app and sends nothing to the Discord/Pushover webhook this
+/// page configures. Per-event routing runs off its own matrix and is
+/// unaffected either way.
+///
+/// [sends] names what the family covers. [offByDefault] is true for meridian
+/// flip alone, whose stored default is `false` — the one row where a switch
+/// sitting at off is Nightshade's choice rather than the operator's, which is
+/// exactly what an operator expecting a flip alert has to be told.
+String builtInEventAlertSubtitle(
+  String sends, {
+  required bool enabled,
+  bool offByDefault = false,
+}) {
+  if (enabled) {
+    return '$sends Delivered by the alert sound, the in-app feed, and the '
+        'Discord/Pushover webhook configured on this page.';
+  }
+  return offByDefault
+      ? '$sends Off — and off is the shipped default, so no flip alert is sent '
+          'until you turn this on.'
+      : '$sends Off — this event family sends nothing.';
+}
 
 class NotificationSettings extends ConsumerStatefulWidget {
   final bool isMobile;
@@ -313,45 +330,68 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                       'maps each event to its transports and is what actually '
                       'delivers. Push to Mobile below is the separate host '
                       'push gate; neither overrides the other, so an event '
-                      'enabled in both is sent by both. The event switches '
-                      'under "Legacy event flags" predate routing and are not '
-                      'read by any delivery path.',
+                      'enabled in both is sent by both. The switches under '
+                      '"Built-in event alerts" are a third, older path: they '
+                      'gate Nightshade\'s own alert sound, in-app post and '
+                      'Discord/Pushover webhook for those three event '
+                      'families only.',
                   trailing: SizedBox.shrink(),
                   isLast: true,
                 ),
               ],
             ),
             SettingsSection(
-              title: 'Legacy event flags (not wired up)',
+              title: 'Built-in event alerts',
               children: [
                 SettingRow(
                   icon: LucideIcons.checkCircle,
                   title: 'Sequence complete',
-                  subtitle: _legacyEventFlagReason,
+                  subtitle: builtInEventAlertSubtitle(
+                    "Gates Nightshade's built-in sequence-complete alert.",
+                    enabled: settings.notifyOnSequenceComplete,
+                  ),
                   trailing: SettingsSwitch(
                     value: settings.notifyOnSequenceComplete,
-                    enabled: false,
-                    onChanged: (_) {},
+                    onChanged: (value) {
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setNotifyOnSequenceComplete(value);
+                    },
                   ),
                 ),
                 SettingRow(
                   icon: LucideIcons.alertCircle,
                   title: 'Errors',
-                  subtitle: _legacyEventFlagReason,
+                  subtitle: builtInEventAlertSubtitle(
+                    'Gates the built-in error alert, raised by capture '
+                    'failures and device-reconnect failures.',
+                    enabled: settings.notifyOnError,
+                  ),
                   trailing: SettingsSwitch(
                     value: settings.notifyOnError,
-                    enabled: false,
-                    onChanged: (_) {},
+                    onChanged: (value) {
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setNotifyOnError(value);
+                    },
                   ),
                 ),
                 SettingRow(
                   icon: LucideIcons.rotateCw,
                   title: 'Meridian flip',
-                  subtitle: _legacyEventFlagReason,
+                  subtitle: builtInEventAlertSubtitle(
+                    'Gates the built-in meridian-flip alert, raised when the '
+                    'flip monitor starts and finishes a flip.',
+                    enabled: settings.notifyOnMeridianFlip,
+                    offByDefault: true,
+                  ),
                   trailing: SettingsSwitch(
                     value: settings.notifyOnMeridianFlip,
-                    enabled: false,
-                    onChanged: (_) {},
+                    onChanged: (value) {
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setNotifyOnMeridianFlip(value);
+                    },
                   ),
                   isLast: true,
                 ),
@@ -392,13 +432,11 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   ),
                 ),
                 // The switch is a PREFERENCE ("forward criticals when you
-                // can"), but it used to read as a statement of capability. It
-                // rendered ON with nothing indicating that no device could
-                // receive a push — and on Android, in a stock build, none ever
-                // can: the FCM client is a dormant scaffold pending Firebase
-                // provisioning, so the phone never registers a token. The
-                // subtitle now reports the host's ACTUAL delivery state
-                // instead of describing an intent.
+                // can"), not a statement of capability — on Android in a stock
+                // build the FCM client is a dormant scaffold pending Firebase
+                // provisioning, so no phone ever registers a token. The
+                // subtitle therefore reports the host's ACTUAL delivery state
+                // rather than the intent.
                 SettingRow(
                   icon: pushTargets.canDeliver
                       ? LucideIcons.smartphone

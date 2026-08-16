@@ -58,8 +58,8 @@ const _eccentricityOnly = ScienceSettings(
 /// A light frame whose star detector ran and found nothing: clouds, a closed
 /// dust cap, a slew that missed, or trailing past the detector's streak
 /// ceiling. Every shape metric is `null` *because* there were no stars, so
-/// every threshold is skipped for want of evidence — which is exactly how the
-/// frame used to pass.
+/// every threshold is skipped for want of evidence, which is exactly how such a
+/// frame passes a threshold-only grader.
 const _starlessFrame = ImageStats(
   starCount: 0,
   hfr: null,

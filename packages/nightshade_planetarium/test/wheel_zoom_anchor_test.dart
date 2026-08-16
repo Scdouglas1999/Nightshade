@@ -1,10 +1,10 @@
-// Regression (SKY-10): the mouse wheel must zoom toward the cursor.
+// The mouse wheel zooms toward the cursor.
 //
-// Live measurement on the shipped build, twice: with the pointer parked well
-// off-centre, 23 wheel-up notches took the field of view from 60.0 deg to
-// 2.0 deg while `Center RA: 0h 42m 44s / Center Dec: +41 deg 16'` stayed
-// BYTE-IDENTICAL. Whatever the cursor was over — the object you were aiming at
-// — was thrown off screen, and you had to drag it back after every step.
+// Zooming about the view centre instead: with the pointer parked well
+// off-centre, 23 wheel-up notches take the field of view from 60.0 deg to
+// 2.0 deg while `Center RA: 0h 42m 44s / Center Dec: +41 deg 16'` stays
+// BYTE-IDENTICAL. Whatever the cursor is over — the object being aimed at — is
+// thrown off screen and has to be dragged back after every step.
 //
 // The property under test is the one every map UI has (and Stellarium and
 // SkySafari): the sky under the pointer does not move.
@@ -29,6 +29,11 @@ Future<ProviderContainer> _pumpSkyView(WidgetTester tester) async {
       ),
     ],
   );
+  // The sky is drawn from the observer's site; without one the view renders
+  // its no-site state instead.
+  container
+      .read(observerLocationProvider.notifier)
+      .setLocation(latitude: 40.0, longitude: -74.0);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -55,7 +60,7 @@ Offset? _screenPositionOf(ProviderContainer container, CelestialCoordinate c) {
   final projector = SkyFovProjector.forSize(
     container.read(skyViewStateProvider),
     _canvas,
-    latitude: container.read(observerLocationProvider).latitude,
+    latitude: container.read(observerLocationProvider).site!.latitude,
   );
   return projector.project(c);
 }
@@ -65,7 +70,7 @@ CelestialCoordinate? _skyUnder(ProviderContainer container, Offset local) {
   final projector = SkyFovProjector.forSize(
     container.read(skyViewStateProvider),
     _canvas,
-    latitude: container.read(observerLocationProvider).latitude,
+    latitude: container.read(observerLocationProvider).site!.latitude,
   );
   return projector.unproject(local);
 }

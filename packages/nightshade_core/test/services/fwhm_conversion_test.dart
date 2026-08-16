@@ -32,7 +32,8 @@ void main() {
 
     test('a 2.0 px HFR star is a 4.0 px FWHM star', () {
       expect(2.0 * kFwhmPerHfr, closeTo(4.0, 1e-12));
-      // The old factor would have reported 4.71 px for the same star.
+      // The Gaussian sigma factor 2.3548 would report 4.71 px for the same
+      // star; HFR is a radius, so the conversion is a doubling.
       expect(2.0 * 2.3548, closeTo(4.7096, 1e-4));
     });
   });

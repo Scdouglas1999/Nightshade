@@ -1,8 +1,7 @@
-// An operator's Stop is not a failure. The classifier used to map the
-// `Stopped` and `Error` sequencer events to the same `sequenceFailed`
-// category, so pressing Stop raised "Sequence failed" banners and a
-// critical-priority phone push — the cry-wolf shape at its purest: the app
-// alarming about an action the operator just took on purpose.
+// An operator's Stop is not a failure. Mapping the `Stopped` and `Error`
+// sequencer events to one `sequenceFailed` category raises "Sequence failed"
+// banners and a critical-priority phone push for an action the operator just
+// took on purpose.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/backend/event_types.dart';
@@ -41,11 +40,10 @@ void main() {
     expect(NotificationCategory.sequenceFailed.isCritical, isTrue);
   });
 
-  // Wave E: the Stop the operator presses does NOT reach this classifier as
-  // `Stopped`. The native executor emits `Error { message: "Sequence cancelled" }`
-  // first, and that is what produced the red "Sequence failed / Sequence
-  // aborted at …" toast at the same second as a Session Report titled
-  // "Stopped (resumable)".
+  // The Stop the operator presses does NOT reach this classifier as `Stopped`.
+  // The native executor emits `Error { message: "Sequence cancelled" }` first,
+  // which otherwise renders a red "Sequence failed / Sequence aborted at …"
+  // toast in the same second as a Session Report titled "Stopped (resumable)".
   test(
     'the cancellation notice arriving as an Error classifies as stopped',
     () {

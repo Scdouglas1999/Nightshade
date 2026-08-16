@@ -2,9 +2,9 @@
 //
 // We exercise the [Intent] -> [Action] surface directly (without
 // spinning up the real tree) by building a ProviderContainer, seeding
-// a sequence, and invoking the intents. This keeps the tests fast and
-// the failure messages obvious — a regression here points straight at
-// _moveSelection / the collapse logic, not at widget layout.
+// a sequence, and invoking the intents. This keeps the tests fast and the
+// failure messages obvious — a failure here points straight at _moveSelection /
+// the collapse logic, not at widget layout.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -1,11 +1,7 @@
-// Part of ../transient_alerts_panel.dart -- extracted for maintainability.
-//
 // Unacknowledged badge, alert tiles and type badges.
 part of '../transient_alerts_panel.dart';
 
-// =============================================================================
-// Unacknowledged Badge
-// =============================================================================
+// Unacknowledged badge
 
 class _UnacknowledgedBadge extends ConsumerWidget {
   final NightshadeColors colors;
@@ -35,9 +31,7 @@ class _UnacknowledgedBadge extends ConsumerWidget {
   }
 }
 
-// =============================================================================
-// Transient Alert Tile
-// =============================================================================
+// Transient alert tile
 
 class _TransientAlertTile extends ConsumerStatefulWidget {
   final TransientAlert alert;
@@ -295,9 +289,7 @@ class _TransientAlertTileState extends ConsumerState<_TransientAlertTile> {
       );
 }
 
-// =============================================================================
-// Type Badge
-// =============================================================================
+// Type badge
 
 class _TypeBadge extends StatelessWidget {
   final TransientType type;

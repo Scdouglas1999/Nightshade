@@ -26,15 +26,8 @@ Future<void> _runAlertStateAction(
   }
 }
 
-/// Panel displaying astronomical transient alerts (novae, supernovae, etc.)
-/// with the ability to queue them as observation targets.
-///
-/// Shows recent alerts from the fetched sources ([kFetchableTransientSources]
-/// — today, TNS alone), sorted by priority. The source label below still
-/// renders every [TransientSource] because an alert already stored, imported or
-/// entered by hand carries its own origin.
-/// Each alert shows name, type, magnitude, coordinates, and discovery date.
-/// Users can queue alerts for tonight's observation or dismiss them.
+/// Whether TNS credentials are on record, so the panel can say why a fetch is
+/// unavailable rather than reporting an empty feed.
 final transientPanelTnsCredentialsReadyProvider =
     FutureProvider<bool>((ref) async {
   if (ref.watch(isRemoteModeProvider)) return true;
@@ -43,6 +36,14 @@ final transientPanelTnsCredentialsReadyProvider =
   return ref.watch(secretsStoreProvider).has(SecretField.tnsApiKey);
 });
 
+/// Panel displaying astronomical transient alerts (novae, supernovae, …) with
+/// the ability to queue them as observation targets.
+///
+/// Shows recent alerts from the fetched sources ([kFetchableTransientSources] —
+/// today, TNS alone), sorted by priority. The source label still renders every
+/// [TransientSource], because an alert stored, imported or entered by hand
+/// carries its own origin. Each alert shows name, type, magnitude, coordinates
+/// and discovery date.
 class TransientAlertsPanel extends ConsumerStatefulWidget {
   final bool initiallyExpanded;
 

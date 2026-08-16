@@ -2,14 +2,13 @@
 //
 // WHY THIS EXISTS
 // ---------------
-// `SettingsSectionDef.keywords` used to be the ONLY thing the Settings search
-// box matched against, and it was maintained by hand. Measured on the live app,
-// 243 of 496 rendered setting rows (49%) could not be found by typing their own
-// visible title: "Safety fail mode", "Park on unsafe weather", "Default
-// watermark template" and "Default broadcast port" all returned "No settings
-// match your search". Worse than incomplete, it misdirected — searching
-// "thumbnail" returned only Captured Images even though the Sequencer page has a
-// "Default thumbnail size" row.
+// A search box that matches only the hand-maintained `SettingsSectionDef.
+// keywords` cannot find most rows by their own visible title. Measured on the
+// live app, 243 of 496 rendered setting rows (49%) were unreachable that way:
+// "Safety fail mode", "Park on unsafe weather", "Default watermark template"
+// and "Default broadcast port" all returned "No settings match your search",
+// and it misdirected as well as missed — "thumbnail" returned only Captured
+// Images even though the Sequencer page has a "Default thumbnail size" row.
 //
 // A hand-maintained index drifts by construction: nothing forces the author of a
 // new setting row to also add a keyword. So the index is derived from the row

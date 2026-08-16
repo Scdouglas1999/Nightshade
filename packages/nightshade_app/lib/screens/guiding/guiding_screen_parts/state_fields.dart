@@ -1,5 +1,3 @@
-// Part of ../guiding_screen.dart -- extracted for maintainability.
-//
 // Shared mutable screen state used by the responsive section mixins.
 part of '../guiding_screen.dart';
 

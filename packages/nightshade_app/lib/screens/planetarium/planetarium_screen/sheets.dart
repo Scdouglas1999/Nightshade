@@ -1,13 +1,11 @@
 // ignore_for_file: invalid_use_of_protected_member
-// Part of ../planetarium_screen.dart -- extracted for maintainability.
-//
 // Filter, context-menu, object-info, sidebar and mobile-search sheet presenters.
 part of '../planetarium_screen.dart';
 
 extension _PlanetariumScreenSheets on _PlanetariumScreenState {
   void _showFilterBottomSheet(BuildContext context) {
     // Tokenized colors so Red Night theme keeps its red wash across mobile
-    // filter sheets — audit §4.15.
+    // filter sheets.
     final colors = NightshadeColors.of(context);
     showModalBottomSheet(
       context: context,

@@ -224,8 +224,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
           const SizedBox(height: 8),
           Text(
             // The floor is quoted from kHygFaintFloorMag, the same constant the
-            // HYG/deep-tier merge seam and the Layers panel use — this card
-            // used to hard-code 11.5 while the seam used 9.0.
+            // HYG/deep-tier merge seam and the Layers panel use.
             'Streams faint stars below the bundled HYG floor '
             '(mag ${kHygFaintFloorMag.toStringAsFixed(1)}) as view-culled '
             'tiles when zoomed in. No tileset is published yet: host one built '
@@ -328,13 +327,11 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                   final label = _action == _DeepStarAction.download
                       ? (_cancelRequested ? 'Stopping…' : 'Downloading…')
                       : (hasCatalogData ? 'Re-download / Resume' : 'Download');
-                  // COL2-3 (third strike). The gate itself has been in place
-                  // for two waves — `onPressed: null` with no URL — yet two
-                  // live drives read the tree as a plain `button: Download`
-                  // with no `[DISABLED]` and a click that did nothing at all.
-                  // With the reason in the accessible NAME, a tree dump says
-                  // which of the two is true instead of leaving it to
-                  // inference.
+                  // `onPressed: null` alone is invisible to a tree dump: the
+                  // control still reads as a plain `button: Download` with no
+                  // `[DISABLED]`, indistinguishable from a live button whose
+                  // click is swallowed. With the reason in the accessible
+                  // NAME, the dump says which of the two is true.
                   final blocked = _urlController.text.trim().isEmpty
                       ? 'no tileset URL is set, so there is nothing to '
                           'download from'

@@ -220,11 +220,10 @@ void main() {
   });
 
   group('runIntegrityCheckAndRecover does not quarantine healthy data', () {
-    /// Everything in this group is a regression test for the data-loss bug
-    /// where ANY `SqliteException` while opening the database was treated as
-    /// corruption. A healthy database with the owner's only equipment profile
-    /// and 182 captured frames was renamed to `nightshade-corrupt-*.db` and
-    /// replaced with a blank one, purely because a second process had it open.
+    /// Treating ANY `SqliteException` on open as corruption loses data: a
+    /// healthy database with the owner's only equipment profile and 182
+    /// captured frames gets renamed to `nightshade-corrupt-*.db` and replaced
+    /// with a blank one, purely because a second process had it open.
     void expectNothingWasQuarantined(Directory dir) {
       final quarantined = dir
           .listSync()
@@ -287,8 +286,8 @@ void main() {
       () async {
         // A crash mid-transaction leaves a `-journal` behind. A read-only
         // probe cannot replay it and reports SQLITE_READONLY_ROLLBACK, which
-        // the old code read as "corrupt" — so an ordinary crash cost the user
-        // their database on the very next launch.
+        // must not be read as corruption: an ordinary crash would cost the
+        // operator their database on the next launch.
         final db = sqlite3.open(dbFile.path);
         db.execute('PRAGMA journal_mode=DELETE;');
         db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, blob BLOB);');
@@ -361,9 +360,9 @@ void main() {
 
   group('inspectQuarantinedDatabase', () {
     test('reports a healthy quarantined file as healthy', () async {
-      // Files quarantined by the pre-fix builds are named
-      // `nightshade-corrupt-*` but are not corrupt. The UI has to be able to
-      // tell, so it stops repeating a claim that is not true.
+      // A file named `nightshade-corrupt-*` is not necessarily corrupt. The
+      // UI has to be able to tell, rather than repeating the claim in the
+      // filename.
       final quarantined = File(
         p.join(tempDir.path, 'nightshade-corrupt-1-nightshade.db'),
       );

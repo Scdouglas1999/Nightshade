@@ -11,18 +11,16 @@ enum TriggerActionType { pauseAndRecalibrate, autofocus, abort }
 /// Default threshold for each condition type. Switching condition type in the
 /// editor MUST reset the active threshold to the matching default, because the
 /// underlying physical unit changes (arcseconds for guiding RMS, pixels for
-/// HFR, pixels per axis for drift). Silently reusing the prior numeric value
-/// across unit boundaries is a J-X3 class bug.
+/// HFR, pixels per axis for drift), so reusing the prior numeric value across a
+/// unit boundary silently changes what the trigger means.
 ///
-/// Sources:
-///   * `guidingRms` 2.0″ matches the historical default used everywhere in the
-///     codebase (see `ExposureTriggerConfig.fromNativeJson` fallback below).
-///   * `hfr` 4.0 px is the conservative mid-range default for "elongated /
-///     soft" focus; matches `default_hfr_threshold` in the Rust quality module.
-///   * `drift` 3.0 px (per axis) is the in-exposure drift threshold; the
-///     Rust executor (`TriggerCondition::DriftAbove`) compares each axis
-///     independently with OR semantics, so per-axis values of 3 px catch
-///     real tracking drift without firing on guider jitter.
+///   * `guidingRms` 2.0″ matches `ExposureTriggerConfig.fromNativeJson`'s
+///     fallback below.
+///   * `hfr` 4.0 px matches `default_hfr_threshold` in the Rust quality module.
+///   * `drift` 3.0 px is PER AXIS: the Rust executor
+///     (`TriggerCondition::DriftAbove`) compares each axis independently with
+///     OR semantics, so 3 px catches real tracking drift without firing on
+///     guider jitter.
 const double _kDefaultGuidingRmsArcsec = 2.0;
 const double _kDefaultHfrPixels = 4.0;
 const double _kDefaultDriftRaPixels = 3.0;
@@ -218,9 +216,9 @@ class TriggerConfigurationDialog extends ConsumerStatefulWidget {
   /// 3 exposure nodes in this sequence".
   ///
   /// Triggers are stored ON exposure nodes, not on the sequence, so a dialog
-  /// that names no owner let the user believe a safety trigger had been
-  /// attached to whatever they had selected. The caller resolves the owners
-  /// and states them here.
+  /// that names no owner lets the user believe a safety trigger was attached to
+  /// whatever they had selected. The caller resolves the owners and states them
+  /// here.
   final String? appliesTo;
 
   const TriggerConfigurationDialog({

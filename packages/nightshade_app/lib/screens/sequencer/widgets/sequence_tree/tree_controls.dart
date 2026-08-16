@@ -1,5 +1,3 @@
-// Part of ../sequence_tree.dart -- extracted for maintainability.
-//
 // Node colour legend, validation wrapper, badges, tree search field and view toggles.
 part of '../sequence_tree.dart';
 
@@ -228,9 +226,8 @@ class _ValidationBadges extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // The badges are the only place the builder admits the sequence has
-    // problems. They used to be plain containers, so "1 error" could only be
-    // decoded by pressing Start and reading the pre-flight dialog. One tap
-    // now opens the same issue list without arming a run.
+    // problems, so one tap opens the issue list — decoding "1 error" otherwise
+    // means pressing Start and reading the pre-flight dialog.
     return Tooltip(
       message: 'Show sequence issues',
       child: InkWell(

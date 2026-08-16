@@ -1,17 +1,15 @@
 // Keyboard operability for NightshadeButton.
 //
-// The button used to be `Semantics > MouseRegion > GestureDetector` with no
-// focus node at all, so no NightshadeButton anywhere in the app could be
-// reached with Tab or fired with Enter/Space — which made the first-run setup
-// wizard impossible to finish without a mouse. It now uses a
-// FocusableActionDetector, and these tests pin the four properties that has to
-// hold on every platform: it is reachable, it fires exactly once per key press,
-// a disabled button is skipped, and gaining focus does not move anything.
+// Every NightshadeButton must be reachable with Tab and fire on Enter/Space; a
+// `Semantics > MouseRegion > GestureDetector` with no focus node is neither,
+// which leaves the first-run setup wizard unfinishable without a mouse. These
+// tests pin the four properties the FocusableActionDetector has to hold on
+// every platform: it is reachable, it fires exactly once per key press, a
+// disabled button is skipped, and gaining focus does not move anything.
 //
-// The pixel test at the bottom exists because the first version of the focus
-// ring was a spread `BoxShadow`, which is a FILLED round-rect painted behind
-// the box. On `ghost`/`outline` — transparent until hover — it showed straight
-// through and turned the whole control into a solid primary slab.
+// The pixel test at the bottom guards the focus ring: a spread `BoxShadow` is a
+// FILLED round-rect painted behind the box, and on `ghost`/`outline` — which
+// are transparent until hover — it shows straight through as a solid slab.
 
 import 'dart:ui' as ui;
 

@@ -1,12 +1,9 @@
-// Part of ../quick_start_wizard_dialog.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../quick_start_wizard_dialog.dart';
 
 extension _TargetStep on _QuickStartWizardDialogState {
-  // ===========================================================================
   // STEP 1: TARGET
-  // ===========================================================================
 
   Widget _buildTargetStep(NightshadeColors colors) {
     return Column(
@@ -114,8 +111,8 @@ extension _TargetStep on _QuickStartWizardDialogState {
             ),
           ),
 
-        // A finished search with nothing to show used to render as silence,
-        // leaving "is this broken or is my library empty?" unanswerable.
+        // A finished search with nothing to show has to say so, or "is this
+        // broken or is my library empty?" is unanswerable.
         if (_searchResults.isEmpty && _searchCompleted && !_isSearching)
           _buildTargetSearchEmptyState(colors),
 

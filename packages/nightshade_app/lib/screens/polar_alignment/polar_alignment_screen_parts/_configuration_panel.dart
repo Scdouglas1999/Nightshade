@@ -1,4 +1,3 @@
-// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 // ignore_for_file: unused_element
 
 part of '../polar_alignment_screen.dart';

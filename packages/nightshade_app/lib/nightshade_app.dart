@@ -67,10 +67,9 @@ export 'screens/session_review/auto_integration_service.dart';
 // `pluginNodeDispatcherProvider` (defined in nightshade_core) with the
 // real PluginNodeExecutor (defined in nightshade_plugins).
 export 'services/plugin_node_dispatcher_wiring.dart';
-// Audit §11 — plugin sequence-node palette wiring. The app entry point
-// installs this override alongside the dispatcher override so the
-// sequencer palette surfaces plugin-contributed nodes the moment a
-// plugin registers.
+// Plugin sequence-node palette wiring. The app entry point installs this
+// override alongside the dispatcher override so the sequencer palette
+// surfaces plugin-contributed nodes the moment a plugin registers.
 export 'services/plugin_node_palette_wiring.dart';
 // C4 — plugin enablement persistence wiring. The app entry point installs
 // this override so the bundled-plugin registration honours the user's

@@ -17,8 +17,7 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
   Widget build(BuildContext context) {
     final webState = ref.watch(webServerStateProvider);
     // This chip is the remote-access indicator (its tap target is the Remote
-    // Access dialog), so it counts attached remote clients. It used to read
-    // the co-imaging viewer list and stayed dark with a phone connected.
+    // Access dialog), so it counts attached remote clients.
     final hasViewers = webState.connectedClients > 0;
 
     return MouseRegion(

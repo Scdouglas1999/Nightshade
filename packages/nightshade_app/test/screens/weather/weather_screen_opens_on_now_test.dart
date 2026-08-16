@@ -1,9 +1,9 @@
 // The Weather radar timeline must OPEN on the live edge of the loop.
 //
-// It used to open on frame 1 of N — the oldest tile in the loop, up to two
-// hours behind the NOW marker the scrubber itself paints at the far right. The
-// operator glancing at the map before deciding whether to keep the roof open
-// was looking at cloud that had already arrived or already gone.
+// Opening on frame 1 of N shows the OLDEST tile in the loop, up to two hours
+// behind the NOW marker the scrubber itself paints at the far right — so an
+// operator glancing at the map before deciding whether to keep the roof open is
+// looking at cloud that has already arrived or already gone.
 //
 // The screen runs a 5-minute refresh timer and a fade animation, so pump with
 // settle: false and fixed steps rather than pumpAndSettle.

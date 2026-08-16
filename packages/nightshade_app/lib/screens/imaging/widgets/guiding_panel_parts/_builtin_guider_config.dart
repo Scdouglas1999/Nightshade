@@ -1,5 +1,3 @@
-// Part of ../guiding_panel.dart -- extracted for maintainability.
-//
 // Built-in guider configuration section, form and input row.
 part of '../guiding_panel.dart';
 
@@ -213,8 +211,8 @@ class _BuiltinGuiderConfigFormState
     }
 
     // Bound the entered pulse range to the connected mount's reported
-    // pulse-guide envelope. Errors are a feature: surface and block the save
-    // rather than silently clamping a value the mount cannot honor.
+    // pulse-guide envelope: surface the rejection and block the save rather
+    // than silently clamping to a value the mount cannot honor.
     final bounds = _pulseBounds(mountCaps);
     if (minPulse < bounds.min) {
       context.showErrorSnackBar(

@@ -1,16 +1,14 @@
 // Who owns the run the autopilot is about to stop?
 //
-// Adopted from the Wave D refutation of SEQ-12 (scratchpad
-// `seq12_race_test.dart`). Two adjacent inputs the original fix did not
-// survive:
+// Two adjacent inputs a naive ownership check does not survive:
 //
 //   1. the operator's Stop racing a dispatch that is still STARTING a run
-//      (rather than landing mid-run), which left an orphan sequence exposing
+//      (rather than landing mid-run), which leaves an orphan sequence exposing
 //      with the autopilot showing Idle; and
 //   2. the autopilot's own run ending by any path the engine never hears about
 //      (operator Stop, abort, failure — only a natural completion reaches the
-//      trigger stream), after which `currentTargetId != null` still claimed
-//      ownership and the next no-eligible tick stopped the operator's manual
+//      trigger stream), after which `currentTargetId != null` still claims
+//      ownership and the next no-eligible tick stops the operator's manual
 //      sequence.
 //
 // The sink here models the executor rather than merely counting calls: it
@@ -123,7 +121,7 @@ SchedulerCandidate _candidate({
 }
 
 void main() {
-  group('SchedulerEngine — autopilot run ownership (SEQ-12)', () {
+  group('SchedulerEngine — autopilot run ownership', () {
     test(
       'stop() during an in-flight dispatch does not leave an orphan run',
       () async {

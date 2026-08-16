@@ -152,8 +152,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // One word for one object: the empty state used to say "No campaigns yet"
-    // above a body that said "project" and a button that said "New Project".
+    // One word for one object: an empty state reading "No campaigns yet" above
+    // a body that says "project" and a button that says "New Project" names the
+    // same thing three ways.
     expect(find.text('No projects yet'), findsOneWidget);
     expect(find.textContaining('campaign'), findsNothing);
     expect(

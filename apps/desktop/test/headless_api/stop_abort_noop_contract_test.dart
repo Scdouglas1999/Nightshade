@@ -122,7 +122,6 @@ void main() {
     },
   );
 
-  // ------------------------------------------------------------------------
   // /api/framing/abort-slew
   //
   // The `wasRunning: true` branch is pinned HERE rather than live because the
@@ -130,7 +129,6 @@ void main() {
   // `slewing` never reads true for a single sample at 50 ms — and the only
   // real mount available is on the rig, which is under a hard no-motion rule.
   // The `wasRunning: false` branch IS verified live; this covers the other.
-  // ------------------------------------------------------------------------
   group('framing abort-slew', () {
     late _SlewBackend slewBackend;
     late FramingHandlers framing;

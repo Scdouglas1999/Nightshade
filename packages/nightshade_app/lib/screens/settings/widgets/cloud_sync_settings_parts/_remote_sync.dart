@@ -1,5 +1,3 @@
-// Part of ../cloud_sync_settings.dart -- extracted for maintainability.
-//
 // Remote cloud-sync card, status row and remote browser dialog.
 part of '../cloud_sync_settings.dart';
 

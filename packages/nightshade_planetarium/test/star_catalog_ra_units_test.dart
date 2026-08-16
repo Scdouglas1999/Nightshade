@@ -1,9 +1,9 @@
-// Regression tests for the RA unit contract of the star catalog.
+// The RA unit contract of the star catalog.
 //
 // [CelestialCoordinate.ra] is HOURS (see coordinate_system.dart) and every
-// consumer multiplies by 15 to reach degrees. Both the HYG parser and the
-// built-in fallback list previously stored DEGREES in that field, which moved
-// every star by a factor of 15 in hour angle.
+// consumer multiplies by 15 to reach degrees, so storing DEGREES in that field
+// — in the HYG parser or the built-in fallback list — moves every star by a
+// factor of 15 in hour angle.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

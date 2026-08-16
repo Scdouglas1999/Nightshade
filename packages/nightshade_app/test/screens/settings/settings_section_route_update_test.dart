@@ -1,13 +1,13 @@
-// CON-61b — a `/settings?section=<key>` deep link taken while Settings is
-// ALREADY open must move the screen to that section.
+// A `/settings?section=<key>` deep link taken while Settings is ALREADY open
+// must move the screen to that section.
 //
 // The router rebuilds the same `SettingsScreen` element with a new
 // `initialSection` (go_router's page for `/settings` is keyless, so the
-// Navigator updates the existing route rather than pushing a second one), and
-// the screen only read the key in `initState`. Every in-Settings link that
-// points back at Settings — the title bar's profile icon
-// (`?section=equipment-profiles`) and ~8 sibling links — therefore did
-// nothing at all once the screen was up.
+// Navigator updates the existing route rather than pushing a second one), so a
+// screen that reads the key only in `initState` ignores it. Every in-Settings
+// link that points back at Settings — the title bar's profile icon
+// (`?section=equipment-profiles`) and ~8 siblings — then does nothing at all
+// once the screen is up.
 //
 // The host below is the router's behaviour reduced to what matters: the same
 // widget position, a changing `initialSection`. A screen that only reads the
@@ -143,13 +143,12 @@ void main() {
             'rebuild must leave the operator where they are.');
   });
 
-  // WD-EQ-3b — the same link CLICKED AGAIN after the operator moved by hand.
+  // The same link CLICKED AGAIN after the operator moved by hand.
   //
-  // Wave D's counter-input to the fix above: click the person icon (lands on
-  // Equipment Profiles), click "Connection" in the sidebar, click the person
-  // icon again — the pane stayed on Connection. The route is unchanged, so the
-  // key comparison declines; but the operator is not looking at what the link
-  // names, so from the outside the icon is dead again.
+  // Click the person icon (lands on Equipment Profiles), click "Connection" in
+  // the sidebar, click the person icon again: the route is unchanged, so a key
+  // comparison declines and the pane stays on Connection — but the operator is
+  // not looking at what the link names, so from the outside the icon is dead.
   testWidgets('a repeat click on the same deep link moves the screen back',
       (tester) async {
     _swallowKnownOverflows();

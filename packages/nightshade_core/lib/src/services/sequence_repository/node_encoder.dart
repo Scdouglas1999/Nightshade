@@ -163,9 +163,8 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'resumeGuiding': node.resumeGuiding,
         'maxRetries': node.maxRetries,
         'failureAction': node.failureAction.name,
-        // Why: persist the override flag so reopening the sequence preserves
-        // whether the user pinned per-node values or pulls from settings
-        // (audit §1.2).
+        // Persist the override flag so reopening the sequence preserves
+        // whether the user pinned per-node values or pulls from settings.
         'useGlobalDefaults': node.useGlobalDefaults,
       },
       OpenDomeNode() => {'shutterOnly': node.shutterOnly},
@@ -251,7 +250,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'offset': node.offset,
         'binning': node.binning.name,
       },
-      // Audit §11 — plugin-contributed instruction. Pin pluginId,
+      // Plugin-contributed instruction. Pin pluginId,
       // nodeTypeId, opaque config blob, and friendly metadata so a
       // sequence containing plugin nodes still round-trips when the
       // plugin is temporarily unavailable (the editor surfaces a
@@ -265,8 +264,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'iconHint': node.iconHint,
       },
       // Cover / calibrator nodes carry real config (timeout, brightness) that
-      // MUST be persisted — they were previously lumped into the empty-props
-      // group below, silently dropping these fields on save.
+      // must be persisted; the empty-props group below would drop it.
       OpenCoverNode() => {'timeoutSecs': node.timeoutSecs},
       CloseCoverNode() => {'timeoutSecs': node.timeoutSecs},
       CalibratorOnNode() => {

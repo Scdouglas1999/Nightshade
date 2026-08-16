@@ -1,5 +1,5 @@
-/// Declarative route table for live co-imaging endpoints (Collaborative Sky
-/// WS3). Lets an unattended rig discover/open/join a live co-imaging session,
+/// Declarative route table for Collaborative Sky live co-imaging endpoints.
+/// Lets an unattended rig discover/open/join a live co-imaging session,
 /// report to the COMBINED accounting, and drive the longitude hand-off baton.
 ///
 /// Counterpart to `handlers/coimaging_handlers.dart`.

@@ -152,8 +152,8 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
 
 /// Translate the database WCS row + image dimensions into the form the
 /// catalog overlay expects. Returns null when the row is missing or the
-/// frame wasn't plate-solved — the overlay widget renders an explanatory
-/// banner in that case (per the project's "errors are a feature" rule).
+/// frame wasn't plate-solved. The overlay widget renders an explanatory banner
+/// in that case rather than drawing nothing.
 class _CurrentImageSkySolution {
   final SolvedWcs? catalogWcs;
   final PlateSolveData? plateSolve;

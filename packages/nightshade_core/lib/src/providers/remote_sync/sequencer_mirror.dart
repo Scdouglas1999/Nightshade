@@ -62,9 +62,8 @@ void _applySequencerEvent(
       _read(reader, sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.completed;
       break;
-    // Terminal failure was not handled at all, so a mirrored run that died
-    // kept reporting the state it had before the failure — and the failure
-    // reason never reached the phone.
+    // A terminal failure must mirror through with its reason, or the phone
+    // keeps reporting the state the run held before it died.
     case 'SequenceFailed':
       final error = data['error'] as String? ?? 'Unknown error';
       progressNotifier.updateProgress(message: 'Sequence failed: $error');

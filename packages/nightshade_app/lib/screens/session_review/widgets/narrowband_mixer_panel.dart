@@ -77,10 +77,10 @@ class NarrowbandMixerPanel extends StatefulWidget {
 
   /// True while a combine started from this panel is still running.
   ///
-  /// Apply is the mixer's only action and a combine takes tens of seconds. With
-  /// no in-flight state the control looked identical before, during and after a
-  /// press, which made a stalled or failed combine indistinguishable from a
-  /// dead button.
+  /// Apply is the mixer's only action and a combine takes tens of seconds.
+  /// Without an in-flight state the control looks identical before, during and
+  /// after a press, which makes a stalled or failed combine indistinguishable
+  /// from a dead button.
   final bool busy;
 
   const NarrowbandMixerPanel({

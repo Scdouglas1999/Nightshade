@@ -88,9 +88,9 @@ void main() {
   testWidgets(
       'with a 0° horizon a 25° target is still warning (low), not error',
       (tester) async {
-    // Old behaviour used a hardcoded <30° warning; with horizon 0 the margin
-    // is min(90*0.25,15)=15 → 0..15 warning, 15+ success. 25° → success now,
-    // proving the grade follows the horizon rather than a fixed 30°.
+    // With horizon 0 the margin is min(90*0.25,15)=15 → 0..15 warning, 15+
+    // success. 25° grading success proves the grade follows the horizon rather
+    // than a fixed 30° threshold.
     const sky = RunDashboardSkyStats(
       altitudeDeg: 25.0,
       azimuthDeg: 100.0,

@@ -54,13 +54,12 @@ class FirstLightFlowDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(firstLightControllerProvider);
 
-    // Dismissing mid-run used to orphan the capture: the exposure kept running
-    // on the sensor with nothing holding a handle on it. PopScope covers the
-    // back button and the modal barrier, but NOT the header close button —
+    // Dismissing mid-run orphans the capture: the exposure keeps running on the
+    // sensor with nothing holding a handle on it. PopScope covers the back
+    // button and the modal barrier but NOT the header close button —
     // NightshadeDialog pops the route directly, which PopScope does not
-    // intercept — so `closeEnabled` has to gate that separately. The exit
-    // mid-run is the footer's Stop capture, which actually aborts at the
-    // camera.
+    // intercept — so `closeEnabled` gates that separately. The exit mid-run is
+    // the footer's Stop capture, which actually aborts at the camera.
     return PopScope(
       canPop: !state.isRunning,
       child: NightshadeDialog(
@@ -186,7 +185,7 @@ class FirstLightFlowDialog extends ConsumerWidget {
 
     if (!context.mounted || !retry) return;
 
-    // Re-run at the same exposure the user originally chose; fall back to the
+    // Re-run at the exposure the user chose; fall back to the
     // intro panel's default when the failed state somehow carried none, so the
     // retry always has a valid positive exposure. Not awaited: the dialog
     // reactively follows the streamed FirstLightState, exactly like the intro
@@ -223,9 +222,7 @@ class _FirstLightBody extends ConsumerWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Intro panel
-// ---------------------------------------------------------------------------
 
 class _IntroPanel extends ConsumerStatefulWidget {
   const _IntroPanel();
@@ -239,13 +236,11 @@ class _IntroPanelState extends ConsumerState<_IntroPanel> {
 
   /// Hard ceiling on the guided first-light exposure, in seconds.
   ///
-  /// This panel is the only producer of the exposure the orchestrator runs, and
-  /// nothing downstream bounds it: an unbounded field let a single extra
-  /// keystroke (5 → 999999) commit the camera to an 11-day exposure that the
-  /// flow has no cancel path for. Two minutes is already far longer than any
-  /// first light needs while staying inside the panel's own "a few seconds"
-  /// promise; a genuinely long sub belongs on the Imaging screen, which has a
-  /// stop button.
+  /// This panel is the ONLY producer of the exposure the orchestrator runs and
+  /// nothing downstream bounds it, so the bound has to live here: the flow has
+  /// no cancel path, and one extra keystroke in an unbounded field commits the
+  /// camera for days. Two minutes is far longer than a first light needs while
+  /// staying inside the panel's own "a few seconds" promise.
   static const _maxExposureSeconds = 120.0;
 
   late final TextEditingController _exposureController;
@@ -368,9 +363,7 @@ class _IntroPanelState extends ConsumerState<_IntroPanel> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Progress panel — vertical stepper
-// ---------------------------------------------------------------------------
 
 /// One phase row in the running stepper.
 enum _StepStatus { done, active, pending }
@@ -518,9 +511,7 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Success panel — preview + annotation summary
-// ---------------------------------------------------------------------------
 
 class _SuccessPanel extends ConsumerWidget {
   const _SuccessPanel({required this.state});
@@ -788,9 +779,7 @@ class _SolveDetails extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Failure panel
-// ---------------------------------------------------------------------------
 
 class _FailurePanel extends StatelessWidget {
   const _FailurePanel({required this.state});

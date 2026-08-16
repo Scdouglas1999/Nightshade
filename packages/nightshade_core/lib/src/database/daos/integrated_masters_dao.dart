@@ -15,10 +15,9 @@ import '../database.dart';
 /// database's `customSelect`/`customStatement`/`customInsert` APIs — mirroring
 /// [StackedResultsDao]. It is deliberately NOT a `@DriftAccessor`.
 ///
-/// Per project policy this DAO never silently swallows failures: SQLite errors
-/// propagate, the `(master_id, image_id)` UNIQUE constraint guards against
-/// double-folding a sub, and reads map nullable columns to the model's
-/// well-defined nullable fields rather than guessing.
+/// SQLite errors propagate, the `(master_id, image_id)` UNIQUE constraint
+/// guards against double-folding a sub, and reads map nullable columns to the
+/// model's nullable fields rather than guessing.
 class IntegratedMastersDao {
   IntegratedMastersDao(this._db);
 
@@ -38,9 +37,7 @@ class IntegratedMastersDao {
       'background_extracted_path, deconvolved_path, star_reduced_path, '
       'color_calibrated_path';
 
-  // ---------------------------------------------------------------------------
   // integrated_masters
-  // ---------------------------------------------------------------------------
 
   /// Insert a new master row and return its id. [createdAt]/[updatedAt] default
   /// to "now" (UTC seconds) when omitted.
@@ -340,7 +337,7 @@ class IntegratedMastersDao {
   /// Persist the v44 finishing-artifact output paths. Only the supplied fields
   /// are written; `updated_at` is always bumped to now. Mirrors
   /// [updateSmartFields] but targets the `_bgx`/`_decon`/`_starred` paths the
-  /// gated finishing passes write (previously discarded).
+  /// gated finishing passes write.
   Future<int> updateFinishingPaths(
     int id, {
     String? backgroundExtractedPath,
@@ -386,9 +383,7 @@ class IntegratedMastersDao {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // integrated_master_frames (join / dedup)
-  // ---------------------------------------------------------------------------
+  // Integrated_master_frames (join / dedup)
 
   /// Record that [imageId] was folded into [masterId]. Idempotent: the
   /// `(master_id, image_id)` UNIQUE constraint means a re-fold is an

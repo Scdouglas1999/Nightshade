@@ -62,10 +62,10 @@ abstract class _NetworkBackendTransport {
   final int serverPort;
   final int webSocketPort;
 
-  /// ID returned by the most recent successful profile save. The abstract
-  /// backend role retains its historical `Future<void>` method, while the
-  /// concrete network client exposes this response metadata so remote creates
-  /// never have to rediscover a row by a non-unique profile name.
+  /// ID returned by the most recent successful profile save. The backend role
+  /// method returns `Future<void>`; this client also exposes the saved id so
+  /// remote creates never have to rediscover a row by a non-unique profile
+  /// name.
   String? _lastSavedProfileId;
   String? get lastSavedProfileId => _lastSavedProfileId;
 
@@ -74,9 +74,8 @@ abstract class _NetworkBackendTransport {
   /// tailnet / the wider Internet and presents a certificate). The WebSocket
   /// scheme is derived from this: `https` ⇒ `wss`, `http` ⇒ `ws` (see
   /// [_wsScheme]). Normalised to lower-case in the constructor and validated
-  /// to be exactly one of the two accepted values — an unrecognised scheme is
-  /// a programmer error and throws rather than silently defaulting (
-  /// errors are a feature, no silent fallbacks).
+  /// to be exactly one of the two accepted values — an unrecognised scheme
+  /// throws rather than silently defaulting.
   final String scheme;
 
   /// Optional server-identity fingerprint pinned by the client (typically the
@@ -97,10 +96,10 @@ abstract class _NetworkBackendTransport {
 
   /// Per-request timeout applied to the JSON HTTP helpers' transient-retry
   /// wrapper ([_retryableRequest]). Defaults are tuned in the constructor:
-  /// LAN connections keep the historical 30 s ceiling, while remote
-  /// (tailnet / Internet) connections — which traverse a relay or DERP hop and
-  /// have materially higher and more variable latency — get a longer ceiling
-  /// so a slow-but-alive link is not torn down mid-request.
+  /// LAN connections get a 30 s ceiling; remote (tailnet / Internet)
+  /// connections traverse a relay or DERP hop with higher and more variable
+  /// latency, so they get a longer one and a slow-but-alive link is not torn
+  /// down mid-request.
   final Duration requestTimeout;
 
   /// `true` iff [serverHost] is a Tailscale *endpoint* — a tailnet IP literal
@@ -110,11 +109,8 @@ abstract class _NetworkBackendTransport {
   /// from one riding the tailnet. LAN, loopback, mDNS `.local`, and public
   /// hosts are all `false`.
   ///
-  /// MagicDNS names are included deliberately: the guided Tailscale setup
-  /// recommends entering a `*.ts.net` name, and such a session traverses the
-  /// same DERP-relayed path as a `100.x` literal, so it must get the relaxed
-  /// remote timeouts and the "via Tailscale" classification rather than being
-  /// under-tuned as LAN.
+  /// MagicDNS `*.ts.net` names count as remote: they traverse the same
+  /// DERP-relayed path as a `100.x` literal and need the same relaxed timeouts.
   final bool isRemoteHost;
 
   WebSocketChannel? _wsChannel;
@@ -314,10 +310,8 @@ abstract class _NetworkBackendTransport {
   /// honouring the configured [scheme]. The [endpoint] may itself carry an
   /// inline query string (e.g. `'calibration/darks/7?deleteFile=true'`); any
   /// inline params are preserved and the optional [queryParameters] are merged
-  /// on top (explicit params win on key collision). Centralising URI
-  /// construction here is what makes the `http`→`https` switch a one-line
-  /// change instead of a 20-site hunt, and matches the previous
-  /// `Uri.parse('http://host:port/api/<endpoint>')` semantics exactly.
+  /// on top (explicit params win on key collision). Every REST URI is built
+  /// here, so the scheme is decided in one place.
   Uri _apiUri(String endpoint, [Map<String, String>? queryParameters]) {
     final base = buildNightshadeServerUri(
       scheme: scheme,

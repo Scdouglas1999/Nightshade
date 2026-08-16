@@ -1,20 +1,21 @@
-// Regression test for the deep-sky layer rendering nothing at all.
+// The deep-sky layer renders.
 //
-// Stars, constellation lines, planets, the Moon, the grid and every label drew
-// correctly while not one deep-sky glyph or label ever appeared, at any zoom
-// or sky position. The catalogue query was fine — it handed the painter dozens
-// of objects including M42 and M31, all inside the magnitude gate.
+// Its failure mode is silent and total: stars, constellation lines, planets,
+// the Moon, the grid and every label draw correctly while not one deep-sky
+// glyph or label appears, at any zoom or sky position, even though the
+// catalogue query hands the painter dozens of objects including M42 and M31,
+// all inside the magnitude gate.
 //
 // The DSO pass draws its glyphs as a single batched `drawRawAtlas` call. The
 // per-object tint alpha, and the matching label colour's alpha, are BOTH
 // multiplied by the pop-in phase the host hands the painter, so a phase of 0
-// silently erases the whole layer — glyphs and labels together, which is why
-// it looked like two faults.
+// erases the whole layer — glyphs and labels together, which reads as two
+// faults.
 //
-// The host's DSO pop-in `AnimationController` was constructed without a `value`
-// and so rested at `lowerBound`, i.e. 0.0. It is only ever driven by
-// `forward(from: 0)` when an *animated* zoom reveals fainter DSOs, so from
-// launch it sat at 0 and the layer was invisible.
+// A DSO pop-in `AnimationController` constructed without a `value` rests at
+// `lowerBound`, i.e. 0.0, and is only ever driven by `forward(from: 0)` when an
+// *animated* zoom reveals fainter DSOs, so from launch it sits at 0 and the
+// layer is invisible.
 //
 // The tests below therefore check the rendered pixels on both sides of that
 // seam: the painter draws a DSO when told to, AND the sky view as the app
@@ -189,6 +190,11 @@ void main() {
           fovFilteredDsosProvider.overrideWithValue(AsyncValue.data(dsos)),
         ],
       );
+      // The sky is drawn from the observer's site; without one the view renders
+      // its no-site state instead.
+      container
+          .read(observerLocationProvider.notifier)
+          .setLocation(latitude: 40.0, longitude: -74.0);
       // Aim at the test object explicitly. The view no longer opens on RA 0h /
       // Dec 0 — that default pointed the map below the horizon and now homes on
       // the zenith — so the pose has to be stated rather than assumed.
@@ -221,8 +227,7 @@ void main() {
 
     testWidgets('a freshly mounted sky view renders its DSOs', (tester) async {
       // The view has never been zoomed, so no pop-in has ever run — exactly the
-      // state the app launches in, and the state in which the whole layer used
-      // to be invisible.
+      // state the app launches in. The DSO layer must draw anyway.
       final withDso = await pumpSkyView(tester, const [_centreDso]);
       final dsoPainter = _baseDsoPainter(tester);
       await teardown(tester, withDso);

@@ -324,7 +324,7 @@ class NotificationEventClassifier {
         <String, String>{
           'equipment.device_type': deviceType,
           'equipment.device_id': deviceId,
-          // WD-EQ-2a: the operator-facing template renders this, never the
+          // The operator-facing template renders this, never the
           // raw id. `friendlyNameFromDeviceId` is the same resolver the run
           // dashboard's feed uses, so a disconnect toast and the event feed
           // cannot name one device two ways.

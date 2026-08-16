@@ -83,13 +83,10 @@ double _apparentLimb(double geometricAltDeg) =>
 ///
 /// A coarse 10-minute scan first brackets the FIRST crossing in the
 /// requested direction, then bisection refines inside that bracket.
-/// The previous implementation compared only the window's endpoint
-/// altitudes and bailed when their signs matched — which silently
-/// returns null whenever the window contains zero OR two crossings.
-/// That is exactly what happens at high latitudes / west-of-meridian
-/// timezones where sunset slips past local midnight, and what would
-/// happen everywhere once the search windows are widened to cover
-/// those sites. Direction-aware bracketing makes wide windows safe.
+/// Comparing only the window's endpoint altitudes cannot do this: matching
+/// signs mean zero OR two crossings, so a window containing both a rise and
+/// a set — high latitudes, or west-of-meridian timezones where sunset slips
+/// past local midnight — reads as no crossing at all.
 DateTime? _findSunAltitudeCrossing({
   required DateTime startTime,
   required DateTime endTime,

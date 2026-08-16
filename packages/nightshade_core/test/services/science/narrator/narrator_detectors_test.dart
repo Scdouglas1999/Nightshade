@@ -1036,7 +1036,7 @@ void main() {
       final fired = d.evaluate(ctx(32.0, dir: 'NE'));
       expect(fired.single.headline, contains('tilt score 32'));
       expect(fired.single.headline, contains('(critical)'));
-      // The old dishonest "% softer" phrasing must be gone.
+      // Tilt score is not a percentage: no "% softer" phrasing.
       expect(fired.single.headline, isNot(contains('% softer')));
       expect(fired.single.body, isNot(contains('%')));
     });

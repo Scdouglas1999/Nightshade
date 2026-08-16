@@ -194,11 +194,11 @@ class _RemoteConnectionIndicatorState
 
   Widget _buildCompact(BuildContext context, RemoteConnectionStatus status) {
     final color = _colorFor(context, status);
-    // CON-63: in the title bar this sits beside three plain icon buttons, and
-    // the filled chip made the RESTING state — "not connected to a server",
-    // which is the normal state of a local install — read as the one selected
-    // control in the row. The tint is meaningful when something is actually
-    // happening (connected, retrying, offline, error), so it stays for those.
+    // In the title bar this sits beside three plain icon buttons, so a filled
+    // chip would make the RESTING state — "not connected to a server", the
+    // normal state of a local install — read as the one selected control in the
+    // row. The tint is meaningful when something is actually happening
+    // (connected, retrying, offline, error), so it stays for those.
     final isResting = status == RemoteConnectionStatus.notConnected;
     return Container(
       padding: const EdgeInsets.all(8),
@@ -258,12 +258,11 @@ class _RemoteConnectionIndicatorState
 
   /// Opens the connection details.
   ///
-  /// [showAdaptiveModal], not a bare bottom sheet: on the desktop this is
-  /// opened from the title bar at the top of the window, and a sheet welded to
-  /// the opposite edge came up clipped by it — at 1600x900 only its top ~75px
-  /// were on screen, so "Not connected to a server" was visible and every
-  /// control under it was not. Every other modal in the build centres; this one
-  /// now does too, and still presents as a sheet on a phone.
+  /// [showAdaptiveModal], not a bare bottom sheet: on the desktop this opens
+  /// from the title bar at the TOP of the window, and a sheet welded to the
+  /// opposite edge comes up clipped — the header visible and every control
+  /// under it not. It centres on desktop like every other modal, and still
+  /// presents as a sheet on a phone.
   void _showDetails(BuildContext context) {
     unawaited(
       showAdaptiveModal<void>(

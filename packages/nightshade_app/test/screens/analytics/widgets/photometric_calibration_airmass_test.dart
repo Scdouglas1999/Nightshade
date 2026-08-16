@@ -1,10 +1,10 @@
 // The airmass the extinction fit actually runs on, driven through the wizard.
 //
-// The photometric-calibration wizard used to carry its own Kasten & Young 1989
-// copy clamped to 1..8, so every frame below ~6.6° was handed to the extinction
-// fit as the same constant 8.0 — flattening exactly the low-altitude leverage
-// the fit exists to measure, and disagreeing with the airmass the same frame's
-// FITS header and AAVSO line report.
+// The wizard must use the SHARED airmass model, not a local copy: a clamp at
+// airmass 8 hands every frame below ~6.6° to the extinction fit as the same
+// constant, flattening the low-altitude leverage the fit exists to measure and
+// disagreeing with the airmass the same frame's FITS header and AAVSO line
+// report.
 //
 // These tests drive the real widget from the frame list through "Match Stars"
 // and read the airmass back out of the [ScienceFrameContext] the wizard hands
@@ -305,19 +305,15 @@ void main() {
     );
   });
 
-  // ---------------------------------------------------------------------
   // The airmass number the wizard PRINTS, across more than one frame.
   //
   // Everything above stops at the value handed to the backend. The wizard also
   // renders an "Airmass span" in air masses and decides from it whether to tell
   // the user extinction is fittable — and a span needs at least two frames, so
   // no single-frame test can reach it. That readout is the one place a user
-  // sees an airmass in this flow, and it was computed from the same retired
-  // clamp: two frames at 60 deg and 4 deg really span 10.74 air masses, and the
-  // clamped copy printed 6.85 for them while still saying "fittable", so the
-  // number on screen was wrong by nearly four air masses with nothing to catch
-  // it.
-  // ---------------------------------------------------------------------
+  // sees an airmass in this flow, and a clamped computation gets it wrong: two
+  // frames at 60 deg and 4 deg span 10.74 air masses, while a clamp prints 6.85
+  // and still says "fittable".
   testWidgets('the printed airmass span across frames is the product model', (
     tester,
   ) async {

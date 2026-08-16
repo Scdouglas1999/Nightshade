@@ -30,12 +30,10 @@ final darkLibraryServiceProvider = Provider<DarkLibraryService>((ref) {
 ///
 /// On a remote client (`NetworkBackend`) the slave's local `dark_library`
 /// table is never populated — the user's darks/biases live on the master —
-/// so the DAO stream would render empty. We branch to a poll of the host's
-/// `GET /api/calibration/darks` (`listDarks()`) and map each
+/// so the DAO stream would render empty. That branch polls the host's
+/// `GET /api/calibration/darks` (`listDarks()`) and maps each
 /// [RemoteDarkLibraryEntry] onto the local [DarkLibraryEntry] shape the
-/// settings panel + coverage stats read. The stats/groups providers below
-/// already `ref.watch(darkLibraryEntriesProvider)`, so they become
-/// remote-correct transitively.
+/// settings panel + coverage stats read.
 final darkLibraryEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((
   ref,
 ) {
@@ -168,14 +166,12 @@ List<DarkGroupKey> _groupsFromEntries(List<DarkLibraryEntry> entries) {
 
 /// Whether auto-dark-subtraction is enabled.
 ///
-/// Why: dark-library settings used to live under `dark_library.auto_subtract`
-/// but the calibration pipeline (`imaging_service.dart`) only consults
-/// `calibrationSettingsProvider.autoCalibrate`. Pointing this provider at
-/// the calibration store keeps the dark-library UI in sync with what the
-/// pipeline actually evaluates so the toggle is no longer dead-write
-/// The legacy
-/// `dark_library.auto_subtract` key is preserved as a one-time migration
-/// source via [migrateLegacyDarkLibrarySettings].
+/// Reads the calibration store, not the `dark_library.auto_subtract` key: the
+/// calibration pipeline (`imaging_service.dart`) consults only
+/// `calibrationSettingsProvider.autoCalibrate`, so anything else here would be
+/// a dead write with a live-looking toggle. The legacy
+/// `dark_library.auto_subtract` key migrates once via
+/// [migrateLegacyDarkLibrarySettings].
 final autoDarkSubtractEnabledProvider = Provider<bool>((ref) {
   // Watch calibration settings so dark-library UI updates reactively.
   return ref.watch(calibrationSettingsProvider.select((s) => s.autoCalibrate));
@@ -201,13 +197,12 @@ const String darkLibraryTempToleranceKey = 'dark_library.temp_tolerance';
 ///
 /// Values are read from `app_settings`:
 ///   * `dark_library.exposure_tolerance` (default 0.5s)
-///   * `dark_library.temp_tolerance`     (default 1.0°C — the historical
-///     migration default of 2.0 is honored if already present)
+///   * `dark_library.temp_tolerance`     (default 1.0°C; a stored 2.0 from an
+///     earlier migration is honored)
 ///
-/// Invalid stored values (negative, NaN, inf, unparseable) cause the
-/// provider to throw via [DarkLibraryMatchTolerances.validated] so the
-/// problem surfaces immediately instead of being silently clamped — per
-/// Errors are a feature here.
+/// Invalid stored values (negative, NaN, inf, unparseable) throw via
+/// [DarkLibraryMatchTolerances.validated] rather than being clamped: a clamped
+/// tolerance silently changes which darks match.
 final darkLibraryMatchTolerancesProvider = Provider<DarkLibraryMatchTolerances>(
   (ref) {
     final settings = ref.watch(allSettingsProvider);

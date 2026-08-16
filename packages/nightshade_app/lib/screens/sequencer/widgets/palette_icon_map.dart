@@ -4,13 +4,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Single source of truth for node-palette glyphs and category colors.
 ///
-/// Both the docked toolbox palette (`sequencer_screen_parts/node_palette.dart`)
-/// and the sidebar/mobile palette (`widgets/node_palette.dart`) used to carry
-/// their own divergent `switch` maps — the toolbox was missing the
-/// door-open / lightbulb / puzzle / aperture glyphs and colored Plugins
-/// wrong. The Insert Above/Below picker and the tree color legend also drew
-/// from yet another hardcoded mapping. Routing every surface through these
-/// two functions keeps icons, colors, and the legend swatches in lock-step.
+/// The docked toolbox palette (`sequencer_screen_parts/node_palette.dart`), the
+/// sidebar/mobile palette (`widgets/node_palette.dart`), the Insert
+/// Above/Below picker and the tree color legend all route through these two
+/// functions, so icons, colors and legend swatches stay in lock-step.
 
 /// Resolve a palette/node `iconName` to its Lucide glyph. Unknown names fall
 /// back to the generic box so a missing mapping degrades gracefully instead
@@ -80,7 +77,7 @@ IconData nodePaletteIconFor(String iconName) {
       return LucideIcons.lineChart;
     case 'analytics':
       return LucideIcons.activity;
-    // Audit §11 — plugin-contributed nodes default to the puzzle-piece glyph.
+    // Plugin-contributed nodes default to the puzzle-piece glyph.
     case 'puzzle':
       return LucideIcons.puzzle;
     default:
@@ -106,8 +103,7 @@ Color nodePaletteCategoryColor(String categoryName, NightshadeColors colors) {
     case 'Focus':
       return colors.accent;
     // Camera shares the imaging family but gets the dedicated success token
-    // so the legend swatch is distinguishable from Imaging (which previously
-    // collided on `primary`).
+    // so the legend swatch is distinguishable from Imaging.
     case 'Camera':
       return colors.success;
     case 'Logic':

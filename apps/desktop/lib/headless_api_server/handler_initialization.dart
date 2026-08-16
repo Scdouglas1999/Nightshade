@@ -25,16 +25,10 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     // so their handlers return `{jobId, status: queued}` immediately and
     // run the work in the background. Other handlers don't need it.
     // The correlator MUST be injected here or the whole command/event
-    // correlation feature is dead code while `/api/docs` advertises it.
-    //
-    // Both handler classes take `commandCorrelator` as an optional named
-    // parameter, and every call site guards with `commandCorrelator?.` — so
-    // omitting it failed silently and in the pass-making direction: action POSTs
-    // returned no `commandId`, every emitted event carried
-    // `correlatingCommandId: null`, and nothing errored. Table-level unit tests
-    // over `commandCompletionEventTypes` could not detect it either, because the
-    // table was always correct; it was never consulted with a registered
-    // command. `_commandCorrelator` is assigned in the constructor before
+    // correlation feature is dead code while `/api/docs` advertises it — the
+    // parameter is optional and every call site guards with
+    // `commandCorrelator?.`, so omitting it fails silently in the pass-making
+    // direction. `_commandCorrelator` is assigned in the constructor before
     // `_initializeHandlers()` runs, so it is safe to read here.
     _deviceHandlers = DeviceHandlers(
       container,
@@ -81,9 +75,15 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _pushHandlers = PushHandlers(
       ensurePairingService: _ensurePairingService,
       logger: container.read(loggingServiceProvider),
-      // Closure, not a captured bool: delivery is wired (or cleared) after the
-      // handlers are built, so `/api/push/targets` must read the live value.
-      cloudDeliveryConfigured: () => _remotePushDelivery != null,
+      // Closure, not a captured value: delivery is wired (or cleared) after
+      // the handlers are built, so `/api/push/targets` must read the live one.
+      // A MockRemotePushDelivery reports as `mock`, never as a cloud channel —
+      // it records what it would have sent and reaches no phone.
+      deliveryChannel: () => switch (_remotePushDelivery) {
+        null => PushDeliveryChannel.none,
+        MockRemotePushDelivery() => PushDeliveryChannel.mock,
+        _ => PushDeliveryChannel.cloud,
+      },
     );
     _systemHandlers = SystemHandlers(
       container: container,

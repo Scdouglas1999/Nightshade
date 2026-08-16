@@ -29,9 +29,7 @@ void main() {
     await db.close();
   });
 
-  // ---------------------------------------------------------------------------
   // Seeding helpers
-  // ---------------------------------------------------------------------------
 
   Future<int> insertTarget(String name) async {
     return db
@@ -90,9 +88,9 @@ void main() {
   }
 
   /// Fold with the EXACT production accumulate signature: accepted, no weight.
-  /// `MasterAccumulationService.addNight` historically recorded folds this way
-  /// (weight defaults to null), so the growth/best-night/deficit math must work
-  /// against null-weight accepted subs, not just the fabricated weighted folds.
+  /// `MasterAccumulationService.addNight` records folds this way (weight
+  /// defaults to null), so the growth/best-night/deficit math must work against
+  /// null-weight accepted subs, not only against weighted folds.
   Future<void> foldAccumulate({
     required int masterId,
     required int imageId,
@@ -104,9 +102,7 @@ void main() {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Growth curve
-  // ---------------------------------------------------------------------------
 
   group('growthCurve', () {
     test(
@@ -193,9 +189,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // Best night
-  // ---------------------------------------------------------------------------
 
   group('bestNight', () {
     test('picks the night with the highest mean weight', () async {
@@ -230,9 +224,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // Re-reference advisory
-  // ---------------------------------------------------------------------------
 
   group('reReferenceAdvice', () {
     test(
@@ -294,9 +286,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // pushDeficitToScheduler — the SAFE write seam
-  // ---------------------------------------------------------------------------
+  // PushDeficitToScheduler — the SAFE write seam
 
   group('pushDeficitToScheduler', () {
     test(
@@ -692,9 +682,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // Accumulate path: production folds carry a NULL weight
-  // ---------------------------------------------------------------------------
 
   group('accumulate-path null-weight folds (production signature)', () {
     test('growthCurve includes accepted null-weight folds', () async {
@@ -761,7 +749,8 @@ void main() {
         targetIntegrationS: 480.0,
       );
 
-      // Old behaviour: _foldedSubs dropped every null-weight sub → empty → no-op.
+      // Every sub here carries a null weight: dropping those empties the fold
+      // set and the push becomes a no-op.
       final result = await service.pushDeficitToScheduler(masterId, 40.0);
       expect(result.applied, isTrue);
       expect(result.currentSnr, closeTo(20.0, 1e-9));
@@ -769,9 +758,7 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // MasterAccumulationService persists native per-frame weights
-  // ---------------------------------------------------------------------------
 
   test(
     'addNight persists native per-frame weights so best-night has real data',

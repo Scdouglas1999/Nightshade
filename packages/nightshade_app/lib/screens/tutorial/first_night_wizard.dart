@@ -19,13 +19,10 @@ import 'tutorial_step_widget.dart';
 
 /// First-night wizard — a 7-step modal walkthrough for new users.
 ///
-/// This wizard is replay-only: it is reached solely from Settings → Help &
-/// Tutorials (the single replay hub for walkthroughs). It is NO LONGER
-/// auto-launched at startup. After the onboarding consolidation, the startup
-/// spine is the single equipment-onboarding wizard, gated by
-/// `EquipmentOnboardingLauncher` in `app.dart` — not this widget. Removing the
-/// (former) "auto-opens on first launch" behavior is intentional and does not
-/// break startup; do not re-wire this wizard into bootstrap.
+/// Replay-only: reached solely from Settings → Help & Tutorials, the single
+/// replay hub for walkthroughs. The startup spine is the equipment-onboarding
+/// wizard gated by `EquipmentOnboardingLauncher` in `app.dart` — do not wire
+/// this wizard into bootstrap.
 ///
 /// The wizard's progress is persisted to `tutorial_progress` so closing the
 /// dialog mid-way and re-opening it from Settings resumes at the same step.
@@ -114,8 +111,8 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       closeEnabled: !_isSaving,
       // Closing just dismisses the dialog. Progress is persisted as the user
       // steps through, so re-opening from Settings → Help resumes at the same
-      // step. The wizard is replay-only and no longer auto-launches, so closing
-      // here makes no promise about a next-launch reopen.
+      // step. The wizard is replay-only, so closing here makes no promise about
+      // a next-launch reopen.
       onClose: () {
         _releaseGuidedFlow();
         Navigator.of(context).pop();

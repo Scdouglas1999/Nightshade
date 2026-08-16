@@ -924,9 +924,7 @@ class RemoteReplayFrame {
   }
 }
 
-// =========================================================================
 // Wire types for the plugin management endpoints.
-// =========================================================================
 
 /// Wire row for `/api/plugins`.
 ///

@@ -1,9 +1,5 @@
 part of '../polar_alignment_provider.dart';
 
-// =============================================================================
-// POLAR ALIGNMENT HISTORY PROVIDER (Database History)
-// =============================================================================
-
 /// Provider for polar alignment history from database.
 ///
 /// On a remote client (`NetworkBackend`) the slave never runs the local

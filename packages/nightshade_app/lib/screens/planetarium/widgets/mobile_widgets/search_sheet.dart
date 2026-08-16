@@ -175,6 +175,20 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
         const SizedBox(height: 12),
         bestTargets.when(
           data: (targets) {
+            // Ranking tonight's targets is a per-site computation, so with no
+            // site there is no list — a different answer from an empty one.
+            if (targets == null) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(
+                    'Set an observing location to rank tonight\u2019s targets',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: widget.colors.textMuted),
+                  ),
+                ),
+              );
+            }
             if (targets.isEmpty) {
               return Container(
                 padding: const EdgeInsets.all(24),

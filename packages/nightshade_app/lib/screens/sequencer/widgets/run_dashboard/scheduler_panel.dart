@@ -1,12 +1,9 @@
 // TargetScheduler Run Dashboard panel.
 //
-// This panel consumes the typed
-// `SequencerEvent.schedulerDecision` variant produced by the bridge's
-// `typed_sequencer_event_from_progress_detail` dispatch. Previously the
-// panel matched on `SequencerEvent.instructionProgress` with
-// `instruction == 'Scheduler'` and parsed the detail string. The string
-// parser has been removed — every field (picked target, score, full
-// score table) survives the FRB boundary as typed data.
+// This panel consumes the typed `SequencerEvent.schedulerDecision` variant
+// produced by the bridge's `typed_sequencer_event_from_progress_detail`
+// dispatch. Every field (picked target, score, full score table) survives the
+// FRB boundary as typed data; nothing here parses a detail string.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -108,7 +108,7 @@ class _FakeSeam implements PostSessionSeam {
           Map<String, dynamic> args) async =>
       throw UnimplementedError();
 
-  // --- Smart Morning Report seam surface (unused by these tests) ------------
+  // Smart morning report seam surface (unused by these tests)
   // These controller tests only exercise integrateSession; the remaining nine
   // PostSessionSeam members are stubbed to satisfy the interface.
 
@@ -294,7 +294,7 @@ void main() {
     expect(state().masters, hasLength(1));
   });
 
-  // --- Workbench finishing actions (post-steps on the current master) -------
+  // Workbench finishing actions (post-steps on the current master)
 
   /// Integrate to land one persisted master in scope, then return the
   /// controller + that master's FITS path so the finishing tests run on it.

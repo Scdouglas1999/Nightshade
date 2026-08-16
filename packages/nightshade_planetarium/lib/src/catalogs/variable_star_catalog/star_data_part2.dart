@@ -115,7 +115,7 @@ const List<VariableStarData> variableStarCatalogStarsPart2 = [
     spectralType: 'M3III',
   ),
 
-  // ===== RR LYRAE VARIABLES =====
+  // RR Lyrae variables
   VariableStarData(
     name: 'RR Lyrae',
     constellation: 'Lyr',
@@ -172,7 +172,7 @@ const List<VariableStarData> variableStarCatalogStarsPart2 = [
     spectralType: 'A5-F4',
   ),
 
-  // ===== ERUPTIVE AND OTHER TYPES =====
+  // Eruptive and other types
   VariableStarData(
     name: 'Gamma Cassiopeiae',
     designation: 'gam Cas',
@@ -252,7 +252,7 @@ const List<VariableStarData> variableStarCatalogStarsPart2 = [
     spectralType: 'DA+dM4.5e',
   ),
 
-  // ===== DELTA SCUTI VARIABLES =====
+  // Delta Scuti variables
   VariableStarData(
     name: 'Delta Scuti',
     designation: 'del Sct',
@@ -290,7 +290,7 @@ const List<VariableStarData> variableStarCatalogStarsPart2 = [
     spectralType: 'F6IIp',
   ),
 
-  // ===== RS CVN AND BY DRA (ACTIVE BINARIES / SPOTTED STARS) =====
+  // RS CVn and BY Dra (active binaries / spotted stars)
   VariableStarData(
     name: 'RS CVn',
     constellation: 'CVn',
@@ -347,7 +347,7 @@ const List<VariableStarData> variableStarCatalogStarsPart2 = [
     spectralType: 'dM0e',
   ),
 
-  // ===== ADDITIONAL BRIGHT INTERESTING VARIABLES =====
+  // Additional bright variables
   VariableStarData(
     name: 'Eta Carinae',
     designation: 'eta Car',

@@ -869,9 +869,7 @@ class ObservationReportService {
     );
   }
 
-  // =========================================================================
   // Helpers
-  // =========================================================================
 
   pw.Widget _sectionTitle(String title) {
     return pw.Padding(

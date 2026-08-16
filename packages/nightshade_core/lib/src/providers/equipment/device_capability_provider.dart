@@ -9,8 +9,8 @@
 //   * The older provider exposes data only and lets every call site decide
 //     how to treat null/error — most use a fail-OPEN default (`?? true`).
 //   * This file adds an explicit fail-CLOSED helper (`gateCapability`)
-//     because shipping a dead button is worse than hiding a real one. Errors
-//     are a feature: a missing capability is a loud signal, not a fallback.
+//     because shipping a dead button is worse than hiding a real one. A
+//     missing capability is a loud signal, not a fallback.
 //   * It also adds a Dome capability provider (the legacy file has none) and
 //     a reconnect-aware invalidator so connecting a different physical
 //     device flushes stale capability data.
@@ -41,9 +41,7 @@ import 'focuser_state_provider.dart';
 import 'mount_state_provider.dart';
 import 'rotator_state_provider.dart';
 
-// =============================================================================
 // Capability providers — typed-Dart returns, null on query failure.
-// =============================================================================
 
 /// Camera capabilities for [deviceId].
 ///
@@ -232,9 +230,7 @@ DomeCapabilities _fromBridgeDomeCapabilities(bridge_caps.DomeCapabilities src) {
   );
 }
 
-// =============================================================================
 // Fail-closed gate helper.
-// =============================================================================
 
 /// Read a single capability flag from an `AsyncValue<T?>` with fail-CLOSED
 /// semantics. Returns the value of `extract(caps)` when capabilities are
@@ -247,10 +243,9 @@ DomeCapabilities _fromBridgeDomeCapabilities(bridge_caps.DomeCapabilities src) {
 /// know better" should pass `loadingDefault: true`; UI code that wants the
 /// safest possible default (hide the control) should leave it as `false`.
 ///
-/// Why fail closed: a dead control that does nothing or throws a confusing
-/// driver error degrades the user experience more than a missing button. If
-/// the user disagrees, they can reconnect with a driver that reports the
-/// capability honestly. Errors are a feature.
+/// Fail closed because an offered control that does nothing, or throws a raw
+/// driver error, is worse than an absent one: the operator cannot tell it
+/// apart from a working control that failed.
 bool gateCapability<T>(
   AsyncValue<T?> caps,
   bool Function(T caps) extract, {
@@ -266,28 +261,20 @@ bool gateCapability<T>(
   );
 }
 
-// =============================================================================
 // Connect-driven refresh.
-// =============================================================================
 
 /// Eagerly subscribes to the per-device state providers and invalidates the
 /// matching capability provider whenever a device transitions into the
 /// connected state.
 ///
-/// Why: when a device reconnects (same id, but the driver re-queried), the
-/// reported capability set may have changed — e.g., a cooler that was reading
-/// `coolerOn: false` on first connect now reads true, or a focuser firmware
-/// flip flipped `tempCompAvailable`. The capability provider caches the result
-/// per family key, so without an invalidate the UI keeps seeing the stale
-/// pre-reconnect data.
+/// A device that reconnects under the same id may report a different
+/// capability set, and the capability provider caches per family key — without
+/// the invalidate the UI keeps serving the pre-reconnect answer.
 ///
 /// Eager-init this from app bootstrap (`container.read(...)`) so the
 /// listeners attach before the first device connects. The provider lives
 /// for the lifetime of the container; disposal of the container closes the
 /// subscriptions automatically.
-///
-/// Tests can ignore this entirely; FutureProvider.family already rebuilds on
-/// deviceId change, which is what the unit tests verify.
 final capabilityRefreshOnConnectProvider = Provider<void>((ref) {
   _listenForConnect<CameraStateSnapshot>(
     ref,

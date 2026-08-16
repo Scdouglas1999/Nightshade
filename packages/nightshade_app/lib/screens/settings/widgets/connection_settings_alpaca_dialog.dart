@@ -7,18 +7,14 @@ import '../../../utils/user_facing_error.dart';
 
 /// Alpaca (ASCOM Remote) server address editor.
 ///
-/// Why this exists: Settings → Connection offered "Query Alpaca on startup"
-/// whose subtitle promised "the configured Alpaca server", while nothing in
-/// the app ever called `setAlpacaServerHost`/`setAlpacaServerPort`. The
-/// address was therefore pinned to the stored default `localhost:11111`
-/// forever — and the common Alpaca deployment (ASCOM Remote on ANOTHER
-/// machine on the LAN) was unreachable from the very page that recommends
-/// Alpaca for cross-platform rigs. `unified_discovery_provider.dart` already
-/// reads both values; only the editor was missing.
+/// The only writer of `setAlpacaServerHost` / `setAlpacaServerPort`, which
+/// `unified_discovery_provider.dart` reads. Without it the address is pinned to
+/// the stored default `localhost:11111`, and the common Alpaca deployment —
+/// ASCOM Remote on another machine on the LAN — is unreachable.
 ///
 /// Deliberately mirrors [IndiServerDialog] (host / port / Test / Save,
-/// per-field validation, no silent coercion of a bad port) so the two
-/// protocol addresses behave identically.
+/// per-field validation, no silent coercion of a bad port) so the two protocol
+/// addresses behave identically.
 class AlpacaServerDialog extends ConsumerStatefulWidget {
   const AlpacaServerDialog({super.key});
 

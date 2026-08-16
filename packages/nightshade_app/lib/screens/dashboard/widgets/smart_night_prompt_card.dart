@@ -31,28 +31,21 @@ final smartNightPromptGraceProvider =
 /// Wall-clock source for the equipment-ready grace window, injectable so tests
 /// can advance time without sleeping.
 ///
-/// This MUST stay a *function*. It was a plain `Provider` of a `DateTime`
-/// — a non-autoDispose provider, so the single `DateTime.now()`
-/// captured on first read was cached for the life of the container. Every later
-/// read returned that same instant, `now.difference(_equipmentReadySince)` was
-/// permanently `Duration.zero`, the grace never elapsed, and the prompt was
-/// invisible forever even with the setting on and every precondition met.
+/// MUST stay a *function*: a `Provider<DateTime>` is not autoDispose, so the
+/// single `DateTime.now()` captured on its first read would be cached for the
+/// life of the container and the grace window would never elapse.
 final smartNightPromptClockProvider =
     Provider<DateTime Function()>((ref) => DateTime.now);
 
-/// Whether the floating Smart Night auto-prompt is actually on screen right now.
-/// [SmartNightPromptCard] publishes its real rendered visibility here (including
-/// the equipment-ready grace and the pending-draft check) so other surfaces —
-/// e.g. the cockpit standby header — can suppress a duplicate "Plan Tonight"
-/// affordance while the prompt occupies the screen. Defaults to false.
 /// The cards currently claiming the bottom-centre floating-prompt band, by
-/// owner tag, mapped to the band each one MEASURED after layout (viewport
+/// owner tag, mapped to the band each one MEASURED after layout: viewport
 /// bottom to its own top edge, so the bottom-nav inset and the card's real
-/// height are both included — no constant can cover a 108px Smart Night
-/// card, a ~200px next-use step, and a phone's nav inset at once). A card
-/// adds its tag when it shows and removes ONLY its own tag when it stands
-/// down, so one card's retraction can never clobber the other's claim (the
-/// post-frame publishes race in arbitrary order).
+/// height are both included. No constant can cover a Smart Night card, a
+/// next-use step and a phone's nav inset at once.
+///
+/// A card adds its tag when it shows and removes ONLY its own tag when it
+/// stands down, so one card's retraction can never clobber the other's claim —
+/// the post-frame publishes race in arbitrary order.
 final floatingPromptOwnersProvider =
     StateProvider<Map<String, double>>((ref) => const <String, double>{});
 
@@ -82,12 +75,9 @@ final floatingPromptReservedHeightProvider = Provider<double>((ref) {
 /// view and image scale.
 ///
 /// Deliberately says nothing about whether any device is connected, and must
-/// not be described as such. Planning a night indoors before the gear is even
-/// powered on is a real use, so the gate is right — but it was previously
-/// named `smartNightEquipmentReadyProvider` and headlined the card with
-/// "Hardware ready", which put that claim on screen beside a Readiness panel
-/// reading `Camera Disconnected / Mount Disconnected / Guider Disconnected`
-/// and a `0/5` device count. Observed exactly that way on 2026-08-10.
+/// not be described as such on screen: planning a night indoors before the gear
+/// is powered on is a real use, and a "hardware ready" caption over this gate
+/// would contradict the Readiness panel beside it.
 final smartNightOpticsReadyProvider = Provider<bool>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return false;

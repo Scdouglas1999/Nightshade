@@ -75,8 +75,7 @@ void main() {
     test('rejects the spellings the retired switches also rejected', () {
       // These are real strings used elsewhere in the app — display labels
       // (`connection_diagnostic.dart`), the underscore spelling, and padded or
-      // empty payloads. The old switches fell through to `default` on all of
-      // them; nothing may start parsing now.
+      // empty payloads. None of them is a wire name, so none may parse.
       const rejected = <String>[
         '',
         ' ',

@@ -1,5 +1,3 @@
-// Part of ../guiding_panel.dart -- extracted for maintainability.
-//
 // Compact guiding graph, guide-star list and stat widgets.
 part of '../guiding_panel.dart';
 

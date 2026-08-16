@@ -1,4 +1,4 @@
-// SLOP-DEFENSIVE-002 regression: the online-catalog gate must FAIL CLOSED.
+// The online-catalog gate FAILS CLOSED.
 //
 // `_onlineEnabled()` decides whether the photometric catalog service is
 // allowed to perform network egress (live APASS/VizieR cone searches). When

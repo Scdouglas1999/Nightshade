@@ -1,8 +1,7 @@
-// Regression: the Create/Duplicate profile dialogs are a single pre-filled,
-// auto-focused text field, and Return did nothing in them — the focused field
-// swallowed the key, so the only way to commit was to leave the keyboard and
-// click. Return now submits the dialog exactly as clicking its primary action
-// does.
+// The Create/Duplicate profile dialogs are a single pre-filled, auto-focused
+// text field, so Return submits the dialog exactly as clicking its primary
+// action does. Unwired, the focused field swallows the key and the only way to
+// commit is to leave the keyboard and click.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

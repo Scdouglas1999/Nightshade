@@ -3,7 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/services/flat_wizard_service.dart';
 
-/// PHASE-3 PARITY TEST — Dart standalone engine vs Rust in-sequence engine.
+/// Parity: the Dart standalone engine against the Rust in-sequence engine.
 ///
 /// There are intentionally TWO runtimes for flat convergence:
 ///   * Dart `FlatWizardService.calculateNextExposure` (standalone wizard
@@ -14,10 +14,9 @@ import 'package:nightshade_core/src/services/flat_wizard_service.dart';
 ///     BINARY-SEARCH engine: it tests the midpoint of an exposure window and
 ///     narrows `[min,max]` directionally.
 ///
-/// The two cannot be byte-for-byte merged without new FFI we will not add here
-/// (the Rust engine is checkpoint/resume-bound to the native Wizard executor).
-/// So the boundary is made EXPLICIT and pinned by parity on the two invariants
-/// both engines MUST agree on for shared inputs:
+/// The Rust engine is checkpoint/resume-bound to the native Wizard executor,
+/// so the two cannot be merged without new FFI. The boundary is pinned instead
+/// by the two invariants both engines MUST agree on for shared inputs:
 ///   (1) the convergence predicate — `|measured - target| <= tolerance`;
 ///   (2) the direction of correction — measured < target  => longer exposure,
 ///       measured > target  => shorter exposure.

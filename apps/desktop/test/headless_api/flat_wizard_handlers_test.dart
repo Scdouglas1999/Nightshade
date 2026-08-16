@@ -343,9 +343,7 @@ void main() {
       return body;
     }
 
-    // -----------------------------------------------------------------------
     // calibrate
-    // -----------------------------------------------------------------------
 
     const validCalibrate = {
       'deviceId': 'camera-1',
@@ -454,9 +452,7 @@ void main() {
       expect(spy.lastBinY, 3);
     });
 
-    // -----------------------------------------------------------------------
     // calibrate-multi
-    // -----------------------------------------------------------------------
 
     const validMulti = {
       'deviceId': 'camera-1',
@@ -514,9 +510,7 @@ void main() {
       expect(spy.lastOffset, 10);
     });
 
-    // -----------------------------------------------------------------------
     // generate-sequence
-    // -----------------------------------------------------------------------
 
     Map<String, dynamic> calEntry({
       String filter = 'L',
@@ -716,9 +710,7 @@ void main() {
       expect((body['sequence'] as Map)['name'], 'My Flats');
     });
 
-    // -----------------------------------------------------------------------
     // quick-calibrate
-    // -----------------------------------------------------------------------
 
     const validQuick = {
       'deviceId': 'camera-1',
@@ -794,7 +786,6 @@ void main() {
     });
   });
 
-  // ==========================================================================
   // Gain/offset resolution from the active profile
   //
   // Client-supplied gain/offset are floored at 0 by the request validators, so
@@ -802,7 +793,6 @@ void main() {
   // stored on the active equipment profile. The handler validates the FINAL
   // resolved pair and fails closed (a 500 HandlerFailure — host config, not a
   // bad request) rather than coercing to zero or driving the hardware with it.
-  // ==========================================================================
   group('FlatWizardHandlers gain/offset profile resolution', () {
     late _SpyFlatWizardService spy;
 

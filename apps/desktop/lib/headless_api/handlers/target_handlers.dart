@@ -19,9 +19,9 @@ class TargetHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'TargetHandlers');
 
-  // Why a helper instead of `int.parse`: a malformed path segment used to
-  // throw FormatException and surface as a 500 with a stack trace in the body.
-  // BadRequestError is translated to a structured 400 by
+  // A helper rather than `int.parse`: on a malformed path segment `int.parse`
+  // throws FormatException, which the generic trap renders as a 500 with a
+  // stack trace in the body. BadRequestError becomes a structured 400 through
   // errorTranslationMiddleware.
   int _parsePathId(String value, String field) {
     final parsed = int.tryParse(value);
@@ -35,9 +35,7 @@ class TargetHandlers {
     return parsed;
   }
 
-  // ===========================================================================
-  // Get All Targets
-  // ===========================================================================
+  // Get all targets
 
   Future<Response> handleGetAllTargets(Request request) async {
     _logInfo('[API] GET /api/targets');
@@ -47,9 +45,7 @@ class TargetHandlers {
     return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
-  // ===========================================================================
   // Get Target By ID
-  // ===========================================================================
 
   Future<Response> handleGetTargetById(Request request, String id) async {
     _logInfo('[API] GET /api/targets/$id');
@@ -64,9 +60,7 @@ class TargetHandlers {
     return jsonOk({'target': _targetToJson(target)});
   }
 
-  // ===========================================================================
-  // Search Targets
-  // ===========================================================================
+  // Search targets
 
   Future<Response> handleSearchTargets(Request request) async {
     final query = request.url.queryParameters['query'] ?? '';
@@ -77,9 +71,7 @@ class TargetHandlers {
     return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
-  // ===========================================================================
-  // Get Favorite Targets
-  // ===========================================================================
+  // Get favorite targets
 
   Future<Response> handleGetFavoriteTargets(Request request) async {
     _logInfo('[API] GET /api/targets/favorites');
@@ -89,9 +81,7 @@ class TargetHandlers {
     return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
-  // ===========================================================================
-  // Create Target
-  // ===========================================================================
+  // Create target
 
   Future<Response> handleCreateTarget(Request request) async {
     _logInfo('[API] POST /api/targets');
@@ -141,9 +131,7 @@ class TargetHandlers {
     return jsonOk({'status': 'created', 'id': id});
   }
 
-  // ===========================================================================
-  // Update Target
-  // ===========================================================================
+  // Update target
 
   Future<Response> handleUpdateTarget(Request request, String id) async {
     _logInfo('[API] PUT /api/targets/$id');
@@ -218,9 +206,7 @@ class TargetHandlers {
     return jsonOk({'status': 'updated'});
   }
 
-  // ===========================================================================
-  // Delete Target
-  // ===========================================================================
+  // Delete target
 
   Future<Response> handleDeleteTarget(Request request, String id) async {
     _logInfo('[API] DELETE /api/targets/$id');
@@ -241,9 +227,7 @@ class TargetHandlers {
     return jsonOk({'status': 'deleted'});
   }
 
-  // ===========================================================================
-  // Toggle Favorite
-  // ===========================================================================
+  // Toggle favorite
 
   Future<Response> handleToggleFavorite(Request request, String id) async {
     _logInfo('[API] POST /api/targets/$id/favorite');
@@ -255,9 +239,7 @@ class TargetHandlers {
     return jsonOk({'status': 'toggled'});
   }
 
-  // ===========================================================================
-  // Update Progress
-  // ===========================================================================
+  // Update progress
 
   Future<Response> handleUpdateProgress(Request request, String id) async {
     _logInfo('[API] PUT /api/targets/$id/progress');
@@ -279,9 +261,7 @@ class TargetHandlers {
     return jsonOk({'status': 'updated'});
   }
 
-  // ===========================================================================
-  // Get Targets By Type
-  // ===========================================================================
+  // Get targets by type
 
   Future<Response> handleGetTargetsByType(Request request) async {
     final objectType = request.url.queryParameters['type'] ?? '';
@@ -292,9 +272,7 @@ class TargetHandlers {
     return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
-  // ===========================================================================
-  // Get Targets By Priority
-  // ===========================================================================
+  // Get targets by priority
 
   Future<Response> handleGetTargetsByPriority(Request request) async {
     _logInfo('[API] GET /api/targets/by-priority');
@@ -304,9 +282,7 @@ class TargetHandlers {
     return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
-  // ===========================================================================
   // Helper: Convert Target to JSON
-  // ===========================================================================
 
   Map<String, dynamic> _targetToJson(Target target) {
     return {

@@ -17,9 +17,7 @@ import 'settings_provider.dart';
 // Export weather safety provider
 export 'weather_safety_provider.dart';
 
-// ============================================================================
-// Service Providers
-// ============================================================================
+// Service providers
 
 /// Provider for the weather radar service
 ///
@@ -50,9 +48,7 @@ final weatherAlertServiceProvider = Provider<WeatherAlertService>((ref) {
   return service;
 });
 
-// ============================================================================
-// Settings Providers
-// ============================================================================
+// Settings providers
 
 /// Synchronous provider for weather settings
 ///
@@ -257,9 +253,7 @@ RadarProviderType _parseProviderType(String providerString) {
   }
 }
 
-// ============================================================================
-// Cloud Cover Provider
-// ============================================================================
+// Cloud cover provider
 
 /// Provider for current cloud cover percentage from Open-Meteo
 ///
@@ -376,9 +370,7 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
   }
 });
 
-// ============================================================================
-// Data Stream Providers
-// ============================================================================
+// Data stream providers
 
 /// Provider for radar frames that triggers fetching automatically.
 ///
@@ -494,9 +486,7 @@ final weatherAlertStreamProvider = StreamProvider<WeatherAlert>((ref) {
   return alertService.alertStream;
 });
 
-// ============================================================================
-// Combined Status Provider
-// ============================================================================
+// Combined status provider
 
 /// Combined weather status provider for UI consumption
 ///
@@ -567,9 +557,7 @@ final weatherStatusProvider = Provider<WeatherStatus>((ref) {
   );
 });
 
-// ============================================================================
-// Action Providers
-// ============================================================================
+// Action providers
 
 /// Provider that triggers radar data fetch for user's location
 ///
@@ -638,15 +626,9 @@ final analyzeCloudMotionDetailedProvider =
       );
     });
 
-/// Provider that performs cloud motion analysis on current radar frames
-///
-/// Call ref.read(analyzeCloudMotionProvider) to trigger motion analysis.
-/// Returns CloudMotion result or null if insufficient data. Auto-disposes.
-///
-/// Thin wrapper over [analyzeCloudMotionDetailedProvider] preserving the
-/// existing `CloudMotion?` contract. Callers that need the unavailable reason
-/// (to tell the operator why prediction is off) should watch the detailed
-/// provider instead.
+/// The legacy `CloudMotion?` shape over [analyzeCloudMotionDetailedProvider].
+/// Callers that need the unavailable reason — why prediction is off — watch
+/// the detailed provider instead.
 final analyzeCloudMotionProvider = FutureProvider.autoDispose<CloudMotion?>((
   ref,
 ) async {

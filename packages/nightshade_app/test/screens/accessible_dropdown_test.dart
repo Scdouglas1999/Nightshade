@@ -206,12 +206,11 @@ void main() {
           entry.key == 'OIII',
           reason: '${entry.key} reports the wrong selected state',
         );
-        // NEW-C4 parity: `NightshadeDropdown` publishes BOTH selected and
-        // checked, and AT-SPI carries the two differently — the audit harness
-        // prints [ON]/[off] from checked/checkable, so a family that sets only
-        // `selected` announces no state at all where its sibling announces
-        // one. The Analytics session pickers (this family) were exactly that
-        // gap: the current row was highlighted on screen and silent to AT.
+        // `NightshadeDropdown` publishes BOTH selected and checked, and AT-SPI
+        // carries the two differently — a tree dump prints [ON]/[off] from
+        // checked/checkable, so a family that sets only `selected` announces no
+        // state at all where its sibling announces one, leaving the current row
+        // highlighted on screen and silent to AT.
         expect(
           entry.value.hasFlag(SemanticsFlag.hasCheckedState),
           isTrue,
@@ -264,10 +263,8 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------
   // The same contract, on two of the real screens the clusters were filed
   // against: one plain DropdownButton and one DropdownButtonFormField.
-  // ---------------------------------------------------------------------
 
   testWidgets('the element-refresh schedule menu is operable', (tester) async {
     final handle = tester.ensureSemantics();
@@ -361,10 +358,8 @@ void main() {
     handle.dispose();
   });
 
-  // ---------------------------------------------------------------------
   // The sweep itself: no screen may reach for Material's dropdown directly,
   // because doing so silently reintroduces the whole family.
-  // ---------------------------------------------------------------------
 
   test('no screen builds a raw Material dropdown', () {
     final screens = Directory('lib/screens');

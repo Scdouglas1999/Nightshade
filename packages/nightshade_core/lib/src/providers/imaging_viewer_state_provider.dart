@@ -98,7 +98,7 @@ class ImagingViewerStateNotifier extends StateNotifier<ImagingViewerState> {
   /// [fitScale] is screen pixels per image pixel at multiplier 1.0, as measured
   /// by the preview (`previewFitScaleProvider`). It defaults to 1.0 — the value
   /// for a frame that fits natively — so a caller with no preview laid out gets
-  /// the old fit-relative behaviour rather than an exception.
+  /// fit-relative behaviour rather than an exception.
   void zoomIn({double fitScale = 1.0}) {
     final next = (state.zoomLevel * zoomStep).clamp(
       _minZoom(fitScale),

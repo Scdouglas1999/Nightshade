@@ -1,9 +1,9 @@
-// CONC-001 regression: activeTransientAlertsProvider previously fired
-// fetchAlerts() from three triggers (immediate subscribe, 15-min poll, and
-// local-detections-change) with NO in-flight guard, so a burst of triggers
-// spawned concurrent fetches and out-of-order completion could overwrite a
-// fresher external alert list. The fix coalesces overlapping triggers into a
-// single in-flight fetch plus at most one queued follow-up, with newest-wins.
+// activeTransientAlertsProvider fires fetchAlerts() from three triggers
+// (immediate subscribe, 15-min poll, and local-detections-change). With no
+// in-flight guard a burst spawns concurrent fetches, and out-of-order
+// completion overwrites a fresher external alert list. Overlapping triggers
+// coalesce into a single in-flight fetch plus at most one queued follow-up,
+// newest-wins.
 
 import 'dart:async';
 

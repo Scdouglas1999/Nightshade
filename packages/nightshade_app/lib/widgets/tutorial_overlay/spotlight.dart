@@ -120,11 +120,10 @@ class _SpotlightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Nothing to spotlight. The full-screen dim that used to go here read as a
-    // modal scrim over a screen the step was not even about, and the matching
-    // hit test made that appearance true. An un-anchored step is a floating
-    // coach mark: the card carries it, the app stays visible and usable
-    // underneath.
+    // Nothing to spotlight. An un-anchored step is a floating coach mark: the
+    // card carries it, and the app stays visible and usable underneath. A
+    // full-screen dim here reads as a modal scrim over a screen the step is not
+    // about, and the matching hit test would make that appearance true.
     final target = targetRect;
     if (target == null) return;
 

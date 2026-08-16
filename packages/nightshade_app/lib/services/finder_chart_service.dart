@@ -108,11 +108,9 @@ class FinderChartService {
   /// The magnitude of the faintest object actually drawn on the chart, or null
   /// when nothing was plotted.
   ///
-  /// The footer used to print `fieldOfView < 10 ? 12.0 : 6.0` and call it
-  /// "Mag limit" — a constant that claimed mag-12 depth over a chart holding
-  /// six stars, because the loaded catalogs simply do not go that faint. What a
-  /// finder chart's reader needs to know is how deep the paper in their hand
-  /// actually goes, so this reports the data instead of an aspiration.
+  /// What a finder chart's reader needs is how deep the paper in their hand
+  /// actually goes, so this reports the DATA. A constant "mag limit" derived
+  /// from the field of view claims a depth the loaded catalogs may not reach.
   static double? faintestPlottedMagnitude({
     required List<Star> stars,
     required List<DeepSkyObject> dsos,
@@ -161,13 +159,12 @@ class FinderChartService {
       final canvas = Canvas(recorder, Offset.zero & size);
 
       if (chartConfig.printMode) {
-        // Print mode inverts the finished render rather than trying to repaint a
+        // Print mode inverts the finished render rather than repainting a
         // light-on-dark sky onto white. The renderer has no star colour in its
-        // config — stars, labels and glyphs are all drawn bright — so the old
-        // "white background + dark grid colours" print config produced white
-        // stars on white paper. Inverting the whole layer turns the sky white
-        // and every mark on it dark in one step, which is what a printed finder
-        // chart needs.
+        // config — stars, labels and glyphs are all drawn BRIGHT — so a "white
+        // background + dark grid" config produces white stars on white paper.
+        // Inverting the whole layer turns the sky white and every mark on it
+        // dark in one step.
         canvas.saveLayer(Offset.zero & size, Paint()..colorFilter = _invert);
         // Opaque black beneath, so the inverted sheet is pure white rather than
         // transparent (a transparent PNG prints as whatever is behind it).

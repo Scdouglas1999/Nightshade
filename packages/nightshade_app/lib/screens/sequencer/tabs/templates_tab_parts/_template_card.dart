@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // The per-template card with its hover state, instantiate/duplicate/edit/delete actions, body chips, and the _SmallIconButton primitive used for the card's icon-only secondary actions.
 part of '../templates_tab.dart';
 
@@ -121,7 +119,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     // behind `_isHovered` made customize/duplicate/delete desktop-only even
     // though the Templates tab is shipped on mobile.
     final showActions = Responsive.isMobile(context) || _isHovered;
-    // Trust-patch §B: "Use Template" calls mergeTemplateNodes /
+    // "Use Template" calls mergeTemplateNodes /
     // loadSequence — both replace tree state and must be gated. "Edit"
     // also calls loadSequence, "Duplicate" goes through the repository
     // (not the editor) so it stays enabled. Delete operates on the
@@ -429,7 +427,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         targetId: target.id,
       );
     } on SequenceLockedException catch (e) {
-      // Trust-patch §B: the InkWell that triggers this is gated by
+      // The InkWell that triggers this is gated by
       // canEditSequenceProvider, but a Start race can still slip a
       // running state under us. Surface to user instead of red overlay.
       context.showErrorSnackBar(e.message);

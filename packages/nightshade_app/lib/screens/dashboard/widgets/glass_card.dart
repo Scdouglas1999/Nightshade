@@ -29,14 +29,14 @@ class DashboardCardStyle {
   /// Status chip text size used in card headers.
   static const double statusChipTextSize = 10;
 
-  // --- Phone-compact variants -------------------------------------------
+  // Phone-compact variants
   //
   // On a phone the cockpit tiles must pack tighter — especially in landscape
   // (~410 px tall) where desktop-sized padding/fonts crowd content off-screen.
   // These resolvers return the compact value on the phone tier and the desktop
-  // value otherwise, so every card shrinks together (the same single-knob
-  // philosophy as the constants above). Body/title text stays >= 12.5 sp so it
-  // remains legible at arm's length.
+  // value otherwise, so every card shrinks together off the same single knob as
+  // the constants above. Body/title text stays >= 12.5 sp so it remains legible
+  // at arm's length.
 
   /// Card body padding, tightened on phone.
   static EdgeInsets contentPaddingFor(BuildContext context) =>

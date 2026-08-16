@@ -71,7 +71,8 @@ void main() {
 
     expect(find.text('Mosaic projects'), findsOneWidget);
 
-    // The label, not the chevron. This is the press that used to be swallowed.
+    // The label, not the chevron — the press most likely to fall outside the
+    // control.
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
 

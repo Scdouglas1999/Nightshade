@@ -66,7 +66,6 @@ void main() {
     expect(find.byType(ProfileSidebar), findsOneWidget);
   });
 
-  // ---------------------------------------------------------------------------
   // Phone-tier layout / overflow guard, all three sizes, both orientations.
   //
   // Portrait phones (<600 wide) collapse the inline ProfileSidebar to a sheet.
@@ -75,7 +74,6 @@ void main() {
   // still no overflow, just more room. So the universal guards are: no overflow
   // at any size/orientation, and the profile (primary surface) is reachable;
   // the sidebar-collapse assertion only applies under the phone width.
-  // ---------------------------------------------------------------------------
   for (final (label, portrait) in _phoneSizes) {
     final landscape = Size(portrait.height, portrait.width);
 
@@ -112,17 +110,16 @@ void main() {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Regression: the phone supporting panels must SCROLL WITH the device cards.
+  // The phone supporting panels must SCROLL WITH the device cards.
   //
-  // They used to be pinned Column siblings above the card list. Collapsed, that
-  // chrome pinned ~330dp above the cards on a 411x914dp phone and clipped the
-  // first device card through its own readouts. EXPANDED, the readiness
-  // checklist overflowed the column by 108px and evicted every device card AND
-  // the discovery scanner off-screen, with no scroll to bring them back. The
-  // existing "no overflow" cases above all run with the checklist COLLAPSED
-  // (its default), which is exactly why they never caught it.
-  // ---------------------------------------------------------------------------
+  // As pinned Column siblings above the card list they are fixed chrome:
+  // collapsed, ~330dp on a 411x914dp phone, clipping the first device card
+  // through its own readouts; EXPANDED, the readiness checklist overflows the
+  // column and evicts every device card AND the scanner off-screen with no
+  // scroll to bring them back.
+  //
+  // The "no overflow" cases above all run with the checklist COLLAPSED (its
+  // default), so they cannot catch the expanded case.
   for (final (label, portrait) in _phoneSizes) {
     testWidgets('equipment supporting panels scroll with the cards at $label',
         (tester) async {
@@ -168,10 +165,10 @@ void main() {
     });
   }
 
-  // Regression: on a SHORT viewport the Discovery scanner must stop pinning
-  // itself. Pinned, it left the card list ~66dp on a 360x640dp phone and was
-  // itself squeezed under its own content, overflowing by 8px. Below the
-  // threshold it scrolls with the cards instead, which can never overflow.
+  // On a SHORT viewport the Discovery scanner must not pin itself. Pinned, it
+  // leaves the card list ~66dp on a 360x640dp phone and is itself squeezed
+  // under its own content, overflowing by 8px. Below the threshold it scrolls
+  // with the cards instead, which can never overflow.
   for (final (label, size) in const <(String, Size)>[
     ('short 360x560', Size(360, 560)),
     ('very short 360x480', Size(360, 480)),

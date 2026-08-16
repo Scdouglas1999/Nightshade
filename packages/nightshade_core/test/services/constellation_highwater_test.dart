@@ -158,11 +158,11 @@ void main() {
             );
             // Model what the hub actually returns: it answers 200 for BOTH
             // outcomes and distinguishes them with an `accepted` flag
-            // (hub_server.dart `_contributeHandler`). Omitting the flag made
-            // this fixture describe a hub that does not exist, and
+            // (hub_server.dart `_contributeHandler`). Omitting the flag
+            // describes a hub that does not exist, and
             // `ContributionReceipt.fromJson` defaults a missing `accepted` to
-            // false — so the fixture was silently modelling a REJECTION while
-            // the test asserted acceptance.
+            // false — a fixture that models a REJECTION while the test asserts
+            // acceptance.
             return http.Response(
               jsonEncode({
                 'contributionId': 'ctr-$pushCount',

@@ -7,7 +7,7 @@ import 'package:shelf/shelf.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
 
-/// Headless API handlers for Collaborative Sky WS3 — live co-imaging.
+/// Headless API handlers for Collaborative Sky live co-imaging.
 ///
 /// Lets an UNATTENDED rig take part in a live co-imaging session over the same
 /// hub the GUI uses: discover sessions, open one (owner), JOIN one (participant)
@@ -33,7 +33,7 @@ class CoImagingHandlers {
   /// so it must not surface as 400 (which a rig treats as non-retryable). The
   /// raw exception is logged but never serialized to the wire — the response
   /// carries a stable machine code and a generic message.
-  /// Read the optional per-request WS4 consent pair from a request body.
+  /// Read the optional per-request consent pair from a request body.
   /// Both fields are optional; when either is absent the service falls back to
   /// the operator's persisted consent record.
   static (ContributionLicense?, bool?) _readConsent(
@@ -243,7 +243,7 @@ class CoImagingHandlers {
   /// the shared-target tile. Body: `{framesDelta, integrationSecondsDelta,
   /// rigId?, license?, attributionConsent?}`.
   ///
-  /// WS4 consent gate: the report writes this rig's license + attribution into
+  /// Consent gate: the report writes this rig's license + attribution into
   /// the hub's per-participant ledger, so it only proceeds under an explicit
   /// sharing choice. The optional `{license, attributionConsent}` pair supplies
   /// that choice per-request (mirroring the mosaic panel upload); with neither,
@@ -282,8 +282,8 @@ class CoImagingHandlers {
 
   /// GET `/api/coimaging/sessions/<sessionId>/framing-offset` — the (raDeg,
   /// decDeg) pointing delta this unattended rig must add to the session centre so
-  /// it frames its assigned coverage tile instead of stacking identically (WS3
-  /// Gap 1). The centering routine adds this to its recenter target.
+  /// it frames its assigned coverage tile instead of stacking identically.
+  /// The centering routine adds this to its recenter target.
   Future<Response> handleFramingOffset(
     Request request,
     String sessionId,
@@ -320,7 +320,7 @@ class CoImagingHandlers {
   }
 
   /// POST `/api/coimaging/sessions/<sessionId>/sub-complete` — the unattended
-  /// capture-loop hook (WS3 Gap 2): fold a freshly completed sub's additive sum
+  /// capture-loop hook: fold a freshly completed sub's additive sum
   /// into the shared-target tile, advance the COMBINED accounting, and tag the
   /// tile with the session — in that order, with the fusion-failure guard so the
   /// appliance never claims depth the fusion did not receive. Body:
@@ -369,7 +369,7 @@ class CoImagingHandlers {
   }
 
   /// POST `/api/coimaging/sessions/<sessionId>/baton/auto` — one altitude-driven
-  /// longitude-baton tick (WS3 Gap 3): claim the baton when the target is up at
+  /// longitude-baton tick: claim the baton when the target is up at
   /// this rig's site, release it when it sets, so an unattended appliance hands
   /// the night east without operator input. Body:
   /// `{latitudeDeg, longitudeDeg, altitudeFloorDeg?}`.

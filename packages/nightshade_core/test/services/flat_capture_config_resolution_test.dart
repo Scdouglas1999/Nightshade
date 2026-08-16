@@ -253,11 +253,11 @@ void main() {
       }
     });
 
-    // The concrete regression, in the numbers measured on the rig. A live
-    // ASI1600MM at gain 0 / offset 0 / 1 ms — the shortest exposure the driver
-    // accepts — already reads a mean of ~4500 ADU. Targeting 50% of the ADC
-    // range (2048) is therefore BELOW the camera's floor: the solver can only
-    // shorten the exposure, hits `minExposureReached`, and the filter fails.
+    // The numbers measured on the rig: a live ASI1600MM at gain 0 / offset 0 /
+    // 1 ms — the shortest exposure the driver accepts — already reads a mean of
+    // ~4500 ADU. Targeting 50% of the ADC range (2048) is BELOW the camera's
+    // floor, so the solver can only shorten the exposure, hits
+    // `minExposureReached`, and the filter fails.
     test('ASI1600MM 50% target must exceed its shortest-exposure floor', () {
       const measuredFloorAduAtShortestExposure = 4500.8; // live, 2 ms, gain 0
 

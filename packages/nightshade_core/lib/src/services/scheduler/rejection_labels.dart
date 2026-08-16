@@ -1,15 +1,13 @@
 /// The ONE place a scheduler hard-constraint rejection reason is turned into
 /// operator-facing words.
 ///
-/// History (WD-SEQ-N4, three strikes): the engine's `_summarizeRejection` and
-/// the queue row's `_statusLabel` each carried their own copy of the same
-/// `reason.contains(...)` ladder. Wave D fixed the engine's copy; Wave E found
-/// the screen unchanged, because the chip the operator actually reads is
-/// rendered by the widget's copy. A target at +9.8 deg with a 30 deg site
-/// minimum was labelled "Below horizon" while the sentence next to it said
-/// "altitude 9.8 deg below site minimum 30.0 deg".
+/// The engine's `_summarizeRejection` and the queue row's `_statusLabel` are
+/// two renderings of the same `reason.contains(...)` ladder. Two copies drift:
+/// a target at +9.8 deg with a 30 deg site minimum reads "Below horizon" on the
+/// chip while the sentence next to it says "altitude 9.8 deg below site minimum
+/// 30.0 deg".
 ///
-/// Both callers now classify here. There is exactly one ladder; the two
+/// Both callers classify here. There is exactly one ladder; the two
 /// renderings ([schedulerRejectionChipLabel] for the chip,
 /// [schedulerRejectionSummary] for the decision record) differ only in length,
 /// never in meaning. `scheduler_rejection_labels_test.dart` (core) and

@@ -30,12 +30,10 @@ The phase-folded plots wrap every data point onto a single cycle at the best per
 
 /// The one way this panel writes a period.
 ///
-/// The card used to state the same detected period three ways on one scroll —
-/// "20.0 min" in the headline and detail table, "P=0.014d" on the Lomb-Scargle
-/// periodogram and "P=0.33h" on the BLS spectrum — so cross-checking the peak
-/// against the result meant doing arithmetic. Every headline and every chart
-/// marker goes through here; the axes keep their own natural units (cycles per
-/// day, log period) and say so in their labels.
+/// Every headline and every chart marker goes through here, so the same
+/// detected period cannot be stated three ways on one scroll. The axes keep
+/// their own natural units (cycles per day, log period) and say so in their
+/// labels.
 String formatPeriodLabel(double periodDays) {
   if (periodDays < 1.0) {
     final hours = periodDays * 24.0;
@@ -666,11 +664,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           ? _formatPeriod(bls.bestPeriod)
           : '≥ ${_formatPeriod(bls.bestPeriod)}',
       // SDE is meaningless without the bar it has to clear, so the number is
-      // always printed against the 6.0 threshold the service documents. The
-      // ordering defect behind that rule (pure noise scoring 3.1 while an
-      // injected transit reached only 4.8, because the peak inflated its own
-      // baseline) is fixed in period_analysis_service.dart, which now masks a
-      // +/-20% period window out of the mean/std — see bls_sde_baseline_test.
+      // always printed against the 6.0 threshold the service documents.
       // Comparing SDE across different light curves is still not meaningful,
       // which is why that caveat stays.
       detail: constrained

@@ -14,8 +14,8 @@
 ///
 /// Why a dedicated exception class:
 ///   - Bare `TypeError` is hard to catch without unsafe `dynamic` typing.
-///   - Silent fallbacks are forbidden here (errors are a feature) — a
-///     structured exception preserves stack trace AND context.
+///   - A structured exception preserves the stack trace AND the context; a
+///     silent fallback would hand the caller a value the payload never held.
 ///
 /// Use [safelyCast] / [safelyCastOpt] at hand-written FFI boundaries where the
 /// payload type is not statically proven (PHD2 JSON-RPC responses, ip-api.com
@@ -70,9 +70,8 @@ class CastFailureException implements Exception {
 ///      offending field immediately.
 ///   3. Has uniform semantics for `null` — [T] must be nullable to allow it.
 ///
-/// Why: an unguarded `payload['key'] as String` from FRB or a JSON-RPC reply
-/// crashes with a `TypeError` that says nothing about which key was wrong.
-/// Routing through this helper turns those bugs into actionable errors.
+/// An unguarded `payload['key'] as String` on an FRB or JSON-RPC reply raises
+/// a bare `TypeError` that names no key; this helper names the key instead.
 T safelyCast<T>(Object? value, {required String context}) {
   if (value is T) return value;
   throw CastFailureException(

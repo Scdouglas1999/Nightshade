@@ -1,9 +1,7 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
-  // =========================================================================
   // Image Download (for Mobile - local FFI)
-  // =========================================================================
 
   @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
@@ -195,9 +193,7 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
     }
   }
 
-  // =========================================================================
-  // Device Health Monitoring
-  // =========================================================================
+  // Device health monitoring
 
   @override
   Future<void> startDeviceHeartbeat({

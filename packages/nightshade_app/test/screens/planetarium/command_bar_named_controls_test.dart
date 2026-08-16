@@ -1,22 +1,17 @@
-// D-2 (final) + WF-SS-N3: two controls of the planetarium command bar were
-// still anonymous to assistive tech, and one of them was the last remaining
-// tooltip leak.
+// Every button in the planetarium command bar announces a name, and no Material
+// `Tooltip` is mounted inside it.
 //
-// Live evidence, `tree --all` on the running desktop app: between
-// `button: Equatorial view - switch to Alt/Az` and `button: Layers` sat a bare
-// `button: ` (the projection cycler, root x=536), and a second bare `button: `
-// (Tools, root x=636). D-3 had named `CommandBarIconButton` from its tooltip;
-// these two are `PopupMenuButton`s and were never touched.
+// A `PopupMenuButton` carries no name of its own, so the projection cycler and
+// Tools dump as bare `button: ` nodes between
+// `button: Equatorial view - switch to Alt/Az` and `button: Layers` — naming
+// `CommandBarIconButton` from its tooltip does not reach them.
 //
-// The projection one also leaked: hovering it published
-// `panel: Projection: Stereographic` under the bare button and that node stayed
-// in the tree for the rest of the session — 35 s later, with the command bar
-// visibly clean in a screenshot taken at the same instant. That node is
-// Material's own `Tooltip`, which the D-2 fix in `nightshade_tooltip.dart`
-// could not reach because this control never used `NightshadeTooltip`.
-//
-// So the bar is pinned on two rules at once: every button in it announces a
-// name, and no Material `Tooltip` is mounted inside it.
+// The projection one also leaks: hovering it publishes
+// `panel: Projection: Stereographic` under the bare button, and that node stays
+// in the tree for the rest of the session while the command bar looks clean on
+// screen. That node is Material's own `Tooltip`, which the fix in
+// `nightshade_tooltip.dart` cannot reach unless the control uses
+// `NightshadeTooltip`.
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';

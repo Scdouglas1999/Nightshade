@@ -1,8 +1,8 @@
-// Regression: the framing altitude chart states three clock faces about the
-// SITE — the Rise / Transit / Set chips, the time axis and the touch tooltip —
-// and all three formatted host-local time, so Settings → Location → Timezone
-// moved the status bar and the dashboard while this card stayed on the
-// controlling laptop's zone.
+// The framing altitude chart states three clock faces about the SITE — the
+// Rise / Transit / Set chips, the time axis and the touch tooltip — so all
+// three must follow Settings → Location → Timezone. Formatting host-local time
+// leaves this card on the controlling laptop's zone while the status bar and
+// the dashboard move.
 //
 // The chart's astronomy is deliberately NOT rebased: `nowOverride` /
 // `DateTime.now()` still supply the true instant, because shifting the input
@@ -56,9 +56,9 @@ Future<Map<String, String?>> _facesUnder(
     ProviderScope(
       // Keyed by the zone so the second pump builds a FRESH scope: without it
       // Flutter updates the existing ProviderScope element in place and the
-      // first timezone's already-resolved AppSettingsState survives, which
-      // makes both pumps report the same face whether the fix is present or
-      // not — a test that can only pass.
+      // first timezone's already-resolved AppSettingsState survives, so both
+      // pumps report the same face whatever the widget does — a test that can
+      // only pass.
       key: ValueKey(timezone),
       overrides: [
         appSettingsProvider.overrideWith(() => _SiteSettingsNotifier(timezone)),

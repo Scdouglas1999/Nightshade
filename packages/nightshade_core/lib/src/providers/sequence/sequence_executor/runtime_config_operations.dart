@@ -5,14 +5,15 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// safety fail mode, save path, device ids and the defect-map runtime — to
   /// the executor.
   ///
-  /// One ordered push for both launch paths. [start] and [resumeFromCheckpoint]
-  /// used to write this sequence out twice, and the resume copy pushed the RAW
-  /// configured safety mode: on a rig with no safety-monitor device that armed
-  /// the always-on `WeatherUnsafe` trigger, so Resume parked the mount and
-  /// aborted within ~100 ms showing only "Sequence cancelled".
+  /// ONE ordered push for both launch paths, [start] and
+  /// [resumeFromCheckpoint]. The safety mode goes out RESOLVED
+  /// ([_effectiveSafetyFailMode]), never raw: a raw `failClosed` on a rig with
+  /// no safety-monitor device arms the always-on `WeatherUnsafe` trigger and
+  /// parks the mount within milliseconds of launch.
   ///
-  /// [isResume] expresses the two differences that are real, both of them "the
-  /// checkpoint already knows better than an empty setting does".
+  /// [isResume] marks the points where the checkpoint knows better than an
+  /// empty setting does: the save path and the site are taken from the
+  /// checkpoint rather than re-seeded from settings.
   Future<void> _pushLaunchConfig(
     NightshadeBackend backend,
     AppSettingsState settings, {
@@ -46,9 +47,11 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    await backend.sequencerSetSimulationMode(
-      effectiveSimulationMode(settings.useSimulationMode),
-    );
+    // Stated explicitly, never read from a setting: the bundled native library
+    // is a release build and refuses simulation mode, so a launch that pushed
+    // anything but `false` would be asking for a state the executor cannot
+    // enter.
+    await backend.sequencerSetSimulationMode(false);
 
     await _pushEffectiveSafetyFailMode(backend, settings.safetyFailMode);
 
@@ -145,19 +148,18 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // launch cannot bake factory defaults into the run while the real settings
     // are still loading in the background.
     await _ref.read(globalMeridianFlipSettingsProvider.notifier).ensureLoaded();
-    final json = _sequenceToJson(sequence);
+    final json = _serializer.sequenceToJson(sequence);
     await backend.sequencerLoadJson(json);
 
     // Seed RuntimeConfig from persisted user settings BEFORE
     // start() so the trigger monitor's first poll honours the user's cadence
     // / dither / location / filter-offsets values instead of the Rust
     // defaults (autofocus_interval_frames=25, dither pixels=5, location 0/0,
-    // empty filter offsets). Previously these were only pushed by the live
-    // settings watchers, which fire only on subsequent changes — so a
-    // headless start that never visits the Settings UI ran with the wrong
-    // cadence silently. Failures are surfaced (not swallowed); a bad seed
-    // means the user wants those values to apply and we must abort start
-    // rather than run with the wrong cadence.
+    // empty filter offsets). The live settings watchers cannot cover this:
+    // they fire only on a subsequent CHANGE, so a headless start that never
+    // visits the Settings UI would run on the Rust defaults. Failures are
+    // surfaced, not swallowed — a bad seed means aborting start rather than
+    // running with the wrong cadence.
     await _seedRuntimeConfigFromSettings(backend);
 
     // Consult the session-handoff decision for every
@@ -203,10 +205,10 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// abstains (see weather_safety_provider), so nothing drives an unsafe
   /// verdict. Re-enabling restores the configured mode on the next push.
   ///
-  /// This lives in ONE place because three call sites push the fail mode —
-  /// run start, checkpoint resume, and the mid-run settings watcher — and the
-  /// resume path used to push the raw configured value, which is why resuming
-  /// a crashed run on a rig with no safety monitor aborted instantly.
+  /// This lives in ONE place because three call sites push the fail mode — run
+  /// start, checkpoint resume, and the mid-run settings watcher — and any of
+  /// them pushing the raw configured value instead aborts the run instantly on
+  /// a rig with no safety monitor.
   SafetyFailMode _effectiveSafetyFailMode(SafetyFailMode configured) {
     final weatherSafetyEnabled = _ref
         .read(weatherSettingsProvider)
@@ -220,7 +222,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     SafetyFailMode configured,
   ) async {
     final effective = _effectiveSafetyFailMode(configured);
-    final wire = _safetyFailModeToBackendString(effective);
+    final wire = _serializer.safetyFailModeToBackendString(effective);
     await backend.sequencerSetSafetyFailMode(wire);
     _logger.debug(
       'Safety fail mode set to: $wire (configured=${configured.name})',
@@ -244,16 +246,12 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // Rust default of 25 is wrong for both very-short and very-long subs.
     try {
       final defaults = _ref.read(sequencerDefaultsProvider);
-      // Zero means OFF, and must be passed through as zero.
-      //
-      // This used to clamp anything below 1 up to 1, which turned the one
-      // value an operator would reach for to disable interval autofocus into
-      // the most aggressive setting there is: refocus after *every* frame.
-      // There was no way to switch the interval off at all. The engine has
-      // always read 0 as "never fire" (`TriggerType::AutofocusInterval`
-      // returns false when `every_n_frames == 0`), so the clamp was the only
-      // thing standing in the way. Negative values are not meaningful and
-      // still resolve to off rather than to a cadence.
+      // Zero means OFF, and must be passed through as zero: the engine reads
+      // 0 as "never fire" (`TriggerType::AutofocusInterval` returns false when
+      // `every_n_frames == 0`), so clamping it up to 1 would turn the one
+      // value an operator reaches for to disable interval autofocus into
+      // refocus-after-every-frame. Negative values are not meaningful and also
+      // resolve to off rather than to a cadence.
       final frames = defaults.autofocusIntervalFrames < 1
           ? 0
           : defaults.autofocusIntervalFrames;
@@ -275,7 +273,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       // Autofocus node still wins; this is the floor, not an override.
       final afSettings = _ref.read(autofocusSettingsProvider);
       await backend.sequencerUpdateAutofocusConfig(
-        jsonEncode(_autofocusRuntimeConfig(afSettings, maxDurationSecs: 600)),
+        jsonEncode(
+          _serializer.autofocusRuntimeConfig(afSettings, maxDurationSecs: 600),
+        ),
       );
       _logger.debug(
         'Seeded trigger-autofocus config: attempts=${afSettings.numberOfAttempts}, '
@@ -328,7 +328,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // "Step 6/8: Plate solving and centering".
     try {
       await backend.sequencerUpdateMeridianFlipConfig(
-        jsonEncode(buildGlobalMeridianFlipConfigJson()),
+        jsonEncode(_serializer.buildGlobalMeridianFlipConfigJson()),
       );
       _logger.debug(
         'Seeded meridian-flip trigger config from user settings',
@@ -569,9 +569,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     }
 
     if (firstError != null) {
-      // Rethrow so sequencerStart() does not silently proceed with a partial
-      // runtime config. The rule "errors are a feature" requires
-      // the caller to learn about misconfiguration immediately.
+      // Rethrow so sequencerStart() does not proceed on a partial runtime
+      // config: the launch would run the night on the Rust defaults for
+      // whatever failed to push, and nothing downstream would say so.
       Error.throwWithStackTrace(firstError, firstStack ?? StackTrace.current);
     }
   }
@@ -601,7 +601,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// Failure policy: a missing decision for a target is a no-op (the
   /// pre-flight dialog might have been dismissed); any other error is
   /// rethrown so the caller learns about misconfiguration before
-  /// `sequencerStart()` runs (errors are a feature here).
+  /// `sequencerStart()` runs.
   Future<void> _seedIntegrationCarryOverFromHandoff(
     NightshadeBackend backend,
     Sequence sequence,
@@ -967,11 +967,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// equipment profile. Null / empty fields are honestly omitted from FITS
   /// rather than emitted as sentinels.
   ///
-  /// One derivation for three callers — the run-start seed and the two mid-run
+  /// ONE derivation for three callers — the run-start seed and the two mid-run
   /// watchers (observer name / elevation, and equipment identity) — because the
-  /// profile is a *cross-product* of both sources. It used to be written twice,
-  /// verbatim, including the aperture-fallback comment below that records a bug
-  /// already fixed once; the next such fix would have landed in only one copy.
+  /// profile is a *cross-product* of both sources.
   ///
   /// Throws on a failed push. The seed folds that into the start-aborting
   /// `firstError`; the mid-run watchers cannot abort a running sequence, so
@@ -1050,12 +1048,10 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// Send a mid-run configuration change to the executor and surface a failure.
   ///
   /// The `_ref.listen` callbacks and the sky-brightness tick are synchronous,
-  /// so every backend push inside them used to be fire-and-forget: a rejected
-  /// future had no handler (an unhandled zone error), and the operator was told
-  /// nothing — they changed the dither settings mid-run, the push failed, and
-  /// the run kept dithering on the old config. The observer-profile push even
-  /// sat inside a try/catch that could never fire, because the call it was
-  /// meant to guard was never awaited.
+  /// so a backend push inside them is fire-and-forget unless it goes through
+  /// here: a rejected future becomes an unhandled zone error, the operator is
+  /// told nothing, and the run keeps using the config the change was meant to
+  /// replace. A `try`/`catch` around an un-awaited push cannot fire either.
   ///
   /// The start-up seed aborts the run on a failed push; a run already imaging
   /// cannot, so [what] is named in the log AND in the run's warnings, where it
@@ -1144,9 +1140,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           }
         }
       } catch (e) {
-        // Don't let a tracker read failure kill the periodic timer —
-        // log and keep going. "Errors are a feature" applies to user-
-        // visible faults; this is best-effort telemetry.
+        // Don't let a tracker read failure kill the periodic timer — log and
+        // keep going. This is best-effort telemetry, not a user-visible fault:
+        // a missing sky-brightness sample changes no operator decision.
         logger.debug(
           'Sky brightness poll failed: $e',
           source: 'SequenceExecutor',

@@ -11,10 +11,9 @@ import 'widgets/predictive_af_settings.dart';
 ///
 /// Each child page is rendered in embedded mode (`SettingsPage.scrollable:
 /// false`), so it contributes a bounded-height column instead of its own scroll
-/// view. We then wrap both — with a labelled divider between them — in a single
-/// outer scroll view. (An earlier version gave each child an [Expanded] scroll
-/// region, which split the page into two half-height, independently-scrolling
-/// panes — the thing this avoids.)
+/// view. Both are then wrapped — with a labelled divider between them — in a
+/// SINGLE outer scroll view: giving each child an [Expanded] scroll region
+/// instead splits the page into two half-height, independently-scrolling panes.
 class _MergedSection extends StatelessWidget {
   const _MergedSection({
     required this.isMobile,

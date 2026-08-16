@@ -1,13 +1,12 @@
-// Regression: the planetarium Tonight tab is a page of SITE facts — twilight,
-// moonrise/moonset, transit, satellite passes — and every one of its HH:MM
-// faces was formatted with `.toLocal()`, i.e. the controlling laptop's zone.
+// The planetarium Tonight tab is a page of SITE facts — twilight,
+// moonrise/moonset, transit, satellite passes — so every one of its HH:MM faces
+// must follow Settings → Location → Timezone, like the status bar, the dashboard
+// header clock, the night-timeline axis, the moon card and the command-bar night
+// chip.
 //
-// Settings → Location → Timezone had already been wired through to the status
-// bar, the dashboard header clock, the night-timeline axis, the moon card and
-// the command-bar night chip. This tab was left behind, so a rig at a site on
-// UTC+09:00 read "Sunset 20:14" here and "Sunset 05:14" one screen across, with
-// nothing saying which zone either was in — the same two-zones-on-one-app defect
-// those earlier fixes existed to close.
+// Formatting with `.toLocal()` uses the controlling laptop's zone instead, so a
+// rig at a site on UTC+09:00 reads "Sunset 20:14" here and "Sunset 05:14" one
+// screen across, with nothing saying which zone either is in.
 //
 // Pumped through the real provider graph (app_settings → clockProvider →
 // TonightTab) so the assertion covers the WIRING, not just the format helper.

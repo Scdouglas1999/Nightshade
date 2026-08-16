@@ -9,9 +9,7 @@ import '../services/time_sync_service.dart';
 import 'polar_alignment_provider.dart' show lastPolarAlignmentProvider;
 import 'sequence_stats_provider.dart' show sessionDiagnosticsDaoProvider;
 
-// =============================================================================
 // Pre-flight wiring providers
-// =============================================================================
 //
 // Riverpod providers that surface the data the pre-flight validation rules
 // need without each rule re-implementing the lookup. Kept separate from
@@ -72,7 +70,7 @@ class OpticalTrainBaseline {
     );
   }
 
-  /// Round-trips with [OpticalTrainBaseline.fromJson]. Used to persist the
+  /// Round-trips with [OpticalTrainBaseline.fromJson]. Persists the
   /// per-session optical-train baseline/current snapshots into
   /// `session_diagnostics` so a historical run report can show that session's
   /// drift comparison instead of the live provider.
@@ -120,9 +118,7 @@ final opticalTrainBaselineProvider = StateProvider<OpticalTrainBaseline?>(
 final opticalTrainCurrentSnapshotProvider =
     StateProvider<OpticalTrainBaseline?>((ref) => null);
 
-// =============================================================================
 // Per-session (historical) report providers
-// =============================================================================
 //
 // The live providers above always hold the MOST RECENT run's diagnostics (or
 // nothing after a restart). A historical run report opened from the History

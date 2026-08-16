@@ -178,9 +178,9 @@ void main() {
   });
 
   test('stop while armed-but-not-started does not touch the engine', () async {
-    // Regression for the live-smoke 500: arming without a reference frame never
-    // initializes the native stacker, so stop must not call into it. It should
-    // just disarm cleanly.
+    // Arming without a reference frame never initializes the native stacker,
+    // so stop must not call into it — calling in answers 500. It should just
+    // disarm cleanly.
     await handlers.handleStart(post('/api/stacking/start'));
 
     // stats while armed-but-not-started must report zeroes, not 500.
@@ -339,10 +339,10 @@ void main() {
   );
 
   /// A frame that will not align is an ORDINARY live-stacking outcome (cloud,
-  /// wind, a satellite trail), not a host fault. It used to surface as
-  /// `500 internal_error`, which tells a remote client the appliance broke,
+  /// wind, a satellite trail), not a host fault, so it must not answer
+  /// `500 internal_error`: that tells a remote client the appliance broke,
   /// invites a retry storm, and is indistinguishable from the stacker actually
-  /// being broken — so a client could not tell "skip this frame" from "stop and
+  /// being broken — the client could not tell "skip this frame" from "stop and
   /// tell the operator".
   test(
     'add-frame reports an alignment rejection as 422 frame_rejected',

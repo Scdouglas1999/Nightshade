@@ -1,13 +1,12 @@
-// Regression (D-4): an open right-docked panel must not cover the planetarium's
-// time transport.
+// An open right-docked panel must not cover the planetarium's time transport.
 //
-// Live evidence at a 900x900 window with the Layers drawer open: the drawer is
-// pinned to the right edge from x=620, while the transport stayed centred on the
-// FULL 900 px canvas at x 432-700. The result was a clock rendered `18:46:` with
-// the seconds behind the drawer and a fast-forward button that could not be
-// clicked at all, because the drawer took the pointer. No overlap at 1600x900,
-// and none at 420x900 where the drawer becomes a full-width sheet — which is why
-// this pins the mid width specifically.
+// At a 900x900 window with the Layers drawer open the drawer is pinned to the
+// right edge from x=620; a transport centred on the FULL 900 px canvas sits at
+// x 432-700, rendering the clock as `18:46:` with the seconds behind the drawer
+// and a fast-forward button that cannot be clicked at all, because the drawer
+// takes the pointer. There is no overlap at 1600x900, and none at 420x900 where
+// the drawer becomes a full-width sheet, which is why this pins the mid width
+// specifically.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,13 +81,13 @@ void main() {
     );
   });
 
-  // E-SKY-1: the D-4 inset moved the transport INTO the instruments it was
-  // supposed to clear. Live at 900x900 with the Layers drawer open: transport
-  // x 283-555, compass dial 240-315, minimap 500-620 — the transport covered
-  // the compass's `S` label with the 77/90 deg altitude ticks and the left
-  // third of the minimap including its `W`. The band arithmetic is pinned with
-  // those exact numbers (tablet form factor: compass 90 + 40 altitude bar,
-  // minimap 120, edge padding 16).
+  // An inset that only dodges the drawer moves the transport INTO the
+  // instruments instead: at 900x900 with the Layers drawer open, transport
+  // x 283-555 against compass dial 240-315 and minimap 500-620 covers the
+  // compass's `S` label with the 77/90 deg altitude ticks and the left third of
+  // the minimap including its `W`. The band arithmetic is pinned with those
+  // exact numbers (tablet form factor: compass 90 + 40 altitude bar, minimap
+  // 120, edge padding 16).
   group('the transport clears the compass and the minimap', () {
     test('at 900 px with a drawer open there is no room beside them', () {
       final band = planetariumTransportBand(

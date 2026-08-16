@@ -24,10 +24,9 @@ void main() {
   });
 
   test('NotificationNode clears explicitTransports via rebuild-explicit', () {
-    // PHASE-5: `clearExplicitTransports: true` is gone; copyWith now uses
-    // plain `?? this.explicitTransports` semantics. To reset back to
-    // the matrix default, callers construct a fresh node without the
-    // `explicitTransports` arg.
+    // copyWith uses plain `?? this.explicitTransports` semantics, so
+    // resetting back to the matrix default means constructing a fresh node
+    // without the `explicitTransports` arg.
     final n = NotificationNode(
       id: 'n1',
       explicitTransports: const [NotificationTransportKind.discord],

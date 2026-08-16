@@ -33,7 +33,7 @@ class RecoveryNode extends SequenceNode {
   /// spikes. Only used when [triggerType] is [TriggerType.hfrDegraded].
   final int hfrConsecutiveFrames;
 
-  // ===== Trigger-config fields =====
+  // Trigger-config fields
 
   /// Cadence in frames for [TriggerType.autofocusInterval] /
   /// [TriggerType.ditherInterval]. The Rust side rejects 0 (`silently
@@ -42,7 +42,7 @@ class RecoveryNode extends SequenceNode {
 
   /// [TriggerType.focusDrift] rolling-window size (number of HFR samples).
   /// Rust clamps to [`FOCUS_DRIFT_WINDOW_MAX`] (100) at trigger-create time
-  /// and now emits a user-visible ExecutorEvent::Error when clamping occurs.
+  /// and emits a user-visible ExecutorEvent::Error when clamping occurs.
   final int focusDriftWindowSize;
 
   /// [TriggerType.focusDrift] minimum number of consecutive increasing HFR
@@ -57,7 +57,7 @@ class RecoveryNode extends SequenceNode {
   /// before firing.
   final double guidingFailedDurationSecs;
 
-  // ===== Cloud-motion trigger config fields =====
+  // Cloud-motion trigger config fields
 
   /// [TriggerType.cloudArrivingIn] and [TriggerType.cloudOpeningIn]:
   /// fire when arrival/opening is at or below this many minutes.

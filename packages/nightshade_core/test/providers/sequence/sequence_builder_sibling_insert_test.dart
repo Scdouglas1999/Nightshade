@@ -3,16 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
-/// P0 DATA LOSS regression, proved live on 6.0.0 run 70.
+/// A sibling insert must not become a nested spine, or the run silently
+/// captures nothing.
 ///
 /// Every palette "+" reads `selectedNodeIdProvider` as the insertion parent and
-/// then moves the selection to the node it just created. With no
-/// container check in `addNode`, adding Unpark, then Slew to Target, then Take
-/// Exposures under a Target stored `Target > Unpark > Slew > TakeExposure` on a
-/// single spine while the builder drew them as a flat list. `Unpark` is a leaf,
-/// so the executor ran it, returned Success, never descended — and the Session
-/// Report showed "New Sequence - completed" with 0 frames, an empty
-/// `errorMessages` and a header chip still reading "3 frames".
+/// then moves the selection to the node it just created. With no container
+/// check in `addNode`, adding Unpark, then Slew to Target, then Take Exposures
+/// under a Target stores `Target > Unpark > Slew > TakeExposure` on a single
+/// spine while the builder draws them as a flat list. `Unpark` is a leaf, so the
+/// executor runs it, returns Success and never descends — and the Session Report
+/// reads "New Sequence - completed" with 0 frames, an empty `errorMessages` and
+/// a header chip still saying "3 frames".
 
 ProviderContainer _newContainer() {
   final container = ProviderContainer();

@@ -49,8 +49,8 @@ class NightSub {
   /// `captured_images.quality_score` — the per-frame number the capture
   /// pipeline already wrote and the Workbench's frame grader starts from.
   /// Carried here so the night verdict can be reconciled against the same
-  /// grader the operator sees on the other tab (NEW-E5); null when the frame
-  /// was never scored.
+  /// grader the operator sees on the other tab; null when the frame is
+  /// unscored.
   final double? qualityScore;
 
   /// This sub as the shared frame grader sees it. The Night Doctor must never

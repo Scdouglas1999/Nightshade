@@ -1,11 +1,10 @@
 // job model for long-running headless operations.
 //
-// The audit's §6 finding (docs/audits/headless_2026_05_24/02-device-control.md)
-// was that autofocus, plate-solve, center-on-target, mosaic plan, and polar
-// alignment hold an HTTP connection open for the entire run. A client-side
-// 30s timeout (or an OS-level background TCP teardown on mobile) kills the
-// connection while the server-side op continues unobserved — there is no
-// job handle to re-query, no way for a second client to cancel the run.
+// Autofocus, plate-solve, center-on-target, mosaic plan, and polar alignment
+// would otherwise hold an HTTP connection open for the entire run. A
+// client-side 30s timeout (or an OS-level background TCP teardown on mobile)
+// kills the connection while the server-side op continues unobserved — with
+// no job handle to re-query and no way for a second client to cancel the run.
 // Polar-alignment Start is excluded: the backend call only admits an async
 // run and returns quickly, while its progress and Stop command have dedicated
 // protocol surfaces. Queuing that admission would hide immediate failures.
@@ -490,8 +489,8 @@ class JobManager {
           'Job ${fresh.jobId} is already ${fresh.state.wireName}',
         );
       }
-      // The job is non-terminal but has no cancellation token — that's a
-      // programmer error. Surface loudly per "errors are a feature".
+      // The job is non-terminal but has no cancellation token — a wiring bug.
+      // Throw rather than reporting a cancel that cannot have happened.
       throw StateError(
         'Job $jobId has no cancellation token but is not terminal',
       );

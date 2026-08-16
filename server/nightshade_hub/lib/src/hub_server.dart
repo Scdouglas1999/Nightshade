@@ -105,8 +105,7 @@ class HubConfig {
 /// fuses additive sky-atlas tile contributions from many imagers. Mirrors the
 /// conventions of `apps/desktop/lib/headless_api_server.dart` — bearer-token
 /// middleware with scopes, a structured error envelope, per-identity rate
-/// limiting, and an append-only audit log — over the REST surface in §5 of the
-/// 5.0 contract.
+/// limiting, and an append-only audit log — over the `/v1` REST surface.
 class HubServer {
   HubServer(this.config)
     : _db = HubDatabase.open(config.databasePath),
@@ -263,19 +262,19 @@ class HubServer {
       (method: 'POST', path: '/v1/accounts', handler: _createAccountHandler),
       (method: 'POST', path: '/v1/sessions', handler: _loginHandler),
 
-      // Self-revoke (logout): drop the caller's own token. WS4 step 7.
+      // Self-revoke (logout): drop the caller's own token.
       (
         method: 'DELETE',
         path: '/v1/sessions/current',
         handler: _revokeCurrentSessionHandler,
       ),
 
-      // Fine-grained token minting (WS4 step 7) — the "hand a member a
+      // Fine-grained token minting — the "hand a member a
       // contribute-to-mosaic-42-only token" capability. Subset-only delegation:
       // the requester must already permit every requested action.
       (method: 'POST', path: '/v1/tokens', handler: _mintTokenHandler),
 
-      // Moderation (WS4 step 6) — suspend / reinstate an abusive account.
+      // Moderation — suspend / reinstate an abusive account.
       (
         method: 'POST',
         path: '/v1/moderation/suspend',
@@ -287,8 +286,8 @@ class HubServer {
         handler: _reinstateAccountHandler,
       ),
 
-      // Attribution (WS4 step 5) — the ordered per-contributor credit list for a
-      // finished collaborative artifact (the WS5 contributor-credits UI source).
+      // Attribution — the ordered per-contributor credit list for a finished
+      // collaborative artifact (the contributor-credits UI source).
       (method: 'GET', path: '/v1/attribution', handler: _attributionHandler),
 
       (method: 'GET', path: '/v1/tiles/<tileId>', handler: _getTileHandler),
@@ -341,9 +340,9 @@ class HubServer {
         handler: _handoffReleaseHandler,
       ),
 
-      // Shared calibration libraries (Collaborative Sky WS1). Query ranked remote
-      // masters for a sensor + capture tuple, publish (consent-gated), download a
-      // chosen master's bytes on accept, and retract a published master.
+      // Shared calibration libraries. Query ranked remote masters for a sensor
+      // + capture tuple, publish (consent-gated), download a chosen master's
+      // bytes on accept, and retract a published master.
       (
         method: 'GET',
         path: '/v1/calibration/masters',
@@ -365,10 +364,10 @@ class HubServer {
         handler: _deleteCalibrationMasterHandler,
       ),
 
-      // Collaborative mosaics (Collaborative Sky WS2). Publish a panel grid as
-      // claimable work items, broker per-panel claims with the hand-off baton
-      // pattern, stream panel masters up + the finished mosaic down, gate central
-      // assembly until every panel has landed.
+      // Collaborative mosaics. Publish a panel grid as claimable work items,
+      // broker per-panel claims with the hand-off baton pattern, stream panel
+      // masters up + the finished mosaic down, gate central assembly until
+      // every panel has landed.
       (method: 'POST', path: '/v1/mosaics', handler: _publishMosaicHandler),
       (method: 'GET', path: '/v1/mosaics', handler: _listMosaicsHandler),
       (
@@ -412,12 +411,12 @@ class HubServer {
         handler: _downloadMosaicOutputHandler,
       ),
 
-      // Live co-imaging sessions (Collaborative Sky WS3). N rigs JOIN the SAME
-      // target; the hub tracks COMBINED integration + frame count across rigs,
-      // assigns each rig a unique framing offset (dither so they don't frame
-      // identically), pushes a live combined preview over an SSE events channel,
-      // and productizes the longitude hand-off baton (re-using HandoffService on
-      // the session's shared target).
+      // Live co-imaging sessions. N rigs JOIN the SAME target; the hub tracks
+      // COMBINED integration + frame count across rigs, assigns each rig a
+      // unique framing offset (dither so they don't frame identically), pushes
+      // a live combined preview over an SSE events channel, and productizes the
+      // longitude hand-off baton (re-using HandoffService on the session's
+      // shared target).
       (
         method: 'POST',
         path: '/v1/coimaging/sessions',
@@ -610,25 +609,25 @@ class HubServer {
   /// Resolve and authorize a request to at least [required] scope. Returns the
   /// identity on success, or a ready-to-send error [Response] on failure.
   ///
-  /// WS4 fine-grained gate: when a route declares the [action] (and optional
+  /// Fine-grained gate: when a route declares the [action] (and optional
   /// [resourceType]/[resourceId]) it governs, the grant's per-action allow-list,
   /// per-resource binding, and per-device binding are enforced HERE — so EVERY
-  /// governed route (the legacy tile-swarm handlers included) is subject to the
-  /// same check, not only the routes that historically remembered to call
-  /// `_denyAction`. When a gate declares NO action, a narrowed / resource-bound
-  /// / device-bound grant FAILS CLOSED — on READ gates as well as writes: a
-  /// least-privilege token must never inherit blanket authority on an unscoped
-  /// route. This is exactly the leak a "contribute to mosaic 42 only" token had,
-  /// both on the global co-add / handoff WRITE routes AND on the action-less
-  /// READ gates (the swarm target queue, every tile, the mosaic / co-imaging
-  /// lists), where a resource-bound grant could enumerate other users' and
-  /// clubs' coordinates and activity. A plain whole-role token (no narrowing) is
-  /// unaffected. So a narrowed token can still poll the artifacts it
-  /// participates in, every WS1-3 read handler now declares its own read
-  /// [action] + resource binding, which a resource-bound grant satisfies for its
-  /// OWN resource (via the `action != null` path below). [allowNarrowed] is the
-  /// single deliberate exception, for self-revoke (dropping your own token is
-  /// always permitted, whatever the token's narrowing).
+  /// governed route (the tile-swarm handlers included) is subject to the same
+  /// check, not only the routes that call `_denyAction` themselves. When a gate
+  /// declares NO action, a narrowed / resource-bound / device-bound grant FAILS
+  /// CLOSED — on READ gates as well as writes: a least-privilege token must
+  /// never inherit blanket authority on an unscoped route. That is what keeps a
+  /// "contribute to mosaic 42 only" token off the global co-add / handoff WRITE
+  /// routes AND off the action-less READ gates (the swarm target queue, every
+  /// tile, the mosaic / co-imaging lists), where a resource-bound grant could
+  /// otherwise enumerate other users' and clubs' coordinates and activity. A
+  /// plain whole-role token (no narrowing) is unaffected. So a narrowed token
+  /// can still poll the artifacts it participates in, every read handler
+  /// declares its own read [action] + resource binding, which a resource-bound
+  /// grant satisfies for its OWN resource (via the `action != null` path
+  /// below). [allowNarrowed] is the single deliberate exception, for
+  /// self-revoke (dropping your own token is always permitted, whatever the
+  /// token's narrowing).
   ({AuthIdentity? identity, Response? error}) _authorize(
     Request request,
     HubScope required, {
@@ -699,7 +698,7 @@ class HubServer {
       'selfHosted': true,
       'openSignup': config.openSignup,
       'acceptsRawSubs': config.acceptsRawSubs,
-      // WS4 consent contract: the client pre-validates its chosen license
+      // Consent contract: the client pre-validates its chosen license
       // against `supportedLicenses` before sending any bytes, and learns that
       // every share path requires an explicit consented license up front.
       'requiresConsent': true,
@@ -879,7 +878,7 @@ class HubServer {
     final solver = q['solver'];
     final instrument = q['instrument'];
 
-    // WS4: a contribution into the SHARED co-add must carry a parseable,
+    // A contribution into the SHARED co-add must carry a parseable,
     // shareable license + recorded consent BEFORE any bytes are read/stored —
     // an un-consented frame is never persisted. 400 when the license is
     // missing/unknown/non-shareable so the client (which pre-validates against
@@ -926,7 +925,7 @@ class HubServer {
       return HubError(400, e.code, e.message).toResponse(requestId: requestId);
     }
     // Auto-suspend an account that has crossed the rejected-contribution
-    // threshold (WS4 abuse auto-flag), so a flood of bad frames stops itself.
+    // threshold (the abuse auto-flag), so a flood of bad frames stops itself.
     if (!outcome.accepted) {
       _moderation.checkAbuse(identity.accountId);
     }
@@ -1038,7 +1037,7 @@ class HubServer {
     final exposureSeconds = double.tryParse(q['exposureSeconds'] ?? '');
     final instrument = q['instrument'];
 
-    // WS4: the raw-subframe path is the most privacy-sensitive share (exact
+    // The raw-subframe path is the most privacy-sensitive share (exact
     // pixels + pointing, re-derivable by any reader), so it too requires a
     // parseable shareable license + recorded consent before any bytes land. The
     // consent additionally records the explicit raw-subframe-sharing opt-in.
@@ -1369,7 +1368,7 @@ class HubServer {
     return hubJson(<String, Object?>{'released': released});
   }
 
-  // --- Shared calibration libraries (WS1) ----------------------------------
+  // --- Shared calibration libraries ----------------------------------------
 
   /// `GET /v1/calibration/masters?masterType=&camera=&gain=&offset=&binX=&binY=`
   /// — ranked remote masters matching the sensor + capture tuple. Read scope +
@@ -1469,7 +1468,7 @@ class HubServer {
           request.headers['x-provenance-json'],
         ),
       );
-      // WS4 consent ledger: a published master is a SHARED, downloadable artifact
+      // Consent ledger: a published master is a SHARED, downloadable artifact
       // exactly like a tile / mosaic-panel / co-imaging contribution, so — for
       // parity with those paths — record a durable `consent_records` row keyed to
       // the new master under the license the service already validated shareable.
@@ -1640,7 +1639,7 @@ class HubServer {
     }
   }
 
-  // --- Collaborative mosaics (WS2) -----------------------------------------
+  // --- Collaborative mosaics -----------------------------------------------
 
   /// `POST /v1/mosaics` — publish a MosaicProject's panel grid as claimable work
   /// items. Contribute scope + the per-action `mosaic.publish` grant. Body:
@@ -2019,7 +2018,7 @@ class HubServer {
         'you do not hold the claim for panel $panelIndex',
       ).toResponse(requestId: requestId);
     }
-    // WS4 consent gate: a panel master is streamed into a SHARED, redistributable
+    // Consent gate: a panel master is streamed into a SHARED, redistributable
     // mosaic that every participant later pulls, so — exactly like a tile / raw
     // subframe contribution — it requires a parseable, shareable license +
     // recorded consent BEFORE any bytes are read or stored. 400 when the license
@@ -2274,7 +2273,7 @@ class HubServer {
         'mosaic is no longer assembling — output rejected',
       ).toResponse(requestId: requestId);
     }
-    // WS4 attribution: a finished mosaic credits every rig that contributed a
+    // Attribution: a finished mosaic credits every rig that contributed a
     // panel. One credit per uploaded panel (frames=1) so the contributor-credits
     // UI lists each participant ordered by panels contributed.
     for (final panel in _mosaicBroker.panelStates(mosaicId)) {
@@ -2353,7 +2352,7 @@ class HubServer {
     return response;
   }
 
-  // --- Live co-imaging sessions (WS3) --------------------------------------
+  // --- Live co-imaging sessions --------------------------------------------
 
   /// `POST /v1/coimaging/sessions` — open a live co-imaging session on a target.
   /// Contribute + `coimaging.join`. Body: targetName, centerRaDeg, centerDecDeg,
@@ -2603,9 +2602,9 @@ class HubServer {
         'only the session owner may close it',
       ).toResponse(requestId: requestId);
     }
-    // WS4 attribution: a closed co-imaging session credits every participant by
-    // the combined frames + integration they contributed (the ordered
-    // contributor-credits list the WS5 UI renders).
+    // Attribution: a closed co-imaging session credits every participant by the
+    // combined frames + integration they contributed (the ordered
+    // contributor-credits list the UI renders).
     for (final p in _coimaging.participants(sessionId)) {
       if (p.contributedFrames > 0 || p.contributedIntegrationSeconds > 0) {
         _attribution.recordAccepted(
@@ -2681,7 +2680,7 @@ class HubServer {
         'not a participant of this co-imaging session',
       ).toResponse(requestId: requestId);
     }
-    // WS4 consent: a co-imaging contribution folds this rig's sub into the SHARED
+    // Consent: a co-imaging contribution folds this rig's sub into the SHARED
     // co-add and claims combined-depth credit, so it records the license + the
     // named-vs-anonymous choice that gate the share BEFORE the accounting lands.
     // A missing/unshareable license is a 400 (the client pre-validates against
@@ -2996,9 +2995,9 @@ class HubServer {
     );
   }
 
-  // --- WS4 — tokens, moderation, attribution, consent ----------------------
+  // --- Tokens, moderation, attribution, consent ----------------------------
 
-  /// `POST /v1/tokens` — mint a fine-grained scoped token (WS4 step 7). The
+  /// `POST /v1/tokens` — mint a fine-grained scoped token. The
   /// realization of "hand a member a contribute-to-mosaic-42-only token":
   /// capability attenuation, NOT escalation. The minted token is for the
   /// caller's own account (or, for an admin, a named [accountId]) and is
@@ -3166,7 +3165,7 @@ class HubServer {
     return hubJson(<String, Object?>{'revoked': revoked});
   }
 
-  /// `POST /v1/moderation/suspend` — suspend an abusive account (WS4 step 6).
+  /// `POST /v1/moderation/suspend` — suspend an abusive account.
   /// Admin scope + the `moderate` action. Body: `{accountId, reason?}`.
   Future<Response> _suspendAccountHandler(Request request) async {
     final requestId = request.context['requestId'] as String?;
@@ -3249,10 +3248,10 @@ class HubServer {
   }
 
   /// `GET /v1/attribution?artifactType=&artifactRef=` — the ordered
-  /// per-contributor credit list for a finished collaborative artifact (WS4
-  /// step 5; the WS5 contributor-credits UI source). Read scope + the
-  /// `attribution.read` action. Anonymous contributors render as "Anonymous
-  /// contributor" with no raw account id.
+  /// per-contributor credit list for a finished collaborative artifact (the
+  /// contributor-credits UI source). Read scope + the `attribution.read`
+  /// action. Anonymous contributors render as "Anonymous contributor" with no
+  /// raw account id.
   Future<Response> _attributionHandler(Request request) async {
     final requestId = request.context['requestId'] as String?;
     final auth = _authorize(
@@ -3364,7 +3363,7 @@ class HubServer {
   /// [resourceType]/[resourceId] are the artifact the request targets, derived
   /// from the path id (e.g. `('mosaic', mosaicId)`). A token narrowed to one
   /// resource ("contribute to mosaic 42") is denied here for every other
-  /// resource — the load-bearing per-resource scoping WS4 requires. A coarse /
+  /// resource — that per-resource scoping is load-bearing. A coarse /
   /// whole-role / device-only token carries no resource binding and is
   /// unaffected.
   Response? _denyAction(

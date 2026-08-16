@@ -61,10 +61,15 @@ class PerformanceMonitor extends ChangeNotifier {
     return _rasterTimings.reduce((a, b) => a + b) / _rasterTimings.length;
   }
 
-  /// Get the estimated frames per second based on average frame time.
-  double get estimatedFps {
+  /// Frames per second implied by [averageFrameTime], or null until the first
+  /// frame timing has been recorded.
+  ///
+  /// Null rather than a nominal 60: the HUD renders this as a live reading, so
+  /// a number here before any frame has been measured is a measurement the
+  /// monitor has not taken.
+  double? get estimatedFps {
     final avg = averageFrameTime;
-    return avg > 0 ? 1000 / avg : 60;
+    return avg > 0 ? 1000 / avg : null;
   }
 
   /// Get the minimum frame time (best performance).
@@ -82,11 +87,19 @@ class PerformanceMonitor extends ChangeNotifier {
   /// Get the number of samples currently collected.
   int get sampleCount => _frameTimings.length;
 
-  /// Check if performance is below target (e.g., < 30 FPS).
-  bool get isPerformanceLow => estimatedFps < 30;
+  /// True when the measured frame rate is below 30 FPS. False while no frame
+  /// has been sampled — there is no verdict to give yet.
+  bool get isPerformanceLow {
+    final fps = estimatedFps;
+    return fps != null && fps < 30;
+  }
 
-  /// Check if performance is good (e.g., >= 55 FPS).
-  bool get isPerformanceGood => estimatedFps >= 55;
+  /// True when the measured frame rate is at least 55 FPS. False while no frame
+  /// has been sampled.
+  bool get isPerformanceGood {
+    final fps = estimatedFps;
+    return fps != null && fps >= 55;
+  }
 
   /// Clear all collected frame timings.
   void reset() {

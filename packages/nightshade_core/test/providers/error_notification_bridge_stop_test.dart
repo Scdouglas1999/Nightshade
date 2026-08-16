@@ -1,17 +1,15 @@
-// WF-N4 / WF-STOP-N3 (Wave G) — PRODUCER 4 of the stop pipeline.
+// PRODUCER 4 of the stop pipeline.
 //
-// One operator Stop at 01:54:26 raised TWO toasts: the info
-// "Sequence stopped / Sequence stopped by request at 01:54." AND a RED
-// "Sequence Error / Sequence cancelled" beside it (shots/waveG-sequencer/
-// g15-toasts.png). Wave F had recorded the red toast as gone.
+// Without the cancellation check here, one operator Stop raises TWO toasts: the
+// info "Sequence stopped / Sequence stopped by request at 01:54." AND a RED
+// "Sequence Error / Sequence cancelled" beside it.
 //
-// It came back because the fix was applied to the wrong producer. Three of the
-// four producers ask `isSequenceCancelledNotice`; `errorNotificationBridgeProvider`
-// (providers/event_provider.dart) does not — it forwards EVERY error-severity
-// backend event straight to `uiNotificationProvider` with a title built from the
-// event's category, which for a sequencer event is literally "Sequence Error".
-// It never goes through the NotificationRouter, so neither the router's
-// classification nor its content dedupe can reach it.
+// `errorNotificationBridgeProvider` (providers/event_provider.dart) forwards
+// EVERY error-severity backend event straight to `uiNotificationProvider` with a
+// title built from the event's category, which for a sequencer event is
+// literally "Sequence Error". It never goes through the NotificationRouter, so
+// neither the router's classification nor its content dedupe can reach it —
+// the check has to be asked for here, as the other producers ask it.
 //
 // The counter-input is the REAL wire shape, taken from the FFI mapper
 // (`backend/ffi_backend/event_mapping.dart:490` — `SequencerEvent_Error` maps to

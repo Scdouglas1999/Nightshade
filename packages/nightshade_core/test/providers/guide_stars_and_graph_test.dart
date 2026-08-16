@@ -112,12 +112,12 @@ void main() {
   });
 
   group('guideStatsProvider (per-axis peak)', () {
-    // Regression: the RA/Dec Peak tiles in the guiding panel read
-    // Phd2GuideStats.peakRa/peakDec. Before the fix, _handleGuideStep built the
-    // snapshot without those fields, so they defaulted to 0.0 forever and the
-    // tiles always rendered 0.00. This drives the REAL GuideStatsNotifier
-    // through GuideStep events (no seeded override) and asserts the peak is the
-    // worst single-frame absolute excursion over the rolling window.
+    // The RA/Dec Peak tiles in the guiding panel read
+    // Phd2GuideStats.peakRa/peakDec, so _handleGuideStep must populate them —
+    // an omitted field defaults to 0.0 and the tiles render 0.00 forever.
+    // This drives the REAL GuideStatsNotifier through GuideStep events (no
+    // seeded override) and asserts the peak is the worst single-frame absolute
+    // excursion over the rolling window.
     test(
       'GuideStep events populate per-axis peak from the rolling window',
       () async {

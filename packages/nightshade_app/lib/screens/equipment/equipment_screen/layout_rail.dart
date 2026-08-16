@@ -1,11 +1,7 @@
-// Part of ../equipment_screen.dart -- extracted for maintainability.
-//
 // Dashboard header, main responsive layout, status rail, and readiness summary.
 part of '../equipment_screen.dart';
 
-// ============================================================================
-// Dashboard Header Widget
-// ============================================================================
+// Dashboard header widget
 
 class _DashboardHeader extends StatelessWidget {
   final String? profileName;
@@ -110,9 +106,7 @@ class _DashboardHeader extends StatelessWidget {
   }
 }
 
-// ============================================================================
 // Polar alignment entry (Equipment discoverability)
-// ============================================================================
 
 /// Compact shortcut so pre-flight hints that mention Equipment can point
 /// somewhere real. Shown when the active profile has a mount assigned.
@@ -231,9 +225,7 @@ class _FlatWizardShortcut extends ConsumerWidget {
   }
 }
 
-// ============================================================================
 // Main column (shared by desktop + mobile)
-// ============================================================================
 
 /// Height the device cards must keep before the Discovery scanner is allowed
 /// to pin itself to the bottom of the region.
@@ -294,24 +286,20 @@ class _EquipmentMainColumn extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Discovery must size to its CONTENT and hand every remaining pixel to
-        // the cards. It used to be a `Flexible`, which defaults to `flex: 1` —
-        // the same flex as the dashboard's `Expanded` — so the region was split
-        // 50/50: the cards were squeezed into half the height while the
-        // collapsed scanner painted ~90dp of its 50% share and left the rest
-        // dead. A non-flex child is laid out at its natural height first and
-        // the dashboard's `Expanded` then absorbs all the slack.
+        // the cards, so it is NOT a `Flexible`: that defaults to `flex: 1`, the
+        // same flex as the dashboard's `Expanded`, and splits the region 50/50.
+        // A non-flex child is laid out at its natural height first and the
+        // dashboard's `Expanded` absorbs all the slack.
         //
-        // Pinning the scanner is only affordable when the region can seat BOTH.
-        // A 360x640dp phone (with the tour nudge reserving its band) leaves this
-        // region ~132dp — less than the collapsed scanner alone — so capping it
-        // to a FRACTION squeezed it under its natural height and it overflowed
-        // by 8px while the cards were left ~66dp. Below the threshold the
-        // scanner stops being chrome and simply scrolls with the cards, which
-        // is always reachable and can never overflow. The cap for the pinned
-        // case is expressed as "whatever is left after the cards keep
-        // [_minPinnedDashboardHeight]", never a fraction, so it can never fall
-        // under the peek height; it also keeps the incoming height bounded so
-        // DiscoveryPanel's own internal `Flexible` has a bounded parent.
+        // Pinning the scanner is only affordable when the region can seat BOTH
+        // — a 360x640dp phone leaves this region ~132dp, less than the
+        // collapsed scanner alone. Below the threshold the scanner stops being
+        // chrome and scrolls with the cards, which is always reachable and can
+        // never overflow. The cap for the pinned case is "whatever is left
+        // after the cards keep [_minPinnedDashboardHeight]", never a fraction,
+        // so it can never fall under the peek height; it also keeps the
+        // incoming height bounded so DiscoveryPanel's own internal `Flexible`
+        // has a bounded parent.
         final canPin = !constraints.hasBoundedHeight ||
             constraints.maxHeight >=
                 _minPinnedDashboardHeight + _discoveryPeekHeight;
@@ -376,14 +364,12 @@ class _EquipmentMainColumn extends StatelessWidget {
         // Narrow / mobile: no rail. The supporting panels ride INSIDE the
         // dashboard's scroll view (as its header) rather than pinned above it.
         //
-        // They used to be plain Column siblings, which made them fixed chrome:
-        // the collapsed bars plus the two shortcut cards pinned ~330dp above a
-        // 411x914dp phone's card list, clipping the first device card through
-        // its own readouts — and EXPANDING the readiness checklist overflowed
-        // the column by 108px, evicting every device card AND the discovery
-        // scanner off-screen with no way to scroll to them. Scrolling them with
-        // the cards mirrors what the desktop rail already does for the same
-        // widgets (see _EquipmentStatusRail's Expanded/SingleChildScrollView).
+        // As plain Column siblings they are fixed chrome: on a 411x914dp phone
+        // the collapsed bars plus the two shortcut cards pin ~330dp above the
+        // card list, and expanding the readiness checklist overflows the column
+        // and evicts the device cards and the scanner off-screen with no way to
+        // scroll to them. Scrolling them with the cards mirrors what the desktop
+        // rail does for the same widgets (see _EquipmentStatusRail).
         return Column(
           children: [
             _topChrome(),
@@ -408,14 +394,12 @@ class _EquipmentMainColumn extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Status Rail (desktop, wide screens)
-// ============================================================================
+// Status rail (desktop, wide screens)
 
-/// Right-hand rail holding the supporting panels that previously stacked on top
-/// of the device cards: System Health, Ready-to-image, and the Polar Alignment
-/// shortcut. Collapses to a thin icon strip (mirroring the left profile
-/// sidebar) so an operator who wants every pixel for cards can tuck it away.
+/// Right-hand rail holding the supporting panels: System Health,
+/// Ready-to-image, and the Polar Alignment shortcut. Collapses to a thin icon
+/// strip (mirroring the left profile sidebar) so an operator who wants every
+/// pixel for cards can tuck it away.
 class _EquipmentStatusRail extends ConsumerWidget {
   const _EquipmentStatusRail();
 
@@ -518,9 +502,7 @@ class _EquipmentStatusRail extends ConsumerWidget {
   }
 }
 
-// ============================================================================
 // Readiness summary bar (narrow / mobile collapsed presentation)
-// ============================================================================
 
 /// Whether the narrow-layout readiness bar is expanded. Defaults to collapsed
 /// so the checklist stops consuming vertical space above the cards until the
@@ -641,6 +623,4 @@ class _ReadinessSummaryBar extends ConsumerWidget {
   }
 }
 
-// ============================================================================
 // Connect-All per-device progress strip
-// ============================================================================

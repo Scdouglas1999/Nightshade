@@ -55,7 +55,7 @@ class RenderQualityConfig {
   /// Minimum DSO magnitude to display
   final double dsoMagnitudeLimit;
 
-  // === Visual Polish v2 Features ===
+  // Visual polish features
 
   /// Whether to show twilight gradient sky (sun-altitude aware)
   final bool enableTwilightGradient;
@@ -92,13 +92,12 @@ class RenderQualityConfig {
 
   /// Softness of the baked star-glow sprite (1.0 = tight bloom, 2.0 = soft,
   /// wide bloom). Higher tiers bake a softer, wider halo so bright stars read as
-  /// a gentler glow. This replaces the old per-object `MaskFilter.blur` /
-  /// gradient-glow softness knob; the glow now lives in the sprite texture.
+  /// a gentler glow. The glow lives in the sprite texture, not in a per-object
+  /// blur.
   final double spriteSoftness;
 
-  /// Whether the brightest stars use the spiked star sprite (diffraction spikes
-  /// baked into the texture). The spikes used to be drawn per-star with cached
-  /// line-gradient shaders; they now live in a second baked sprite variant.
+  /// Whether the brightest stars use the spiked star sprite: the diffraction
+  /// spikes are baked into a second sprite variant rather than drawn per-star.
   final bool useDiffractionSpikes;
 
   /// Ground plane detail: 0 = solid color, 0.5 = gradient, 1.0 = gradient + silhouette

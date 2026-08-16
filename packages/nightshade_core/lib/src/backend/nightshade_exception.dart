@@ -87,22 +87,16 @@ class NightshadeException implements Exception {
   ///
   /// If decoding fails on input that *looked* like JSON (starts with `{`),
   /// the malformed payload is logged via `dart:developer` and we fall back to
-  /// heuristic classification. Surfacing the failure is required here
-  /// ("Errors are a feature").
+  /// heuristic classification.
   ///
-  /// The heuristic fallback is INTENTIONAL, permanent defense-in-depth — not a
-  /// transitional shim. Only the network/headless transport serializes errors
-  /// as a structured `ErrorInfo` JSON envelope (via Rust `NightshadeError::
-  /// to_json()`). The direct flutter_rust_bridge FFI boundary does NOT: the
-  /// ~20 `Result<_, NightshadeError>` functions surface a mirrored Freezed Dart
-  /// object whose `toString()` is `NightshadeError.ioError(...)` form, and the
-  /// 21 `Result<_, String>` bridge functions (mosaic, finishing, post-session,
-  /// difference-image, …) return a plain human message such as
-  /// "no panels supplied to the mosaic stitcher". Neither is a `{...}` envelope,
-  /// so both correctly fall through `_looksLikeJson == false` to the heuristic.
-  /// Removing this net would silently mishandle every non-JSON error path and
-  /// break backward compatibility (R9); it must stay regardless of how many
-  /// Rust paths eventually emit JSON.
+  /// The heuristic fallback is permanent, not a transitional shim. Only the
+  /// network/headless transport serializes errors as a structured `ErrorInfo`
+  /// JSON envelope; the flutter_rust_bridge FFI boundary does not. Its
+  /// `Result<_, NightshadeError>` functions surface a mirrored Freezed object
+  /// whose `toString()` reads `NightshadeError.ioError(...)`, and its
+  /// `Result<_, String>` functions return a plain human message such as "no
+  /// panels supplied to the mosaic stitcher". Neither is a `{...}` envelope, so
+  /// both fall through `_looksLikeJson == false` to the heuristic.
   factory NightshadeException.fromError(
     Object error, [
     StackTrace? stackTrace,

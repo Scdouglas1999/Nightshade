@@ -1,12 +1,11 @@
 // The "Deleted <profile>" undo snackbar must let go of the status bar.
 //
-// Regression cover for a live finding: after deleting an equipment profile the
-// full-width snackbar was still on screen seven minutes later, across three
-// screen changes, with no close affordance — and while it is up it covers the
-// entire status bar (profile, device connection states, focuser position,
-// temperature, clock, LST). The `duration: 6 s` already in the call was inert:
-// Flutter 3.44's SnackBar constructor defaults `persist` to `action != null`
-// and ScaffoldMessenger's timer returns without hiding when that is set.
+// While it is up the full-width snackbar covers the entire status bar (profile,
+// device connection states, focuser position, temperature, clock, LST), and it
+// has no close affordance, so it can sit there for minutes across several screen
+// changes. A `duration: 6 s` does not dismiss it: Flutter 3.44's SnackBar
+// constructor defaults `persist` to `action != null`, and ScaffoldMessenger's
+// timer returns without hiding when that is set.
 //
 // The test drives the real delete flow through the real screen, so removing
 // `persist: false` from the call site fails it.

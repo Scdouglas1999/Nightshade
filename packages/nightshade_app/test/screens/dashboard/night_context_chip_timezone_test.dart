@@ -1,17 +1,14 @@
-// Regression: the Dashboard command bar's night-context chip renders a clock
-// FACE ("Sunset 20:14") and it was the last one on that screen still formatting
-// host-local time.
+// The Dashboard command bar's night-context chip renders a clock FACE ("Sunset
+// 20:14"), so it must honour Settings → Location → Timezone like every other
+// clock face on the screen.
 //
-// Settings → Location → Timezone moved the status-bar clock, the dashboard
-// header clock, the night-timeline axis and the moon card — but not this chip,
-// which called a private `_formatClock(DateTime)` that read `t.hour` straight
-// off the raw value. A site set to UTC+09:00 therefore showed "Sunset" in the
-// laptop's zone right beside a header clock in the site's: two zones on one
-// screen, with nothing saying which was which.
+// A private `_formatClock(DateTime)` reading `t.hour` straight off the raw value
+// puts a site at UTC+09:00 in the laptop's zone right beside a header clock in
+// the site's: two zones on one screen, with nothing saying which is which.
 //
 // This drives the production widget through the real provider graph so the
 // assertion covers the WIRING (NightContextChip reading `clockProvider`), not
-// just the resolver's new parameter.
+// just the resolver's parameter.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -96,9 +96,7 @@ class ScaledConfig extends InheritedWidget {
     return config!;
   }
 
-  // ===========================================================================
-  // Scaling Methods
-  // ===========================================================================
+  // Scaling methods
 
   /// Returns a spacing value scaled by the universal scale factor.
   double spacing(double baseValue) => baseValue * scaleFactor;
@@ -142,9 +140,7 @@ class ScaledConfig extends InheritedWidget {
     );
   }
 
-  // ===========================================================================
-  // Responsive Value Selection
-  // ===========================================================================
+  // Responsive value selection
 
   /// Select a value based on screen size breakpoint.
   T breakpointValue<T>({
@@ -175,9 +171,7 @@ class ScaledConfig extends InheritedWidget {
     return landscape;
   }
 
-  // ===========================================================================
-  // Computed Properties
-  // ===========================================================================
+  // Computed properties
 
   /// Suggested number of grid columns based on screen width.
   int gridColumns({double minItemWidth = 300, int maxColumns = 6}) {

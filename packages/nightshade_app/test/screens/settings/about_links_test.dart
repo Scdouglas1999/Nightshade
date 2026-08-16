@@ -1,14 +1,12 @@
 // The About page's link strip is the one place in the app that hands the user
-// off to a public address on the project's behalf. Every one of the three
-// shipped URLs pointed somewhere that is not this project: a 404 GitHub org, a
-// hostname under an undelegated TLD that DNS can never answer, and a live
-// Discord invite belonging to an unrelated gaming server. url_launcher reports
-// success for all of them (a 404 page still opens), so nothing in the app ever
-// said the link was wrong.
+// off to a public address on the project's behalf. A wrong URL there — a 404
+// GitHub org, a hostname under an undelegated TLD that DNS can never answer, a
+// Discord invite belonging to an unrelated server — is invisible at runtime:
+// url_launcher reports success for all of them, because a 404 page still opens.
 //
 // These tests tap the real buttons and assert the URI actually handed to the
-// launcher, on both the phone (Wrap) and desktop (Row) layouts, because the
-// screen used to carry two independent hand-typed copies of the list.
+// launcher, on both the phone (Wrap) and desktop (Row) layouts, because two
+// hand-typed copies of the list can drift apart.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

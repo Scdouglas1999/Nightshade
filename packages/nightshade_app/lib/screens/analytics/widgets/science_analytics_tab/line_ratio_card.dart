@@ -1,5 +1,3 @@
-// Part of ../science_analytics_tab.dart -- extracted for maintainability.
-//
 // Moving-object card, line-ratio card and metric line widgets.
 part of '../science_analytics_tab.dart';
 

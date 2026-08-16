@@ -1,19 +1,19 @@
 // MQTT 3.1.1 PUBLISH-only transport.
 //
-// Why hand-rolled: we never need to subscribe to anything, we publish
-// one short JSON message per notification then disconnect. A full
-// mqtt_client package would add several hundred KB of dependencies for
-// behaviour we don't use. The frame format we implement is the small
-// subset of MQTT 3.1.1 §3.1 CONNECT / §3.3 PUBLISH / §3.14 DISCONNECT:
+// Hand-rolled because nothing here subscribes: one short JSON message per
+// notification, then disconnect. A full mqtt_client package would add several
+// hundred KB of dependencies for behaviour this transport does not use. The
+// frame format implemented is the small subset of MQTT 3.1.1 §3.1 CONNECT /
+// §3.3 PUBLISH / §3.14 DISCONNECT:
 //
 //     CONNECT  -> server CONNACK (success = 0x00)
 //     PUBLISH  (QoS 0 fire-and-forget — no PUBACK round trip)
 //     PUBLISH  (QoS 1 -> server PUBACK; we wait for it)
 //     DISCONNECT
 //
-// QoS 2 is intentionally not implemented; if the user picks 2 we
-// downgrade to 1 (logged) because the multi-message PUBREC/PUBREL/
-// PUBCOMP handshake adds latency we don't need.
+// QoS 2 is intentionally not implemented; a user choice of 2 downgrades to 1
+// (logged) because the multi-message PUBREC/PUBREL/PUBCOMP handshake adds
+// latency this transport does not need.
 
 import 'dart:async';
 import 'dart:convert';
@@ -171,9 +171,7 @@ class MqttTransport extends NotificationTransport {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Frame builders + reader
-// ---------------------------------------------------------------------------
 
 enum _MqttPacketType { connack, puback, unknown }
 

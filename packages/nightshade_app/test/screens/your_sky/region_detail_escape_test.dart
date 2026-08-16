@@ -1,9 +1,8 @@
-// Regression: SKY-15 — Escape did not back out of the Your Sky region detail.
+// Escape must back out of the Your Sky region detail.
 //
-// Found live. The region detail is a full-screen route that hides the Plan
-// Tonight tab bar, so the only exit was a 40 px arrow in the corner: Escape did
-// nothing and clicking where the Discover tabs used to be did nothing. Same
-// shape as the fullscreen image viewer, which was fixed for exactly this.
+// The region detail is a full-screen route that hides the Plan Tonight tab bar,
+// so without it the only exit is a 40 px arrow in the corner — the same shape
+// the fullscreen image viewer handles.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

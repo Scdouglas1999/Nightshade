@@ -1,11 +1,9 @@
-// Shared scheduler-screen test doubles. Hoisted out of
-// scheduler_screen_test.dart when the same fakes started being reused by
-// the W8-SCHED-MERGE planner-screen tests, the scheduler tab-content
-// tests, and any future scheduler decision-panel tests.
+// Shared scheduler-screen test doubles, used by the scheduler screen tests, the
+// planner-screen tests and the scheduler tab-content tests.
 //
-// Keeping every fake here means a future change to (e.g.) SchedulerEngine
-// fields only needs to land in one place — the test files only carry the
-// per-test scenario data.
+// Keeping every fake here means a change to (e.g.) SchedulerEngine fields only
+// needs to land in one place — the test files carry only the per-test scenario
+// data.
 
 import 'package:nightshade_core/nightshade_core.dart';
 

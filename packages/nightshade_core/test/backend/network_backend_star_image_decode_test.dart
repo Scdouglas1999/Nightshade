@@ -1,8 +1,7 @@
-// SLOP-DUP-004 regression: phd2GetStarImage and guiderGetStarImage decode the
-// SAME star-image JSON envelope. The duplicated decode was collapsed into a
-// shared private `_starImageFromJson`; this pins that both routes still map
-// every field identically (frame/width/height/starX/starY/pixels) from the
-// same wire payload.
+// phd2GetStarImage and guiderGetStarImage decode the SAME star-image JSON
+// envelope through the shared private `_starImageFromJson`. This pins that both
+// routes map every field identically (frame/width/height/starX/starY/pixels)
+// from the same wire payload.
 
 import 'dart:convert';
 import 'dart:typed_data';

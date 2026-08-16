@@ -44,10 +44,9 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
     final colors = NightshadeColors.of(context);
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
     final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
-    // Frames shot outside a sequence carry no imaging_sessions row, so this tab
-    // used to deny a night that Analytics ▸ Session was displaying at the time.
-    // They are not a run and are not listed as one — they get their own entry,
-    // named for what they are.
+    // Frames shot outside a sequence carry no imaging_sessions row. They are
+    // not a run and are not listed as one — they get their own entry, named
+    // for what they are.
     final quickCaptures = (ref.watch(standaloneImagesProvider).valueOrNull ??
             const <DbCapturedImage>[])
         .where((image) => image.frameType.toLowerCase() == 'light')

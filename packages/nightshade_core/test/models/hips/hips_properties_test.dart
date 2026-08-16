@@ -1,12 +1,12 @@
-// C9 unit tests — strict HiPS `properties` parsing.
+// Strict HiPS `properties` parsing.
 //
 // The `properties` document is the survey's self-description; the tile layer
 // drives LOD selection ([hips_order]/[hips_order_min]), tile addressing
 // ([hips_tile_width]/[hips_tile_format]) and frame handling ([hips_frame]) from
-// it. Per project policy there are NO silent fallbacks: a missing required key,
-// a malformed value, an out-of-range value, a duplicate key, or a syntactically
-// broken line must surface as a [HipsPropertiesParseException] — never a guessed
-// default that would silently mis-level or mis-address tiles months later.
+// it. A missing required key, a malformed value, an out-of-range value, a
+// duplicate key, or a syntactically broken line must surface as a
+// [HipsPropertiesParseException] — a guessed default mis-levels or
+// mis-addresses tiles instead.
 //
 // The only tolerated defaults are the two the IVOA HiPS 1.0 standard documents:
 // `hips_order_min = 0` (silent, standard) and `hips_tile_width = 512` (applied

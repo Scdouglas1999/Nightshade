@@ -249,12 +249,10 @@ abstract class GuideErrorPoint with _$GuideErrorPoint {
 /// they only become arcseconds after multiplying by [pixelScale], and
 /// [pixelScale] is 0 (unknown) unless something populates it.
 ///
-/// The doc comments here previously claimed arcseconds, which is why the
-/// Guiding screen ended up printing the same number twice with contradictory
-/// units. Do not "fix" that by relabelling pixels as arcseconds: at a 0.78"/px
-/// guide scale a 0.53 px residual is 0.41", so the suffix change alone would
-/// overstate the error by ~28%. Either convert with a real [pixelScale] or say
-/// px.
+/// Do not relabel these as arcseconds to make a display read consistently: at
+/// a 0.78"/px guide scale a 0.53 px residual is 0.41", so the suffix change
+/// alone overstates the error by ~28%. Either convert with a real [pixelScale]
+/// or say px.
 @freezed
 abstract class Phd2GuideStats with _$Phd2GuideStats {
   const factory Phd2GuideStats({

@@ -1,8 +1,5 @@
 // Catalog management endpoints for the headless API.
 //
-// Audit context: docs/audits/headless_2026_05_24/04-storage-image-transfer.md
-// §7 and 03-feature-parity.md §23.
-//
 // Problem these handlers solve. On a fresh server install the catalog
 // directory is empty — plate solving fails and target search returns
 // nothing. The desktop `CatalogSettingsScreen` calls
@@ -105,9 +102,7 @@ class CatalogHandlers {
     );
   }
 
-  // ===========================================================================
   // GET /api/catalog/status
-  // ===========================================================================
 
   /// `GET /api/catalog/status` — view-scope. Returns the per-catalog
   /// install state currently on disk.
@@ -158,9 +153,7 @@ class CatalogHandlers {
     });
   }
 
-  // ===========================================================================
   // GET /api/catalog/available
-  // ===========================================================================
 
   /// `GET /api/catalog/available` — view-scope. Lists catalogs the
   /// server knows how to download. Cached for 1 hour to keep the
@@ -188,9 +181,7 @@ class CatalogHandlers {
     });
   }
 
-  // ===========================================================================
   // POST /api/catalog/download
-  // ===========================================================================
 
   /// `POST /api/catalog/download` — admin scope, high-risk,
   /// audit-action `catalog_download`. Body: `{name: 'stars'}`.
@@ -261,9 +252,7 @@ class CatalogHandlers {
     });
   }
 
-  // ===========================================================================
   // POST /api/catalog/upload
-  // ===========================================================================
 
   /// `POST /api/catalog/upload?name=stars&sha256=...` — admin scope,
   /// audit-action `catalog_upload`. The body is the raw catalog
@@ -415,9 +404,7 @@ class CatalogHandlers {
     }
   }
 
-  // ===========================================================================
   // POST /api/catalog/verify
-  // ===========================================================================
 
   /// `POST /api/catalog/verify` — admin scope, high-risk,
   /// audit-action `catalog_verify`. Body: `{name?: 'stars'}`. Omit
@@ -462,9 +449,7 @@ class CatalogHandlers {
     return jsonOk({'verified': results.map((k, v) => MapEntry(k, v.toJson()))});
   }
 
-  // ===========================================================================
   // DELETE /api/catalog/<name>
-  // ===========================================================================
 
   /// `DELETE /api/catalog/<name>` — admin scope, high-risk,
   /// audit-action `catalog_delete`. Removes the catalog data file +
@@ -492,9 +477,7 @@ class CatalogHandlers {
     return jsonOk({'status': 'uninstalled', 'name': name});
   }
 
-  // ===========================================================================
   // POST /api/catalog/reload
-  // ===========================================================================
 
   /// `POST /api/catalog/reload` — admin scope. Drops cached loaders so
   /// subsequent searches re-parse from disk. Useful after an operator

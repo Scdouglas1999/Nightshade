@@ -1,6 +1,6 @@
 /// Shape/sign class of a difference-imaging residual. Wire tokens match the
 /// native `TransientKind` enum and the `kind` column on `transient_detections`
-/// (`docs/nightshade_5_0_contracts.md` §6 constants table).
+/// (the constants table in `docs/nightshade_5_0_contracts.md`).
 enum TransientKind {
   /// A pre-existing source that got brighter (positive residual on a template
   /// that already had flux there).

@@ -211,9 +211,7 @@ hips_frame        = equatorial
   });
 }
 
-// ---------------------------------------------------------------------------
 // Fake clock
-// ---------------------------------------------------------------------------
 
 class _FakeClock implements HipsLoaderClock {
   final List<_FakeTimer> _timers = <_FakeTimer>[];
@@ -265,9 +263,7 @@ Future<void> _settle() async {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Tiny raster helpers (no Flutter canvas needed for the artifact)
-// ---------------------------------------------------------------------------
 
 Uint8List _solidPng(int size, int r, int g, int b) {
   final image = img.Image(width: size, height: size);

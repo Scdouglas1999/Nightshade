@@ -109,7 +109,7 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      // No createSequence — exercises the new-empty fallback.
+      // No createSequence — exercises the empty-sequence fallback.
       expect(container.read(currentSequenceProvider), isNull);
 
       late WidgetRef capturedRef;

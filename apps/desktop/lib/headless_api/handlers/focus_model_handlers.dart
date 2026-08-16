@@ -15,25 +15,20 @@ import '../validation.dart';
 /// - Predict focus position for temperature
 /// - Get/set per-filter focus offsets
 ///
-/// Source-of-truth note (focus-model unification, 2026-06):
-/// The `/predict` and `/should-refocus` endpoints are answered by the
-/// DB-backed [PredictiveAfService] — the *same* per-filter model the live
-/// run consults in `device_service/autofocus_controls.dart`. Previously these
-/// two endpoints read the legacy JSON-backed [FocusModelService], so the HTTP
-/// answer a SLAVE queried could disagree with the in-run refocus decision the
-/// HOST actually made. Every other endpoint (data/model/filter-offsets/
-/// export/import) still reads [FocusModelService] because it powers the
-/// equipment scatter-plot UI surface; that read path is unchanged and is
-/// scheduled for a later migration.
+/// Source of truth: `/predict` and `/should-refocus` are answered by the
+/// DB-backed [PredictiveAfService] — the same per-filter model the live run
+/// consults in `device_service/autofocus_controls.dart` — so the answer a
+/// slave queries cannot disagree with the refocus decision the host makes.
+/// The other endpoints (data/model/filter-offsets/export/import) read
+/// [FocusModelService], which powers the equipment scatter-plot UI.
 class FocusModelHandlers {
   final ProviderContainer container;
   bool _initialized = false;
 
   /// Upper sanity bound for the `maxDriftSteps` refocus budget (focuser steps).
   /// The predictive-AF settings UI exposes the analogous drift threshold over
-  /// 20..2000 steps. Keep this remote decision input within that established
-  /// upper authority while retaining the endpoint's historical support for
-  /// small positive budgets below the UI slider minimum.
+  /// 20..2000 steps, so a remote decision input stays under the same ceiling.
+  /// The endpoint also accepts budgets below the UI slider minimum.
   static const double _maxDriftStepsBound = 2000;
 
   FocusModelHandlers(this.container);
@@ -194,9 +189,7 @@ class FocusModelHandlers {
     return jsonOk({'filter': filter, 'json': json});
   }
 
-  // ===========================================================================
-  // Get Focus Data
-  // ===========================================================================
+  // Get focus data
 
   /// GET /api/focus-model/data
   /// Get all focus data points (temperature, position pairs)
@@ -237,9 +230,7 @@ class FocusModelHandlers {
     });
   }
 
-  // ===========================================================================
-  // Add Focus Data Point
-  // ===========================================================================
+  // Add focus data point
 
   /// POST /api/focus-model/add-point
   /// Add a focus data point (temperature, position, filter?)
@@ -258,10 +249,8 @@ class FocusModelHandlers {
 
     // These three points ARE the temperature-compensation regression a live run
     // consults to decide focuser moves, so an unphysical sample poisons every
-    // later prediction. Unbounded, this endpoint accepted and stored
-    // {temperature: 5000, position: -99999, hfr: -3} and read it straight back.
-    // (handleShouldRefocus in this same file already validates its inputs
-    // meticulously; the endpoint that WRITES the model validated nothing.)
+    // later prediction. Unbounded, this endpoint would store and read back
+    // {temperature: 5000, position: -99999, hfr: -3}.
     // Bounds: ambient limits well outside any observatory, a focuser position
     // cannot be negative (device_handlers/focuser_handlers.dart uses min: 0),
     // and HFR is a radius in pixels.
@@ -295,9 +284,7 @@ class FocusModelHandlers {
     });
   }
 
-  // ===========================================================================
-  // Clear Focus Data
-  // ===========================================================================
+  // Clear focus data
 
   /// DELETE /api/focus-model/clear
   /// Clear all data points
@@ -321,9 +308,7 @@ class FocusModelHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Focus Model
-  // ===========================================================================
+  // Get focus model
 
   /// GET /api/focus-model/model
   /// Get current focus model (slope, intercept, r-squared)
@@ -379,9 +364,7 @@ class FocusModelHandlers {
         'Model is $reliability for predictions.';
   }
 
-  // ===========================================================================
-  // Predict Focus Position
-  // ===========================================================================
+  // Predict focus position
 
   /// GET /api/focus-model/predict?temperature=X&filter=Y
   /// Predict focus position for temperature.
@@ -485,9 +468,7 @@ class FocusModelHandlers {
     return 'Low';
   }
 
-  // ===========================================================================
-  // Get Filter Offsets
-  // ===========================================================================
+  // Get filter offsets
 
   /// GET /api/focus-model/filter-offsets
   /// Get per-filter focus offsets
@@ -536,9 +517,7 @@ class FocusModelHandlers {
     });
   }
 
-  // ===========================================================================
-  // Set Filter Offsets
-  // ===========================================================================
+  // Set filter offsets
 
   /// POST /api/focus-model/filter-offsets
   /// Set per-filter focus offsets
@@ -606,26 +585,22 @@ class FocusModelHandlers {
     });
   }
 
-  // ===========================================================================
-  // Check Should Refocus
-  // ===========================================================================
+  // Check should refocus
 
   /// GET /api/focus-model/should-refocus?currentTemp=X&lastFocusTemp=Y&filter=Z
   /// Check if autofocus should be triggered based on temperature drift.
   ///
   /// Answered by [PredictiveAfService] — the DB-backed per-filter model the
-  /// live run consults — so the boolean a SLAVE reads here matches the gate
-  /// the HOST run applies. The drift formula is identical to the legacy one
-  /// (`|deltaT| * |slope| >= maxDriftSteps`), but the slope and the
-  /// trust gate now come from the *run's* model. The trust gate mirrors
-  /// `evaluateForFilter`: a decision the run treats as `InsufficientData`
-  /// (no fitted regression / too few samples to trust) yields
-  /// `shouldRefocus: false` just as the run would not act on it.
+  /// live run consults — so the boolean a slave reads here matches the gate
+  /// the host run applies. Drift is `|deltaT| * |slope| >= maxDriftSteps`,
+  /// with the slope and the trust gate taken from the run's model. The trust
+  /// gate mirrors `evaluateForFilter`: a decision the run treats as
+  /// `InsufficientData` (no fitted regression, too few samples) yields
+  /// `shouldRefocus: false`, just as the run would not act on it.
   ///
-  /// The predictive model is per-filter, so an optional `filter` query
-  /// parameter selects which learned model to consult. When omitted (or no
-  /// model exists for that filter) the endpoint reports `hasModel: false`
-  /// and `shouldRefocus: false`. The response JSON shape is unchanged.
+  /// The model is per-filter, so the optional `filter` query parameter selects
+  /// which learned model to consult. Omitted, or no model for that filter, and
+  /// the endpoint reports `hasModel: false` and `shouldRefocus: false`.
   Future<Response> handleShouldRefocus(Request request) async {
     _logInfo('[API] GET /api/focus-model/should-refocus');
     // Parse parameters. currentTemp / lastFocusTemp are required and MUST be
@@ -755,9 +730,7 @@ class FocusModelHandlers {
     );
   }
 
-  // ===========================================================================
-  // Export Focus Data
-  // ===========================================================================
+  // Export focus data
 
   /// GET /api/focus-model/export
   /// Export focus data as JSON
@@ -781,9 +754,7 @@ class FocusModelHandlers {
     );
   }
 
-  // ===========================================================================
-  // Import Focus Data
-  // ===========================================================================
+  // Import focus data
 
   /// POST /api/focus-model/import
   /// Import focus data from JSON

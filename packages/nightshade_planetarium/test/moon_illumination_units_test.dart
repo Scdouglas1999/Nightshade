@@ -1,10 +1,10 @@
-// Regression test for the Moon's phase on the chart.
+// The Moon's phase on the chart carries the units it was given.
 //
-// `AstronomyCalculations.moonIllumination` returns a PERCENT (0-100). The
-// renderer's moonPosition tuple documented its third slot as a 0-1 fraction and
-// clamped it, so every real phase above 1% pinned to exactly 1.0: the chart drew
-// a solid white disc labelled "MOON 100%" while the app's own Dashboard card
-// said "Waning Gibbous 74% illuminated".
+// `AstronomyCalculations.moonIllumination` returns a PERCENT (0-100). A
+// moonPosition tuple that documents its third slot as a 0-1 fraction and clamps
+// it pins every real phase above 1% to exactly 1.0: the chart draws a solid
+// white disc labelled "MOON 100%" while the app's own Dashboard card says
+// "Waning Gibbous 74% illuminated".
 //
 // This drives the REAL widget: the moon tuple is built by
 // `InteractiveSkyView`'s painter construction from `moonInfoProvider`, and the
@@ -79,6 +79,11 @@ Future<_OvalSpyCanvas> _paintSkyWithMoon(
       ),
     ],
   );
+  // The sky is drawn from the observer's site; without one the view renders
+  // its no-site state instead.
+  container
+      .read(observerLocationProvider.notifier)
+      .setLocation(latitude: 40.0, longitude: -74.0);
 
   // Aim the view at the Moon so it lands on the canvas.
   final (moonRaDeg, moonDecDeg, _) = container.read(moonPositionProvider);

@@ -1,9 +1,9 @@
-// Regression test for the v42 -> v44 HYG rename.
+// The v42 -> v44 HYG rename.
 //
-// The expected star-catalog filename moved to hyg_v44.csv, but installs made
-// before the rename still have hyg_v42.csv on disk. The legacy name was only
-// honoured by the delete path, so an upgraded install silently reported "not
-// installed" and the planetarium dropped to the 79-star fallback list.
+// The expected star-catalog filename is hyg_v44.csv, but installs made before
+// the rename still have hyg_v42.csv on disk. A legacy name honoured only by the
+// delete path leaves an upgraded install silently reporting "not installed" and
+// drops the planetarium to the 79-star fallback list.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

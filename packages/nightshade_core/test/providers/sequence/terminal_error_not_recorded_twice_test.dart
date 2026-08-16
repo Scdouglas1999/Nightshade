@@ -16,15 +16,14 @@ class _TestBackendNotifier extends BackendNotifier {
   }
 }
 
-/// One failed node was listed TWICE in the Session Report's Errors section.
-///
-/// The native executor publishes the reason twice by construction: the
-/// instruction emits `InstructionFailed`, which the bridge delivers as a
-/// mid-run `Error` event carrying `"<node>: <message>"`, and then the terminal
-/// handler drains the broadcast buffer for that same `InstructionFailed` and
-/// re-formats it byte-for-byte as `SequenceFailed.error`
-/// (`executor/mod.rs: last_instruction_failure`). Dart appended both, so the
-/// report's error count could never match the number of failed nodes.
+/// The native executor publishes one node's failure reason TWICE by
+/// construction: the instruction emits `InstructionFailed`, the bridge delivers
+/// it as a mid-run `Error` event carrying `"<node>: <message>"`, and the
+/// terminal handler then drains the broadcast buffer for that same
+/// `InstructionFailed` and re-formats it byte-for-byte as
+/// `SequenceFailed.error` (`executor/mod.rs: last_instruction_failure`). Dart
+/// must record it once, or the report's error count cannot match the number of
+/// failed nodes.
 const _reason = 'Open Cover: No cover calibrator (flat panel) connected';
 
 void main() {

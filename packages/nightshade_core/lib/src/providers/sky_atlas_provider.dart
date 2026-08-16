@@ -256,9 +256,7 @@ final skyTileProvider = FutureProvider.family<String, SkyTileQuery>((
       .finalizeTilePng(query.tileId, asOf: query.asOf);
 });
 
-// ===========================================================================
 // Region detail — backend-aware families
-// ===========================================================================
 //
 // Hoisted here (out of `region_detail_screen.dart`) so the region-detail screen
 // renders on a slave instead of reading an empty local atlas DB. Each family

@@ -387,19 +387,17 @@ class SkyAtlasService {
   /// — the spatial selector behind Constellation Contribute / Pull and Your-Sky
   /// cone reads.
   ///
-  /// The old path materialized EVERY tile ever imaged (via [coverage]) and
-  /// filtered the cone in Dart, so its cost scaled with atlas size, not the
-  /// cone. This reads the cheap [SkyTiles] DB index instead: a Dec-band range
-  /// scan on `idx_sky_tiles_dec` ([SkyAtlasDao.getTilesInDecBand]) narrows to a
-  /// small candidate set, then the exact great-circle test runs on just those
-  /// candidates (the SQL band can't be the final answer — RA wrap and the cap's
-  /// RA widening near the poles make a pure-SQL cone unsafe). The Dec band is
-  /// `centerDec ± radius`, clamped to `[-90, 90]`.
+  /// Reads the [SkyTiles] DB index so the cost scales with the cone, not the
+  /// atlas: a Dec-band range scan on `idx_sky_tiles_dec`
+  /// ([SkyAtlasDao.getTilesInDecBand], band `centerDec ± radius` clamped to
+  /// `[-90, 90]`) narrows to a small candidate set, then the exact great-circle
+  /// test runs on those candidates. The SQL band cannot be the final answer —
+  /// RA wrap and the cap's RA widening near the poles make a pure-SQL cone
+  /// unsafe.
   ///
-  /// Behaviour-preserving: when the DB index has no tiles in the band (e.g. a
-  /// wiring that has only ever folded through the native seam, or a brand-new
-  /// atlas) it falls back to the [coverage] scan so the same tiles are returned
-  /// — just slower — rather than silently selecting nothing.
+  /// When the DB index has no tiles in the band (a wiring that has only ever
+  /// folded through the native seam, or a brand-new atlas) it falls back to the
+  /// [coverage] scan rather than selecting nothing.
   Future<List<AtlasTileCoverage>> tilesInCone({
     required double centerRaDeg,
     required double centerDecDeg,
@@ -563,7 +561,7 @@ class SkyAtlasService {
     });
   }
 
-  // --- Regions ------------------------------------------------------------
+  // Regions
 
   /// All persisted regions (newest first).
   Future<List<SkyAtlasRegionRow>> regions() => _dao.getAllRegions();
@@ -655,15 +653,8 @@ class SkyAtlasService {
   Stream<List<SkyAtlasFoldRow>> watchRegionTimeline(int regionId) =>
       _dao.watchFoldsForRegionOverTime(regionId);
 
-  // --- Internals ----------------------------------------------------------
+  // Internals
 
-  /// Mirror a native fold result into the atlas tables.
-  ///
-  /// For each touched tile we upsert the [SkyTiles] index row (running totals +
-  /// the on-disk sidecar pointer the native side owns) and append a
-  /// [SkyAtlasFolds] timeline row carrying what that tile gained. The
-  /// region a tile already belongs to is preserved by the DAO upsert; folds
-  /// link back to [sessionId] so the timeline replays per session.
   /// Blend a pulled community `.nst` accumulator into the swarm OVERLAY tree so
   /// its depth can surface in "Your Sky" — without ever touching the user's
   /// contributable base tile.

@@ -1,8 +1,9 @@
 // Pillar C ("Constellation") — the HTTP client for a Nightshade hub.
 //
 // A Constellation hub is a self-hosted, LAN-or-internet REST service
-// (`server/nightshade_hub/`, `docs/nightshade_5_0_contracts.md` §5) that fuses
-// per-tile additive accumulators from many imagers into a community co-add.
+// (`server/nightshade_hub/`, contract in `docs/nightshade_5_0_contracts.md`)
+// that fuses per-tile additive accumulators from many imagers into a community
+// co-add.
 // This client speaks that wire contract verbatim: a bearer token carries the
 // account's `contribute`/`read` scopes, JSON bodies everywhere except the tile
 // blobs (the `.nst` accumulator payload travels as `application/octet-stream`),
@@ -27,7 +28,7 @@ part 'constellation_client/io_cleanup.dart';
 
 /// Thin REST client for one Constellation hub (one account / bearer token).
 ///
-/// Every method maps to a single endpoint in the §5 contract. Heavy tile
+/// Every method maps to a single endpoint in the hub contract. Heavy tile
 /// transfers ([pushTile] / [pullTile]) stream the `.nst` blob to/from disk so a
 /// deep tile never has to be held in memory twice.
 class ConstellationClient {
@@ -61,7 +62,7 @@ class ConstellationClient {
     'Authorization': 'Bearer $bearerToken',
   };
 
-  // --- Endpoints ----------------------------------------------------------
+  // Endpoints
 
   /// `GET /v1/info` — hub identity + tiling. Call before contributing so an
   /// order/tile-size mismatch is caught before any blob leaves the device.
@@ -72,7 +73,7 @@ class ConstellationClient {
   }
 
   /// `GET /v1/targets` — the swarm's shared-target listing. The browse payload
-  /// is not pinned field-for-field by the contract (§5 leaves it to the hub), so
+  /// is not pinned field-for-field by the contract (it is left to the hub), so
   /// the decoded JSON is returned raw (a `List` or a `{ "targets": [...] }`
   /// envelope) for [ConstellationService] to map into [SharedTarget]s.
   Future<Object?> browseRaw() async {
@@ -113,7 +114,7 @@ class ConstellationClient {
     return HubAccount.fromJson(_decodeJson(response, 'Create account'));
   }
 
-  /// `POST /v1/tokens` — mint a fine-grained scoped token (WS4): the "hand a
+  /// `POST /v1/tokens` — mint a fine-grained scoped token: the "hand a
   /// member a contribute-to-mosaic-42-only token" capability. Capability
   /// attenuation — the hub validates subset-only delegation (this token must
   /// already permit every requested action on the requested resource) and
@@ -229,7 +230,7 @@ class ConstellationClient {
       if (medianFwhm != null) 'medianFwhm': '$medianFwhm',
       if (solver != null && solver.isNotEmpty) 'solver': solver,
       if (instrument != null && instrument.isNotEmpty) 'instrument': instrument,
-      // WS4 consent: the hub requires a shareable license + records consent
+      // Consent: the hub requires a shareable license + records consent
       // before storing any bytes. The license rides as a header so the user's
       // license/credit choice travels with the contribution receipt.
       'license': license,
@@ -318,7 +319,7 @@ class ConstellationClient {
         if (exposureSeconds != null) 'exposureSeconds': '$exposureSeconds',
         if (instrument != null && instrument.isNotEmpty)
           'instrument': instrument,
-        // WS4: the raw-subframe path is the most privacy-sensitive share, so it
+        // The raw-subframe path is the most privacy-sensitive share, so it
         // too carries the shareable license + the explicit raw-subframe opt-in.
         'license': license,
         'shareRawSubframes': 'true',
@@ -346,7 +347,7 @@ class ConstellationClient {
     }
   }
 
-  // --- Follow-the-night handoff -------------------------------------------
+  // Follow-the-night handoff
 
   /// `GET /v1/handoff/{targetId}` — ask whether a shared target is dark and
   /// available for this user right now. Returns null when the hub has no
@@ -386,7 +387,7 @@ class ConstellationClient {
     }
   }
 
-  // --- Attribution (WS4) ---------------------------------------------------
+  // Attribution
 
   /// `GET /v1/attribution?artifactType=&artifactRef=` — the authoritative,
   /// consent-aware contributor-credit list for one finished collaborative
@@ -424,7 +425,7 @@ class ConstellationClient {
     );
   }
 
-  // --- Collaborative mosaics (WS2) ----------------------------------------
+  // Collaborative mosaics
 
   /// `POST /v1/mosaics` — publish a panel grid as claimable work items. Returns
   /// the created mosaic (with its panel states).
@@ -593,7 +594,7 @@ class ConstellationClient {
         'Content-Type': 'application/octet-stream',
         if (claimToken != null && claimToken.isNotEmpty)
           'x-claim-token': claimToken,
-        // WS4 consent: a panel master is shared into a redistributable mosaic, so
+        // Consent: a panel master is shared into a redistributable mosaic, so
         // it carries the chosen license + named-vs-anonymous choice. The hub
         // rejects a missing/unshareable license before storing any bytes.
         'license': license,
@@ -662,7 +663,7 @@ class ConstellationClient {
     );
   }
 
-  // --- Live co-imaging sessions (WS3) -------------------------------------
+  // Live co-imaging sessions
 
   /// `POST /v1/coimaging/sessions` — open a live co-imaging session on a target.
   /// The caller is the owner + anchor participant; the response carries the
@@ -809,7 +810,7 @@ class ConstellationClient {
       headers: {
         if (membershipToken != null && membershipToken.isNotEmpty)
           'x-membership-token': membershipToken,
-        // WS4 consent: a co-imaging contribution folds this rig's sub into the
+        // Consent: a co-imaging contribution folds this rig's sub into the
         // shared co-add, so it carries the chosen license + named-vs-anonymous
         // choice. The hub records consent before the combined accounting lands.
         'license': license,

@@ -2,10 +2,9 @@
 
 part of '../flat_wizard_provider.dart';
 
-/// The capture lifecycle for [FlatWizardNotifier]. Split out of the notifier
-/// file verbatim.
+/// The capture lifecycle for [FlatWizardNotifier].
 extension FlatWizardRun on FlatWizardNotifier {
-  // --- Capture Lifecycle ---
+  // Capture lifecycle
 
   /// Run the full flat-capture lifecycle for the current mode: per-filter
   /// calibration, frame capture, FITS save, and history recording.
@@ -65,7 +64,7 @@ extension FlatWizardRun on FlatWizardNotifier {
       final profileId = activeProfile?.id;
       final brightnessTracker = ref.read(skyBrightnessTrackerProvider);
 
-      // ---- Validation (BEFORE isCapturing is set) ----
+      // Validation (before isCapturing is set)
       if (cameraState.connectionState != DeviceConnectionState.connected ||
           cameraState.deviceId == null) {
         setErrorMessage('Camera not connected');
@@ -151,7 +150,7 @@ extension FlatWizardRun on FlatWizardNotifier {
         return;
       }
 
-      // ---- Committed: from here we are truly capturing ----
+      // Committed: from here we are truly capturing
       _prepareFiltersForRun(queue);
       state = state.copyWith(
         isCapturing: true,
@@ -219,7 +218,7 @@ extension FlatWizardRun on FlatWizardNotifier {
           break;
         }
 
-        // ---- Calibrate exposure ----
+        // Calibrate exposure
         // Target ADU is an absolute value against the DETECTED full scale, so a
         // 12/14-bit camera targets e.g. 50% of 4095/16383 — never an impossible
         // 32768.
@@ -316,7 +315,7 @@ extension FlatWizardRun on FlatWizardNotifier {
         updateFilterCalibration(idx, calibration.exposure, calibration.adu);
         updateFilterStatus(idx, FilterCalibrationStatus.capturing);
 
-        // ---- Frame capture ----
+        // Frame capture
         var filterSavePath = baseSavePath;
         if (runSettings.createFilterSubfolders) {
           filterSavePath = p.join(
@@ -445,7 +444,7 @@ extension FlatWizardRun on FlatWizardNotifier {
           }
         }
 
-        // ---- Truthful per-filter status from the REAL saved count ----
+        // Truthful per-filter status from the real saved count
         final FilterCalibrationStatus finalStatus;
         if (savedCount == 0) {
           finalStatus = frameCancelled
@@ -689,14 +688,11 @@ extension FlatWizardRun on FlatWizardNotifier {
 
     // Wait for the wheel to report it has stopped moving AND reached the target.
     //
-    // The wheel is re-read from the BACKEND each pass. This loop used to poll
-    // `ref.read(filterWheelStateProvider)` while nothing in it fetched status,
-    // so the provider could never change: the move always "failed" after the
-    // full timeout even though the driver had completed it, and a flat run with
-    // any filter change could not proceed. Its working counterpart,
-    // `DeviceService._verifyFilterWheelPosition`, polls the backend and pushes
-    // the result into the provider — this now does the same, which also stops
-    // the provider going stale and letting the NEXT run take the
+    // The wheel is re-read from the BACKEND each pass and the result pushed
+    // back into the provider, the same way `DeviceService._verify
+    // FilterWheelPosition` does. Polling the provider alone would never see a
+    // change (nothing else fetches status here), so every move would "fail"
+    // on timeout, and a stale provider would let the next run take the
     // already-in-position shortcut against a wheel that never moved.
     var waited = Duration.zero;
     while (waited < maxWait) {

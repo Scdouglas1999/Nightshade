@@ -25,12 +25,10 @@ import 'onboarding_tooltip_card.dart';
 /// hasn't completed or skipped the tour — the launcher handles that gate.
 ///
 /// Skip semantics: clicking Skip or pressing Escape calls
-/// [OnboardingTourNotifier.skip], which persists a "dismissed" row distinct
-/// from "completed". Tapping the scrim does NOT — it is absorbed (see the
-/// scrim's own note). Why distinct: so
-/// a future "rerun on major version bump" feature can still target
-/// users who skipped the tour but never explicitly finished it, without
-/// re-prompting users who saw the full flow.
+/// [OnboardingTourNotifier.skip], which persists a "dismissed" row DISTINCT
+/// from "completed", so a user who skipped can be told apart from one who saw
+/// the whole flow. Tapping the scrim does neither — it is absorbed (see the
+/// scrim's own note).
 class OnboardingOverlay extends ConsumerStatefulWidget {
   /// Override step list for testing. Production code always passes null
   /// to use the built-in [_buildSteps] result.
@@ -121,13 +119,11 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'equipment',
         title: 'Connect your gear',
-        // Scoped to what the support matrix in README.md actually claims.
-        // This used to promise "12 vendor SDKs natively, so most drivers work
-        // without any setup" — two falsehoods in the first thing a new user
-        // reads: the count drifts with the bindings, and the native paths are
-        // *gated* on vendor libraries the installer deliberately does not
-        // redistribute. A first-nighter who trusted "no setup" would find the
-        // native camera path unable to load its SDK, in the dark.
+        // Scoped to what the support matrix in README.md actually claims. No
+        // SDK count — it drifts with the bindings — and no "no setup" promise:
+        // the native paths are GATED on vendor libraries the installer does not
+        // redistribute, so a first-nighter who trusted it would find the native
+        // camera path unable to load its SDK, in the dark.
         body: 'Connect your camera, mount, and filter wheel here. ASCOM '
             '(Windows), INDI, and Alpaca work against drivers you already '
             'have. Native vendor paths (ZWO, QHY, Player One, SVBony, Atik, '
@@ -156,12 +152,9 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       ),
       OnboardingStep(
         id: 'scheduler',
-        // Names the SCREEN, not a tab. The previous copy pointed at a "Target
-        // Queue tab" that no longer exists: `plannerTabTargetQueue` is still in
-        // translations.dart but is referenced by no code, because Target Queue
-        // and This Week were unified into Schedule. A tour that names a tab the
-        // user cannot find is worse than a vaguer one that stays true — the
-        // same reason the sequencer step above points at Templates generally.
+        // Names the SCREEN, not a tab: a tour that names a tab the user cannot
+        // find is worse than a vaguer one that stays true. Same reason the
+        // sequencer step above points at Templates generally.
         title: 'Let the scheduler pick targets',
         body: 'Plan Tonight ranks what is worth imaging and when, using each '
             "target's altitude through the night and the time you actually "
@@ -251,9 +244,9 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
         : allSteps.sublist(0, onboardingTourCoreStepCount);
 
     if (notifier.currentStepIndex >= activeSteps.length) {
-      // Defensive: if the notifier somehow points past the end, just
-      // dismiss. Errors are a feature, but a tour misalignment shouldn't
-      // wedge the app — write skip so the user isn't stuck.
+      // If the notifier points past the end, dismiss: a tour misalignment must
+      // not wedge the app behind a scrim with no step to render, so write skip
+      // rather than leave the user stuck.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _skip();
@@ -292,14 +285,11 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
             // The dim scrim + cutout. The GestureDetector ABSORBS taps on the
             // dim area — it does not treat them as a Skip.
             //
-            // It used to skip, and that combination cost the operator a click
-            // AND the tour: "Reset All Progress" re-arms this tour, so the
-            // first click after confirming the reset (the nav rail, in the
-            // live drive) landed on a scrim the operator had not asked for.
-            // The click did nothing, the tour vanished before the next
-            // screenshot, and a second identical click was needed to navigate
-            // — leaving no trace of why. A modal that stays on screen explains
-            // itself; Escape and the explicit Skip button still leave it.
+            // Skipping on a scrim tap costs the operator the click AND the
+            // tour, with no trace of why — and this tour can re-arm under a
+            // click the operator has already aimed elsewhere. A modal that
+            // stays on screen explains itself; Escape and the explicit Skip
+            // button still leave it.
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,

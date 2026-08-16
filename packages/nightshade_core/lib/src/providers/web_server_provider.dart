@@ -31,9 +31,7 @@ class WebServerState {
   /// Remote clients currently holding an open event socket on this server.
   ///
   /// This is the number the Remote Access page and the status-bar share chip
-  /// mean by "connected": phones, tablets and dashboard browsers. It used to
-  /// be answered with [activeViewers], which reported 0 with a live paired
-  /// client on the wire.
+  /// mean by "connected": phones, tablets and dashboard browsers.
   final int connectedClients;
 
   final bool bindLocalOnly;
@@ -83,13 +81,8 @@ class WebServerState {
   ///
   /// These URLs are opened in a BROWSER and copied for humans (the Remote
   /// Access settings cards, the status-bar dashboard button, session sharing),
-  /// so they must land on the dashboard itself. They used to point at the
-  /// origin root, which is not a routed page: the auth middleware answers `/`
-  /// with `401 {"error":"Authentication required"}` as raw JSON, so "Open Local
-  /// Dashboard" — advertised as the way to "confirm the dashboard is working
-  /// before sharing it elsewhere" — showed the operator a bare error document.
-  /// Verified against the running desktop server: `GET /` -> 401,
-  /// `GET /dashboard` -> 200.
+  /// so they must land on the dashboard itself: `/` is not a routed page and
+  /// the auth middleware answers it with raw `401` JSON.
   ///
   /// The pairing QR is unaffected; it builds a structured host+port payload of
   /// its own rather than reusing these strings.
@@ -225,11 +218,10 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
 
   /// Enumerate interface addresses and resolve, in one pass:
   ///   * [WebServerState.localIp] — the first non-loopback **non-tailnet**
-  ///     IPv4 address (the LAN NIC). Previously this grabbed the *first*
-  ///     non-loopback IPv4, which on a Tailscale-enabled host is
-  ///     non-deterministic between the LAN NIC and the `100.x` tailnet address
-  ///     — surfacing a `100.x` as the "LAN" address that phones on the LAN
-  ///     can't necessarily reach. We now skip tailnet addresses for `localIp`.
+  ///     IPv4 address (the LAN NIC). Tailnet addresses are skipped: on a
+  ///     Tailscale-enabled host the first non-loopback IPv4 is
+  ///     non-deterministic between the LAN NIC and the `100.x` tailnet
+  ///     address, which phones on the LAN cannot necessarily reach.
   ///   * [WebServerState.tailscaleIp] — the tailnet address (IPv4 CGNAT
   ///     preferred over IPv6 ULA for QR brevity), classified by
   ///     [TailnetDetector.isTailscaleInterfaceAddress].

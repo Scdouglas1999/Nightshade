@@ -55,10 +55,8 @@ class CapturePanel extends ConsumerWidget {
   ///
   /// Supplied only by the layouts that omit the persistent bottom capture bar
   /// (the landscape side-by-side split, where that bar would overflow the short
-  /// height). This panel used to carry no exposure-start control at all, so in
-  /// that band the Imaging screen had no shutter anywhere — the comment
-  /// suppressing the bar claimed these buttons were "already visible beside the
-  /// image", and they were not.
+  /// height). Without them that band has no exposure-start control anywhere:
+  /// this panel carries no Snapshot or Loop button of its own.
   final Widget? captureActions;
 
   const CapturePanel({

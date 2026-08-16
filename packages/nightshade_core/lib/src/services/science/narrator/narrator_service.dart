@@ -178,9 +178,9 @@ class NarratorService {
     _bindAutofocus();
     _bindLastImageStats();
     _bindPeriodAnalysis();
-    // Science stage results are not session-scoped — the provider is a plain
-    // global — but this listener used to sit below the early return, so a
-    // hand-driven night never heard about a completed stage.
+    // Science stage results are not session-scoped (the provider is a plain
+    // global), so this listener stays ABOVE the early return: below it, a
+    // hand-driven night never hears about a completed stage.
     _subs.add(
       _ref.listen(scienceProcessingLatestStageProvider, (_, next) {
         _onStageResult(next);

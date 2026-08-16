@@ -1,6 +1,5 @@
 part of '../smart_night_models.dart';
 
-// ---------------------------------------------------------------------------
 // Public strategy / filter / exposure-plan helpers
 //
 // These functions operate purely on the model types above (settings, plans,
@@ -9,7 +8,6 @@ part of '../smart_night_models.dart';
 // Tonight integration goals, tests) consume them as a public API surface —
 // keeping them with their domain types avoids a circular service ↔ models
 // import.
-// ---------------------------------------------------------------------------
 
 /// Filter-plan name used by a rig with no filter wheel.
 ///
@@ -293,11 +291,9 @@ List<SmartNightFilterPlan> composeSmartNightFilterPlans({
   );
 }
 
-// ---------------------------------------------------------------------------
 // Private helpers — used exclusively by the model classes / public helpers
 // above. Kept in this file so model JSON serde + filter-plan composition
 // stay self-contained.
-// ---------------------------------------------------------------------------
 
 bool _filterAliasPresent(Map<String, String> lookup, Iterable<String> aliases) {
   for (final alias in aliases) {

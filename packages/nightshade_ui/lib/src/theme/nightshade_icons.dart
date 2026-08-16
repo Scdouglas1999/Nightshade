@@ -1,28 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-/// Semantic icon surface for Nightshade — the canonical iconography screens
-/// adopt during the design-system migration.
+/// The canonical semantic icon surface for Nightshade.
 ///
-/// ## Why this exists
-///
-/// The app's iconography historically split ~50/50 between Flutter's Material
-/// `Icons.*` and Lucide (`LucideIcons.*`). The node-palette and many screens
-/// already use Lucide, which is the go-forward convention: a single coherent
-/// line-icon family that reads as a precision instrument rather than a mix of
-/// two visual languages. [NightshadeIcons] gives every icon a *role-based*
-/// name (e.g. [camera], [warning], [refresh]) backed by the chosen Lucide
-/// glyph, so a migrating screen swaps `Icons.error_outline` /
-/// `LucideIcons.alertCircle` for `NightshadeIcons.error` and the intent — not
-/// an arbitrary glyph choice — lives at the call site.
-///
-/// ## Usage
-///
-/// ```dart
-/// Icon(NightshadeIcons.camera)
-/// Icon(NightshadeIcons.warning, color: colors.warning)
-/// IconButton(icon: const Icon(NightshadeIcons.refresh), onPressed: ...)
-/// ```
+/// Lucide is the convention: one coherent line-icon family rather than a mix of
+/// two visual languages. Every icon has a *role-based* name (e.g. [camera],
+/// [warning], [refresh]) backed by the chosen Lucide glyph, so the intent —
+/// not an arbitrary glyph choice — lives at the call site.
 ///
 /// ## Conventions
 ///
@@ -40,9 +24,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 abstract final class NightshadeIcons {
   NightshadeIcons._();
 
-  // ===========================================================================
   // Devices / equipment
-  // ===========================================================================
 
   /// Imaging / guide camera.
   static const IconData camera = LucideIcons.camera;
@@ -96,9 +78,7 @@ abstract final class NightshadeIcons {
   /// Phone / mobile companion.
   static const IconData phone = LucideIcons.smartphone;
 
-  // ===========================================================================
   // Domain
-  // ===========================================================================
 
   /// Imaging target / object of interest.
   static const IconData target = LucideIcons.target;
@@ -130,9 +110,7 @@ abstract final class NightshadeIcons {
   /// Science / measurement (photometry, analysis).
   static const IconData science = LucideIcons.flaskConical;
 
-  // ===========================================================================
   // Run / transport controls
-  // ===========================================================================
 
   /// Start / run / play.
   static const IconData play = LucideIcons.play;
@@ -152,9 +130,7 @@ abstract final class NightshadeIcons {
   /// Loop / repeat.
   static const IconData repeat = LucideIcons.repeat;
 
-  // ===========================================================================
   // Status
-  // ===========================================================================
 
   /// Warning — recoverable / attention-needed condition.
   static const IconData warning = LucideIcons.alertTriangle;
@@ -189,9 +165,7 @@ abstract final class NightshadeIcons {
   /// Filled status disc (primitive).
   static const IconData dot = LucideIcons.circleDot;
 
-  // ===========================================================================
   // Actions
-  // ===========================================================================
 
   /// Add / create new.
   static const IconData add = LucideIcons.plus;
@@ -253,9 +227,7 @@ abstract final class NightshadeIcons {
   /// Collapse to small size.
   static const IconData collapse = LucideIcons.minimize2;
 
-  // ===========================================================================
   // Navigation / disclosure
-  // ===========================================================================
 
   static const IconData chevronDown = LucideIcons.chevronDown;
   static const IconData chevronUp = LucideIcons.chevronUp;
@@ -272,9 +244,7 @@ abstract final class NightshadeIcons {
   /// Move / drag handle.
   static const IconData move = LucideIcons.move;
 
-  // ===========================================================================
   // Structure / layout
-  // ===========================================================================
 
   /// List view.
   static const IconData list = LucideIcons.list;
@@ -303,9 +273,7 @@ abstract final class NightshadeIcons {
   /// Document / log file.
   static const IconData file = LucideIcons.fileText;
 
-  // ===========================================================================
   // Settings / tuning
-  // ===========================================================================
 
   /// Settings / preferences.
   static const IconData settings = LucideIcons.settings;
@@ -322,9 +290,7 @@ abstract final class NightshadeIcons {
   /// Tunable AI / brain (autoguider brain, smart features).
   static const IconData brain = LucideIcons.brain;
 
-  // ===========================================================================
   // Time / scheduling
-  // ===========================================================================
 
   /// Clock / time-of-day.
   static const IconData clock = LucideIcons.clock;
@@ -338,9 +304,7 @@ abstract final class NightshadeIcons {
   /// Calendar / scheduling.
   static const IconData calendar = LucideIcons.calendar;
 
-  // ===========================================================================
   // Weather / sky conditions
-  // ===========================================================================
 
   /// General weather / sky conditions.
   static const IconData weather = LucideIcons.cloudSun;
@@ -375,9 +339,7 @@ abstract final class NightshadeIcons {
   /// Humidity / dew.
   static const IconData humidity = LucideIcons.droplets;
 
-  // ===========================================================================
   // Data / system
-  // ===========================================================================
 
   /// Disk / local storage.
   static const IconData disk = LucideIcons.hardDrive;
@@ -406,9 +368,7 @@ abstract final class NightshadeIcons {
   /// Trend line / chart.
   static const IconData chart = LucideIcons.lineChart;
 
-  // ===========================================================================
   // Visibility / notifications / security
-  // ===========================================================================
 
   /// Visible / shown.
   static const IconData visible = LucideIcons.eye;
@@ -445,9 +405,7 @@ abstract final class NightshadeIcons {
   /// User / account.
   static const IconData user = LucideIcons.user;
 
-  // ===========================================================================
   // Imaging / misc
-  // ===========================================================================
 
   /// Image / captured frame.
   static const IconData image = LucideIcons.image;

@@ -147,10 +147,10 @@ class TransientDetectionsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Dismissed detections scoped to the tiles a frame actually covers. The
   /// per-frame suppression check only needs the dismissed signatures on the
-  /// handful of [tileIds] the current solve touched — scoping the read here
-  /// turns the old all-time `dismissed=true` full-scan into an index seek on
-  /// `idx_transient_detections_dismissed (dismissed, tile_id)`. Returns empty
-  /// for an empty [tileIds] (nothing to suppress against).
+  /// handful of [tileIds] the current solve touched, so the read is an index
+  /// seek on `idx_transient_detections_dismissed (dismissed, tile_id)` rather
+  /// than an all-time scan. Returns empty for an empty [tileIds] (nothing to
+  /// suppress against).
   Future<List<TransientDetectionRow>> dismissedDetectionsForTiles(
     Iterable<int> tileIds,
   ) {
@@ -162,9 +162,8 @@ class TransientDetectionsDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// Confirmed discoveries: reviewed AND not dismissed, newest-first. The
-  /// dismissed guard keeps triaged artefacts out of the curated submit list
-  /// (the old "reviewed-only" filter let every dismissed row masquerade as
-  /// confirmed). Backed by `idx_transient_detections_confirmed
+  /// dismissed guard keeps triaged artefacts out of the curated submit list.
+  /// Backed by `idx_transient_detections_confirmed
   /// (reviewed, dismissed, detected_at)`.
   Future<List<TransientDetectionRow>> confirmedDetections({int? limit}) {
     final q = select(transientDetections)

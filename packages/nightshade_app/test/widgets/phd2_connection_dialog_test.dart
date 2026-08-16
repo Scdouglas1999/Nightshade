@@ -1,10 +1,10 @@
-// Regression: the PHD2 connection dialog must surface a settings-persistence
-// failure (not swallow it) and must NOT connect against unsaved values.
+// The PHD2 connection dialog must surface a settings-persistence failure (not
+// swallow it) and must NOT connect against unsaved values.
 //
-// A remote client that has not yet completed a successful host settings fetch
-// refuses settings writes (they would clobber the host with local defaults),
-// so `setPhd2Host` throws — exactly the fire-and-forget failure the dialog now
-// catches and reports.
+// A remote client that has not completed a successful host settings fetch
+// refuses settings writes (they would clobber the host with local defaults), so
+// `setPhd2Host` throws — exactly the fire-and-forget failure the dialog has to
+// catch and report.
 import 'dart:async';
 
 import 'package:drift/native.dart';

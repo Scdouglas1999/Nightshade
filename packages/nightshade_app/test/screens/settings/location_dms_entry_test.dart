@@ -205,10 +205,10 @@ void main() {
     });
 
     test('a hemisphere written AFTER a d/m/s triple is still a hemisphere', () {
-      // "44d03m29s S" was read as +44.058: the trailing S was taken for a
-      // second seconds marker because the string uses d/m unit letters, and
-      // the site was silently stored 88 degrees away in the wrong hemisphere.
-      // A seconds marker is glued to its digits; a hemisphere stands alone.
+      // "44d03m29s S" must not read as +44.058: taking the trailing S for a
+      // second seconds marker — the string already uses d/m unit letters —
+      // stores the site 88 degrees away in the wrong hemisphere. A seconds
+      // marker is glued to its digits; a hemisphere stands alone.
       expect(lat('44d03m29s S'), closeTo(-44.058056, 1e-6));
       expect(lat('44d03m29s N'), closeTo(44.058056, 1e-6));
       expect(lat('44d03m29 S'), closeTo(-44.058056, 1e-6));

@@ -17,10 +17,10 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   /// Screen Y of altitude [targetAltDeg] for a view centered at [centerAltDeg].
   ///
   /// Uses the painter's own pixels-per-degree ([scale] = `min(w, h) / fov`)
-  /// rather than `height / fov`; the two agree only on a landscape canvas, so
-  /// the old form misplaced the horizon on every portrait (phone) layout.
-  /// The offset is clamped to a bounded band so an extreme pose cannot produce
-  /// runaway rect coordinates (matching the previous +/-1.5 half-height clamp).
+  /// rather than `height / fov`: the two agree only on a landscape canvas, so
+  /// `height / fov` misplaces the horizon on every portrait layout. The offset
+  /// is clamped to +/-1.5 half-heights so an extreme pose cannot produce
+  /// runaway rect coordinates.
   double _altitudeScreenY(
     Size size,
     double scale,
@@ -43,12 +43,13 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   /// nothing is occluded there and this returns false (which also leaves the
   /// committed equatorial render goldens untouched).
   ///
-  /// The ground fill is painted *after* the sky objects in the horizontal frame,
-  /// so a below-horizon star's dot is already hidden — but the label passes run
-  /// after the ground, so their text was still printed over the terrain. That is
-  /// how a view looking 12 deg BELOW the horizon came to show 'Fomalhaut',
-  /// 'Alnair', 'GRUS' and 'TUCANA' as named, apparently-observable objects, and
-  /// at midday 'CRUX' and 'CENTAURUS' — never visible from 40N at all.
+  /// The ground fill is painted *after* the sky objects in the horizontal
+  /// frame, so a below-horizon star's dot is already hidden — but the label
+  /// passes run after the ground, so without this check their text prints over
+  /// the terrain. That is how a view looking 12 deg BELOW the horizon shows
+  /// 'Fomalhaut', 'Alnair', 'GRUS' and 'TUCANA' as named,
+  /// apparently-observable objects, and at midday 'CRUX' and 'CENTAURUS' —
+  /// never visible from 40N at all.
   ///
   /// Call sites are label passes (a few dozen objects a frame), not the hot
   /// per-star sprite loop, so the trig here is not on the critical path.
@@ -113,8 +114,7 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
       ),
     );
 
-    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
-    // time separately in each layer, several times per frame.
+    // Memoized per paint (see [_lstHours]).
     final lst = _lstHours;
 
     final path = Path();
@@ -165,8 +165,7 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   void _drawGroundPlane(Canvas canvas, Size size, Offset center, double scale) {
     if (!config.showGroundPlane) return;
 
-    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
-    // time separately in each layer, several times per frame.
+    // Memoized per paint (see [_lstHours]).
     final lst = _lstHours;
 
     if (horizonAltitudes != null && horizonAltitudes!.isNotEmpty) {
@@ -200,12 +199,10 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
 
     // Blend zone: how far ABOVE the horizon the ground starts fading in.
     //
-    // The upper clamp used to be 180px, which on a 1440-tall window compressed
-    // the whole sky-to-ground transition into 12% of the height — the fade was
-    // steep enough to read as a visible horizontal seam between the blue sky
-    // and the dark ground rather than as a horizon. Letting the 20% actually
-    // apply keeps the transition a wide, gradual fade at any window size; the
-    // floor still protects small windows.
+    // The blend must stay proportional to the window: a low upper clamp (180px
+    // on a 1440-tall window) compresses the whole sky-to-ground transition into
+    // ~12% of the height and reads as a horizontal seam rather than a horizon.
+    // The floor still protects small windows.
     final blendZone = (size.height * 0.20).clamp(60.0, 460.0);
     final groundTop = horizonY - blendZone;
     final groundRect = Rect.fromLTRB(0, groundTop, size.width, size.height);

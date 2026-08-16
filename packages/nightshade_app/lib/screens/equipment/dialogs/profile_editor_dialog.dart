@@ -76,17 +76,14 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
 
   // Inline validation error for the Profile Name field. Set by [_validateForm]
   // when the trimmed name is blank or too long, cleared as soon as the user
-  // edits the field. Replaces the old `_isSaving`-keyed errorText, which never
-  // produced a stable inline correction.
+  // edits the field.
   String? _nameError;
 
   /// Per-field inline validation errors, keyed by the constants in
-  /// [ProfileEditorField]. Only the NAME field used to get inline treatment;
-  /// every other error was joined into one snackbar that rendered OUTSIDE and
-  /// BELOW the dialog at the bottom edge of the window — dimmed by the modal
-  /// barrier to a measured 2.00:1 contrast ratio (WCAG AA wants 4.5:1 for body
-  /// text) — while the offending field kept its normal border. Two capture passes
-  /// missed the toast entirely, which is the point.
+  /// [ProfileEditorField]. Every field's error renders inline: a snackbar sits
+  /// OUTSIDE and BELOW the dialog, dimmed by the modal barrier to ~2.00:1
+  /// contrast against the 4.5:1 WCAG AA wants for body text, so it is not a
+  /// readable way to report which field is wrong.
   final Map<String, String?> _fieldErrors = <String, String?>{};
 
   /// Errors that belong to no single field (optical-train cross-check, per-filter
@@ -161,7 +158,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   bool _coolOnConnect = false;
   final _centeringExposureController = TextEditingController();
 
-  // IMG-P3-2: auto-detect state for the camera's SDK-reported gain/offset.
+  // Auto-detect state for the camera's SDK-reported gain/offset.
   // `null` means "not queried yet". An empty struct (all-None) means
   // "SDK reported nothing" and is displayed as such.
   CameraRecommendedSettings? _recommendedSettings;
@@ -216,14 +213,11 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       // is the OTA's native focal length and `focalLength` is what the rig
       // actually images at (post reducer/barlow) — it is `focalLength` that
       // reaches the FITS FOCALLEN card, the plate-solve scale hint, the framing
-      // FOV and the guider px->arcsec conversion. Only the first-run wizard ever
-      // wrote the two apart, and this editor used to seed from the telescope
-      // column and then write that same number back into BOTH, so opening a
-      // reducer'd profile and pressing Save with no edits silently multiplied
-      // its focal length back up by 1/reducer (440 mm -> 550 mm, f/4.4 -> f/5.5:
-      // a 25% image-scale error). Reconstruct the reducer from the ratio the two
-      // columns already encode — the row has no reducer column, but the pair is
-      // exactly that ratio — so the pair round-trips instead of collapsing.
+      // FOV and the guider px->arcsec conversion. The two must stay distinct:
+      // writing one number into both collapses a reducer'd profile back to its
+      // native focal length on any save. The row has no reducer column, so the
+      // reducer is reconstructed from the ratio the pair already encodes and
+      // the pair round-trips.
       _telescopeNameController.text = profile.telescopeName ?? '';
       final nativeFocalLength = profile.telescopeFocalLength != null &&
               profile.telescopeFocalLength! > 0

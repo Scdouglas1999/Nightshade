@@ -1,5 +1,3 @@
-// Part of ../framing_controls.dart -- extracted for maintainability.
-//
 // Rotation field, its state and the rotation step button.
 part of '../framing_controls.dart';
 
@@ -7,15 +5,14 @@ part of '../framing_controls.dart';
 /// entry and coarse/fine step buttons.
 ///
 /// Rotation is the number an imager dials into a rotator's position angle, so it
-/// has to be settable EXACTLY. As a bare [FramingSliderField] it was a ~117 px
-/// track spanning 360° — about 3.1° per pixel — with a read-only degree label:
-/// there was no way to reach a specific angle, the label was not an input, and
-/// arrow keys did nothing because the continuous slider had no step. This widget
-/// keeps the slider for coarse dragging but:
+/// has to be settable EXACTLY. A bare [FramingSliderField] is a ~117 px track
+/// spanning 360° — about 3.1° per pixel — with a read-only degree label, so no
+/// specific angle is reachable. This widget keeps the slider for coarse
+/// dragging but:
 ///
 ///  * snaps it to whole degrees (`divisions: 360`), which also gives the slider
 ///    a 1° arrow-key nudge once focused (Flutter derives the keyboard step from
-///    the division size; without divisions it was (max-min)/10 = 36°);
+///    the division size; without divisions it is (max-min)/10 = 36°);
 ///  * adds a numeric field that accepts a typed angle (commit on Enter or on
 ///    focus loss);
 ///  * adds -90 / -1 / +1 / +90 buttons so the cardinal angles are one tap away.

@@ -345,9 +345,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState>
   }
 }
 
-// =============================================================================
-// Effective Filters Provider
-// =============================================================================
+// Effective filters provider
 
 /// Matches generic ASCOM/INDI slot labels such as "Filter 1" or "filter2".
 final genericFilterSlotNamePattern = RegExp(
@@ -400,18 +398,12 @@ final effectiveFiltersProvider = Provider<List<String>>((ref) {
   return profileFilters;
 });
 
-// =============================================================================
-// Session Filter Names Provider
-// =============================================================================
+// Session filter names provider
 
 /// Session-only filter names (no profile required).
 ///
-/// These are used when no equipment profile is active but user wants to name filters.
-/// When a filter wheel connects, filter names are resolved in this priority order:
-/// 1. Active profile filter names (if profile exists and has filter names configured)
-/// 2. Session filter names (if set via this provider)
+/// When a filter wheel connects, filter names resolve in this priority order:
+/// 1. Active profile filter names (if the profile has them configured)
+/// 2. Session filter names (set via this provider)
 /// 3. Driver-reported names (from the backend/hardware)
-///
-/// This allows users to set filter names without creating an equipment profile,
-/// which is useful for quick sessions or testing.
 final sessionFilterNamesProvider = StateProvider<List<String>?>((ref) => null);

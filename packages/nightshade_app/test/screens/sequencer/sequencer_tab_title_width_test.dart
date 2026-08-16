@@ -1,17 +1,13 @@
-// WF-EQ-N1 — CON-52's shared heading truncates the mandate it introduced.
+// The shared Sequencer tab heading must not truncate the name it exists to
+// state.
 //
-// Wave F, at a supported desktop size (`resize 1000 800`):
-//   * Sequencer -> Templates rendered "Sequence Te…" / "Start with a template
-//     or sav…" with the search field collapsed to "Search s…" (52-templates-
-//     narrow.png);
-//   * Sequencer -> Sequences rendered "Sequenc…" / "Browse and load yo…"
-//     (50-seq-narrow.png).
-//
-// The refuter's own control is what makes this a layout defect rather than a
-// window-size one: the Builder's copy of the SAME widget owns a full-width row
-// and renders its title and sentence complete at the same size
-// (53-builder-narrow.png). So the heading is not too big for 1000 px — it is
-// being handed a share of the row that a toolbar has already spent.
+// At a supported desktop size (1000x800) a heading sharing its row with a
+// toolbar renders Templates as "Sequence Te…" / "Start with a template or sav…"
+// with the search field collapsed to "Search s…", and Sequences as "Sequenc…" /
+// "Browse and load yo…". The Builder's copy of the SAME widget owns a full-width
+// row and renders its title and sentence complete at that size, so the heading
+// is not too big for 1000 px — it is handed a share of the row a toolbar has
+// already spent.
 //
 // The contract: at 1000x800 the tab's own name is on screen, whole. Asserted
 // through the render tree (`didExceedMaxLines`), not through `find.text`, which
@@ -26,12 +22,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequencer_tab_header.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// The desktop size Wave F drove.
+/// The desktop size under test.
 // Widget tests render in a fixed-width test font whose glyphs are far wider
-// than the real one — the campaign's own measurement is that a bar which fits
-// 1400 real pixels needs ~1630 test pixels. 1600 is the test-pixel analogue of
-// the 1000 px window Wave F drove; the point of the case is the has-a-toolbar
-// branch, not a specific threshold.
+// than the real one — a bar that fits 1400 real pixels needs ~1630 test pixels.
+// 1600 is the test-pixel analogue of a 1000 px window; the point of the case is
+// the has-a-toolbar branch, not a specific threshold.
 const Size _waveFWindow = Size(2000, 800);
 
 Future<void> _pump(
@@ -66,14 +61,14 @@ bool _wasTruncated(WidgetTester tester, Finder text) {
 }
 
 void main() {
-  // The two callers Wave F caught. Pumping the whole tab and measuring the
-  // painted title is not usable here: widget tests render in a fixed-width test
-  // font whose glyphs are far wider than the real one (this repo's own
-  // measurement: a bar that fits 1400 real pixels needs ~1630 test pixels), so
-  // "did the title fit 1000 px" cannot be asked of a widget test. What CAN be
-  // asked is the thing that was actually wrong — the heading was a `Flexible`
-  // splitting the row's free space evenly with a toolbar, so the toolbar kept
-  // its full width while the tab's own name was cut.
+  // The two callers with a toolbar in the row. Pumping the whole tab and
+  // measuring the painted title is not usable here: widget tests render in a
+  // fixed-width test font whose glyphs are far wider than the real one (a bar
+  // that fits 1400 real pixels needs ~1630 test pixels), so "did the title fit
+  // 1000 px" cannot be asked of a widget test. What CAN be asked is the
+  // structure — a heading declared `Flexible` splits the row's free space evenly
+  // with the toolbar, so the toolbar keeps its full width while the tab's own
+  // name is cut.
   test('the two toolbar tabs give their heading the row slack', () {
     const headers = <String, String>{
       'lib/screens/sequencer/tabs/sequence_library_tab/library_header.dart':
@@ -91,7 +86,7 @@ void main() {
                 RegExp.escape(marker))
             .hasMatch(source),
         isTrue,
-        reason: 'WF-EQ-N1: the heading in $path must take the row slack, not '
+        reason: 'the heading in $path must take the row slack, not '
             'split it with the toolbar',
       );
       expect(

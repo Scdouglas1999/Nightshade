@@ -4,11 +4,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// The one empty state every Analytics tab uses.
 ///
-/// CON-45 measured four different structures across the five tabs — centred vs
-/// left-aligned, icon vs star glyph vs nothing at all, sentences with full stops
-/// and sentences without — and not one of them offered the reader anything to
-/// do. A tab that has nothing to show is the most common thing a new user sees,
-/// so it is the worst place for the app to look like five different products.
+/// Left to themselves the five tabs drift into four different structures —
+/// centred vs left-aligned, icon vs star glyph vs nothing at all, sentences
+/// with full stops and sentences without — and none of them offers the reader
+/// anything to do. A tab with nothing to show is the most common thing a new
+/// user sees, so it is the worst place for the app to look like five different
+/// products.
 ///
 /// The contract, enforced below: an icon, a short title with no terminal
 /// punctuation, exactly one sentence ending in a full stop, and one action.

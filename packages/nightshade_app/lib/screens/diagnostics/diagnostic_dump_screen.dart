@@ -221,9 +221,8 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      // Surface the failure rather than swallowing it: errors are a
-      // feature. The service has already logged the structured
-      // stack trace via LoggingService.
+      // Surface the failure rather than swallowing it. The service has
+      // already logged the structured stack trace via LoggingService.
       context.showErrorSnackBar('Diagnostic dump failed: $e');
     } finally {
       if (mounted) {

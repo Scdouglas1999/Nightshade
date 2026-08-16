@@ -12,10 +12,13 @@ extension _ImagingServiceNamingInternals on ImagingService {
     required int frameNumber,
     required DateTime timestamp,
   }) {
-    // $TEMP, $CAMERA, $TELESCOPE are best-effort: equipment may not be
-    // connected when this runs (e.g. headless tests). Fall back to the
-    // documented defaults from the Rust naming.rs so cross-language users see
-    // consistent path strings.
+    // $TEMP, $CAMERA, $TELESCOPE fall back to the same defaults as the Rust
+    // naming.rs when equipment reports no name or temperature, so both
+    // languages produce the same path string for an unnamed rig. A provider
+    // read that fails is a different thing: only a disposed container is
+    // tolerated (the substitution degrades and says so in the log); any other
+    // failure propagates rather than silently stamping 'Camera'/'Telescope'
+    // onto the file the operator will keep.
     String camera = 'Camera';
     String tempStr = '0C';
     try {
@@ -28,8 +31,13 @@ extension _ImagingServiceNamingInternals on ImagingService {
       if (temp != null) {
         tempStr = '${temp.toStringAsFixed(0)}C';
       }
-    } catch (_) {
-      // Provider not available (e.g. minimal test container) — use defaults.
+    } on StateError catch (e) {
+      _logger.warning(
+        'Camera state unreadable while naming a frame; '
+        '\$CAMERA/\$TEMP fall back to defaults',
+        source: 'ImagingService',
+        fields: {'error': e.message},
+      );
     }
 
     String telescope = 'Telescope';
@@ -38,8 +46,13 @@ extension _ImagingServiceNamingInternals on ImagingService {
       if (mountState.deviceName != null && mountState.deviceName!.isNotEmpty) {
         telescope = mountState.deviceName!;
       }
-    } catch (_) {
-      // Provider not available — use default.
+    } on StateError catch (e) {
+      _logger.warning(
+        'Mount state unreadable while naming a frame; '
+        '\$TELESCOPE falls back to the default',
+        source: 'ImagingService',
+        fields: {'error': e.message},
+      );
     }
 
     return ImagingService.buildTimestampSubstitutions(

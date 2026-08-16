@@ -40,9 +40,7 @@ class ProfileService {
   EquipmentProfilesNotifier get _profilesNotifier =>
       _ref.read(equipmentProfilesProvider.notifier);
 
-  // ===========================================================================
-  // Profile Validation
-  // ===========================================================================
+  // Profile validation
 
   /// Validate that all devices in a profile are currently discoverable
   ///
@@ -100,9 +98,7 @@ class ProfileService {
     );
   }
 
-  // ===========================================================================
   // Profile Loading with Auto-Connect
-  // ===========================================================================
 
   /// Load and activate a profile, optionally connecting devices
   Future<void> loadProfile(int profileId, {bool autoConnect = false}) async {
@@ -210,9 +206,7 @@ class ProfileService {
     _requireAuthority(authority);
   }
 
-  // ===========================================================================
   // Profile Import/Export
-  // ===========================================================================
 
   /// Export a profile to JSON
   Future<String> exportProfileToJson(int profileId) async {
@@ -331,9 +325,7 @@ class ProfileService {
     return await importAllProfilesFromJson(json);
   }
 
-  // ===========================================================================
-  // Profile Management
-  // ===========================================================================
+  // Profile management
 
   /// Create a new empty profile
   Future<int> createProfile(String name, {String? description}) async {

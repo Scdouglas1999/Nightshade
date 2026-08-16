@@ -91,13 +91,11 @@ NightshadeButton _addSlotButton(WidgetTester tester) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // SET-2 (a): the cap used to render the button DISABLED. Driven live on
-  // 2026-08-13 that was not what the operator got: the accessibility tree
-  // published a plain button with a tap action, pressing it produced no row, no
-  // toast and no message, and two tree dumps taken either side of the click
-  // were byte-identical. A wheel with seven positions has no eighth, ever — so
-  // there is nothing to press, and the reason is on screen instead of inside
-  // the removed button's tooltip.
+  // At the cap there is NO button, not a disabled one: a disabled control still
+  // publishes a plain button with a tap action to the accessibility tree, and
+  // pressing it produces no row, no toast and no message. A wheel with seven
+  // positions has no eighth ever, so the reason goes on screen rather than into
+  // a tooltip nobody can reach.
   testWidgets('no Add slot control exists once every wheel position is listed',
       (tester) async {
     final handle = tester.ensureSemantics();
@@ -161,8 +159,8 @@ void main() {
     expect(find.widgetWithText(TextField, 'Filter 4'), findsNothing);
   });
 
-  // SET-2: deleting the last slot and adding it back invented "Filter 7" — a
-  // filter name nobody typed and no wheel reports, which then travels into
+  // Deleting the last slot and adding it back must not invent "Filter 7" — a
+  // filter name nobody typed and no wheel reports, which would travel into
   // FITS headers, flat matching and per-filter focus offsets.
   testWidgets('a re-added slot recovers the wheel\'s own name for it',
       (tester) async {

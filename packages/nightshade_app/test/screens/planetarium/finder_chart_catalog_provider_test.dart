@@ -2,10 +2,9 @@
 // it must wait for the spatial indexes and preserve load failures instead of
 // quietly becoming an empty chart.
 //
-// The snapshot is keyed by an explicit [FinderChartRegion] rather than reading
-// the live view centre. It used to be filled from `fovFilteredStars/DsosProvider`
-// — whatever was on screen — so a chart titled "Finder Chart: HIP42327" could be
-// packed with a completely different patch of sky.
+// The snapshot is keyed by an explicit [FinderChartRegion] rather than the live
+// view centre: filling it from whatever is on screen packs a chart titled for
+// one object with a completely different patch of sky.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/planetarium/providers/finder_chart_catalog_provider.dart';

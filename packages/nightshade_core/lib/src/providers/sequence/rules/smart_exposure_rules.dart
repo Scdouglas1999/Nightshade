@@ -253,8 +253,8 @@ class SmartExposureFilterUnknownRule implements RefAwareSequenceValidator {
     final profile = ctx.ref.read(activeEquipmentProfileProvider);
     if (profile == null) {
       // No profile → SmartExposureFilterWheelMissingRule already emits an
-      // info issue explaining the check was skipped. Don't double-report;
-      // returning empty here keeps the validator output clean.
+      // info issue explaining that the check is skipped. Returning empty here
+      // avoids double-reporting.
       return const [];
     }
 

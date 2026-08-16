@@ -1,5 +1,3 @@
-// Part of ../sub_cull_rail.dart -- extracted for maintainability.
-//
 // Sub tile, download button and select marker.
 part of '../sub_cull_rail.dart';
 
@@ -24,9 +22,9 @@ class _SubTile extends ConsumerWidget {
 
   /// Colour of the top-left grade badge — driven purely by the QUALITY GRADE,
   /// not by accept/reject state. A GOOD sub shows a green GOOD badge whether it
-  /// was kept or culled; the reject state is conveyed separately by the
+  /// is kept or culled; the reject state is conveyed separately by the
   /// "REJECTED" chip + amber ✕ + card dimming, so the grade must not be
-  /// recoloured red just because the sub was rejected.
+  /// recoloured red just because the sub is rejected.
   Color _gradeColor() {
     switch (assessment?.level) {
       case FrameQualityLevel.good:

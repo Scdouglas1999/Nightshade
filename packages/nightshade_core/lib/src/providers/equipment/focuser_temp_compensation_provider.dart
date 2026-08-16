@@ -10,49 +10,23 @@ import '../sequence/sequence_progress.dart';
 import '../settings_provider.dart';
 import 'focuser_state_provider.dart';
 
-/// Why: many focusers drift with temperature — a 10 degC overnight change
-/// is enough to push a typical refractor 100+ steps out of focus. Users
-/// configure a coefficient (steps per degC) in
-/// Equipment → Settings → Focuser; this provider applies that coefficient
-/// continuously while the focuser is connected so the operator does not
-/// have to refocus manually every few hours.
-/// WIRE-UP item #7.
+/// Applies the operator's temperature coefficient (steps per °C, set in
+/// Equipment → Settings → Focuser) continuously while the focuser is
+/// connected and no sequence is running.
 ///
-/// Sign convention (MUST match the executor-authoritative Rust
+/// Sign convention MUST match the executor-authoritative Rust
 /// `execute_temperature_compensation` in
-/// `native/nightshade_native/sequencer/src/temperature_compensation.rs`):
-/// the Rust side computes
+/// `native/nightshade_native/sequencer/src/temperature_compensation.rs`,
+/// which computes
 /// `new_position = current_position + (temp_now - baseline) * coefficient`.
-/// This Dart provider uses the IDENTICAL formula
-/// (`target = baseline_position + delta`). Historically this provider
-/// subtracted the delta, which inverted the move direction relative to the
-/// Rust instruction — the two compensators then fought each other (one
-/// moving the focuser the wrong way). They now agree exactly: a given
-/// coefficient produces the same physical move on both sides. With the
-/// typical negative coefficient (default -12 steps/°C), a falling
-/// temperature (negative delta) yields a positive step delta and drives the
-/// focuser outward, which is the correct direction for most refractors as
-/// the tube contracts.
+/// This provider uses that identical formula
+/// (`target = baseline_position + delta`); a sign flip here makes the two
+/// compensators drive the focuser in opposite directions.
 ///
-/// Authority while a sequence runs: the Rust `temperature_compensation`
-/// instruction is the in-sequence authority. To avoid double-compensation
-/// (two controllers issuing focuser moves off the same temperature drift),
-/// this continuous Dart provider stands down whenever the sequencer is
-/// actively executing (running / paused / stopping / recovering) and only
-/// drives compensation when no sequence is in flight.
-///
-/// State machine:
-///   - When `tempCompensation` is false: no-op.
-///   - When a sequence is executing: no-op (Rust instruction is authoritative).
-///   - When `tempCompensation` is true and the focuser publishes its first
-///     temperature reading: capture the (temperature, position) baseline.
-///   - On each subsequent temperature reading, compute
-///     `delta = (temp_now - baseline_temp) * coefficient`. When
-///     `abs(delta) >= 1` step, move the focuser to
-///     `baseline_position + delta`.
-///   - After a successful move, advance the baseline to the new
-///     (temperature, position) pair so future deltas are computed against
-///     the most recent applied correction.
+/// The Rust `temperature_compensation` instruction is the in-sequence
+/// authority, so this provider stands down whenever the sequencer is
+/// executing (running / paused / stopping / recovering). Otherwise two
+/// controllers would issue focuser moves off the same drift.
 final focuserTempCompensationProvider = Provider<FocuserTempCompensator>((ref) {
   final compensator = FocuserTempCompensator(ref);
   ref.onDispose(compensator.dispose);

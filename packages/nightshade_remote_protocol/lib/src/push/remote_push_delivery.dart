@@ -62,9 +62,7 @@ abstract class RemotePushDelivery {
   Future<void> dispose() async {}
 }
 
-// ---------------------------------------------------------------------------
-// Payload assembly (pure, no network — directly unit-testable).
-// ---------------------------------------------------------------------------
+// Payload assembly (pure, no network — directly unit-testable)
 
 /// Cloud-push priority derived from a frame's severity.
 /// `critical`/`warning` escalate; everything else is normal.
@@ -158,9 +156,7 @@ Future<void> _pruneIfStale(PushTokenStore store, String token) async {
 String _truncateBody(String body, [int max = 200]) =>
     body.length <= max ? body : '${body.substring(0, max)}…';
 
-// ---------------------------------------------------------------------------
-// FCM (Android) — HTTP v1.
-// ---------------------------------------------------------------------------
+// FCM (Android) — HTTP v1
 
 /// Parsed Firebase service-account JSON (the bits the sender needs).
 class FcmServiceAccount {
@@ -396,9 +392,7 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
   }
 }
 
-// ---------------------------------------------------------------------------
-// APNs (iOS) — token auth over HTTP/2.
-// ---------------------------------------------------------------------------
+// APNs (iOS) — token auth over HTTP/2
 
 /// Opens an HTTP/2 connection to an APNs host and POSTs a single request.
 /// Abstracted so tests can capture the assembled request without a real
@@ -636,12 +630,10 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Composite — runs FCM + APNs (+ mock) side by side.
 //
 // The no-cloud [MockRemotePushDelivery] lives in `push_token_store.dart`,
 // next to the [PushTokenStore] it records (frame, recipient) pairs against.
-// ---------------------------------------------------------------------------
 
 /// Fan-out delivery that forwards each frame to every wrapped
 /// implementation. Lets an operator run FCM + APNs in parallel — one

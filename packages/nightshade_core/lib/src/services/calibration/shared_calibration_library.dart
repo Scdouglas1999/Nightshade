@@ -1,5 +1,5 @@
-// Collaborative Sky (6.0) WS1 — the seam [CalibrationLibraryService] folds
-// remote shared masters in through.
+// The seam [CalibrationLibraryService] folds remote shared masters in
+// through.
 //
 // [RemoteCalibrationLibrary] is the small, HTTP-free interface the matcher
 // depends on (query candidates / download-on-accept / publish), so the matcher

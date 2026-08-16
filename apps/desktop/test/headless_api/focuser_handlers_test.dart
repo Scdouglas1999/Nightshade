@@ -73,10 +73,10 @@ void main() {
   );
 
   group('focuser travel-range validation', () {
-    // Regression: only the lower bound was checked, so an ASCOM focuser
-    // advertising maxPosition 50000 accepted `move-to 999999` with
-    // 200 {"status":"moving"}, and `move-relative delta 900000` ran the focuser
-    // for ~40s before the driver silently clamped it at 50000.
+    // Checking only the lower bound lets an ASCOM focuser advertising
+    // maxPosition 50000 accept `move-to 999999` with 200 {"status":"moving"},
+    // and `move-relative delta 900000` runs the focuser for ~40s before the
+    // driver silently clamps it at 50000.
     late _TravelBackend backend;
     late ProviderContainer container;
     late DeviceHandlers handlers;

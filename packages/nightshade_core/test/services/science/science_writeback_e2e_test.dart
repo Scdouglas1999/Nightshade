@@ -9,11 +9,9 @@
 //   2. Round-trip those keywords through `FitsHeaderWriter` so external
 //      tools (PixInsight, AstroPixelProcessor, Siril) can read them.
 //
-// This test exercises both parts against a real (synthetic) FITS fixture
-// on disk. If a future regression renames a keyword, swaps a unit, drops
-// the NSHA_VER provenance stamp, or breaks the writer's atomic file
-// replacement, this test will fail loudly — which is exactly the safety
-// net the science pipeline needs.
+// This test exercises both parts against a real (synthetic) FITS fixture on
+// disk. Renaming a keyword, swapping a unit, dropping the NSHA_VER provenance
+// stamp, or breaking the writer's atomic file replacement fails it loudly.
 
 import 'dart:io';
 import 'dart:typed_data';

@@ -17,8 +17,8 @@ import '../models/session_report.dart';
 /// regenerated for any past session without re-running the sequencer, and
 /// the service has no internal state to keep in sync with execution.
 ///
-/// Sources by metric (errors are a feature here — every missing field
-/// stays `null` so the UI can render dashes instead of a misleading zero):
+/// Sources by metric. Every missing field stays `null`, so the UI renders a
+/// dash rather than a zero that reads as a measurement:
 ///   * Frame counts / integration time / per-filter rollups: `captured_images`
 ///     filtered to `frame_type='light'` for the session.
 ///   * Quality (HFR, star count, SNR proxy, sensor temp): means computed over
@@ -70,10 +70,10 @@ class SessionReportService {
 
   /// Generate a fresh [SessionReport] for [sessionId].
   ///
-  /// Throws when the session row is missing — the caller is expected to
-  /// pass an ID it already resolved via [SessionsDao.getSessionById] or a
-  /// stream. Errors are a feature here: no silent fallback to
-  /// an empty report.
+  /// Throws when the session row is missing — the caller passes an ID it
+  /// already resolved via [SessionsDao.getSessionById] or a stream. There is no
+  /// fallback to an empty report, which would read as a session that produced
+  /// nothing.
   Future<SessionReport> buildReport(int sessionId) async {
     final session = await _records.getSessionById(sessionId);
     if (session == null) {

@@ -23,9 +23,8 @@ class _NodeItem extends ConsumerStatefulWidget {
   ///
   /// An exposure node with no filter of its own still images through whatever
   /// is in the wheel, and the run names that filter everywhere else — the
-  /// telemetry strip, the thumbnails, the FITS filenames and the session
-  /// report all said `R` while this card's own header said "No Filter"
-  /// (Wave D, SEQ-19).
+  /// telemetry strip, the thumbnails, the FITS filenames and the session report
+  /// all say `R`, so this card's header must not say "No Filter".
   final String? runFilter;
 
   /// Whether this node is collapsed in the tree (children hidden). Drives the
@@ -85,14 +84,14 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   // The last live progress this row was handed, kept for as long as its panel
   // outlives the run.
   //
-  // The panel is deliberately shown for 20s AFTER a node stops running, but it
-  // was rendered from whatever the progress maps held *at that moment*. On the
-  // success path those per-node entries are gone by then, so the card fell all
-  // the way back to its defaults and announced "0 / 4 frames" with four empty
-  // boxes directly above the four thumbnails it had just captured, while the
-  // Session Report on the same screen said "Frames accepted 4/4" (Wave D,
-  // SEQ-18). A run stopped at frame 1 kept its detail and read "1 / 4", which
-  // is what made the zeroing look specific to success.
+  // The panel is deliberately shown for 20s AFTER a node stops running.
+  // Rendering it from whatever the progress maps hold *at that moment* is
+  // wrong: on the success path those per-node entries are already gone, so the
+  // card falls back to its defaults and announces "0 / 4 frames" with four
+  // empty boxes directly above the four thumbnails it just captured, while the
+  // Session Report on the same screen says "Frames accepted 4/4". A run stopped
+  // at frame 1 still has its detail and reads "1 / 4", so the zeroing looks
+  // specific to success.
   //
   // Remembering the last non-null value makes the card independent of WHEN the
   // maps are cleared: it keeps showing the last thing that was true instead of
@@ -327,8 +326,8 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     _lastKnownStructuredDetail,
                 nodeStatus: widget.nodeStatus ?? _lastKnownStatus,
                 runFilter: widget.runFilter ?? _lastKnownRunFilter,
-                // SEQ-18 — the frames this node actually captured, from the
-                // slot no other instruction can overwrite. Watched here rather
+                // The frames this node actually captured, from the slot no
+                // other instruction can overwrite. Watched here rather
                 // than threaded down the tree so the count reaches the card by
                 // the shortest path there is.
                 exposureTally:
@@ -536,12 +535,11 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Trust-patch §B: per-row action icons mutate
-                  // the tree (toggle enabled, duplicate, delete)
-                  // and must be disabled when a sequence is
-                  // running. The kebab below already gated
-                  // move_up/move_down; this is the matching
-                  // gate for the inline icons.
+                  // Per-row action icons mutate the tree
+                  // (toggle enabled, duplicate, delete) and must
+                  // be disabled when a sequence is running. The
+                  // kebab below gates move_up/move_down; this is
+                  // the matching gate for the inline icons.
                   Builder(builder: (context) {
                     final canEdit = ref.watch(canEditSequenceProvider);
                     const lockedSuffix = ' (locked while sequence is running)';

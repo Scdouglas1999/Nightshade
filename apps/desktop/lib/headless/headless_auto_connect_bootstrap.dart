@@ -7,33 +7,24 @@ const _headlessLogSource = 'HeadlessAutoConnect';
 
 /// Attempt startup equipment auto-connect for the headless daemon.
 ///
-/// This is the headless twin of the desktop `StartupAutoConnectLauncher`: it is
-/// the production call site that finally makes the "Auto-connect equipment"
-/// setting do something on a Pi/appliance. It is invoked exactly once from
-/// `main_headless.dart`, after the local FFI backend is installed and the API
-/// server has started, at a deterministic point BEFORE the daemon prints its
-/// "running" ready banner.
+/// The headless twin of the desktop `StartupAutoConnectLauncher`, invoked once
+/// from `main_headless.dart` after the local FFI backend is installed and the
+/// API server has started, BEFORE the daemon prints its "running" banner.
 ///
-/// Design constraints (contract):
+/// Contract:
 ///   * Uses the daemon's existing [ProviderContainer] and the same
 ///     [ProfileService.autoConnectOnStartup] core as the GUI, so selection /
 ///     activation / connect semantics are identical across surfaces.
-///   * The headless daemon is definitionally the LOCAL hardware-owning master
-///     (it runs the FfiBackend and serves the API), but we still gate on
-///     [FfiBackend] defensively so a future misconfiguration can never make the
-///     daemon drive a remote host.
-///   * Failure MUST NOT crash-loop the daemon: a single offline device (or a
-///     total activation failure) is logged loudly and printed to stderr, and
-///     the server keeps running so the operator can recover remotely. This is
-///     the smallest injection seam — it takes the container + logger and does
-///     not require booting the HTTP server — so it is directly unit-testable.
-///   * [backendReady] is the `useLocalBackend()` FfiBackend-swap future. It is
-///     awaited INSIDE this fail-soft seam (rather than in `main_headless` before
-///     the call) so that a readiness FAILURE is logged loudly and swallowed here
-///     — the already-started API server stays up for remote recovery — instead
-///     of escaping to `main_headless`'s outer catch, which would tear the server
-///     down and exit. When null (unit tests that pre-install a backend) the
-///     readiness step is skipped.
+///   * Gates on [FfiBackend] so a misconfiguration can never make the daemon
+///     drive a remote host.
+///   * Failure MUST NOT crash-loop the daemon: a single offline device, or a
+///     total activation failure, is logged and printed to stderr while the
+///     server keeps running so the operator can recover remotely.
+///   * [backendReady] is the `useLocalBackend()` FfiBackend-swap future,
+///     awaited INSIDE this fail-soft seam so a readiness failure is logged and
+///     swallowed here rather than escaping to `main_headless`'s outer catch,
+///     which would tear the already-started server down and exit. When null
+///     (a caller that pre-installs a backend) the readiness step is skipped.
 Future<void> headlessAutoConnectBootstrap({
   required ProviderContainer container,
   required LoggingService logger,

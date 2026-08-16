@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/foundation.dart'
-    show immutable, kReleaseMode, visibleForTesting;
+import 'package:flutter/foundation.dart' show immutable, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../models/backend/event_types.dart'
@@ -18,31 +17,16 @@ import '../models/settings/app_settings.dart'
 import '../models/imaging/imaging_models.dart'
     show AutofocusSettings, FilterAutofocusConfig;
 
-// ============================================================================
-// Section parts — AppSettingsNotifier is split across multiple `part` files
-// under `settings_sections/`. Each section file holds the public setters for
-// one UI / domain section. This keeps each section file â‰¤ ~250 LOC and lets
-// new settings land next to their siblings rather than in a 3900-line conflict
-// hotspot.
+// Section parts: AppSettingsNotifier is one notifier split across `part` files
+// under `settings_sections/`, one per UI / domain section. `part` rather than
+// separate notifiers because the underlying `app_settings` row is a single
+// Drift record and the remote-sync subscription in `build()` applies per-field
+// `settings.changed` events to one in-memory state; section files also share
+// the notifier's private helpers (`_saveSetting`, `_patchState`, `_unset`)
+// without leaking them to the public API.
 //
-// The split deliberately uses Dart's `part` mechanism instead of separate
-// notifiers because:
-//   * the underlying `app_settings` row is a single Drift record, so
-//     coordinating writes across multiple notifiers would re-introduce the
-//     same coupling without the benefit of separation;
-//   * the remote-sync subscription in `build()` applies per-field
-//     `settings.changed` events to one in-memory state — splitting the
-//     notifier would force every section notifier to mirror that wiring;
-//   * `part of` lets section files share the notifier's private helpers
-//     (`_saveSetting`, `_patchState`, `_unset`, parse helpers) without
-//     leaking them to the public API.
-//
-// Adding a new setting? Find the matching section file under
-// `settings_sections/` and add the setter there. Add its state field and
-// copyWith wiring in `app_settings_state.dart`, then add persistence /
-// remote-sync mapping in `app_settings_notifier.dart`. Those declarations
-// remain single sources of truth without crowding this library entry file.
-// ============================================================================
+// A new setting needs a setter in its section file, a field plus copyWith entry
+// in `app_settings_state.dart`, and persistence / remote-sync mapping.
 part 'settings_sections/general.dart';
 part 'settings_sections/appearance.dart';
 part 'settings_sections/location.dart';
@@ -92,20 +76,7 @@ final appSettingsWriteFailureProvider = StateProvider<AppSettingsWriteFailure?>(
   (ref) => null,
 );
 
-/// Simulation is a development-only capability. Normalize every persisted,
-/// remote, and UI-facing value through one function so a release build cannot
-/// display or transmit an enabled state that its executor and native bridge
-/// will refuse to honor.
-bool effectiveSimulationMode(
-  bool requested, {
-  bool releaseMode = kReleaseMode,
-}) {
-  return !releaseMode && requested;
-}
-
-// ============================================================================
 // Pre-flight strictness
-// ============================================================================
 
 /// Pre-flight validation strictness mode. Tunes how aggressively the
 /// pre-flight dialog should warn (or block) on questionable conditions:
@@ -170,22 +141,12 @@ PreflightStrictness _parsePreflightStrictness(String? value) {
   }
 }
 
-// ============================================================================
-// App Settings - Complete settings model
-// ============================================================================
+// App settings
 
-/// Runtime, in-memory application-settings state owned by
-/// [AppSettingsNotifier]. Distinct from the persisted/freezed
-/// `AppSettings` model in `models/settings/app_settings.dart`, which is the
-/// Sentinel used by `AppSettingsState.copyWith` to distinguish
-/// "no change" from "explicitly clear the nullable field". Dart's
-/// `T?` parameter cannot express both "leave alone" and "set to null"
-/// without this trick. Keep this private to the file so callers always
-/// go through `copyWith`.
+/// Sentinel used by `AppSettingsState.copyWith` to distinguish "no change"
+/// from "explicitly clear the nullable field": Dart's `T?` parameter cannot
+/// express both. Private to this library so callers go through `copyWith`.
 const Object _unset = Object();
-
-/// Rust-bridge / JSON-persisted snapshot. Renamed from `AppSettings` to
-/// disambiguate (audit-arch §2.2).
 
 /// Main app settings provider
 final appSettingsProvider =
@@ -235,9 +196,7 @@ final appObserverLocationProvider = Provider<LocationSettings?>((ref) {
   );
 });
 
-// ============================================================================
-// Autofocus Settings Provider (convenience)
-// ============================================================================
+// Autofocus settings provider (convenience)
 
 /// Convenience provider that derives a typed [AutofocusSettings] from the
 /// persisted [AppSettingsState] autofocus fields.
@@ -278,9 +237,7 @@ final autofocusSettingsProvider = Provider<AutofocusSettings>((ref) {
   );
 });
 
-// ============================================================================
-// Legacy Providers (for backwards compatibility)
-// ============================================================================
+// Legacy providers, kept for backwards compatibility
 
 /// Location settings for observer position
 class LocationSettings {
@@ -307,9 +264,7 @@ class LocationSettings {
   }
 }
 
-// ============================================================================
-// Theme Settings
-// ============================================================================
+// Theme settings
 
 /// Theme mode setting
 class ThemeSettingsNotifier extends AsyncNotifier<String> {
@@ -326,9 +281,7 @@ class ThemeSettingsNotifier extends AsyncNotifier<String> {
   }
 }
 
-// ============================================================================
-// Auto Connect Settings
-// ============================================================================
+// Auto-connect settings
 
 /// Auto connect equipment setting
 class AutoConnectSettingsNotifier extends AsyncNotifier<bool> {
@@ -350,9 +303,7 @@ final autoConnectSettingsProvider =
       return AutoConnectSettingsNotifier();
     });
 
-// ============================================================================
-// Horizon Profile Utilities
-// ============================================================================
+// Horizon profile utilities
 
 /// 8 compass directions for horizon profile definition
 const List<String> horizonDirections = [
@@ -422,17 +373,13 @@ class BortleScale {
 /// coarse mask the settings screen edits.
 ///
 /// It ALSO carries the original samples when it came from an imported survey.
-/// Importing a 1°-resolution `.hor` from Stellarium used to keep only the
-/// per-sector maximum, so a single 29° tree at azimuth 190 marked everything
-/// from 157.5° to 202.5° as blocked and the planner refused targets that were
-/// plainly clear — the cost is imaging time on exactly the southern targets a
-/// horizon survey is made for. Every consumer already asks this class for a
-/// per-azimuth altitude ([altitudeAtAzimuth]: the planner's visibility filter,
-/// and the planetarium, which builds a 360-entry table from it), so retaining
-/// the samples and interpolating them gives all of them the real skyline with
-/// no call-site change. The 8 fields remain the editor and the summary, and
-/// editing any of them writes a samples-less profile — an explicit override by
-/// sector, which is what the operator just asked for.
+/// Every consumer asks for a per-azimuth altitude ([altitudeAtAzimuth]: the
+/// planner's visibility filter, and the planetarium, which builds a 360-entry
+/// table from it), and that answers from the samples when they are present, so
+/// an imported 1°-resolution skyline reaches both at its own resolution rather
+/// than as a 45°-sector maximum. The 8 compass fields remain the editor and the
+/// summary; editing any of them writes a samples-less profile, an explicit
+/// override by sector.
 class HorizonProfile {
   final Map<String, double> _altitudes;
 

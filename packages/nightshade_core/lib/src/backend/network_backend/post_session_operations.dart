@@ -52,7 +52,7 @@ mixin _NetworkBackendPostSessionOperations on _NetworkBackendTransport {
   /// Throws an [IoException] when the job ends `failed` / `cancelled` (the
   /// host's structured error, if any, is folded into the message), or a
   /// [ValidationException] when the terminal job carries no result map (a
-  /// server contract violation — errors are a feature, no silent empties).
+  /// server contract violation).
   Future<Map<String, dynamic>> _runPostSessionJob(
     String endpoint,
     Map<String, dynamic> args, {

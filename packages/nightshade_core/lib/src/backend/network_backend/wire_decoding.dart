@@ -1,9 +1,7 @@
 part of '../network_backend.dart';
 
 extension _NetworkBackendWireDecoding on _NetworkBackendTransport {
-  // =========================================================================
-  // Type Conversion Helpers
-  // =========================================================================
+  // Type conversion helpers
 
   DriverType _parseDriverType(String str) {
     switch (str.toLowerCase()) {

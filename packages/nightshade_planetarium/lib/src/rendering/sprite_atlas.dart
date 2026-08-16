@@ -8,13 +8,11 @@ import '../celestial_object.dart' show DsoType;
 /// GPU sprite textures for the batched (`Canvas.drawRawAtlas`) star and DSO
 /// passes.
 ///
-/// The hot rendering paths used to draw every star and DSO as its own canvas
-/// primitive — `MaskFilter.blur` (a separable Gaussian per object), `saveLayer`
-/// offscreen buffers, and per-object radial-gradient glow shaders. That is
-/// fill-rate suicide at high object counts. Instead the glow / PSF / glyph is
-/// baked ONCE into small white sprite textures, and the whole field is drawn as
-/// batched textured quads via a single `drawRawAtlas` call per layer, tinted
-/// per-object with `BlendMode.modulate`.
+/// The glow / PSF / glyph is baked ONCE into small white sprite textures and
+/// the whole field is drawn as batched textured quads — one `drawRawAtlas` call
+/// per layer, tinted per-object with `BlendMode.modulate`. Per-object canvas
+/// primitives (`MaskFilter.blur`, `saveLayer`, radial-gradient shaders) cost
+/// fill rate per object, which the object counts here cannot afford.
 ///
 /// All sprites are baked white with premultiplied alpha so a per-object color in
 /// the atlas `colors` list tints them via `modulate` (white * color = color),
@@ -83,9 +81,7 @@ class SkySpriteAtlas {
   /// The DSO glyph families, in sheet order.
   static const List<_DsoGlyph> _glyphOrder = _DsoGlyph.values;
 
-  // ===========================================================================
   // Build / cache
-  // ===========================================================================
 
   /// Whether this atlas was baked for the given [dpr]/[softness]/[spikes].
   bool matches(double dpr, double softness, bool spikes) =>
@@ -138,19 +134,17 @@ class SkySpriteAtlas {
     dsoSheet.dispose();
   }
 
-  // ===========================================================================
   // Star sprite baking
-  // ===========================================================================
 
   /// Bake one white star PSF sprite of [px]×[px] texels.
   ///
-  /// The profile approximates the old `_drawStarPSF` look:
-  ///   * a bright Gaussian core (the old white-hot center + colored body),
-  ///   * a faint Airy-style ring (the old mid/outer gradient rings),
-  ///   * a broad soft halo (the old radial-gradient glow), [softness]-scaled.
+  /// The profile is three components:
+  ///   * a bright Gaussian core,
+  ///   * a faint Airy-style ring just outside it,
+  ///   * a broad soft halo, [softness]-scaled.
   /// All channels are white; alpha carries the profile. When [withSpikes] is
   /// set, 4 cardinal diffraction spikes plus faint 45-degree secondaries are
-  /// added, matching `_drawDiffractionSpikes` / `_drawSecondarySpikes`.
+  /// added.
   static ui.Image _bakeStarSprite(
     int px,
     double softness, {
@@ -187,8 +181,7 @@ class SkySpriteAtlas {
       );
     canvas.drawCircle(c, haloR, haloPaint);
 
-    // Faint Airy-style ring: a thin bright annulus a little outside the core,
-    // approximating the old mid/outer PSF rings.
+    // Faint Airy-style ring: a thin bright annulus a little outside the core.
     final ringPaint = Paint()
       ..blendMode = BlendMode.plus
       ..style = PaintingStyle.stroke
@@ -209,8 +202,8 @@ class SkySpriteAtlas {
       _bakeSpikes(canvas, c, coreR, half);
     }
 
-    // Bright Gaussian core (drawn last, additive, so the center reads white-hot
-    // exactly like the old core gradient's white center).
+    // Bright Gaussian core, drawn last and additive so the center reads
+    // white-hot.
     final corePaint = Paint()
       ..blendMode = BlendMode.plus
       ..shader = ui.Gradient.radial(
@@ -229,8 +222,7 @@ class SkySpriteAtlas {
   }
 
   /// Bake 4 cardinal diffraction spikes plus faint 45-degree secondaries into
-  /// the star sprite. White, additive, fading to transparent at the tips —
-  /// matching the old line-gradient spikes.
+  /// the star sprite. White, additive, fading to transparent at the tips.
   static void _bakeSpikes(Canvas canvas, Offset c, double coreR, double half) {
     final spikeLen = half * 0.9;
     final primary = Paint()
@@ -274,19 +266,17 @@ class SkySpriteAtlas {
     }
   }
 
-  // ===========================================================================
   // DSO glyph sheet baking
-  // ===========================================================================
 
   /// Bake the DSO glyph sheet: one white glyph per family laid out left-to-right
   /// in a single row. Returns the sheet image plus a map from family to its
   /// source rect.
   ///
   /// Each glyph is drawn WHITE (alpha-only); the per-DSO atlas color tints it
-  /// via `BlendMode.modulate` at draw time. The procedural shapes mirror the old
-  /// per-type `_drawDsoSimpleShape` look (galaxy = elongated ellipse + core,
-  /// open cluster = sparse dot field + ring, globular = bright core + halo,
-  /// nebula = soft cloud, planetary = double ring + dot, supernova = starburst).
+  /// via `BlendMode.modulate` at draw time. One glyph per family: galaxy =
+  /// elongated ellipse + core, open cluster = sparse dot field + ring, globular
+  /// = bright core + halo, nebula = soft cloud, planetary = double ring + dot,
+  /// supernova = starburst.
   static (ui.Image, Map<DsoType, Rect>) _bakeDsoSheet(int glyphPx) {
     final count = _glyphOrder.length;
     final sheetW = glyphPx * count;

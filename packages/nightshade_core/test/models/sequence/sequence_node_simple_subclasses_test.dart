@@ -1,5 +1,4 @@
-// Phase 1 freezed-migration safety net for the structurally-simple
-// SequenceNode subclasses.
+// Cover for the structurally-simple SequenceNode subclasses.
 //
 // "Simple" here means: plain `?? this.X` copyWith for every field, NO
 // JSON serde on the model itself (sequences are serialised by the
@@ -41,30 +40,18 @@
 //   - copyWith each-field-mutates AND copyWith() no-args preserves
 //   - equality (same fields => equal; one diff => not equal)
 //   - nodeType / category / iconName / requiredDevices pin
-//     (these are virtual-method-dispatch tests in spirit but they are
-//     CONSTANT-returning getters — Phase 2 will route them through an
-//     extension's switch, where the same constants must still come
-//     out. The Phase 1 brief excludes "polymorphic-method behaviour"
-//     from the safety net, but stable wire-protocol-relevant
-//     identifiers like `nodeType` are explicitly important to pin
-//     because they appear in serialized form and Rust-side dispatch
-//     keys.)
+//     (these are CONSTANT-returning getters, and the same constants must
+//     come out however the dispatch is routed; `nodeType` in particular
+//     appears in serialized form and in Rust-side dispatch keys)
 //
-// PHASE-2-NOTE: every SequenceNode subclass defines `nodeType` as a
-// string literal (e.g. 'SlewToTarget', 'TakeExposure'). These literals
-// are the Rust serde discriminant — freezed unions default to the
-// runtime class name in camelCase ('slewToTarget'). The Phase 2
-// migration MUST explicitly map every variant to the existing literal
-// (via `@FreezedUnionValue('SlewToTarget')`) so persisted sequences
-// keep loading.
+// Every SequenceNode subclass defines `nodeType` as a string literal (e.g.
+// 'SlewToTarget', 'TakeExposure'). These literals are the Rust serde
+// discriminant, so a rename breaks every persisted sequence.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  // ============================================================
-  // InstructionSetNode
-  // ============================================================
   group('InstructionSetNode', () {
     test('node_type_and_category_pin', () {
       final n = InstructionSetNode();
@@ -101,9 +88,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // ParallelNode
-  // ============================================================
   group('ParallelNode', () {
     test('node_type_and_category_pin', () {
       final n = ParallelNode();
@@ -126,9 +110,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // SlewNode
-  // ============================================================
   group('SlewNode', () {
     test('node_type_iconName_and_required_devices_pin', () {
       final n = SlewNode();
@@ -174,9 +155,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // CenterNode
-  // ============================================================
   group('CenterNode', () {
     test('node_type_and_required_devices', () {
       final n = CenterNode();
@@ -209,9 +187,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // AutofocusNode
-  // ============================================================
   group('AutofocusNode', () {
     test('node_type_and_required_devices', () {
       final n = AutofocusNode();
@@ -253,9 +228,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // DitherNode
-  // ============================================================
   group('DitherNode', () {
     test('node_type_and_required_devices', () {
       final n = DitherNode();
@@ -287,9 +259,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // StartGuidingNode
-  // ============================================================
   group('StartGuidingNode', () {
     test('node_type_and_required_devices', () {
       final n = StartGuidingNode();
@@ -307,9 +276,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // StopGuidingNode
-  // ============================================================
   group('StopGuidingNode', () {
     test('node_type_and_required_devices', () {
       final n = StopGuidingNode();
@@ -326,9 +292,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // FilterChangeNode
-  // ============================================================
   group('FilterChangeNode', () {
     test('node_type_and_required_devices', () {
       final n = FilterChangeNode(filterName: 'L');
@@ -344,9 +307,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // CoolCameraNode
-  // ============================================================
   group('CoolCameraNode', () {
     test('node_type_and_required_devices', () {
       final n = CoolCameraNode();
@@ -362,9 +322,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // WarmCameraNode
-  // ============================================================
   group('WarmCameraNode', () {
     test('node_type_and_required_devices', () {
       final n = WarmCameraNode();
@@ -380,9 +337,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // RotatorNode
-  // ============================================================
   group('RotatorNode', () {
     test('node_type_and_required_devices', () {
       final n = RotatorNode();
@@ -398,9 +352,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // ParkNode / UnparkNode
-  // ============================================================
   group('ParkNode', () {
     test('node_type_and_required_devices', () {
       final n = ParkNode();
@@ -427,9 +379,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // WaitTimeNode
-  // ============================================================
   group('WaitTimeNode', () {
     test('node_type_pin', () {
       final n = WaitTimeNode();
@@ -462,9 +411,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // DelayNode
-  // ============================================================
   group('DelayNode', () {
     test('node_type_pin', () {
       final n = DelayNode();
@@ -479,9 +425,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // ScriptNode
-  // ============================================================
   group('ScriptNode', () {
     test('node_type_pin', () {
       final n = ScriptNode();
@@ -510,9 +453,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // OpenDomeNode / CloseDomeNode / ParkDomeNode
-  // ============================================================
   group('OpenDomeNode', () {
     test('node_type_and_required_devices', () {
       final n = OpenDomeNode();
@@ -555,9 +496,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // PolarAlignmentNode
-  // ============================================================
   group('PolarAlignmentNode', () {
     test('node_type_and_required_devices', () {
       final n = PolarAlignmentNode();
@@ -593,9 +531,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // OpenCoverNode / CloseCoverNode
-  // ============================================================
   group('OpenCoverNode', () {
     test('node_type_and_required_devices', () {
       final n = OpenCoverNode();
@@ -624,9 +560,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // CalibratorOnNode / CalibratorOffNode
-  // ============================================================
   group('CalibratorOnNode', () {
     test('node_type_and_required_devices', () {
       final n = CalibratorOnNode();
@@ -656,9 +590,6 @@ void main() {
     });
   });
 
-  // ============================================================
-  // PluginInstructionNode
-  // ============================================================
   group('PluginInstructionNode', () {
     test('node_type_and_icon_pin', () {
       final n = PluginInstructionNode(
@@ -674,10 +605,9 @@ void main() {
     });
 
     test('default_config_json_is_empty_object_literal', () {
-      // PHASE-2-NOTE: configJson defaults to literal `'{}'` (not null).
-      // The docstring pins this: "so a freshly-dropped palette node
-      // round-trips through jsonDecode cleanly". Freezed must use
-      // @Default('{}') to preserve.
+      // configJson defaults to the literal `'{}'`, not null, so a
+      // freshly-dropped palette node round-trips through jsonDecode
+      // cleanly.
       final n = PluginInstructionNode(pluginId: 'a', nodeTypeId: 'b');
       expect(n.configJson, equals('{}'));
     });
@@ -715,9 +645,7 @@ void main() {
     });
   });
 
-  // ============================================================
   // Shared base-class behaviour (SequenceNode)
-  // ============================================================
   group('SequenceNode (base)', () {
     test('auto_generates_uuid_when_id_omitted', () {
       final a = DelayNode();

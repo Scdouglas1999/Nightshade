@@ -15,9 +15,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// shortcuts here means widget tests can dispatch [Intent]s directly
 /// without spinning up a full tree.
 
-// ---------------------------------------------------------------------------
 // Intent types
-// ---------------------------------------------------------------------------
 
 /// Move tree selection to the previous visible node.
 class TreeMoveSelectionUpIntent extends Intent {
@@ -52,9 +50,7 @@ class TreeFocusPropertiesIntent extends Intent {
   const TreeFocusPropertiesIntent();
 }
 
-// ---------------------------------------------------------------------------
 // Bindings table — read this first
-// ---------------------------------------------------------------------------
 
 /// The user-visible keyboard bindings for the sequencer tree.
 ///
@@ -132,10 +128,9 @@ typedef VisibleNode = ({String id, int depth});
 
 /// Memoized visible-row order for the sequencer tree (depth-first, skipping
 /// children of collapsed nodes), recomputed only when the sequence or the
-/// collapsed set changes. Single source of truth for arrow-key navigation,
-/// the minimap, and the tree search — previously each recomputed its own
-/// flatten on every rebuild, and the minimap diverged because it ignored
-/// the collapsed set.
+/// collapsed set changes. Single source of truth for arrow-key navigation, the
+/// minimap and the tree search, so none of the three can flatten the tree
+/// differently — the minimap in particular must not ignore the collapsed set.
 final visibleNodeOrderProvider = Provider.autoDispose<List<VisibleNode>>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
   final collapsed = ref.watch(collapsedNodeIdsProvider);
@@ -160,9 +155,7 @@ final visibleNodeOrderProvider = Provider.autoDispose<List<VisibleNode>>((ref) {
   return out;
 });
 
-// ---------------------------------------------------------------------------
 // Action implementations
-// ---------------------------------------------------------------------------
 
 /// Build the [Actions] map for the tree's `Focus`/`Shortcuts` widget.
 ///

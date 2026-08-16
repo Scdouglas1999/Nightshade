@@ -8,9 +8,8 @@ import '../../sky_imagery/planetarium_sky_imagery_providers.dart';
 
 /// Unified layers panel — the single source of truth for sky visibility.
 ///
-/// Replaces the scattered toggles that used to live in the left rail,
-/// FilterSidebar, top-overlay cluster and mobile filter sheet. Every row uses
-/// one consistent switch idiom ([_LayerSwitch]) and writes through
+/// Every row uses one consistent switch idiom ([_LayerSwitch]) and writes
+/// through
 /// [skyRenderConfigProvider] / the relevant [StateProvider]. Current values are
 /// read from [effectiveSkyRenderConfigProvider] and the HUD providers.
 class LayersPanel extends ConsumerWidget {

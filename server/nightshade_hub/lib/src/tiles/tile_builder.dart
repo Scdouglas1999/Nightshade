@@ -5,8 +5,8 @@ import 'tile_codec.dart';
 
 /// Constructs in-memory [TileAccumulator]s. Used by the hub to seed an empty
 /// base tile for a brand-new tile id, and by tests to synthesize contributor
-/// deltas without the full Rust fold pipeline. The geometry constants match the
-/// contract (§6): default order 9, 1024² tiles.
+/// deltas without the full Rust fold pipeline. The geometry constants are the
+/// atlas defaults: order 9, 1024² tiles.
 class TileBuilder {
   /// Default HEALPix order for atlas tiles. Matches
   /// `sky_atlas.rs::ATLAS_HEALPIX_ORDER`.

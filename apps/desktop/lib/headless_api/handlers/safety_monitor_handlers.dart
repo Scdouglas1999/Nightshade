@@ -58,9 +58,8 @@ class SafetyMonitorHandlers {
   }
 
   /// Build the `/api/safety/settings` payload from the single consolidated
-  /// [SafetyConfig]. The JSON keys/shape are unchanged — the read path that
-  /// stitches the three stores now lives behind [SafetyConfigStore.load], so
-  /// this and any other consumer can no longer compute a divergent view.
+  /// [SafetyConfig]. The read path that stitches the three stores lives behind
+  /// [SafetyConfigStore.load], so no consumer can compute a divergent view.
   Future<Map<String, dynamic>> _buildSettingsPayload() async {
     final appSettings = container.read(appSettingsProvider).valueOrNull;
     final config = await container
@@ -79,9 +78,7 @@ class SafetyMonitorHandlers {
     };
   }
 
-  // ===========================================================================
-  // Safety Status
-  // ===========================================================================
+  // Safety status
 
   /// Exact aggregate host-safety projection shared by both aggregate response
   /// shapes. Keeping this in one map prevents the no-dedicated-monitor branch
@@ -230,9 +227,7 @@ class SafetyMonitorHandlers {
     });
   }
 
-  // ===========================================================================
-  // Safety Settings
-  // ===========================================================================
+  // Safety settings
 
   /// GET /api/safety/settings
   /// Gets safety-related settings.
@@ -331,9 +326,7 @@ class SafetyMonitorHandlers {
     return jsonOk({'status': 'updated', 'settings': updated});
   }
 
-  // ===========================================================================
-  // Safety Acknowledgement
-  // ===========================================================================
+  // Safety acknowledgement
 
   /// POST /api/safety/acknowledge
   /// Acknowledges an unsafe condition, allowing operations to continue despite the warning.

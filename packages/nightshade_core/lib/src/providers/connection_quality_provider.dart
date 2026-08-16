@@ -32,12 +32,10 @@ enum ConnectionMode {
   remote,
 
   /// No backend is installed: a [DisconnectedBackend] is standing in and every
-  /// device call fails. Distinct from [local] because "not a NetworkBackend"
-  /// used to collapse the two, so a desktop whose failed connect had replaced
-  /// its FfiBackend showed a quiet grey "Local" chip on the dashboard while
-  /// the shell's red banner two rows above said it was not connected to a
-  /// server. The chip is the operator's at-a-glance answer to "is this
-  /// machine driving my mount"; it must not answer yes when nothing is.
+  /// device call fails. Distinct from [local], which a "not a NetworkBackend"
+  /// test would collapse it into: the chip is the operator's at-a-glance
+  /// answer to "is this machine driving my mount", so it must not read
+  /// "Local" when nothing is driving anything.
   none,
 }
 

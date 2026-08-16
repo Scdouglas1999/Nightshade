@@ -226,12 +226,12 @@ void main() {
 
     test('cloud-step does NOT switch to SNR mode on partial coverage '
         '(no false storm when science ran for only a few subs)', () {
-      // Science SNR exists for just 5 of 16 subs — the exact "pipeline stopped"
+      // Science SNR exists for just 5 of 16 subs — the "pipeline stopped"
       // scenario. Those 5 are all healthy (40); star count is flat across the
-      // whole night. Old behaviour: `useSnr` flipped true on ANY snr, dropped
-      // the 11 snr-less subs, and built the baseline from a non-representative
-      // subset. Correct behaviour: <80% coverage stays in star-count mode and,
-      // because star count never dips, emits NOTHING.
+      // whole night. Flipping to SNR mode on ANY snr would drop the 11
+      // snr-less subs and build a baseline from a non-representative subset;
+      // under 80% coverage stays in star-count mode and, because star count
+      // never dips, emits NOTHING.
       final data = NightData(
         _series(
           count: 16,

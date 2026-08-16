@@ -7,7 +7,7 @@ import '../../mosaic/mosaic_format.dart';
 import '../../your_sky/sky_atlas_format.dart';
 import '../collaborative_sky_format.dart';
 
-/// A card for one collaborative mosaic (WS2): a panel grid published to the hub
+/// A card for one collaborative mosaic: a panel grid published to the hub
 /// whose panels are claimable distributed work items, captured in parallel by a
 /// club's rigs and fused centrally by the owner.
 ///

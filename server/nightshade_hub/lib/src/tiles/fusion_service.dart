@@ -41,10 +41,11 @@ class FusionService {
   final AccountService _accounts;
   final TileQualityGate _qualityGate;
 
-  /// Optional WS4 collaborators. When present, an accepted contribution folds a
-  /// per-account credit into the tile's [AttributionService] and a retraction
-  /// recomputes it + revokes the matching [ConsentService] record. Nullable so
-  /// the unit tests that drive fusion in isolation construct it unchanged.
+  /// Optional consent + attribution collaborators. When present, an accepted
+  /// contribution folds a per-account credit into the tile's
+  /// [AttributionService] and a retraction recomputes it + revokes the matching
+  /// [ConsentService] record. Nullable so the unit tests that drive fusion in
+  /// isolation construct it unchanged.
   final AttributionService? _attribution;
   final ConsentService? _consent;
   final Uuid _uuid = const Uuid();
@@ -259,7 +260,7 @@ class FusionService {
       medianResidual: medianFwhm,
       acceptedFrames: framesDelta,
     );
-    // Materialize the per-account credit for this fused tile (WS4 attribution).
+    // Materialize the per-account credit for this fused tile.
     _attribution?.recordAccepted(
       artifactType: 'tile',
       artifactRef: tileArtifactRef(tileId, order),
@@ -328,7 +329,7 @@ class FusionService {
     );
     _upsertTileIndex(base);
 
-    // WS4: a retracted contribution is no longer consented, and its credit must
+    // A retracted contribution is no longer consented, and its credit must
     // come back out of the tile's attribution so the credit list matches the
     // live co-add exactly.
     _consent?.revoke(consentId);

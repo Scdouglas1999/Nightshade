@@ -1,11 +1,10 @@
 // What the phone is told when a run stops.
 //
-// Owner decision 2 (2026-08-14): a stop reaches the phone only when the
-// operator did NOT press it — a safety abort, the autopilot's re-plan, a
-// subsystem stop — at INFO (non-alarm) priority, carrying the real cause. The
-// operator's own press stays silent: they are standing at the keyboard that
-// issued it, and a phone that buzzes for every deliberate Stop is the
-// cry-wolf shape the whole stop pipeline was cleaned up to remove.
+// A stop reaches the phone only when the operator did NOT press it — a safety
+// abort, the autopilot's re-plan, a subsystem stop — at INFO (non-alarm)
+// priority, carrying the real cause. The operator's own press stays silent:
+// they are standing at the keyboard that issued it, and a phone that buzzes for
+// every deliberate Stop trains them to ignore it.
 //
 // Deciding that needs the EPISODE, not the event. One stop publishes several
 // events — the cancel-notice Error, the cancel-notice lifecycle decision, the
@@ -110,7 +109,7 @@ class StopPushArbiter {
   /// grace — the first member speaks, with whatever the wire has proved by
   /// then (degrading to the cause-neutral sentence rather than inventing an
   /// author), and the rest of the episode stays quiet, because one stop is one
-  /// toast (WF-N4).
+  /// toast.
   ({SequenceStopDecision? decision, bool announced}) noteStopNotification({
     int? runId,
     Map<String, String> values = const {},

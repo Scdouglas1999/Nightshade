@@ -122,11 +122,11 @@ class OpenNgcDsoCatalog extends Catalog<DeepSkyObject> {
           objects.add(dso);
         }
       } catch (e) {
-        // Why: OpenNGC CSV has 14k+ rows; a single malformed line (truncated
+        // OpenNGC CSV has 14k+ rows; a single malformed line (truncated
         // export, missing field, locale-dependent decimal separator) must not
-        // abort the load — the rest of the catalog is still useful. Log at
-        // FINE so a systemic format regression is visible without spamming
-        // the user-facing pipeline.
+        // abort the load — the rest of the catalog is still useful. FINE keeps
+        // a systemic format change visible without spamming the user-facing
+        // pipeline.
         developer.log(
           'OpenNGC line parse failed; skipping: $e',
           name: 'OpenNgcCatalog',

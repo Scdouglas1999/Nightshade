@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,56 +80,33 @@ import 'run_stop_classification.dart';
 import 'sequence_validation.dart' as validation;
 import 'sequencer_defaults.dart';
 import 'sequence_executor/frame_attribution.dart';
+import 'sequence_executor/eta_smoothing.dart';
+import 'sequence_executor/run_finalization.dart';
+import 'sequence_executor/sequence_serializer.dart';
+import 'sequence_executor/stop_confirmation.dart';
 import '../../services/frame_quality_score.dart';
 
-part 'sequence_executor/serialization_operations.dart';
+export 'sequence_executor/eta_smoothing.dart'
+    show EtaSmoother, kEtaEmaAlpha, kEtaWindowSize;
+export 'sequence_executor/run_finalization.dart' show RunFinalization;
+export 'sequence_executor/sequence_serializer.dart' show SequenceSerializer;
+export 'sequence_executor/stop_confirmation.dart'
+    show
+        NativeStopConfirmer,
+        kNativeStopConfirmationPollInterval,
+        kNativeStopConfirmationTimeout,
+        kNativeTerminalStates;
+
 part 'sequence_executor/runtime_config_operations.dart';
 part 'sequence_executor/event_operations.dart';
 part 'sequence_executor/session_diagnostics_operations.dart';
 part 'sequence_executor/checkpoint_watchdog_operations.dart';
-
-// =============================================================================
-// ETA SMOOTHING CONFIGURATION
-// =============================================================================
-
-/// Number of recent per-frame durations retained for the smoothed ETA.
-/// Older samples are evicted FIFO. Larger window = smoother but slower to
-/// react to genuine cadence changes (e.g. switching from 60s subs to 600s).
-const int kEtaWindowSize = 10;
-
-/// Exponential moving average weight applied to the most recent frame.
-/// `0.0` would freeze on the first sample; `1.0` would always use the most
-/// recent. `0.3` is the balance that absorbs transient outliers (downloads,
-/// occasional dither stalls) while still tracking real shifts in cadence.
-const double kEtaEmaAlpha = 0.3;
 
 /// Temperature drift threshold for post-session cooler stability notes.
 ///
 /// A one-degree band is tight enough to catch a cooler that is cycling or
 /// saturated, while avoiding noise from normal sub-degree sensor wobble.
 const double kCoolerSetpointBandDegC = 1.0;
-
-/// How long [SequenceExecutor._driveFinalization] waits for the native executor
-/// to report an authoritative terminal state after it accepted a stop command.
-///
-/// Generous on purpose: aborting an in-flight exposure and transitioning the
-/// native state machine takes well under a second on real hardware, so this only
-/// expires when the terminal is never coming (e.g. the broadcast event channel
-/// dropped it under load). Expiry is NOT treated as "stopped" — it settles to
-/// the controllable `stopFailed` state with everything retained.
-const Duration kNativeStopConfirmationTimeout = Duration(seconds: 30);
-
-/// How often [SequenceExecutor._awaitNativeStopConfirmation] asks the native
-/// executor for its own state while waiting for the terminal event.
-///
-/// The event remains the fast path — the poll only has to notice a terminal
-/// that no event will ever deliver (the headless load->start path installs no
-/// Dart-side subscription at all; a lagged broadcast channel drops the event on
-/// the owned path). A quarter second keeps an operator-visible Stop feeling
-/// immediate while costing at most a handful of cheap status reads.
-const Duration kNativeStopConfirmationPollInterval = Duration(
-  milliseconds: 250,
-);
 
 /// Sequence executor that manages execution.
 ///
@@ -148,104 +124,35 @@ final sequenceExecutorProvider = Provider<SequenceExecutor>((ref) {
   return executor;
 });
 
-/// The immutable intent + mutable progress of the ONE per-run finalization
-/// transaction (see [SequenceExecutor._driveFinalization]).
-///
-/// The intent fields are captured when teardown is first claimed and never
-/// change — a later racing caller joins the same transaction rather than
-/// re-deciding whether this run completed / failed / stopped. The progress
-/// flags let a Stop retry (from stopFailed / cleanupFailed) resume EXACTLY where
-/// the previous attempt failed, so a retry never repeats a confirmed native
-/// stop, a persisted finishRun, or the once-only post-run hooks.
-class _RunFinalization {
-  _RunFinalization({
-    required this.generation,
-    required this.runStatus,
-    required this.finalUiState,
-    required this.runId,
-    required this.dbSessionId,
-    required this.preserveCheckpoint,
-    required this.nativeStopRequired,
-    required this.nativeStopConfirmed,
-    required this.publishTerminalResult,
-    required this.discardCheckpointOnSuccess,
-    required this.isRollback,
-    this.originalError,
-    this.originalStack,
-    this.stopOrigin,
-  });
-
-  // --- Immutable intent (first-claim wins) ---------------------------------
-  /// Unique terminal id for this run's finalization.
-  final int generation;
-
-  /// Durable `sequence_runs.status` to persist (`completed` / `failed` /
-  /// `stopped` / `paused-stopped`).
-  final String runStatus;
-
-  /// The settled UI state to publish on full success (`completed` / `failed` /
-  /// `idle`).
-  final SequenceExecutionState finalUiState;
-
-  /// Snapshot of the finished run's ids, captured before cleanup clears them.
-  final int? runId;
-  final int? dbSessionId;
-
-  /// Whether the operator asked to keep the checkpoint (a UI Stop).
-  final bool preserveCheckpoint;
-
-  /// WHO asked for the stop — `null`/`'operator'` for a human,
-  /// `'scheduler'` for the autopilot, `'rollback'` for a failed-launch
-  /// rollback. Threaded to the native stop so the executor records a
-  /// non-operator stop as a system event instead of operator evidence (an
-  /// unattended stop must never render as "Stopped by request"). Mutable
-  /// for exactly one transition: a RETRY by a human upgrades a system
-  /// origin to the operator's — that press is real and must be recorded.
-  String? stopOrigin;
-
-  /// Whether a `sequencerStop()` must be issued/confirmed before cleanup. False
-  /// for a natural terminal (the hardware already terminated authoritatively)
-  /// and for a pre-native-launch rollback; true for an explicit stop and a
-  /// partial-launch rollback.
-  final bool nativeStopRequired;
-
-  /// Whether to publish a [SequenceTerminalRunResult] on success. True for
-  /// natural terminals and explicit stops (both open the Session Report); false
-  /// for a start/resume rollback (a rejected launch opens no report).
-  final bool publishTerminalResult;
-
-  /// Whether to discard the on-disk checkpoint on a clean success (a non-
-  /// preserving explicit stop). Natural terminals and rollbacks leave the
-  /// checkpoint untouched.
-  final bool discardCheckpointOnSuccess;
-
-  /// Whether this finalization is a failed-start rollback — controls the
-  /// "retain identity on persistence failure, rethrow the original launch
-  /// error" semantics.
-  final bool isRollback;
-
-  /// For a rollback, the original launch error/stack to preserve for the caller
-  /// even when cleanup itself also fails.
-  final Object? originalError;
-  final StackTrace? originalStack;
-
-  // --- Mutable progress (retry resumes here) -------------------------------
-  /// True once the native executor is confirmed stopped (or was never running).
-  bool nativeStopConfirmed;
-
-  /// Completed only by an authoritative native terminal event. The stop API
-  /// acknowledges the command path, but capture resources must remain owned
-  /// until native reports that the exposure abort has actually finished.
-  Completer<void>? nativeStopConfirmation;
-
-  /// True once per-run timers / watchdogs / settings watchers / native
-  /// subscription / live-stacking have been released (once).
-  bool resourcesReleased = false;
-}
-
 class SequenceExecutor {
   final Ref _ref;
   final NightshadeBackend _backend;
+
+  /// Translates the loaded [Sequence] into the JSON the native executor runs.
+  /// Its lookup warnings go into the run record through [_surfaceRunWarning].
+  late final SequenceSerializer _serializer = SequenceSerializer(
+    ref: _ref,
+    warn: _surfaceRunWarning,
+  );
+
+  /// Emit an operator-facing warning onto both the log and the live run
+  /// stats, so it survives into `sequence_runs.stats_json` and the
+  /// post-session report rather than only existing in a log file.
+  ///
+  /// [persist] = `false` for a warning raised during run START-UP, which is
+  /// already covered by the final `finishRun` write. See [_incrementRunStat];
+  /// the default `true` keeps mid-run warnings crash-durable.
+  void _surfaceRunWarning(String message, {bool persist = true}) {
+    _logger.warning(message, source: 'SequenceExecutor');
+    // Route through _incrementRunStat so the warning gets the same copy-to-
+    // notify + stats-seal handling as every other live-stat mutation (it is a
+    // no-op when no run is live or the stats are already sealed for finish).
+    _incrementRunStat(
+      (stats) => stats.recordWarning(message),
+      persist: persist,
+    );
+  }
+
   Timer? _progressTimer;
   DateTime? _startTime;
   bool _isPaused = false;
@@ -274,7 +181,7 @@ class SequenceExecutor {
   /// intent is immutable; a later racing caller joins it, it does not override
   /// it). Reset to null when a fresh run acquires its lifecycle, and cleared on
   /// a fully-successful finalize.
-  _RunFinalization? _finalization;
+  RunFinalization? _finalization;
 
   /// The in-flight finalization drive, or null when no drive is currently
   /// running. A racing [stop] / duplicate terminal event JOINS this future
@@ -284,10 +191,10 @@ class SequenceExecutor {
   /// stopFailed / cleanupFailed can re-drive the retained [_finalization].
   Future<void>? _finalizationFuture;
 
-  /// Monotonic per-run terminal id, stamped onto each [_RunFinalization] and the
-  /// published [SequenceTerminalRunResult]. Never reset (uniqueness across the
-  /// whole executor lifetime), so a re-mounted screen cannot mistake an old
-  /// result for a new one.
+  /// Monotonic per-run terminal id, stamped onto each [RunFinalization] and the
+  /// published [SequenceTerminalRunResult]. It is never reset (unique across
+  /// the whole executor lifetime), so a re-mounted screen cannot mistake an
+  /// earlier result for a new one.
   int _finalizationGeneration = 0;
 
   /// The awaitable finalization future spawned by the NATURAL terminal path.
@@ -308,14 +215,11 @@ class SequenceExecutor {
   ///
   /// The run's verdict is claimed once and belongs to whoever claimed it first.
   /// The in-flight guards above cover a terminal that arrives DURING
-  /// finalization; this covers one that arrives after it finished, which is not
-  /// hypothetical: the native ends a stop-cancelled Slew with BOTH a `Stopped`
-  /// state change and the node tree's own `SequenceFailed`, and whichever
-  /// arrived second used to open a SECOND finalization — republishing the
-  /// operator's deliberate Stop as `failed` (Critical toast, "Failed" in
-  /// Execution History) while a stop during an exposure, which emits only
-  /// `Stopped`, was recorded honestly. One action, two verdicts, decided by
-  /// which instruction happened to be running (WE-SEQ-N6).
+  /// finalization; this covers one that arrives after it finished. The native
+  /// emits TWO terminals for a stop-cancelled Slew — a `Stopped` state change
+  /// and the node tree's own `SequenceFailed` — so without this the second
+  /// opens a second finalization and republishes the operator's deliberate
+  /// Stop as `failed`.
   ///
   /// Reset when a fresh run acquires its lifecycle.
   String? _settledRunStatus;
@@ -341,8 +245,8 @@ class SequenceExecutor {
   /// checkpoint file. The next tick simply skips while one is running.
   bool _checkpointSaveInFlight = false;
 
-  /// Live-stacking auto-feed (2026-06-04 follow-up): whether the live
-  /// stacker + LAN broadcast have been armed for the *current* run yet.
+  /// Live-stacking auto-feed: whether the live stacker + LAN broadcast have
+  /// been armed for the *current* run yet.
   /// The first accepted frame of a run that contains an enabled
   /// `LiveStackingNode` arms both (the frame becomes the stack
   /// reference); every later accepted frame is added to the existing
@@ -401,13 +305,8 @@ class SequenceExecutor {
   /// stable.
   double? _lastPushedSkyMag;
 
-  /// Sliding window of recent per-frame durations (seconds). Bounded to
-  /// [kEtaWindowSize]; older samples are dropped FIFO when full.
-  final Queue<double> _frameDurations = Queue<double>();
-
-  /// Smoothed average secs-per-frame computed via exponential moving average
-  /// over [_frameDurations]. `null` until at least one frame has completed.
-  double? _smoothedSecsPerFrame;
+  /// Per-frame cadence smoother backing the run's ETA.
+  final EtaSmoother _eta = EtaSmoother();
 
   /// Subscriptions for propagating settings changes to the backend mid-sequence
   final List<ProviderSubscription> _settingsSubscriptions = [];
@@ -435,8 +334,8 @@ class SequenceExecutor {
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
   /// Rate limiter for the per-event debug trace in `_handleSequencerEvent`.
-  /// See `log_rate_limiter.dart` — one repetitive line used to consume the
-  /// entire in-app log ring (WF-N1).
+  /// Unlimited, a per-event line consumes the whole in-app log ring — see
+  /// `log_rate_limiter.dart`.
   final LogRateLimiter _eventTraceLimiter = LogRateLimiter(
     window: const Duration(seconds: 5),
   );
@@ -457,7 +356,8 @@ class SequenceExecutor {
   /// to the Rust backend. Exposed so unit tests can assert AppSettings
   /// defaults propagate correctly
   @visibleForTesting
-  String sequenceToJsonForTest(Sequence sequence) => _sequenceToJson(sequence);
+  String sequenceToJsonForTest(Sequence sequence) =>
+      _serializer.sequenceToJson(sequence);
 
   /// Test entry point for the session-start hooks. Lets
   /// integration tests exercise the optical-train baseline capture +
@@ -557,7 +457,7 @@ class SequenceExecutor {
 
   Future<void> start() async {
     _ensureBackendAuthority();
-    // --- A. Start serialization + admissible-state gate ------------------
+    // A. Start serialization + admissible-state gate.
     // Reject a second concurrent start (latch) or a start while the executor
     // is already busy (running / paused / stopping / recovering). A
     // completed/failed prior run may start again once its cleanup has settled
@@ -625,13 +525,13 @@ class SequenceExecutor {
       // mosaic handoff and throw — never a fake failed run/session.
       final result = await validateSequenceForStart(sequence);
       if (result.hasErrors) {
-        // Errors are a feature here. Surface the entire [ValidationResult] so
-        // the caller can render all of them, not just the first.
+        // Surface the entire [ValidationResult]: a caller that sees only the
+        // first error sends the operator back for another round per error.
         _releaseAutomatedEditorOwnership();
         throw validation.SequenceValidationException(result);
       }
 
-      // --- B. Transactional acquisition ---------------------------------
+      // B. Transactional acquisition.
       // From here, every resource (UI running state, session row, run row +
       // currentRunId, session-start hooks, timers, disk watchdog, native event
       // subscription, native start) is part of ONE lifecycle transaction. Any
@@ -654,19 +554,16 @@ class SequenceExecutor {
 
   /// Open the `imaging_sessions` row for this run.
   ///
-  /// Audit C3 — pick option (a): one sequence run == one session. The session
-  /// row is labelled with the sequence name (which is what the user typed in
-  /// the sequencer toolbar). Per-target coordinates belong to per-target child
-  /// rows that the scheduler emits as it walks the tree — we deliberately
-  /// leave targetRa/targetDec NULL here for multi-target sequences instead of
-  /// arbitrarily picking targetHeaders.first, which would misrepresent the
-  /// session in the database. A single-target sequence still gets its
-  /// coordinates so the historical "single-target session" view keeps working.
+  /// One sequence run == one session, labelled with the sequence name.
   ///
-  /// The profile and sequence ids are the run's identity. Without them the
-  /// Continue Session handoff dialog — which builds its context out of
-  /// `imaging_sessions` — showed "Unknown Profile" and "No Sequence" for a run
-  /// whose sequence name it was printing in its own header.
+  /// targetRa/targetDec stay NULL for a multi-target sequence rather than
+  /// picking `targetHeaders.first`, which would misrepresent the session;
+  /// per-target coordinates belong to the per-target child rows the scheduler
+  /// emits as it walks the tree. A single-target sequence carries its own
+  /// coordinates.
+  ///
+  /// The profile and sequence ids are the run's identity — the Continue Session
+  /// handoff dialog builds its whole context out of `imaging_sessions`.
   Future<void> _startSessionRow(Sequence sequence) async {
     final sessionNotifier = _ref.read(sessionStateProvider.notifier);
     final isSingleTarget = sequence.targetHeaders.length == 1;
@@ -690,12 +587,11 @@ class SequenceExecutor {
   /// Give the sequence about to run a `sequences` row if it has never had one.
   ///
   /// A tree built in the sequencer and started without a trip through Save
-  /// carries `databaseId == null`, so both its `sequence_runs` row and its
-  /// `imaging_sessions` row recorded `sequence_id` NULL. The Continue Session
-  /// handoff dialog reads that column to name what it is offering: it printed
-  /// "Sequence: No Sequence" for the very night it was offering to restore,
-  /// and its "Load Previous Setup" had no row to reload. Run history's
-  /// per-sequence grouping and the run-diff view had the same hole.
+  /// carries `databaseId == null`, which writes `sequence_id` NULL onto both
+  /// its `sequence_runs` row and its `imaging_sessions` row. Three surfaces key
+  /// off that column: the Continue Session handoff dialog (to name and reload
+  /// what it offers), run history's per-sequence grouping, and the run-diff
+  /// view.
   ///
   /// A sequence the operator actually ran is worth keeping, so it is persisted
   /// here — once: the editor adopts the new id, so the next run of the same
@@ -850,9 +746,8 @@ class SequenceExecutor {
 
   /// Open the durable records a run owns and stamp its id onto the executor.
   ///
-  /// Shared by [start] and [resumeFromCheckpoint], which used to build this
-  /// ordered set of resources twice: a fix to one had to be remembered for the
-  /// other, which is how the resume path came to run without a target binding.
+  /// ONE ordered resource-open for both launch paths, [start] and
+  /// [resumeFromCheckpoint], so a change to one cannot leave the other behind.
   /// (The `imaging_sessions` row itself stays with each caller — only a fresh
   /// start has a loaded tree to take single-target coordinates and a total
   /// exposure count from.)
@@ -911,11 +806,11 @@ class SequenceExecutor {
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
     _startTime = DateTime.now();
     _isPaused = false;
-    _resetEtaState();
+    _eta.reset();
 
-    // ETA computation uses an EMA over the last [kEtaWindowSize] frame
-    // durations (alpha = [kEtaEmaAlpha]) so a single slow download or
-    // fast-completing calibration frame doesn't yank the estimate around.
+    // The ETA is projected from [EtaSmoother]'s EMA rather than from the
+    // wall-clock tick, so a single slow download or fast-completing
+    // calibration frame does not yank the estimate around.
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
         final elapsed = DateTime.now()
@@ -923,7 +818,10 @@ class SequenceExecutor {
             .inSeconds
             .toDouble();
         final progress = _ref.read(sequenceProgressProvider);
-        final eta = _computeSmoothedEta(progress);
+        final eta = _eta.remainingSeconds(
+          completedFrames: progress.completedExposures,
+          totalFrames: progress.totalExposures,
+        );
         progressNotifier.updateProgress(
           elapsedSecs: elapsed,
           estimatedRemainingSecs: eta,
@@ -959,9 +857,10 @@ class SequenceExecutor {
     // previous run's node badges on the canvas for a run that had not reached
     // those nodes yet.
     progressNotifier.reset();
-    // The per-node frame tally is deliberately NOT cleared when a run ENDS —
-    // that is what let four earlier SEQ-18 fixes fail — so run START is where
-    // the previous run's frames stop being this node's story.
+    // The per-node frame tally is deliberately NOT cleared when a run ENDS:
+    // clearing it there erases the frames the finished run captured before any
+    // reader sees them. Run START is where the previous run's frames stop
+    // being this node's story.
     _ref.read(nodeExposureTallyProvider.notifier).reset();
     progressNotifier.setTotals(
       sequence.totalExposures,
@@ -1061,7 +960,7 @@ class SequenceExecutor {
       // record; the drive's finalizeRun is a no-op in that case anyway.
     }
 
-    final f = _RunFinalization(
+    final f = RunFinalization(
       generation: ++_finalizationGeneration,
       runStatus: 'failed',
       finalUiState: SequenceExecutionState.failed,
@@ -1215,7 +1114,7 @@ class SequenceExecutor {
     // Enter the busy finalization phase synchronously, then drive cleanup. The
     // hardware already terminated authoritatively, so no native stop is issued.
     _setExecutionState(SequenceExecutionState.finalizing);
-    final f = _RunFinalization(
+    final f = RunFinalization(
       generation: ++_finalizationGeneration,
       runStatus: runStatus,
       finalUiState: uiState,
@@ -1241,123 +1140,26 @@ class SequenceExecutor {
     unawaited(future.catchError((Object _) {}));
   }
 
-  /// Native executor states that mean the run is over and the hardware is no
-  /// longer being driven by it. Matched case-insensitively against
-  /// [SequencerStatus.state].
-  ///
-  /// This is an ALLOW-list of terminals, deliberately the opposite direction to
-  /// the deny-list the stop endpoint uses for "was anything running". The two
-  /// answer different questions and must fail in opposite directions: that one
-  /// must treat an unknown state as running (so a stop still acts); this one
-  /// must treat an unknown state as NOT terminal (so an unrecognised state can
-  /// never be mistaken for "the camera has stopped exposing"). A new native
-  /// state added later therefore keeps us waiting rather than tearing down.
-  static const Set<String> _nativeTerminalStates = {
-    'idle',
-    'completed',
-    'failed',
-    'cancelled',
-    'stopped',
-    'error',
-  };
-
   /// Confirm the native executor has actually terminated, from EITHER the
-  /// pushed terminal event or its own reported status, within
-  /// [kNativeStopConfirmationTimeout].
-  ///
-  /// Throws the same [TimeoutException] as before when neither source confirms,
-  /// so the caller's `stopFailed` handling — and the honest "NOT confirmed
-  /// stopped" message — is unchanged for the case where the hardware really
-  /// might still be running. The only thing that changes is how many ways we
-  /// have to notice that it is not.
-  ///
-  /// A status read that throws is treated as "no answer yet", never as
-  /// confirmation: a backend we cannot reach tells us nothing about the camera.
+  /// pushed terminal event or its own reported status. See
+  /// [NativeStopConfirmer], which owns the bounded wait and the poll fallback.
   Future<void> _awaitNativeStopConfirmation(
-    _RunFinalization f,
+    RunFinalization f,
     Completer<void> confirmation,
-  ) async {
-    final deadline = DateTime.now().add(kNativeStopConfirmationTimeout);
-    var loggedPollConfirmation = false;
-    var loggedPollFailure = false;
-
-    while (true) {
-      if (confirmation.isCompleted || f.nativeStopConfirmed) {
-        // Keep the completer and the flag in lockstep so a later retry (and
-        // `_onTerminalEvent`'s guard) sees a settled confirmation either way.
-        f.nativeStopConfirmed = true;
-        if (!confirmation.isCompleted) confirmation.complete();
-        if (loggedPollConfirmation) {
-          _logger.info(
-            'Finalization: native executor reported a terminal state on the '
-            'status poll; treating the stop as confirmed without waiting for '
-            'the terminal event.',
-            source: 'SequenceExecutor',
-          );
-        }
-        return;
-      }
-
-      final remaining = deadline.difference(DateTime.now());
-      if (!remaining.isNegative) {
-        try {
-          // Bounded by whatever is left of the window. The whole point of this
-          // gate is that Stop always answers: a status read that hangs (dead
-          // remote host, wedged driver) must not be able to outlive the
-          // confirmation window and resurrect the never-returning Stop button
-          // this timeout exists to prevent.
-          final probe = remaining < kNativeStopConfirmationPollInterval
-              ? remaining
-              : kNativeStopConfirmationPollInterval;
-          final status = await _backend.sequencerGetStatus().timeout(probe);
-          if (_nativeTerminalStates.contains(status.state.toLowerCase())) {
-            loggedPollConfirmation = true;
-            f.nativeStopConfirmed = true;
-            if (!confirmation.isCompleted) confirmation.complete();
-            continue;
-          }
-        } catch (e) {
-          // Unreachable backend / transport hiccup / slow read. Say nothing
-          // about the hardware; let the event (or a later poll) answer. Logged
-          // once so a persistently unreachable backend is visible without
-          // spraying a line per tick for the whole window.
-          if (!loggedPollFailure) {
-            loggedPollFailure = true;
-            _logger.debug(
-              'Finalization: stop-confirmation status poll failed ($e); '
-              'falling back to the terminal event for confirmation.',
-              source: 'SequenceExecutor',
-            );
-          }
-        }
-      }
-
-      final left = deadline.difference(DateTime.now());
-      if (left.isNegative || left == Duration.zero) {
-        if (confirmation.isCompleted || f.nativeStopConfirmed) continue;
-        throw TimeoutException(
-          'The native executor accepted the stop command but never reported '
-          'a terminal state within '
-          '${kNativeStopConfirmationTimeout.inSeconds}s. The hardware was NOT '
-          'confirmed stopped, so nothing has been torn down.',
-          kNativeStopConfirmationTimeout,
-        );
-      }
-
-      // Wake on whichever comes first: the pushed terminal event, or the next
-      // poll tick. The event path stays as immediate as it always was.
-      final wait = left < kNativeStopConfirmationPollInterval
-          ? left
-          : kNativeStopConfirmationPollInterval;
-      await confirmation.future.timeout(wait, onTimeout: () {});
-    }
+  ) {
+    final confirmer = NativeStopConfirmer(
+      readNativeState: () async => (await _backend.sequencerGetStatus()).state,
+      logInfo: (message) => _logger.info(message, source: 'SequenceExecutor'),
+      logDebug: (message) => _logger.debug(message, source: 'SequenceExecutor'),
+    );
+    return confirmer.awaitTermination(f, confirmation);
   }
 
   /// Launch (or relaunch, for a Stop retry) the finalization drive, tracking it
   /// as the in-flight future that racing callers join, and clearing that latch
   /// when it settles so a later Stop retry from stopFailed / cleanupFailed can
   /// re-drive the retained [_finalization].
-  Future<void> _launchDrive(_RunFinalization f) {
+  Future<void> _launchDrive(RunFinalization f) {
     late final Future<void> wrapped;
     wrapped = _driveFinalization(f).whenComplete(() {
       if (identical(_finalizationFuture, wrapped)) _finalizationFuture = null;
@@ -1389,65 +1191,39 @@ class SequenceExecutor {
   /// (-> cleanupFailed) so an awaiting explicit-stop / reset caller sees the
   /// error; the natural-terminal and rollback spawns swallow it (the truthful
   /// state is already published).
-  Future<void> _driveFinalization(_RunFinalization f) async {
+  Future<void> _driveFinalization(RunFinalization f) async {
     void secondary(String step, Object e) => _logger.warning(
       'Finalization: $step failed: $e',
       source: 'SequenceExecutor',
     );
 
-    // --- 1. Hardware termination -----------------------------------------
+    // 1. Hardware termination.
     if (f.nativeStopRequired && !f.nativeStopConfirmed) {
       final confirmation = f.nativeStopConfirmation ??= Completer<void>();
       try {
         await _backend.sequencerStop(origin: f.stopOrigin);
-        // BOUNDED. Waiting for the authoritative terminal is correct — the stop
-        // command returning only means it was accepted, and tearing down while
-        // the camera may still be exposing is the thing this gate exists to
-        // prevent. But the wait must not be unbounded: the native event channel
-        // is a `tokio::sync::broadcast` whose receiver explicitly handles
-        // `RecvError::Lagged` by SKIPPING events (bridge/src/api/sequencer.rs),
-        // so the one terminal we are waiting on can legitimately be dropped
-        // under load. An unbounded await turns that into a Stop button that
-        // never returns and a UI parked in `stopping` for the rest of the
-        // night, with no state change and nothing logged — the app doing
-        // nothing and saying nothing.
+        // BOUNDED wait for the authoritative terminal. The stop command
+        // returning only means it was accepted; tearing down while the camera
+        // may still be exposing is what this gate prevents. The bound is
+        // required because the terminal can legitimately never arrive: the
+        // native event channel is a `tokio::sync::broadcast` whose receiver
+        // handles `RecvError::Lagged` by SKIPPING events
+        // (bridge/src/api/sequencer.rs), and the headless
+        // `POST /api/sequencer/load` -> `/api/sequencer/start` path starts on
+        // the native executor without ever calling [start], so this executor
+        // installs no `_nativeEventSubscription` at all.
         //
-        // On expiry, fall through to exactly the same handling as a stop
-        // command that failed: settle to the controllable `stopFailed`
-        // (Stop re-enabled for a retry, Start blocked, checkpoint kept) with
-        // the native subscription still live, so a late terminal resumes THIS
+        // Confirmation therefore accepts EITHER authoritative source: the
+        // pushed terminal event, or the native executor's own reported state.
+        // The status poll is the same executor answering "are you still
+        // running?", pulled instead of pushed — not a weaker guess.
+        //
+        // On expiry, fall through to the same handling as a stop command that
+        // failed: settle to the controllable `stopFailed` (Stop re-enabled for
+        // a retry, Start blocked, checkpoint kept) with the native
+        // subscription still live, so a late terminal resumes THIS
         // finalization through `_onTerminalEvent`. Nothing is torn down on a
         // guess.
-        //
-        // The window is deliberately generous — an in-flight exposure abort
-        // plus the native state transition is sub-second on real hardware, so
-        // this can only fire when the terminal is genuinely never coming.
-        //
-        // Waiting on the EVENT ALONE was not enough, and the failure was not
-        // theoretical — it was reproduced on the live rig and again on the
-        // Linux simulator. The headless `POST /api/sequencer/load` ->
-        // `/api/sequencer/start` path starts the sequence on the NATIVE
-        // executor without ever calling [start], so this executor never
-        // installs `_nativeEventSubscription` and `_onTerminalEvent` can never
-        // fire. The always-on device-service mirror
-        // (`applySequencerEventToSequenceProviders`) still drives
-        // `sequenceExecutionStateProvider` to `running` for that run, so Stop
-        // passes the `canStop` gate, commands the native stop — and then waited
-        // 30 s for an event on a subscription that does not exist. The run had
-        // genuinely stopped (`GET /api/sequencer/status` -> `cancelled`), yet
-        // the operator was told the hardware was NOT confirmed stopped. Worse,
-        // it latched: `stopFailed` is retried through this same gate, so every
-        // later Stop burned another 30 s and repeated the same false alarm,
-        // permanently.
-        //
-        // So confirm from EITHER authoritative source: the pushed terminal
-        // event, or the native executor's own reported state. Polling the
-        // status is not a weaker guess than the event — it is the same
-        // executor's answer to "are you still running?", pulled instead of
-        // pushed, and it is exactly what the operator would read to check us.
-        // That also closes the documented `RecvError::Lagged` hole above for
-        // the normal Dart-owned path, where a dropped terminal previously cost
-        // 30 s and a false alarm too.
         await _awaitNativeStopConfirmation(f, confirmation);
       } catch (e, st) {
         // The authoritative terminal may race a transport-level error from the
@@ -1473,13 +1249,13 @@ class SequenceExecutor {
       }
     }
 
-    // --- 2. Release per-run resources (once, idempotent) ------------------
+    // 2. Release per-run resources (once, idempotent).
     if (!f.resourcesReleased) {
       await _releaseRunResources(secondary);
       f.resourcesReleased = true;
     }
 
-    // --- 3. Persistence: drain live-stat writes + finishRun + hooks -------
+    // 3. Persistence: drain live-stat writes + finishRun + hooks.
     // _finalizeRun seals the stats, drains in-flight incremental writes, does
     // the final finishRun write and fires the once-only session-end hooks. It
     // early-returns once _runFinalized is set, so a retry never repeats the
@@ -1497,7 +1273,7 @@ class SequenceExecutor {
       Error.throwWithStackTrace(e, st);
     }
 
-    // --- 4. End the durable session (only after finishRun succeeded) ------
+    // 4. End the durable session (only after finishRun succeeded).
     try {
       await _ref
           .read(sessionStateProvider.notifier)
@@ -1512,7 +1288,7 @@ class SequenceExecutor {
       Error.throwWithStackTrace(e, st);
     }
 
-    // --- 5. Clear identity, release ownership, handle the checkpoint ------
+    // 5. Clear identity, release ownership, handle the checkpoint.
     try {
       _ref.read(currentRunIdProvider.notifier).state = null;
     } catch (e) {
@@ -1573,7 +1349,7 @@ class SequenceExecutor {
       secondary('clear active run id', e);
     }
 
-    // --- 6. Publish one terminal result, THEN the settled UI state --------
+    // 6. Publish one terminal result, THEN the settled UI state.
     if (f.publishTerminalResult) {
       _publishTerminalResult(f);
     }
@@ -1591,7 +1367,7 @@ class SequenceExecutor {
   /// Release every per-run resource: timers, disk watchdog, settings watchers,
   /// the native event subscription, ETA state, and live-stacking. Each step is
   /// guarded so one failure never blocks a later one; all are idempotent, so a
-  /// retry that re-enters before [_RunFinalization.resourcesReleased] is set is
+  /// retry that re-enters before [RunFinalization.resourcesReleased] is set is
   /// safe.
   Future<void> _releaseRunResources(
     void Function(String, Object) secondary,
@@ -1612,7 +1388,7 @@ class SequenceExecutor {
       secondary('stop settings watchers', e);
     }
     try {
-      _resetEtaState();
+      _eta.reset();
     } catch (e) {
       secondary('reset eta state', e);
     }
@@ -1639,7 +1415,7 @@ class SequenceExecutor {
   /// run's snapshot ids, so the sequencer screen opens the Session Report and
   /// its run-scoped Journal against the completed run rather than racing the
   /// live providers finalization has just cleared.
-  void _publishTerminalResult(_RunFinalization f) {
+  void _publishTerminalResult(RunFinalization f) {
     try {
       _ref
           .read(sequenceTerminalRunResultProvider.notifier)
@@ -1662,12 +1438,11 @@ class SequenceExecutor {
   /// resolving the instant the matching event pump updates the provider
   /// rather than on a 100 ms polling tick.
   ///
-  /// Registers a one-shot `ref.listen` on the state provider and completes
-  /// the moment the provider transitions into [expectedState]. Races against
-  /// [timeout]. Returns `true` if the state was observed, `false` on timeout.
-  /// The previous busy-poll added up to 100 ms of dead feel to every pause
-  /// and forced a full 5 s wall-clock wait before falling back to a status
-  /// query; this resolves as soon as the `Paused` / `Resumed` event lands.
+  /// Registers a one-shot `ref.listen` on the state provider and completes the
+  /// moment the provider transitions into [expectedState], racing [timeout].
+  /// Returns `true` if the state was observed, `false` on timeout. Resolving on
+  /// the event rather than a poll tick is what keeps a pause from feeling dead
+  /// and keeps a fallback status query off the fast path.
   Future<bool> _awaitStateChange(
     SequenceExecutionState expectedState, {
     Duration timeout = const Duration(seconds: 5),
@@ -1796,28 +1571,18 @@ class SequenceExecutor {
 
   /// Stop the sequencer.
   ///
-  /// Audit C3 — checkpoint preservation:
+  /// The caller declares checkpoint intent via [preserveCheckpoint]:
+  ///   * `true` for an operator Stop (`SequenceActionService.stop`) — the
+  ///     resume point survives and the session row is finalised as
+  ///     `paused-stopped`;
+  ///   * `false` (the default) for the internal completion / error /
+  ///     cancellation finalisers, so a naturally-ended run leaves no stale
+  ///     checkpoint for the next "resume?" prompt to mistake for an
+  ///     interrupted session.
   ///
-  /// Historical bug: this method unconditionally called
-  /// `discardCheckpoint()` after stopping, which meant a user who paused
-  /// the run, walked away, came back hours later and pressed Stop intending
-  /// to resume the next night had their resume point silently destroyed.
-  ///
-  /// Resolution: callers now declare intent via [preserveCheckpoint].
-  ///   * The UI Stop button (`SequenceActionService.stop`) passes
-  ///     `preserveCheckpoint: true` — operator-initiated stops keep the
-  ///     checkpoint so the user can resume later. The session row is
-  ///     finalised as `paused-stopped`.
-  ///   * The internal completion / error / cancellation finalisers call
-  ///     `stop(preserveCheckpoint: false)` (the default) so a naturally-
-  ///     ended run does not leave a stale checkpoint that the next
-  ///     "resume?" prompt would mistake for an interrupted session.
-  ///
-  /// Conservative default: callers who do not pass the flag get the
-  /// historical destructive behaviour, because every existing call site
-  /// (the action service, the headless API, the scheduler) is updated in
-  /// the same audit pass and the few remaining bare `stop()` invocations
-  /// are deliberate hard-stops (e.g. reset()).
+  /// The default is destructive, so a bare `stop()` is a deliberate hard stop
+  /// (e.g. [reset]).
+
   /// How the most recently settled run ended: 'operator' / 'scheduler' /
   /// 'rollback' / 'safety' (native-side abort with no stop() commander) /
   /// null (completed, failed, or nothing settled yet).
@@ -1873,7 +1638,7 @@ class SequenceExecutor {
     // Fresh explicit stop from a live state (running / paused / recovering).
     // Command the native executor to stop FIRST (inside the drive), before any
     // teardown or persistence.
-    final f = _RunFinalization(
+    final f = RunFinalization(
       generation: ++_finalizationGeneration,
       runStatus: preserveCheckpoint ? 'paused-stopped' : 'stopped',
       finalUiState: SequenceExecutionState.idle,
@@ -2092,9 +1857,7 @@ class SequenceExecutor {
     );
   }
 
-  // =========================================================================
-  // Checkpoint / Crash Recovery
-  // =========================================================================
+  // Checkpoint / crash recovery.
 
   /// Initialize checkpoint system with app's documents directory
   Future<void> initializeCheckpoints(String documentsPath) async {
@@ -2266,11 +2029,12 @@ class SequenceExecutor {
       info.sequenceName,
     );
 
-    // --- Acquisition transaction ---------------------------------------
+    // Acquisition transaction.
     // From the UI running-state flip onward every resource is part of one
     // lifecycle transaction, protected by the same [_rollbackStart] path as
-    // start(). Previously only a sequencerStart() failure rolled back; a
-    // failure creating the session/run row left a running UI with an active
+    // start(). Every resource from the running-state flip onward is inside
+    // that one rollback transaction, not just the native start — a failure
+    // creating the session/run row must not leave a running UI with an active
     // session and no native run.
     _resetFinalizationForNewRun();
     try {
@@ -2345,29 +2109,21 @@ class SequenceExecutor {
 
   /// Subscribe [_handleSequencerEvent] to the backend event stream.
   ///
-  /// The one subscribe site. A Dart-orchestrated [start] and a checkpoint
+  /// The ONE subscribe site. A Dart-orchestrated [start] and a checkpoint
   /// [resumeFromCheckpoint] both route through here as part of their launch,
-  /// and the headless appliance calls it directly for a run it hands straight
-  /// to Rust: its canonical flow is `POST /api/sequencer/load` ->
-  /// `POST /api/sequencer/start`, which never calls [start], so nothing was
-  /// listening when the frames came back. There were three copies of this
-  /// five-line block, and the one in `_startNativeExecution` was the one that
-  /// did NOT cancel first — so a start admitted after a run that ended in
-  /// `stopFailed` / `cleanupFailed` (which deliberately retains its
-  /// subscription) leaked the old listener and handled every event twice.
+  /// and the headless appliance calls it directly: its canonical flow is
+  /// `POST /api/sequencer/load` -> `POST /api/sequencer/start`, which never
+  /// calls [start].
   ///
-  /// The listener is not decoration. It is what turns a native
-  /// `FrameCaptured` into a `captured_images` row, advances the session
-  /// counters, feeds progress and the run vitals, and drives auto-grading.
-  /// Without it a night's frames are written to disk correctly and the
-  /// database never hears about them: measured on the live rig 2026-08-09 as
-  /// **30 FITS on disk, 8 registered**, and the eight belonged to the single
-  /// run that had gone through [resumeFromCheckpoint] — the other subscribe
-  /// site — rather than through `start`.
+  /// The listener is what turns a native `FrameCaptured` into a
+  /// `captured_images` row, advances the session counters, feeds progress and
+  /// the run vitals, and drives auto-grading. Without it a night's frames land
+  /// on disk and the database never hears about them.
   ///
-  /// Idempotent, and safe to call before every native start: a previous run's
-  /// teardown cancels the subscription, so run two would otherwise be as blind
-  /// as run one was.
+  /// Idempotent (it cancels any existing subscription first) and safe to call
+  /// before every native start: a run that ended in `stopFailed` /
+  /// `cleanupFailed` deliberately retains its subscription, and a previous
+  /// run's normal teardown cancels it.
   Future<void> attachHostListenersForNativeRun() async {
     _ensureBackendAuthority();
     final backend = _backend;

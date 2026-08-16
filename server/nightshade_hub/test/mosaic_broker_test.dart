@@ -1,5 +1,5 @@
-// Collaborative Sky (6.0) WS2 — collaborative-mosaic claim broker + assembly
-// coordinator (unit level, over the in-memory HubDatabase).
+// Collaborative-mosaic claim broker + assembly coordinator (unit level, over
+// the in-memory HubDatabase).
 //
 // Covers: publish inserts the mosaic + panels open/'pending'; claim returns a
 // token; claim CONTENTION (a second account claiming the same panel is refused

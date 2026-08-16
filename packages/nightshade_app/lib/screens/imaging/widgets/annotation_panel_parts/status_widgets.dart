@@ -63,13 +63,10 @@ class AnnotationCatalogBanner extends StatelessWidget {
 /// Copy for the "no annotated objects" empty state, named for the blocker that
 /// is actually in the way.
 ///
-/// The old copy branched on ONE variable — `annotation == null` — and always
-/// read "No image annotated / Capture an image to see detected objects". With
-/// no plate solver installed that instruction is false the moment the first
-/// frame lands: after a dozen good captures the panel was still telling the
-/// operator to go capture something, while the status card directly above it
-/// already said "No plate solver installed". Branch on the real blocker so the
-/// empty state and the status card cannot contradict each other.
+/// Branching on `annotation == null` alone reads "Capture an image to see
+/// detected objects", which is false the moment a frame lands with no plate
+/// solver installed — and contradicts the status card directly above it.
+/// Branch on the real blocker so the two cannot disagree.
 ///
 /// Returns the headline plus an optional second line; a null [hint] means the
 /// headline says everything there is to say.
@@ -244,12 +241,11 @@ class AnnotationStatusIndicator extends ConsumerWidget {
 
   /// True for a run that finished having matched nothing.
   ///
-  /// "Found 0 objects" was rendered in the same green tick treatment as
-  /// "Found 47 objects", so a frame the app could not place on the sky
-  /// presented as a successful identification of an empty field — a statement
-  /// about the sky, made by a run that never got a position. Zero matches is
-  /// a real outcome, but it is not a success: it gets the neutral treatment
-  /// and copy that names what actually happened.
+  /// "Found 0 objects" in the same green tick treatment as "Found 47 objects"
+  /// would present a frame the app could not place on the sky as a successful
+  /// identification of an empty field — a statement about the sky from a run
+  /// that has no position. Zero matches is a real outcome but not a success, so
+  /// it gets the neutral treatment and copy that names it.
   static bool _isEmptyResult(AnnotationState state) =>
       state.status == AnnotationStatus.complete &&
       (state.objectsFound ?? 0) == 0;

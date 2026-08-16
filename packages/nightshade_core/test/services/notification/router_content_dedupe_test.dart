@@ -1,23 +1,14 @@
-// WF-N4 / WF-STOP-N3 — one operator Stop, three identical toasts.
+// One operator Stop, one toast.
 //
 // The stop pipeline has THREE reclassifying producers that converge on the same
 // `sequenceStopped` category (the sequencer `Error` carrying the "Sequence
 // cancelled" notice, the `Stopped` lifecycle event that follows it, and the
-// dashboard bridge re-entering with the same stop). Each one reaches the
-// router, so a single Stop published three toasts and three RECENT EVENTS rows
-// microseconds apart:
+// dashboard bridge re-entering with the same stop). Each reaches the router,
+// which is the one place they all converge, so that is where the repetition is
+// collapsed — for every transport, not just the phone push.
 //
-//   Sequence stopped / Sequence stopped by request at 2026-08-14T00:13:25.206940
-//   Sequence stopped / Sequence stopped by request at 2026-08-14T00:13:25.207025
-//   Sequence stopped / Sequence stopped by request at 2026-08-14T00:13:25.207109
-//
-// The router is the ONE place every producer converges, so that is where the
-// repetition is collapsed — for every transport, not just the phone push.
-//
-// The WD-EQ-3 counter-input is pinned here too: two producers of one refusal
-// whose bodies differ ONLY by a trailing full stop must still collapse. The
-// exact-string key that shipped before could not fire on the one case it was
-// written for.
+// Two producers of one refusal whose bodies differ ONLY by a trailing full stop
+// must collapse too: an exact-string key would not fire on them.
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -119,8 +110,8 @@ void main() {
   test(
     'a one-character trailing-punctuation difference cannot defeat the collapse',
     () async {
-      // WD-EQ-3's refuter counter-input, keyed at the router: the two producers
-      // of one refusal differ ONLY by a trailing full stop.
+      // The counter-input keyed at the router: the two producers of one refusal
+      // differ ONLY by a trailing full stop.
       const refusal =
           'Built-in guider requires an active profile with a guide focal length';
       final inApp = _RecordingTransport(NotificationTransportKind.inApp);

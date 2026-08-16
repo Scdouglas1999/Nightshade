@@ -1,4 +1,4 @@
-// Controller tests for the narrowband palette combine (Phase C, §2e).
+// Controller tests for the narrowband palette combine.
 //
 // Exercises that applying a palette in the workbench mixer:
 //   * persists a `narrowband_composites` row (v44 table) carrying the palette,

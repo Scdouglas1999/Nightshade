@@ -374,10 +374,9 @@ void main() {
   });
 
   group('header title identifies the session, not "the night"', () {
-    /// Two sequences on the same night both used to render the header "Night of
-    /// 2026-07-25" over mutually exclusive sub sets, with no session name
-    /// anywhere on screen — the title claimed an aggregation the screen does
-    /// not do.
+    /// Two sequences on the same night would otherwise both render a "Night of
+    /// <date>" header over mutually exclusive sub sets, with no session name on
+    /// screen — a title claiming an aggregation the screen does not do.
     Future<int> namedSessionAt(String name, DateTime start) async {
       final sessions = container.read(sessionsDaoProvider);
       final images = container.read(imagesDaoProvider);

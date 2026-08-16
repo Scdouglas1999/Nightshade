@@ -1,5 +1,3 @@
-// Part of ../main.dart -- extracted for maintainability.
-//
 // Shared connection-session state plus the WebSocket connection-state
 // notification machine. This base mixin owns every field the connection
 // flow shares (the connected server, discovery/error/status flags, the
@@ -42,20 +40,18 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
   // operators who need to verify the value during pairing.
   bool _accessTokenVisible = false;
 
-  // WebSocket-driven liveness replaces the old 5 s HTTP poll.
-  // The NetworkBackend already runs a ping/pong heartbeat and a backoff
-  // reconnector; this state machine just translates its connection-state
-  // stream into UI banners and a final tear-down once the grace expires.
+  // Liveness comes from the WebSocket heartbeat, not an HTTP poll. The
+  // NetworkBackend runs the ping/pong and a backoff reconnector; this state
+  // machine translates its connection-state stream into UI banners and a
+  // final tear-down once the grace expires.
   StreamSubscription<BackendConnectionState>? _connectionStateSubscription;
   Timer? _disconnectGraceTimer;
   bool _connectionStale = false;
 
   /// Re-arms [_autoConnect] after the grace period has declared a session
-  /// dead. Losing WiFi for longer than the grace used to be terminal: the app
-  /// dropped to the connection screen and sat there indefinitely, so a phone
-  /// that blipped off the network overnight was still showing "Please
-  /// reconnect" in the morning even though a fresh launch reconnects instantly
-  /// from the same saved server. Null whenever no retry is pending.
+  /// dead, so a phone that blips off the network overnight is reconnected by
+  /// morning instead of sitting on "Please reconnect" until relaunched. Null
+  /// whenever no retry is pending.
   Timer? _lostSessionRetryTimer;
 
   /// Consecutive automatic retries since the session was declared lost. Drives
@@ -94,7 +90,7 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
   bool _isCurrentConnectionOperation(int generation) =>
       mounted && generation == _connectionOperationGeneration;
 
-  // --- Cross-group operations, implemented in the sibling mixins. ---
+  // Cross-group operations, implemented in the sibling mixins
 
   /// Implemented by the (re)connect/disconnect ops mixin. The notification
   /// machine drops the loopback tunnel when a session dies; the discovery
@@ -310,17 +306,17 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
             // This MUST happen before the `disconnect()` below: that swaps in a
             // DisconnectedBackend, and the `backendProvider` listener in the
             // build method clears `_connectedServer` the moment it sees one. A
-            // capture placed after the await therefore always read null, and
-            // every retry silently fell back to discovery — which on this
-            // emulator resolved the same host by a different address (10.0.2.2
-            // rather than the paired 192.168.1.20) and re-prompted an
-            // already-paired user for a pairing code.
+            // capture placed after the await therefore reads null, and every
+            // retry silently falls back to discovery — which on an emulator
+            // resolves the same host by a different address (10.0.2.2 rather
+            // than the paired 192.168.1.20) and re-prompts an already-paired
+            // user for a pairing code.
             _lostSessionServer = _connectedServer ?? _lostSessionServer;
             // Drop cached APNs registration state: the next connect may land on
             // a different desktop, and APNs hands back the same token across
             // servers. Without this the target-keyed gate in the service is the
-            // only thing forcing a re-POST; resetting here is belt-and-braces so
-            // a re-pair can never be assumed already-registered. (Blocker #8.)
+            // only thing forcing a re-POST; resetting here is belt-and-braces
+            // so a re-pair can never be assumed already-registered.
             _pushRegistration?.reset();
             try {
               await ref.read(backendProvider.notifier).disconnect();

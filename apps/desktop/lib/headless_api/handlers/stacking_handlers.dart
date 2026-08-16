@@ -40,7 +40,7 @@ class StackingHandlers {
   StackedResultsDao get _resultsDao =>
       container.read(stackedResultsDaoProvider);
 
-  // --- Coordinator state -----------------------------------------------------
+  // Coordinator state
 
   /// True once the client has started stacking and the host should feed frames.
   bool _armed = false;
@@ -95,7 +95,7 @@ class StackingHandlers {
     }
   }
 
-  // --- Host auto-feed hook ----------------------------------------------------
+  // Host auto-feed hook
 
   /// Called by the server's `ImageSaved` event subscription for every frame the
   /// host writes to disk. No-op unless stacking is armed.
@@ -127,7 +127,7 @@ class StackingHandlers {
     });
   }
 
-  // --- Endpoints --------------------------------------------------------------
+  // Endpoints
 
   /// POST /api/stacking/start
   /// Body: `{ config?: {...}, referencePath?: "host-path" }`
@@ -476,11 +476,10 @@ class StackingHandlers {
   /// throws "not initialized". That's not an error from the caller's view; they
   /// just want stacking off. Only stop the engine when it actually
   /// started, and always clear the coordinator's armed/started state.
-  /// Implements the shared stop/abort no-op contract — see [kWasRunningField].
-  /// Observed live with stacking inactive:
-  ///   POST /api/stacking/stop -> 200 {"status":"stopped"}
-  /// which claims a stack was stopped when none was running. The
-  /// armed/started/active state is already known here, so say which it was.
+  /// Implements the shared stop/abort no-op contract — see [kWasRunningField]:
+  /// the armed/started/active state is known here, so the response reports
+  /// which state was actually torn down rather than claiming a stack was
+  /// stopped when none was running.
   Future<Response> handleStop(Request request) async {
     return _enqueue(() async {
       // Captured BEFORE the `finally` clears the flags, so it reflects the
@@ -508,7 +507,7 @@ class StackingHandlers {
     });
   }
 
-  // --- (de)serialization ------------------------------------------------------
+  // (de)serialization
 
   int _parseSavedResultId(String raw) {
     final parsed = int.tryParse(raw);

@@ -1,6 +1,4 @@
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-// Part of ../session_review_controller.dart -- extracted for maintainability.
-//
 // Private load, finishing and accumulating-master helpers of SessionReviewController.
 part of '../session_review_controller.dart';
 
@@ -123,17 +121,13 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
   /// persists) a fresh one. Fail-soft to null so the panel shows its
   /// "analysis pending" state rather than an error.
   ///
-  /// WF-SCI-N2: the stored report used to be preferred unconditionally, so the
-  /// verdict was computed exactly once per session and never again. A night
-  /// analysed before a detector fix kept its old verdict forever — 100/100,
-  /// "A clean night — no problems detected", over four subs the same build
-  /// grades POOR — and Refresh did not recompute it either, so there was no
-  /// user-reachable way to get the new answer. Same trap for any night first
-  /// viewed while its frames were still being graded.
+  /// Preferring the stored report unconditionally computes the verdict once per
+  /// session and never again, so a night analysed before a detector fix — or
+  /// while its frames were still being graded — keeps the old answer forever.
   ///
   /// Two ways out, both needed: [forceRecompute] for the operator's own
-  /// Refresh, and a staleness test for the case nobody thinks to refresh —
-  /// a report cannot describe frames that were captured after it was written.
+  /// Refresh, and a staleness test for the case nobody thinks to refresh — a
+  /// report cannot describe frames that were captured after it was written.
   Future<NightReport?> _loadNightReport({bool forceRecompute = false}) async {
     try {
       final reports = _ref.read(nightReportsDaoProvider);

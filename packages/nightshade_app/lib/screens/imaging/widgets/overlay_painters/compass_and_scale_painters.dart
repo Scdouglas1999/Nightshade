@@ -37,8 +37,8 @@ class CompassOverlayPainter extends CustomPainter {
   /// The circle this painter will draw on a canvas of [size].
   ///
   /// Exposed so a layout test can prove the rose does not land under the
-  /// bottom-right stats readout, which is a separately-anchored sibling in the
-  /// same stack and used to be drawn straight over it.
+  /// bottom-right stats readout — a separately-anchored sibling in the same
+  /// stack, which nothing else constrains it against.
   Rect boundsIn(Size size) {
     final center = _centerIn(size);
     return Rect.fromCircle(center: center, radius: radius);
@@ -79,7 +79,7 @@ class CompassOverlayPainter extends CustomPainter {
     final arrowLength = radius * 0.65;
     const arrowHeadSize = 8.0;
 
-    // --- North arrow ---
+    // North arrow
     final nDx = math.sin(rotRad) * arrowLength;
     final nDy = -math.cos(rotRad) * arrowLength;
     final nTip = Offset(centerX + nDx, centerY + nDy);
@@ -96,7 +96,7 @@ class CompassOverlayPainter extends CustomPainter {
     // "N" label at tip
     _drawLabel(canvas, 'N', nTip, rotRad, radius, const Color(0xFFFF4444));
 
-    // --- East arrow (perpendicular to North, 90 degrees clockwise on sky) ---
+    // East arrow (perpendicular to north, 90 degrees clockwise on sky)
     final eRotRad = rotRad + (math.pi / 2.0);
     final eDx = math.sin(eRotRad) * arrowLength;
     final eDy = -math.cos(eRotRad) * arrowLength;
@@ -215,7 +215,7 @@ class ScaleBarPainter extends CustomPainter {
 
   /// Y of the bar itself on a canvas of [size]. The label sits below it and the
   /// background plate extends ~8px above; exposed so a layout test can prove the
-  /// bar clears the bottom-left histogram card it used to be painted across.
+  /// bar clears the bottom-left histogram card it shares the stack with.
   double barBaselineIn(Size size) =>
       size.height - (bottomMargin ?? margin) - 12;
 

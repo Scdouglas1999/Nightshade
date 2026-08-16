@@ -1,6 +1,6 @@
 part of '../flat_wizard_screen.dart';
 
-// --- Shared Widgets ---
+// Shared widgets
 
 class _SectionHeader extends StatelessWidget {
   final String title;

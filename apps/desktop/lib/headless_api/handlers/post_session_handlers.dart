@@ -109,10 +109,8 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Integrate session — one-shot batch integration of a sub list into a linear
   // FITS master. Wraps `api_integrate_session`.
-  // ===========================================================================
 
   /// POST /api/post-session/integrate
   /// Body: the `IntegrateSessionArgs` JSON shape
@@ -128,10 +126,8 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Drizzle integrate — variable-pixel linear reconstruction onto a scaled
   // grid. Wraps `api_drizzle_integrate`.
-  // ===========================================================================
 
   /// POST /api/post-session/drizzle
   /// Body: the `DrizzleIntegrateArgs` JSON shape
@@ -150,10 +146,8 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Analyze night — marginal-SNR integration curve + keep/cull recommendation.
   // Wraps `api_analyze_night` (a pure analytic predictor; no pixels integrated).
-  // ===========================================================================
 
   /// POST /api/post-session/analyze-night
   /// Body: `{ qualities: [...], weights: [...], exposuresS: [...],
@@ -173,10 +167,8 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Build master flat — unit-mean master flat from raw flats. Wraps
   // `api_build_master_flat`.
-  // ===========================================================================
 
   /// POST /api/post-session/build-master-flat
   /// Body: the `BuildMasterFlatArgs` JSON shape (host paths). Returns `{jobId}`;
@@ -190,10 +182,8 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Color calibrate — solve + apply a per-channel white balance from the
   // matched colour-indexed stars. Wraps `api_color_calibrate`.
-  // ===========================================================================
 
   /// POST /api/post-session/color-calibrate
   /// Body: `{ inputFits, outputFits, channels, whiteRefBv?, matchedStars: [...] }`
@@ -212,11 +202,9 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Detect stars (photometry) — measure each star's per-channel aperture flux,
   // the input to colour calibration's Dart-side cross-match. Wraps
   // `api_detect_stars_photometry`.
-  // ===========================================================================
 
   /// POST /api/post-session/detect-stars
   /// Body: `{ inputFits, maxStars?, aperture? }` (host path). Returns `{jobId}`;
@@ -233,10 +221,8 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Extract background — fit + subtract a low-order background model. Wraps
   // `api_extract_background`.
-  // ===========================================================================
 
   /// POST /api/post-session/extract-background
   /// Body: `{ inputFits, outputFits, config? }` (host paths). Returns `{jobId}`;
@@ -252,10 +238,8 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Combine channels — linearly combine single-channel narrowband masters into
   // an RGB composite. Wraps `api_combine_channels`.
-  // ===========================================================================
 
   /// POST /api/post-session/combine-channels
   /// Body: the `CombineChannelsArgs` JSON shape (host paths). Returns `{jobId}`;
@@ -269,12 +253,10 @@ class PostSessionHandlers {
     });
   }
 
-  // ===========================================================================
   // Master accumulate — multi-night accumulating master (create / add /
   // finalize / info). Wraps `api_master_accumulate`. The `info` / `create` /
   // `finalize` ops are cheap, but `add` folds a whole night, so the whole op
   // family is job-backed for a uniform client contract.
-  // ===========================================================================
 
   /// POST /api/post-session/master-accumulate
   /// Body: the `MasterAccumulateArgs` JSON shape, carrying an `op` of

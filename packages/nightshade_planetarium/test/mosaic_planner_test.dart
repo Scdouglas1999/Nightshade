@@ -73,14 +73,13 @@ void main() {
         panelFovHeight: 1.0,
       );
 
-      // A label that the old bespoke encoder would have emitted unescaped,
-      // producing invalid JSON.
+      // A label a bespoke encoder would emit unescaped, producing invalid JSON.
       const trickyLabel = 'Orion "A1" \\ panel\nline2\ttab';
       plan.panelsInCaptureOrder.first.label = trickyLabel;
 
       final json = MosaicExporter.toJson(plan);
 
-      // Must be parseable (the old encoder failed here).
+      // Must be parseable.
       final decoded = jsonDecode(json) as Map<String, dynamic>;
       final panels = decoded['panels'] as List<dynamic>;
       final first = panels.first as Map<String, dynamic>;

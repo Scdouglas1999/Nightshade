@@ -1,8 +1,6 @@
 part of '../science_analytics_tab.dart';
 
-// =============================================================================
-// Photometric Transforms Card
-// =============================================================================
+// Photometric transforms card
 
 class _PhotometricTransformsCard extends ConsumerWidget {
   final NightshadeColors colors;

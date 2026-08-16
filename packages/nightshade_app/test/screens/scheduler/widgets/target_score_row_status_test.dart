@@ -1,13 +1,11 @@
-// WD-SEQ-N4, third strike on the two-implementations trap.
-//
-// Wave D fixed the scheduler engine's rejection wording; Wave E drove the app
-// and found the screen unchanged — Plan Tonight > Schedule showed
+// The rejection wording has ONE implementation. A private ladder inside the
+// widget is a second one, and it is the one that runs: Plan Tonight > Schedule
+// then shows
 //   "M42-TEST / altitude 9.8° below site minimum 30.0°"   (the engine's text)
 // next to a STATUS chip reading "Below horizon"           (the widget's copy).
-// The widget's own ladder was the implementation that ran.
 //
-// These tests pin the RENDERED chip for the refuter's exact counter-input, and
-// the last one fails if a second ladder ever grows back inside the widget.
+// These tests pin the RENDERED chip, and the last one fails if a second ladder
+// grows back inside the widget.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -41,7 +39,7 @@ void main() {
   testWidgets(
     'a target that is up but under the site minimum is chipped "Too low"',
     (tester) async {
-      // Verbatim from the Wave E repro (site lat -35 / lon +21, alt 9.8°).
+      // The rejecting case verbatim (site lat -35 / lon +21, alt 9.8°).
       await tester.pumpWidget(
         _host(_rejected('altitude 9.8° below site minimum 30.0°')),
       );
@@ -64,8 +62,8 @@ void main() {
   testWidgets('a custom-horizon rejection is not called "Below horizon"', (
     tester,
   ) async {
-    // This reason also contains "altitude" and "below"; the old ladder in the
-    // widget matched those two words first and mislabelled it.
+    // This reason also contains "altitude" and "below", so a keyword ladder in
+    // the widget would match those two words first and mislabel it.
     await tester.pumpWidget(
       _host(
         _rejected('altitude 41.0° below horizon profile "Trees" '

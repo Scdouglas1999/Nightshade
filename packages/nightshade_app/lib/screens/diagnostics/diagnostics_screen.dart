@@ -21,32 +21,24 @@ part 'diagnostics_screen/issues_and_skeleton.dart';
 
 /// Session id standing for "the frames that belong to no session".
 ///
-/// Loop / quick captures never open an `imaging_sessions` row, so the science
-/// pipeline writes their PSF tiles and astrometry residuals with a NULL
-/// session_id. Those measurements are real optical-train data and used to be
-/// unreachable here: the picker listed sessions only, so a night of quick
-/// captures could not be diagnosed at all. This sentinel gives that bucket a
-/// selectable identity; the content switches to the `sessionless*` providers
-/// when it is chosen. It is negative so it can never collide with a real
-/// auto-increment session id. Aliased to the shared
-/// [kQuickCaptureSessionSelection] so Diagnostics, Session and Science cannot
-/// drift onto three different sentinels for the same bucket.
+/// Local alias for the shared [kQuickCaptureSessionSelection] sentinel, which
+/// gives the session-less bucket a pickable identity; the content switches to
+/// the `sessionless*` providers when it is chosen.
 const int _kQuickCaptureSessionId = kQuickCaptureSessionSelection;
 
 /// Thin shell that hosts [DiagnosticsTabContent].
 ///
-/// Diagnostics merged into Analytics as a tab in §UX consolidation. The
-/// `/diagnostics` route now redirects to `/analytics?tab=diagnostics`, so
-/// this screen is unreachable through the router. It is kept so any direct
-/// embedding (tests, debug entry points) keeps working until the redirect
-/// is removed.
+/// Diagnostics lives inside Analytics as a tab, and the `/diagnostics` route
+/// redirects to `/analytics?tab=diagnostics`, so this screen is unreachable
+/// through the router. It is kept so any direct embedding (tests, debug entry
+/// points) keeps working until the redirect is removed.
 class DiagnosticsScreen extends StatelessWidget {
   const DiagnosticsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     // Standalone route: nothing else on screen names the page, so this one
-    // surface keeps the title the Analytics tab drops (CON-48).
+    // surface keeps the title the Analytics tab drops.
     return const DiagnosticsTabContent(showTitle: true);
   }
 }
@@ -183,10 +175,6 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
               ],
             ),
           const SizedBox(height: 8),
-          // CON-48: this was a 95-word essay on the one Analytics tab that had
-          // one — the scope contrast, the when-to-come-here advice and the
-          // score direction all now live in the guide the chip below opens,
-          // which is where a reader goes when they want them.
           Text(
             'Optical-train health across the whole session: collimation, tilt, '
             'backfocus and field flatness. Lower scores are better.',
@@ -210,9 +198,9 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
                       child: ConstrainedBox(
                         constraints:
                             BoxConstraints(minHeight: constraints.maxHeight),
-                        // CON-45: the star glyph and the shared EmptyState were
-                        // this tab's own dialect. Same widget as its four
-                        // siblings now, so one reader learns one pattern.
+                        // The shared EmptyState, same as this tab's four
+                        // siblings, so one reader learns one pattern rather
+                        // than a per-tab dialect.
                         child: AnalyticsEmptyState(
                           icon: LucideIcons.stethoscope,
                           title: l10n.text('diagnosticsNoSessionTitle'),

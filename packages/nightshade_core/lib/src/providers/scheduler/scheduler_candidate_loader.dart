@@ -48,20 +48,18 @@ class SchedulerCandidateLoader {
 
   /// Assemble the candidate set.
   ///
-  /// When [projectId] is non-null the candidate set is restricted to the
-  /// targets that belong to that planning project (component C6, multi-night
-  /// planning): the catalog query is INNER-JOINed against `project_targets`,
-  /// and each member's effective priority is the per-membership
-  /// `priority_override` when present, falling back to the target's own global
-  /// `priority`. When [projectId] is null the full catalog is loaded
-  /// verbatim — the original behavior, so existing non-project users are
-  /// unaffected.
+  /// When [projectId] is non-null the candidate set is restricted to that
+  /// planning project's targets: the catalog query is INNER-JOINed against
+  /// `project_targets`, and each member's effective priority is the
+  /// per-membership `priority_override` when present, falling back to the
+  /// target's own global `priority`. When [projectId] is null the full catalog
+  /// is loaded.
   ///
-  /// In both modes the goal/count/constraint/horizon assembly and the
-  /// effective-filter list are identical; completed-goal rejection and
-  /// remaining-need ranking still happen downstream in the engine's
-  /// `scoreCandidate`, so a fully-imaged member target drops out of tonight's
-  /// rotation even though it remains in the project.
+  /// Both modes assemble goals / counts / constraints / horizon and the
+  /// effective-filter list the same way. Completed-goal rejection and
+  /// remaining-need ranking happen downstream in the engine's `scoreCandidate`,
+  /// so a fully-imaged member target drops out of tonight's rotation while
+  /// remaining in the project.
   Future<List<SchedulerCandidate>> load({int? projectId}) async {
     final backendNotifier = ref.read(backendProvider.notifier);
     final backend = backendNotifier.currentBackend;
@@ -81,8 +79,8 @@ class SchedulerCandidateLoader {
     // Targets the operator removed from the queue. Read under the same
     // authority as the catalog: this is the difference between "removed" and
     // "goal-less", and a goal-less target is still an eligible free-form
-    // candidate, so without it "Remove from scheduler" changed nothing the
-    // autopilot could see (WF-N2).
+    // candidate, so without it "Remove from scheduler" changes nothing the
+    // autopilot can see.
     final removedTargetIds = await ref
         .read(schedulerQueueServiceProvider)
         .removedTargetIds();

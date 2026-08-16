@@ -30,9 +30,7 @@ import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // ------------------------------------------------------------------
   // ExposureTriggerConfig round-trip.
-  // ------------------------------------------------------------------
   group('ExposureTriggerConfig — drift RA/Dec round-trip', () {
     test('drift triggers serialise RA and Dec independently', () {
       final cfg = ExposureTriggerConfig(
@@ -99,9 +97,7 @@ void main() {
     });
   });
 
-  // ------------------------------------------------------------------
   // Switching condition type resets threshold to the new default.
-  // ------------------------------------------------------------------
   group('TriggerConfigurationDialog — type-switch resets threshold', () {
     Future<void> openEditForFirstTrigger(WidgetTester tester) async {
       // Open the edit dialog by tapping the edit icon on the first row.
@@ -188,9 +184,7 @@ void main() {
     );
   });
 
-  // ------------------------------------------------------------------
   // TextEditingController stability — typing must not drop chars.
-  // ------------------------------------------------------------------
   group('TriggerConfigurationDialog — controller stability', () {
     testWidgets(
       'the threshold field controller is reused across rebuilds; fast typing '
@@ -241,11 +235,10 @@ void main() {
             tester.widget<TextField>(fieldFinder).controller;
         expect(initialController, isNotNull);
 
-        // Simulate fast typing: enter a multi-character value. With the
-        // controller-stability bug (fresh controller per build) the framework would treat
-        // each keystroke as a brand-new editing session and characters
-        // would be silently lost. With the fix, the controller's text
-        // reflects exactly what was typed.
+        // Simulate fast typing: enter a multi-character value. A fresh
+        // controller per build makes the framework treat each keystroke as a
+        // brand-new editing session and silently lose characters; a stable
+        // controller's text reflects exactly what was typed.
         await tester.enterText(fieldFinder, '12.34');
         await tester.pump();
         expect(
@@ -255,7 +248,7 @@ void main() {
               'controller per build drops characters during fast typing.',
         );
         // While the field is still focused, the text must equal exactly
-        // what we typed — no truncation, no last-character-wins regression.
+        // what we typed — no truncation, no last-character-wins.
         expect(initialController!.text, '12.34');
 
         // Pump another frame to give any rebuild a chance to swap

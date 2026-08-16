@@ -1,15 +1,16 @@
-/// Regression tests for the per-type device slot handover.
+/// The per-type device slot handover.
 ///
 /// Each device type owns exactly ONE notifier slot. Connecting a second device
-/// of the same type used to overwrite that slot while the incumbent's driver
-/// connection stayed open. Because every disconnect path matches on the slot's
-/// `deviceId`, the displaced device then became unaddressable and its
-/// ASCOM/native handle stayed open for the rest of the session.
+/// of the same type must not overwrite that slot while the incumbent's driver
+/// connection stays open: every disconnect path matches on the slot's
+/// `deviceId`, so the displaced device becomes unaddressable and its
+/// ASCOM/native handle stays open for the rest of the session.
 ///
-/// Found on the live rig: after a simulator mount took the mount slot, a real
-/// Pegasus NYX-101 kept answering position polls, `/api/devices/connected`
-/// listed both mounts, and `POST /api/devices/disconnect` for the real one
-/// returned `device_id_mismatch` — so nothing could ever close it.
+/// On a live rig that reads as a simulator mount taking the mount slot while a
+/// real Pegasus NYX-101 keeps answering position polls,
+/// `/api/devices/connected` listing both mounts, and
+/// `POST /api/devices/disconnect` for the real one returning
+/// `device_id_mismatch` — so nothing can close it.
 library;
 
 import 'dart:async';

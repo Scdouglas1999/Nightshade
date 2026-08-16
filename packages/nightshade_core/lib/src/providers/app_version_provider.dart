@@ -28,14 +28,10 @@ class AppVersionInfo {
 
 /// Provider for the running application version.
 ///
-/// Why throw instead of returning a default: a misconfigured version masks
-/// the entire OTA update flow (the server compares against this string to
-/// decide whether to advertise a newer build). A bogus default like
-/// `2.0.0` would cause the app to perpetually offer "updates" to a build
-/// it is already running, or refuse legitimate updates.
-/// "errors are a feature": consumers must override this provider at
-/// startup, and an UnsupportedError here surfaces the configuration bug
-/// loudly.
+/// Must be overridden at app startup. It throws rather than defaulting
+/// because the OTA server compares against this string to decide whether to
+/// advertise a newer build: a stand-in like `2.0.0` would offer "updates" to
+/// the build already running, or refuse legitimate ones.
 final appVersionProvider = Provider<AppVersionInfo>((ref) {
   throw UnsupportedError(
     'appVersionProvider must be overridden at app startup with the '

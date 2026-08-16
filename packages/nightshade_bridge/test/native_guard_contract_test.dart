@@ -1,10 +1,9 @@
 /// Contract tests for the `_nativeAvailable` guards on the bridge stub.
 ///
 /// `_nativeBridgeRequired` throws "requires the native bridge", so it is only
-/// ever truthful when the native library is ABSENT. A single inverted guard
-/// makes a method fail on exactly the builds where it should work, and blames
-/// the wrong thing while doing it — the cry-wolf shape this pass exists to
-/// remove.
+/// ever truthful when the native library is ABSENT. An inverted guard makes a
+/// method fail on exactly the builds that can serve it, and names a missing
+/// bridge as the reason.
 ///
 /// Two spellings put the throw on the bridge-absent path, and both are legal:
 ///

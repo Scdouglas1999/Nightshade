@@ -1,9 +1,9 @@
 // Eager bootstrap for the bundled plugin runtime.
 //
-// Plugin registration used to be triggered only by opening Settings >
-// Integrations. That made an unattended/headless sequence containing a plugin
-// node fail after a clean restart until somebody visited that settings page.
-// Hardware-owning entry points call this before accepting sequence work.
+// Plugins must be registered before a sequence can start, unattended runs
+// included: a headless sequence containing a plugin node fails after a clean
+// restart otherwise. Hardware-owning entry points call this before accepting
+// sequence work.
 
 // ignore: implementation_imports
 import 'package:nightshade_plugins/src/plugin_registration.dart'

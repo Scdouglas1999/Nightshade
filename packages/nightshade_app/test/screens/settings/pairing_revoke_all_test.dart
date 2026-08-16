@@ -1,8 +1,7 @@
-// SET-17 (revoke-all) — a fresh install listed 13 paired devices it inherited
-// from a machine-wide store, most of them allowed to control the rig. The
-// store-location half is fixed; the operator half was not: the only way to
-// revoke is the per-row menu, one device at a time, so "take my rig off the
-// network now" is thirteen dialogs deep.
+// Revoke-all. A fresh install can inherit a long list of paired devices from a
+// machine-wide store, most of them allowed to control the rig, and with only the
+// per-row menu to revoke one device at a time "take my rig off the network now"
+// is thirteen dialogs deep.
 //
 // These tests drive the real notifier against a real in-memory pairing
 // database, so a revoke-all that only repaints — and leaves rows the auth

@@ -75,8 +75,8 @@ mixin _SerializedAsyncWrites<T> on AsyncNotifier<T> {
   /// Post-write identity guard shared by every transport save. If the active
   /// [SettingsDao] — or, where secrets are used, the active [SecretsStore] —
   /// changed identity while the awaited persistence ran (e.g. the container
-  /// was reconfigured mid-save), the value we just wrote landed in a
-  /// now-detached store, so we refuse to publish it as the live config.
+  /// was reconfigured mid-save), the value just written landed in a
+  /// now-detached store and is not published as the live config.
   /// Mirrors the identity checks already guarding push-config and
   /// routing-matrix persistence. It does not roll writes back (secure storage
   /// and SQLite cannot share a transaction); [_persistConfigWithSecrets] keeps
@@ -141,9 +141,7 @@ Future<void> _persistConfigWithSecrets({
   }
 }
 
-// ---------------------------------------------------------------------------
 // Secrets store provider
-// ---------------------------------------------------------------------------
 
 /// Overridable provider for the platform secrets store. Production
 /// (apps/desktop, apps/mobile) uses [SecretsStore.platformDefault]; tests
@@ -163,9 +161,7 @@ final notificationSecretsMigrationProvider = FutureProvider<bool>((ref) async {
   return store.migrateFromPlaintext(dao);
 });
 
-// ---------------------------------------------------------------------------
 // Per-transport config notifiers
-// ---------------------------------------------------------------------------
 
 class EmailConfigNotifier extends AsyncNotifier<EmailTransportConfig>
     with _SerializedAsyncWrites<EmailTransportConfig> {
@@ -690,9 +686,7 @@ class RoutingMatrixNotifier extends AsyncNotifier<NotificationRoutingMatrix>
   }
 }
 
-// ---------------------------------------------------------------------------
 // Public providers
-// ---------------------------------------------------------------------------
 
 final emailTransportConfigProvider =
     AsyncNotifierProvider<EmailConfigNotifier, EmailTransportConfig>(

@@ -21,12 +21,9 @@ extension _NightshadeDatabaseMigrationV42 on NightshadeDatabase {
   /// `integrated_master_frames` columns (`snr`, `fwhm`, `eccentricity`) give the
   /// Night Doctor per-sub science data after a morning integration.
   ///
-  /// Like v41 these are raw-DDL changes (the dominant v27+ convention) and do
-  /// NOT require a Drift codegen pass. `_createNightReportsTable()` uses
-  /// `IF NOT EXISTS` and `_ensureIntegratedMastersV42Columns()` guards every
-  /// `ALTER TABLE ... ADD COLUMN` with `_columnExists`, so both helpers are
-  /// idempotent and also run from `onCreate` (fresh installs) so a fresh DB gets
-  /// the table and columns too.
+  /// Raw-DDL changes, no Drift codegen pass. Both helpers are idempotent
+  /// (`IF NOT EXISTS`, `_columnExists`-guarded `ADD COLUMN`) and also run from
+  /// `onCreate`, so a fresh database gets the table and columns too.
   Future<void> _upgradeSchemaV42(Migrator m, int from) async {
     if (from < 42) {
       await _createNightReportsTable();

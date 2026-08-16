@@ -201,19 +201,19 @@ extension _SkyViewHitTesting on _InteractiveSkyViewState {
     SkyViewState viewState,
   ) {
     // Delegate to the shared projector so the inverse can never drift from the
-    // forward projection the painter uses. The old code here hardcoded the
-    // STEREOGRAPHIC inverse while the painter has three projection branches, so
-    // in orthographic or azimuthal-equidistant mode a tap resolved to the wrong
-    // sky coordinate — increasingly wrong away from the view centre — and
-    // selected the wrong object or empty sky.
+    // forward projection the painter uses: the painter has three projection
+    // branches, and a hardcoded inverse resolves taps to the wrong sky
+    // coordinate in the other two, increasingly so away from the view centre.
+    final site = ref.read(observerLocationProvider).site;
+    if (site == null) return null;
     final projector = SkyFovProjector.forSize(
       viewState,
       size,
-      latitude: ref.read(observerLocationProvider).latitude,
+      latitude: site.latitude,
       lstHours: viewState.viewMode == SkyViewMode.horizontal
           ? AstronomyCalculations.localSiderealTime(
               ref.read(observationTimeProvider).time,
-              ref.read(observerLocationProvider).longitude,
+              site.longitude,
             )
           : null,
     );

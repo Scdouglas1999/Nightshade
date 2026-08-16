@@ -196,8 +196,8 @@ void main() {
       },
     );
 
-    test('switching server target re-POSTs the same token (Blocker #8: '
-        'APNs hands back the same token across servers)', () async {
+    test('switching server target re-POSTs the same token (APNs hands back '
+        'the same token across servers)', () async {
       final targets = <String>[];
       final client = MockClient((req) async {
         targets.add('${req.url.host}:${req.url.port}');
@@ -217,9 +217,9 @@ void main() {
         backend: buildBackend(host: 'serverA.local', port: 8080),
         deviceId: 'mobile:x',
       );
-      // Re-pair / switch to server B with the unchanged token. The pre-fix
-      // token-only gate suppressed this POST, so server B never learned the
-      // token and no cellular alerts could reach the phone.
+      // Re-pair / switch to server B with the unchanged token. A token-only
+      // gate would suppress this POST, leaving server B without the token and
+      // no cellular alert able to reach the phone.
       await service.ensureRegistered(
         backend: buildBackend(host: 'serverB.local', port: 9090),
         deviceId: 'mobile:x',

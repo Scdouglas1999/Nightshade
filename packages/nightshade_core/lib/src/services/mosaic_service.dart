@@ -68,10 +68,9 @@ class MosaicConfig {
 
   /// Sky area the finished mosaic covers, in square degrees.
   ///
-  /// Derived from [totalExtentDegrees], so it accounts for overlap. It used to
-  /// sum the panel areas as if the panels were edge-to-edge, which overstated
-  /// the coverage of every mosaic with a non-zero overlap — at the default 10%
-  /// a 3x3 was reported as covering 33% more sky than it does.
+  /// Derived from [totalExtentDegrees], so it accounts for overlap. Summing
+  /// the panel areas instead would treat the panels as edge-to-edge and
+  /// overstate the coverage of every overlapping mosaic.
   double get totalAreaSquareDegrees {
     final (widthDeg, heightDeg) = totalExtentDegrees;
     return widthDeg * heightDeg;
@@ -296,10 +295,7 @@ class MosaicService {
   ///
   /// Delegates to [MosaicConfig.totalAreaSquareDegrees] so the one definition
   /// of coverage — the overlap-reduced extent the grid is actually laid out
-  /// with — is used everywhere. This method previously multiplied the panel
-  /// count by the panel size, ignoring overlap entirely, so the number it
-  /// handed the operator (and `POST /api/mosaic/calculate-area`) claimed more
-  /// sky than the mosaic would ever cover.
+  /// with — is used everywhere, including `POST /api/mosaic/calculate-area`.
   double calculateMosaicArea(MosaicConfig config) =>
       config.totalAreaSquareDegrees;
 
@@ -409,37 +405,22 @@ class MosaicService {
   /// `PANELROW`, `PANELCOL`, `NS-MOSNM`, `NS-PIDX`, `NS-PROW`,
   /// `NS-PCOL`, `NS-NPAN`).
   ///
-  /// ## Canonical execution path (Mosaic-Resume)
+  /// Every panel is a distinct [TargetHeaderNode] with a stable UUID, so
+  /// panel-level resume runs through the executor's
+  /// [SessionCheckpoint.nodeStatuses] map: nodes marked `Success` on a previous
+  /// run are skipped, and a 3×3 mosaic killed mid-panel-5 resumes at panel 5.
+  /// The Wizard checkpoint slot `wizard_states["mosaic"]` is unused on this
+  /// path; it is written only when a sequence contains a Rust `Mosaic` node.
   ///
-  /// This static-expansion approach IS the canonical mosaic path
-  /// today. The Rust [`crate::mosaic`] module's [`Wizard`]
-  /// infrastructure exists as forward-compatible scaffolding for a
-  /// future refactor where per-panel orchestration lives entirely in
-  /// Rust; until that lands, `createMosaicSequence` here is what
-  /// every Nightshade mosaic actually runs.
-  ///
-  /// ## Resume behaviour
-  ///
-  /// Because every panel is a distinct [TargetHeaderNode] with a
-  /// stable UUID, panel-level resume Just Works through the
-  /// executor's existing [SessionCheckpoint.nodeStatuses] map: nodes
-  /// marked `Success` on a previous run are skipped on resume, so a
-  /// 3×3 mosaic killed mid-panel-5 resumes at panel 5. There is NO
-  /// mosaic-specific resume code path on the Dart side and there
-  /// does not need to be one — the Wizard checkpoint slot
-  /// `wizard_states["mosaic"]` goes unused under this path. That slot
-  /// is written only when a sequence contains a Rust `Mosaic` node,
-  /// which persists its per-panel progress for real through
-  /// `SessionWizardCheckpointSink` (owner decision 7, 2026-08-14).
   /// [panelTargetId] optionally maps a panel's 0-based row-major
   /// [MosaicPanel.panelIndex] to the DB `targets.id` that the panel images,
   /// which is stamped onto that panel's [TargetHeaderNode.catalogTargetId].
   /// This is what makes a durable mosaic's frames attributable PER PANEL: the
   /// frame-registration path walks to the header's `catalogTargetId`, so each
   /// panel's subs pool into its own `targets` row instead of all panels
-  /// sharing one. Without it (the legacy/manual path) every panel carries a
-  /// null id, the project-service then pools every panel's subs under the
-  /// project target, and `integratePanels` integrates the same field N times.
+  /// sharing one. Without it every panel carries a null id, the project service
+  /// pools every panel's subs under the project target, and `integratePanels`
+  /// integrates the same field N times.
   /// The key matches [MosaicProjectService.createProject]'s `panelTargetId`
   /// callback so the per-panel `mosaic_panels.target_id` and the per-panel
   /// header `catalogTargetId` line up by index. `null` (or a callback that

@@ -463,9 +463,9 @@ class _FocusImportDialogState extends State<_FocusImportDialog> {
 }
 
 /// Last predictive-AF consultation: decision band, predicted vs actual
-/// position, and confidence. The model used to train and predict entirely
-/// silently — this row is the operator's only window into whether the
-/// per-filter focus model trusts itself yet.
+/// position, and confidence. The model trains and predicts on its own, so this
+/// row is the operator's only window into whether the per-filter focus model
+/// trusts itself yet.
 class _PredictiveAfRow extends ConsumerWidget {
   const _PredictiveAfRow({required this.colors});
 

@@ -15,13 +15,11 @@ class BackupHandlers {
 
   /// Filename pattern: nightshade-backup-{timestamp}-{uuid}.nsbackup.
   ///
-  /// §2.25: backup IDs must be stable across processes. Dart `hashCode` is not
-  /// stable across VM restarts and can collide, so we encode a UUID directly
-  /// into the filename and use it as the public REST identifier for delete /
-  /// download / metadata. The pattern matches both newly-created backups and
-  /// the legacy `nightshade_backup_*` / `nightshade_autosave_*` names that
-  /// existed before this commit (those fall back to a deterministic, process-
-  /// independent fingerprint — see [_idForBackupFile]).
+  /// Backup ids must survive a process restart, so the UUID lives in the
+  /// filename and is the public REST identifier for delete / download /
+  /// metadata. Legacy `nightshade_backup_*` / `nightshade_autosave_*` names
+  /// carry no UUID and fall back to a deterministic fingerprint — see
+  /// [_idForBackupFile].
   static final RegExp _uuidInFilenamePattern = RegExp(
     r'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
     r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
@@ -41,9 +39,7 @@ class BackupHandlers {
   void _logError(String message) =>
       _logger.error(message, source: 'BackupHandlers');
 
-  // ===========================================================================
-  // List Backups
-  // ===========================================================================
+  // List backups
 
   Future<Response> handleListBackups(Request request) async {
     _logInfo('[API] GET /api/backup/list');
@@ -80,9 +76,7 @@ class BackupHandlers {
     return jsonOk({'backups': backups});
   }
 
-  // ===========================================================================
-  // Create Backup
-  // ===========================================================================
+  // Create backup
 
   Future<Response> handleCreateBackup(Request request) async {
     _logInfo('[API] POST /api/backup/create');
@@ -106,13 +100,12 @@ class BackupHandlers {
 
     final BackupResult result;
     if (autoSave) {
-      // §2.25: route auto-save through createBackup with a UUID-bearing path
-      // (instead of service.autoSaveBackup) so the new backup has a stable
-      // identifier extractable from the filename. autoSaveBackup itself would
-      // produce a `nightshade_autosave_<ts>.nsbackup` name that the
-      // _idForBackupFile fallback can address as "legacy-..." but cannot turn
-      // into a real UUID, defeating the §2.25 stability guarantee for IDs
-      // returned to the caller in the create response.
+      // Route auto-save through createBackup with a UUID-bearing path (rather
+      // than service.autoSaveBackup) so the new backup carries a stable
+      // identifier recoverable from its filename. autoSaveBackup produces a
+      // `nightshade_autosave_<ts>.nsbackup` name that the _idForBackupFile
+      // fallback can only address as "legacy-...", so the id in the create
+      // response would not survive a later list/delete round-trip.
       final autoSavePath = await _defaultUuidBackupPath(service, tag: 'auto');
       result = await service.createBackup(customPath: autoSavePath);
     } else {
@@ -131,10 +124,9 @@ class BackupHandlers {
         'timestamp': result.timestamp.millisecondsSinceEpoch,
       });
     }
-    // §2.23: failed create is a server-side problem (disk, db, ...). The
-    // caller cannot fix it by changing their request, so 500, not 200.
-    // §6a-fixed: surface as structured HandlerFailure so the wire body
-    // carries a stable code instead of the legacy free-form failure shape.
+    // A failed create is a server-side problem (disk, db, ...). The caller
+    // cannot fix it by changing their request, so 500, not 200. HandlerFailure
+    // gives the wire body a stable machine code instead of free-form text.
     _logError('[API] Create backup failed: ${result.errorMessage}');
     throw HandlerFailure(
       code: 'backup_create_failed',
@@ -142,9 +134,7 @@ class BackupHandlers {
     );
   }
 
-  // ===========================================================================
-  // Restore Backup
-  // ===========================================================================
+  // Restore backup
 
   Future<Response> handleRestoreBackup(Request request) async {
     _logInfo('[API] POST /api/backup/restore');
@@ -157,8 +147,8 @@ class BackupHandlers {
 
     final service = container.read(backupServiceProvider);
 
-    // §containment: resolve the restore source to a real file that lives INSIDE
-    // this host's backup directory. A remote client must never be able to make
+    // Resolve the restore source to a real file that lives INSIDE this host's
+    // backup directory. A remote client must never be able to make
     // the host read an arbitrary absolute path off disk as a "backup".
     //   * Preferred: a stable backup `id`, resolved against listBackups() —
     //     exactly the same resolution delete/download/metadata already use.
@@ -200,11 +190,11 @@ class BackupHandlers {
     if (result.success) {
       return jsonOk(await _restoredBody(result));
     }
-    // §2.23: restore-from-disk failures aren't necessarily caused by a bad
-    // request body (the file path was valid syntactically). The most common
-    // cause is a corrupted/missing backup or db write failure, both 500-class.
-    // §6a-fixed: emit a structured HandlerFailure rather than the legacy
-    // free-form failure shape that triggered the fail-closed rule.
+    // Restore-from-disk failures aren't necessarily caused by a bad request
+    // body (the file path was valid syntactically). The most common cause is a
+    // corrupted/missing backup or a db write failure, both 500-class.
+    // HandlerFailure keeps the wire body a structured code, which the
+    // fail-closed rule requires.
     _logError('[API] Restore backup failed: ${result.errorMessage}');
     throw HandlerFailure(
       code: 'backup_restore_failed',
@@ -212,9 +202,7 @@ class BackupHandlers {
     );
   }
 
-  // ===========================================================================
-  // Delete Backup
-  // ===========================================================================
+  // Delete backup
 
   Future<Response> handleDeleteBackup(Request request, String id) async {
     _logInfo('[API] DELETE /api/backup/$id');
@@ -234,9 +222,7 @@ class BackupHandlers {
     return jsonOk({'status': 'deleted'});
   }
 
-  // ===========================================================================
-  // Download Backup
-  // ===========================================================================
+  // Download backup
 
   Future<Response> handleDownloadBackup(Request request, String id) async {
     _logInfo('[API] GET /api/backup/$id/download');
@@ -261,9 +247,7 @@ class BackupHandlers {
     );
   }
 
-  // ===========================================================================
-  // Get Backup Metadata
-  // ===========================================================================
+  // Get backup metadata
 
   Future<Response> handleGetBackupMetadata(Request request, String id) async {
     _logInfo('[API] GET /api/backup/$id/metadata');
@@ -286,15 +270,13 @@ class BackupHandlers {
     return jsonOk({'metadata': metadata.toJson()});
   }
 
-  // ===========================================================================
-  // Auto Save Backup
-  // ===========================================================================
+  // Auto save backup
 
   Future<Response> handleAutoSaveBackup(Request request) async {
     _logInfo('[API] POST /api/backup/auto-save');
     final service = container.read(backupServiceProvider);
-    // §2.25: see handleCreateBackup — go through createBackup with a
-    // UUID-bearing path so the returned id is stable.
+    // See handleCreateBackup — go through createBackup with a UUID-bearing
+    // path so the returned id is stable.
     final autoSavePath = await _defaultUuidBackupPath(service, tag: 'auto');
     final result = await service.createBackup(customPath: autoSavePath);
 
@@ -309,9 +291,9 @@ class BackupHandlers {
         'timestamp': result.timestamp.millisecondsSinceEpoch,
       });
     }
-    // §2.23: same rationale as handleCreateBackup — auto-save failure is a
-    // local/server problem, not a request validation problem.
-    // §6a-fixed: structured HandlerFailure in place of free-form failure shape.
+    // Same rationale as handleCreateBackup — an auto-save failure is a
+    // local/server problem, not a request validation problem, and
+    // HandlerFailure keeps the wire body a structured code.
     _logError('[API] Auto save backup failed: ${result.errorMessage}');
     throw HandlerFailure(
       code: 'backup_autosave_failed',
@@ -394,9 +376,9 @@ class BackupHandlers {
         return jsonOk(await _restoredBody(result));
       }
 
-      // §2.23: restore from an uploaded file failing means the file we just
-      // wrote can't be parsed or applied — that's a server-side failure from
-      // the caller's perspective once the upload succeeded.
+      // A failed restore from an uploaded file means the file just written
+      // can't be parsed or applied — a server-side failure from the caller's
+      // perspective once the upload itself succeeded.
       //
       // The uploaded file is now an orphan: the client still holds its own
       // copy (it just uploaded it), and a file that cannot be restored has no
@@ -410,8 +392,7 @@ class BackupHandlers {
           '${file.path}: $cleanupError',
         );
       }
-      // §6a-fixed: emit a structured HandlerFailure rather than the legacy
-      // free-form failure shape.
+      // HandlerFailure gives the wire body a stable machine code.
       _logError('[API] Upload restore failed: ${result.errorMessage}');
       throw HandlerFailure(
         code: 'backup_upload_restore_failed',
@@ -443,13 +424,11 @@ class BackupHandlers {
   /// Build the success body for a completed restore, re-hydrating the cached
   /// state first.
   ///
-  /// The restore writes straight to the database, but this process keeps its
-  /// pre-restore `AppSettings` snapshot in memory. `POST /api/settings` merges
-  /// the posted keys onto that snapshot and persists the whole map, so the
-  /// first settings write after a restore erased every restored value — the
-  /// API reported "restored" and then quietly undid it. The desktop screen has
-  /// always invalidated these three providers after a restore; the HTTP path
-  /// now does the same, and says whether it worked.
+  /// The restore writes straight to the database while this process still
+  /// holds its pre-restore `AppSettings` snapshot in memory. `POST
+  /// /api/settings` merges the posted keys onto that snapshot and persists the
+  /// whole map, so the snapshot MUST be re-hydrated here or the next settings
+  /// write erases every restored value. The body reports whether it worked.
   Future<Map<String, Object?>> _restoredBody(RestoreResult result) async {
     final reloaded = await _reloadRestoredState();
     return {
@@ -639,9 +618,9 @@ class BackupHandlers {
   /// upload file after a failed restore is an orphan that will
   /// accumulate across attempts and confuse the user.
   ///
-  /// §6a-fixed: returns the FileSystemException.message (or a generic
-  /// `delete_failed`) instead of the raw exception string which would leak
-  /// the Dart runtime type name onto the wire via `orphanedFileError`.
+  /// Returns the FileSystemException.message (or a generic `delete_failed`)
+  /// rather than the raw exception string, which would leak the Dart runtime
+  /// type name onto the wire via `orphanedFileError`.
   Future<String?> _deleteIfExists(File file) async {
     try {
       if (await file.exists()) {
@@ -660,10 +639,10 @@ class BackupHandlers {
       );
       return e.message;
     } catch (e, stackTrace) {
-      // §6a-fixed: do not return the raw exception string over the wire — it
-      // leaks the Dart runtime type name. Log the full detail (via string
-      // interpolation, not direct stringification, to keep the fail-closed
-      // regex green) and surface a stable code to the caller.
+      // Never return the raw exception string over the wire — it leaks the
+      // Dart runtime type name. Log the full detail (via string interpolation,
+      // not direct stringification, so the fail-closed regex stays green) and
+      // surface a stable code to the caller.
       _logger.error(
         'Failed to delete orphaned upload ${file.path}: $e',
         source: 'BackupHandlers',
@@ -673,47 +652,38 @@ class BackupHandlers {
     }
   }
 
-  // ===========================================================================
-  // §2.25: Stable backup ID derivation
-  // ===========================================================================
-
   /// Build a stable identifier for the backup [file].
   ///
-  /// Why: the previous `file.path.hashCode.toString()` scheme used Dart's
-  /// per-isolate hashCode, which is unstable across process restarts and can
-  /// collide. A collision on the delete endpoint could let one caller delete
-  /// the wrong backup.
+  /// The id must be stable across process restarts and collision-free, or the
+  /// delete endpoint targets the wrong file. Dart's per-isolate `hashCode`
+  /// satisfies neither.
   ///
-  /// Strategy:
-  /// 1. If the filename contains a UUID (the pattern we now write for all new
-  ///    backups), extract and return it.
-  /// 2. Otherwise, derive a deterministic ID from the filename itself. The
-  ///    filename is process-independent (unlike hashCode) and unique within
-  ///    the backup directory because `_resolveUploadDestination` and
-  ///    `autoSaveBackup` both timestamp-suffix on collision. We prefix the
-  ///    derived ID with `legacy-` so callers can tell it apart from
-  ///    UUID-tagged ones.
+  /// 1. If the filename contains a UUID (the pattern every new backup gets),
+  ///    extract and return it.
+  /// 2. Otherwise derive the id from the filename, which is
+  ///    process-independent and unique within the backup directory because
+  ///    `_resolveUploadDestination` and `autoSaveBackup` both timestamp-suffix
+  ///    on collision. Prefixed `legacy-` so callers can tell it apart from a
+  ///    UUID-tagged one.
   String _idForBackupFile(File file) {
     final name = file.uri.pathSegments.last;
     final match = _uuidInFilenamePattern.firstMatch(name);
     if (match != null) {
       return match.group(1)!.toLowerCase();
     }
-    // No UUID embedded (a backup created before §2.25 landed). Use the
-    // filename, sanitized to be URL-safe, as the stable id.
+    // No UUID embedded. Use the filename, sanitized to be URL-safe, as the
+    // stable id.
     final sanitized = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
     return 'legacy-$sanitized';
   }
 
   /// Compose a default backup path that embeds a UUID in the filename.
   ///
-  /// Why: routes that do not pass a `customPath` previously got an OS file
-  /// chooser path from `BackupService.createBackup`, which is impossible in
-  /// headless mode. In headless mode we must supply the path ourselves; we
-  /// embed a UUID so `_idForBackupFile` can recover a stable id later. The
-  /// [tag] (defaults to `manual`) lets callers distinguish manual vs.
-  /// auto-save backups in the filename without breaking the UUID extraction
-  /// pattern.
+  /// Headless has no file chooser, so a route that passes no `customPath` gets
+  /// its path from here rather than from `BackupService.createBackup`. The
+  /// UUID lets [_idForBackupFile] recover a stable id later; [tag] (default
+  /// `manual`) distinguishes manual from auto-save backups in the filename
+  /// without breaking UUID extraction.
   Future<String> _defaultUuidBackupPath(
     BackupService service, {
     String tag = 'manual',

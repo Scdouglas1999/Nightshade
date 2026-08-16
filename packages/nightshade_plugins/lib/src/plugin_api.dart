@@ -1,8 +1,6 @@
 /// Plugin API - Interfaces that plugins must implement
 library;
 
-import 'package:flutter/widgets.dart';
-
 /// Base interface for all Nightshade plugins
 ///
 /// Plugins extend this interface to integrate with the Nightshade application.
@@ -184,61 +182,6 @@ class PluginException implements Exception {
   @override
   String toString() =>
       'PluginException: $message${cause != null ? ' (caused by: $cause)' : ''}';
-}
-
-/// Plugin that adds UI panels
-abstract class UiPlugin extends NightshadePlugin {
-  /// Get the UI extension points this plugin provides
-  List<UiExtensionPoint> get extensionPoints;
-}
-
-/// UI extension point types
-enum UiExtensionPointType {
-  /// Panel in equipment tab
-  equipmentPanel,
-
-  /// Panel in imaging tab
-  imagingPanel,
-
-  /// Panel in sequencer tab
-  sequencerPanel,
-
-  /// Status bar widget
-  statusBar,
-
-  /// Settings section
-  settings,
-}
-
-/// UI extension point definition
-class UiExtensionPoint {
-  final UiExtensionPointType type;
-  final String title;
-  final Widget? Function() widgetBuilder;
-
-  UiExtensionPoint({
-    required this.type,
-    required this.title,
-    required this.widgetBuilder,
-  });
-}
-
-/// Plugin that adds device support
-abstract class DevicePlugin extends NightshadePlugin {
-  /// Get the device types this plugin supports
-  List<DevicePluginType> get supportedDevices;
-}
-
-/// Device plugin types
-enum DevicePluginType {
-  camera,
-  mount,
-  focuser,
-  filterWheel,
-  rotator,
-  guider,
-  weather,
-  dome,
 }
 
 /// Plugin that adds sequence instructions

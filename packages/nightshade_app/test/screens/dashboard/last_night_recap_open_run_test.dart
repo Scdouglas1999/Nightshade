@@ -1,8 +1,7 @@
-// WF-SCI-N4: Dashboard ▸ Last night ▸ "Open last run" landed on the Sequence
-// BUILDER — 0 nodes, 0 frames — not on the run, and not even on the History
-// tab (reproduced twice on the live app). The card body around that button
-// already deep-links the same run to `/session-review?session=<id>`, so the
-// button promised strictly less than the card it sits in.
+// Dashboard ▸ Last night ▸ "Open last run" must land on the run. The card body
+// around that button deep-links the same run to `/session-review?session=<id>`,
+// so a button that lands on the empty Sequence BUILDER — 0 nodes, 0 frames —
+// promises strictly less than the card it sits in.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,5 +1,3 @@
-// Part of ../onboarding_screen.dart -- extracted for maintainability.
-//
 // Notice band, headers, footers, step sidebar and step body chrome.
 part of '../onboarding_screen.dart';
 
@@ -8,8 +6,7 @@ part of '../onboarding_screen.dart';
 /// Occupies zero height when there is no notice, so the footer's position is
 /// unchanged in the common case. When a notice is present it takes real space in
 /// the Column above the footer, which is what guarantees the two can never
-/// overlap — the previous snackbar was painted over the footer and also ate its
-/// taps.
+/// overlap.
 ///
 /// Height is capped with an internal scroll so a long message (an exception
 /// string from a failed save) shrinks the step body instead of squeezing the
@@ -556,11 +553,11 @@ class _Footer extends StatelessWidget {
 
     return Row(
       children: [
-        // CON-49: on step 1 of 13 `onBack` is null, and this footer still drew
-        // the button — the accessibility tree published a plain `button: Back`
-        // with no disabled state, and clicking it did nothing. The phone footer
-        // above already omits it; the two footers now agree. A control that
-        // cannot act must not be on screen claiming it can.
+        // On step 1 of 13 `onBack` is null. Drawing the button anyway
+        // publishes a plain `button: Back` with no disabled state that does
+        // nothing when clicked, and the phone footer above omits it, so the two
+        // footers would disagree. A control that cannot act must not be on
+        // screen claiming it can.
         if (onBack != null)
           NightshadeButton(
             icon: NightshadeIcons.arrowLeft,

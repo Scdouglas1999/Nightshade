@@ -57,14 +57,12 @@ class NightshadeTooltip extends StatefulWidget {
 
 /// The tooltip currently on screen, app-wide.
 ///
-/// Every `NightshadeTooltip` owns an independent `OverlayPortalController`, so
-/// nothing used to stop several from being visible at once: the touch trigger
-/// shows on long-press and only retires on its own 3 s timer or a second
-/// long-press, and a hover that never produces a matching `onExit` (pointer
-/// leaves the window, the trigger is rebuilt away under the cursor) strands the
-/// label indefinitely. On the planetarium's dark star field two stale floating
-/// labels read as sky annotations. One tooltip at a time is the contract every
-/// tooltip system has; this single-slot registry is what enforces it.
+/// One tooltip at a time is the contract, and this single slot is what enforces
+/// it: every `NightshadeTooltip` owns an independent `OverlayPortalController`,
+/// the touch trigger retires only on its own 3 s timer or a second long-press,
+/// and a hover that never gets its matching `onExit` (pointer leaves the
+/// window, trigger rebuilt away under the cursor) would strand its label
+/// indefinitely.
 _NightshadeTooltipState? _visibleTooltip;
 
 class _NightshadeTooltipState extends State<NightshadeTooltip>
@@ -84,18 +82,15 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
   /// is cancelled — which is what a second `reverse()`, a `forward()` or a
   /// `stop()` does — never completes and never throws, so the callback that
   /// calls `hide()` is silently dropped and the overlay stays mounted with its
-  /// opacity at zero. That is invisible on screen and fully present in the
-  /// accessibility tree, which is exactly how three planetarium toolbar labels
-  /// came to be listed as live panels over a demonstrably clean command bar.
+  /// opacity at zero: invisible on screen and fully present in the
+  /// accessibility tree.
   Timer? _hideTimer;
 
   /// Retires a hover tooltip that was never told the pointer left.
   ///
   /// `MouseRegion.onExit` does not arrive when the trigger is rebuilt or
   /// removed under the cursor, or when the pointer leaves the window in one
-  /// jump; the live drive found a "Forward 1 hour" label still painted over the
-  /// sky 12 s after the pointer had been parked elsewhere. A tooltip is a
-  /// transient hint, so it retires on its own.
+  /// jump. A tooltip is a transient hint, so it retires on its own.
   Timer? _lifetimeTimer;
 
   static const Duration _maxVisible = Duration(seconds: 6);
@@ -278,16 +273,12 @@ class _TooltipOverlay extends StatelessWidget {
     if (renderBox == null || !renderBox.hasSize) return const SizedBox.shrink();
 
     // The overlay child is laid out in the HOST OVERLAY's coordinate space, not
-    // the screen's, so the anchor has to be measured against that same overlay.
-    // It used to be `localToGlobal(Offset.zero)` — screen coordinates — laid out
-    // against an overlay origin assumed to be (0, 0). Wherever the overlay is
-    // inset from the window the tooltip was displaced by exactly that inset and
-    // drew next to a different control (observed on the planetarium toolbar,
-    // where the `Layers` label landed 176 px right and 79 px below its button,
-    // out over the star field). `MediaQuery.sizeOf` was wrong for the same
-    // reason: the edge the tooltip must stay inside is the overlay's, not the
-    // window's, and the two clamps disagreeing let a tooltip be constrained to
-    // one box and positioned in another.
+    // the screen's, so the anchor is measured against that same overlay: screen
+    // coordinates laid out against an overlay assumed to start at (0, 0)
+    // displace the tooltip by exactly the overlay's inset. `MediaQuery.sizeOf`
+    // is wrong for the same reason — the edge the tooltip must stay inside is
+    // the overlay's, and two clamps that disagree constrain it to one box while
+    // positioning it in another.
     final overlayBox =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
     final targetSize = renderBox.size;
@@ -334,14 +325,10 @@ class _TooltipOverlay extends StatelessWidget {
     // tooltip's measured size, which is why that happens in the layout delegate
     // below rather than here.
     //
-    // Clamping `left`/`top` at this point is NOT enough, and used to be all this
-    // did: the tooltip was then offset by a FRACTION OF ITS OWN WIDTH
-    // (FractionalTranslation), so a `right`-positioned tooltip anchored at
-    // `screenWidth - 8` still drew its whole width past the edge, and a
-    // `top`/`bottom` one still drew half its width outside. Observed on the
-    // Imaging panel's "Stack & Share" button, whose tooltip appeared as a
-    // one-character sliver at the window edge. It affected every tooltip near any
-    // edge, since this is the shared design-system component.
+    // Clamping `left`/`top` here is NOT enough: the tooltip is then offset by a
+    // fraction of its own width, so a `right`-positioned one anchored at
+    // `screenWidth - 8` still draws its whole width past the edge and a
+    // `top`/`bottom` one still draws half of it outside.
     return Positioned.fill(
       // `Positioned` must stay a direct child of the Overlay's Stack, so the
       // semantics exclusion goes here, around the content.

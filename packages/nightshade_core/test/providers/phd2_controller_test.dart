@@ -4,7 +4,7 @@
 //   * async command failure is caught and does NOT clear live state,
 //   * unrecognised PHD2 AppState → `unknown` (never a false `stopped`),
 //   * explicit Disconnect cancels the crash-relaunch path and stays down,
-//   * a NON-user link loss still auto-relaunches (regression guard),
+//   * a NON-user link loss still auto-relaunches,
 //   * local/FFI connect honours the requested host/port instead of silently
 //     discarding it.
 import 'dart:async';

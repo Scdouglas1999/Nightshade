@@ -70,10 +70,8 @@ void main() {
     },
   );
 
-  // 2026-05-16 (audit §2.5): the core `targetSearchProvider` (which held a
-  // debounce Timer needing dispose-time cancellation) was removed; the
-  // canonical implementation is the autoDispose screen-local provider in
+  // Target search has no dispose-hook test: its canonical implementation is
+  // the autoDispose screen-local provider in
   // `nightshade_app/lib/screens/framing/framing_search_provider.dart`, which
-  // performs awaited async work instead of scheduling timers — so no
-  // dispose-hook test is needed for it.
+  // performs awaited async work instead of scheduling timers.
 }

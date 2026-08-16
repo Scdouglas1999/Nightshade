@@ -143,11 +143,11 @@ class WebDavSyncTarget implements SyncTarget {
       var response = await _send('MKCOL', _uriFor(prefix, directory: true));
       // RFC 4918 §9.3.1: MKCOL against a path whose PARENT collection does not
       // exist must answer 409. The parent of the first segment is the base
-      // URL's own path, which this loop never creates — so pointing sync at
+      // URL's own path, which this loop never creates — so sync pointed at
       // https://host/dav/nightshade, where `nightshade` has not been made by
-      // hand, failed every push with "remote state conflict (HTTP 409)".
-      // Permissive servers that auto-create parents hid it. Create the base
-      // path's own collections once, then retry.
+      // hand, fails every push with "remote state conflict (HTTP 409)" on any
+      // server that does not auto-create parents. Create the base path's own
+      // collections once, then retry.
       if (response.statusCode == 409 && !createdBaseAncestors) {
         createdBaseAncestors = true;
         if (await _createBaseAncestors()) {
@@ -242,9 +242,7 @@ class WebDavSyncTarget implements SyncTarget {
       '<d:resourcetype/><d:getcontentlength/><d:getlastmodified/>'
       '</d:prop></d:propfind>';
 
-  // ---------------------------------------------------------------------
   // Multistatus parsing (prefix-agnostic, no XML dependency)
-  // ---------------------------------------------------------------------
 
   static final RegExp _responseBlock = RegExp(
     r'<(?:[A-Za-z0-9_-]+:)?response[\s>].*?</(?:[A-Za-z0-9_-]+:)?response>',

@@ -1,10 +1,16 @@
-// SET-28: the Notifications leaf shipped three overlapping systems at once and
-// offered three near-identically named controls for "a sequence finished" —
-// Notification Events › Sequence complete, Push to Mobile › Sequence completed,
-// and Per-event routing › Sequence Completed — with nothing telling the
-// operator which one decides whether their phone buzzes. The first of the three
-// is worse than ambiguous: no delivery path reads it at all, so it was an
-// armed-looking guarantee for an unattended night that could never fire.
+// The Notifications leaf ships three overlapping systems at once and offers
+// three near-identically named controls for "a sequence finished" — Built-in
+// event alerts › Sequence complete, Push to Mobile › Sequence completed, and
+// Per-event routing › Sequence Completed. The page has to say which one decides
+// whether the operator's phone buzzes.
+//
+// Saying it wrong is worse than saying nothing. The three built-in switches are
+// live gates: `NotificationService._shouldNotifyForEvent` aborts the whole
+// dispatch for an event family whose flag is off. Presenting them as inert
+// decoration — disabled, captioned "not read by any delivery path" — would drop
+// meridian-flip alerts (that flag defaults to false) while refusing to let
+// anyone turn them on. So the disclosure must stay accurate AND the switches
+// must stay enabled.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +30,16 @@ Future<void> _pump(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 50));
 }
 
+/// Scoped to the built-in section: "Meridian flip" is also a Push to Mobile
+/// row title, so an unscoped `find.text` matches two rows.
+Finder _row(String title) => find.descendant(
+      of: find.ancestor(
+        of: find.text('Built-in event alerts'),
+        matching: find.byType(SettingsSection),
+      ),
+      matching: find.widgetWithText(SettingRow, title),
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -37,28 +53,58 @@ void main() {
     );
   });
 
-  testWidgets('the unwired event switches are inoperable and say why',
-      (tester) async {
+  testWidgets('it no longer calls the built-in switches unread', (
+    tester,
+  ) async {
     await _pump(tester);
 
-    final row = find.ancestor(
-      of: find.text('Sequence complete'),
-      matching: find.byType(SettingRow),
-    );
-    expect(row, findsOneWidget);
+    // The exact claim that was false. `_shouldNotifyForEvent` reads all three.
+    expect(find.textContaining('not read by any delivery path'), findsNothing);
+    expect(find.textContaining('no longer sends anything'), findsNothing);
+    expect(find.text('Legacy event flags (not wired up)'), findsNothing);
+    expect(find.text('Built-in event alerts'), findsOneWidget);
+  });
 
-    final toggle = tester.widget<SettingsSwitch>(
-      find.descendant(of: row, matching: find.byType(SettingsSwitch)),
-    );
+  testWidgets('all three built-in event switches are operable', (tester) async {
+    await _pump(tester);
+
+    for (final title in const [
+      'Sequence complete',
+      'Errors',
+      'Meridian flip'
+    ]) {
+      final row = _row(title);
+      expect(row, findsOneWidget, reason: '$title row is missing');
+
+      final toggle = tester.widget<SettingsSwitch>(
+        find.descendant(of: row, matching: find.byType(SettingsSwitch)),
+      );
+      expect(
+        toggle.enabled,
+        isTrue,
+        reason: '$title gates a live delivery path, so it must be settable',
+      );
+    }
+  });
+
+  testWidgets('each row says what its own event family covers', (tester) async {
+    await _pump(tester);
+
     expect(
-      toggle.enabled,
-      isFalse,
-      reason: 'a switch nothing reads must not look armed',
+      find.descendant(
+        of: _row('Errors'),
+        matching: find.textContaining(
+          'capture failures and device-reconnect failures',
+        ),
+      ),
+      findsOneWidget,
     );
     expect(
       find.descendant(
-        of: row,
-        matching: find.textContaining('no longer sends anything'),
+        of: _row('Meridian flip'),
+        matching: find.textContaining(
+          'raised when the flip monitor starts and finishes a flip',
+        ),
       ),
       findsOneWidget,
     );

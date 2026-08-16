@@ -110,25 +110,19 @@ class SavedServer {
   /// by pre-2.6 builds that didn't carry a scheme.
   final String scheme;
 
-  /// Optional alternate Tailscale ("tailnet") host for a dual-homed rig.
-  ///
-  /// A permanent observatory often advertises BOTH a LAN address
-  /// (`192.168.x` — fast, only reachable on-site) and a Tailscale
-  /// `100.x.y.z` / `fd7a:115c::…` address (reachable from anywhere the
-  /// phone is logged into the same tailnet). [host] holds whichever the
-  /// operator paired over; this field holds the *other* address so the
-  /// screen can offer a one-tap "connect over Tailscale" when the LAN
-  /// host is unreachable (off-site), or fall back to the fast LAN host
-  /// when both are reachable. `null` for single-homed rigs.
+  /// The OTHER address for a dual-homed rig: [host] holds whichever address
+  /// the operator paired over, this holds its tailnet counterpart, so the
+  /// screen can offer one-tap Tailscale when the LAN host is unreachable and
+  /// prefer the fast LAN host when both are. `null` for single-homed rigs.
   ///
   /// Both [host] and [tailscaleHost] are validated through
-  /// [TailnetDetector.isAccepted] before being stored — a public address
-  /// here is refused, so this can never become an exfiltration vector.
+  /// [TailnetDetector.isAccepted] before being stored — a public address here
+  /// is refused, so this can never become an exfiltration vector.
   final String? tailscaleHost;
 
-  /// v4 couch-grade remote: the self-hosted relay's `ws(s)://host[:port]`
-  /// URL when this entry is reached through a relay tunnel rather than a
-  /// direct LAN / Tailscale dial. `null` for direct entries.
+  /// The self-hosted relay's `ws(s)://host[:port]` URL when this entry is
+  /// reached through a relay tunnel rather than a direct LAN / Tailscale dial.
+  /// `null` for direct entries.
   ///
   /// A relay entry is identified by [isRelay] (both this and
   /// [relayApplianceId] non-empty). For a relay entry the [host] / [port]
@@ -138,12 +132,12 @@ class SavedServer {
   /// [relayApplianceId] and connects to 127.0.0.1 on the tunnel's port.
   final String? relayUrl;
 
-  /// v4 relay: the appliance id the relay minted for the rig (printed by
-  /// the headless daemon on first contact, shape `xxxx-xxxx-xxxx`). Pairs
-  /// with [relayUrl] to define a relay entry. `null` for direct entries.
+  /// The appliance id the relay minted for the rig (printed by the headless
+  /// daemon on first contact, shape `xxxx-xxxx-xxxx`). Pairs with [relayUrl]
+  /// to define a relay entry. `null` for direct entries.
   final String? relayApplianceId;
 
-  /// v4 relay: whether to trust a self-signed TLS certificate on the relay
+  /// Whether to trust a self-signed TLS certificate on the relay
   /// (the `wss://` endpoint). Mirrors the "Trust self-signed relay TLS"
   /// toggle in the connect dialog so a relay fronted by a self-signed cert
   /// reconnects without re-prompting. Ignored for non-relay entries.
@@ -180,14 +174,10 @@ class SavedServer {
   HostReachabilityTier get hostTier => TailnetDetector.classify(host);
 
   /// Suffix of a Tailscale MagicDNS fully-qualified name
-  /// (`my-rig.tailnet-name.ts.net`). MagicDNS names resolve to a tailnet
-  /// `100.x` / `fd7a:115c::` address but are *hostnames*, not IP literals,
-  /// so [TailnetDetector.classify] (which never resolves DNS) cannot see
-  /// them as tailnet. We accept the `.ts.net` suffix explicitly: it is
-  /// owned by Tailscale and only ever resolves on a tailnet the device is
-  /// logged into, so it is as safe as a `100.x` literal for the
-  /// fail-closed acceptance gate. Aliases the canonical value in
-  /// [TailnetDetector.magicDnsSuffix] so the suffix is defined in one place.
+  /// (`my-rig.tailnet-name.ts.net`). MagicDNS names are hostnames, not IP
+  /// literals, so [TailnetDetector.classify] — which never resolves DNS —
+  /// cannot see them as tailnet; the `.ts.net` suffix is accepted explicitly.
+  /// Aliases [TailnetDetector.magicDnsSuffix] so the suffix has one home.
   static const tailscaleMagicDnsSuffix = TailnetDetector.magicDnsSuffix;
 
   /// `true` when [host] is a usable Tailscale endpoint: either a tailnet
@@ -313,10 +303,9 @@ class SavedServer {
     final fp = json['pinnedFingerprint'];
     final lastIso = json['lastConnectedAt'];
     final notes = json['notes'];
-    // Scheme is optional; when present it MUST be http/https — a bogus
-    // value would route the activation probe at a protocol the server
-    // cannot answer, so we reject rather than silently coerce (the CONTRIBUTING.md house rules
-    // no silent fallbacks). Absent → legacy http default.
+    // Scheme is optional; when present it MUST be http/https. A bogus value
+    // is rejected rather than coerced, because coercion routes the activation
+    // probe at a protocol the server cannot answer. Absent → http default.
     final rawScheme = json['scheme'];
     final String parsedScheme;
     if (rawScheme == null) {
@@ -447,15 +436,9 @@ class SavedServer {
 class SavedServersStorageKeys {
   SavedServersStorageKeys._();
 
-  /// SharedPreferences key for the JSON-encoded list of non-secret
-  /// fields. Versioned so a schema migration can detect old blobs.
-  ///
-  /// v2 (2.6 / Tailscale work) added the optional `scheme` and
-  /// `tailscaleHost` fields. The change is forward/backward compatible at
-  /// the row level — both fields are omitted when at their defaults — so
-  /// we read and write under the same key; the bump in the constant is a
-  /// documentation marker, not a separate storage slot, and a v1 blob
-  /// deserialises cleanly because the new fields are optional.
+  /// SharedPreferences key for the JSON-encoded list of non-secret fields.
+  /// Still v1: every field added since is optional and omitted at its default,
+  /// so an older blob deserialises cleanly under the same key.
   static const list = 'nightshade.saved_servers.v1';
 
   /// One-shot migration latch. Set after we've folded the legacy
@@ -595,9 +578,9 @@ class SavedServersService {
   }
 
   /// Read the bearer token for [id] from secure storage. Returns `null`
-  /// when no token is bound to that id (auth-disabled hosts, or an
-  /// entry whose token was wiped via [removeById]). Callers must not
-  /// cache the result — the secure storage is the source of truth.
+  /// when no token is bound to that id (auth-disabled hosts, or an entry
+  /// whose token [removeById] has cleared). Callers must not cache the
+  /// result — the secure storage is the source of truth.
   Future<String?> tokenFor(String id) async {
     if (id.isEmpty) return null;
     return _secureStorage.read(
@@ -1004,9 +987,7 @@ class SavedServersService {
     );
   }
 
-  // ------------------------------------------------------------------
   // Internals
-  // ------------------------------------------------------------------
 
   Future<T> _serializeMutation<T>(Future<T> Function() operation) {
     final completer = Completer<T>();

@@ -26,13 +26,11 @@ class FlatExposureCalculator {
     return (adu / scale) * 100.0;
   }
 
-  // Next-exposure convergence math lives in the single canonical engine
-  // [FlatWizardService.calculateNextExposure], which drives both the standalone
-  // flat-wizard screen and the headless /api/flat-wizard handlers (via
-  // calibrateFilter) AND the rate-tracking fallback. A second, divergent copy
-  // used to live here as `calculateNextExposure`; it was removed so converged
-  // exposures have one source of truth (pinned by
-  // test/services/flat_convergence_snapshot_test.dart).
+  // Next-exposure convergence math lives in one engine,
+  // [FlatWizardService.calculateNextExposure], which drives the standalone
+  // flat-wizard screen, the headless /api/flat-wizard handlers (via
+  // calibrateFilter) and the rate-tracking fallback. Pinned by
+  // test/services/flat_convergence_snapshot_test.dart.
 
   /// Binary search with early termination
   ///

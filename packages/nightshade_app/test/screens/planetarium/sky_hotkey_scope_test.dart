@@ -1,12 +1,11 @@
-// Regression: the planetarium's single-letter view hotkeys used to eat typing.
+// The planetarium's single-letter view hotkeys must not eat typing.
 //
-// Live repro: Plan Tonight > Planetarium > sidebar toggle > click "Search
-// objects, names..." > type "Vega". The field kept "Va" — 'e' toggled the
-// ecliptic and 'g' toggled the RA/Dec grid — and typing the whole lowercase
-// alphabet left "abd". The screen wraps everything in a Focus whose
-// onKeyEvent returned KeyEventResult.handled for bare c/e/f/g/h/m/n/r; a
-// handled key never reaches the platform text-input path, so the field never
-// saw the character.
+// The screen wraps everything in a Focus whose onKeyEvent claims bare
+// c/e/f/g/h/m/n/r, and a handled key never reaches the platform text-input path.
+// Unscoped, Plan Tonight > Planetarium > sidebar toggle > click "Search objects,
+// names..." > type "Vega" leaves the field reading "Va" — 'e' toggles the
+// ecliptic, 'g' toggles the RA/Dec grid — and the whole lowercase alphabet
+// leaves "abd".
 //
 // The assertions below are on the two things that make the field usable:
 //  * the hotkey callback is NOT invoked while a text field holds the caret;

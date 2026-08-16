@@ -6,10 +6,9 @@ import 'package:path_provider/path_provider.dart';
 
 /// Forces [chooseExportTarget] down the touch or desktop branch in tests.
 ///
-/// Without this the branch that actually carried the bug — the touch one —
-/// could only be exercised by running the suite ON a phone, so CI (Linux)
-/// would have gone on reporting green for exactly the platform that was
-/// broken. Null in production, where the real platform decides.
+/// Without it the touch branch is only exercisable by running the suite ON a
+/// phone, so CI (Linux) reports green for a platform it never covered. Null in
+/// production, where the real platform decides.
 @visibleForTesting
 bool? debugIsTouchPlatformOverride;
 

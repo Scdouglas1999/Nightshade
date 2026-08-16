@@ -338,10 +338,8 @@ void main() {
     });
   });
 
-  // ===========================================================================
   // Phone responsiveness: the five-tab bar must not overflow on a phone in
   // either orientation, and every tab must remain reachable (the bar scrolls).
-  // ===========================================================================
   group('Planner phone responsiveness (AdaptiveTabBar)', () {
     const phoneSizes = <Size>[
       Size(360, 640),

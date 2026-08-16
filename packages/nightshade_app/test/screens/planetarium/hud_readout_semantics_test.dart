@@ -1,8 +1,7 @@
-// D-3, second look: the search box and the bottom readout strip published
-// themselves as interactive-but-dead.
+// The search box and the bottom readout strip must not publish themselves as
+// interactive-but-dead.
 //
-// Live AT-SPI dump of the planetarium, on the same pass that confirmed the
-// transport buttons had been fixed:
+// Undeclared, the planetarium's AT-SPI dump reads:
 //
 //   panel: Search
 //   Ctrl+K [DISABLED]
@@ -16,8 +15,8 @@
 // Hence one giant focusable "panel" holding the clock, the rate and every
 // readout, reported disabled.
 //
-// The fix gives each readout a container node named "<label> <value>" (label
-// AND value, the E-SKY-3 lesson) and each control a real button role.
+// So each readout gets a container node named "<label> <value>" — label AND
+// value — and each control a real button role.
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,7 +53,7 @@ void main() {
             body: Stack(
               children: [
                 // Stand-in for the sky canvas: a full-bleed tappable region,
-                // which is the node the readouts used to be swallowed by.
+                // which is the node that can swallow the readouts.
                 Positioned.fill(
                   child: GestureDetector(
                     onTap: () {},
@@ -85,7 +84,7 @@ void main() {
     expect(
       readouts.any((d) => d.label.contains('17h 6m 24s')),
       isTrue,
-      reason: 'label without value is the E-SKY-3 mistake',
+      reason: 'a readout node must carry its value, not just its label',
     );
     expect(
       readouts.every((d) =>

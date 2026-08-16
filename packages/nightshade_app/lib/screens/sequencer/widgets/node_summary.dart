@@ -1,8 +1,5 @@
-// =============================================================================
-// node_summary.dart — pure, dependency-free at-a-glance summaries for every
-// sequencer node, plus a structural classification of which fragments are
-// inline-editable.
-// =============================================================================
+// Pure, dependency-free at-a-glance summaries for every sequencer node, plus a
+// structural classification of which fragments are inline-editable.
 //
 // This file is deliberately FREE of Flutter widget dependencies. It imports
 // only the node model (`nightshade_core`) and `IconData` (from
@@ -13,16 +10,16 @@
 // layer so this logic stays trivially unit-testable.
 //
 // WHY A SEPARATE CLASSIFIER:
-// The sequencer tree previously showed an at-a-glance subtitle for only four
-// node types. This module produces a terse, structured summary for ALL 38
-// node subtypes and, crucially, marks the handful of properties that are
-// genuinely safe + sensible to edit inline (a single scalar / enum / filter
-// pick) as [EditableFragment]. Everything else — coordinate entry, watchdog
-// thresholds, multi-field config — is rendered as a non-interactive
-// [StaticFragment]. Those belong in the full properties panel, not in a
-// one-tap chip, and surfacing them as editable would be a footgun.
+// This module produces a terse, structured summary for ALL 38 node subtypes
+// and, crucially, marks the handful of properties that are genuinely safe +
+// sensible to edit inline (a single scalar / enum / filter pick) as
+// [EditableFragment]. Everything else — coordinate entry, watchdog thresholds,
+// multi-field config — is rendered as a non-interactive [StaticFragment]. Those
+// belong in the full properties panel, not in a one-tap chip, and surfacing
+// them as editable would be a footgun.
 //
-// EDITABLE-VS-STATIC RATIONALE (the contract C2/C6 build against):
+// EDITABLE-VS-STATIC RATIONALE (the contract the tree row and the inline
+// editors build against):
 //   * Editable  → a single, low-risk value with an obvious widget (number
 //                 field, stepper, or a closed dropdown like filter/binning).
 //                 Editing it can never silently corrupt coordinate math or a
@@ -216,11 +213,9 @@ List<SummaryFragment> nodeSummary(
   String? globalAutofocusMethod,
 }) {
   return switch (node) {
-    // -------------------------------------------------------------------
     // Imaging — the lead row in most sequences. Count × duration + filter
     // are the at-a-glance leads; gain (when overridden) and binning trail as
     // editable chips so the whole capture spec is one-tap adjustable inline.
-    // -------------------------------------------------------------------
     ExposureNode(
       count: final count,
       durationSecs: final dur,
@@ -493,9 +488,7 @@ List<SummaryFragment> nodeSummary(
             '${level.name}: ${title.isEmpty ? '(untitled)' : title}'),
       ],
 
-    // -------------------------------------------------------------------
     // Logic / containers.
-    // -------------------------------------------------------------------
     // Loop — only the `count` condition exposes a single editable scalar
     // (iteration count). Unbounded and until-* conditions are static
     // descriptors.
@@ -584,9 +577,7 @@ List<SummaryFragment> nodeSummary(
         ),
       ],
 
-    // -------------------------------------------------------------------
     // Trigger (watchdog).
-    // -------------------------------------------------------------------
     // Meridian flip — a parallel hour-angle / pier-side watchdog. NEVER
     // editable inline: the row already carries the Watchdog badge and the
     // thresholds interact (trigger method ↔ minutes-past ↔ auto-center).
@@ -610,10 +601,8 @@ List<SummaryFragment> nodeSummary(
 bool summaryHasInlineEdits(SequenceNode node) =>
     nodeSummary(node).any((f) => f is EditableFragment);
 
-// =============================================================================
 // Private helpers — terse value formatting. No styling tokens here; these
 // produce the plain strings the widget layer paints.
-// =============================================================================
 
 /// Build the Loop summary. Only the `count` condition yields an editable
 /// iteration count; every other condition is a static descriptor.

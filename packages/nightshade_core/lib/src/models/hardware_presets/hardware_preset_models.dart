@@ -5,8 +5,8 @@ import 'dart:math' as math;
 /// This mirrors the serialize/validate discipline of
 /// `services/smart_night/hardware_specs_service.dart`: every `fromJson`
 /// rejects missing or non-numeric required fields with a [FormatException]
-/// rather than silently substituting a default. Errors are a feature here —
-/// a malformed persisted preset must surface, not get swallowed.
+/// rather than substituting a default: a malformed persisted preset would
+/// otherwise reach the imaging train as plausible optics.
 ///
 /// The built-in catalogs ([builtInTelescopePresets], [builtInCameraDefaultsPresets])
 /// are `const` and carry real-world manufacturer specifications. User-created
@@ -388,11 +388,9 @@ class CameraDefaultsPreset {
       '${isColor ? 'color' : 'mono'})';
 }
 
-// ---------------------------------------------------------------------------
 // Field parsing helpers — shared validation discipline (mirrors
 // HardwareSpecsService): every required field throws FormatException when
 // missing or of the wrong type. No silent defaults.
-// ---------------------------------------------------------------------------
 
 String _stringValue(Object? value, String field) {
   if (value is String && value.trim().isNotEmpty) return value.trim();
@@ -442,9 +440,7 @@ bool _listEquals(List<String> a, List<String> b) {
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// ID generation for user-created presets.
-// ---------------------------------------------------------------------------
+// Id generation for user-created presets.
 
 final math.Random _presetIdRandom = math.Random();
 
@@ -458,11 +454,9 @@ String newHardwarePresetId() {
   return 'user.$timestamp.${entropy.toRadixString(16).padLeft(8, '0')}';
 }
 
-// ---------------------------------------------------------------------------
 // Built-in telescope catalog. All values are manufacturer-published specs.
 // `nativeFocalRatio` is supplied where the marketed f/ratio differs from the
 // raw aperture/FL division (e.g. SCTs marketed as f/10 compute to f/10.01).
-// ---------------------------------------------------------------------------
 
 const List<TelescopePreset> builtInTelescopePresets = [
   TelescopePreset(
@@ -597,12 +591,10 @@ const List<TelescopePreset> builtInTelescopePresets = [
   ),
 ];
 
-// ---------------------------------------------------------------------------
 // Built-in camera-defaults catalog. Pixel size / sensor part / array
 // dimensions are manufacturer specs. Gain/offset defaults are the
 // community-standard set-points (e.g. ASI1600 unity gain 139/21; ZWO
 // IMX571-class 100/50). Cooled CMOS get a -10 °C set-point; the DSLR has none.
-// ---------------------------------------------------------------------------
 
 const List<CameraDefaultsPreset> builtInCameraDefaultsPresets = [
   CameraDefaultsPreset(

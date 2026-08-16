@@ -316,27 +316,10 @@ class SessionOwnershipManager {
 /// Resolve whether [path] (without query string) is a destructive endpoint
 /// that requires session ownership.
 ///
-/// Returns true for:
-///   * /api/sequencer/start, /stop, /pause, /resume, /skip, /reset, /skip-to-node
-///   * /api/mount/slew, /slew-alt-az, /park, /unpark, /sync, /abort, /find-home,
-///     /move-axis, /pulse-guide, /set-tracking-rate, /tracking
-///   * /api/dome/open, /close, /slew, /park, /sync, /home, /halt
-///   * /api/camera/expose, /abort
-///   * /api/focuser/autofocus/start (also goes through the job model)
-///   * /api/focuser/autofocus/cancel
-///   * /api/focuser/halt, /move-to, /move-relative
-///   * /api/filter-wheel/position, /set-by-name
-///   * /api/rotator/move-to, /move-relative, /sync, /halt
-///   * /api/plate-solve
-///   * /api/framing/center-on-target, /slew-to-target, /sync, /rotate-to,
-///     /abort-slew, /park, /unpark
-///   * /api/planetarium/slew-to, /sync-to, /center-on
-///   * /api/polar-alignment/start, /all-sky/start, /stop
-///   * /api/cover/open, /close, /brightness, /calibrator-on, /calibrator-off
-///   * /api/switch/set
-///
-/// Status, equipment-detail, profile, history, and analytics endpoints
-/// remain open to viewers — they don't touch hardware.
+/// The rule: a POST that commands hardware or run state requires ownership;
+/// status, equipment-detail, profile, history and analytics endpoints stay
+/// open to viewers because they touch nothing. The enrolled paths are
+/// [_ownershipRequiredPaths].
 bool isOwnershipRequired({required String method, required String path}) {
   if (method.toUpperCase() != 'POST') return false;
   return _ownershipRequiredPaths.contains(path);

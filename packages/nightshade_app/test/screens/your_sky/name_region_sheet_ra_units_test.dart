@@ -1,12 +1,12 @@
-// Regression: SKY-3 — Your Sky asked for RA in degrees while the rest of the
-// app speaks hours.
+// Your Sky must not ask for RA in degrees while the rest of the app speaks
+// hours.
 //
-// Found live. The field was labelled `RA (degrees)` with the hint `0-360` and
-// accepted digits only. Two tabs away Framing prints the same quantity as
-// `05h 35m 16s`, the planetarium readout as `Center RA: 0h 42m 44s`, and
-// Framing's own RA box takes sexagesimal. A user who copies the RA in front of
-// them into this box lands a region 79 degrees from where they meant, and
-// nothing validated or echoed it.
+// A field labelled `RA (degrees)` with the hint `0-360`, accepting digits only,
+// sits two tabs from a Framing readout printing the same quantity as
+// `05h 35m 16s`, a planetarium readout of `Center RA: 0h 42m 44s`, and Framing's
+// own sexagesimal RA box. A user who copies the RA in front of them into this
+// box lands a region 79 degrees from where they meant, unvalidated and
+// unechoed.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -31,26 +31,15 @@ import 'package:nightshade_plugins/src/plugin_host.dart'
 /// Build the Riverpod override that makes the bundled-plugin registration
 /// honour the user's persisted enable/disable choices.
 ///
-/// Without this override C3's [pluginEnablementStoreProvider] resolves to the
+/// Without this override [pluginEnablementStoreProvider] resolves to the
 /// default `AllEnabledPluginEnablementStore`, which reports every plugin
-/// enabled — so a plugin the user disabled on the Integrations page would
-/// silently come back ENABLED on the next launch (the registration pipeline
-/// would call `onEnable` again). Installing the settings-backed store makes the
+/// enabled — so a plugin the user disabled on the Integrations page silently
+/// comes back ENABLED on the next launch. The settings-backed store makes the
 /// registration-time decision read the persisted `plugin_enablement` map, so a
 /// disabled plugin is registered (loaded) but NOT enabled.
 ///
-/// Use in every app entry point's `ProviderScope` / `ProviderContainer`
-/// overrides (desktop GUI, desktop headless, mobile):
-///
-/// ```dart
-/// final container = ProviderContainer(
-///   overrides: [
-///     backendProvider.overrideWith(...),
-///     pluginNodeDispatcherOverride(),
-///     pluginEnablementStoreOverride(),
-///   ],
-/// );
-/// ```
+/// Belongs in every app entry point's `ProviderScope` / `ProviderContainer`
+/// overrides: desktop GUI, desktop headless, mobile.
 Override pluginEnablementStoreOverride() {
   return pluginEnablementStoreProvider.overrideWith(
     (ref) => ref.watch(settingsPluginEnablementStoreProvider),

@@ -1,5 +1,3 @@
-// Part of ../science_hud.dart -- extracted for maintainability.
-//
 // Authority notice, feature toggle, contextual offers and overlay chips.
 part of '../science_hud.dart';
 

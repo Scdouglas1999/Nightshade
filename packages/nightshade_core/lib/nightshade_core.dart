@@ -27,7 +27,6 @@ export 'src/database/database_aliases.dart';
 export 'src/legacy_aliases.dart';
 export 'src/database/integrity_check.dart';
 export 'src/database/single_instance_lock.dart';
-export 'src/database/seed_data.dart';
 
 // DAOs
 export 'src/database/daos/equipment_profiles_dao.dart';
@@ -158,7 +157,7 @@ export 'src/models/campaign_rollup.dart';
 // Durable multi-night campaign record (Phase B, v43).
 export 'src/models/campaign.dart';
 
-// Scheduler (W6-SCHED: RoboTarget-class dynamic scheduler)
+// Scheduler — RoboTarget-class dynamic scheduling.
 export 'src/models/scheduler/integration_goal.dart';
 export 'src/models/scheduler/target_constraint.dart';
 export 'src/models/scheduler/scheduler_decision.dart';
@@ -171,7 +170,7 @@ export 'src/services/catalog_target_resolver.dart';
 export 'src/services/target_library_service.dart'
     show TargetLibraryService, targetLibraryServiceProvider;
 
-// Sequence import (W6-NINA-IMPORT: NINA / SGP sequence import)
+// Sequence import — NINA / SGP sequences.
 export 'src/models/import/canonical_sequence_node.dart';
 export 'src/models/import/import_result.dart';
 
@@ -208,7 +207,7 @@ export 'src/providers/sequence/run_stop_classification.dart';
 export 'src/providers/sequence/exposure_progress_vocabulary.dart';
 // Whether a finished run's report interrupts the operator or waits for them.
 export 'src/providers/sequence/session_report_presentation.dart';
-// The one channel only exposure-shaped progress can write (SEQ-18).
+// The one channel only exposure-shaped progress can write.
 export 'src/providers/sequence/node_exposure_tally.dart';
 // Thumbnail — inline frame thumbnails in the sequence tree.
 export 'src/providers/sequence/exposure_node_thumbnails_provider.dart';
@@ -333,6 +332,9 @@ export 'src/backend/bridge_events.dart'
 // the surfaces that persist or assert on a sequenced frame read the event's
 // key names from one place rather than re-spelling them.
 export 'src/backend/frame_capture_metadata.dart';
+// Authored sentence inside a typed bridge error, for UI packages that render a
+// caught error as copy without importing package:nightshade_bridge.
+export 'src/backend/bridge_error_message.dart';
 export 'src/models/backend/fits_header.dart';
 export 'src/models/backend/image_result.dart';
 export 'src/models/backend/platform_capabilities.dart';
@@ -425,7 +427,7 @@ export 'src/services/scheduler/scheduler_queue_service.dart'
 // canonical public class.
 export 'src/services/scheduler/horizon_profile.dart';
 // The single rejection-reason ladder shared by the engine's decision record
-// and the queue row's STATUS chip (WD-SEQ-N4).
+// and the queue row's STATUS chip.
 export 'src/services/scheduler/rejection_labels.dart';
 export 'src/services/scheduler/sky_calculations.dart';
 export 'src/providers/scheduler_provider.dart';
@@ -514,13 +516,12 @@ export 'src/services/campaign_rollup_service.dart';
 export 'src/services/mosaic_service.dart';
 // Mosaic M2 — durable mosaic project orchestration (plan -> integrate -> stitch).
 export 'src/services/mosaic_project_service.dart';
-// Collaborative Sky WS2 — distributed collaborative mosaics (publish/claim/
-// upload/assemble over the hub).
+// Distributed collaborative mosaics (publish/claim/upload/assemble over the
+// hub).
 export 'src/services/mosaic/collaborative_mosaic_service.dart';
-// Collaborative Sky WS2 — unattended owner auto-assembly / participant
-// auto-download poller.
+// Unattended owner auto-assembly / participant auto-download poller.
 export 'src/services/mosaic/collaborative_mosaic_poller.dart';
-// Collaborative Sky WS2/WS4 — persisted consent gating a panel-master upload.
+// Persisted consent gating a panel-master upload.
 export 'src/services/mosaic/mosaic_upload_consent.dart';
 export 'src/services/framing_image_cache_service.dart';
 export 'src/services/session_service.dart';
@@ -631,8 +632,8 @@ export 'src/providers/sky_atlas_provider.dart';
 // Pillar C ("Constellation"): community hub client + orchestration + providers.
 export 'src/database/daos/constellation_contributions_dao.dart';
 export 'src/services/constellation/constellation_models.dart';
-// Collaborative Sky (6.0): shared trust primitives + co-imaging session
-// membership (WS3) + provenance/consent/scoped-role model (WS4).
+// Shared trust primitives, co-imaging session membership, and the
+// provenance/consent/scoped-role model.
 export 'src/database/daos/coimaging_sessions_dao.dart';
 export 'src/models/collaboration/collaboration_models.dart';
 export 'src/services/coimaging/coimaging_session_service.dart';
@@ -666,8 +667,8 @@ export 'src/models/calibration/calibration_library_models.dart';
 export 'src/services/calibration/fits_header_reader.dart';
 export 'src/services/calibration_library_service.dart';
 export 'src/database/daos/calibration_tags_dao.dart';
-// Collaborative Sky (6.0) WS1: shared calibration libraries — the hub wire
-// model, the REST client, and the matcher-folding remote-library seam.
+// Shared calibration libraries — the hub wire model, the REST client, and the
+// matcher-folding remote-library seam.
 export 'src/models/calibration/shared_calibration_models.dart';
 export 'src/services/calibration/shared_calibration_client.dart';
 export 'src/services/calibration/shared_calibration_library.dart';

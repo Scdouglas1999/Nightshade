@@ -1,5 +1,5 @@
-// Wire-level model for the Collaborative Sky (6.0) WS1 shared calibration
-// library hub endpoints (`/v1/calibration/masters`).
+// Wire-level model for the shared calibration library hub endpoints
+// (`/v1/calibration/masters`).
 //
 // [SharedCalibrationMaster] decodes one published master the hub returns from a
 // query, and [toMasterRecord] folds it into the same [CalibrationMasterRecord]

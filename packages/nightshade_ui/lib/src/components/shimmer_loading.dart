@@ -32,9 +32,8 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
 
   // The shimmer animation is an expensive per-frame ShaderMask. On a remote
   // slave an async provider can sit in its `loading` state effectively forever,
-  // which previously kept every skeleton repainting at ~60Hz indefinitely (a
-  // large part of the slave's idle CPU). Cap how long we animate: after this the
-  // skeleton stays visible but static.
+  // which would keep every skeleton repainting at ~60Hz indefinitely. Cap how
+  // long we animate: after this the skeleton stays visible but static.
   static const Duration _shimmerAnimateCap = Duration(seconds: 6);
   Timer? _capTimer;
   bool _capReached = false;

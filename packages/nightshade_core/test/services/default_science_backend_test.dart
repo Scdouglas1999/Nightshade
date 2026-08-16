@@ -3,12 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/services/science/default_science_backend.dart';
 
-/// Unit tests for the audit fixes in `default_science_backend.dart`:
-///   - §6.13 PA matrix convention (computePixelMotionPositionAngle)
-///   - §6.8 ScienceCalibrationError structured surface
-///   - §6.16 LineRatioError structured surface
+/// Unit tests for `default_science_backend.dart`:
+///   - the PA matrix convention (computePixelMotionPositionAngle)
+///   - the ScienceCalibrationError structured surface
+///   - the LineRatioError structured surface
 void main() {
-  group('§6.13 computePixelMotionPositionAngle', () {
+  group('computePixelMotionPositionAngle', () {
     // PA convention: measured from celestial North (0°) through East (90°).
     // The pixel→sky transform negates pixel-Y (image Y-axis points "down" in
     // the sky frame). The WCS rotation is interpreted as the angle from
@@ -147,7 +147,7 @@ void main() {
     });
   });
 
-  group('§6.8 ScienceCalibrationError', () {
+  group('ScienceCalibrationError', () {
     test('exposes a structured error code', () {
       const err = ScienceCalibrationError(
         code: ScienceCalibrationErrorCode.fitFailed,
@@ -164,7 +164,7 @@ void main() {
     });
   });
 
-  group('§6.16 LineRatioError', () {
+  group('LineRatioError', () {
     test('dimension-mismatch error carries actionable detail', () {
       const err = LineRatioError(
         code: LineRatioErrorCode.dimensionMismatch,

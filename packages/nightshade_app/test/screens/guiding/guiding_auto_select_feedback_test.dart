@@ -1,12 +1,11 @@
 // Auto Select has to report what it did.
 //
-// Live finding IMG-9 (residual, THIRD strike): clicking **Auto Select** three
-// times on the built-in guider produced "no notice, no toast, no status text
-// anywhere in the a11y tree". The previous fix reported through a snackbar on
-// the app shell's messenger — which is gone four seconds later and was already
-// gone when the screen was read — so it passed a widget test and remained
-// invisible live. These now assert on the panel's OWN notice banner, which is
-// part of the panel and stays until dismissed.
+// A snackbar on the app shell's messenger cannot carry that report: it is gone
+// four seconds later, so clicking **Auto Select** on the built-in guider leaves
+// "no notice, no toast, no status text anywhere in the a11y tree" for anyone
+// reading the screen afterwards, while a widget test still passes. These assert
+// on the panel's OWN notice banner, which is part of the panel and stays until
+// dismissed.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

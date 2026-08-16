@@ -10,19 +10,16 @@ import 'package:nightshade_core/src/services/safety_config_service.dart';
 
 /// Master/slave wire-shape guard for the safety-config consolidation.
 ///
-/// The `/api/safety/settings` payload was historically assembled inline in
-/// `SafetyMonitorHandlers._buildSettingsPayload` by reading the THREE stores
-/// (weatherSettingsDao + appSettings + settingsDao) directly. The
-/// consolidation routes that read through [SafetyConfigStore.load]. The slave
-/// mirrors this JSON, so the consolidated path MUST emit byte-identical JSON
-/// to the pre-consolidation path for a representative config.
+/// The `/api/safety/settings` payload is assembled from [SafetyConfigStore],
+/// which reads the three stores (weatherSettingsDao + appSettings +
+/// settingsDao). The slave mirrors that JSON verbatim, so the payload must
+/// encode byte-identically to a direct read of the three stores.
 ///
-/// This test reproduces the EXACT pre-consolidation payload construction
-/// (copied from the old handler) and asserts the facade-built payload encodes
-/// to the same JSON string.
+/// This test builds the payload both ways for a representative config and
+/// compares the encoded strings.
 void main() {
-  // Verbatim copies of the helpers/keys that lived privately in the old
-  // SafetyMonitorHandlers, so the "before" snapshot is faithful.
+  // The direct-read helpers and key strings, so the comparison is against the
+  // stores themselves rather than the facade under test.
   const kCheckIntervalKey = 'safety_check_interval_seconds';
   const kWarningDelayKey = 'safety_warning_delay_seconds';
   const kRequiredSafeDurationKey = 'safety_required_safe_duration_seconds';

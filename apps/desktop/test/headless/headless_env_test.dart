@@ -1,5 +1,5 @@
-// Regression tests for the env-parsing helpers extracted from
-// main_headless.dart into apps/desktop/lib/headless/headless_env.dart.
+// Tests for the env-parsing helpers in
+// apps/desktop/lib/headless/headless_env.dart.
 //
 // `envFlag` reads Platform.environment directly, so it cannot be driven from a
 // pure unit test (Dart cannot mutate the process environment after launch).

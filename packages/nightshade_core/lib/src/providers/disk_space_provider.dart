@@ -39,10 +39,9 @@ final diskSpaceGuardProvider = Provider<DiskSpaceGuardService>((ref) {
 final captureDirDiskSpaceProvider = StreamProvider.autoDispose<DiskSpaceInfo?>((
   ref,
 ) async* {
-  // Remote host: the capture directory lives on the HOST filesystem — ask
-  // the host over the API. The previous shape ran the local `df` against
-  // the host's path on the CLIENT filesystem, which could only ever fail
-  // ("Disk query failed" on every paired phone/tablet dashboard).
+  // Remote host: the capture directory lives on the HOST filesystem, so ask
+  // the host over the API. A local `df` against the host's path resolves on
+  // the CLIENT filesystem and can only fail.
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
     yield await backend.getHostCaptureDiskSpace();

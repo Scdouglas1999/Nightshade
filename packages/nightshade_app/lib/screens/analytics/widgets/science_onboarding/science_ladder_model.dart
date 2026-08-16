@@ -92,15 +92,9 @@ ScienceLadderProgress evaluateLadder({
   required bool hasPeriodResult,
   required bool hasExportableData,
 }) {
-  // Each rung is judged on its OWN evidence.
-  //
-  // The rungs used to cascade — every one computed from the state of the one
-  // above it — so a session with 80 photometry points, a Lomb-Scargle period on
-  // screen and an enabled "Export to AAVSO" button still showed rung 1 as the
-  // next action and rung 3 padlocked with "Turn on live photometry and track a
-  // star to start collecting points". One missing photometric calibration
-  // locked four rungs the user had demonstrably already climbed. A rung is now
-  // `locked` only when the thing it asks for genuinely cannot be started yet.
+  // Each rung is judged on its OWN evidence, never cascaded from the rung
+  // above it: a rung is `locked` only when the thing it asks for genuinely
+  // cannot be started yet.
   final measure = hasCalibration ? RungState.done : RungState.ready;
 
   // Points on a curve are proof the star was tracked, whether or not the run

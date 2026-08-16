@@ -1,11 +1,11 @@
-// Regression: the Connection Status modal opened clipped by the bottom of the
+// The Connection Status modal must not open clipped by the bottom of the
 // window.
 //
-// Driven live from the title bar at 1600x900: a scrim covered the app and the
-// panel came up anchored to the BOTTOM edge with only its top ~75px on screen —
-// the title, the line "Not connected to a server", no bottom edge and no
-// visible control. Resizing to 1750x1040 and reopening reproduced it, so it was
-// positioning, not window size. Every other modal in the build centres.
+// Opened from the title bar at 1600x900, a panel anchored to the BOTTOM edge
+// puts only its top ~75px on screen — the title, the line "Not connected to a
+// server", no bottom edge and no visible control — and 1750x1040 is the same,
+// because it is positioning rather than window size. Every other modal in the
+// build centres.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/remote_connection_indicator.dart';

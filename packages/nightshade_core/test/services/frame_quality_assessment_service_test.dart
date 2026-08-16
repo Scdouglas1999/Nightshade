@@ -42,10 +42,10 @@ void main() {
 
     /// A frame can be demoted by the composite score alone: `advisoryScore`
     /// starts at the frame's own `qualityScore`, so one that trips no individual
-    /// threshold but scores in the 60s still lands in `needsReview`. It used to
-    /// arrive with an EMPTY reason list, so the gallery said "Needs Review" and
-    /// gave the operator nothing to act on. Reproduced with real captures
-    /// scoring 64-66 at a healthy HFR 2.5px / 200 stars.
+    /// threshold but scores in the 60s still lands in `needsReview`. Arriving
+    /// with an EMPTY reason list, the gallery says "Needs Review" and gives the
+    /// operator nothing to act on — real captures score 64-66 at a healthy
+    /// HFR 2.5px / 200 stars.
     test('needsReview by score alone still carries a reason', () {
       final result = service.assessFrame(
         _image(id: 1, qualityScore: 64.4, hfr: 2.5, starCount: 200),

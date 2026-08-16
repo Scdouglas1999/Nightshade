@@ -1,12 +1,11 @@
-// Regression: a device that never connected must not be listed as a failing
-// heartbeat.
+// A device that never connected is not a failing heartbeat.
 //
-// Observed live: clicking Connect on the built-in guider failed correctly (no
-// focal length in the profile) and the row stayed on "Connect" with a grey dot —
-// yet DEVICE HEARTBEATS grew a card for it, System Health dropped from
-// "100 - Excellent" to "75 - Good / 1 issue", and the insight read "Unhealthy
-// devices detected: native:builtin_guider:multi_star". A refused connection is
-// not a heartbeat failure, and the copy quoted a raw internal id.
+// Clicking Connect on the built-in guider can fail correctly (no focal length
+// in the profile), leaving the row on "Connect" with a grey dot — while DEVICE
+// HEARTBEATS grows a card for it, System Health drops from "100 - Excellent" to
+// "75 - Good / 1 issue", and the insight reads "Unhealthy devices detected:
+// native:builtin_guider:multi_star". A refused connection is not a heartbeat
+// failure, and the copy must not quote a raw internal id.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';

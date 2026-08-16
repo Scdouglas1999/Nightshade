@@ -1,5 +1,5 @@
-// Collaborative Sky (6.0) WS1 — HTTP client for a hub's shared calibration
-// library (`/v1/calibration/masters`).
+// HTTP client for a hub's shared calibration library
+// (`/v1/calibration/masters`).
 //
 // Mirrors [ConstellationClient]'s transport verbatim: nothing but
 // `package:http`, a single `_send` / `_sendFile` choke point mapping
@@ -199,7 +199,7 @@ class SharedCalibrationClient {
     return decoded;
   }
 
-  // --- Endpoints ----------------------------------------------------------
+  // Endpoints
 
   /// `GET /v1/calibration/masters` — ranked remote masters matching [context]'s
   /// sensor + capture tuple. The hub returns the coarse sensor-keyed set; the

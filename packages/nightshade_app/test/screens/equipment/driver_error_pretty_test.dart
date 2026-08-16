@@ -69,9 +69,8 @@ void main() {
     });
 
     test('unknown ASCOM HRESULT falls through unrecognized', () {
-      // A code we did NOT add to the conservative map — must pass
-      // through untouched (errors are a feature: never invent a label
-      // we cannot verify).
+      // A code that is NOT in the conservative map must pass through
+      // untouched: never invent a label that cannot be verified.
       final pretty = PrettyError.format('Driver raised 0xDEADBEEF');
       expect(pretty.recognized, isFalse);
       expect(pretty.full, 'Driver raised 0xDEADBEEF');

@@ -206,9 +206,7 @@ class _HardwarePresetPickerDialogState
         '${preset.sensorWidthPx}×${preset.sensorHeightPx}';
   }
 
-  // ---------------------------------------------------------------------------
-  // Mutations. Each opens the editor or confirms deletion, surfacing errors.
-  // ---------------------------------------------------------------------------
+  // Mutations. each opens the editor or confirms deletion, surfacing errors.
 
   Future<void> _addCustom() async {
     if (_isTelescope) {

@@ -1,9 +1,9 @@
-// Regression net for RemoteDirectoryPickerDialog concurrency / error handling.
+// Concurrency / error-handling net for RemoteDirectoryPickerDialog.
 //
 // The picker browses a *remote* host over the network, so every browse and
 // validate is an async round-trip that can outlive the dialog, arrive out of
 // order, or land after the backend has been swapped (reconnect/disconnect).
-// These tests pin the trust/reliability fixes:
+// These tests pin the trust/reliability contract:
 //
 //   * close-during-load           -> no setState-after-dispose crash
 //   * out-of-order navigation     -> a stale earlier browse never clobbers the

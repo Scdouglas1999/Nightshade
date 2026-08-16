@@ -252,6 +252,4 @@ class _TargetNotesDialogState extends ConsumerState<TargetNotesDialog> {
   }
 }
 
-// =============================================================================
 // Note tile (single-row preview)
-// =============================================================================

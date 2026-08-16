@@ -1,12 +1,8 @@
-// WD-N3: the wizard's closing step re-asserted a library scope the user had
-// already edited away from.
-//
-// Live on 2026-08-13: step 8 → Choose from telescope library → Askar FRA400,
-// then focal length ctrl+a → 1234. The optics step correctly flipped its badge
-// to "Askar FRA400 — edited". Step 13 ("You're all set") then read
-// "Telescope  Askar FRA400" beside "Image scale 0.77 arcsec/px" — a scale
-// computed from 1234 mm, which is not that scope's focal length. The honest
-// marker was dropped exactly where the wizard makes its closing statement
+// The wizard's closing step must not re-assert a library scope the user has
+// edited away from: applying a preset and then changing its focal length flips
+// the optics step's badge to "— edited", and dropping that marker on the summary
+// pairs the model name with an image scale computed from a focal length that
+// model does not have — exactly where the wizard makes its closing statement
 // about the rig.
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

@@ -396,10 +396,9 @@ class ImagingService {
   /// Expand `$VARIABLE` tokens in [pattern] using [substitutions].
   ///
   /// Throws an [Exception] if [pattern] references any token that is not in
-  /// [_patternVariables]. This is intentional: silently leaving an unknown
-  /// `$BANANA` in the path produces malformed filenames that look like
-  /// they "worked" but break downstream sorting/searching.
-  /// "Errors are a feature".
+  /// [_patternVariables]: an unknown `$BANANA` left in the path produces a
+  /// filename that looks like it worked and breaks downstream sorting and
+  /// searching.
   ///
   /// Exposed for unit testing of the pattern-expansion logic in isolation
   /// from the capture pipeline / provider graph.
@@ -428,11 +427,8 @@ class ImagingService {
       );
     }
 
-    // Replace using the regex so we don't get fooled by prefix overlaps
-    // (e.g. `$EXPTIME` vs `$EXPOSURE`, `$FRAMENUM` vs `$FRAMETYPE`). The
-    // previous chained-`replaceAll` implementation happened to work because
-    // each variable name was a unique substring, but a regex-based pass is
-    // robust to future additions.
+    // Replace via the regex so prefix overlaps (`$EXPTIME` vs `$EXPOSURE`,
+    // `$FRAMENUM` vs `$FRAMETYPE`) cannot be confused with one another.
     final expanded = pattern.replaceAllMapped(_patternVarRegex, (m) {
       final token = m.group(0)!;
       // Safe: we just validated every token above.
@@ -589,10 +585,8 @@ final currentImageProvider = StateProvider<CapturedImageData?>((ref) => null);
 /// service swaps the file path on the captured image data once the
 /// calibration step succeeds (see `ImagingService.captureImage` —
 /// auto-calibration block). When calibration fails or isn't enabled the
-/// path stays at the original `.fits`, so the badge reflects only
-/// actually-calibrated frames — never a wishful "we tried" state. That
-/// matches the project rule that errors must surface, not silently
-/// downgrade to a misleading badge.
+/// path stays at the original `.fits`, so the badge reflects only frames that
+/// were actually calibrated.
 final currentImageIsCalibratedProvider = Provider<bool>((ref) {
   final image = ref.watch(currentImageProvider);
   final path = image?.filePath;

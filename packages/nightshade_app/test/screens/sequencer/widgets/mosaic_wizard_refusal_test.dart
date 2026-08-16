@@ -1,11 +1,11 @@
-// COL2-16 / COL2-17 — the Mosaic Wizard must refuse visibly and tell one story.
+// The Mosaic Wizard must refuse visibly and tell one story.
 //
-// Driven live, "Create mosaic project" did nothing at all: no snackbar, no
-// inline error, no dialog. It is in fact disabled (no panel size), but the only
-// explanation was a hover tooltip, so the primary action of the whole feature is
-// indistinguishable from a broken button — and one screen below, "Advanced
-// (numerical)" pre-filled a concrete 60.0 x 40.0 panel field under a banner
-// saying the panel field was unknown.
+// With no panel size, "Create mosaic project" is disabled — but if the only
+// explanation is a hover tooltip it does nothing at all on click: no snackbar,
+// no inline error, no dialog, so the primary action of the whole feature is
+// indistinguishable from a broken button. And one screen below, "Advanced
+// (numerical)" must not pre-fill a concrete 60.0 x 40.0 panel field under a
+// banner saying the panel field is unknown.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -128,9 +128,8 @@ void main() {
 
   testWidgets('BOTH typed dimensions unblock the primary action',
       (tester) async {
-    // WD-COL-N3: this test used to type a WIDTH alone and assert the action
-    // unblocked — encoding the defect. One typed number left the height at the
-    // 60x40 field initialiser, so the wizard planned (and offered to persist) a
+    // BOTH dimensions, deliberately. One typed number leaves the height at the
+    // 60x40 field initialiser, so the wizard would plan (and offer to persist) a
     // grid from a dimension nobody supplied. A half-known panel size is still
     // unknown.
     await _pumpWizard(tester);
@@ -192,12 +191,12 @@ void main() {
     expect(find.textContaining('0.83'), findsWidgets);
   });
 
-  testWidgets('a gated footer action announces its reason to AT (WD-COL-N2)',
+  testWidgets('a gated footer action announces its reason to AT',
       (tester) async {
-    // The live tree read both footer actions as plain `button: …` with no
-    // `[DISABLED]`, on a wizard whose banner said the panel size was unknown —
-    // the same shape as COL2-3. The announced name now carries the reason, so
-    // a tree dump distinguishes "gate applied" from "gate absent".
+    // Undeclared, both footer actions read as plain `button: …` with no
+    // `[DISABLED]`, on a wizard whose banner says the panel size is unknown. The
+    // announced name carries the reason, so a tree dump distinguishes "gate
+    // applied" from "gate absent".
     final handle = tester.ensureSemantics();
     await _pumpWizard(tester);
 

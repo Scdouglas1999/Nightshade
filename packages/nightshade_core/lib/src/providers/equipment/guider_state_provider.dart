@@ -30,13 +30,10 @@ class GuiderStateNotifier extends StateNotifier<GuiderState>
 
   /// Connect [deviceId], showing [deviceName] while the attempt is in flight.
   ///
-  /// [deviceName] exists because this method used to pass the raw id as the
-  /// name. The moment the operator pressed Connect, a card that had been
-  /// reading "Built-in Multi-Star Guider" from the profile flipped to
-  /// `native:builtin_guider:multi_star` — and stayed that way for the rest of
-  /// the session, in the device card and in the guide-health card, because
-  /// nothing later overwrites the name. Callers that know the friendly name
-  /// should pass it; omitting it keeps the previous id fallback.
+  /// Nothing later overwrites the name, so a caller that knows the friendly
+  /// one should pass it: omitting [deviceName] falls back to the raw id
+  /// (`native:builtin_guider:multi_star`) and the device and guide-health
+  /// cards read that for the rest of the session.
   Future<void> connect(
     String deviceId, {
     String? deviceName,

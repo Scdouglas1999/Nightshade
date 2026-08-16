@@ -5,16 +5,7 @@ import 'package:nightshade_desktop/headless_api/routes/headless_route.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
-/// Live-rig L32 (2026-08-09): a wrong-verb request to a path that exists was
-/// answered by the parameterised sibling route rather than a 405.
-///
-/// ```
-/// GET /api/calibration/darks/find-match -> 400 {"error":"Path segment is not a
-///                                               valid integer","field":"id"}
-/// ```
-///
-/// The answer named a field the caller never sent, about a value they never
-/// supplied, for a path that exists.
+/// Stand-in for a real literal-path handler.
 Future<Response> _ok(Request request) async => Response.ok('real handler');
 
 Future<Response> _byId(Request request, String id) async {
@@ -136,8 +127,8 @@ void main() {
     });
 
     test('an unregistered path is still a 404, not a 405', () async {
-      // 405 asserts the path exists. Claiming it for a path nobody registered
-      // would be a new lie in place of the old one.
+      // 405 asserts the path exists, so claiming it for a path nobody
+      // registered would be its own false statement.
       final response = await _call(router, 'GET', '/api/calibration/nope');
       expect(response.statusCode, 404);
     });

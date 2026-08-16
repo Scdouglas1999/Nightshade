@@ -18,9 +18,9 @@
 // in lockstep with `apps/mobile/ios/NightshadeAppIntents/*.swift` and
 // `apps/mobile/android/app/src/main/kotlin/.../MainActivity.kt`.
 //
-// Per repo policy: NO stubs, NO silent fallbacks. Every PlatformException
-// from the host bridge propagates; unsupported platforms throw a typed
-// exception so an accidental desktop caller fails loudly.
+// Every PlatformException from the host bridge propagates, and an unsupported
+// platform throws a typed exception, so a caller never believes it published a
+// snapshot the assistant will never see.
 
 import 'dart:async';
 import 'dart:developer' as developer;
@@ -35,9 +35,9 @@ const String _voiceControlChannelName = 'nightshade/voice_control';
 
 /// Thrown when [VoiceControlService] is invoked on a platform that does
 /// not (and cannot) support a voice assistant integration. The mobile app
-/// only ships iOS + Android targets, so any other platform — and any
-/// future regression that calls into this service from desktop code —
-/// becomes a visible failure rather than a silent no-op.
+/// only ships iOS + Android targets, so any other platform — including a
+/// future caller reaching this service from desktop code — becomes a visible
+/// failure rather than a silent no-op.
 class VoiceControlUnsupportedPlatformException implements Exception {
   VoiceControlUnsupportedPlatformException(this.message);
 
@@ -360,8 +360,8 @@ class VoiceControlService {
           _actionController.add(action);
           return true;
         } on ArgumentError {
-          // Surface the unknown id loudly — silently dropping is exactly
-          // the kind of fallback the repo policy forbids.
+          // Throw on an unknown id rather than dropping it: a silent drop
+          // reads to the assistant as a command that was carried out.
           throw PlatformException(
             code: 'unknown_action',
             message:

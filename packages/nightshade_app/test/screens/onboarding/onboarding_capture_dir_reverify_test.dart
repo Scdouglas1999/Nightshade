@@ -1,11 +1,13 @@
 // The capture-folder step must never claim writability it has not checked.
 //
-// "Folder is writable." used to be rendered from `draft.captureDirectory !=
-// null` alone. The draft outlives the app run and the host connection, so a
-// resumed wizard (external drive unplugged) or a host path shown after falling
-// back to the local backend both got a green tick for a folder nothing had
-// looked at. These tests pin the three honest outcomes: re-checked and good,
-// re-checked and rejected, and could-not-check.
+// "Folder is writable." must not be rendered from `draft.captureDirectory !=
+// null` alone: the draft outlives the app run and the host connection, so a
+// resumed wizard with the external drive unplugged — or a host path shown after
+// falling back to the local backend — would get a green tick for a folder
+// nothing had looked at.
+//
+// These tests pin the three honest outcomes: re-checked and good, re-checked
+// and rejected, and could-not-check.
 
 import 'dart:async';
 

@@ -232,7 +232,7 @@ Map<String, bool> _readServerMiddlewareTests() {
         text.contains('rejects oversized control requests before auth') &&
         text.contains('HttpStatus.requestEntityTooLarge') &&
         text.contains('Request body too large'),
-    // HTTP-001: an unauthenticated chunked body must be rejected at auth (401)
+    // An unauthenticated chunked body must be rejected at auth (401)
     // BEFORE it is buffered, while an authenticated oversized chunked body is
     // still capped at 413 with request-id propagation. Both halves of that
     // ordering contract must stay tested.

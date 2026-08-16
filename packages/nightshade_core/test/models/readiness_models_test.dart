@@ -157,10 +157,10 @@ void main() {
     });
 
     test('a disconnected mount is named even when the camera is also down', () {
-      // Regression: the mount is deliberately excluded from the
-      // profile-devices item ("already covered by critical devices"), so if
-      // critical devices reports only the camera the mount vanishes from the
-      // whole readiness report.
+      // The mount is deliberately excluded from the profile-devices item
+      // ("already covered by critical devices"), so a critical-devices item
+      // that reports only the camera would drop the mount from the whole
+      // readiness report.
       final report = _report(cameraConnected: false, mountConnected: false);
       final critical = report.itemFor(ReadinessItemId.criticalDevices)!;
 

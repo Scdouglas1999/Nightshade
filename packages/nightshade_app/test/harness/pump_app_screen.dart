@@ -85,29 +85,8 @@ class HarnessHandle {
 /// Returns a [HarnessHandle] for tests that need post-pump access to the
 /// mock backend and in-memory database.
 ///
-/// Common usage:
-///
-/// ```dart
-/// testWidgets('renders empty state', (tester) async {
-///   final handle = await pumpAppScreen(tester, const MyScreen());
-///   expect(find.text('No data'), findsOneWidget);
-///   addTearDown(() async {
-///     await handle.database.close();
-///   });
-/// });
-/// ```
-///
-/// To inject extra overrides (e.g. a fake provider specific to the screen):
-///
-/// ```dart
-/// await pumpAppScreen(
-///   tester,
-///   const MyScreen(),
-///   extraOverrides: [
-///     mySpecificProvider.overrideWithValue(...),
-///   ],
-/// );
-/// ```
+/// Close `handle.database` from an `addTearDown`. Screen-specific fakes go in
+/// `extraOverrides`.
 ///
 /// [size] sets the surface dimensions so layout-sensitive widgets pick the
 /// right responsive branch. Defaults to a desktop-ish 1280x800; pass

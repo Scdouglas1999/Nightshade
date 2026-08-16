@@ -37,9 +37,8 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
   ///
   /// The painter's scale is `min(w, h) / fov` pixels per degree
   /// (see `SkyCanvasPainter._paint`), so degrees-per-pixel is its reciprocal.
-  /// This previously used a hardcoded `fov / 500`, which made the sky move at
-  /// the wrong speed on every canvas that is not 500px on its short side — the
-  /// sky visibly failed to track the pointer.
+  /// Any other constant makes the sky move at the wrong speed on every canvas
+  /// whose short side differs from it, and it stops tracking the pointer.
   ///
   /// The horizontal component is additionally divided by the cosine of the
   /// center's latitude (declination, or altitude in the horizontal frame),
@@ -236,16 +235,17 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
 
   /// The projector for a given pose, built exactly as the hit-tester and the
   /// painter build theirs.
-  SkyFovProjector _projectorFor(SkyViewState state, Size size) {
-    final location = ref.read(observerLocationProvider);
+  SkyFovProjector? _projectorFor(SkyViewState state, Size size) {
+    final site = ref.read(observerLocationProvider).site;
+    if (site == null) return null;
     return SkyFovProjector.forSize(
       state,
       size,
-      latitude: location.latitude,
+      latitude: site.latitude,
       lstHours: state.viewMode == SkyViewMode.horizontal
           ? AstronomyCalculations.localSiderealTime(
               ref.read(observationTimeProvider).time,
-              location.longitude,
+              site.longitude,
             )
           : null,
     );
@@ -268,6 +268,10 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
     for (var pass = 0; pass < 4; pass++) {
       final state = ref.read(skyViewStateProvider);
       final projector = _projectorFor(state, size);
+      if (projector == null) {
+        _clearZoomAnchor();
+        return;
+      }
       final landed = projector.project(anchor);
       if (landed == null) {
         // The anchor rotated behind the projection plane — nothing to hold on
@@ -280,14 +284,15 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
       final recentred = projector.unproject(projector.screenCenter - err);
       if (recentred == null) return;
       if (state.viewMode == SkyViewMode.horizontal) {
-        final location = ref.read(observerLocationProvider);
+        final site = ref.read(observerLocationProvider).site;
+        if (site == null) return;
         final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
           raDeg: recentred.ra * 15,
           decDeg: recentred.dec,
-          latitudeDeg: location.latitude,
+          latitudeDeg: site.latitude,
           lstHours: AstronomyCalculations.localSiderealTime(
             ref.read(observationTimeProvider).time,
-            location.longitude,
+            site.longitude,
           ),
         );
         notifier.setHorizontalCenter(az, alt);
@@ -338,16 +343,14 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
     _clearZoomAnchor();
     final viewState = ref.read(skyViewStateProvider);
     if (viewState.viewMode == SkyViewMode.horizontal) {
-      final location = ref.read(observerLocationProvider);
+      final site = ref.read(observerLocationProvider).site;
+      if (site == null) return;
       final time = ref.read(observationTimeProvider).time;
-      final lst = AstronomyCalculations.localSiderealTime(
-        time,
-        location.longitude,
-      );
+      final lst = AstronomyCalculations.localSiderealTime(time, site.longitude);
       final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
         raDeg: target.ra * 15,
         decDeg: target.dec,
-        latitudeDeg: location.latitude,
+        latitudeDeg: site.latitude,
         lstHours: lst,
       );
       ref.read(skyViewStateProvider.notifier).setHorizontalCenter(az, alt);

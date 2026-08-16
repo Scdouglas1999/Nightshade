@@ -1,5 +1,3 @@
-// Part of ../mosaic_project_controller.dart -- extracted for maintainability.
-//
 // Output-path helpers, controller args, providers and the capture launcher.
 part of '../mosaic_project_controller.dart';
 
@@ -29,13 +27,13 @@ String mosaicStitchOutputDirectory(
 /// are derived from (the app resolves `<applicationSupport>/nightshade_mosaic`;
 /// tests pass a temp dir).
 ///
-/// SHIP-BLOCKER CONTRACT — every field here must be VALUE-comparable. These args
-/// are the family key: Riverpod caches one controller per distinct key, and the
-/// screen rebuilds these args on every `build`. This used to carry the two path
-/// BUILDER CLOSURES; a closure is only ever equal to itself, so every frame
-/// minted a new key → a new controller → a new `load()` → a rebuild → an
-/// unbounded loop that pinned the CPU and left the screen spinning forever.
-/// Never put a closure (or any identity-compared object) on these args.
+/// CONTRACT — every field here must be VALUE-comparable. These args are the
+/// family key: Riverpod caches one controller per distinct key, and the screen
+/// rebuilds these args on every `build`. A closure is only ever equal to
+/// itself, so one on these args mints a new key every frame → a new controller
+/// → a new `load()` → a rebuild → an unbounded loop that pins the CPU and
+/// leaves the screen spinning. Never put a closure (or any identity-compared
+/// object) here.
 class MosaicProjectControllerArgs {
   /// The `mosaic_projects.id` to review.
   final int projectId;

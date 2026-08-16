@@ -53,9 +53,7 @@ void main() {
       }
     });
 
-    // -------------------------------------------------------------------
     // GET /api/logs
-    // -------------------------------------------------------------------
     group('GET /api/logs', () {
       test('returns list of log files with size and modifiedAt', () async {
         await File(
@@ -86,9 +84,7 @@ void main() {
       });
     });
 
-    // -------------------------------------------------------------------
     // GET /api/logs/recent
-    // -------------------------------------------------------------------
     group('GET /api/logs/recent', () {
       test('honors limit query param', () async {
         for (var i = 0; i < 50; i++) {
@@ -184,9 +180,7 @@ void main() {
       });
     });
 
-    // -------------------------------------------------------------------
     // GET /api/logs/files/{filename}/download
-    // -------------------------------------------------------------------
     group('GET /api/logs/files/{filename}/download', () {
       late File targetFile;
       late int fileLength;
@@ -312,9 +306,7 @@ void main() {
       });
     });
 
-    // -------------------------------------------------------------------
     // POST /api/logs/clear
-    // -------------------------------------------------------------------
     group('POST /api/logs/clear', () {
       test('deletes non-current files and reports freedBytes', () async {
         // Plant the active log file AND a rotated one.
@@ -349,9 +341,7 @@ void main() {
       });
     });
 
-    // -------------------------------------------------------------------
     // POST /api/logs/test-entry
-    // -------------------------------------------------------------------
     group('POST /api/logs/test-entry', () {
       test('writes the entry and appears in recent', () async {
         final response = await translateHandlerErrors(
@@ -427,9 +417,7 @@ void main() {
       });
     });
 
-    // -------------------------------------------------------------------
     // GET /api/logs/tail — SSE
-    // -------------------------------------------------------------------
     group('GET /api/logs/tail (SSE)', () {
       test('emits initial replay followed by live entries', () async {
         // Pre-populate the ring buffer so the replay has something to

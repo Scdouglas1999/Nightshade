@@ -1,5 +1,3 @@
-// Part of ../node_properties_panel.dart -- extracted for maintainability.
-//
 // Meridian-flip and polar-alignment instruction property editors.
 part of '../node_properties_panel.dart';
 

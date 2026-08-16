@@ -1,5 +1,3 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
-//
 // Dialog used to save the current sequence as a template, including the target-selection option chips.
 part of '../templates_tab.dart';
 

@@ -1,11 +1,7 @@
-// Part of ../tutorial_models.dart -- extracted for maintainability.
-//
 // Planetarium through polar-alignment screen-tour definitions.
 part of '../tutorial_models.dart';
 
-// ============================================================
-// PLANETARIUM TOUR (10 steps)
-// ============================================================
+// Planetarium tour (10 steps)
 const List<TutorialStep> _planetariumTour = [
   TutorialStep(
     id: 'pt_welcome',
@@ -117,9 +113,7 @@ const List<TutorialStep> _planetariumTour = [
   ),
 ];
 
-// ============================================================
-// FRAMING TOUR (10 steps)
-// ============================================================
+// Framing tour (10 steps)
 const List<TutorialStep> _framingTour = [
   TutorialStep(
     id: 'ft_welcome',
@@ -231,9 +225,7 @@ const List<TutorialStep> _framingTour = [
   ),
 ];
 
-// ============================================================
-// ANALYTICS TOUR (8 steps)
-// ============================================================
+// Analytics tour (8 steps)
 const List<TutorialStep> _analyticsTour = [
   TutorialStep(
     id: 'at_welcome',
@@ -323,9 +315,7 @@ const List<TutorialStep> _analyticsTour = [
   ),
 ];
 
-// ============================================================
-// FLAT WIZARD TOUR (8 steps)
-// ============================================================
+// Flat wizard tour (8 steps)
 const List<TutorialStep> _flatWizardTour = [
   TutorialStep(
     id: 'fwt_welcome',
@@ -415,9 +405,7 @@ const List<TutorialStep> _flatWizardTour = [
   ),
 ];
 
-// ============================================================
-// WEATHER TOUR (8 steps)
-// ============================================================
+// Weather tour (8 steps)
 const List<TutorialStep> _weatherTour = [
   TutorialStep(
     id: 'wt_welcome',
@@ -507,9 +495,7 @@ const List<TutorialStep> _weatherTour = [
   ),
 ];
 
-// ============================================================
-// SETTINGS TOUR (10 steps)
-// ============================================================
+// Settings tour (10 steps)
 const List<TutorialStep> _settingsTour = [
   TutorialStep(
     id: 'stt_welcome',
@@ -621,9 +607,7 @@ const List<TutorialStep> _settingsTour = [
   ),
 ];
 
-// ============================================================
-// POLAR ALIGNMENT TOUR (10 steps)
-// ============================================================
+// Polar alignment tour (10 steps)
 const List<TutorialStep> _polarAlignmentTour = [
   TutorialStep(
     id: 'pat_welcome',

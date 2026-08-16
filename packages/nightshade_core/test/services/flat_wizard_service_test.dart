@@ -4,9 +4,8 @@ import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/models/flat_wizard/flat_wizard_settings.dart';
 import 'package:nightshade_core/src/services/flat_wizard_service.dart';
 
-// Regression tests proving the
-// previously-hardcoded constants in flat_wizard_service.dart are now sourced
-// from FlatWizardGlobalSettings.
+// The tuning constants in flat_wizard_service.dart are sourced from
+// FlatWizardGlobalSettings, never hardcoded.
 
 class _FakeBackend extends Mock implements NightshadeBackend {}
 

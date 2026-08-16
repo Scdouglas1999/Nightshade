@@ -49,10 +49,10 @@ String formatContributorCredits(
 
 /// The contributor-credit line for a collaborative mosaic. Prefers the
 /// authoritative, consent-aware credits the hub materialized and served from
-/// `GET /v1/attribution` (via [attribution]) — the WS5 contributor-credits UI
-/// source. Falls back to the owner + uploaded-panel display names embedded in
-/// the browse payload while attribution is still loading or when the hub is
-/// unreachable, so the line is never blank.
+/// `GET /v1/attribution` (via [attribution]). Falls back to the owner +
+/// uploaded-panel display names embedded in the browse payload while
+/// attribution is still loading or when the hub is unreachable, so the line is
+/// never blank.
 String mosaicContributorCredits(
   CollabMosaic mosaic, {
   ArtifactAttribution? attribution,

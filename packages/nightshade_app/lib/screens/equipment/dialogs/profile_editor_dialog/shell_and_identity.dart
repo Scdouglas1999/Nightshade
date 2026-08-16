@@ -150,9 +150,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
     );
   }
 
-  // ============================================================================
-  // Section 1: Profile Identity
-  // ============================================================================
+  // Section 1: profile identity
 
   Widget _buildIdentitySection(NightshadeColors colors, ThemeData theme) {
     return _SectionCard(
@@ -275,6 +273,4 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
       ),
     );
   }
-
-  // ============================================================================
 }

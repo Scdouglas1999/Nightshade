@@ -1,17 +1,13 @@
-// Widget tests for the first-launch onboarding tour (W7-ONBOARDING).
+// Widget tests for the first-launch onboarding tour.
 //
-// The tests drive [OnboardingOverlay] through its key states: initial
-// render, step advancement, skip-marks-as-completed, and Settings
-// "Re-run tutorial" reset. We use an in-memory Drift database so the
-// underlying [TutorialProgressDao] path is exercised end-to-end without
-// touching the production sqlite file.
+// The tests drive [OnboardingOverlay] through its key states: initial render,
+// step advancement, skip-marks-as-completed, and the Settings "Re-run tutorial"
+// reset. An in-memory Drift database exercises the underlying
+// [TutorialProgressDao] path end-to-end without touching the production sqlite
+// file.
 //
-// Onboarding & First-Light IA (C13): the auto-launch gating that the old
-// `OnboardingTourLauncher` performed was removed when the launcher stack
-// collapsed to the single startup spine — the first-launch tour is now
-// replay-only (Settings → Help & Tutorials → "Re-run onboarding tour").
-// The launcher-gating group and its helper were therefore deleted; the
-// overlay itself is unchanged and remains fully covered below.
+// The tour itself is replay-only (Settings → Help & Tutorials → "Re-run
+// onboarding tour"), so there is no auto-launch gating to cover here.
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -298,13 +294,12 @@ void main() {
     });
   });
 
-  // WE-SP-2: "Reset All Progress" re-arms this tour, so the very next click the
-  // operator makes lands on a scrim they did not ask for. It used to be read as
-  // a Skip — costing them the click AND the tour, which was gone before the
-  // next screenshot, so the only symptom was "the nav rail did nothing and a
-  // second identical click worked". A modal that stays up explains itself.
-  group('WE-SP-2 — a stray click on the scrim does not silently kill the tour',
-      () {
+  // "Reset All Progress" re-arms this tour, so the very next click the operator
+  // makes lands on a scrim they did not ask for. Reading that as a Skip costs
+  // them the click AND the tour, leaving only the symptom "the nav rail did
+  // nothing and a second identical click worked". A modal that stays up
+  // explains itself.
+  group('a stray click on the scrim does not silently kill the tour', () {
     testWidgets('tapping the dim area leaves the tour on screen',
         (tester) async {
       final db = _newInMemoryDb();

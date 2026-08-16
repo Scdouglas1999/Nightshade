@@ -1,13 +1,11 @@
-// Part of ../framing_canvas.dart -- extracted for maintainability.
-//
 // Equipment hint card, canvas controls, survey selector, zoom controls and scale indicator.
 part of '../framing_canvas.dart';
 
 /// The "no equipment configured" hint card in the canvas's top chrome.
 ///
-/// Extracted from an inline `Positioned` so it can take part in the single
-/// top-chrome [Column] instead of being pinned at a literal `top: 60` where a
-/// wrapped toolbar row could end up underneath it.
+/// Lives in the single top-chrome [Column] rather than an inline `Positioned`
+/// pinned at a literal `top: 60`, where a wrapped toolbar row could end up
+/// underneath it.
 class _EquipmentHintCard extends StatelessWidget {
   final NightshadeColors colors;
   final double previewFovDegrees;
@@ -195,8 +193,7 @@ class _CanvasControls extends StatelessWidget {
 /// A [NightshadeDropdown] (the canonical design-system selector) fronted by the
 /// `layers` glyph so it reads as part of the chip strip, wired straight to
 /// [FramingNotifier.setSurveySource]. Selecting a source refetches the survey
-/// imagery for that band (the refetch lives in the notifier), replacing the old
-/// no-op chip that did nothing on tap.
+/// imagery for that band (the refetch lives in the notifier).
 class _SurveySourceSelector extends StatelessWidget {
   final NightshadeColors colors;
   final SurveySource source;
@@ -447,13 +444,11 @@ class _ZoomButtonState extends State<_ZoomButton> {
 /// On-canvas scale bar showing a real angular distance derived from the shared
 /// [FramingPlateScale].
 ///
-/// The old bar was a fixed `(10/60)*60*zoom` expression that always read "10'"
-/// regardless of the actual sky scale — meaningless once the survey image,
-/// equipment FOV and zoom are all in play. This version targets a ~60px bar,
-/// converts that to degrees through [FramingPlateScale.pixelsPerDegree] (the
-/// same scale the imagery and overlays use), snaps it to a "nice" arcminute /
-/// degree increment, and then sizes the bar to the *exact* on-screen length of
-/// that snapped value so the rule and its label always agree.
+/// The bar targets a ~60px length, converts that to degrees through
+/// [FramingPlateScale.pixelsPerDegree] (the same scale the imagery and overlays
+/// use), snaps it to a "nice" arcminute / degree increment, and then sizes the
+/// bar to the *exact* on-screen length of that snapped value so the rule and
+/// its label always agree.
 class _ScaleIndicator extends StatelessWidget {
   final NightshadeColors colors;
   final double zoom;

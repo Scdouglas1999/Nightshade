@@ -464,8 +464,8 @@ class _BuiltinGuiderSettingsCardState
       return;
     }
 
-    // Sanity bounds. Errors are a feature: bail loudly rather than
-    // silently coerce the user's input.
+    // Sanity bounds: reject the value and say so, rather than silently
+    // coercing the user's input into range.
     if (exposure <= 0 || exposure > 30) {
       context.showErrorSnackBar('Exposure must be between 0 and 30 seconds');
       return;

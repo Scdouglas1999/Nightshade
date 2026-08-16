@@ -6,22 +6,17 @@
 // plugin handler uses this service only to identify and remove inert archives
 // left by older builds. Live plugin state comes from PluginHost.
 //
-// Historical responsibilities retained for registry migration/tests:
-//   * Persist plugin archive bytes to disk under `<appData>/Nightshade/plugins/`.
-//   * Compute and verify a SHA-256 fingerprint per archive. This is the
-//     real "signature" scheme for this wave: a manifest declares the
-//     expected digest, and on every upload we recompute and compare. A
-//     full PKI / signing-key scheme is a future deliverable — but the
-//     SHA-256 path is sufficient to catch corrupted uploads and
-//     tampered-in-transit payloads, which is the actual threat model
-//     for a LAN deployment.
-//   * Track the old enabled/disabled preference in a sidecar JSON file.
+// The registry it still owns, for migration and tests:
+//   * archive bytes on disk under `<appData>/Nightshade/plugins/`,
+//   * a SHA-256 fingerprint per archive, recomputed on upload and compared
+//     against the digest the manifest declares — enough to catch a corrupted
+//     or tampered-in-transit payload on a LAN, short of a signing-key scheme,
+//   * the enabled/disabled preference in a sidecar JSON file.
 //
-// Why this lives in `nightshade_core` (not `nightshade_plugins`):
-// `nightshade_plugins` is the API surface plugin AUTHORS implement.
-// This service is the HOST-side disk/registry layer that the headless
-// API exposes. Keeping it here keeps `nightshade_plugins` free of any
-// file-system or app-data concerns.
+// It lives in `nightshade_core`, not `nightshade_plugins`, because that package
+// is the API surface plugin AUTHORS implement; this is the host-side
+// disk/registry layer the headless API exposes, and keeping it here leaves the
+// author-facing package free of file-system concerns.
 
 import 'dart:async';
 import 'dart:convert';
@@ -55,11 +50,9 @@ class InstalledPluginManifest {
   /// Plugin description.
   final String? description;
 
-  /// Historical operator preference stored by the old archive API.
-  ///
-  /// This is never runtime state. Restarting cannot load the archive in a Dart
-  /// AOT build; headless responses override this to false and identify the row
-  /// as a non-runnable uploaded archive.
+  /// The operator preference recorded by the archive API. Never runtime
+  /// state: a Dart AOT build cannot load the archive, and headless responses
+  /// override this to false and mark the row a non-runnable uploaded archive.
   final bool enabled;
 
   /// Whether a signature (SHA-256 manifest hash) was supplied at install
@@ -274,9 +267,8 @@ class PluginManagementService {
   ///   * a binary file whose first 4 KiB contains a parseable JSON
   ///     manifest near the head.
   ///
-  /// If neither yields a manifest, the upload is REJECTED — silently
-  /// installing an opaque blob is the silent fallback the project
-  /// policy explicitly forbids.
+  /// If neither yields a manifest, the upload is REJECTED: installing an
+  /// opaque blob would be a silent fallback.
   Future<InstalledPluginManifest> installFromBytes(
     List<int> bytes, {
     required String filename,
@@ -455,9 +447,7 @@ class PluginManagementService {
     return null;
   }
 
-  // =========================================================================
   // Internal: registry persistence
-  // =========================================================================
 
   Future<Map<String, InstalledPluginManifest>> _loadRegistry() async {
     final pluginDir = await _pluginDirectory();

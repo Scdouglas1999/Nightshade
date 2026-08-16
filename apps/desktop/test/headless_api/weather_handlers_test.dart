@@ -125,13 +125,13 @@ void main() {
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['field'], 'maxHumidityPercent');
     });
-    // Regression: a clear sky produced HTTP 500 from both weather endpoints.
+    // A clear sky must not produce HTTP 500 from the weather endpoints.
     //
     // WeatherAlertService represents "no cloud front detected" as an infinite
     // distance, which is correct for its threshold comparisons but has no JSON
-    // encoding. Serialising it raw made jsonEncode throw, so the two endpoints
-    // that answer "is it safe to image?" returned an opaque internal error on
-    // precisely the nights when the answer was "yes, perfectly clear".
+    // encoding. Serialising it raw makes jsonEncode throw, so the two endpoints
+    // that answer "is it safe to image?" return an opaque internal error on
+    // precisely the nights when the answer is "yes, perfectly clear".
     test(
       'clear sky (no cloud front) serialises instead of failing to encode',
       () async {

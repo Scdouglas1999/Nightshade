@@ -163,9 +163,9 @@ void main() {
     expect(find.textContaining('0.320'), findsWidgets);
   });
 
-  // The corner tags are the half of the fix that says WHERE: without them a red
-  // blob cannot be turned into a tilt adjustment. They are painted onto the
-  // surface, so no finder can see them — the painter has to be driven directly.
+  // The corner tags are the half that says WHERE: without them a red blob
+  // cannot be turned into a tilt adjustment. They are painted onto the surface,
+  // so no finder can see them — the painter has to be driven directly.
   testWidgets('the painter tags all four grid corners on the surface',
       (tester) async {
     await tester.pumpWidget(

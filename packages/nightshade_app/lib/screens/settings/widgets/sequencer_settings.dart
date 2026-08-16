@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -857,26 +856,6 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 ),
               ],
             ),
-            if (!kReleaseMode)
-              SettingsSection(
-                title: 'Development',
-                children: [
-                  SettingRow(
-                    icon: LucideIcons.testTube,
-                    title: 'Simulation mode',
-                    subtitle: 'Use simulated devices instead of real hardware',
-                    trailing: SettingsSwitch(
-                      value: settings.useSimulationMode,
-                      onChanged: (value) {
-                        return ref
-                            .read(appSettingsProvider.notifier)
-                            .setUseSimulationMode(value);
-                      },
-                    ),
-                    isLast: true,
-                  ),
-                ],
-              ),
           ],
         );
       },

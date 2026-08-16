@@ -71,7 +71,7 @@ class CalibrationLibraryService {
   final BackendNotifier? _backendNotifier;
   bool _retired = false;
 
-  /// The hub-backed shared calibration library (WS1). When set, [match] folds
+  /// The hub-backed shared calibration library. When set, [match] folds
   /// ranked REMOTE candidates into the local ranking and [acceptRemoteMaster]
   /// can download + merge a chosen one. Null on a remote client (the appliance
   /// owns matching) and in wirings without a hub.
@@ -113,9 +113,7 @@ class CalibrationLibraryService {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Listing + enrichment
-  // ---------------------------------------------------------------------------
 
   /// All library records matching [filter], newest first.
   ///
@@ -239,9 +237,7 @@ class CalibrationLibraryService {
     return null;
   }
 
-  // ---------------------------------------------------------------------------
   // Matching
-  // ---------------------------------------------------------------------------
 
   /// Pick the best master per type for [context].
   ///
@@ -264,13 +260,9 @@ class CalibrationLibraryService {
   ///  * **Defect maps**: per camera id; nearest temperature bucket.
   ///
   /// When a shared calibration library is configured ([_remoteLibrary]) and
-  /// [includeRemote] is set, ranked REMOTE candidates are folded into the same
-  /// per-type ranking (WS1): a downloaded master is preferred on an exact tuple
-  /// tie (local-first), the quality gate refuses any whose sensor/dimensions do
-  /// not match, and a REMOTE flat is only ever reused on an EXACT optical-train
-  /// match (never across trains). The chosen remote master's provenance (frame
-  /// count, dark current, who shot it, license) rides on the result so the user
-  /// can trust what they pull, then [acceptRemoteMaster] downloads + merges it.
+  /// [includeRemote] is set, ranked remote candidates join the same per-type
+  /// ranking, local-first on an exact tuple tie. The chosen master's provenance
+  /// rides on the result; [acceptRemoteMaster] downloads and merges it.
   Future<CalibrationMatchSet> match(
     LightFrameContext context, {
     CalibrationMatchTolerances tolerances = CalibrationMatchTolerances.defaults,
@@ -377,12 +369,10 @@ class CalibrationLibraryService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Shared calibration libraries (WS1)
-  // ---------------------------------------------------------------------------
+  // Shared calibration libraries
 
   /// Download a REMOTE master surfaced by [match] and merge it into the local
-  /// library, applying the WS1 quality + consent gates and conflict resolution:
+  /// library, applying the quality + consent gates and conflict resolution:
   ///
   ///  * refuses a non-shareable license, a defect map, or a flat without an
   ///    optical-train tag (a flat is never reusable across trains);
@@ -554,9 +544,7 @@ class CalibrationLibraryService {
     await _tagsDao.upsert(record.type, record.id, clearPublishedRemoteId: true);
   }
 
-  // ---------------------------------------------------------------------------
   // Tagging
-  // ---------------------------------------------------------------------------
 
   /// Replace the user tags of one master.
   Future<void> setTags(
@@ -603,9 +591,7 @@ class CalibrationLibraryService {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Deletion
-  // ---------------------------------------------------------------------------
 
   /// Delete one master's DB row (plus its `calibration_tags` annotation) and,
   /// when [deleteFile] is set, the on-disk artifact(s). Returns false when no
@@ -693,7 +679,7 @@ final calibrationLibraryServiceProvider = Provider<CalibrationLibraryService>((
     tagsDao: ref.watch(calibrationTagsDaoProvider),
     ref: ref,
     backend: backend,
-    // WS1: fold ranked masters shared on the configured Constellation hub into
+    // Fold ranked masters shared on the configured Constellation hub into
     // the local ranking, and download-on-accept. Reuses the same settings-backed
     // hub credentials Pillar C resolves; a no-hub config simply yields no remote
     // candidates.

@@ -9,19 +9,11 @@ import 'database_provider.dart';
 
 /// Riverpod plumbing for the hardware-presets library.
 ///
-/// Wires the pure [HardwarePresetsService] to persistence, following the
-/// same discipline as [onboarding_provider]'s `OnboardingNotifier`:
-///   * the notifier kicks off an async `_load()` immediately and exposes
-///     [HardwarePresetsNotifier.isLoaded] + [HardwarePresetsNotifier.loaded]
-///     so the UI/tests can wait for hydration,
-///   * the user override lists live as JSON blobs in `app_settings` keyed by
-///     [HardwarePresetsService.telescopeOverridesSettingKey] /
-///     [HardwarePresetsService.cameraOverridesSettingKey] (the same precedent
-///     as the onboarding draft blob), and
-///   * mutations persist *before* updating in-memory state, are mounted-guarded,
-///     and surface errors rather than swallowing them (a malformed persisted
-///     blob throws [FormatException] on load; deleting a built-in throws
-///     [StateError]).
+/// Wires the pure [HardwarePresetsService] to persistence. The user override
+/// lists live as JSON blobs in `app_settings` keyed by
+/// [HardwarePresetsService.telescopeOverridesSettingKey] /
+/// [HardwarePresetsService.cameraOverridesSettingKey], and mutations persist
+/// *before* updating in-memory state.
 ///
 /// The built-in catalogs are immutable: editing a built-in preset stores an
 /// `isBuiltIn: false` override copy under its (stable) id, which the service's
@@ -70,8 +62,8 @@ class HardwarePresetsNotifier extends StateNotifier<HardwarePresetsService> {
   Completer<void>? _loadCompleter;
 
   /// Captures a load failure (e.g. a malformed persisted blob) so it remains
-  /// surfaceable through [loaded] no matter when the future is awaited —
-  /// errors are a feature here and must not get swallowed.
+  /// surfaceable through [loaded] no matter when the future is awaited: a
+  /// swallowed load error reads as an empty preset library.
   Object? _loadError;
   StackTrace? _loadStackTrace;
 
@@ -198,9 +190,7 @@ class HardwarePresetsNotifier extends StateNotifier<HardwarePresetsService> {
     state = state.withOverrides(cameraOverrides: next);
   }
 
-  // -------------------------------------------------------------------------
   // Internals.
-  // -------------------------------------------------------------------------
 
   /// The current telescope overrides, recovered as the merged-list entries that
   /// are not built-ins. Because the merge places overrides first and de-dupes

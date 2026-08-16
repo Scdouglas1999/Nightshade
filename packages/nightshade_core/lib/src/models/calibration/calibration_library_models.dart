@@ -118,7 +118,7 @@ class CalibrationMasterRecord {
   final List<String> tags;
   final String? notes;
 
-  /// WS1 shared-library provenance (null for purely local masters):
+  /// Shared-library provenance (null for purely local masters):
   ///  * [remoteId] — the hub master id; non-null marks a REMOTE candidate that
   ///    has not (yet) been downloaded into the local library ([isRemote]).
   ///  * [sourceHubKey] — the hub the candidate came from (`scheme://host:port`).
@@ -356,7 +356,7 @@ class LightFrameContext {
   final int binY;
   final String? opticalTrainId;
 
-  /// Sensor dimensions of the light frames in pixels, when known. WS1's quality
+  /// Sensor dimensions of the light frames in pixels, when known. The quality
   /// gate refuses a REMOTE master whose recorded sensor dimensions do not match
   /// these (a master from a different sensor geometry can never calibrate this
   /// frame, no matter how well the tuple matches).

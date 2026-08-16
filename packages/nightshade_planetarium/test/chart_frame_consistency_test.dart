@@ -1,16 +1,15 @@
-// Regression test: everything on the sky chart must share ONE equinox.
+// Everything on the sky chart shares ONE equinox.
 //
 // The star and DSO catalogues are J2000. The planetary theory (VSOP87D), the
-// Sun and the Moon are theories of DATE, and their output used to reach the
-// chart unconverted — so in 2026 the solar-system bodies were drawn ~22 arcmin
-// (about two thirds of a Moon diameter) from the star background they are read
-// against. The audit caught it in the worst possible place: Jupiter drawn
+// Sun and the Moon are theories of DATE, so output that reaches the chart
+// unconverted draws the 2026 solar-system bodies ~22 arcmin (about two thirds
+// of a Moon diameter) from the star background they are read against — Jupiter
 // beside M44 with the wrong separation.
 //
-// Ground truth for the planet case is the independent Keplerian ephemeris the
-// audit used, which the app's own truncated VSOP agreed with to ~0.4 arcmin at
-// that instant — so a 3 arcmin tolerance is far inside the theory's error while
-// the wrong frame is 22 arcmin away.
+// Ground truth for the planet case is an independent Keplerian ephemeris, which
+// the app's own truncated VSOP agrees with to ~0.4 arcmin at that instant — so
+// a 3 arcmin tolerance is far inside the theory's error while the wrong frame
+// is 22 arcmin away.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/src/astronomy/astronomy_calculations.dart';
@@ -171,7 +170,7 @@ void main() {
 
     test('twilight and altitude keep their apparent (of-date) Sun', () {
       // sunAltitude/rise-set must NOT be dragged into J2000: an observer's
-      // horizon is an of-date quantity. This pins the split the fix relies on.
+      // horizon is an of-date quantity. This pins that split.
       final container = pinnedAt(_instant);
       addTearDown(container.dispose);
       container

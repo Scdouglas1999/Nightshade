@@ -112,13 +112,9 @@ class _SessionDetailDialog extends ConsumerWidget {
                             tooltip: l10n.text('analyticsExportHtml'),
                           ),
                           // Share only exists where the OS has a share sheet.
-                          // On desktop `shareXFiles()` is unimplemented — the
-                          // button used to throw
-                          // "UnimplementedError: shareXFiles() has not been
-                          // implemented on Linux" into a red toast — and the
-                          // CSV button beside it already writes the same file
-                          // and shows its path, so there is nothing left for
-                          // this action to do there.
+                          // On desktop `shareXFiles()` is unimplemented, and
+                          // the CSV button beside it already writes the same
+                          // file and shows its path.
                           if (Platform.isAndroid || Platform.isIOS)
                             IconButton(
                               icon: const Icon(LucideIcons.share, size: 18),
@@ -383,12 +379,9 @@ class _SessionDetailDialog extends ConsumerWidget {
   /// Export the session to CSV and hand it to the platform's reachable
   /// destination.
   ///
-  /// This used to call `Share.shareXFiles` directly, which throws
-  /// `UnimplementedError: shareXFiles() has not been implemented on Linux` in
-  /// the shipping desktop build — leaving the user with an internal API name in
-  /// a red toast and an orphaned export file. [revealExportedFile] is the
-  /// existing helper the other three export actions already use: share sheet on
-  /// Android/iOS, path snackbar on desktop.
+  /// Routed through [revealExportedFile] — share sheet on Android/iOS, path
+  /// snackbar on desktop — because `Share.shareXFiles` is unimplemented on the
+  /// shipping desktop build.
   Future<void> _exportAndShare(BuildContext context, WidgetRef ref) async {
     try {
       final backend = ref.read(backendProvider);

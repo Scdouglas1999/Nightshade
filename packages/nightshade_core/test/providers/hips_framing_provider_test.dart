@@ -16,9 +16,7 @@ import 'package:nightshade_core/src/services/hips/hips_tile_fetcher.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_loader.dart';
 import '../harness/in_memory_database.dart';
 
-// ===========================================================================
 // Fixtures / doubles
-// ===========================================================================
 
 const String _dssRedSurveyId = 'CDS/P/DSS2/red';
 const String _dssRedBaseUrl = 'https://alasky.cds.unistra.fr/DSS/DSS2Merged';
@@ -149,9 +147,7 @@ Future<void> _settle() async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // -------------------------------------------------------------------------
   // Feature flag + capability gate
-  // -------------------------------------------------------------------------
   group('feature flag and survey capability gate', () {
     test('hipsFramingEnabledProvider defaults on', () {
       final container = ProviderContainer(
@@ -204,9 +200,7 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
   // Survey address resolution
-  // -------------------------------------------------------------------------
   group('HipsSurveyAddress', () {
     test('resolves verified DSS survey to its base URL + canonical id', () {
       final addr = HipsSurveyAddress.forSurvey(SurveySource.dss2Red);
@@ -222,9 +216,7 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
   // DI wiring + ownership
-  // -------------------------------------------------------------------------
   group('DI wiring and ownership', () {
     test('loader provider builds from the cache + fetcher providers', () {
       final container = _container();
@@ -264,9 +256,7 @@ void main() {
     );
   });
 
-  // -------------------------------------------------------------------------
   // Resident-tiles notifier
-  // -------------------------------------------------------------------------
   group('HipsResidentTilesNotifier', () {
     test('starts at the loader empty snapshot', () {
       final container = _container();

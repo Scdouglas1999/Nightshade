@@ -69,28 +69,21 @@ final latestScienceSessionProvider = FutureProvider<int?>((ref) async {
   // Remote rigs answer through the network backend, which has no equivalent
   // query; the caller falls back to the newest session there.
   if (backend is NetworkBackend) return null;
-  // WF-SCI-N1: this was computed ONCE and never again, so the Session tab kept
-  // reviewing the previous night after a run finished — the newer run sat one
-  // row up in its own dropdown, and picking it reverted on the next visit.
-  // Restarting the app fixed it, which is the signature of a cached answer
-  // rather than a wrong query. Watching the session stream reruns the query
-  // whenever a session row is written — including the status/end-time update a
-  // run makes when it finishes, which is the moment the answer changes.
+  // Watching the session stream reruns the query whenever a session row is
+  // written — including the status/end-time update a run makes when it
+  // finishes, which is the moment the answer changes.
   await ref.watch(allSessionsProvider.future);
   return ref.read(imagesDaoProvider).getLatestSessionIdWithLightFrames();
 });
 
 /// The most recent session that carries an actual science PRODUCT — a
-/// photometry measurement or a plate-solved frame.
+/// photometry measurement or a plate-solved frame. Not the same question as
+/// the newest session holding light frames: two test frames shot after a
+/// photometry night are lights, but carry no product.
 ///
-/// The Science tab used to open on the newest session holding light frames,
-/// which is not the same question: two test frames shot after a 120-frame
-/// photometry night are lights, so the tab opened on them and reported
-/// "0 of 2 solved", "Warming up" and the never-started empty state, with the
-/// night of real measurements two clicks away in a dropdown. Ordering comes
-/// from [allSessionsProvider] (newest first) rather than from the product
-/// timestamps, so "most recent" means the same thing here as in the session
-/// picker beside it.
+/// Ordering comes from [allSessionsProvider] (newest first) rather than from
+/// the product timestamps, so "most recent" means the same thing here as in
+/// the session picker beside it.
 final latestScienceProductSessionProvider = FutureProvider<int?>((ref) async {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) return null;
@@ -308,7 +301,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
         _tileMetricSnapshotForImage(tileMetrics, _selectedFrameImageId);
     // Memoized via Riverpod so a re-render that doesn't change the underlying
     // PSF/residual snapshots reuses the prior analysis instead of recomputing
-    // it on every frame (audit §6.20).
+    // it on every frame.
     final diagnostics = ref.watch(
       latestSnapshotOpticalTrainDiagnosticsProvider(activeSessionId),
     );
@@ -352,9 +345,9 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     final hasExportableData =
         lightCurve.isNotEmpty || moving.isNotEmpty || calibrations.isNotEmpty;
 
-    // Audit §4.12: when neither an active session nor any standalone capture
-    // has produced science data, render a single shared placeholder instead
-    // of stacking nine "no data" cards (one per panel).
+    // When neither an active session nor any standalone capture has produced
+    // science data, render a single shared placeholder instead of stacking
+    // nine "no data" cards (one per panel).
     final bool allEmpty = lightCurve.isEmpty &&
         transparency.isEmpty &&
         transparencyRows.isEmpty &&
@@ -431,7 +424,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                 hasExportableData: hasExportableData,
                 // Nothing on this branch to scroll to — there are no charts
                 // yet — so "go to photometry" means the live science HUD, not
-                // the calibration wizard it used to open.
+                // the calibration wizard.
                 onJumpToPhotometry: () => _goPickPhotometryTarget(context),
                 onRunCalibration: () => _openCalibrationWizard(context),
                 onPickTarget: () => _goPickPhotometryTarget(context),
@@ -484,14 +477,10 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             hasExportableData: hasExportableData,
             onJumpToPhotometry: () => _jumpTo(_sectionKeys.photometry),
             // Rung 1's button says 'Run calibration', so it opens the
-            // photometric calibration wizard. It used to scroll to FIELD
-            // QUALITY, a section whose only control grades frames — which left
-            // the wizard reachable ONLY from the empty-state ladder above, i.e.
-            // unreachable the moment the user had any science data at all.
+            // photometric calibration wizard.
             onRunCalibration: () => _openCalibrationWizard(context),
-            // Rung 2 says 'Pick a target'; the PHOTOMETRY section it used to
-            // scroll to plots curves and exports them, it does not choose the
-            // star.
+            // Rung 2 says 'Pick a target'; the PHOTOMETRY section plots curves
+            // and exports them, it does not choose the star.
             onPickTarget: () => _goPickPhotometryTarget(context),
             onOpenExport: () => _openExportHub(context, moving),
           ),
@@ -504,9 +493,9 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             onTap: () => context.go('/transients'),
           ),
           const SizedBox(height: 12),
-          // Audit §4.13: jump nav for the three logical sections below. Sits
-          // at the top of the scroll view; the IndexedStack containing this
-          // tab keeps it pinned visually whenever the tab is active.
+          // Jump nav for the three logical sections below. Sits at the top of
+          // the scroll view; the IndexedStack containing this tab keeps it
+          // pinned visually whenever the tab is active.
           _ScienceJumpNav(
             colors: colors,
             onPhotometry: () => _jumpTo(_sectionKeys.photometry),
@@ -599,9 +588,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
               ],
             ),
           const SizedBox(height: 24),
-          // -------------------------------------------------------------
           // Section: Night Story (Night Narrator surface #3)
-          // -------------------------------------------------------------
           // The session's narrative timeline — sits right after the insights
           // panel (which reports what's true *now*) so the user reads the
           // stateless snapshot and then the temporal story of the night
@@ -614,9 +601,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
           const SizedBox(height: 12),
           NightStoryTimeline(sessionId: activeSessionId),
           const SizedBox(height: 24),
-          // -------------------------------------------------------------
-          // Section: Photometry
-          // -------------------------------------------------------------
+          // Section: photometry
           KeyedSubtree(
             key: _sectionKeys.photometry,
             child: _SectionHeading(
@@ -682,9 +667,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             campaignSessionCount: campaignSessionCount,
           ),
           const SizedBox(height: 24),
-          // -------------------------------------------------------------
-          // Section: Field Quality
-          // -------------------------------------------------------------
+          // Section: field quality
           KeyedSubtree(
             key: _sectionKeys.fieldQuality,
             child: _SectionHeading(
@@ -767,9 +750,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
           const SizedBox(height: 16),
           _PhotometricTransformsCard(colors: colors),
           const SizedBox(height: 24),
-          // -------------------------------------------------------------
-          // Section: Anomalies
-          // -------------------------------------------------------------
+          // Section: anomalies
           KeyedSubtree(
             key: _sectionKeys.anomalies,
             child: _SectionHeading(

@@ -1,15 +1,14 @@
-// Regression: the app stated three different depths for the same bundled star
-// catalog, all wrong in the same direction.
+// The app states ONE depth for the bundled star catalog.
 //
-// Reached from the planetarium's Layers panel > Deep stars > Install, the
-// Catalog Settings sheet described the installed HYG Star Database as
-// "119.6k objects, 32.4 MB, Version 4.2, Package Complete, Depth mag <= 15.0",
-// two cards further down the Deep-Star Tier card called the same catalog's
-// floor "~mag 11.5", and the Layers panel said "stars below mag 11.5 are
-// unavailable". 15.0 is the LOADER'S inclusion filter mislabelled "Depth";
-// counting the shipped file (119,626 rows) the per-magnitude gain turns over
-// after 9. "Package: Complete" beside "Depth: mag <= 15.0" told the user that
-// the nearly-empty field at an imaging FOV was the real sky.
+// Three surfaces quote it: reached from the planetarium's Layers panel > Deep
+// stars > Install, the Catalog Settings sheet describes the installed HYG Star
+// Database ("119.6k objects, 32.4 MB, Version 4.2, Package Complete, Depth
+// mag <= 15.0"), two cards further down the Deep-Star Tier card names the same
+// catalog's floor, and the Layers panel says which stars are unavailable. 15.0
+// is the LOADER'S inclusion filter mislabelled "Depth"; counting the shipped
+// file (119,626 rows) the per-magnitude gain turns over after 9. "Package:
+// Complete" beside "Depth: mag <= 15.0" tells the user that the nearly-empty
+// field at an imaging FOV is the real sky.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 

@@ -185,10 +185,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('wizard-next')));
     await tester.pumpAndSettle();
 
-    // Step 3 — review + save. The review headline must name the SAME
-    // constraint the Step 1 card did: with a moon-separation sibling in the
-    // list, the old umbrella 'Moon avoidance' no longer says which of the two
-    // is about to be written.
+    // Step 3 — review + save. The review headline must name the SAME constraint
+    // the Step 1 card did: with a moon-separation sibling in the list, an
+    // umbrella 'Moon avoidance' does not say which of the two is being written.
     expect(find.text('Review and save'), findsOneWidget);
     expect(find.text('Moon illumination'), findsOneWidget);
     expect(find.text('Moon avoidance'), findsNothing);

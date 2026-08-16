@@ -1,9 +1,9 @@
-// Regression: at a 1600x1000 window the guiding controls card is taller than
-// the slot the Guiding screen gives it, and the only hint that more content
-// existed was a ~4 px sliver of a card edge at the bottom margin. "Settle
-// Settings" — the control that governs post-dither settle behaviour — was
-// therefore invisible unless the user guessed they could scroll inside the
-// card. The panel must announce the clipped content.
+// The panel must announce its clipped content. At a 1600x1000 window the
+// guiding controls card is taller than the slot the Guiding screen gives it,
+// and a ~4 px sliver of a card edge at the bottom margin is the only hint more
+// exists — so "Settle Settings", the control that governs post-dither settle
+// behaviour, is invisible unless the user guesses they can scroll inside the
+// card.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/phd2/guide_controls_panel.dart';

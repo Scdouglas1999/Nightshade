@@ -9,10 +9,9 @@ import 'package:nightshade_core/src/services/sequence_diff_service.dart';
 /// existing sequence", and the headless `load-and-start` route) before editing
 /// or running it.
 ///
-/// This file used to assert the opposite of what it asserts now: that the copy
-/// arrived under FRESH node IDs and "no original ID survives". That was measured
-/// on the running app to be a defect, not an invariant — see
-/// `preserves node IDs` below for what it broke.
+/// The copy PRESERVES node IDs: it points at the same library row, and both
+/// the incremental save partitioning and the sequence diff key off node
+/// identity — see `preserves node IDs` below.
 
 ProviderContainer _newContainer() {
   final container = ProviderContainer();
@@ -112,9 +111,9 @@ void main() {
     });
 
     test('a real edit still shows up as a MODIFIED node, not remove+add', () {
-      // The other half of the regression: with fresh IDs the ID intersection was
-      // always empty, so SequenceDiffService's per-field comparison — every node
-      // subtype, hundreds of lines of it — could never run.
+      // With fresh IDs the ID intersection is always empty, so
+      // SequenceDiffService's per-field comparison — every node subtype,
+      // hundreds of lines of it — never runs.
       final before = _newContainer();
       _notifier(before).loadCopyForEditing(_sourceSequence());
       final a = before.read(currentSequenceProvider)!;

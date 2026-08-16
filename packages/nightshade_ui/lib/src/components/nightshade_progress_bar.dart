@@ -232,10 +232,10 @@ class _StandardProgressBarState extends State<_StandardProgressBar> {
         // against the incoming ones, and a tight parent (`Expanded` inside a
         // `Row` — how almost every call site uses this widget) hands down
         // min == max == full width. The requested fraction width was therefore
-        // clamped back UP to the full width and silently discarded, so every
-        // determinate bar in the app painted 100% full regardless of `value`.
-        // Symmetrically, under LOOSE constraints the track used to shrink-wrap
-        // to the fill instead of spanning its slot.
+        // clamped back UP to the full width and silently discarded, painting
+        // every determinate bar 100% full regardless of `value`. Symmetrically,
+        // under LOOSE constraints a track sized from the fill shrink-wraps to
+        // it instead of spanning its slot.
         final trackWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : null;

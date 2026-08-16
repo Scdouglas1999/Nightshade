@@ -1,12 +1,11 @@
-// Regression: DEVICE HEARTBEATS must never invent a "last seen" it does not
-// have.
+// DEVICE HEARTBEATS must never invent a "last seen" it does not have.
 //
-// Observed live seconds after connecting six simulated devices: only the camera
-// tracks a successful-communication timestamp, so every other device carried
-// `lastSuccessfulTimestampMs: 0` and the chip rendered epoch zero as an age —
+// Only the camera tracks a successful-communication timestamp, so seconds after
+// connecting six simulated devices every other device carries
+// `lastSuccessfulTimestampMs: 0`. Rendering epoch zero as an age gives
 // "OK - 20676d ago" (56.6 years) next to a green OK dot, with the overall score
-// still reading 100 - Excellent. The one widget whose job is to catch a device
-// that has gone quiet was proving itself untrustworthy on the happy path.
+// still reading 100 - Excellent: the one widget whose job is to catch a device
+// that has gone quiet, untrustworthy on the happy path.
 //
 // No timestamp is UNKNOWN, and it must read as unknown.
 import 'package:flutter/material.dart';

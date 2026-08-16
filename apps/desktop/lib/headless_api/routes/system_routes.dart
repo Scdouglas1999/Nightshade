@@ -20,9 +20,9 @@ List<HeadlessRoute> buildSystemRoutes(SystemHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.get, '/api/info', h.handleInfo),
   HeadlessRoute(HttpMethod.get, '/api/status', h.handleStatus),
   HeadlessRoute(HttpMethod.get, '/api/self-test', h.handleSelfTest),
-  // Always-on build-version endpoint. Lives here (not in the OTA update
-  // routes) so it is reachable even when no UpdateController is wired — the
-  // update-routes group is skipped in that case, which used to 404 this.
+  // Always-on build-version endpoint. Lives here, not in the OTA update
+  // routes: that group is skipped when no UpdateController is wired, so
+  // registering it there would 404 exactly when a client needs the version.
   HeadlessRoute(HttpMethod.get, '/api/system/version', h.handleVersion),
   // Host capture-directory disk telemetry (view scope via the GET
   // fallthrough) — remote dashboards render storage/readiness from this.

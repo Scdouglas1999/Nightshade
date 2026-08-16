@@ -7,22 +7,16 @@ import 'onboarding/onboarding_overlay.dart';
 /// Mounts the [OnboardingOverlay] above the app shell whenever the first-launch
 /// tour's persisted status is [FirstLaunchTourStatus.pending].
 ///
-/// ## Why this exists
-///
-/// Under the single-spine startup model (Onboarding & First-Light IA, C13) the
-/// first-launch tour no longer auto-fires on a fresh install — the equipment
-/// onboarding spine owns first-run setup. The tour is **replay-only**: Settings
-/// → Help & Tutorials → "Re-run onboarding tour" calls
+/// The tour is REPLAY-ONLY — the equipment onboarding spine owns first-run
+/// setup. Settings → Help & Tutorials → "Re-run onboarding tour" calls
 /// [OnboardingTourNotifier.reset], which flips the persisted status back to
-/// pending and invalidates [firstLaunchTourStatusProvider].
+/// pending and invalidates [firstLaunchTourStatusProvider]; this launcher
+/// watches that provider and overlays the tour on the running app, so the
+/// replay button works without a restart.
 ///
-/// This launcher is the consumer that closes that loop. It watches the status
-/// provider and, on `pending`, overlays the tour on top of the running app so
-/// the replay button actually shows the tour — without a restart and without
-/// the tour ever auto-launching on first run. `pending` means "a replay was
-/// explicitly requested and is unfinished"; a brand-new install has no row at
-/// all and reads as [FirstLaunchTourStatus.notStarted], which does not mount
-/// anything.
+/// `pending` means "a replay was explicitly requested and is unfinished". A
+/// brand-new install has no row at all and reads as
+/// [FirstLaunchTourStatus.notStarted], which mounts nothing.
 ///
 /// The overlay sits in a [Stack] above [child] (rather than as a route) so it
 /// floats over whatever screen the user is on — exactly where the per-step

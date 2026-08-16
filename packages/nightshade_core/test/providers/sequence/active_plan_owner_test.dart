@@ -68,7 +68,7 @@ void main() {
         expect(editor.isDirty, isTrue);
         expect(c.read(activePlanOwnerProvider), ActivePlanOwner.manual);
 
-        // Autopilot takes over (the old code would discardUnsaved:true here).
+        // Autopilot takes over without discarding the operator's unsaved work.
         final auto = buildSequence(name: 'Autopilot Plan', databaseId: 5);
         editor.takeOwnership(auto, ActivePlanOwner.autopilot);
 

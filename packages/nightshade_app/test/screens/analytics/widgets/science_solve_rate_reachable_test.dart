@@ -1,9 +1,9 @@
-// SCI-22: with a solver installed, configured and being launched per frame —
-// app.log showed `Running ASTAP: ".../astap_cli" -f …` followed by
-// `No solution found! :(` and `ASTAP exited with non-zero status 1` — the Plate
-// solve health card still said "most science products will stay empty until a
-// solver is reachable". The solver was reachable and failing, so the card sent
-// the user to reinstall their solver instead of checking pointing and scale.
+// The Plate solve health card must tell a reachable-but-failing solver apart
+// from a missing one. With a solver installed, configured and launched per frame
+// — `Running ASTAP: ".../astap_cli" -f …` followed by `No solution found! :(`
+// and `ASTAP exited with non-zero status 1` — a card saying "most science
+// products will stay empty until a solver is reachable" sends the user to
+// reinstall their solver instead of checking pointing and scale.
 
 import 'dart:async';
 

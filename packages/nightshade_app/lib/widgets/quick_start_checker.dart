@@ -265,11 +265,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         );
       }
 
-      // What was genuinely re-applied, in the operator's words. A session row
-      // that carries no profile id, no sequence id and no equipment snapshot
-      // gives this handler nothing to do, and the old unconditional success
-      // snackbar reported "Loaded previous setup ... from frame 1" over a
-      // no-op. Report what actually happened instead.
+      // Report what was genuinely re-applied, in the operator's words. A
+      // session row carrying no profile id, no sequence id and no equipment
+      // snapshot gives this handler nothing to do, so an unconditional success
+      // snackbar would announce a restore over a no-op.
       final restored = <String>[];
 
       // Load the equipment profile

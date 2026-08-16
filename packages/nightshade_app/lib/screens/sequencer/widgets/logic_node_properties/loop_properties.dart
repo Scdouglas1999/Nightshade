@@ -8,7 +8,7 @@ class LoopProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Trust-patch §B: belt-and-suspenders gate. The parent _NodeEditor
+    // Belt-and-suspenders gate. The parent _NodeEditor
     // already wraps the editor body in IgnorePointer when running; wrap our
     // own subtree in IgnorePointer too so that a future refactor pulling
     // LoopProperties out of the panel can't silently un-gate the inputs.
@@ -137,15 +137,18 @@ class LoopProperties extends ConsumerWidget {
                         colors: colors,
                         label: 'Civil Dawn',
                         onPressed: () {
-                          final location = ref.read(observerLocationProvider);
+                          // Twilight is a property of a place. With no site on
+                          // record there is no dawn to set the loop against.
+                          final site = ref.read(observerLocationProvider).site;
+                          if (site == null) return;
                           final now = DateTime.now();
 
                           // Calculate for today first
                           var twilight =
                               AstronomyCalculations.calculateTwilightTimes(
                             date: now,
-                            latitudeDeg: location.latitude,
-                            longitudeDeg: location.longitude,
+                            latitudeDeg: site.latitude,
+                            longitudeDeg: site.longitude,
                           );
 
                           var target = twilight.civilDawn;
@@ -155,8 +158,8 @@ class LoopProperties extends ConsumerWidget {
                             twilight =
                                 AstronomyCalculations.calculateTwilightTimes(
                               date: now.add(const Duration(days: 1)),
-                              latitudeDeg: location.latitude,
-                              longitudeDeg: location.longitude,
+                              latitudeDeg: site.latitude,
+                              longitudeDeg: site.longitude,
                             );
                             target = twilight.civilDawn;
                           }
@@ -175,15 +178,18 @@ class LoopProperties extends ConsumerWidget {
                         colors: colors,
                         label: 'Nautical Dawn',
                         onPressed: () {
-                          final location = ref.read(observerLocationProvider);
+                          // Twilight is a property of a place. With no site on
+                          // record there is no dawn to set the loop against.
+                          final site = ref.read(observerLocationProvider).site;
+                          if (site == null) return;
                           final now = DateTime.now();
 
                           // Calculate for today first
                           var twilight =
                               AstronomyCalculations.calculateTwilightTimes(
                             date: now,
-                            latitudeDeg: location.latitude,
-                            longitudeDeg: location.longitude,
+                            latitudeDeg: site.latitude,
+                            longitudeDeg: site.longitude,
                           );
 
                           var target = twilight.nauticalDawn;
@@ -193,8 +199,8 @@ class LoopProperties extends ConsumerWidget {
                             twilight =
                                 AstronomyCalculations.calculateTwilightTimes(
                               date: now.add(const Duration(days: 1)),
-                              latitudeDeg: location.latitude,
-                              longitudeDeg: location.longitude,
+                              latitudeDeg: site.latitude,
+                              longitudeDeg: site.longitude,
                             );
                             target = twilight.nauticalDawn;
                           }

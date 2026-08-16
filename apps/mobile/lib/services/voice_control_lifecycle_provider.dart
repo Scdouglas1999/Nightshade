@@ -10,9 +10,9 @@
 //     openLastImage / refreshStatus surface as forwarded actions other
 //     parts of the app can listen to.
 //
-// Per repo policy this provider does NOT silently swallow failures. We
-// log via LoggingService and rethrow PlatformExceptions from publish on
-// the throttled tick so they appear in the dev log.
+// Failures are not swallowed: a publish failure is logged via LoggingService
+// and its PlatformException rethrown on the throttled tick, so a voice cache
+// that has stopped updating is visible rather than silently stale.
 
 import 'dart:async';
 import 'dart:developer' as developer;

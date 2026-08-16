@@ -44,7 +44,7 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
 
   /// Migrate an older layout onto the current default by rebuilding tiles from
   /// `defaultLayout()` while preserving each tile's enabled/disabled state by
-  /// id. Tiles present in the old layout but not in the current default drop
+  /// id. Tiles present in the stored layout but not in the current default drop
   /// out (correct — they are no longer part of the shipped layout); new tiles
   /// in the default keep their default enabled state.
   DashboardLayout _migrateToCurrentVersion(DashboardLayout oldLayout) {
@@ -55,13 +55,10 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
     // Two force-disable exceptions during migration:
     //   * Quick Stats — redundant with the Command Bar stats.
     //   * The four cockpit panels superseded by the merged `cockpitNowImaging`
-    //     and `cockpitFrames` tiles (density pass v5). v4 users had these
-    //     enabled; without this the merged tiles would render alongside the old
-    //     panels, showing both. The merged ids aren't in old layouts, so they
-    //     come in enabled from the defaults — net result is the dense default.
-    // The v6 additions (quality/session-vitals/sky-context/forensics) aren't in
-    // pre-v6 layouts either, so they too take their default enabled state — only
-    // Quality ships enabled, matching defaultLayout().
+    //     and `cockpitFrames` tiles; without this a stored layout holding the
+    //     old panels enabled would render both sets.
+    // Ids absent from a stored layout take their default enabled state, so the
+    // net result matches defaultLayout().
     const forceDisabled = <DashboardWidgetId>{
       DashboardWidgetId.quickStats,
       DashboardWidgetId.cockpitTargetHeader,
@@ -215,11 +212,8 @@ final dashboardLayoutProvider =
 /// arrangeable cockpit tiles: nothing connected, nothing loaded, nothing
 /// running.
 ///
-/// Shared with the header actions so the two cannot disagree. They did: entering
-/// edit mode also flipped the page out of standby, so on a rig with no equipment
-/// "Edit Dashboard" replaced the briefing the user was looking at with six
-/// cockpit tiles that were not on it, and offered to arrange those instead —
-/// leaving no way at all to configure what the dashboard was actually showing.
+/// Shared with the header actions so the two cannot disagree about which
+/// surface "Edit Dashboard" is offering to arrange.
 final dashboardStandbyProvider = Provider<bool>((ref) {
   final executionState = ref.watch(sequenceExecutionStateProvider);
   // Terminal states count as inactive: after a completed or failed run the

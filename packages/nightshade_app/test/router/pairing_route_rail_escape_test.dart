@@ -1,21 +1,19 @@
-// WF-SS-N2: the pairing screen trapped the nav rail while the rail claimed to
-// move.
+// The pairing screen must not trap the nav rail while the rail claims to move.
 //
-// Live evidence: Settings ▸ Remote Access ▸ Manage Pairing, then click
-// "Dashboard" in the left rail. The rail row repainted as selected, and 14 s
-// later `tree` still returned `header: Remote Connection Pairing`; a second
-// click changed nothing; the screen's own back arrow then landed on the
-// Dashboard rather than on Remote Access — proof that the `go` HAD taken
-// effect underneath the screen that stayed on top.
+// The trap: from Settings ▸ Remote Access ▸ Manage Pairing, clicking
+// "Dashboard" in the left rail repaints the rail row as selected while `tree`
+// still returns `header: Remote Connection Pairing`; a second click changes
+// nothing; the screen's own back arrow lands on the Dashboard rather than on
+// Remote Access — the `go` took effect underneath a screen that stayed on top.
 //
-// Mechanism: the screen was pushed with `Navigator.push(MaterialPageRoute(...))`
-// onto the shell's navigator, so it is not part of go_router's match list.
-// `go()` rebuilds that list and the pushed route rides above the result. A
-// route registered under the same `ShellRoute` and entered with `push` IS part
-// of the list, and `go()` replaces it.
+// Mechanism: a screen pushed with `Navigator.push(MaterialPageRoute(...))` onto
+// the shell's navigator is not part of go_router's match list. `go()` rebuilds
+// that list and the pushed route rides above the result. A route registered
+// under the same `ShellRoute` and entered with `push` IS part of the list, and
+// `go()` replaces it.
 //
-// Both halves are pinned here: the framework behaviour that made the trap, and
-// the app's own wiring.
+// Both halves are pinned here: the framework behaviour that makes the trap
+// possible, and the app's own wiring.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

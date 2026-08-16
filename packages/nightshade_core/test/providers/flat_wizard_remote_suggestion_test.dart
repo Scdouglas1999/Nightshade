@@ -1,5 +1,5 @@
-// Regression coverage for the remote flat-suggestion fallback in
-// `FlatWizardNotifier.loadFiltersFromWheel` (W07 / DEFENSE-001).
+// Coverage for the remote flat-suggestion fallback in
+// `FlatWizardNotifier.loadFiltersFromWheel`.
 //
 // On a remote client the local `flat_history` table is empty, so the wizard
 // derives a suggested exposure from the master via `NetworkBackend.listFlats`.
@@ -8,7 +8,7 @@
 // exposures manually — but a fault must NOT be silently conflated with an
 // empty history: it is logged as a diagnostic (see `_remoteSuggestedExposure`).
 //
-// These tests assert the user-visible contract that the brief pins down:
+// These tests assert the user-visible contract:
 //   - a throwing `listFlats` does not escape and break wizard init; the
 //     filter's `suggestedExposure` ends up null (manual-entry fallback);
 //   - an empty host history yields the same null suggestion;
@@ -137,8 +137,8 @@ void main() {
     final settings = container.read(flatWizardProvider).filterSettings;
     expect(settings, hasLength(1));
     expect(settings.single.suggestedExposure, isNull);
-    // Empty history is the NON-fault path: no diagnostic is recorded. This is
-    // the assertion the old test lacked — it could not tell the two apart.
+    // Empty history is the NON-fault path: no diagnostic is recorded, which
+    // is what separates it from a failed fetch.
     expect(
       faults,
       isEmpty,

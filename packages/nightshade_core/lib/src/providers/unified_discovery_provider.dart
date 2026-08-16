@@ -448,9 +448,7 @@ class _BackendResult {
   });
 }
 
-// ============================================================================
-// Convenience Providers for Grouped Devices by Type
-// ============================================================================
+// Convenience providers for grouped devices by type
 
 /// Provider for unified safety monitors
 final unifiedSafetyMonitorsProvider = Provider<List<UnifiedDevice>>((ref) {

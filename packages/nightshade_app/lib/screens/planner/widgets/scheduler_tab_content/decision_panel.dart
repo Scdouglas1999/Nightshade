@@ -76,18 +76,12 @@ class _DecisionPanel extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
-            // CON-53 / WE-EQ-N1: this card LIVES on Plan Tonight, so "use Plan
-            // Tonight instead" sent the reader to the screen they were already
-            // on. The first repair then named a "Target Queue tab" that this
-            // build does not have — it was merged into Schedule (see
-            // planner_screen_parts/_schedule_tab.dart). Name the thing that is
-            // actually on screen: the Scheduler queue, on this same tab.
-            //
-            // WF-EQ-N3: the second repair added "below", which is true only at
-            // a stacked width — at 1600x900 the queue is the right-hand column,
-            // level with this card. A responsive layout cannot promise a
-            // direction, so the copy names the surface and the tab and stops
-            // there.
+            // This card LIVES on Plan Tonight, so the copy must not send the
+            // reader to Plan Tonight, and it must name a surface this build
+            // has: the Scheduler queue, on this same tab. It also cannot
+            // promise a direction — the queue is below this card when stacked
+            // and beside it at 1600x900 — so the copy names the surface and the
+            // tab and stops there.
             'Runs hands-off and re-picks the best target all night as the sky '
             'changes. For a plan you can see and edit before it runs, build '
             'one in the Scheduler queue on this tab.',
@@ -163,13 +157,12 @@ class _DecisionPanel extends ConsumerWidget {
 }
 
 /// Shown when the autopilot stood down because the operator stopped the run it
-/// had dispatched (WF-N3).
+/// had dispatched.
 ///
-/// Without it the pause is indistinguishable from one the operator asked for,
-/// and the only clue that the night has halted is a Resume button among four
-/// other controls. The autopilot used to re-dispatch silently ~44 s after the
-/// Stop; standing down is only an improvement if the operator can see that it
-/// happened and take the night back in one press.
+/// Without it the stand-down is indistinguishable from a pause the operator
+/// asked for, and the only clue that the night has halted is a Resume button
+/// among four other controls. Standing down is only an improvement if the
+/// operator can see that it happened and take the night back in one press.
 class _OperatorStopBanner extends StatelessWidget {
   final NightshadeColors colors;
   final bool busy;
@@ -283,8 +276,8 @@ class _CurrentTargetSummary extends StatelessWidget {
       return Text(
         status.state == SchedulerState.running
             ? 'No eligible target right now.'
-            // CON-54: the 60s evaluation period is an implementation detail
-            // of the scheduler loop, not something the operator acts on.
+            // The 60s evaluation period is an implementation detail of the
+            // scheduler loop, not something the operator acts on.
             : 'Autopilot is stopped. Start it and it will pick a target and '
                 'keep re-picking as the sky changes.',
         style: TextStyle(
@@ -339,8 +332,8 @@ class _Countdown extends StatelessWidget {
     final next = status.nextEvaluationAt;
     if (next == null) {
       return Text(
-        // CON-54: "No tick scheduled" is the scheduler's own vocabulary. What
-        // the operator needs to know is whether anything is going to happen.
+        // "No tick scheduled" is the scheduler's own vocabulary. What the
+        // operator needs to know is whether anything is going to happen.
         'Not evaluating targets — start it to begin.',
         style: TextStyle(
             fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),

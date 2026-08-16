@@ -40,7 +40,6 @@ class AppSettingsState {
   final SafetyFailMode
   safetyFailMode; // How to behave when safety data unavailable
 
-  // -------------------------------------------------------------------
   // Sequencer editor layout — cross-restart UI persistence.
   //
   // All nullable: `null` = "no stored preference, use the responsive
@@ -48,7 +47,6 @@ class AppSettingsState {
   // these on first read and writes back through the matching setters on
   // change, so a dragged panel / collapsed toolbox / chosen tab survives an
   // app restart.
-  // -------------------------------------------------------------------
   /// Whether the sequencer's left toolbox panel is collapsed.
   final bool? sequencerToolboxCollapsed;
 
@@ -108,9 +106,6 @@ class AppSettingsState {
   final int alpacaServerPort;
   final bool alpacaAutoDiscover;
 
-  // Sequencer Execution Settings
-  final bool useSimulationMode;
-
   // Remote Access / Web Server Settings
   final bool webServerEnabled;
   final int webServerPort;
@@ -156,10 +151,8 @@ class AppSettingsState {
   /// Allowed values:
   ///   * `systemBell` (default): Flutter's [SystemSound.alert] — works on
   ///     Windows / macOS / Linux / iOS / Android.
-  ///   * `none`: silence even when [audibleAlertsOnCritical] is true (kept
-  ///     because we may add custom sound assets later; "none" lets the user
-  ///     keep the toggle on but mute the audio temporarily without flipping
-  ///     it off and losing the banner-only behaviour).
+  ///   * `none`: silence even when [audibleAlertsOnCritical] is true, so the
+  ///     operator can mute the audio without losing the banner.
   final String criticalAlertSound;
 
   /// When true, the headless server forwards critical-severity executor
@@ -168,9 +161,7 @@ class AppSettingsState {
   /// trouble of pairing a phone, they want to be alerted.
   final bool pushCriticalAlerts;
 
-  // -------------------------------------------------------------------
-  // Recovery Mode — user-tunable defaults
-  // -------------------------------------------------------------------
+  // Recovery mode — user-tunable defaults
   /// Minutes between auto-retry attempts during a recovery loop. SGP
   /// default: 10 minutes. Persisted as a double-precision count of
   /// minutes so the bridge layer can multiply by 60 once.
@@ -226,9 +217,7 @@ class AppSettingsState {
   /// from FITS rather than emitted with a sentinel.
   final String observerName;
 
-  // -------------------------------------------------------------------
-  // Image Grading (live frame Pass/Reject)
-  // -------------------------------------------------------------------
+  // Image grading (live frame Pass/Reject)
   /// Master switch: when false, no grading runs and the executor's
   /// RuntimeConfig.default_quality_check is set to None at start.
   final bool enableImageGrading;
@@ -255,9 +244,7 @@ class AppSettingsState {
   /// used verbatim.
   final String? imageGradingRejectFolderPath;
 
-  // -------------------------------------------------------------------
   // Sky-brightness adaptive exposure (global defaults)
-  // -------------------------------------------------------------------
   /// Master switch for the global default adaptive-exposure config.
   /// When false the global default is cleared in the executor and only
   /// per-node overrides apply.
@@ -285,9 +272,7 @@ class AppSettingsState {
   /// Per-filter maximum exposure overrides (seconds).
   final Map<String, double> adaptiveExposurePerFilterMaxSecs;
 
-  // -------------------------------------------------------------------
   // Pre-flight checks
-  // -------------------------------------------------------------------
   /// How aggressively the pre-flight dialog should warn or block on
   /// questionable conditions (missing darks, stale polar alignment, time
   /// drift, focuser at edge of travel, etc.). Default [PreflightStrictness.normal].
@@ -311,9 +296,7 @@ class AppSettingsState {
   /// on noise.
   final double opticalTrainDriftThreshold;
 
-  // -------------------------------------------------------------------
   // Smart Night auto-builder defaults
-  // -------------------------------------------------------------------
   /// Maximum session wall-clock duration (hours) the Smart Night wizard
   /// uses to cap the planning window. `null` => use the full dark window
   /// (astronomical dusk → dawn).
@@ -381,9 +364,7 @@ class AppSettingsState {
   /// dismissal survives a same-night restart. Empty when not dismissed.
   final String smartNightPromptDismissedDayKey;
 
-  // -------------------------------------------------------------------
   // Notes / journal preferences
-  // -------------------------------------------------------------------
   /// Whether the auto-prompt note dialog appears after a sequence run
   /// completes. Defaults to true (opt-out, not opt-in: the session
   /// report is more useful when the user is in the habit of dropping
@@ -393,9 +374,7 @@ class AppSettingsState {
   /// `notes.prompt_after_run` key (see [kPromptForNotesAfterRunKey]).
   final bool promptForNotesAfterRun;
 
-  // -------------------------------------------------------------------
   // Session lifecycle preferences
-  // -------------------------------------------------------------------
 
   /// Whether the multi-night carry-over banner auto-opens at pre-flight
   /// when an unfinished session is detected for one of the sequence's
@@ -422,14 +401,12 @@ class AppSettingsState {
   /// Mirrored in the database under `campaign_rollup.grouping_mode`.
   final String campaignRollupGroupingMode;
 
-  // -------------------------------------------------------------------
   // Adaptive sky-conditions target swap defaults
   //
   // These knobs pre-fill the matching fields on a newly-created
   // [TargetSchedulerNode]. Changing them never mutates an existing node
   // — they're "what should the next scheduler I drop in look like?".
   // Persisted as raw strings in `app_settings`; the map is JSON-encoded.
-  // -------------------------------------------------------------------
 
   /// When true, new [TargetSchedulerNode]s are created with
   /// [TargetSchedulerNode.swapOnConditionsBelow] set to
@@ -541,9 +518,6 @@ class AppSettingsState {
     this.alpacaServerHost = 'localhost',
     this.alpacaServerPort = 11111,
     this.alpacaAutoDiscover = false,
-
-    // Sequencer Execution
-    this.useSimulationMode = false,
 
     // Remote Access / Web Server
     this.webServerEnabled = false,

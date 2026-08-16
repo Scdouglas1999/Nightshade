@@ -1,8 +1,6 @@
 part of '../planetarium_providers.dart';
 
-// ============================================================================
-// Catalog Providers
-// ============================================================================
+// Catalog providers
 
 /// The star list the renderer and search draw from.
 ///
@@ -125,9 +123,7 @@ final constellationDataProvider = Provider<List<ConstellationData>>((ref) {
   return Constellations.all;
 });
 
-// ============================================================================
-// Computed Astronomy Data Providers
-// ============================================================================
+// Computed astronomy data providers
 
 /// Provider that only updates when the date changes (not every second)
 /// This prevents unnecessary recalculations of date-dependent values like twilight.
@@ -146,9 +142,8 @@ final _currentDateProvider = Provider<DateTime>((ref) {
 ///
 /// Distinct from [_currentDateProvider]: between local midnight and noon the
 /// night in progress began the previous calendar day, so anchoring rise /
-/// transit / set on the calendar date described the FOLLOWING night and put
-/// every time one sidereal day (~4 min) out. Same reasoning as
-/// [twilightTimesProvider], and just as cheap to watch — the value only
+/// transit / set on the calendar date describes the FOLLOWING night and puts
+/// every time one sidereal day (~4 min) out. Cheap to watch — the value only
 /// changes at local noon.
 final _currentNightDateProvider = Provider<DateTime>((ref) {
   return AstronomyCalculations.nightDateOf(
@@ -220,16 +215,23 @@ final objectVisibilityProvider = Provider.autoDispose
 ///
 /// Recomputed only when the calendar date (or the site) changes; the choice
 /// between them is made per-minute by [twilightTimesProvider].
+///
+/// With no site on record every field is null: twilight is a fact about a
+/// place, so there is nothing to state until the observer names one.
 final _nightWindowCandidatesProvider =
     Provider<({TwilightTimes previous, TwilightTimes today})>((ref) {
-      final location = ref.watch(observerLocationProvider);
+      final site = ref.watch(observerLocationProvider).site;
       final currentDate = ref.watch(_currentDateProvider);
+
+      if (site == null) {
+        return (previous: const TwilightTimes(), today: const TwilightTimes());
+      }
 
       TwilightTimes forDate(DateTime date) =>
           AstronomyCalculations.calculateTwilightTimes(
             date: date,
-            latitudeDeg: location.latitude,
-            longitudeDeg: location.longitude,
+            latitudeDeg: site.latitude,
+            longitudeDeg: site.longitude,
           );
 
       return (
@@ -243,10 +245,8 @@ final _nightWindowCandidatesProvider =
 ///
 /// `calculateTwilightTimes(date:)` returns a dusk-tonight → dawn-tomorrow
 /// window. Between local midnight and astronomical dawn the night actually in
-/// progress is the PREVIOUS date's window, so anchoring on the calendar date
-/// described the *next* night: at 01:04 with the sun 30° below the horizon the
-/// dashboard reported "Dark in 21h 7m" instead of "Dark 2h 59m left", and the
-/// night timeline / tonight card described a night that had not started.
+/// progress is the PREVIOUS date's window; anchoring on the calendar date
+/// describes the next night instead, while the current one is still running.
 final twilightTimesProvider = Provider<TwilightTimes>((ref) {
   final candidates = ref.watch(_nightWindowCandidatesProvider);
   final now = ref.watch(_currentMinuteProvider);
@@ -260,21 +260,28 @@ final twilightTimesProvider = Provider<TwilightTimes>((ref) {
 
 /// Moon information for current time and location
 /// Uses date precision for rise/set, minute precision for illumination.
+///
+/// Phase and illumination are the same everywhere on Earth, so they are stated
+/// whether or not a site is on record; rise and set are null without one.
 final moonInfoProvider = Provider<MoonTimes>((ref) {
-  final location = ref.watch(observerLocationProvider);
+  final site = ref.watch(observerLocationProvider).site;
   final currentDate = ref.watch(_currentDateProvider);
   final currentMinute = ref.watch(_currentMinuteProvider);
-
-  // Calculate rise/set times for the date
-  final moonTimes = AstronomyCalculations.calculateMoonTimes(
-    date: currentDate,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
-  );
 
   // Calculate phase and illumination - minute precision is sufficient
   final illumination = AstronomyCalculations.moonIllumination(currentMinute);
   final phaseName = AstronomyCalculations.moonPhaseName(currentMinute);
+
+  if (site == null) {
+    return MoonTimes(illumination: illumination, phaseName: phaseName);
+  }
+
+  // Calculate rise/set times for the date
+  final moonTimes = AstronomyCalculations.calculateMoonTimes(
+    date: currentDate,
+    latitudeDeg: site.latitude,
+    longitudeDeg: site.longitude,
+  );
 
   // Return combined data
   return MoonTimes(
@@ -288,18 +295,18 @@ final moonInfoProvider = Provider<MoonTimes>((ref) {
 /// Local Sidereal Time **now**, at the observing site.
 ///
 /// Per-second precision, from the wall clock — not from
-/// [observationTimeProvider]. This is the value the shell status bar and the
-/// dashboard header render, and those chips sit inches from a real clock: while
-/// the planetarium's transport was scrubbed six hours forward, the status strip
-/// showed `18:39:23` beside `LST 11:15` when the true sidereal time was 15:12,
-/// with nothing saying one of the two was a preview. Sidereal time is exactly
-/// what an imager reads to decide what is transiting, so a simulated one has to
-/// stay inside the screen simulating it — see [observationSiderealTimeProvider].
-final localSiderealTimeProvider = Provider<double>((ref) {
-  final location = ref.watch(observerLocationProvider);
+/// [observationTimeProvider]. The shell status bar and the dashboard header
+/// render this beside a real clock, and sidereal time is what an imager reads
+/// to decide what is transiting, so a scrubbed one has to stay inside the
+/// screen simulating it — see [observationSiderealTimeProvider].
+///
+/// Null with no site on record: sidereal time is a function of longitude.
+final localSiderealTimeProvider = Provider<double?>((ref) {
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return null;
   final now = ref.watch(wallClockProvider);
 
-  return AstronomyCalculations.localSiderealTime(now, location.longitude);
+  return AstronomyCalculations.localSiderealTime(now, site.longitude);
 });
 
 /// Local Sidereal Time at the planetarium's *observation* time, which the time
@@ -307,11 +314,13 @@ final localSiderealTimeProvider = Provider<double>((ref) {
 ///
 /// For readouts that belong to the simulated sky itself — the planetarium's own
 /// overlays — where following the scrub is the whole point.
-final observationSiderealTimeProvider = Provider<double>((ref) {
-  final location = ref.watch(observerLocationProvider);
+/// Null with no site on record.
+final observationSiderealTimeProvider = Provider<double?>((ref) {
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return null;
   final time = ref.watch(observationTimeProvider);
 
-  return AstronomyCalculations.localSiderealTime(time.time, location.longitude);
+  return AstronomyCalculations.localSiderealTime(time.time, site.longitude);
 });
 
 /// Apparent Sun altitude in degrees at the observing site and the planetarium's
@@ -320,14 +329,17 @@ final observationSiderealTimeProvider = Provider<double>((ref) {
 /// Public because observability is not a function of target altitude alone:
 /// anything that grades a target ("Excellent", green pill, above-horizon
 /// colouring) has to know whether the sky is dark enough to use it.
-final sunAltitudeProvider = Provider<double>((ref) {
-  final location = ref.watch(observerLocationProvider);
+/// Null with no site on record — how far the Sun is below the horizon depends
+/// on where the observer is standing.
+final sunAltitudeProvider = Provider<double?>((ref) {
+  final site = ref.watch(observerLocationProvider).site;
+  if (site == null) return null;
   final time = ref.watch(_currentMinuteProvider);
 
   return AstronomyCalculations.sunAltitude(
     dt: time,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
+    latitudeDeg: site.latitude,
+    longitudeDeg: site.longitude,
   );
 });
 

@@ -85,9 +85,7 @@ void main() {
       }
     });
 
-    // -------------------------------------------------------------------
     // GET /api/catalog/status
-    // -------------------------------------------------------------------
     test('returns missing entries when nothing installed', () async {
       final response = await translateHandlerErrors(
         handlers.handleStatus(
@@ -134,9 +132,7 @@ void main() {
       expect(dso['expectedHash'], expectedSha);
     });
 
-    // -------------------------------------------------------------------
     // GET /api/catalog/available
-    // -------------------------------------------------------------------
     test('lists known catalogs and caches the response', () async {
       final response1 = await translateHandlerErrors(
         handlers.handleAvailable(
@@ -160,9 +156,7 @@ void main() {
       expect(body2['cache'], 'hit');
     });
 
-    // -------------------------------------------------------------------
     // POST /api/catalog/download
-    // -------------------------------------------------------------------
     test('returns a jobId and starts a job', () async {
       final response = await translateHandlerErrors(
         handlers.handleDownload(
@@ -235,9 +229,7 @@ void main() {
       },
     );
 
-    // -------------------------------------------------------------------
     // POST /api/catalog/upload
-    // -------------------------------------------------------------------
     test('succeeds with matching sha256', () async {
       final csv = _miniNgcCsvBody();
       final csvBytes = utf8.encode(csv);
@@ -319,9 +311,7 @@ void main() {
       expect(response.statusCode, 400);
     });
 
-    // -------------------------------------------------------------------
     // POST /api/catalog/verify
-    // -------------------------------------------------------------------
     test(
       'returns per-catalog SHA-256 result for an installed catalog',
       () async {
@@ -378,9 +368,7 @@ void main() {
       }
     });
 
-    // -------------------------------------------------------------------
     // DELETE /api/catalog/{name}
-    // -------------------------------------------------------------------
     test('removes an installed catalog and returns 200', () async {
       final csv = _miniNgcCsvBody();
       final csvBytes = utf8.encode(csv);
@@ -428,9 +416,7 @@ void main() {
       expect(response.statusCode, 400);
     });
 
-    // -------------------------------------------------------------------
     // POST /api/catalog/reload
-    // -------------------------------------------------------------------
     test('reload triggers CatalogManager.reload and emits event', () async {
       final response = await translateHandlerErrors(
         handlers.handleReload(

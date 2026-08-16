@@ -180,21 +180,6 @@ class _FramingCanvasState extends State<FramingCanvas> {
     );
   }
 
-  /// Horizontal space kept clear at the canvas's top-left for the
-  /// optical-config affordance, which [FramingScreen] paints in its OWN Stack
-  /// at (16, 16): a 48px touch-target button when collapsed, or the panel
-  /// (capped at 260px) when open.
-  ///
-  /// Both Stacks used to place their children at the identical origin, so the
-  /// button's opaque body covered the survey dropdown's leading icon and first
-  /// glyph — "DSS2 Red" rendered as ")SS2 Red" on every entry to the Framing
-  /// screen — and the open panel hid the dropdown and the Grid chip outright.
-  /// Reserving the space here fixes it for every window size instead of
-  /// re-tuning two hard-coded offsets against each other.
-  ///
-  /// The gutter is skipped when the canvas is too narrow to give it away: on a
-  /// phone the controls already Wrap onto a second line and squeezing them
-  /// further would cost more than the overlap.
   /// Whether the floating target card is shown (target resolved + labels on).
   bool get _showTargetInfoOverlay =>
       widget.framingState.target != null && widget.framingState.showLabels;
@@ -203,6 +188,16 @@ class _FramingCanvasState extends State<FramingCanvas> {
   bool get _showEquipmentHint =>
       !_hasEquipment && widget.framingState.target != null;
 
+  /// Horizontal space kept clear at the canvas's top-left for the
+  /// optical-config affordance, which [FramingScreen] paints in its OWN Stack
+  /// at (16, 16): a 48px touch-target button when collapsed, or the panel
+  /// (capped at 260px) when open. Reserving it here keeps the two Stacks from
+  /// placing their children at the same origin, where the opaque button body
+  /// covers the survey dropdown and the open panel hides the Grid chip.
+  ///
+  /// The gutter is skipped when the canvas is too narrow to give it away: on a
+  /// phone the controls already Wrap onto a second line and squeezing them
+  /// further would cost more than the overlap.
   double _opticalConfigGutter() {
     const gap = NightshadeTokens.spaceMd;
     final reserved = widget.framingState.showOpticalConfigPanel

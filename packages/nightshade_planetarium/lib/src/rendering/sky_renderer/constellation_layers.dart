@@ -260,11 +260,10 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
       //
       // Any vertex can project to null (the projector rejects anything ~89.4
       // deg or more from the view center). When that happens the current
-      // subpath must END — it must never be continued with a `lineTo` from
-      // whatever came before. Previously a culled `ArtMoveTo` left the subpath
-      // unopened and the following `ArtLineTo` still ran, so Skia injected an
-      // implicit start at (0, 0) and the figure was drawn as a filled goldenrod
-      // wedge anchored to the top-left corner of the canvas.
+      // subpath must END — never be continued with a `lineTo` from whatever
+      // came before. A `lineTo` into an unopened subpath makes Skia inject an
+      // implicit start at (0, 0), which draws the figure as a filled wedge
+      // anchored to the canvas corner.
       final path = Path();
       var hasVisiblePoint = false;
       var subpathOpen = false;

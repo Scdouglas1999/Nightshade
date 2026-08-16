@@ -27,9 +27,7 @@ class WeatherHandlers {
   static String _coarseCoord(double? value) =>
       value == null ? 'null' : value.toStringAsFixed(1);
 
-  // ===========================================================================
-  // Get Radar Data
-  // ===========================================================================
+  // Get radar data
 
   Future<Response> handleGetRadarData(Request request) async {
     final query = request.url.queryParameters;
@@ -59,18 +57,16 @@ class WeatherHandlers {
         "cachedAt": DateTime.now().millisecondsSinceEpoch,
       });
     }
-    // Why: upstream radar fetch failed — surface the failure with a non-2xx
-    // status (502 Bad Gateway). Previously this returned 200 with an empty
-    // frames list, hiding the failure from clients/observability.
+    // An upstream radar failure is a 502, never a 200 with an empty frames
+    // list — that would read to a client as "no weather" rather than "no
+    // answer".
     return jsonResponse({
       "error": result.errorMessage ?? 'radar_fetch_failed',
       "frames": [],
     }, statusCode: 502);
   }
 
-  // ===========================================================================
-  // Get Weather Forecast
-  // ===========================================================================
+  // Get weather forecast
 
   Future<Response> handleGetForecast(Request request) async {
     final query = request.url.queryParameters;
@@ -135,9 +131,7 @@ class WeatherHandlers {
     }
   }
 
-  // ===========================================================================
-  // Get Active Alerts
-  // ===========================================================================
+  // Get active alerts
 
   Future<Response> handleGetAlerts(Request request) async {
     _logInfo('[API] GET /api/weather/alerts');
@@ -153,9 +147,7 @@ class WeatherHandlers {
     });
   }
 
-  // ===========================================================================
-  // Get Cloud Cover Prediction
-  // ===========================================================================
+  // Get cloud cover prediction
 
   Future<Response> handleGetCloudCover(Request request) async {
     final query = request.url.queryParameters;
@@ -222,9 +214,7 @@ class WeatherHandlers {
     }
   }
 
-  // ===========================================================================
-  // Get Weather Settings
-  // ===========================================================================
+  // Get weather settings
 
   Future<Response> handleGetSettings(Request request) async {
     _logInfo('[API] GET /api/weather/settings');
@@ -249,9 +239,7 @@ class WeatherHandlers {
     });
   }
 
-  // ===========================================================================
-  // Update Weather Settings
-  // ===========================================================================
+  // Update weather settings
 
   Future<Response> handleUpdateSettings(Request request) async {
     _logInfo('[API] POST /api/weather/settings');
@@ -333,9 +321,7 @@ class WeatherHandlers {
     return jsonOk({"status": "updated"});
   }
 
-  // ===========================================================================
-  // Check Safe Imaging Conditions
-  // ===========================================================================
+  // Check safe imaging conditions
 
   Future<Response> handleCheckSafeImaging(Request request) async {
     _logInfo('[API] GET /api/weather/safe-imaging');
@@ -352,9 +338,7 @@ class WeatherHandlers {
     });
   }
 
-  // ===========================================================================
   // Live telemetry (hardware + safety aggregate)
-  // ===========================================================================
 
   /// GET /api/weather/current
   ///
@@ -415,9 +399,7 @@ class WeatherHandlers {
     });
   }
 
-  // ===========================================================================
-  // Clear Weather Cache
-  // ===========================================================================
+  // Clear weather cache
 
   Future<Response> handleClearCache(Request request) async {
     _logInfo('[API] POST /api/weather/clear-cache');
@@ -427,9 +409,7 @@ class WeatherHandlers {
     return jsonOk({"status": "cache_cleared"});
   }
 
-  // ===========================================================================
   // Helpers
-  // ===========================================================================
 
   String _safetyMessage(WeatherSafetyState safety, WeatherAlert? currentAlert) {
     if (currentAlert != null) return currentAlert.message;

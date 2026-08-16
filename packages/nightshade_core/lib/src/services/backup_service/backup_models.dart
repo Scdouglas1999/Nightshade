@@ -101,16 +101,11 @@ class BackupMetadata {
 ///
 /// WHY resolved from [resolveDefaultDatabaseFile] rather than straight from
 /// `getApplicationDocumentsDirectory()`: a bundle only means anything next to
-/// the database it snapshotted. The old path ignored the configured data
-/// directory entirely, so every install on a machine — the GUI, a headless
-/// daemon pinned to its own state dir, a scratch profile — read and WROTE into
-/// one shared `~/Documents/Nightshade/backups`. "Recent Backups" then listed
-/// bundles from databases the running instance had never seen, with nothing in
-/// the row to tell them apart, and Restore on a foreign row was one click away.
-/// Following the database keeps each install's history its own.
+/// the database it snapshotted. Following the configured data directory keeps
+/// each install's history its own, so "Recent Backups" cannot list bundles from
+/// a database this instance has never seen and offer Restore on one.
 ///
-/// The default (no override) resolves to the historical
-/// `<documents>/Nightshade/backups`, so existing installs keep their bundles.
+/// The default (no override) resolves to `<documents>/Nightshade/backups`.
 Future<Directory> resolveDefaultBackupDirectory({
   Map<String, String>? environment,
   Future<Directory> Function()? documentsDirectoryProvider,

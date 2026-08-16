@@ -2,12 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence/sequence_executor/frame_attribution.dart';
 
-/// Pins the fix for the P0 where scheduler-captured frames were written with
-/// `target_id=NULL` (so integration goals never completed and the engine
-/// imaged one target all night) and `exposureDuration=1.0` (corrupting all
-/// integration-time accounting). [resolveFrameAttribution] must recover both
-/// the catalog target id and the real exposure length from the producing node
-/// and the sequence tree.
+/// Scheduler-captured frames written with `target_id=NULL` never complete an
+/// integration goal (so the engine images one target all night), and an
+/// `exposureDuration` of 1.0 corrupts all integration-time accounting.
+/// [resolveFrameAttribution] recovers both the catalog target id and the real
+/// exposure length from the producing node and the sequence tree.
 void main() {
   group('resolveFrameAttribution', () {
     test(
@@ -199,10 +198,9 @@ void main() {
       expect(a.offset, isNull);
     });
 
-    /// Sequencer frames used to be written with NULL gain/offset and a
-    /// defaulted 1x1 binning, so a binned or non-default-gain run could not be
-    /// matched against its master darks (the matcher keys on gain, offset and
-    /// binning) and binned frames were recorded at the wrong binning entirely.
+    /// Master-dark matching keys on gain, offset and binning, so a sequencer
+    /// frame must carry the producing node's values rather than NULLs and a
+    /// defaulted 1x1.
     test('carries the producing node gain, offset and binning', () {
       final seq = Sequence.create(
         name: 'binned',

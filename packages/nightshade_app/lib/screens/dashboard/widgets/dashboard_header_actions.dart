@@ -14,25 +14,23 @@ import '../dashboard_layout_provider.dart';
 /// One string, used as the tooltip (pointer), the semantics hint (keyboard and
 /// screen reader) and the toast (a click that lands on the disabled control's
 /// row). A refusal the operator cannot read is indistinguishable from a broken
-/// button — that is precisely how it was reported.
+/// button.
 const String standbyEditRefusalReason =
     'Nothing to arrange yet — the briefing has no tiles. Connect a device or '
     'load a sequence to arrange the session dashboard.';
 
 /// The accessible NAME the refusing control publishes.
 ///
-/// WD-EQ-4, second strike. Wave D put the reason in a `Semantics(hint:)` and a
-/// widget test proved the merged node carried it — but the live AT-SPI probe of
-/// that exact node came back
-/// `button: 'Edit Dashboard\nEdit Dashboard'  desc=''  states=['sensitive', …]`:
-/// enabled, with no description at all, and byte-identical to the same button
-/// in its genuinely-enabled state. The Linux accessibility bridge does not
-/// carry the hint, and a descendant re-published `isEnabled`.
+/// A `Semantics(hint:)` cannot carry the refusal. A widget test sees the hint
+/// on the merged node, but the Linux accessibility bridge does not export it,
+/// and a descendant re-publishes `isEnabled`, so the live AT-SPI node reads
+/// `button: 'Edit Dashboard\nEdit Dashboard'  desc=''  states=['sensitive', …]`
+/// — enabled, undescribed, byte-identical to the genuinely-enabled button.
 ///
-/// So the refusal is carried by the one field the bridge demonstrably does
-/// export — the name — and the button's own semantics are excluded so nothing
-/// underneath can contradict the state. Anything that only *decorates* the
-/// node (hint, tooltip, colour) is a bonus, never the disclosure.
+/// So the refusal rides the one field the bridge demonstrably does export — the
+/// name — and the button's own semantics are excluded so nothing underneath can
+/// contradict the state. Anything that only *decorates* the node (hint,
+/// tooltip, colour) is a bonus, never the disclosure.
 String standbyEditSemanticLabel(String editLabel) =>
     '$editLabel, unavailable. $standbyEditRefusalReason';
 
@@ -56,10 +54,9 @@ class DashboardHeaderActions extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final buttonSize = compact ? ButtonSize.small : ButtonSize.medium;
-    // The standby briefing is not made of arrangeable tiles. Offering to edit
-    // it swapped the page for six cockpit tiles the user had never seen and
-    // arranged those instead, which left the visible dashboard unconfigurable
-    // and the editor describing a layout that was not on screen.
+    // The standby briefing is not made of arrangeable tiles, so offering to
+    // edit it would swap the page for cockpit tiles that are not on it and
+    // leave the visible dashboard unconfigurable.
     final canEdit = !ref.watch(dashboardStandbyProvider);
     final editLabel = l10n
         .text(isEditing ? 'dbDone' : (compact ? 'dbEdit' : 'dbEditDashboard'));
@@ -81,8 +78,8 @@ class DashboardHeaderActions extends ConsumerWidget {
             excludeSemantics: !canEdit,
             label: canEdit ? null : standbyEditSemanticLabel(editLabel),
             hint: canEdit ? null : standbyEditRefusalReason,
-            // A pointer user gets the reason too — the click used to land on a
-            // dead control and produce nothing at all.
+            // A pointer user gets the reason too, rather than a click that
+            // lands on a dead control and produces nothing.
             //
             // `Listener`, not `GestureDetector`: NightshadeButton registers its
             // own tap recognizer even while disabled, so it wins the gesture

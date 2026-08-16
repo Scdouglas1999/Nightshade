@@ -4,19 +4,15 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 
-/// Regression cover for the Dashboard "Recent Frames" strip on a *remote*
-/// client (the Android companion, or a desktop launched with `--remote-host`).
+/// Cover for the Dashboard "Recent Frames" strip on a *remote* client (the
+/// Android companion, or a desktop launched with `--remote-host`).
 ///
-/// Observed live on an Android emulator paired to a headless host: the host's
-/// `/api/sequencer/status` reported `runVitals.framesCaptured: 1` and
-/// `/api/images/recent` returned the frame row, while the phone's cockpit
-/// rendered "No frames captured this session yet".
-///
-/// Root cause: [recentSessionFramesProvider] keyed the remote branch off
-/// `sessionStateProvider.dbSessionId`, which is only ever assigned by
-/// `SessionStateNotifier.startSession` / `recoverSession`. A client that merely
-/// *watches* a host-started run never calls either, so the id stayed null and
-/// the provider short-circuited to an empty list for the whole night.
+/// Keying the remote branch off `sessionStateProvider.dbSessionId` empties the
+/// strip: that id is only ever assigned by `SessionStateNotifier.startSession` /
+/// `recoverSession`, and a client that merely *watches* a host-started run calls
+/// neither. The phone's cockpit then renders "No frames captured this session
+/// yet" while the host's `/api/sequencer/status` reports
+/// `runVitals.framesCaptured: 1` and `/api/images/recent` returns the row.
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
 class _PinnedBackendNotifier extends BackendNotifier {

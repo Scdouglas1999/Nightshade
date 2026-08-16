@@ -7,14 +7,13 @@ import '../../providers/database_provider.dart';
 
 /// Membership of the scheduler queue.
 ///
-/// "Remove from scheduler" and "Clear all" used to delete the target's
-/// integration goals and constraints and stop there. A goal-less target is a
-/// legal free-form candidate — that is the contract a wheel-less OSC rig with
-/// no goal rows depends on — so the autopilot went on picking the target the
-/// operator had just removed and the row reappeared in the queue on the next
-/// evaluation (WF-N2 / WD-SEQ-N5). Removal now records that the target is out
-/// of the queue, and [SchedulerCandidateLoader] drops it before the engine ever
-/// scores it: removed means INELIGIBLE, not merely goal-less.
+/// Queue membership is its own row, because deleting a target's integration
+/// goals does not remove it: a goal-less target is a legal free-form candidate
+/// (the contract a wheel-less OSC rig with no goal rows depends on), so the
+/// autopilot would go on picking a target the operator had just removed.
+/// Removal records that the target is out of the queue and
+/// [SchedulerCandidateLoader] drops it before the engine scores it: removed
+/// means INELIGIBLE, not merely goal-less.
 ///
 /// The row is the whole state — no payload, no enabled flag. Re-admission is
 /// deleting it, which the operator does by putting work back on the target

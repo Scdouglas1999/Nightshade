@@ -10,12 +10,11 @@ import '../utils/transient_bottom_inset.dart';
 /// One rendered toast: the newest notification of its kind, plus every id
 /// collapsed into it.
 ///
-/// WD-EQ-3: a single failed connect of the built-in guider raised the SAME
-/// refusal twice — once from the Dart connect path via `ErrorService.log`, once
-/// from the backend's error event via `event_provider` — and the operator read
-/// one refusal as two. Two producers for one condition is a fact of this
-/// architecture (the backend is allowed to report what it refused); stacking
-/// their identical words is not.
+/// A single failed connect of the built-in guider raises the SAME refusal twice
+/// — once from the Dart connect path via `ErrorService.log`, once from the
+/// backend's error event via `event_provider`. Two producers for one condition
+/// is a fact of this architecture (the backend is allowed to report what it
+/// refused); stacking their identical words for the operator is not.
 class _ToastGroup {
   /// The de-duplication key every member shares — see
   /// [notificationContentSignature]. Also the widget identity and the timer
@@ -90,13 +89,11 @@ class _NotificationToastOverlayState
   /// not on the producer: the point is that the screen never states one fact
   /// twice, whichever code path raised it.
   ///
-  /// WD-EQ-3: this keyed on the EXACT rendered strings, and the pair it was
-  /// written for defeated it with one character — the second producer appends a
-  /// full stop. Two waves of fixes went to the NotificationRouter, which these
-  /// toasts never pass through (both producers call
-  /// `UiNotificationNotifier.showError` directly), so live the operator kept
-  /// reading one guider refusal twice. The key is normalized now, by the same
-  /// shared rule the router uses.
+  /// Keying on the EXACT rendered strings is not enough: one producer appends a
+  /// full stop, and one character defeats the match. These toasts do not pass
+  /// through the NotificationRouter either — both producers call
+  /// `UiNotificationNotifier.showError` directly — so the key is normalized
+  /// here, by the same shared rule the router uses.
   static List<_ToastGroup> groupIdenticalNotifications(
     List<UiNotification> notifications,
   ) {
@@ -139,9 +136,9 @@ class _NotificationToastOverlayState
 
   void _scheduleDismiss(_ToastGroup group) {
     if (!mounted || _dismissingKeys.contains(group.key)) return;
-    // A repeat that joined the group restarts its clock. Without this the card
-    // the operator is reading — raised at +4 s in the WD-EQ-3 pair — was still
-    // being retired by the timer of the copy raised at 0 s.
+    // A repeat that joins the group restarts its clock. Without this the card
+    // the operator is reading — raised at +4 s — is retired by the timer of the
+    // copy raised at 0 s.
     if (_timerScheduledFor[group.key] == group.latest.id &&
         _dismissTimers.containsKey(group.key)) {
       return;
@@ -215,10 +212,9 @@ class _NotificationToastOverlayState
       return const SizedBox.shrink();
     }
 
-    // WF-EQ-N2: this used to be a hardcoded `bottom: 56`, so a screen that had
-    // declared a transient bottom inset — the contextual tour nudge does, and
-    // the SnackBar path already honours it — got its card painted over by the
-    // one toast surface that carries errors. Two surfaces, one declaration.
+    // Honours the screen's declared transient bottom inset, the same
+    // declaration the SnackBar path reads: a hardcoded offset lets the one
+    // toast surface that carries errors paint over a card that reserved space.
     //
     // The inset is measured from the declaring card's top edge to the bottom of
     // the WINDOW, while this overlay's `bottom` is relative to the shell's
@@ -428,7 +424,7 @@ class _NotificationToastState extends State<_NotificationToast>
                                         Text(
                                           // A repeated condition is reported
                                           // once with a count, never as N
-                                          // identical stacked toasts (WD-EQ-3).
+                                          // identical stacked toasts.
                                           widget.repeatCount > 1
                                               ? '${widget.notification.title!} '
                                                   '(x${widget.repeatCount})'

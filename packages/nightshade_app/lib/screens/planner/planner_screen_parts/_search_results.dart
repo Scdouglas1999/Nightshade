@@ -1,5 +1,3 @@
-// Part of ../planner_screen.dart -- extracted for maintainability.
-//
 // Installed-catalog and SIMBAD search-result sections that mount under the candidate list once the user has typed enough characters into the planner search bar.
 part of '../planner_screen.dart';
 

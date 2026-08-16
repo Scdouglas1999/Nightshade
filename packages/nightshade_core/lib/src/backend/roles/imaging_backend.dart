@@ -29,9 +29,7 @@ import '../../models/plate_solver.dart'
 ///   * Sequencer image grading / quality config — see [SequencerBackend].
 ///   * Profile / settings — see [ProfileSettingsBackend].
 abstract class ImagingBackend {
-  // =========================================================================
   // FITS Save
-  // =========================================================================
 
   /// Save FITS file directly from the last captured image stored server-side.
   /// This eliminates raw pixel data transfer across FFI/network boundaries.
@@ -42,9 +40,7 @@ abstract class ImagingBackend {
     required FitsWriteHeader headerData,
   });
 
-  // =========================================================================
-  // Plate Solving
-  // =========================================================================
+  // Plate solving
 
   /// Solve an image file. [ra] is a solver hint in degrees; [dec] and
   /// [fovDegrees] are also degrees. [timeoutSeconds] bounds the external
@@ -57,9 +53,7 @@ abstract class ImagingBackend {
     int? timeoutSeconds,
   });
 
-  // =========================================================================
-  // Plate Solver Setup
-  // =========================================================================
+  // Plate solver setup
   //
   // Detection / verification / config read+write run against the machine
   // that owns the plate-solver binaries and catalog — i.e. the host wired
@@ -84,9 +78,7 @@ abstract class ImagingBackend {
   /// availability cache so subsequent solves re-probe with the new paths.
   Future<void> setPlateSolverConfig(PlateSolverPreference pref);
 
-  // =========================================================================
-  // Image Processing
-  // =========================================================================
+  // Image processing
 
   /// Get star crops from the last captured image for autofocus UI
   Future<List<StarCrop>> getStarCropsFromLastImage(
@@ -149,9 +141,7 @@ abstract class ImagingBackend {
     required String outputPng,
   });
 
-  // =========================================================================
-  // Polar Alignment
-  // =========================================================================
+  // Polar alignment
 
   /// Start three-point polar alignment
   ///
@@ -205,9 +195,7 @@ abstract class ImagingBackend {
     int? offset,
   });
 
-  // =========================================================================
   // Image Download (for Mobile)
-  // =========================================================================
 
   /// Get list of images for a session
   /// Returns image metadata without full image data

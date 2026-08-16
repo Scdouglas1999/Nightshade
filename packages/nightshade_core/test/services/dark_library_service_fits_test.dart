@@ -270,9 +270,7 @@ void main() {
   });
 }
 
-// ---------------------------------------------------------------------------
 // Synthetic FITS builders
-// ---------------------------------------------------------------------------
 
 /// Build a complete FITS file with BITPIX=16 and the given raw big-endian
 /// signed-16 payload (caller is responsible for encoding the BZERO=32768

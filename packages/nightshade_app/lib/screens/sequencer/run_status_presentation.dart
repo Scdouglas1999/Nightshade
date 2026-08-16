@@ -1,11 +1,9 @@
 /// The one place a durable `sequence_runs.status` becomes words a person reads.
 ///
-/// The stored values are state-machine tokens, and the UI used to print them
-/// verbatim: a run the operator stopped while it was *running* was titled
-/// "New Sequence - paused-stopped" in the Session Report and offered under
-/// that string as a History filter chip. It had not been paused — the token
-/// means "stopped with the checkpoint preserved", which is a fact about
-/// resumability, not about what the operator did.
+/// The stored values are state-machine tokens: `paused-stopped` means "stopped
+/// with the checkpoint preserved", a fact about resumability rather than about
+/// what the operator did. Printed verbatim it claims an operator pause nobody
+/// performed.
 ///
 /// Every surface that shows a run outcome goes through here, so the vocabulary
 /// stays the product's rather than the schema's.
@@ -48,12 +46,12 @@ String runStatusLabel(String status) {
 
 /// One sentence explaining what a run status MEANS, in one shared vocabulary.
 ///
-/// CON-51: History offered seven outcome chips, five of which mean "the run did
-/// not finish" — Failed, Aborted, Stopped, Stopped (resumable), Interrupted —
-/// in five unrelated words, with nothing on screen saying how they differ. The
-/// distinctions are real (they call for different operator responses), so the
-/// answer is to define them, once, in parallel phrasing: every not-finished
-/// status opens with the same clause, and the difference follows the dash.
+/// History carries seven outcome chips, five of which mean "the run did not
+/// finish" — Failed, Aborted, Stopped, Stopped (resumable), Interrupted. In
+/// five unrelated words, nothing on screen says how they differ, and the
+/// distinctions are real: they call for different operator responses. So they
+/// are defined once, in parallel phrasing — every not-finished status opens
+/// with the same clause, and the difference follows the dash.
 String runStatusMeaning(String status) {
   switch (status) {
     case 'completed':
@@ -92,19 +90,17 @@ bool runWasStoppedByOperator(String status) =>
 ///
 /// The executor records "Sequence cancelled" in the run's error list because
 /// that is how the native run ends on a Stop. Rendered verbatim under a red
-/// "Errors" heading — in a report whose own title reads "Stopped (resumable)" —
-/// it tells the operator their own button press was a critical failure
-/// (Wave D, WD-SEQ-N1). Recognised here so the outcome-aware surfaces can drop
-/// it; it is never dropped for a run that failed or aborted on its own.
+/// "Errors" heading — in a report titled "Stopped (resumable)" — it reports the
+/// operator's own button press as a critical failure. Recognised here so the
+/// outcome-aware surfaces can drop it; it is never dropped for a run that
+/// failed or aborted on its own.
 ///
-/// The match is EXACT, and that is the whole point. Wave E refuted the first
-/// version of this — a substring test on "cancelled" — with four messages the
-/// stack really emits: "Temperature compensation cancelled",
-/// "Cancelled: Target", "focuser move was canceled by the driver" and
-/// "slew canceled by the mount (limit switch)". Press Stop after a night that
-/// had any of those and the Session Report showed no Errors section at all: one
-/// cry-wolf traded for a silent swallow. The notice itself is a fixed string,
-/// so nothing is lost by recognising only the fixed strings.
+/// The match is EXACT, and that is the whole point. A substring test on
+/// "cancelled" also swallows real faults the stack emits — "Temperature
+/// compensation cancelled", "Cancelled: Target", "focuser move was canceled by
+/// the driver", "slew canceled by the mount (limit switch)" — so a Stop after
+/// any of those would hide the Errors section entirely. The notice is a fixed
+/// string, so nothing is lost by recognising only the fixed strings.
 ///
 /// [isSequenceCancelledNotice] (nightshade_core) is the shared spelling test;
 /// this adds the operator-phrased variants the durable run rows can also carry.

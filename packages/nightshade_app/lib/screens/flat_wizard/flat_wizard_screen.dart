@@ -72,9 +72,8 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
       alignment: Alignment.bottomRight,
       child: Column(
         children: [
-          // Title + mode tabs share ONE row (the screen title previously sat in
-          // its own ~56px header above the tab bar). The title folds inline to
-          // the left of the tab strip — icon-only on a phone — and the live
+          // Title + mode tabs share ONE row: the title folds inline to the
+          // left of the tab strip — icon-only on a phone — and the live
           // "Capturing" badge rides at the right end of the same row.
           _buildTabBar(colors, state),
 

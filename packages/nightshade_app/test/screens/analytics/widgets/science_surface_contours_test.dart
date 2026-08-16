@@ -1,8 +1,6 @@
-// The 3D Surface Explorer's "Contours" chip used to drop a vertical stem from
-// every marker down to a flat horizontal baseline at the bottom of the card — a
-// lollipop plot with zero iso-value lines, hanging outside the 3D projection it
-// was drawn in. It now draws marching-squares iso-lines across the interpolated
-// tile grid.
+// The 3D Surface Explorer's "Contours" chip draws marching-squares iso-lines
+// across the interpolated tile grid — iso-value lines inside the 3D projection,
+// not stems to a flat baseline.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/analytics/widgets/science_surface_explorer.dart';
@@ -126,8 +124,8 @@ void main() {
         }),
     );
 
-    // The painter must draw exactly the iso-line segments of this grid. The
-    // stems it used to draw were one per tile (25), which no set of contour
+    // The painter must draw exactly the iso-line segments of this grid. A
+    // lollipop stem per tile would be 25 segments, which no set of contour
     // levels over this dome produces.
     //
     // The painter normalises tile values against the 5th/95th percentile of

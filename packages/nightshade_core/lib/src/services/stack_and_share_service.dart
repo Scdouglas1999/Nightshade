@@ -316,12 +316,11 @@ class StackAndShareService {
         } catch (e) {
           // Losing an entire night's stack to one satellite-trailed or
           // wind-shaken sub is the most expensive failure this feature has, and
-          // that is exactly what an unguarded await did: every native rejection
-          // path (too few stars, too few matches, residual over the ceiling)
-          // returns Err, so a single refused follower escaped this loop into
-          // the run-level catch, which deleted the partial `stacked_results`
-          // row and never attempted the remaining subs. The `framesRejected`
-          // counter below it was therefore unreachable.
+          // an unguarded await is how it happens: every native rejection path
+          // (too few stars, too few matches, residual over the ceiling) returns
+          // Err, so one refused follower would reach the run-level catch, which
+          // deletes the partial `stacked_results` row and abandons the
+          // remaining subs.
           //
           // A refused frame is a PER-FRAME outcome: count it, remember why, and
           // keep stacking. Authority loss is the one genuine run-level abort
@@ -561,8 +560,8 @@ class StackAndShareService {
       //
       // Guard the stop in its own try/catch: when the pipeline itself threw, the
       // `catch` above is already rethrowing the real cause — a release failure
-      // must not mask it. We log it instead so the leaked singleton is still
-      // visible to operators ("errors are a feature").
+      // must not mask it. Log it instead, so the leaked singleton is still
+      // visible to operators.
       try {
         await _engine.stop();
       } catch (stopError, stopStack) {

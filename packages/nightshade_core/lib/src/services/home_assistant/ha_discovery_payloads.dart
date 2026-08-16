@@ -201,7 +201,7 @@ List<HaDiscoveryEntry> buildHaDiscoveryEntries(
   String enc(Map<String, dynamic> m) => jsonEncode(m);
 
   final entries = <HaDiscoveryEntry>[
-    // ---- Binary sensors -------------------------------------------------
+    // Binary sensors
     HaDiscoveryEntry(
       b.configTopic('binary_sensor', HaEntityKeys.safety),
       // HA `safety` device class: ON = unsafe.
@@ -261,7 +261,7 @@ List<HaDiscoveryEntry> buildHaDiscoveryEntries(
       ),
     ),
 
-    // ---- Sensors ---------------------------------------------------------
+    // Sensors
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.currentTarget),
       enc(
@@ -418,7 +418,7 @@ List<HaDiscoveryEntry> buildHaDiscoveryEntries(
       ),
     ),
 
-    // ---- Commands ----------------------------------------------------------
+    // Commands
     HaDiscoveryEntry(
       b.configTopic('switch', HaEntityKeys.sequencePaused),
       includeControls

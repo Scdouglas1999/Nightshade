@@ -1,24 +1,18 @@
-// WE-SP-5 residual — the reserve was added to a scroll view the standby
-// dashboard does not use.
+// The prompt reserve has to land in the scroll view the STANDBY dashboard
+// actually uses.
 //
-// Wave F reproduced the original overlap verbatim on the fixed build: scrolled
-// to the HARD bottom (12 wheel notches, then 15 more with zero movement), the
-// floating "Build tonight's plan?" prompt sat at y 537-645 over the Moon card's
-// Moonrise row at y~634 — label visible, value hidden. The decisive control:
-// dismissing the prompt at the IDENTICAL scroll offset revealed "08:12" at
-// exactly that y, and NOTHING MOVED — max scroll was the same with and without
-// the prompt. So `kFloatingPromptReservedHeight`, added to
-// `DashboardScrollView`, had no effect on this layout at all.
+// `dashboard_screen.dart` renders `Expanded(child: CockpitStandby(...))` here,
+// and CockpitStandby owns its OWN SingleChildScrollView. `DashboardScrollView`
+// is the other branch — the zone cockpit shown when a run is live — so a
+// reserve added there does nothing on this layout: scrolled to the HARD bottom
+// the floating "Build tonight's plan?" prompt still sits at y 537-645 over the
+// Moon card's Moonrise row at y~634, label visible and value hidden, and
+// dismissing it at the identical offset reveals "08:12" at exactly that y with
+// nothing moved.
 //
-// It could not have: on the standby dashboard `dashboard_screen.dart` renders
-// `Expanded(child: CockpitStandby(...))`, and CockpitStandby owns its OWN
-// SingleChildScrollView. DashboardScrollView is the OTHER branch — the zone
-// cockpit shown when a run is live. Two implementations, and the fix went into
-// the one that does not run here.
-//
-// The refuter's counter-input is what this test measures: the max scroll extent
-// with the prompt up MINUS the extent without it. If the prompt costs the
-// layout nothing, that difference is zero, which is the defect.
+// So this measures the max scroll extent with the prompt up MINUS the extent
+// without it. If the prompt costs the layout nothing, that difference is zero,
+// which is the defect.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -96,9 +90,8 @@ void main() {
     expect(
       with_ - without,
       greaterThanOrEqualTo(kFloatingPromptReservedHeight),
-      reason:
-          'WE-SP-5: max scroll was identical with and without the prompt, so '
-          'the last card could never be scrolled out from under it',
+      reason: 'max scroll must differ with and without the prompt, so the last '
+          'card can be scrolled out from under it',
     );
   });
 

@@ -1,9 +1,7 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
-  // =========================================================================
   // PHD2 Guiding
-  // =========================================================================
 
   @override
   Future<bool> isPhd2Running({
@@ -43,7 +41,7 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
       if (e.httpStatus != 404) rethrow;
       // A master that predates GET /api/phd2/probe can still answer the port
       // question. Report that as "reachable, version unknown" rather than
-      // inventing an identification the old endpoint never made.
+      // inventing an identification that endpoint never makes.
       final running = await isPhd2Running(host: host, port: port);
       return Phd2ProbeResult(
         outcome: running
@@ -324,9 +322,7 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
     await _post('phd2/deselect-star', {});
   }
 
-  // =========================================================================
   // Generic Guiding (driver-agnostic abstraction)
-  // =========================================================================
 
   @override
   Future<void> guiderStartGuiding({

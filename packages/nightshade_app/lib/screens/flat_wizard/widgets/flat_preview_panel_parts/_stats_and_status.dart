@@ -1,5 +1,3 @@
-// Part of ../flat_preview_panel.dart -- extracted for maintainability.
-//
 // Stats bar, status indicator, exposure countdown and visualization toggles.
 part of '../flat_preview_panel.dart';
 

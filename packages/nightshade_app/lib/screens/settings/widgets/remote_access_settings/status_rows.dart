@@ -95,10 +95,9 @@ String describeLocalDashboardAction({required bool requiresAuthentication}) {
 
 /// Turn a raw server startup failure into something an operator can act on.
 ///
-/// The panel used to surface the bare `SocketException`, clipped after two
-/// lines, which hid the one detail that matters (which port is taken). The raw
-/// text is still available via the row's copy button — this only replaces what
-/// is *displayed*.
+/// A bare `SocketException`, clipped after two lines, hides the one detail that
+/// matters: which port is taken. The raw text stays available via the row's
+/// copy button — this only replaces what is *displayed*.
 @visibleForTesting
 String explainRemoteAccessError(String rawError, int configuredPort) {
   final lower = rawError.toLowerCase();

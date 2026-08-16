@@ -10,10 +10,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// publishes that flag only when a widget passes `enabled:` explicitly. So a
 /// control that merely carries a tap action — a bare `InkWell`, a
 /// `GestureDetector`, Material's own dropdown — reaches a screen reader as an
-/// inert, disabled panel while it works perfectly for a mouse. Eight separate
-/// GUI clusters filed that same defect against different screens (IMG-6,
-/// SEQ-10, EQP-4, SET-6/19, SKY-17, SCI-36, COL2-9/12/18, CON-47), which is
-/// why it is pinned here at the components rather than per screen.
+/// inert, disabled panel while it works perfectly for a mouse. The same defect
+/// recurs on every screen that hand-rolls a control, which is why it is pinned
+/// here at the components rather than per screen.
 ///
 /// [assertOperableNodes] walks the whole semantics tree, so it also catches the
 /// second half of the family: a widget that publishes TWO nodes, one named and

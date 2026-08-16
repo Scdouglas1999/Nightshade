@@ -319,9 +319,9 @@ void main() {
       // The FFI event mapper emits BARE lifecycle names — see
       // `nightshade_core/lib/src/backend/ffi_backend/event_mapping.dart`
       // (`return ('Started', ...)`, `('Stopped', {})`, `('Completed', {})`) —
-      // and only the terminal failure is prefixed. The table used to list only
-      // the prefixed spellings, so no sequencer command was ever stamped with
-      // its correlatingCommandId despite /api/docs advertising it.
+      // and only the terminal failure is prefixed. A table carrying just the
+      // prefixed spellings stamps no sequencer command with its
+      // correlatingCommandId while /api/docs advertises that it does.
       expect(operationForCompletionEvent('Started'), 'sequencer.start');
       expect(operationForCompletionEvent('Completed'), 'sequencer.start');
       expect(operationForCompletionEvent('SequenceFailed'), 'sequencer.start');

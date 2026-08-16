@@ -1,7 +1,8 @@
 // Dart-side value types for Pillar A ("Your Sky") — the personal sky atlas.
 //
-// These model the JSON boundary documented in `docs/nightshade_5_0_contracts.md`
-// §4: a [SolvedFrameRef] is one plate-solved light frame ready to fold (it knows
+// These model the JSON boundary documented in
+// `docs/nightshade_5_0_contracts.md`: a [SolvedFrameRef] is one plate-solved
+// light frame ready to fold (it knows
 // how to emit the `<SipWcs JSON>` the bridge expects); [AtlasFoldSummary] /
 // [AtlasTileCoverage] / [TileProvenanceView] decode the bridge's fold / coverage
 // / info results. Field names mirror the wire contract (camelCase) so the maps
@@ -62,7 +63,7 @@ class SolvedWcsDistortion {
 /// Carries the on-disk frame path plus the full CD + SIP astrometry it was
 /// solved with, expressed as the FITS-convention WCS scalars the native
 /// `SipWcs` struct consumes. [toWcsJson] emits exactly the `<SipWcs JSON>`
-/// block the bridge `fold` action expects (keys per §1.1 of the contract).
+/// block the bridge `fold` action expects (keys per the contract).
 class SolvedFrameRef {
   /// Light-frame path (FITS / XISF / etc.), already plate-solved.
   final String framePath;
@@ -187,7 +188,7 @@ class SolvedFrameRef {
   }
 
   /// The `<SipWcs JSON>` block for the bridge fold payload (keys verbatim per
-  /// the contract §1.1).
+  /// the contract).
   Map<String, dynamic> toWcsJson() => <String, dynamic>{
     'crval1': crval1,
     'crval2': crval2,

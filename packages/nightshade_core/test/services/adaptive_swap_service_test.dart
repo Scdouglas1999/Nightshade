@@ -231,8 +231,7 @@ void main() {
       final unchanged = node.copyWith();
       expect(unchanged.brightnessTierHint, BrightnessTier.faint);
 
-      // PHASE-5: explicit null now KEEPS prior value (plain `?? this.X`).
-      // The Phase 5 commit dropped the sentinel; clearing
+      // An explicit null KEEPS the prior value (plain `?? this.X`); clearing
       // brightnessTierHint is rebuild-explicit at the editor.
       final stillFaint = node.copyWith(brightnessTierHint: null);
       expect(stillFaint.brightnessTierHint, BrightnessTier.faint);

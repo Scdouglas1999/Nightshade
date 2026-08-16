@@ -103,8 +103,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  // COL2-3: with an empty tileset URL, "Download" looked like every other
-  // enabled button and did nothing at all when pressed — no snackbar, no
+  // With an empty tileset URL, "Download" must not look like every other
+  // enabled button and then do nothing at all when pressed — no snackbar, no
   // validation, no log line.
   testWidgets('Download is unavailable, with a reason, while the URL is empty',
       (tester) async {
@@ -119,13 +119,12 @@ void main() {
         findsOneWidget);
   });
 
-  // COL2-3, THIRD strike. The widget-level assertion above passed through two
-  // fix waves while two live drives read the SAME control out of the running
-  // app's accessibility tree as a plain `button: Download` with no `[DISABLED]`
-  // and a click that did nothing. The widget level was never where the two
-  // implementations differed — the SEMANTICS level is, because that is what
-  // the audit harness reads. So pin the announced name and the enabled flags.
-  testWidgets('the blocked Download announces the reason to AT (COL2-3)',
+  // The widget-level assertion above is not enough: the same control reads out
+  // of the running app's accessibility tree as a plain `button: Download` with
+  // no `[DISABLED]` and a click that does nothing. The SEMANTICS level is where
+  // that shows, because that is what a tree dump reads, so pin the announced
+  // name and the enabled flags.
+  testWidgets('the blocked Download announces the reason to AT',
       (tester) async {
     final handle = tester.ensureSemantics();
     final manager = _FakeManager()..baseUrl = '';
@@ -145,8 +144,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('a usable Download announces nothing extra (COL2-3)',
-      (tester) async {
+  testWidgets('a usable Download announces nothing extra', (tester) async {
     final handle = tester.ensureSemantics();
     final manager = _FakeManager()..baseUrl = 'https://host/tiles';
     await _pumpCard(tester, manager);

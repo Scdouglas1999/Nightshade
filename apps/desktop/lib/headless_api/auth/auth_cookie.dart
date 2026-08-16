@@ -2,12 +2,11 @@ import 'dart:math';
 
 import 'timing.dart';
 
-/// HttpOnly cookie + CSRF token session store for the web dashboard (§2.5).
+/// HttpOnly cookie + CSRF token session store for the web dashboard.
 ///
-/// Why a dedicated store: the bearer token is still the only credential that
-/// proves "this caller is allowed to drive the rig." Once that token has been
-/// minted by the pairing flow, the dashboard previously kept it in JS-readable
-/// `localStorage`, which any future XSS could exfiltrate. The cookie path
+/// Why a dedicated store: the bearer token is the only credential that proves
+/// "this caller is allowed to drive the rig", and `localStorage` is
+/// JS-readable, so an XSS could exfiltrate it from there. The cookie path
 /// stashes the token in an `HttpOnly; Secure; SameSite=Strict` cookie that JS
 /// cannot read at all, and pairs it with a CSRF token (random, server-issued)
 /// that the dashboard must echo via `X-Nightshade-CSRF` on every state-changing
@@ -18,9 +17,8 @@ import 'timing.dart';
 /// shelf middleware so there is no need for synchronization primitives.
 class AuthCookieManager {
   /// How long an HttpOnly cookie is valid for. Mirrored into the
-  /// `Max-Age` attribute when issuing the cookie. Why 30 days: matches the
-  /// behaviour the prior `localStorage` "remember" path provided so users
-  /// don't have to re-pair every time they reopen the browser.
+  /// `Max-Age` attribute when issuing the cookie. 30 days so an operator does
+  /// not have to re-pair every time they reopen the browser.
   static const Duration cookieLifetime = Duration(days: 30);
 
   /// How long a CSRF token remains valid for before the dashboard must
@@ -41,10 +39,9 @@ class AuthCookieManager {
   final DateTime Function() _now;
 
   // Sessions keyed by the cookie-token value. Each entry holds the bearer
-  // token that was originally exchanged for the cookie (so the auth
-  // middleware can resolve a cookie-bearing request back to the same scope
-  // resolution as a bearer-header request would have used) and the CSRF
-  // token currently bound to that session.
+  // token exchanged for the cookie (so the auth middleware can resolve a
+  // cookie-bearing request back to the same scope resolution a bearer-header
+  // request would get) and the CSRF token bound to that session.
   final Map<String, _CookieSession> _sessions = {};
 
   AuthCookieManager({Random? random, DateTime Function()? now})

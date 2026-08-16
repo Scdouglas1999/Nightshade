@@ -1,12 +1,12 @@
-// Regression: typing an unambiguous catalogue number did not resolve it.
+// Typing an unambiguous catalogue number resolves it.
 //
 // OpenNGC ships every cross-identifier it knows, zero-padded — NGC7107 carries
-// "PGC 067209", IC728 carries "UGC 06720", NGC7112 carries "PGC 067208". The
-// search scored a typed "6720" as a plain SUBSTRING match against all of them,
-// so those galaxies landed level with NGC6720 itself and the only thing
-// separating them was the brightness tie-break. Rank an exact designation
-// above every fuzzier band so the number an observer types names the object
-// they meant, whatever else happens to contain those digits.
+// "PGC 067209", IC728 carries "UGC 06720", NGC7112 carries "PGC 067208". Scoring
+// a typed "6720" as a plain SUBSTRING match against all of them lands those
+// galaxies level with NGC6720 itself, separated only by the brightness
+// tie-break. An exact designation ranks above every fuzzier band, so the number
+// an observer types names the object they meant whatever else contains those
+// digits.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +26,8 @@ void main() {
   );
 
   // A galaxy that has nothing to do with "6720" except that its UGC number
-  // contains those digits — and is brighter, so before the fix it won.
+  // contains those digits — and is brighter, so a substring match ranks it
+  // first.
   const ugcDecoy = DeepSkyObject(
     id: 'IC728',
     name: 'IC728',
@@ -140,16 +141,16 @@ void main() {
     }
   });
 
-  // The star half of the same fix had no coverage: deleting the designation
-  // branch in the star loop left every test above green, because those cases
-  // are all decided inside the DSO loop.
+  // The star loop needs its own coverage: every case above is decided inside
+  // the DSO loop, so deleting the designation branch in the star loop leaves
+  // them all green.
   //
   // Two shapes, because the padded one is NOT what HYG emits: star_catalog.dart
   // builds ids as `HIP$n` / `HD$n` and cross-ids as `HIP $n` / `HD $n`, with no
   // zero padding. Padding is the DSO cross-identifier shape (and whatever a
-  // future star catalog ships), so keep it covered — but pin the branch against
-  // the shape the SHIPPED loader actually produces as well, or the star half of
-  // the fix is only ever exercised by fixtures the app cannot generate.
+  // future star catalog ships), so it stays covered — and the branch is pinned
+  // against the shape the SHIPPED loader produces as well, or the star half is
+  // only ever exercised by fixtures the app cannot generate.
   test('a padded star catalogue id is an exact designation too', () async {
     const paddedStar = Star(
       id: 'HD006720',

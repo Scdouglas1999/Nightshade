@@ -1,12 +1,12 @@
-// Regression: a secondary component of a multiple star must not enter the
-// catalogue named after its raw row id.
+// A secondary component of a multiple star never enters the catalogue named
+// after its raw row id.
 //
-// Found live: the chart draws the label "Capella"; clicking it opened a panel
-// headed "HYG118360" with the chip "HYG118360" and "mag 1.0". HYG carries the
-// Capella system as two rows — id 24549 (hip 24608, proper "Capella", mag 0.08)
-// and id 118360 (no hip, no proper name, no Bayer letter, mag 0.96, comp 2,
-// comp_primary 24549), the Ab component 9 arcsec away. The unnamed row fell
-// through the name chain to its own id, so search and the object panel could
+// The chart draws the label "Capella"; clicking it must not open a panel headed
+// "HYG118360" with the chip "HYG118360" and "mag 1.0". HYG carries the Capella
+// system as two rows — id 24549 (hip 24608, proper "Capella", mag 0.08) and id
+// 118360 (no hip, no proper name, no Bayer letter, mag 0.96, comp 2,
+// comp_primary 24549), the Ab component 9 arcsec away. An unnamed row that
+// falls through the name chain to its own id lets search and the object panel
 // show a star called "HYG118360" that no chart ever labels.
 import 'dart:io';
 

@@ -5,17 +5,16 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/equipment_profile.dart'
     as remote_profile;
 
-/// Regression coverage for the REMOTE (slave -> host) profile duplication path
-/// in [EquipmentProfilesNotifier.duplicateProfile].
+/// Coverage for the REMOTE (slave -> host) profile duplication path in
+/// [EquipmentProfilesNotifier.duplicateProfile].
 ///
-/// The defect: the remote duplicate used
-/// `source.copyWith(id: null, name: newName, isActive: false)`, but
-/// `copyWith`'s `id ?? this.id` semantics CANNOT clear the id — it kept the
-/// SOURCE id, so the outbound `saveProfile` carried the source's id and the host
-/// UPDATED/renamed the source instead of creating a copy. It also left
-/// `isDefault` untouched. The fix builds a genuine insertion copy
-/// ([EquipmentProfileModel.toInsertionCopy]) with the id CLEARED, active/default
-/// false, a new name, and every other field preserved.
+/// `source.copyWith(id: null, name: newName, isActive: false)` cannot express
+/// this: `copyWith`'s `id ?? this.id` semantics keep the SOURCE id, so the
+/// outbound `saveProfile` carries it and the host UPDATES/renames the source
+/// instead of creating a copy, with `isDefault` untouched. The duplicate is a
+/// genuine insertion copy ([EquipmentProfileModel.toInsertionCopy]) with the id
+/// CLEARED, active/default false, a new name, and every other field
+/// preserved.
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
 class _FixedBackendNotifier extends BackendNotifier {
@@ -35,9 +34,9 @@ void main() {
 
   test('remote duplicate creates a NEW host row (id absent), leaves the source '
       'untouched, and preserves every device/optics/metadata field', () async {
-    // A rich source profile with the historically-dropped slots + labels and a
-    // meridian-flip override, active AND default so we can prove the copy does
-    // not inherit those flags.
+    // A rich source profile carrying every slot + label and a meridian-flip
+    // override, active AND default, so the copy can be shown not to inherit
+    // those flags.
     const source = remote_profile.EquipmentProfile(
       id: '5',
       name: 'Observatory rig',
@@ -99,8 +98,8 @@ void main() {
       if (int.tryParse(p.id) == null) {
         stored.add(p.copyWith(id: '100'));
       } else {
-        // An id present would be an UPDATE of that row — the bug we're guarding
-        // against. Reflect it so a regression corrupts the source visibly.
+        // An id present is an UPDATE of that row — the case under guard.
+        // Reflect it so the corruption of the source is visible.
         final idx = stored.indexWhere((e) => e.id == p.id);
         if (idx != -1) stored[idx] = p;
       }
@@ -154,7 +153,7 @@ void main() {
     expect(newId, 100);
 
     // The source row is completely untouched: same id, name, and active/default
-    // flags. A regression that sent the source id would have overwritten this.
+    // flags. Sending the source id would overwrite it.
     final sourceAfter = stored.firstWhere((p) => p.id == '5');
     expect(sourceAfter.name, 'Observatory rig');
     expect(sourceAfter.isActive, isTrue);

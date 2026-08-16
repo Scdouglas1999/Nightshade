@@ -197,9 +197,9 @@ class _RegionDetailBody extends ConsumerWidget {
 ///
 /// HONEST SCRUB: the scrub anchor does NOT drive the cutout image. The native
 /// `tilePng(asOf:)` raises whenever any fold is after the anchor (an honest
-/// refusal), which previously painted a broken-image icon over an "as of
-/// `<date>`" badge on every past scrub stop. Here the cutout fetches latest
-/// only, and an honest line under it states "Showing latest depth — N of M
+/// refusal), which would paint a broken-image icon over an "as of `<date>`"
+/// badge on every past scrub stop. So the cutout fetches latest only, and an
+/// honest line under it states "Showing latest depth — N of M
 /// sessions by `<date>`" so the slider clearly scrubs the FRAME LIST + growth
 /// below, not the hero image.
 class _CutoutPanel extends ConsumerWidget {
@@ -328,10 +328,9 @@ class _CutoutPanel extends ConsumerWidget {
 
 /// What the hero preview shows before a single frame has been folded here.
 ///
-/// The panel used to render a bare icon on flat background, so a newly created
-/// region opened on a viewport-filling grey rectangle that said nothing about
-/// why it was empty or what to do about it — while the parent Your Sky screen
-/// handles the same state with a sentence and a next step.
+/// Matches the parent Your Sky screen: a sentence and a next step. A bare icon
+/// on flat background opens a newly created region on a viewport-filling grey
+/// rectangle that says nothing about why it is empty.
 class _EmptyCutout extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -741,7 +740,7 @@ class _FoldRow extends StatelessWidget {
 /// The region's deepening growth curve (cumulative integration vs. night),
 /// driven by the native [atlasRegionGrowthProvider] (host) or the host's
 /// timeline `growth` payload (slave). Surfaces the per-cone deepening curve the
-/// native bridge computes — previously built + wired but never displayed.
+/// native bridge computes.
 class _GrowthPanel extends ConsumerWidget {
   final int regionId;
 

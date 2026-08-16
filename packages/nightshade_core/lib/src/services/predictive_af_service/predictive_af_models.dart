@@ -367,11 +367,9 @@ class ShouldWarn extends DriftStatus {
 
 /// Last predictive-AF consultation, surfaced for the UI (focus model card).
 ///
-/// The model previously trained and predicted entirely silently — the
-/// operator had no way to see whether the model trusts itself for a filter,
-/// what it predicted, or how the real sweep compared. Written by the
-/// device-service AF path before (decision) and after (actual outcome) each
-/// sweep.
+/// Written by the device-service AF path before (the decision) and after (the
+/// actual outcome) each sweep, so the operator can see whether the model trusts
+/// itself for a filter, what it predicted, and how the real sweep compared.
 class PredictiveAfStatus {
   final DateTime at;
   final String filterName;

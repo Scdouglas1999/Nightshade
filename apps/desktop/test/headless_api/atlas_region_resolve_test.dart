@@ -1,5 +1,5 @@
-// SLOP-DUP-002: the three /api/atlas/region/<id>/... routes share one
-// _resolveRegion preamble. The existing atlas_handlers_error_test covers the
+// The three /api/atlas/region/<id>/... routes share one _resolveRegion
+// preamble. The existing atlas_handlers_error_test covers the
 // 400 (non-integer id) branch for all three routes; this file exercises the
 // 404 (region_not_found) branch of the same helper against a real, empty atlas
 // service so both arms of the extracted helper are covered.

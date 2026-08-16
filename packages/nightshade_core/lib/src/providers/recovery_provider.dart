@@ -2,11 +2,8 @@
 ///
 /// Reads:
 ///   * the typed bridge event stream — `SequencerEvent_Recovery{Started,
-///     Progress,Completed,GaveUp}` carry the full recovery context as
-/// flat primitive fields. An earlier build used a pre-FRB-regen workaround that
-///     tunnelled the recovery context as JSON through the legacy
-///     `InstructionProgress.detail` channel with a synthetic `_recovery`
-/// node id; a later regen retires that hack.
+///     Progress,Completed,GaveUp}` carry the full recovery context as flat
+///     primitive fields.
 ///   * `sequenceProgressProvider` — used to derive the `isRecovering`
 ///     boolean even when the live recovery context hasn't arrived yet.
 ///
@@ -241,9 +238,7 @@ RecoveryEventEnvelope? _recoveryEnvelopeFromBridge(
   return null;
 }
 
-// ---------------------------------------------------------------------------
 // Typed → RecoveryStatus reconstruction helpers
-// ---------------------------------------------------------------------------
 //
 // The four FRB variants carry identical-shaped payloads (flat primitives
 // only — see `bridge/src/event.rs > SequencerEvent::Recovery*`). The Rust
@@ -369,10 +364,9 @@ RecoveryCause _causeFromTyped(String kind, String? customLabel) {
     case 'Custom':
       return RecoveryCause.custom(customLabel ?? '');
     default:
-      // Errors are a feature here. An unknown discriminant means
-      // the Rust enum grew a variant and we didn't update the Dart
-      // switch — surface it instead of silently falling back to a wrong
-      // cause.
+      // An unknown discriminant means the Rust enum grew a variant this
+      // switch does not cover. Throwing surfaces that; a fallback would
+      // report a wrong recovery cause as if it were the real one.
       throw FormatException(
         'Unknown RecoveryCause kind from typed bridge event: $kind',
       );
@@ -475,22 +469,15 @@ final recoveryAudibleBridgeProvider = Provider<void>((ref) {
 /// paired mobile clients via the push-notification service. Honours
 /// [pushCriticalAlerts].
 ///
-/// Two pushes per recovery loop, so the operator on cellular gets the full
-/// "something broke — and here's what I did" story:
-///   * **Entry** (this listens [currentRecoveryProvider] None->Some): the
-///     cause label + "entered recovery mode" + first attempt.
-///   * **Exit** (this listens [recoveryHistoryProvider] for each freshly
-///     appended [RecoveryHistoryEntry]): the *outcome* — re-acquired /
-///     parked / gave-up — with the recovery action so the alert closes the
-///     loop instead of leaving the operator wondering. Recovery exhaustion
-///     (`recovered == false`) is the most important escalation: the rig has
-///     stopped imaging and needs a human.
+/// Two pushes per recovery loop:
+///   * **Entry** ([currentRecoveryProvider] None->Some): the cause label plus
+///     the first attempt.
+///   * **Exit** (each freshly appended [RecoveryHistoryEntry]): the outcome —
+///     re-acquired / parked / gave-up — with the recovery action. Recovery
+///     exhaustion (`recovered == false`) means the rig has stopped imaging.
 ///
-/// Both criticals flow through [PushNotificationService.enqueueCriticalNotification]
-/// -> the headless server's WebSocket fan-out -> the LAN broadcaster + the
-/// remote (FCM/APNs) delivery, so a phone hours from the rig wakes on them.
-/// Fail-soft: any error building/enqueueing a push is logged and swallowed so
-/// a notification failure never breaks the run.
+/// Fail-soft: any error building or enqueueing a push is logged and swallowed
+/// so a notification failure never breaks the run.
 final recoveryPushBridgeProvider = Provider<void>((ref) {
   void enqueue({
     required String title,

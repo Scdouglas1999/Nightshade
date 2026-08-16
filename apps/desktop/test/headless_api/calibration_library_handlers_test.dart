@@ -1,4 +1,4 @@
-// Tests for the WS1 shared-calibration-library headless handlers
+// Tests for the shared-calibration-library headless handlers
 // (match / accept / publish / retract) — the remote-client (tablet → appliance)
 // path for Collaborative Sky shared calibration.
 //
@@ -23,7 +23,7 @@ import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
-/// A [CalibrationLibraryService] whose WS1 share/match methods are replaced with
+/// A [CalibrationLibraryService] whose share/match methods are replaced with
 /// scriptable stubs, so the handler seam can be asserted without a hub or a
 /// populated library. Its [getRecord] backs both the publish/retract 404 branch
 /// and the happy paths.
@@ -150,7 +150,7 @@ Map<String, dynamic> _remoteDarkJson() => {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('CalibrationLibraryHandlers — WS1 share seam', () {
+  group('CalibrationLibraryHandlers — share seam', () {
     late ProviderContainer container;
     late NightshadeDatabase db;
     late _FakeCalibrationLibraryService service;
@@ -249,7 +249,7 @@ void main() {
       expect((await bodyOf(badId))['field'], 'id');
     });
 
-    // ---- match -------------------------------------------------------------
+    // match
 
     test('POST match returns the transparent match set', () async {
       service.onMatch = (c) => CalibrationMatchSet(
@@ -272,7 +272,7 @@ void main() {
       expect((body['context'] as Map)['gain'], 100);
     });
 
-    // ---- accept ------------------------------------------------------------
+    // accept
 
     test('POST accept rejects a non-remote record with 400', () async {
       // A record with no remoteId is local; accept must refuse before any
@@ -315,7 +315,7 @@ void main() {
       expect((await bodyOf(response))['error'], 'calibration_accept_failed');
     });
 
-    // ---- publish -----------------------------------------------------------
+    // publish
 
     test('POST publish fails closed on an unknown license token', () async {
       // The record exists, but the license token is not recognized: the handler
@@ -386,7 +386,7 @@ void main() {
       );
     });
 
-    // ---- retract -----------------------------------------------------------
+    // retract
 
     test('POST retract returns 404 when the master is missing', () async {
       service.record = null;
@@ -430,7 +430,7 @@ void main() {
     });
   });
 
-  group('CalibrationLibraryHandlers — WS1 route scopes', () {
+  group('CalibrationLibraryHandlers — route scopes', () {
     test('share POSTs are control scope', () {
       for (final path in const [
         '/api/calibration-library/match',

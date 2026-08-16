@@ -503,9 +503,7 @@ sealed class SequenceNode extends Equatable {
 /// Node category for coloring
 enum NodeCategory { instruction, trigger, logic, target }
 
-// =============================================================================
-// MOSAIC PANEL INFO
-// =============================================================================
+// Mosaic panel info
 
 /// Information about a mosaic panel for multi-panel imaging
 @Freezed(fromJson: true, toJson: true)

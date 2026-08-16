@@ -11,8 +11,8 @@ _brokerThatImmediatelySends(List<int> bytes) async {
   final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   final subscription = server.listen((socket) {
     // Deliberately respond as soon as TCP accepts. This can beat the client's
-    // readPacket() call and pins the packet-buffering race that used to drop a
-    // healthy broker's CONNACK/PUBACK.
+    // readPacket() call, so it pins the packet buffering that keeps a healthy
+    // broker's CONNACK/PUBACK from being dropped.
     socket.add(bytes);
   });
   return (server: server, subscription: subscription);

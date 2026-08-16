@@ -497,10 +497,9 @@ class _RadarPreview extends StatelessWidget {
     final motionAsync = ref.watch(analyzeCloudMotionProvider);
     final motionDirection = motionAsync.valueOrNull?.directionDegrees;
 
-    // The live edge of the loop, picked by timestamp. `frames.first` used to
-    // be taken for "most recent" and is not: RainViewer/Open-Meteo/MET Norway
-    // hand back oldest → newest, so this thumbnail was showing cloud up to two
-    // hours old on the dashboard the operator glances at.
+    // The live edge of the loop, picked by TIMESTAMP.
+    // RainViewer/Open-Meteo/MET Norway hand frames back oldest → newest, so
+    // `frames.first` is the oldest and would show cloud up to two hours stale.
     final frames = weatherStatus.radarFrames;
     final currentFrame = frames.isNotEmpty
         ? frames[latestObservedRadarFrameIndex(frames)]

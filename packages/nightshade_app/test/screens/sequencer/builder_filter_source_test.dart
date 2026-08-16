@@ -1,7 +1,8 @@
-// SEQ-19: the builder said "No Filter" / "No filters in profile" while every
-// frame of the run was captured, named `M42-TEST_R_0001.fits` and reported
-// under filter "R". The authoring surface read the equipment PROFILE and
-// nothing else; the capture path uses the connected wheel.
+// The authoring surface must read the same filters the capture path uses.
+// Reading the equipment PROFILE and nothing else makes the builder say
+// "No Filter" / "No filters in profile" while every frame of the run is
+// captured, named `M42-TEST_R_0001.fits` and reported under filter "R", because
+// the capture path uses the connected wheel.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -188,7 +188,7 @@ void main() {
           );
         }
 
-        // Default config (500-step gate): regression rejected.
+        // Default config (500-step gate): the fit is rejected.
         final defaultSvc = FocusModelService();
         await seed(defaultSvc);
         expect(
@@ -257,8 +257,8 @@ void main() {
         // Physics: slope = 50 steps/°C, no per-filter offset.
         // Reference filter L: sampled at cold temperatures (5°C).
         // Filter R: sampled at warm temperatures (15°C).
-        // Pre-fix: would report ~500 steps offset (pure temperature drift).
-        // Post-fix: must report ~0.
+        // A raw per-filter average would report ~500 steps of pure
+        // temperature drift; the corrected offset must be ~0.
         const slope = 50.0;
         const baseAtZero = 4750.0; // arbitrary
         int posAt(double t) => (baseAtZero + slope * t).round();
@@ -292,7 +292,7 @@ void main() {
 
         final rOffset = data.filterOffsets['R'];
         expect(rOffset, isNotNull);
-        // Pre-fix raw average would have been 500. Post-fix should be ~0.
+        // A raw average would report 500 here; the corrected offset is ~0.
         expect(
           rOffset!.offsetSteps.abs(),
           lessThan(5),
@@ -333,8 +333,8 @@ void main() {
         expect(data!.temperatureModel!.isReliable, isTrue);
 
         final rOffset = data.filterOffsets['R']!;
-        // Pre-fix raw average would have been 200 + 500 = 700.
-        // Post-fix should isolate the true 200.
+        // A raw average would report 200 + 500 = 700; the correction must
+        // isolate the true 200.
         expect(
           (rOffset.offsetSteps - trueROffset).abs(),
           lessThan(5),

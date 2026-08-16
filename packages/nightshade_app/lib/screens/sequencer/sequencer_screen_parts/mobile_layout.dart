@@ -1,11 +1,11 @@
 part of '../sequencer_screen.dart';
 
 /// Minimum width at which the phone-landscape builder splits the tree and the
-/// properties pane side-by-side (§17 — one named source instead of a literal
-/// 560 sprinkled through the layout).
+/// properties pane side-by-side. One named source instead of a literal 560
+/// sprinkled through the layout.
 const double _kSequencerSplitMinWidth = 560.0;
 
-/// Shows the node palette as an adaptive modal (§9). Single definition used by
+/// Shows the node palette as an adaptive modal. Single definition used by
 /// both the phone builder and the narrow-desktop rail so the presentation
 /// (design width / phone sheet) is defined once.
 void showSequencerNodeSheet(BuildContext context, NightshadeColors colors) {
@@ -20,7 +20,7 @@ void showSequencerNodeSheet(BuildContext context, NightshadeColors colors) {
   );
 }
 
-/// Shows the selected node's properties as an adaptive modal (§9). The
+/// Shows the selected node's properties as an adaptive modal. The
 /// properties form is content-heavy, so it gets a full-screen route on a phone
 /// and a centered dialog on tablet.
 void showSequencerPropertiesSheet(
@@ -64,7 +64,7 @@ class _MobileBuilderLayout extends ConsumerWidget {
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final isRunning = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
-    // §10: read orientation once for the build-time decisions (the FAB
+    // Read orientation once for the build-time decisions (the FAB
     // visibility check below). The onNodeTap closure keeps its own tap-time
     // read so a rotation between build and tap still routes correctly.
     final landscape = Responsive.isLandscape(context);
@@ -113,7 +113,7 @@ class _MobileBuilderLayout extends ConsumerWidget {
                     final wideLandscape =
                         constraints.maxWidth > constraints.maxHeight &&
                             constraints.maxWidth >= _kSequencerSplitMinWidth;
-                    // §11: show the split whenever there's real width to
+                    // Show the split whenever there's real width to
                     // spare, even with nothing selected — the properties pane
                     // renders its "Select a node to edit" hint, which teaches
                     // the affordance proactively instead of hiding it until a

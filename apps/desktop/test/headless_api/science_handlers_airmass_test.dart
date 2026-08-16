@@ -3,11 +3,10 @@
 // A tablet or phone paired to a headless host does not run the in-app wizard —
 // it POSTs to /api/science/calibration/image/<id>/match-stars and this handler
 // computes the per-frame airmass that the returned matches carry into the
-// extinction fit. It used to carry its own Kasten & Young 1989 copy clamped to
-// 1..8, and — worse — defaulted a frame with no recorded altitude to X = 1.0,
-// silently claiming a zenith observation. An invented 1.0 mixed in with real
-// air masses drags the extinction slope toward zero, and the wrong k then rides
-// along in every magnitude the saved transform standardizes.
+// extinction fit. It must answer from the shared model, and a frame with no
+// recorded altitude must have no airmass: an invented X = 1.0 claims a zenith
+// observation, drags the extinction slope toward zero, and the wrong k then
+// rides along in every magnitude the saved transform standardizes.
 //
 // These drive the real handler through a real database and assert on the
 // response, so cutting its call to the shared model breaks them.

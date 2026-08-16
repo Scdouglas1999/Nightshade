@@ -1,11 +1,9 @@
-// Regression guard for: "Dashboard Mount jog pad fires a 500 ms pulse guide
-// instead of a slew - the arrows do nothing a user can see".
+// The jog pad must SLEW while held, not fire a single pulse guide on tap: a
+// pulse is about four arcseconds at guide rate, invisible on the RA/Dec
+// readout, and a 2 s press-and-hold produces exactly one.
 //
-// The pad used to call mountCommandService.pulseGuide(direction) on tap: about
-// four arcseconds at guide rate, invisible on the RA/Dec readout, and a 2 s
-// press-and-hold produced exactly ONE pulse. These tests drive the real
-// MountControlCard with pointer down/up gestures and assert on the backend
-// calls, so restoring the pulseGuide-on-tap wiring fails them.
+// These tests drive the real MountControlCard with pointer down/up gestures and
+// assert on the backend calls, so restoring pulseGuide-on-tap fails them.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -159,8 +157,7 @@ void main() {
     expect(backend.moveAxisCalls.single.axis, 0);
     expect(backend.moveAxisCalls.single.rate, greaterThan(0));
 
-    // Still moving two seconds in — the old pad had already finished its single
-    // 500 ms pulse by now.
+    // Still moving two seconds in: a single 500 ms pulse would be long over.
     await tester.pump(const Duration(seconds: 2));
     expect(backend.moveAxisCalls, hasLength(1));
 
@@ -342,10 +339,9 @@ void main() {
     expect(backend.pulseCalls, isEmpty);
   });
 
-  // A parked mount refuses every move command, so the pad is gated off. It used
-  // to be gated SILENTLY: identical pixels, no tooltip change, no toast, no log
-  // line — the audit pressed E on a parked sim mount and nothing at all
-  // happened. Being inert is correct; being inert and mute is the defect.
+  // A parked mount refuses every move command, so the pad is gated off — and
+  // says so. Being inert is correct; being inert and mute (identical pixels, no
+  // tooltip change, no toast, no log line) is the defect.
   group('parked mount', () {
     testWidgets('says why the arrows are inert instead of looking live',
         (tester) async {

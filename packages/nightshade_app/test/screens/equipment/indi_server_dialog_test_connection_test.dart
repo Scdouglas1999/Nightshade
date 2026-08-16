@@ -1,7 +1,6 @@
-// Regression for a live defect: the INDI "Test Connection" button reported a
-// green "Connected. Found 0 devices." against an address where nothing was
-// listening — verified against both a dead localhost:7624 and 192.0.2.77
-// (RFC 5737 TEST-NET-1, guaranteed unroutable).
+// The INDI "Test Connection" button must not report a green "Connected. Found 0
+// devices." against an address where nothing is listening — a dead
+// localhost:7624 or 192.0.2.77 (RFC 5737 TEST-NET-1, guaranteed unroutable).
 //
 // The FFI backend catches a refused/timed-out INDI socket and returns an empty
 // device list rather than rethrowing (see

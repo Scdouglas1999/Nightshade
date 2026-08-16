@@ -1,9 +1,7 @@
 part of '../device_handlers.dart';
 
 extension RotatorDeviceHandlers on DeviceHandlers {
-  // ===========================================================================
-  // Rotator Control
-  // ===========================================================================
+  // Rotator control
 
   Future<Response> handleRotatorMoveTo(Request request) async {
     _logInfo('[API] POST /api/rotator/move-to');

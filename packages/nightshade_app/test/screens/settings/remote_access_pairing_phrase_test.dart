@@ -1,8 +1,8 @@
-// SET-18: "Start pairing mode to show a QR code and pairing phrase on this
-// screen" produced a QR and nothing else — no phrase, no expiry, no way to
-// leave pairing mode, and the whole card reduced in the accessibility tree to
-// "panel: Pair phones and tablets" plus a disabled empty text node, so a blind
-// operator had no path to pair a phone at all.
+// "Start pairing mode to show a QR code and pairing phrase on this screen" must
+// produce all of it. A QR and nothing else — no phrase, no expiry, no way to
+// leave pairing mode, and a card that reduces in the accessibility tree to
+// "panel: Pair phones and tablets" plus a disabled empty text node — leaves a
+// blind operator no path to pair a phone at all.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -146,11 +146,11 @@ void main() {
     );
   });
 
-  // WD-N4 — the phrase VALUE, not just its label, has to reach the
-  // accessibility tree. A SelectableText publishes its text as a semantic
-  // value; the live AT-SPI tree showed "panel: Pairing phrase" then "panel:
-  // Expires in 4:49" with nothing carrying ZENITH-NOVA-5610 between them, so a
-  // screen-reader user was told a phrase exists and never told what it is.
+  // The phrase VALUE, not just its label, has to reach the accessibility tree.
+  // A SelectableText publishes its text as a semantic value; without it the tree
+  // reads "panel: Pairing phrase" then "panel: Expires in 4:49" with nothing
+  // carrying the phrase between them, telling a screen-reader user that a phrase
+  // exists and never what it is.
   testWidgets('the phrase has an accessible NAME, not only a value',
       (tester) async {
     final handle = tester.ensureSemantics();
@@ -169,9 +169,9 @@ void main() {
     handle.dispose();
   });
 
-  // WD-N9 — the card shrink-wrapped to ~530 px of a ~1150 px column while idle
-  // and snapped to full width once pairing started.
-  group('WD-N9 — the card keeps one width', () {
+  // The card must not shrink-wrap to ~530 px of a ~1150 px column while idle
+  // and snap to full width once pairing starts.
+  group('the card keeps one width', () {
     Future<double> cardWidth(WidgetTester tester) async {
       final card = find.ancestor(
         of: find.text('Pair phones and tablets'),

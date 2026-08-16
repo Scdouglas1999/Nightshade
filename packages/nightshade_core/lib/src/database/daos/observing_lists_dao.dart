@@ -14,10 +14,8 @@ part 'observing_lists_dao.g.dart';
 /// "failed". It still extends [StateError] so the headless API's existing
 /// `on StateError` → HTTP 409 mapping keeps working unchanged.
 ///
-/// [toString] deliberately drops Dart's `Bad state: ` prefix — the planner's
-/// add-to-list dialog rendered `'Failed to add item: $e'` verbatim in red, so
-/// users were shown `Failed to add item: Bad state: NGC6015 is already in this
-/// list as "NGC6015"`.
+/// [toString] drops Dart's `Bad state: ` prefix because callers — the
+/// planner's add-to-list dialog among them — render the message verbatim.
 class ObservingListDuplicateItemException extends StateError {
   ObservingListDuplicateItemException({
     required this.listId,

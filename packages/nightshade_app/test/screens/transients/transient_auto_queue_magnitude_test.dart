@@ -103,11 +103,11 @@ void main() {
     expect(_sliderWithValue(tester, 10.0), isNull);
   });
 
-  // COL2-13, re-opened by Wave D 2026-08-13: with the switch OFF the row still
-  // asserted a number it gave no control for. The adversarial half is the one
-  // that makes it a false claim rather than a stale caption — drag the display
-  // Magnitude Threshold to 8.0 and the app went on saying it auto-queues
-  // objects at mag 10, two magnitudes FAINTER than the ones it will show.
+  // With the switch OFF the row must not assert a number it gives no control
+  // for. The adversarial half is what makes it a false claim rather than a
+  // stale caption: drag the display Magnitude Threshold to 8.0 and a fixed
+  // caption still says the app auto-queues at mag 10, two magnitudes FAINTER
+  // than the objects it will show.
   testWidgets('with auto-queue off the row states no threshold at all',
       (tester) async {
     await _openSettingsDialog(

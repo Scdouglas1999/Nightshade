@@ -290,7 +290,6 @@ TargetTrigger _defaultForKind(String kind, {required TargetTrigger current}) {
   }
 }
 
-// =============================================================================
 // Integration budget editor.
 //
 // The section is toggle-gated: when the toggle is off, the node has no
@@ -298,4 +297,3 @@ TargetTrigger _defaultForKind(String kind, {required TargetTrigger current}) {
 // per-filter rows (Absolute seconds or Ratio). The live preview shows
 // the resolved per-filter caps so the user can sanity-check before
 // pressing Save.
-// =============================================================================

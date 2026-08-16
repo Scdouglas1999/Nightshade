@@ -13,8 +13,8 @@
 // TestDefaultBinaryMessenger to intercept channel traffic without
 // booting a real platform plugin.
 //
-// Per repo policy: NO stubs / placeholders / silent fallbacks. Each
-// failing branch surfaces a typed exception we assert on.
+// Each failing branch must surface a typed exception rather than a silent
+// no-op; the tests assert on those exceptions.
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -384,9 +384,9 @@ void main() {
     test(
       'unknown wire id raises a PlatformException, not silently no-op',
       () async {
-        // The handler in VoiceControlService throws PlatformException for
-        // unknown ids; the platform messenger propagates it back to the
-        // caller. Per repo policy we WANT this to be loud, not silent.
+        // The handler in VoiceControlService throws PlatformException for an
+        // unknown id and the platform messenger propagates it back, so the
+        // assistant learns the command was not carried out.
         const codec = StandardMethodCodec();
         final message = codec.encodeMethodCall(
           const MethodCall('onAction', <String, Object?>{

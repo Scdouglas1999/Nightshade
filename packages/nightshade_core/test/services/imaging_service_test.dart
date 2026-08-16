@@ -1682,7 +1682,7 @@ void main() {
         offset: 50,
         frameType: FrameType.light,
         // The user picked a middle mode. fastReadout is false because index 2
-        // is not the last (3) entry — the pre-fix code would have sent 0.
+        // is not the last (3) entry, and the chosen index is what is sent.
         readoutModeIndex: 2,
         fastReadout: false,
       );
@@ -1807,8 +1807,8 @@ void main() {
     test(
       'camera reporting no readout modes skips the explicit set entirely',
       () async {
-        // Honest no-op: nothing to select against. The pre-fix code forced
-        // index 0, which could differ from the driver's own default.
+        // Honest no-op: nothing to select against, so forcing index 0 would
+        // override the driver's own default.
         stubCapture(readoutModes: const []);
 
         const settings = ExposureSettings(
@@ -1999,8 +1999,8 @@ void main() {
       ).thenAnswer((_) async {
         startedCompleter.complete();
         // Model a blocking camera driver: this call cannot return until the
-        // backend receives Abort. The old implementation deadlocked here
-        // because it waited for this Future before sending Abort.
+        // backend receives Abort, so waiting on this Future before sending
+        // Abort deadlocks.
         await driverExposure.future;
       });
 
@@ -2513,10 +2513,9 @@ void main() {
     });
 
     test('full pattern with filename segment honours the filename portion', () {
-      // The user's pattern ends in `$TARGET_$FILTER_$FRAMENUM`. Pre-fix the
-      // service would have ignored the trailing segment and hard-coded
-      // ${target}_${filter}_${frameNumber}; post-fix it must use what the
-      // user wrote.
+      // The user's pattern ends in `$TARGET_$FILTER_$FRAMENUM`, and the
+      // trailing segment is the filename: what the user wrote is what is used,
+      // not a hard-coded ${target}_${filter}_${frameNumber}.
       final subs = ImagingService.buildTimestampSubstitutions(
         exposureSettings: settings,
         targetName: 'M31',
@@ -2622,10 +2621,9 @@ void main() {
     });
 
     test('prefix-overlap variables disambiguate correctly', () {
-      // Regression: a naive chained `replaceAll` would correctly handle
-      // `$EXPTIME` and `$EXPOSURE` because neither is a strict prefix of the
-      // other, but the regex-based pass must keep that behavior. Likewise
-      // `$FRAMENUM` and `$FRAMETYPE`.
+      // A naive chained `replaceAll` handles `$EXPTIME` and `$EXPOSURE`
+      // because neither is a strict prefix of the other; the regex-based pass
+      // keeps that behaviour. Likewise `$FRAMENUM` and `$FRAMETYPE`.
       final subs = ImagingService.buildTimestampSubstitutions(
         exposureSettings: settings,
         targetName: 'M31',
@@ -2746,11 +2744,9 @@ void main() {
     );
 
     test('19:00 PST capture resolves \$DATE to next UTC day', () {
-      // 2026-01-15 19:00 PST  ==  2026-01-16 03:00 UTC.
-      // The PRE-fix behaviour used `.toIso8601String()` on the local
-      // DateTime, which on a PST machine returned "2026-01-15" — i.e. one
-      // day BEHIND the FITS DATE-OBS. After this fix `$DATE` follows the
-      // UTC clock and matches the FITS header.
+      // 19:00 PST == 03:00 UTC the next day. `$DATE` follows the UTC clock so
+      // the folder matches the FITS DATE-OBS card; formatting the local
+      // DateTime would put the frame one day behind its own header.
       final localTs = DateTime(2026, 1, 15, 19, 0, 0); // local-time ctor
       // Force the test to behave the same on any host TZ: construct an
       // explicit offset relative to UTC by using a known UTC moment and

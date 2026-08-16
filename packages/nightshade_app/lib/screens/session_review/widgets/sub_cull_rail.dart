@@ -75,10 +75,9 @@ class SubCullRail extends ConsumerStatefulWidget {
   /// the grid padding). Matches Flutter's
   /// `SliverGridDelegateWithMaxCrossAxisExtent.getLayout` exactly:
   ///   `crossAxisCount = (crossAxisExtent / (maxCrossAxisExtent + spacing)).ceil()`
-  /// with NO `+ spacing` added to the numerator. Adding it (the previous bug)
-  /// yields one extra column at widths near a multiple of (maxExtent + spacing),
-  /// which throws off every per-cell rect and mis-selects subs at the lasso
-  /// boundary.
+  /// with NO `+ spacing` added to the numerator. Adding it yields one extra
+  /// column at widths near a multiple of (maxExtent + spacing), which throws off
+  /// every per-cell rect and mis-selects subs at the lasso boundary.
   static int lassoGridColumns(double innerWidth) {
     final cols = (innerWidth / (lassoCellExtent + lassoCellSpacing)).ceil();
     return cols < 1 ? 1 : cols;
@@ -89,15 +88,15 @@ class SubCullRail extends ConsumerStatefulWidget {
 }
 
 class _SubCullRailState extends ConsumerState<SubCullRail> {
-  // --- blink ---
+  // blink
   bool _blink = false;
   int _blinkIndex = 0;
   Timer? _blinkTimer;
 
-  // --- threshold bulk-cull ---
+  // threshold bulk-cull
   double _hfrCull = 3.5;
 
-  // --- multi-select / lasso ---
+  // multi-select / lasso
   bool _selectMode = false;
   final Set<int> _selected = <int>{};
 

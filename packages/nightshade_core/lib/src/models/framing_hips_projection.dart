@@ -341,8 +341,9 @@ class FramingSkyProjection {
   /// level-of-detail selection: a coarser (lower-Norder) tile set is enough when
   /// arcsec/px is large (zoomed out), a finer (higher-Norder) set is needed when
   /// it is small (zoomed in). Returns [double.infinity] if the scale is
-  /// degenerate (zero px/deg) so callers see the degeneracy rather than dividing
-  /// silently — errors are a feature.
+  /// degenerate (zero px/deg): an infinite arcsec/px picks the coarsest tile
+  /// set, where a silently substituted finite value would pick a plausible
+  /// wrong one.
   double get arcsecPerPixel {
     if (pixelsPerDegree <= 0 || !pixelsPerDegree.isFinite) {
       return double.infinity;
