@@ -256,7 +256,19 @@ impl NativeDevice for SvbonyCamera {
         // SAFETY: SvbCameraPropertyEx is `#[repr(C)]` POD (c_int and c_int arrays) — all valid bit-patterns. Zero-init is the well-defined empty state.
         let mut prop_ex: SvbCameraPropertyEx = unsafe { std::mem::zeroed() };
         // SAFETY: svbony_mutex held; `self.camera_id` valid; `&mut prop_ex` is a valid stack out-pointer to a `#[repr(C)]` SvbCameraPropertyEx. Failure is tolerated (older firmware may not support EX) — caller logs nothing and falls through with zeroed defaults.
-        let _ = unsafe { (sdk.get_camera_property_ex)(self.camera_id, &mut prop_ex) };
+        let property_ex_result =
+            unsafe { (sdk.get_camera_property_ex)(self.camera_id, &mut prop_ex) };
+        if SvbError::from_i32(property_ex_result) != SvbError::Success {
+            // prop_ex keeps its zeroed seed, so `can_cool` and `has_guider_port` are
+            // published as false for the session and set_cooler/pulse-guide are refused.
+            // That is the safe direction, but on a cooled camera it is a capability the
+            // operator will look for — name the query that took it away.
+            tracing::warn!(
+                "SVBony camera {}: SVBGetCameraPropertyEx failed ({:?}); cooling and ST4 guiding are reported as unsupported for this session",
+                self.camera_id,
+                SvbError::from_i32(property_ex_result)
+            );
+        }
 
         // Determine max binning
         let mut max_bin = 1;
@@ -328,7 +340,18 @@ impl NativeDevice for SvbonyCamera {
         let pixel_size_um = {
             let mut px: f32 = 0.0;
             // SAFETY: svbony_mutex held; `self.camera_id` valid; `&mut px` is a valid f32 out-pointer.
-            let _ = unsafe { (sdk.get_sensor_pixel_size)(self.camera_id, &mut px) };
+            let result = unsafe { (sdk.get_sensor_pixel_size)(self.camera_id, &mut px) };
+            if SvbError::from_i32(result) != SvbError::Success {
+                // 0.0 propagates into SensorInfo.pixel_size_x/y, which is what the
+                // FITS XPIXSZ card and every image-scale hint are built from. Name
+                // the failure so a 0 um sensor is traceable to this query instead of
+                // looking like a real reading.
+                tracing::warn!(
+                    "SVBony camera {}: SVBGetSensorPixelSize failed ({:?}); pixel size is reported as unknown (0.0 um) for this session",
+                    self.camera_id,
+                    SvbError::from_i32(result)
+                );
+            }
             f64::from(px)
         };
         self.sensor_info = SensorInfo {

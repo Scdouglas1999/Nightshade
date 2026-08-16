@@ -45,6 +45,7 @@ List<LogEntry> _visibleEntries() => [
 Future<({_MockLoggingService logging, String targetPath})> _pump(
   WidgetTester tester, {
   bool cancelPicker = false,
+  bool logFilesUnreadable = false,
 }) async {
   final logging = _MockLoggingService();
   when(logging.getRecentLogs).thenReturn(_visibleEntries());
@@ -54,7 +55,12 @@ Future<({_MockLoggingService logging, String targetPath})> _pump(
   // dart:io future would never complete.
   final rotated = File('${_tempDir.path}/nightshade.log.2026-07-28');
   rotated.writeAsStringSync('x' * 4096);
-  when(() => logging.getLogFiles()).thenAnswer((_) async => [rotated.path]);
+  when(() => logging.getLogFiles()).thenAnswer((_) async {
+    if (logFilesUnreadable) {
+      throw const FileSystemException('cannot list the log directory');
+    }
+    return [rotated.path];
+  });
 
   final targetPath = '${_tempDir.path}/exported_logs.txt';
   when(() => logging.exportLogs(any())).thenAnswer((invocation) async {
@@ -134,6 +140,22 @@ void main() {
       findsOneWidget,
       reason: 'the full-history size must be stated before it is written',
     );
+  });
+
+  testWidgets('an unreadable log directory is said so, not reported as 0 bytes',
+      (tester) async {
+    // Nothing was measured when the retained set cannot even be enumerated.
+    // "about 0 B" would read as "there is no history to export", which is the
+    // opposite of what an unreadable log directory means.
+    await _pump(tester, logFilesUnreadable: true);
+    await _tapExport(tester);
+
+    expect(find.text('Export logs'), findsOneWidget);
+    expect(
+      find.textContaining('Every retained log file — size could not be read'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('about 0'), findsNothing);
   });
 
   testWidgets('the on-screen scope writes only what the viewer shows',

@@ -118,8 +118,14 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
 
   /// The Night Doctor verdict for this scope. Reuses the most-recent persisted
   /// report when it still describes this night; otherwise computes (and
-  /// persists) a fresh one. Fail-soft to null so the panel shows its
-  /// "analysis pending" state rather than an error.
+  /// persists) a fresh one.
+  ///
+  /// A failure returns null so the rest of the smart backbone still loads, but
+  /// it is NOT silent: the null case renders `NightReportPanel`'s "Analysis
+  /// pending — the Night Doctor is still reviewing this session ... once
+  /// analysis completes" card, which is a false statement once the analysis has
+  /// thrown and nothing is left running. So the failure is logged and raised on
+  /// [SessionReviewState.error], which `SessionReviewScreen` shows as a toast.
   ///
   /// Preferring the stored report unconditionally computes the verdict once per
   /// session and never again, so a night analysed before a detector fix — or
@@ -145,12 +151,30 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
         }
       }
       _nightReportRecomputed = true;
-      // No usable stored report — compute (and persist) one.
-      return _ref.read(nightAnalysisServiceProvider).computeReport(
+      // No usable stored report — compute (and persist) one. AWAITED inside the
+      // try on purpose: `return <future>` completes this function's future from
+      // outside the try, so a detector that throws escaped this catch entirely,
+      // left `loadingSmartData` stuck true (the tail of `loadSmartData` never
+      // ran) and surfaced as an unhandled async error.
+      return await _ref.read(nightAnalysisServiceProvider).computeReport(
             sessionId: _scope.sessionId,
             targetId: _scope.targetId ?? state.targetId,
           );
-    } catch (_) {
+    } catch (e) {
+      _ref.read(loggingServiceProvider).error(
+        'Night Doctor analysis failed',
+        source: 'SessionReviewController',
+        fields: {
+          'sessionId': _scope.sessionId,
+          'targetId': _scope.targetId ?? state.targetId,
+          'error': '$e',
+        },
+      );
+      if (mounted) {
+        state = state.copyWith(
+          error: 'Night analysis failed: $e',
+        );
+      }
       return null;
     }
   }

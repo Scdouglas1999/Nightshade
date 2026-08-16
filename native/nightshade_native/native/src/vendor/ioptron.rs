@@ -494,7 +494,18 @@ impl NativeDevice for IOptronMount {
             return Ok(());
         }
 
-        let _ = self.send_command_no_response(commands::STOP_SLEW);
+        // Halt any motion before the port is dropped. The port is released either way,
+        // but a mount that did not take the halt keeps slewing with nothing connected to
+        // stop it, so the failure is reported rather than dropped (same rule as the LX200
+        // driver's disconnect).
+        if let Err(e) = self.send_command_no_response(commands::STOP_SLEW) {
+            tracing::error!(
+                "iOptron {}: stop-slew ({}) failed while disconnecting: {}. The mount may still be moving — stop it at the hand controller.",
+                self.device_id,
+                commands::STOP_SLEW,
+                e
+            );
+        }
 
         *self
             .serial_port

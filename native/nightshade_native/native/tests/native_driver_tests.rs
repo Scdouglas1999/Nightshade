@@ -1042,6 +1042,19 @@ mod fake_sdk_contract {
         camera.connect().await.expect("Atik connect");
         assert!(camera.is_connected());
         assert!(camera.capabilities().can_cool);
+        // The CFA published for the session comes from the SDK's
+        // ARTEMISCOLOURTYPE answer, not from a default: the shim reports RGGB,
+        // so the sensor must read as colour and carry the RGGB pattern that
+        // becomes each frame's BAYERPAT card.
+        let sensor = camera.get_sensor_info();
+        assert!(
+            sensor.color,
+            "RGGB colour type must publish a colour sensor"
+        );
+        assert_eq!(
+            sensor.bayer_pattern,
+            Some(nightshade_native::BayerPattern::Rggb)
+        );
         camera.set_gain(17).await.expect("Atik set gain");
         camera.set_offset(4).await.expect("Atik set offset");
         camera.set_binning(2, 2).await.expect("Atik set binning");
@@ -2135,7 +2148,10 @@ fn write_fixed(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for 
 #[no_mangle] pub extern "C" fn ArtemisDisconnect(_handle:*mut c_void)->c_int{1}
 #[no_mangle] pub extern "C" fn ArtemisIsConnected(_handle:*mut c_void)->c_int{1}
 #[no_mangle] pub unsafe extern "C" fn ArtemisProperties(_handle:*mut c_void,prop:*mut ArtemisProperties)->c_int{if prop.is_null(){return 1;} let mut p:ArtemisProperties=std::mem::zeroed(); p.pixels_x=32; p.pixels_y=24; p.pixel_microns_x=3.8; p.pixel_microns_y=3.8; p.camera_flags=16|32; p.ccd_flags=0; write_fixed(&mut p.description,b"Fake Horizon II"); write_fixed(&mut p.manufacturer,b"Atik"); *prop=p; 0}
-#[no_mangle] pub unsafe extern "C" fn ArtemisColourProperties(_handle:*mut c_void,colour:*mut c_int,nx:*mut c_int,ny:*mut c_int,px:*mut c_int,py:*mut c_int)->c_int{if !colour.is_null(){*colour=0;} if !nx.is_null(){*nx=0;} if !ny.is_null(){*ny=0;} if !px.is_null(){*px=0;} if !py.is_null(){*py=0;} 0}
+// ARTEMISCOLOURTYPE 2 = ARTEMIS_COLOUR_RGGB. It must be a determinate value:
+// 0 is ARTEMIS_COLOUR_UNKNOWN and the driver now refuses to connect on it
+// rather than publish an undetermined sensor as monochrome.
+#[no_mangle] pub unsafe extern "C" fn ArtemisColourProperties(_handle:*mut c_void,colour:*mut c_int,nx:*mut c_int,ny:*mut c_int,px:*mut c_int,py:*mut c_int)->c_int{if !colour.is_null(){*colour=2;} if !nx.is_null(){*nx=0;} if !ny.is_null(){*ny=0;} if !px.is_null(){*px=0;} if !py.is_null(){*py=0;} 0}
 #[no_mangle] pub extern "C" fn ArtemisBin(_handle:*mut c_void,x:c_int,y:c_int)->c_int{BIN_X.store(x,Ordering::SeqCst); BIN_Y.store(y,Ordering::SeqCst); 0}
 #[no_mangle] pub unsafe extern "C" fn ArtemisGetMaxBin(_handle:*mut c_void,x:*mut c_int,y:*mut c_int)->c_int{if !x.is_null(){*x=4;} if !y.is_null(){*y=4;} 0}
 #[no_mangle] pub extern "C" fn ArtemisSubframe(_handle:*mut c_void,_x:c_int,_y:c_int,_w:c_int,_h:c_int)->c_int{0}

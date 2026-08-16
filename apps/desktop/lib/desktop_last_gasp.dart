@@ -173,11 +173,35 @@ class DesktopLastGasp {
 
   /// The record left by the PREVIOUS session, or null when there is none (a
   /// first launch, a new data directory, or a record torn in half).
+  ///
+  /// Null is the answer for "no usable record", but only ONE of the ways to
+  /// get there is uneventful: the file not being there at all. A record that
+  /// exists and cannot be read or cannot be parsed is itself the evidence —
+  /// the previous process was cut off mid-write — and returning a bare null for
+  /// it would hide exactly the silent death this file is left behind to expose.
+  /// Those two cases are reported, on the same channel [_write] reports a
+  /// record it could not write.
   DesktopSessionRecord? readPreviousSession() {
     try {
       if (!_recordFile.existsSync()) return null;
-      return DesktopSessionRecord.tryParse(_recordFile.readAsStringSync());
-    } catch (_) {
+      final record = DesktopSessionRecord.tryParse(
+        _recordFile.readAsStringSync(),
+      );
+      if (record == null) {
+        _onCritical?.call(
+          'The previous Nightshade session left an unreadable shutdown record '
+          'at ${_recordFile.path} — it was cut off mid-write, so that session '
+          'ended without a shutdown path and nothing was safed. Check the rig.',
+        );
+      }
+      return record;
+    } catch (e) {
+      _onCritical?.call(
+        'Could not read the previous session record at ${_recordFile.path}; '
+        'whether the last session ended cleanly, and whether it safed the rig, '
+        'is unknown',
+        error: e,
+      );
       return null;
     }
   }

@@ -585,6 +585,82 @@ async fn restore_tracking_after_recovery_noop_when_tracking_not_stopped() {
     );
 }
 
+/// The status API (`sequencer_get_status`) renders `progress.message`, which
+/// is a different surface from the event stream. An ATTENDED escalation whose
+/// tracking restore FAILED used to stamp the snapshot with the pause reason
+/// only — the helper's verdict was discarded — so a remote operator polling
+/// status saw a clean "paused for operator" over a mount that was not
+/// tracking, and Resume exposed on a drifting mount. The verdict must reach
+/// the snapshot as well as the event.
+#[tokio::test]
+async fn attended_escalation_carries_a_failed_tracking_restore_into_progress_message() {
+    let ops_concrete =
+        std::sync::Arc::new(ReacquireGuiderOps::new(false, true).with_tracking_failure());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    // Hold the receiver so the escalation's events are delivered rather than
+    // failing on an empty subscriber set.
+    let (event_tx, _rx) = broadcast::channel(32);
+
+    let runtime = Arc::new(StdRwLock::new(RuntimeConfig {
+        // ATTENDED: an operator declared presence, so the escalation is the
+        // passive-pause branch that restores tracking and hands the run back.
+        operator_present: true,
+        recovery: crate::recovery::RecoveryRuntimeConfig {
+            stop_tracking_during_recovery: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    }));
+    let state = Arc::new(RwLock::new(ExecutorState::Recovering));
+    let progress = Arc::new(StdRwLock::new(SequenceProgress::default()));
+    let current = Arc::new(StdRwLock::new(None));
+    let is_cancelled = Arc::new(AtomicBool::new(false));
+    let gave_up = Arc::new(AtomicBool::new(false));
+
+    let escalation_state = RecoveryEscalationState {
+        device_ops: &ops,
+        event_tx: &event_tx,
+        runtime_config: &runtime,
+        state: &state,
+        progress: &progress,
+        current_recovery: &current,
+        is_cancelled: &is_cancelled,
+        gave_up: &gave_up,
+        mount_id: Some("mount-1"),
+        cover_id: None,
+        dome_id: None,
+    };
+    let ctx = crate::recovery::RecoveryContext::new(
+        crate::recovery::RecoveryCause::GuideStarLost,
+        30.0,
+        600.0,
+    );
+
+    apply_recovery_escalation(
+        &escalation_state,
+        &ctx,
+        "Guide star lost: paused for operator".to_string(),
+        true, // recovery had stopped tracking, so the restore is attempted
+    )
+    .await;
+
+    assert_eq!(*state.read().await, ExecutorState::Paused);
+    let message = progress
+        .read()
+        .message
+        .clone()
+        .expect("the paused snapshot must carry a message");
+    assert!(
+        message.contains("Guide star lost"),
+        "the pause reason must survive: {message}"
+    );
+    assert!(
+        message.contains("tracking could not be re-enabled"),
+        "a failed tracking restore must reach the polled status snapshot, not only the \
+         event stream: {message}"
+    );
+}
+
 /// MountTrackingLost without a configured mount surfaces the
 /// "no mount" error rather than silently succeeding.
 #[test]

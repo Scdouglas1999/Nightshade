@@ -254,7 +254,15 @@ pub(crate) async fn wait_for_cover_state(
         // Check cancellation
         if ctx.cancellation_token.load(Ordering::Relaxed) {
             // Try to halt cover movement
-            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
+            if let Err(error) = ctx.device_ops.cover_calibrator_halt_cover(device_id).await {
+                tracing::warn!(
+                    "Cover '{}': halt failed while cancelling the wait for the {} state ({}); \
+                     the cover may still be moving",
+                    device_id,
+                    state_name,
+                    error
+                );
+            }
             return Err("Operation cancelled".to_string());
         }
 
@@ -316,11 +324,28 @@ pub(crate) async fn wait_for_calibrator_state(
     loop {
         // Check cancellation
         if ctx.cancellation_token.load(Ordering::Relaxed) {
-            let _ = ctx
+            if let Err(error) = ctx
                 .device_ops
                 .cover_calibrator_calibrator_off(device_id)
-                .await;
-            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
+                .await
+            {
+                tracing::warn!(
+                    "Calibrator '{}': switch-off failed while cancelling the wait for the {} \
+                     state ({}); the flat panel may still be illuminated",
+                    device_id,
+                    state_name,
+                    error
+                );
+            }
+            if let Err(error) = ctx.device_ops.cover_calibrator_halt_cover(device_id).await {
+                tracing::warn!(
+                    "Calibrator '{}': cover halt failed while cancelling the wait for the {} \
+                     state ({}); the cover may still be moving",
+                    device_id,
+                    state_name,
+                    error
+                );
+            }
             return Err("Operation cancelled".to_string());
         }
 
@@ -348,7 +373,15 @@ pub(crate) async fn wait_for_calibrator_state(
 
         // Check timeout
         if start.elapsed() > timeout {
-            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
+            if let Err(error) = ctx.device_ops.cover_calibrator_halt_cover(device_id).await {
+                tracing::warn!(
+                    "Calibrator '{}': cover halt failed after the {} state timed out ({}); the \
+                     cover may still be moving",
+                    device_id,
+                    state_name,
+                    error
+                );
+            }
             return Err(format!(
                 "Calibrator did not reach {} state within {} seconds",
                 state_name,

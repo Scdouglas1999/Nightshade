@@ -82,4 +82,46 @@ pub(crate) struct ArtemisProperties {
 // Camera flags from ARTEMISPROPERTIESCAMERAFLAGS
 pub(crate) const ARTEMIS_CAMERA_HAS_SHUTTER: c_int = 16;
 pub(crate) const ARTEMIS_CAMERA_HAS_GUIDE_PORT: c_int = 32;
+
+// ARTEMISCOLOURTYPE (AtikDefs.h:53-61). Note that 0 is NOT "monochrome":
+// the vendor header documents it as "either the device is not a camera or the
+// colour cannot be determined", and monochrome has its own value.
+pub(crate) const ARTEMIS_COLOUR_UNKNOWN: c_int = 0;
+pub(crate) const ARTEMIS_COLOUR_NONE: c_int = 1;
 pub(crate) const ARTEMIS_COLOUR_RGGB: c_int = 2;
+
+/// What the sensor's colour filter array is, as far as the SDK will commit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AtikSensorColour {
+    Mono,
+    Rggb,
+}
+
+impl AtikSensorColour {
+    pub(crate) fn is_color(self) -> bool {
+        matches!(self, AtikSensorColour::Rggb)
+    }
+
+    pub(crate) fn bayer_pattern(self) -> Option<BayerPattern> {
+        match self {
+            AtikSensorColour::Mono => None,
+            AtikSensorColour::Rggb => Some(BayerPattern::Rggb),
+        }
+    }
+}
+
+/// Classify an `ARTEMISCOLOURTYPE` value the SDK wrote into our out-parameter.
+///
+/// `None` means the SDK declined to say — `ARTEMIS_COLOUR_UNKNOWN`, or a value
+/// this build does not recognise. It must NOT be collapsed into `Mono`: the
+/// answer feeds `SensorInfo.color` / `bayer_pattern`, which decide whether the
+/// session's frames carry a BAYERPAT card and are ever debayered, so guessing
+/// mono for an undetermined sensor publishes a claim about the hardware that
+/// the SDK explicitly refused to make.
+pub(crate) fn atik_sensor_colour(colour_type: c_int) -> Option<AtikSensorColour> {
+    match colour_type {
+        ARTEMIS_COLOUR_NONE => Some(AtikSensorColour::Mono),
+        ARTEMIS_COLOUR_RGGB => Some(AtikSensorColour::Rggb),
+        _ => None,
+    }
+}

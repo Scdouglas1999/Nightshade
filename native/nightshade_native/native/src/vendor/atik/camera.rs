@@ -155,7 +155,16 @@ impl NativeDevice for AtikCamera {
         let mut max_bin_y: c_int = 1;
         // SAFETY: atik_mutex held; handle is valid (IsConnected verified); both out-pointers
         // are valid stack pointers to c_int.
-        let _ = unsafe { (sdk.get_max_bin)(handle, &mut max_bin_x, &mut max_bin_y) };
+        let max_bin_result = unsafe { (sdk.get_max_bin)(handle, &mut max_bin_x, &mut max_bin_y) };
+        if ArtemisError::from_i32(max_bin_result) != ArtemisError::Ok {
+            // The locals keep their 1x1 seed, which publishes can_set_binning = false
+            // for the whole session. That is the safe direction, but it is a capability
+            // the camera may actually have — say why it went missing.
+            tracing::warn!(
+                "Atik ArtemisGetMaxBin failed ({:?}); binning is reported as unsupported (1x1) for this session",
+                ArtemisError::from_i32(max_bin_result)
+            );
+        }
 
         // Check for cooling support
         let mut cooling_flags: c_int = 0;
@@ -199,7 +208,7 @@ impl NativeDevice for AtikCamera {
         let mut _preview_offset_y: c_int = 0;
         // SAFETY: atik_mutex held; handle is valid (IsConnected verified); all five out-
         // pointers are valid stack pointers to c_int.
-        let _ = unsafe {
+        let colour_result = unsafe {
             (sdk.colour_properties)(
                 handle,
                 &mut colour_type,
@@ -209,13 +218,56 @@ impl NativeDevice for AtikCamera {
                 &mut _preview_offset_y,
             )
         };
-
-        let is_color = colour_type == ARTEMIS_COLOUR_RGGB;
-        let bayer_pattern = if is_color {
-            Some(BayerPattern::Rggb)
-        } else {
-            None
+        // This answer is not optional, for the same reason the 16-bit mode call below
+        // is not: it sets `SensorInfo.color` / `bayer_pattern` for the whole session,
+        // which decides whether every frame carries a BAYERPAT card and is ever
+        // debayered. A one-shot-colour sensor published as mono yields a night of
+        // undebayered mosaics under a header that says the camera is monochrome.
+        //
+        // Two ways that used to happen silently: a failed call left `colour_type` at
+        // its 0 seed, and ARTEMISCOLOURTYPE 0 is ARTEMIS_COLOUR_UNKNOWN — "the colour
+        // cannot be determined" (AtikDefs.h:56), NOT monochrome, which is 1. Both were
+        // read as mono. Neither is a claim we can make, so refuse the connect and say
+        // why rather than image all night against a guessed CFA.
+        let colour = match ArtemisError::from_i32(colour_result) {
+            ArtemisError::Ok => atik_sensor_colour(colour_type),
+            other => {
+                tracing::error!(
+                    "Atik ArtemisColourProperties failed for camera '{}' ({:?}); refusing to connect rather than publish an undetermined sensor as monochrome",
+                    self.device_id,
+                    other
+                );
+                // SAFETY: atik_mutex held; `handle` was successfully opened above.
+                // ArtemisDisconnect pairs with ArtemisConnect to release it.
+                unsafe { (sdk.disconnect)(handle) };
+                return Err(other.to_native_error("read sensor colour properties"));
+            }
         };
+        let Some(colour) = colour else {
+            let detail = if colour_type == ARTEMIS_COLOUR_UNKNOWN {
+                "ARTEMIS_COLOUR_UNKNOWN: the SDK could not determine the sensor's colour filter array"
+            } else {
+                "a colour type this build does not recognise"
+            };
+            tracing::error!(
+                "Atik ArtemisColourProperties reported ARTEMISCOLOURTYPE {} for camera '{}' ({}); refusing to connect rather than guess the colour filter array",
+                colour_type,
+                self.device_id,
+                detail
+            );
+            // SAFETY: atik_mutex held; `handle` was successfully opened above.
+            unsafe { (sdk.disconnect)(handle) };
+            return Err(NativeError::SdkError(format!(
+                "Atik camera '{}' reported colour type {} ({}). \
+                 Nightshade will not publish an undetermined sensor as monochrome, because a colour \
+                 sensor labelled mono produces frames with no BAYERPAT card that are never debayered. \
+                 Update the AtikCameras driver or report this colour type.",
+                self.device_id, colour_type, detail
+            )));
+        };
+
+        let is_color = colour.is_color();
+        let bayer_pattern = colour.bayer_pattern();
 
         // Set sensor info
         // Why: `props.pixels_x` / `props.pixels_y` are `c_int` (i32) populated by ArtemisProperties.
@@ -268,10 +320,36 @@ impl NativeDevice for AtikCamera {
             self.name = name;
         }
 
-        // Set 16-bit mode
+        // Set 16-bit mode. This is not optional: `sensor_info` above publishes
+        // bit_depth = 16 / max_adu = 65535, and download_image reads the SDK buffer as
+        // exactly `width * height * 2` little-endian bytes. A camera left in 8-bit mode
+        // holds half that many bytes, so a swallowed failure here would read past the
+        // SDK buffer and hand the pipeline garbage pixels under a 16-bit header.
         // SAFETY: atik_mutex held; handle is valid (IsConnected verified); ArtemisEightBitMode
         // takes a pass-by-value c_int (0 = 16-bit per AtikCameras.h).
-        let _ = unsafe { (sdk.eight_bit_mode)(handle, 0) };
+        let bit_mode_result = unsafe { (sdk.eight_bit_mode)(handle, 0) };
+        match ArtemisError::from_i32(bit_mode_result) {
+            ArtemisError::Ok => {}
+            // A camera that does not implement the call has no 8-bit mode to leave —
+            // it is 16-bit only, which is the mode we are asking for.
+            ArtemisError::NotImplemented => {
+                tracing::debug!(
+                    "Atik camera '{}' does not implement ArtemisEightBitMode; it is 16-bit only",
+                    self.name
+                );
+            }
+            other => {
+                tracing::error!(
+                    "Atik ArtemisEightBitMode(16-bit) failed for camera '{}' ({:?}); refusing to connect rather than decode a possibly 8-bit buffer as 16-bit",
+                    self.name,
+                    other
+                );
+                // SAFETY: atik_mutex held; `handle` was successfully opened above. ArtemisDisconnect
+                // pairs with ArtemisConnect to release the handle on the error path.
+                unsafe { (sdk.disconnect)(handle) };
+                return Err(other.to_native_error("select 16-bit output mode"));
+            }
+        }
 
         // Get initial gain/offset
         let mut gain: c_int = 0;
@@ -318,11 +396,20 @@ impl NativeDevice for AtikCamera {
         // after successful connect() above) and disconnect hasn't run yet.
         let _ = unsafe { (sdk.abort_exposure)(handle) };
 
-        // Warm up cooler gracefully
+        // Warm up cooler gracefully. If the camera refuses the warm-up it stays at its
+        // cold setpoint until power is removed — a thermal-shock risk the operator can
+        // only act on if we say it happened.
         if self.cooler_on {
             // SAFETY: atik_mutex held; handle is valid (connected=true); ArtemisCoolerWarmUp
             // takes only the handle, no out-pointers.
-            let _ = unsafe { (sdk.cooler_warm_up)(handle) };
+            let warm_up_result = unsafe { (sdk.cooler_warm_up)(handle) };
+            if ArtemisError::from_i32(warm_up_result) != ArtemisError::Ok {
+                tracing::error!(
+                    "Atik ArtemisCoolerWarmUp failed for camera '{}' ({:?}); the sensor is being disconnected while still cooled",
+                    self.name,
+                    ArtemisError::from_i32(warm_up_result)
+                );
+            }
         }
 
         // Disconnect

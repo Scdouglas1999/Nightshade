@@ -384,7 +384,7 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
             // non-tracking mount trails the rest of the night while
             // the UI reports "Recovered". A restore that fails
             // raises a loud error rather than resuming untracked.
-            let _ = restore_tracking_after_recovery(
+            let tracking_warning = restore_tracking_after_recovery(
                 &recovery_driver_device_ops,
                 recovery_driver_mount_id.as_deref(),
                 stop_tracking,
@@ -392,6 +392,16 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
                 &recovery_driver_event_tx,
             )
             .await;
+            // `sequencer_get_status()` reports `progress.message`, and it was
+            // stamped "Recovered — resuming sequence" above BEFORE the restore
+            // ran. A restore that failed then left the status line claiming a
+            // clean recovery while every subsequent frame trailed. Overwrite it
+            // with the helper's verdict so the poll surface and the event
+            // stream tell the same story.
+            if let Some(warning) = &tracking_warning {
+                let mut prog = recovery_driver_progress.write();
+                prog.message = Some(warning.clone());
+            }
 
             // Publish completion BEFORE clearing the pause, so an
             // instruction that observes the cleared pause can always

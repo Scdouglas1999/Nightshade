@@ -253,9 +253,16 @@ pub(crate) async fn run_guiding_loop(
         guard.calibration = Some(calibration);
         guard.calibrating = false;
         guard.last_status.state = "Guiding".to_string();
-        // Arm the settle timeout for the initial settle after calibration
+        // Arm the settle timeout for the initial settle after calibration, and
+        // publish the spec this episode is judged by so `apply_settle_state`
+        // reads one source of truth (a dither later replaces it with its own).
         let timeout_secs = settle_timeout.max(settle_time + 1.0);
         guard.settling = true;
+        guard.settle_spec = SettleSpec {
+            pixels: settle_pixels,
+            time: settle_time,
+            timeout: timeout_secs,
+        };
         guard.settle_timeout_deadline =
             Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
     }
@@ -373,14 +380,7 @@ pub(crate) async fn run_guiding_loop(
         // when recent seeing is poor.
         push_rms_sample(&controller, offset.magnitude()).await;
 
-        apply_settle_state(
-            controller.clone(),
-            offset.magnitude(),
-            settle_pixels,
-            settle_time,
-            settle_timeout,
-        )
-        .await?;
+        apply_settle_state(controller.clone(), offset.magnitude()).await?;
         apply_guide_correction(calibration, offset, &controller).await?;
     }
 

@@ -71,9 +71,17 @@ pub(super) async fn run_checkpoint_stream(args: CheckpointStreamArgs) {
 
         if is_cancelled_for_checkpoint.load(Ordering::Acquire) {
             if park_and_abort_for_checkpoint.load(Ordering::Acquire) {
-                let _ = park_and_abort_done_for_checkpoint
+                if let Err(error) = park_and_abort_done_for_checkpoint
                     .wait_for(|done| *done)
-                    .await;
+                    .await
+                {
+                    tracing::warn!(
+                        "Checkpoint stream: the park-and-abort completion signal was dropped \
+                         before the safe-state sweep reported done ({}); stopping checkpoints \
+                         without the handshake",
+                        error
+                    );
+                }
             }
             break;
         }

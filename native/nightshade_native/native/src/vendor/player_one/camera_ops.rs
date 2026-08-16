@@ -52,15 +52,52 @@ impl NativeDevice for PlayerOneCamera {
             unsafe { (sdk.set_image_format)(self.camera_id, POAImgFormat::Raw16 as c_int) };
         check_poa_error(result, "SetImageFormat")?;
 
-        // Set default binning and ROI
+        // Set default binning and ROI. These are checked, not fire-and-forget: the
+        // driver reports `current_bin = 1` / `current_width|height = max` from here
+        // on (get_binning, and the BIN/XBINNING metadata on every frame), so a camera
+        // that refused the default geometry would make every one of those answers a
+        // lie. Failing the connect leaves the cleanup guard to close the handle.
         if let Some(info) = &self.camera_info {
             // SAFETY: player_one_mutex held; camera is open+initialized; POASetImageBin takes the camera ID and bin factor (1) by value.
-            let _ = unsafe { (sdk.set_image_bin)(self.camera_id, 1) };
+            let result = unsafe { (sdk.set_image_bin)(self.camera_id, 1) };
+            check_poa_error(result, "SetImageBin(1)")?;
             // SAFETY: player_one_mutex held; camera is open+initialized; POASetImageStartPos takes the camera ID and (0, 0) origin by value.
-            let _ = unsafe { (sdk.set_image_start_pos)(self.camera_id, 0, 0) };
+            let result = unsafe { (sdk.set_image_start_pos)(self.camera_id, 0, 0) };
+            check_poa_error(result, "SetImageStartPos(0, 0)")?;
             // SAFETY: player_one_mutex held; camera is open+initialized; max_width/max_height come from the SDK-populated POACameraProperties so they are guaranteed valid for this device.
-            let _ =
+            let result =
                 unsafe { (sdk.set_image_size)(self.camera_id, info.max_width, info.max_height) };
+            check_poa_error(result, "SetImageSize(full frame)")?;
+        }
+
+        // Seed the gain/offset the driver reports when a later read-back fails, so the
+        // fallback is the camera's own power-on value rather than a literal 0.
+        //
+        // `current_gain`/`current_offset` start at 0 (camera.rs:46), and both
+        // `get_status` and `download_image` fall back to them — the second of those
+        // writes the FITS GAIN/OFFSET cards. So a failed seed is precisely the case
+        // that reintroduces the literal 0 these fallbacks exist to avoid, and it must
+        // not pass silently: log which control refused and what the driver will report
+        // until the first successful set/read replaces it. The connect itself stays
+        // alive — a camera whose gain register is momentarily unreadable still images,
+        // and `CameraStatus`/`ImageMetadata` have no "unknown" for these two i32 fields.
+        match self.get_control_int(POAConfig::POA_GAIN) {
+            Ok(gain) => self.current_gain = gain as i32,
+            Err(e) => tracing::warn!(
+                "Player One {}: POA_GAIN could not be read at connect ({}); gain is reported as {} until a set_gain or a later read-back succeeds",
+                self.device_id,
+                e,
+                self.current_gain
+            ),
+        }
+        match self.get_control_int(POAConfig::POA_OFFSET) {
+            Ok(offset) => self.current_offset = offset as i32,
+            Err(e) => tracing::warn!(
+                "Player One {}: POA_OFFSET could not be read at connect ({}); offset is reported as {} until a set_offset or a later read-back succeeds",
+                self.device_id,
+                e,
+                self.current_offset
+            ),
         }
 
         cleanup_guard.defuse();
@@ -133,10 +170,12 @@ impl NativeCamera for PlayerOneCamera {
             _ => CameraState::Error,
         };
 
-        // Get temperature (POA_TEMPERATURE is a float value, unit C)
-        let temp = self
-            .get_control_float(POAConfig::POA_TEMPERATURE)
-            .unwrap_or(0.0);
+        // Get temperature (POA_TEMPERATURE is a float value, unit C). A failed read
+        // is reported as "unknown" (None), never as 0 C: `sensor_temp` is republished
+        // as `ccd_temperature` on the capability snapshot and as the ASCOM
+        // CCDTemperature property, so a fabricated 0 C reads as a real sensor value
+        // and can pick the wrong dark-library temperature bucket.
+        let sensor_temp = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
 
         let has_cooler = self
             .camera_info
@@ -195,13 +234,21 @@ impl NativeCamera for PlayerOneCamera {
 
         Ok(CameraStatus {
             state,
-            sensor_temp: Some(temp),
+            sensor_temp,
             target_temp,
             cooler_on,
             cooler_power,
             // get_control_int returns c_long (i64 on Linux); CameraStatus stores i32.
-            gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32,
-            offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32,
+            // A failed poll reports the last value this driver applied, not 0 — the
+            // same rule the frame metadata follows in download_image.
+            gain: self
+                .get_control_int(POAConfig::POA_GAIN)
+                .map(|v| v as i32)
+                .unwrap_or(self.current_gain),
+            offset: self
+                .get_control_int(POAConfig::POA_OFFSET)
+                .map(|v| v as i32)
+                .unwrap_or(self.current_offset),
             bin_x: self.current_bin,
             bin_y: self.current_bin,
             exposure_remaining: None, // Not directly available from POA SDK
@@ -225,11 +272,13 @@ impl NativeCamera for PlayerOneCamera {
         // Set gain
         if let Some(gain) = params.gain {
             self.set_control_int(POAConfig::POA_GAIN, gain as c_long, false)?;
+            self.current_gain = gain;
         }
 
         // Set offset if provided
         if let Some(offset) = params.offset {
             self.set_control_int(POAConfig::POA_OFFSET, offset as c_long, false)?;
+            self.current_offset = offset;
         }
 
         // Start exposure (false = not snap mode, single frame)
@@ -340,11 +389,42 @@ impl NativeCamera for PlayerOneCamera {
             buffer_size
         );
 
-        // Get metadata while still holding the mutex
+        // Get metadata while still holding the mutex.
         // get_control_int returns c_long (i64 on Linux); gain/offset fit in i32,
-        // which is what ImageMetadata stores.
-        let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32;
-        let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32;
+        // which is what ImageMetadata stores. A failed read-back falls back to the
+        // value this driver last applied — these two numbers become the FITS
+        // GAIN/OFFSET cards of the frame we are holding, and a literal 0 there would
+        // send calibration to the wrong dark library.
+        let gain = match self.get_control_int(POAConfig::POA_GAIN) {
+            Ok(value) => {
+                self.current_gain = value as i32;
+                self.current_gain
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Player One {}: POA_GAIN read-back failed while building frame metadata ({}); recording the last applied gain {}",
+                    self.device_id,
+                    e,
+                    self.current_gain
+                );
+                self.current_gain
+            }
+        };
+        let offset = match self.get_control_int(POAConfig::POA_OFFSET) {
+            Ok(value) => {
+                self.current_offset = value as i32;
+                self.current_offset
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Player One {}: POA_OFFSET read-back failed while building frame metadata ({}); recording the last applied offset {}",
+                    self.device_id,
+                    e,
+                    self.current_offset
+                );
+                self.current_offset
+            }
+        };
         let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
         let usb_bandwidth = self
             .get_control_int(POAConfig::POA_USB_BANDWIDTH_LIMIT)
@@ -490,7 +570,9 @@ impl NativeCamera for PlayerOneCamera {
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
         // Uses async version with mutex
         self.set_control_int_async(POAConfig::POA_GAIN, gain as c_long, false)
-            .await
+            .await?;
+        self.current_gain = gain;
+        Ok(())
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
@@ -504,7 +586,9 @@ impl NativeCamera for PlayerOneCamera {
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
         // Uses async version with mutex
         self.set_control_int_async(POAConfig::POA_OFFSET, offset as c_long, false)
-            .await
+            .await?;
+        self.current_offset = offset;
+        Ok(())
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {

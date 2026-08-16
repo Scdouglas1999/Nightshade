@@ -35,12 +35,14 @@ void main() {
     required Future<void> Function() safeRig,
     required List<int> exits,
     Duration safingTimeout = const Duration(seconds: 45),
+    void Function(String message, {Object? error})? onCritical,
   }) {
     return DesktopLastGasp(
       recordFile: recordFile,
       safeRig: safeRig,
       exitProcess: exits.add,
       safingTimeout: safingTimeout,
+      onCritical: onCritical,
       version: '6.1.0',
       pid: 4242,
     );
@@ -209,5 +211,66 @@ void main() {
     final lastGasp = build(safeRig: () async {}, exits: <int>[]);
 
     expect(lastGasp.readPreviousSession(), isNull);
+  });
+
+  test('a torn record is REPORTED, not just read as nothing', () {
+    recordFile.parent.createSync(recursive: true);
+    recordFile.writeAsStringSync('{"outcome":"run');
+    final critical = <String>[];
+    final lastGasp = build(
+      safeRig: () async {},
+      exits: <int>[],
+      onCritical: (message, {error}) => critical.add(message),
+    );
+
+    expect(lastGasp.readPreviousSession(), isNull);
+    expect(
+      critical,
+      hasLength(1),
+      reason:
+          'A record cut off mid-write is proof the previous process died '
+          'without a shutdown path; answering "no record" and saying nothing '
+          'hides the exact death this file exists to expose.',
+    );
+    expect(critical.single, contains(recordFile.path));
+  });
+
+  test('a record that cannot be decoded is reported with its error', () {
+    recordFile.parent.createSync(recursive: true);
+    // A partially-written block on a failing disk: the bytes are there but they
+    // are not text, so readAsStringSync throws instead of returning JSON.
+    recordFile.writeAsBytesSync(<int>[0xff, 0xfe, 0xfd, 0x00]);
+    final critical = <String>[];
+    final errors = <Object?>[];
+    final lastGasp = build(
+      safeRig: () async {},
+      exits: <int>[],
+      onCritical: (message, {error}) {
+        critical.add(message);
+        errors.add(error);
+      },
+    );
+
+    expect(lastGasp.readPreviousSession(), isNull);
+    expect(critical, hasLength(1));
+    expect(errors.single, isNotNull);
+  });
+
+  test('a first launch with no record at all says nothing', () {
+    final critical = <String>[];
+    final lastGasp = build(
+      safeRig: () async {},
+      exits: <int>[],
+      onCritical: (message, {error}) => critical.add(message),
+    );
+
+    expect(lastGasp.readPreviousSession(), isNull);
+    expect(
+      critical,
+      isEmpty,
+      reason:
+          'Crying "unreadable record" on every fresh install would make the '
+          'notice worthless.',
+    );
   });
 }

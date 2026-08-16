@@ -135,8 +135,15 @@ _HygRow? _parseHygLine(String line) {
   final hdId = int.tryParse(parts[2]);
   final hrId = int.tryParse(parts[3]);
   final properName = parts.length > 6 ? parts[6] : '';
-  final raHoursJ2000 = double.tryParse(parts[7]) ?? 0;
-  final decJ2000 = double.tryParse(parts[8]) ?? 0;
+  // A row whose ra/dec column will not parse carries no sky position at all.
+  // Coercing it to 0 put the star at RA 0h / Dec 0 — the same phantom position
+  // the id-0 Sun row above is dropped for — where it renders in Pisces, wins
+  // brightest-object-in-view queries over that region and can be slewed to.
+  // Throwing hands the row to the loader's log-and-skip path instead, which is
+  // exactly what the caller's catch already documents for a malformed numeric
+  // column.
+  final raHoursJ2000 = _requireSkyAngle(parts[7], 'ra');
+  final decJ2000 = _requireSkyAngle(parts[8], 'dec');
   final pmra = double.tryParse(parts[10]); // mas/yr on sky (includes cos(dec))
   final pmdec = double.tryParse(parts[11]); // mas/yr
   final magnitude = double.tryParse(parts[13]);
@@ -250,6 +257,19 @@ _HygRow? _parseHygLine(String line) {
     compPrimary: compPrimary,
     named: named,
   );
+}
+
+/// The one thing a star row cannot be missing: where the star is.
+///
+/// `NaN` is rejected alongside an unparseable field because `double.tryParse`
+/// accepts the literal "NaN", and a NaN coordinate propagates silently through
+/// every projection into a star that is drawn nowhere and matches nothing.
+double _requireSkyAngle(String raw, String column) {
+  final value = double.tryParse(raw);
+  if (value == null || !value.isFinite) {
+    throw FormatException('HYG $column column is not a finite number', raw);
+  }
+  return value;
 }
 
 /// Parse a CSV line handling quoted fields

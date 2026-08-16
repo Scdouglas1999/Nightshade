@@ -109,6 +109,58 @@ void main() {
       expect(mount.deviceId, 'ascom:mount:0');
     });
 
+    test(
+      'mirrored camera temperature keeps an absent cooler power unknown',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+
+        final container = ProviderContainer(
+          overrides: [
+            inMemoryDatabaseOverride(),
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        // A reported power lands on the card as-is.
+        await applyRemoteSyncEvent(
+          container,
+          const NightshadeEvent(
+            timestamp: 1,
+            severity: EventSeverity.info,
+            category: EventCategory.equipment,
+            eventType: 'CameraTemperatureChanged',
+            data: {'temperature': -9.5, 'coolerPower': 42.0},
+          ),
+          networkBackend: backend,
+        );
+        expect(container.read(cameraStateProvider).coolerPower, 42.0);
+
+        // A frame WITHOUT the field must clear it rather than claim 0 %: the
+        // cards branch on `coolerPower != null` to render "unknown".
+        await applyRemoteSyncEvent(
+          container,
+          const NightshadeEvent(
+            timestamp: 2,
+            severity: EventSeverity.info,
+            category: EventCategory.equipment,
+            eventType: 'CameraTemperatureChanged',
+            data: {'temperature': -10.0},
+          ),
+          networkBackend: backend,
+        );
+
+        final camera = container.read(cameraStateProvider);
+        expect(camera.temperature, -10.0);
+        expect(camera.coolerPower, isNull);
+      },
+    );
+
     test('HostStateChanged profile mutation invalidates profiles', () async {
       final backend = _MockNetworkBackend();
       when(

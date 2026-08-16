@@ -29,7 +29,8 @@ use nightshade_imaging::color_calibration::{
 use nightshade_imaging::frame_weighting::FrameQuality;
 use nightshade_imaging::optimizer::{integration_curve, recommend_subset, OptimizerConfig};
 use nightshade_imaging::{
-    detect_stars, read_fits, write_fits, FitsHeader, ImageData, PixelType, StarDetectionConfig,
+    carry_source_header, detect_stars, read_fits, write_fits, FitsHeader, ImageData, PixelType,
+    StarDetectionConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -513,7 +514,7 @@ fn color_calibrate_impl(args: ColorCalibrateArgs) -> Result<ColorCalibrateResult
     // Read the master, rebalance it in place, and write the calibrated FITS. The
     // master count guard in the solver does not see the image, so guard the
     // channel count here too: the calibration's scales must match the master.
-    let (mut image, _header) = read_fits(Path::new(&args.input_fits))
+    let (mut image, source_header) = read_fits(Path::new(&args.input_fits))
         .map_err(|e| format!("failed to read '{}': {e:?}", args.input_fits))?;
     if image.channels as usize != args.channels {
         return Err(format!(
@@ -537,6 +538,12 @@ fn color_calibrate_impl(args: ColorCalibrateArgs) -> Result<ColorCalibrateResult
         "Photometric color calibration from {} matched stars (B-V ref {white_ref_bv:.3}, residual {:.4})",
         calibration.matched, calibration.residual
     ));
+    // The rebalance is a per-channel scale on the input's own grid. The solve
+    // that produced it came from a plate-matched star list, so an output that
+    // dropped the WCS could not be re-solved against the catalogue it was
+    // calibrated with, and every later step in the chain would inherit no
+    // astrometry.
+    carry_source_header(&mut header, &source_header);
     write_fits(out_path, &image, &header)
         .map_err(|e| format!("failed to write calibrated master: {e:?}"))?;
 
@@ -750,6 +757,7 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nightshade_imaging::{add_wcs_headers, WcsInfo};
     use std::path::PathBuf;
 
     /// A scratch directory that deletes itself when the test ends. Cleanup runs
@@ -1130,5 +1138,84 @@ mod tests {
         });
         assert!(api_color_calibrate(args.to_string()).is_err());
         assert!(!out_path.exists(), "no output written on a failed solve");
+    }
+
+    // WCS carry-over
+
+    /// A colour-calibrated master must keep the astrometry its own colour solve
+    /// depended on: the matched stars came from a plate solve, and an output that
+    /// dropped the WCS could not be re-matched against the same catalogue.
+    #[test]
+    fn color_calibrate_preserves_wcs() {
+        // Same synthetic star population the round-trip test uses.
+        let a = [3.00, 3.10, 2.55];
+        let b = [0.30, 0.00, -0.40];
+        let count = 40usize;
+        let mut state: u64 = 0xC0FFEE | 1;
+        let mut signed = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            2.0 * ((state >> 11) as f64 / (1u64 << 53) as f64) - 1.0
+        };
+        let matched: Vec<serde_json::Value> = (0..count)
+            .map(|i| {
+                let bv = -0.2 + 1.8 * (i as f64 / (count as f64 - 1.0));
+                let flux: Vec<f64> = (0..3)
+                    .map(|c| 10f64.powf(a[c] + b[c] * bv + 0.01 * signed()))
+                    .collect();
+                serde_json::json!({ "channelFlux": flux, "catalogBv": bv })
+            })
+            .collect();
+
+        let size = 16u32;
+        let locs = (size * size) as usize;
+        let data: Vec<f32> = (0..locs * 3).map(|i| 0.1 + (i % 7) as f32 * 0.01).collect();
+        let master = ImageData::from_f32(size, size, 3, &data);
+        let dir = temp_dir("cc_wcs");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
+
+        let wcs = WcsInfo::from_plate_solve(202.4695, 47.1953, -33.0, 2.1, size, size);
+        let mut source = FitsHeader::new();
+        source.set_string("IMAGETYP", "MASTER_LIGHT");
+        add_wcs_headers(&mut source, &wcs);
+        source.set_int("A_ORDER", 2);
+        source.set_float("A_1_1", 4.5e-7);
+        source.set_string("OBJECT", "M51");
+        source.set_string("DATE-OBS", "2026-08-14T22:10:00");
+        write_fits(in_path.as_path(), &master, &source).expect("write solved master");
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "channels": 3,
+            "matchedStars": matched
+        });
+        api_color_calibrate(args.to_string()).expect("calibrate");
+
+        let (_img, out) = read_fits(out_path.as_path()).expect("read calibrated master");
+        for key in [
+            "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD1_2", "CD2_1", "CD2_2",
+        ] {
+            let want = source.get_float(key).expect("fixture WCS");
+            let got = out
+                .get_float(key)
+                .unwrap_or_else(|| panic!("calibrated master dropped {key}"));
+            assert!(
+                (got - want).abs() <= want.abs() * 1e-9 + 1e-15,
+                "{key}: output {got} != input {want}"
+            );
+        }
+        assert_eq!(out.get_string("CTYPE1"), Some("RA---TAN"));
+        assert_eq!(out.get_int("A_ORDER"), Some(2), "SIP order must survive");
+        assert_eq!(out.get_float("A_1_1"), Some(4.5e-7));
+        assert_eq!(out.get_string("OBJECT"), Some("M51"));
+        assert_eq!(out.get_string("DATE-OBS"), Some("2026-08-14T22:10:00"));
+        // The op's own provenance still wins over anything carried.
+        assert_eq!(
+            out.get_string("CALSTAT"),
+            Some("Nightshade photometric color calibration")
+        );
     }
 }

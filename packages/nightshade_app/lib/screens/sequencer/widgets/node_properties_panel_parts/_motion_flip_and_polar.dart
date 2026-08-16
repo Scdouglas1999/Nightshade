@@ -377,9 +377,17 @@ class _PolarAlignmentProperties extends ConsumerWidget {
                 label: 'Gain',
                 child: NodeNumberInput(
                   colors: colors,
+                  // An unset gain rides to `PolarAlignConfig.gain = None`, and
+                  // `camera_start_exposure` then leaves the camera on whatever
+                  // gain it already holds. The field can only show a number, so
+                  // the helper line says which of the two "0" means instead of
+                  // letting the panel claim a gain the node does not carry.
                   value: (node.gain ?? 0).toDouble(),
                   min: 0,
                   max: 1000,
+                  helperText: node.gain == null
+                      ? 'Unset — the camera keeps its current gain'
+                      : null,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
                           node.copyWith(gain: value.toInt()),
@@ -395,9 +403,13 @@ class _PolarAlignmentProperties extends ConsumerWidget {
                 label: 'Offset',
                 child: NodeNumberInput(
                   colors: colors,
+                  // Same contract as Gain above: null means "do not set it".
                   value: (node.offset ?? 0).toDouble(),
                   min: 0,
                   max: 1000,
+                  helperText: node.offset == null
+                      ? 'Unset — the camera keeps its current offset'
+                      : null,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
                           node.copyWith(offset: value.toInt()),

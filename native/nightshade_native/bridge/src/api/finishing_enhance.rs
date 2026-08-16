@@ -29,7 +29,9 @@
 use nightshade_imaging::background_extraction::{self, BackgroundConfig};
 use nightshade_imaging::deconvolution::{self, DeconvConfig, PsfEstimateConfig, PsfKind, PsfModel};
 use nightshade_imaging::star_reduction::{self, StarReduceMethod, StarReductionConfig};
-use nightshade_imaging::{read_fits, write_fits, FitsHeader, ImageData, PixelType};
+use nightshade_imaging::{
+    carry_source_header, read_fits, write_fits, FitsHeader, ImageData, PixelType,
+};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -143,7 +145,7 @@ fn extract_background_impl(args: ExtractBackgroundArgs) -> Result<ExtractBackgro
         return Err("outputFits is required".to_string());
     }
 
-    let (image, _header) = read_fits(Path::new(&args.input_fits))
+    let (image, source_header) = read_fits(Path::new(&args.input_fits))
         .map_err(|e| format!("failed to read '{}': {e:?}", args.input_fits))?;
 
     // Build the config from defaults, overriding only the fields the caller set.
@@ -172,6 +174,9 @@ fn extract_background_impl(args: ExtractBackgroundArgs) -> Result<ExtractBackgro
     header.set_string("IMAGETYP", "MASTER_LIGHT");
     header.set_string("CALSTAT", "Nightshade background-extracted");
     header.set_int("BGDEGREE", model.degree as i64);
+    // Background extraction rewrites pixel values on the input's own grid, so
+    // the input's astrometry describes this output unchanged.
+    carry_source_header(&mut header, &source_header);
     write_fits(out_path, &out_image, &header)
         .map_err(|e| format!("failed to write background-extracted FITS: {e:?}"))?;
 
@@ -307,15 +312,15 @@ fn deconvolve_preview_impl(args: DeconvolvePreviewArgs) -> Result<DeconvolvePrev
     let restored = deconvolution::richardson_lucy(&image, &psf, &cfg)
         .map_err(|e| format!("deconvolution failed: {e}"))?;
 
-    // Preserve the source pixel type for the restored frame; carry the original
-    // WCS-free linear-master provenance through a fresh header.
-    let _ = &header;
+    // The restored frame keeps the source pixel type and the source grid, so the
+    // input's astrometry and observation identity carry straight through.
     let out_path = Path::new(&args.output_fits);
     ensure_parent_dir(out_path)?;
     let mut out_header = FitsHeader::new();
     out_header.set_string("IMAGETYP", "MASTER_LIGHT");
     out_header.set_string("CALSTAT", "Nightshade deconvolution preview");
     out_header.set_float("PSFFWHM", psf.fwhm);
+    carry_source_header(&mut out_header, &header);
     write_fits(out_path, &restored, &out_header)
         .map_err(|e| format!("failed to write deconvolved FITS: {e:?}"))?;
 
@@ -484,7 +489,7 @@ fn reduce_stars_preview_impl(
         return Err("outputFits is required".to_string());
     }
 
-    let (image, _header) = read_fits(Path::new(&args.input_fits))
+    let (image, source_header) = read_fits(Path::new(&args.input_fits))
         .map_err(|e| format!("failed to read '{}': {e:?}", args.input_fits))?;
 
     let defaults = StarReductionConfig::default();
@@ -517,12 +522,14 @@ fn reduce_stars_preview_impl(
     let reduced = star_reduction::reduce_stars(&image, &cfg)
         .map_err(|e| format!("star reduction failed: {e}"))?;
 
-    // Preserve the source pixel type for the reduced frame.
+    // The reduced frame keeps the source pixel type and the source grid, so the
+    // input's astrometry and observation identity carry straight through.
     let out_path = Path::new(&args.output_fits);
     ensure_parent_dir(out_path)?;
     let mut header = FitsHeader::new();
     header.set_string("IMAGETYP", "MASTER_LIGHT");
     header.set_string("CALSTAT", "Nightshade star-reduction preview");
+    carry_source_header(&mut header, &source_header);
     write_fits(out_path, &reduced, &header)
         .map_err(|e| format!("failed to write star-reduced FITS: {e:?}"))?;
 
@@ -586,7 +593,7 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nightshade_imaging::read_fits;
+    use nightshade_imaging::{add_wcs_headers, read_fits, WcsInfo};
     use std::path::PathBuf;
 
     /// A scratch directory that deletes itself when the test ends. Cleanup runs
@@ -862,6 +869,159 @@ mod tests {
         assert!(
             api_deconvolve_preview(bad_psf.to_string()).is_err(),
             "an unknown PSF kind must error"
+        );
+    }
+
+    // WCS carry-over
+
+    /// Write a synthetic master whose header carries a plate-solved WCS plus a
+    /// second-order SIP distortion pair and the observation identity a real
+    /// solved frame has, so a carry-over can be checked card for card.
+    fn write_solved_master(path: &Path, image: &ImageData) -> FitsHeader {
+        let mut h = FitsHeader::new();
+        h.set_string("IMAGETYP", "MASTER_LIGHT");
+        add_wcs_headers(
+            &mut h,
+            &WcsInfo::from_plate_solve(83.822, -5.391, 12.0, 1.5, image.width, image.height),
+        );
+        h.set_string("CTYPE1", "RA---TAN-SIP");
+        h.set_string("CTYPE2", "DEC--TAN-SIP");
+        h.set_int("A_ORDER", 2);
+        h.set_int("B_ORDER", 2);
+        h.set_float("A_2_0", 1.25e-6);
+        h.set_float("B_0_2", -9.5e-7);
+        h.set_string("OBJECT", "M42");
+        h.set_string("FILTER", "Ha");
+        h.set_string("DATE-OBS", "2026-08-14T21:03:11");
+        h.set_float("EXPTIME", 1800.0);
+        h.set_string("INSTRUME", "Test Cam");
+        write_fits(path, image, &h).expect("write solved master");
+        h
+    }
+
+    /// Every astrometry and observation card the input carried must be present,
+    /// with the same value, in the op's output header. A missing or altered card
+    /// leaves the next op in a recipe with no sky reference.
+    fn assert_astrometry_survived(source: &FitsHeader, out_path: &Path) {
+        let (_img, out) = read_fits(out_path).expect("read op output");
+        for key in [
+            "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD1_2", "CD2_1", "CD2_2", "EQUINOX",
+            "A_2_0", "B_0_2",
+        ] {
+            let want = source
+                .get_float(key)
+                .unwrap_or_else(|| panic!("test fixture is missing {key}"));
+            let got = out
+                .get_float(key)
+                .unwrap_or_else(|| panic!("output dropped WCS keyword {key}"));
+            assert!(
+                (got - want).abs() <= want.abs() * 1e-9 + 1e-15,
+                "{key}: output {got} != input {want}"
+            );
+        }
+        for key in [
+            "CTYPE1", "CTYPE2", "RADESYS", "OBJECT", "FILTER", "DATE-OBS", "INSTRUME",
+        ] {
+            assert_eq!(
+                out.get_string(key),
+                source.get_string(key),
+                "output dropped or changed {key}"
+            );
+        }
+        assert_eq!(out.get_int("A_ORDER"), Some(2), "SIP order must survive");
+        assert_eq!(out.get_int("B_ORDER"), Some(2));
+    }
+
+    /// Background extraction preserves the input's astrometry end to end.
+    #[test]
+    fn extract_background_preserves_wcs() {
+        let size = 128u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 800.0);
+        let dir = temp_dir("extract_background_preserves_wcs");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
+        let source = write_solved_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "config": { "polyDegree": 2 }
+        });
+        api_extract_background(args.to_string()).expect("extract background");
+        assert_astrometry_survived(&source, &out_path);
+    }
+
+    /// Deconvolution preserves the input's astrometry end to end.
+    #[test]
+    fn deconvolve_preview_preserves_wcs() {
+        let size = 128u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 600.0);
+        let dir = temp_dir("deconvolve_preview_preserves_wcs");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
+        let source = write_solved_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "estimatePsf": false,
+            "psf": { "kind": "moffat", "fwhm": 5.6, "beta": 3.0, "size": 15 },
+            "config": { "iterations": 2 }
+        });
+        api_deconvolve_preview(args.to_string()).expect("deconvolve");
+        assert_astrometry_survived(&source, &out_path);
+    }
+
+    /// Star reduction preserves the input's astrometry end to end.
+    #[test]
+    fn reduce_stars_preview_preserves_wcs() {
+        let size = 128u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 600.0);
+        let dir = temp_dir("reduce_stars_preview_preserves_wcs");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
+        let source = write_solved_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "config": { "strength": 0.5 }
+        });
+        api_reduce_stars_preview(args.to_string()).expect("reduce stars");
+        assert_astrometry_survived(&source, &out_path);
+    }
+
+    /// An unsolved input yields an unsolved output: the carry-over never invents
+    /// astrometry, and the HISTORY says plainly that nothing was carried.
+    #[test]
+    fn extract_background_invents_no_wcs_for_an_unsolved_input() {
+        let size = 128u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 800.0);
+        let dir = temp_dir("extract_background_invents_no_wcs");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
+        write_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "config": { "polyDegree": 2 }
+        });
+        api_extract_background(args.to_string()).expect("extract background");
+
+        let (_img, out) = read_fits(out_path.as_path()).expect("read flattened master");
+        assert_eq!(
+            out.get_float("CRVAL1"),
+            None,
+            "no WCS to carry -> none written"
+        );
+        assert_eq!(out.get_float("CD1_1"), None);
+        assert!(
+            out.history
+                .iter()
+                .any(|h| h.contains("Carried 0 astrometry")),
+            "the absence must be stated, not silent: {:?}",
+            out.history
         );
     }
 }

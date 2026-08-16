@@ -48,3 +48,55 @@ mod sdk_loader_tests {
         assert_eq!(required.len(), 28);
     }
 }
+
+#[cfg(test)]
+mod colour_classification_tests {
+    use super::*;
+
+    /// ARTEMISCOLOURTYPE 0 is UNKNOWN — "either the device is not a camera or
+    /// the colour cannot be determined" (AtikDefs.h:56) — and it is also the
+    /// value `connect`'s out-parameter keeps when ArtemisColourProperties
+    /// fails. It must never resolve to a sensor description: publishing mono
+    /// for an undetermined sensor strips BAYERPAT from every frame of the
+    /// session, so a one-shot-colour camera images all night undebayered.
+    #[test]
+    fn unknown_colour_type_is_not_a_sensor_description() {
+        assert_eq!(atik_sensor_colour(ARTEMIS_COLOUR_UNKNOWN), None);
+        // The seed the connect path initialises the out-parameter with is
+        // exactly that value, so a swallowed SDK failure cannot masquerade as
+        // an answer.
+        assert_eq!(ARTEMIS_COLOUR_UNKNOWN, 0);
+    }
+
+    /// Monochrome is a value the SDK reports explicitly; only that value may
+    /// publish a mono sensor.
+    #[test]
+    fn none_colour_type_is_mono_with_no_bayer_pattern() {
+        let colour = atik_sensor_colour(ARTEMIS_COLOUR_NONE).expect("mono is determinate");
+        assert_eq!(colour, AtikSensorColour::Mono);
+        assert!(!colour.is_color());
+        assert_eq!(colour.bayer_pattern(), None);
+    }
+
+    #[test]
+    fn rggb_colour_type_publishes_the_rggb_bayer_pattern() {
+        let colour = atik_sensor_colour(ARTEMIS_COLOUR_RGGB).expect("RGGB is determinate");
+        assert_eq!(colour, AtikSensorColour::Rggb);
+        assert!(colour.is_color());
+        assert_eq!(colour.bayer_pattern(), Some(BayerPattern::Rggb));
+    }
+
+    /// A colour type a future SDK adds is as undetermined as UNKNOWN for this
+    /// build: we know it is not the RGGB we can debayer, and we do not know it
+    /// is mono either.
+    #[test]
+    fn unrecognised_colour_types_are_undetermined_not_mono() {
+        for colour_type in [-1, 3, 4, 99] {
+            assert_eq!(
+                atik_sensor_colour(colour_type),
+                None,
+                "colour type {colour_type} was resolved to a sensor description"
+            );
+        }
+    }
+}

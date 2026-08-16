@@ -966,8 +966,16 @@ impl GPhoto2Camera {
                         ))
                     })?;
                 tracing::info!("gPhoto2: Bulb closed via eosremoterelease='{}'", release);
-                // Best-effort: return the widget to its idle "None" choice.
-                let _ = self.set_config_value_str("eosremoterelease", "None");
+                // The shutter is already closed (checked above); returning the widget to
+                // its idle "None" choice only matters for the NEXT bulb start, which
+                // re-writes the widget anyway. Report a failure so a camera stuck in the
+                // release position is diagnosable instead of silent.
+                if let Err(e) = self.set_config_value_str("eosremoterelease", "None") {
+                    tracing::warn!(
+                        "gPhoto2: could not return eosremoterelease to 'None' after closing the bulb shutter: {}",
+                        e
+                    );
+                }
                 Ok(())
             }
             Some(BulbWidget::BulbToggle) => {

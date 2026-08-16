@@ -1,5 +1,30 @@
 use super::*;
 
+/// Announce that a stop this run believed it issued was REFUSED by the mount.
+///
+/// The cancel and supersede arms of the pole-region slew return a *successful*
+/// outcome to their caller — the run is over — so when the abort itself failed
+/// there was nothing at all, on screen or in the log, to say the mount was
+/// still slewing. `reason` names the arm that issued the stop; `error` is the
+/// driver's own message. Warning severity so it is not lost in the Info-level
+/// status stream the UI overwrites on every phase change.
+pub(crate) fn emit_polar_stop_refused(reason: &str, phase: &str, error: &str) {
+    let status = format!(
+        "{reason}, but the mount did not accept the stop command ({error}). It may still \
+         be slewing — stop it from the mount controls before starting another run."
+    );
+    tracing::error!("Polar alignment: {} (phase={})", status, phase);
+    get_state().publish_event(create_event_auto_id(
+        EventSeverity::Warning,
+        EventCategory::PolarAlignment,
+        EventPayload::PolarAlignmentStatus(PolarAlignmentStatus {
+            status,
+            phase: phase.to_string(),
+            point: 0,
+        }),
+    ));
+}
+
 /// Emit a polar alignment status update (JSON-serializable for Dart)
 pub(crate) fn emit_polar_status(status: &str, phase: &str, point: i32) {
     tracing::info!(

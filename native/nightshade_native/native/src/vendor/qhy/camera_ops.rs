@@ -118,13 +118,34 @@ impl NativeDevice for QhyCamera {
         // See [`container_max_adu`].
         self.actual_output_bits = self.probe_output_data_actual_bits(sdk, handle);
         self.output_high_aligned = self.probe_output_data_high_aligned(sdk, handle);
+        // Assert the default geometry the driver then reports (`current_bin = 1`,
+        // full-frame ROI). A camera that refuses either call keeps whatever geometry
+        // InitQHYCCD left it in, so log the SDK code rather than dropping it: the
+        // frame itself stays self-consistent (download_image reads width/height/bpp
+        // back from GetQHYCCDSingleFrame), but the reported binning would not be.
         // SAFETY: qhy_mutex held; handle valid; (1,1) is the documented identity binning.
-        let _ = unsafe { (sdk.set_qhyccd_binmode)(handle, 1, 1) }; // 1x1 binning
-                                                                   // SAFETY: qhy_mutex held; handle valid; (0,0,image_width,image_height) is the full sensor
-                                                                   // window that the SDK just reported via GetQHYCCDChipInfo in load_camera_info().
-        let _ = unsafe {
+        let bin_result = unsafe { (sdk.set_qhyccd_binmode)(handle, 1, 1) };
+        if bin_result != 0 {
+            tracing::warn!(
+                "QHY camera {}: SetQHYCCDBinMode(1, 1) failed (error {}); the camera keeps its post-InitQHYCCD binning while this driver reports 1x1",
+                self.camera_id,
+                bin_result
+            );
+        }
+        // SAFETY: qhy_mutex held; handle valid; (0,0,image_width,image_height) is the full sensor
+        // window that the SDK just reported via GetQHYCCDChipInfo in load_camera_info().
+        let roi_result = unsafe {
             (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height)
         };
+        if roi_result != 0 {
+            tracing::warn!(
+                "QHY camera {}: SetQHYCCDResolution(0, 0, {}, {}) failed (error {}); the full-frame ROI was not applied",
+                self.camera_id,
+                self.image_width,
+                self.image_height,
+                roi_result
+            );
+        }
 
         self.connected = true;
         tracing::info!("Connected to QHY camera: {}", self.camera_id);
@@ -711,7 +732,17 @@ impl NativeCamera for QhyCamera {
         // open: it is only ever taken/closed by disconnect(), which needs both the
         // same mutex and the `&mut self` this method already holds exclusively.
         // `&mut prev_mode` is a live stack local of exactly the c_uint the SDK writes.
-        let _ = unsafe { (sdk.get_qhyccd_read_mode)(handle, &mut prev_mode) };
+        let prev_mode_result = unsafe { (sdk.get_qhyccd_read_mode)(handle, &mut prev_mode) };
+        if prev_mode_result != 0 {
+            // The rollback target below is then read mode 0 (the SDK's power-on
+            // default), not a mode we observed. Say so rather than let a silent 0
+            // masquerade as a reading.
+            tracing::warn!(
+                "QHY camera {}: GetQHYCCDReadMode failed (error {}); a rollback would restore read mode 0 (SDK default), not the camera's current mode",
+                self.camera_id,
+                prev_mode_result
+            );
+        }
 
         // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
         // was true. mode.index originated from a ReadoutMode this driver produced in
@@ -729,20 +760,53 @@ impl NativeCamera for QhyCamera {
         // SAFETY: qhy_mutex held; handle valid. InitQHYCCD takes only the handle.
         let init_result = unsafe { (sdk.init_qhyccd)(handle) };
         if check_qhy_error(init_result, "InitQHYCCD (after read-mode change)").is_err() {
-            // Restore the previous read mode + re-init so the camera stays usable.
+            // Restore the previous read mode + re-init so the camera stays usable, and
+            // report what the rollback actually achieved: a rollback that itself fails
+            // leaves the camera un-initialized in an unknown read mode, and claiming
+            // "reverted" would send the caller straight back into a capture.
+            let mut rollback_failures: Vec<String> = Vec::new();
             // SAFETY: qhy_mutex held; handle valid; prev_mode is the mode read above.
-            let _ = unsafe { (sdk.set_qhyccd_read_mode)(handle, prev_mode) };
+            let restore_mode = unsafe { (sdk.set_qhyccd_read_mode)(handle, prev_mode) };
+            if restore_mode != 0 {
+                rollback_failures.push(format!(
+                    "SetQHYCCDReadMode({}) error {}",
+                    prev_mode, restore_mode
+                ));
+            }
             // SAFETY: same held mutex and same still-open handle as the restore call
             // immediately above; InitQHYCCD takes only that handle, no pointers.
-            let _ = unsafe { (sdk.init_qhyccd)(handle) };
-            let _ = self.load_camera_info();
+            let restore_init = unsafe { (sdk.init_qhyccd)(handle) };
+            if restore_init != 0 {
+                rollback_failures.push(format!("InitQHYCCD error {}", restore_init));
+            }
+            if let Err(e) = self.load_camera_info() {
+                rollback_failures.push(format!("chip-info refresh failed: {}", e));
+            }
             // SAFETY: qhy_mutex held; handle valid; full-frame ROI from refreshed dims.
-            let _ = unsafe {
+            let restore_roi = unsafe {
                 (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height)
             };
+            if restore_roi != 0 {
+                rollback_failures.push(format!("SetQHYCCDResolution error {}", restore_roi));
+            }
+
+            if rollback_failures.is_empty() {
+                return Err(NativeError::SdkError(format!(
+                    "Failed to initialize QHY camera after switching to read mode {}; reverted to read mode {}",
+                    mode.index, prev_mode
+                )));
+            }
+            tracing::error!(
+                "QHY camera {}: rollback to read mode {} failed after a failed read-mode switch: {}",
+                self.camera_id,
+                prev_mode,
+                rollback_failures.join("; ")
+            );
             return Err(NativeError::SdkError(format!(
-                "Failed to initialize QHY camera after switching to read mode {}; reverted to previous mode",
-                mode.index
+                "Failed to initialize QHY camera after switching to read mode {}, and the rollback to read mode {} also failed ({}); the camera is left un-initialized and must be reconnected",
+                mode.index,
+                prev_mode,
+                rollback_failures.join("; ")
             )));
         }
 

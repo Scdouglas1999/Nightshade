@@ -304,6 +304,197 @@ pub fn read_fits_from_bytes(bytes: &[u8]) -> Result<(ImageData, FitsHeader), Fit
     read_fits_from_reader(&mut reader)
 }
 
+/// Read only the primary HDU's header, without decoding the pixel data.
+///
+/// Callers that need a frame's metadata (exposure, sensor temperature, gain,
+/// observation date, astrometry) but not its samples pay the header records
+/// only, instead of a full-sensor decode. The returned header is identical to
+/// the one [`read_fits`] yields: `BZERO`/`BSCALE` are stripped because they
+/// describe an encoding this reader would have folded into the samples, so a
+/// header from either entry point compares equal card for card.
+pub fn read_fits_header(path: &Path) -> Result<FitsHeader, FitsError> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut header = read_header(&mut reader)?;
+    header.remove("BZERO");
+    header.remove("BSCALE");
+    Ok(header)
+}
+
+/// True for a keyword that describes where on the sky a pixel grid points:
+/// the FITS WCS core (`CRVAL`/`CRPIX`/`CD`/`PC`/`CDELT`/`CROTA`/`CTYPE`/`CUNIT`
+/// /`PV`), the reference-frame cards (`EQUINOX`, `RADESYS`/`RADECSYS`,
+/// `LONPOLE`, `LATPOLE`, `WCSAXES`), and the SIP distortion polynomials
+/// (`A_ORDER`/`B_ORDER`/`AP_ORDER`/`BP_ORDER` plus every `A_i_j`, `B_i_j`,
+/// `AP_i_j`, `BP_i_j` term, Shupe et al. 2005).
+///
+/// The set is closed over what [`add_wcs_headers`] writes and what ASTAP /
+/// astrometry.net stamp, so a solved frame's astrometry survives a copy in
+/// full — a partial copy (CD without CTYPE, or CRVAL without SIP) yields a
+/// header that reads as solved while projecting to the wrong sky position.
+pub fn is_astrometry_keyword(key: &str) -> bool {
+    match key {
+        "EQUINOX" | "RADESYS" | "RADECSYS" | "LONPOLE" | "LATPOLE" | "WCSAXES" => return true,
+        _ => {}
+    }
+    // `CRVAL1`, `CTYPE2`, `CDELT1`, `CROTA2`, `CUNIT1`, `CRPIX2` — one axis digit.
+    for stem in ["CRVAL", "CRPIX", "CDELT", "CROTA", "CTYPE", "CUNIT"] {
+        if let Some(rest) = key.strip_prefix(stem) {
+            if is_all_digits(rest) {
+                return true;
+            }
+        }
+    }
+    // `CD1_1`, `PC2_1`, `PV1_17` — two index groups separated by `_`.
+    for stem in ["CD", "PC", "PV"] {
+        if let Some(rest) = key.strip_prefix(stem) {
+            if is_index_pair(rest) {
+                return true;
+            }
+        }
+    }
+    // SIP: `A_ORDER`/`AP_ORDER` and the `A_2_1`-style coefficient terms.
+    for stem in ["A", "B", "AP", "BP"] {
+        if let Some(rest) = key.strip_prefix(stem) {
+            if rest == "_ORDER" {
+                return true;
+            }
+            if let Some(indices) = rest.strip_prefix('_') {
+                if is_index_pair(indices) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// True for a keyword that identifies *what was observed and with what*, and
+/// stays true of a frame that has been rescaled, rebalanced, or filtered in
+/// place: target, filter, timing, optics, sensor settings and site.
+///
+/// Deliberately excluded: `BAYERPAT`/`XBAYROFF`/`YBAYROFF`. A CFA pattern
+/// describes a raw mosaic; carrying it onto a debayered or integrated frame
+/// makes a downstream reader debayer an already-colour image.
+pub fn is_observation_keyword(key: &str) -> bool {
+    matches!(
+        key,
+        "OBJECT"
+            | "OBJCTRA"
+            | "OBJCTDEC"
+            | "RA"
+            | "DEC"
+            | "FILTER"
+            | "DATE-OBS"
+            | "DATE-END"
+            | "EXPTIME"
+            | "EXPOSURE"
+            | "TELESCOP"
+            | "INSTRUME"
+            | "OBSERVER"
+            | "FOCALLEN"
+            | "APTDIA"
+            | "XPIXSZ"
+            | "YPIXSZ"
+            | "PIXSIZE1"
+            | "PIXSIZE2"
+            | "XBINNING"
+            | "YBINNING"
+            | "GAIN"
+            | "EGAIN"
+            | "OFFSET"
+            | "CCD-TEMP"
+            | "SET-TEMP"
+            | "READOUTM"
+            | "SITELAT"
+            | "SITELONG"
+            | "SITEELEV"
+            | "AIRMASS"
+    )
+}
+
+/// True when `s` is one or more ASCII digits.
+fn is_all_digits(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// True when `s` is `<digits>_<digits>` — the FITS matrix/polynomial index form.
+fn is_index_pair(s: &str) -> bool {
+    match s.split_once('_') {
+        Some((a, b)) => is_all_digits(a) && is_all_digits(b),
+        None => false,
+    }
+}
+
+/// Copy every card `keep` accepts from `src` into `dst`, in `src`'s card order,
+/// and return how many were copied.
+///
+/// A key already present in `dst` is left alone: the writer that built `dst`
+/// stated something about its own output (`IMAGETYP`, a recomputed `EXPTIME`)
+/// and the source frame must not overwrite it. Iteration follows the source's
+/// recorded card order, never the keyword map, so the output header is
+/// byte-identical for identical inputs.
+pub fn copy_header_cards(
+    dst: &mut FitsHeader,
+    src: &FitsHeader,
+    keep: impl Fn(&str) -> bool,
+) -> usize {
+    let mut copied = 0usize;
+    for key in &src.keyword_order {
+        if !keep(key) || dst.keywords.contains_key(key) {
+            continue;
+        }
+        let Some(value) = src.keywords.get(key) else {
+            continue;
+        };
+        dst.keyword_order.push(key.clone());
+        dst.keywords.insert(key.clone(), value.clone());
+        if let Some(comment) = src.keyword_comments.get(key) {
+            dst.keyword_comments.insert(key.clone(), comment.clone());
+        }
+        copied += 1;
+    }
+    copied
+}
+
+/// Carry the source frame's astrometry ([`is_astrometry_keyword`]) into `dst`,
+/// returning the number of cards copied (`0` when the source is unsolved).
+///
+/// Every op that leaves the pixel grid alone — background extraction, colour
+/// calibration, star reduction, deconvolution — must call this, or the frame it
+/// writes reads as unsolved and the next op in the chain has no sky reference.
+pub fn copy_astrometry_headers(dst: &mut FitsHeader, src: &FitsHeader) -> usize {
+    copy_header_cards(dst, src, is_astrometry_keyword)
+}
+
+/// Carry the source frame's observation identity ([`is_observation_keyword`])
+/// into `dst`, returning the number of cards copied.
+pub fn copy_observation_headers(dst: &mut FitsHeader, src: &FitsHeader) -> usize {
+    copy_header_cards(dst, src, is_observation_keyword)
+}
+
+/// Carry a source frame's astrometry **and** observation identity into the
+/// header a same-geometry processing step is about to write, recording the
+/// counts as a `HISTORY` card.
+///
+/// For any op that transforms pixel values while leaving the pixel grid alone,
+/// the input's WCS still describes the output exactly, so dropping it would
+/// strand the result: nothing downstream could plate-match it, and the next op
+/// in a chain would inherit no sky reference at all. The counts are written even
+/// when they are zero, so an unsolved input reads as unsolved rather than as an
+/// unexplained absence.
+///
+/// **Not** for a step that changes the grid — a drizzle, a resample, a crop.
+/// Those must recompute `CRPIX`/`CD` for the new grid; copying the input's cards
+/// would produce a header that reads as solved and points at the wrong sky.
+pub fn carry_source_header(dst: &mut FitsHeader, src: &FitsHeader) {
+    let astrometry = copy_astrometry_headers(dst, src);
+    let observation = copy_observation_headers(dst, src);
+    dst.add_history(&format!(
+        "Carried {astrometry} astrometry and {observation} observation cards from the input frame"
+    ));
+}
+
 /// The image geometry a FITS header describes, plus the pixel type its BITPIX
 /// selects.
 ///
@@ -3755,5 +3946,122 @@ mod tests {
     fn test_read_bayer_geometry_returns_none_without_bayerpat() {
         let header = FitsHeader::new();
         assert!(read_bayer_geometry(&header).is_none());
+    }
+
+    // Header carry-over
+
+    /// The astrometry set must cover the whole WCS a solved frame carries,
+    /// including SIP: a partial copy yields a header that reads as solved while
+    /// projecting to the wrong sky.
+    #[test]
+    fn astrometry_keywords_cover_the_wcs_and_sip_sets() {
+        for key in [
+            "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD2_2", "CDELT1", "CROTA2", "CTYPE1",
+            "CUNIT2", "EQUINOX", "RADESYS", "RADECSYS", "LONPOLE", "LATPOLE", "WCSAXES", "PC1_2",
+            "PV2_1", "A_ORDER", "B_ORDER", "AP_ORDER", "BP_ORDER", "A_2_0", "B_0_2", "AP_1_1",
+            "BP_3_0",
+        ] {
+            assert!(is_astrometry_keyword(key), "{key} must be astrometry");
+        }
+        // Neighbours that merely start with the same letters are not.
+        for key in [
+            "AIRMASS", "APTDIA", "BITPIX", "CCD-TEMP", "PALETTE", "OBJECT", "CALSTAT", "BSCALE",
+            "A", "AP", "CD", "A_ORDERX",
+        ] {
+            assert!(!is_astrometry_keyword(key), "{key} must not be astrometry");
+        }
+    }
+
+    /// A CFA pattern describes a raw mosaic. Carrying it onto a processed frame
+    /// makes a downstream reader debayer an already-colour image, so it is
+    /// deliberately outside the observation set.
+    #[test]
+    fn observation_keywords_exclude_the_cfa_pattern() {
+        for key in [
+            "OBJECT", "FILTER", "DATE-OBS", "EXPTIME", "GAIN", "CCD-TEMP", "INSTRUME",
+        ] {
+            assert!(is_observation_keyword(key), "{key} must be observation");
+        }
+        for key in ["BAYERPAT", "XBAYROFF", "YBAYROFF", "CRVAL1", "NAXIS1"] {
+            assert!(!is_observation_keyword(key), "{key} must not be carried");
+        }
+    }
+
+    /// The carry-over never overwrites what the writing op already stated about
+    /// its own output, and it reports what it did — including that it carried
+    /// nothing from an unsolved input.
+    #[test]
+    fn carry_source_header_keeps_the_writer_s_own_cards() {
+        let mut source = FitsHeader::new();
+        source.set_float("CRVAL1", 83.822);
+        source.set_string("CTYPE1", "RA---TAN-SIP");
+        source.set_int("A_ORDER", 2);
+        source.set_float("EXPTIME", 60.0);
+        source.set_string("OBJECT", "M42");
+
+        let mut dst = FitsHeader::new();
+        dst.set_string("IMAGETYP", "MASTER_LIGHT");
+        // The writer computed a total exposure; the source's per-frame value
+        // must not replace it.
+        dst.set_float("EXPTIME", 1800.0);
+
+        carry_source_header(&mut dst, &source);
+
+        assert_eq!(dst.get_float("CRVAL1"), Some(83.822));
+        assert_eq!(dst.get_string("CTYPE1"), Some("RA---TAN-SIP"));
+        assert_eq!(dst.get_int("A_ORDER"), Some(2));
+        assert_eq!(dst.get_string("OBJECT"), Some("M42"));
+        assert_eq!(
+            dst.get_float("EXPTIME"),
+            Some(1800.0),
+            "the writer's value wins"
+        );
+        assert_eq!(dst.get_string("IMAGETYP"), Some("MASTER_LIGHT"));
+        assert!(
+            dst.history
+                .iter()
+                .any(|h| h.contains("Carried 3 astrometry")),
+            "{:?}",
+            dst.history
+        );
+
+        // An unsolved source states the absence rather than leaving it a mystery.
+        let mut empty_dst = FitsHeader::new();
+        carry_source_header(&mut empty_dst, &FitsHeader::new());
+        assert_eq!(empty_dst.get_float("CRVAL1"), None);
+        assert!(empty_dst
+            .history
+            .iter()
+            .any(|h| h.contains("Carried 0 astrometry and 0 observation cards")));
+    }
+
+    /// The header-only read must agree card for card with the full read, so a
+    /// caller that skips the pixels is not comparing a different header.
+    #[test]
+    fn read_fits_header_matches_the_full_read() {
+        let dir = std::env::temp_dir().join(format!("ns_fits_hdr_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("frame.fits");
+
+        let image = ImageData::from_u16(4, 3, 1, &[1000u16; 12]);
+        let mut h = FitsHeader::new();
+        h.set_string("IMAGETYP", "LIGHT");
+        h.set_float("CCD-TEMP", -10.5);
+        h.set_string("DATE-OBS", "2026-08-14T21:00:00");
+        write_fits(&path, &image, &h).expect("write frame");
+
+        let (_img, full) = read_fits(&path).expect("full read");
+        let only = read_fits_header(&path).expect("header-only read");
+        assert_eq!(only.get_string("IMAGETYP"), full.get_string("IMAGETYP"));
+        assert_eq!(only.get_float("CCD-TEMP"), full.get_float("CCD-TEMP"));
+        assert_eq!(only.get_string("DATE-OBS"), full.get_string("DATE-OBS"));
+        assert_eq!(only.get_int("NAXIS1"), Some(4));
+        assert_eq!(
+            only.get("BZERO").is_none(),
+            full.get("BZERO").is_none(),
+            "both readers strip the encoding cards they folded into the samples"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -16,6 +16,12 @@ pub struct PlayerOneCamera {
     // Exposure metadata tracking
     pub(crate) exposure_time: f64,
     pub(crate) current_subframe: Option<SubFrame>,
+    /// Last gain/offset this driver applied or read back successfully. They are
+    /// the fallback for the frame metadata (FITS GAIN/OFFSET) when a POAGetConfig
+    /// read fails on a frame we already hold: reporting the last applied value is
+    /// the truth about that exposure, where a literal 0 would not be.
+    pub(crate) current_gain: i32,
+    pub(crate) current_offset: i32,
     // Driver-level cooler state. Used by `get_status` (`&self`) when the SDK
     // read-back is unavailable; written by `set_cooler` after the SDK accepts
     // the change. `Mutex` provides interior mutability across the immutable
@@ -37,6 +43,8 @@ impl PlayerOneCamera {
             image_format: POAImgFormat::Raw16,
             exposure_time: 0.0,
             current_subframe: None,
+            current_gain: 0,
+            current_offset: 0,
             cooler_state: Mutex::new(CoolerState::default()),
         }
     }

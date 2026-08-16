@@ -1029,13 +1029,18 @@ async fn a_completed_settle_does_not_re_arm_on_the_next_guiding_frame() {
     let controller = Arc::new(RwLock::new(BuiltinGuiderState {
         guiding: true,
         settling: true,
+        settle_spec: SettleSpec {
+            pixels: 1.0,
+            time: 0.0,
+            timeout: 30.0,
+        },
         settle_timeout_deadline: Some(Instant::now() + Duration::from_secs(30)),
         ..BuiltinGuiderState::default()
     }));
     // settle_time 0 collapses to the 0.1s floor, so one sleep spans it.
     let settle = |offset: f64| {
         let controller = controller.clone();
-        async move { apply_settle_state(controller, offset, 1.0, 0.0, 30.0).await }
+        async move { apply_settle_state(controller, offset).await }
     };
 
     settle(0.1).await.expect("arm the settle");
@@ -1101,20 +1106,83 @@ async fn a_dither_opens_a_new_settle_episode() {
         guiding: true,
         settling: true,
         dither_pending: true,
+        settle_spec: SettleSpec {
+            pixels: 1.0,
+            time: 0.0,
+            timeout: 30.0,
+        },
         settle_timeout_deadline: Some(Instant::now() + Duration::from_secs(30)),
         ..BuiltinGuiderState::default()
     }));
 
-    apply_settle_state(controller.clone(), 0.1, 1.0, 0.0, 30.0)
+    apply_settle_state(controller.clone(), 0.1)
         .await
         .expect("arm");
     tokio::time::sleep(Duration::from_millis(150)).await;
-    apply_settle_state(controller.clone(), 0.1, 1.0, 0.0, 30.0)
+    apply_settle_state(controller.clone(), 0.1)
         .await
         .expect("settle");
 
     let guard = controller.read().await;
     assert!(!guard.dither_pending, "the dither settled");
+    assert!(!guard.settling);
+}
+
+/// The dither's OWN settle tolerance is the one the loop applies.
+///
+/// `dither(amount, ra_only, settle_pixels, settle_time, settle_timeout)` is how
+/// the sequencer's Dither instruction states how tightly this dither must
+/// settle. The loop used to judge every settle by the tolerance captured back at
+/// `start_guiding` and discarded the dither's own pair outright, so a sequence
+/// asking to settle inside 0.2px
+/// was told it had settled at 1.5px — with `guider_dither` logging the 0.2px it
+/// never enforced.
+#[tokio::test]
+async fn a_dither_settles_on_its_own_tolerance_not_the_sessions() {
+    let controller = Arc::new(RwLock::new(BuiltinGuiderState {
+        guiding: true,
+        settling: true,
+        dither_pending: true,
+        // What `start_guiding` left behind: a loose session tolerance.
+        settle_spec: SettleSpec {
+            pixels: 1.5,
+            time: 0.0,
+            timeout: 30.0,
+        },
+        settle_timeout_deadline: Some(Instant::now() + Duration::from_secs(30)),
+        ..BuiltinGuiderState::default()
+    }));
+
+    // What this dither asked for: settle inside 0.2px.
+    controller.write().await.settle_spec = SettleSpec {
+        pixels: 0.2,
+        time: 0.0,
+        timeout: 30.0,
+    };
+
+    // 0.9px is inside the SESSION tolerance and outside the DITHER's.
+    apply_settle_state(controller.clone(), 0.9)
+        .await
+        .expect("frame accepted");
+    assert!(
+        controller.read().await.settle_deadline.is_none(),
+        "0.9px opened a settle the dither's 0.2px tolerance forbids"
+    );
+    assert!(
+        controller.read().await.dither_pending,
+        "the dither cannot be complete while RMS is above its own tolerance"
+    );
+
+    // Inside the dither's own tolerance the settle proceeds normally.
+    apply_settle_state(controller.clone(), 0.1)
+        .await
+        .expect("arm");
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    apply_settle_state(controller.clone(), 0.1)
+        .await
+        .expect("settle");
+    let guard = controller.read().await;
+    assert!(!guard.dither_pending, "the dither settled on its own spec");
     assert!(!guard.settling);
 }
 

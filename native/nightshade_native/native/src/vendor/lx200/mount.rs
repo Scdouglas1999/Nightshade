@@ -286,7 +286,18 @@ impl NativeDevice for Lx200Mount {
             return Ok(());
         }
 
-        let _ = self.send_command_no_response(commands::STOP_SLEW);
+        // Halt any motion before we drop the port. The port is released either way —
+        // holding it open would strand the mount — but a mount that did not take the
+        // halt keeps slewing with nothing left connected to stop it, so the failure
+        // is reported instead of dropped.
+        if let Err(e) = self.send_command_no_response(commands::STOP_SLEW) {
+            tracing::error!(
+                "LX200 {}: stop-slew ({}) failed while disconnecting: {}. The mount may still be moving — stop it at the hand controller.",
+                self.device_id,
+                commands::STOP_SLEW,
+                e
+            );
+        }
 
         *self
             .serial_port

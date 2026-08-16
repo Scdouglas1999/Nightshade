@@ -244,9 +244,15 @@ mod guard_tests {
     /// `NullDeviceOps` fabricates HFR and star positions, but it is a test
     /// double a release artifact cannot install. It has two entry points and
     /// both are closed: `api_sequencer_set_simulation_mode` refuses with
-    /// NotSupported unless `cfg!(debug_assertions)` and no HTTP route exposes
-    /// it, and `ExecutionContext::new_for_test` is `#[cfg(test)]` so it does
-    /// not exist in a release build. `ExecutionContext::new` takes the device
+    /// NotSupported unless `cfg!(debug_assertions)`, and
+    /// `ExecutionContext::new_for_test` is `#[cfg(test)]` so it does not exist
+    /// in a release build. The first of those IS reachable from the network —
+    /// `POST /api/sequencer/simulation` is a registered headless route
+    /// (`apps/desktop/lib/headless_api/routes/sequencer_routes.dart:70`) — so
+    /// the `cfg!(debug_assertions)` refusal is the whole of the gate, not a
+    /// second line of defence behind an unexposed call. A shipped bundle
+    /// carries a release-compiled bridge, so that route answers 400
+    /// `simulation_mode_unavailable` instead of installing the double. `ExecutionContext::new` takes the device
     /// handle as an argument precisely so there is no third way in by default.
     /// `release_gate_still_guards_null_device_ops` below fails if the runtime
     /// gate stops being true, so this exemption cannot rot into a live path

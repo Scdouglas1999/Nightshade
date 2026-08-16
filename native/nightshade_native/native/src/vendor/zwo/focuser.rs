@@ -626,7 +626,22 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
             // SAFETY: EAFInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
             let mut info: EAFInfo = unsafe { std::mem::zeroed() };
             // SAFETY: mutex held; `info` is a valid stack pointer; `id` was just successfully opened.
-            let _ = unsafe { (sdk.get_property)(id, &mut info) };
+            let property_result = unsafe { (sdk.get_property)(id, &mut info) };
+            if property_result != 0 {
+                // `info` would still be zeroed, and discovery publishes `name` verbatim
+                // as the device identity (native/src/discovery.rs), so the focuser would
+                // appear as a blank row. Close the handle and leave it out of this scan;
+                // connect() runs the same EAFGetProperty (checked) and reports the failure
+                // if the user targets it, and the next scan retries.
+                tracing::error!(
+                    "ZWO EAF discovery: EAFGetProperty failed for focuser ID {} (EAF error {}); omitting it from this scan",
+                    id,
+                    property_result
+                );
+                // SAFETY: mutex held; `id` was successfully opened above. EAFClose pairs with EAFOpen.
+                let _ = unsafe { (sdk.close)(id) };
+                continue;
+            }
             // SAFETY: ASI SDK guarantees `info.name` is NUL-terminated within the 64-byte array.
             let name = unsafe {
                 CStr::from_ptr(info.name.as_ptr())

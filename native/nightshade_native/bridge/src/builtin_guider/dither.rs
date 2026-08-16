@@ -146,14 +146,21 @@ pub async fn dither(
         guard.dither_misses = 0;
         guard.dither_abandoned = false;
         guard.dither_pending = true;
-        // Reset settle state and arm the timeout for this dither settle
+        // Reset settle state and arm the timeout for this dither settle.
         guard.settle_deadline = None;
         guard.settling = true;
         guard.settle_timeout_deadline =
             Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
-        // Store settle params so the guiding loop's apply_settle_state can use them
-        // (settle_pixels and settle_time are already threaded through run_guiding_loop)
-        let _ = (settle_pixels, settle_time); // used by the guiding loop that's already running
+        // Install THIS dither's settle spec. The guiding loop used to judge every
+        // settle by the tolerance captured when guiding started, so the
+        // sequencer's per-dither `settle_pixels`/`settle_time` — passed all the
+        // way down from the Dither instruction through `guider_dither` — were
+        // dropped on the floor while the log line claimed "settle: <Xpx in Ys".
+        guard.settle_spec = SettleSpec {
+            pixels: settle_pixels,
+            time: settle_time,
+            timeout: timeout_secs,
+        };
     }
     get_state().publish_guiding_event(
         GuidingEvent::DitherStarted {

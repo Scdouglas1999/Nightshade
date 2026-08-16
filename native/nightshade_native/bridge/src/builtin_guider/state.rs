@@ -286,6 +286,37 @@ pub async fn get_tracked_stars_json() -> String {
     serde_json::to_string(&dto).unwrap_or_else(|_| "{\"count\":0,\"stars\":[]}".to_string())
 }
 
+/// The tolerance an OPEN settle episode is judged by.
+///
+/// `start_guiding` seeds it for the post-calibration settle; `dither` REPLACES
+/// it, because the caller asking for a dither passes its own settle spec (the
+/// sequencer's per-dither settings) and that is the spec the dither has to be
+/// measured against. Before this existed the guiding loop kept using the values
+/// captured at `start_guiding`, so a sequence that dithered with a tighter
+/// tolerance was told it had settled at the looser one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct SettleSpec {
+    /// Total RMS, in guide-camera pixels, the frame must be under to count.
+    pub(crate) pixels: f64,
+    /// How long the RMS must stay under `pixels` before the settle completes.
+    pub(crate) time: f64,
+    /// Wall-clock ceiling on the whole settle episode.
+    pub(crate) timeout: f64,
+}
+
+impl Default for SettleSpec {
+    /// Matches the historical hard defaults of the guiding panel: settle when
+    /// RMS is under 1.5px for 5s, give up after 40s. Only ever observed before
+    /// the first `start_guiding`, since both entry points overwrite it.
+    fn default() -> Self {
+        Self {
+            pixels: 1.5,
+            time: 5.0,
+            timeout: 40.0,
+        }
+    }
+}
+
 pub(crate) struct BuiltinGuiderState {
     pub(crate) connected: bool,
     pub(crate) guiding: bool,
@@ -303,6 +334,8 @@ pub(crate) struct BuiltinGuiderState {
     pub(crate) settle_deadline: Option<Instant>,
     /// Absolute deadline after which settling is considered failed
     pub(crate) settle_timeout_deadline: Option<Instant>,
+    /// Tolerance the open settle episode is judged by — see [`SettleSpec`].
+    pub(crate) settle_spec: SettleSpec,
     /// Whether a settle EPISODE is open — the initial settle after calibration,
     /// or the one a dither asked for. Steady guiding is not settling, so once an
     /// episode completes nothing re-opens it until something asks again.
@@ -365,6 +398,7 @@ impl Default for BuiltinGuiderState {
             last_status: BuiltinGuideStatus::default(),
             settle_deadline: None,
             settle_timeout_deadline: None,
+            settle_spec: SettleSpec::default(),
             settling: false,
             dither_pending: false,
             dither_origin: Vec2::default(),

@@ -33,7 +33,8 @@ use nightshade_imaging::drizzle::{
 };
 use nightshade_imaging::registration::{TransformKind, TransformModel};
 use nightshade_imaging::{
-    read_bayer_geometry, read_fits, write_fits, FitsHeader, ImageData, PixelType,
+    copy_astrometry_headers, read_bayer_geometry, read_fits, write_fits, FitsHeader, ImageData,
+    PixelType,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -397,6 +398,15 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
     } else {
         "Nightshade drizzle integration"
     });
+    // No WCS is carried. The drizzle output lives on a `scale`x grid, so no
+    // input frame's CRPIX/CD describes it, and the reference grid's own solve is
+    // not supplied to this call. Stamping a frame's astrometry here would
+    // produce a header that reads as solved and points at the wrong sky; the
+    // absence is stated so a reader knows to solve the drizzled master.
+    header.add_history(&format!(
+        "No astrometry carried: output grid is {:.3}x the reference grid",
+        cfg.scale
+    ));
     write_fits(master_path, &output.master, &header)
         .map_err(|e| format!("failed to write drizzle master: {e:?}"))?;
 
@@ -561,17 +571,15 @@ fn combine_channels_impl(args: CombineChannelsArgs) -> Result<CombineChannelsRes
         return Err("outputFits is required".to_string());
     }
 
-    // Read every single-channel master. We hold them in an owned `Vec<ImageData>`
-    // so the `&[&ImageData]` slice `combine_channels` borrows stays valid.
-    let images: Vec<ImageData> = args
+    // Read every single-channel master with its header. The images stay in this
+    // owned vector so the `&[&ImageData]` slice `combine_channels` borrows stays
+    // valid, and the first input's header supplies the composite's astrometry.
+    let inputs: Vec<(ImageData, FitsHeader)> = args
         .inputs
         .iter()
-        .map(|p| {
-            read_fits(Path::new(p))
-                .map(|(image, _header)| image)
-                .map_err(|e| format!("failed to read '{p}': {e:?}"))
-        })
+        .map(|p| read_fits(Path::new(p)).map_err(|e| format!("failed to read '{p}': {e:?}")))
         .collect::<Result<_, _>>()?;
+    let images: Vec<&ImageData> = inputs.iter().map(|(image, _)| image).collect();
 
     // Resolve the weight table: a named palette wins, else the explicit weights.
     let weights: Vec<[f64; 3]> = if let Some(palette) = args.palette.as_ref() {
@@ -608,9 +616,8 @@ fn combine_channels_impl(args: CombineChannelsArgs) -> Result<CombineChannelsRes
         }
     };
 
-    let refs: Vec<&ImageData> = images.iter().collect();
     let composite =
-        combine_channels(&refs, &weights).map_err(|e| format!("channel combine failed: {e}"))?;
+        combine_channels(&images, &weights).map_err(|e| format!("channel combine failed: {e}"))?;
 
     let out_path = Path::new(&args.output_fits);
     ensure_parent_dir(out_path)?;
@@ -622,6 +629,21 @@ fn combine_channels_impl(args: CombineChannelsArgs) -> Result<CombineChannelsRes
         header.set_string("PALETTE", palette.trim());
     }
     header.add_history("Nightshade narrowband channel combination");
+    // `combine_channels` has already rejected any input whose geometry differs
+    // from the first, so every input shares one pixel grid and the first one's
+    // astrometry describes the composite. Only astrometry is carried: FILTER,
+    // EXPTIME and the sensor settings belong to one channel and would misstate
+    // the composite. OBJECT is the exception — the whole point of a palette
+    // combine is that every channel is the same target.
+    let (_, first_header) = &inputs[0];
+    let carried = copy_astrometry_headers(&mut header, first_header);
+    if let Some(object) = first_header.get_string("OBJECT") {
+        header.set_string("OBJECT", object);
+    }
+    header.add_history(&format!(
+        "Carried {carried} astrometry cards from '{}'",
+        args.inputs[0]
+    ));
     write_fits(out_path, &composite, &header)
         .map_err(|e| format!("failed to write composite: {e:?}"))?;
 
@@ -676,6 +698,7 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nightshade_imaging::{add_wcs_headers, WcsInfo};
     use std::path::PathBuf;
 
     /// A scratch directory that deletes itself when the test ends. Cleanup runs
@@ -1282,6 +1305,80 @@ mod tests {
         assert!(
             api_combine_channels(mismatch.to_string()).is_err(),
             "mismatched combine geometry must error"
+        );
+    }
+
+    // WCS carry-over
+
+    /// The palette composite must carry the astrometry of the channels it was
+    /// built from — every input shares one grid by construction (a geometry
+    /// mismatch is already a hard error), so the first input's solve describes
+    /// the composite exactly. Per-channel identity (`FILTER`, `EXPTIME`) is
+    /// deliberately NOT carried: it would describe one channel and misstate the
+    /// composite.
+    #[test]
+    fn combine_channels_carries_astrometry_but_not_per_channel_identity() {
+        let size = 24u32;
+        let dir = temp_dir("combine_wcs");
+        let wcs = WcsInfo::from_plate_solve(299.8681, 40.7339, 5.0, 1.2, size, size);
+
+        let mut inputs = Vec::new();
+        for (i, filter) in ["Ha", "OIII"].iter().enumerate() {
+            let data: Vec<f32> = vec![100.0 + i as f32 * 10.0; (size * size) as usize];
+            let plane = ImageData::from_f32(size, size, 1, &data);
+            let path = dir.join(format!("chan{i}.fits"));
+            let mut h = FitsHeader::new();
+            h.set_string("IMAGETYP", "MASTER_LIGHT");
+            add_wcs_headers(&mut h, &wcs);
+            h.set_string("OBJECT", "NGC 6960");
+            h.set_string("FILTER", filter);
+            h.set_float("EXPTIME", 3600.0 + i as f64 * 600.0);
+            write_fits(path.as_path(), &plane, &h).expect("write channel master");
+            inputs.push(path.to_string_lossy().to_string());
+        }
+
+        let out_path = dir.join("hoo.fits");
+        let args = serde_json::json!({
+            "inputs": inputs,
+            "palette": "hoo",
+            "outputFits": out_path.to_string_lossy()
+        });
+        api_combine_channels(args.to_string()).expect("combine");
+
+        let (img, out) = read_fits(out_path.as_path()).expect("read composite");
+        assert_eq!(img.channels, 3);
+        for key in ["CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD2_2"] {
+            let want = match key {
+                "CRVAL1" => wcs.crval1,
+                "CRVAL2" => wcs.crval2,
+                "CRPIX1" => wcs.crpix1,
+                "CRPIX2" => wcs.crpix2,
+                "CD1_1" => wcs.cd1_1,
+                _ => wcs.cd2_2,
+            };
+            let got = out
+                .get_float(key)
+                .unwrap_or_else(|| panic!("composite dropped {key}"));
+            assert!(
+                (got - want).abs() <= want.abs() * 1e-9 + 1e-15,
+                "{key}: composite {got} != input {want}"
+            );
+        }
+        assert_eq!(out.get_string("CTYPE1"), Some("RA---TAN"));
+        assert_eq!(
+            out.get_string("OBJECT"),
+            Some("NGC 6960"),
+            "every channel is the same target, so OBJECT is the composite's too"
+        );
+        assert_eq!(
+            out.get_string("FILTER"),
+            None,
+            "one channel's filter must not be claimed for the composite"
+        );
+        assert_eq!(
+            out.get_float("EXPTIME"),
+            None,
+            "one channel's exposure must not be claimed for the composite"
         );
     }
 }

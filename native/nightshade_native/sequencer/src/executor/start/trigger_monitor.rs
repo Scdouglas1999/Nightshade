@@ -882,13 +882,12 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                         if crate::device_ops::is_no_guider_configured(&error) {
                             tracing::debug!("ParkAndAbort: no guider to stop ({})", error);
                         } else {
-                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                message: format!(
-                                    "ParkAndAbort: failed to stop guiding before \
-                                     parking: {}",
-                                    error
-                                ),
-                            });
+                            let msg = format!(
+                                "ParkAndAbort: failed to stop guiding before parking: {}",
+                                error
+                            );
+                            tracing::error!("{}", msg);
+                            let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
                         }
                     }
 
@@ -924,6 +923,14 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                     )
                     .await;
 
+                    // Every step's verdict is LOGGED as well as broadcast. The
+                    // event stream has no subscriber on a headless run, and
+                    // `park_and_close_safe_state` only logs the park internally
+                    // (via `try_park_with_retry`) — a failed cover or dome close
+                    // used to leave no record anywhere, so an unattended weather
+                    // abort could end with the scope under an open roof and a
+                    // clean log. The give-up and escalation copies of this sweep
+                    // already log first; this one now matches them.
                     match &safe_state.park {
                         Some(park_outcome) if !park_outcome.success => {
                             // Surface the park-specific failure
@@ -931,22 +938,22 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                             // distinguish "couldn't park, mount
                             // may be unsafe" from a generic
                             // ParkAndAbort termination.
-                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                message: format!(
-                                    "ParkAndAbort: mount park FAILED after {} attempt(s): {}. \
-                                     Mount may be in an unsafe position — manual intervention required.",
-                                    park_outcome.attempts_made,
-                                    park_outcome
-                                        .last_error
-                                        .clone()
-                                        .unwrap_or_else(|| "unknown error".to_string()),
-                                ),
-                            });
+                            let msg = format!(
+                                "ParkAndAbort: mount park FAILED after {} attempt(s): {}. \
+                                 Mount may be in an unsafe position — manual intervention required.",
+                                park_outcome.attempts_made,
+                                park_outcome
+                                    .last_error
+                                    .clone()
+                                    .unwrap_or_else(|| "unknown error".to_string()),
+                            );
+                            tracing::error!("{}", msg);
+                            let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
                         }
                         None => {
-                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                message: "ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
-                            });
+                            let msg = "ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string();
+                            tracing::error!("{}", msg);
+                            let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
                         }
                         _ => {}
                     }
@@ -955,25 +962,25 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                         &trigger_action_context.cover_calibrator_id,
                         &safe_state.cover_close_error,
                     ) {
-                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                            message: format!(
-                                "ParkAndAbort: failed to close cover '{}': {}. \
-                                 Optics may be left exposed — manual intervention required.",
-                                cover_id, e
-                            ),
-                        });
+                        let msg = format!(
+                            "ParkAndAbort: failed to close cover '{}': {}. \
+                             Optics may be left exposed — manual intervention required.",
+                            cover_id, e
+                        );
+                        tracing::error!("{}", msg);
+                        let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
                     }
                     if let (Some(dome_id), Some(e)) = (
                         &trigger_action_context.dome_id,
                         &safe_state.dome_close_error,
                     ) {
-                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                            message: format!(
-                                "ParkAndAbort: failed to close dome '{}': {} — \
-                                 scope may be exposed under an open roof. Manual intervention required.",
-                                dome_id, e
-                            ),
-                        });
+                        let msg = format!(
+                            "ParkAndAbort: failed to close dome '{}': {} — \
+                             scope may be exposed under an open roof. Manual intervention required.",
+                            dome_id, e
+                        );
+                        tracing::error!("{}", msg);
+                        let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
                     }
 
                     let _ = park_and_abort_done_for_triggers.send(true);
@@ -1504,14 +1511,14 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                         if let Err(error) =
                                             device_ops_for_triggers.guider_stop().await
                                         {
-                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                message: format!(
-                                                    "FlipFailure AbortAndPark: \
-                                                     failed to stop guiding before \
-                                                     parking: {}",
-                                                    error
-                                                ),
-                                            });
+                                            let msg = format!(
+                                                "FlipFailure AbortAndPark: failed to stop \
+                                                 guiding before parking: {}",
+                                                error
+                                            );
+                                            tracing::error!("{}", msg);
+                                            let _ = event_tx_clone2
+                                                .send(ExecutorEvent::Error { message: msg });
                                         }
                                         // `try_park_with_retry` gives a flaky
                                         // driver at least one retry before this

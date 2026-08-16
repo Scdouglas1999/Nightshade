@@ -217,7 +217,12 @@ pub async fn execute_slew(
         }
         _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
             tracing::info!("Slew cancelled, aborting...");
-            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            if let Err(error) = ctx.device_ops.mount_abort_slew(mount_id).await {
+                tracing::warn!(
+                    "Slew: abort-slew failed on cancel ({}); the mount may still be moving",
+                    error
+                );
+            }
             InstructionResult::cancelled("Slew cancelled")
         }
     }

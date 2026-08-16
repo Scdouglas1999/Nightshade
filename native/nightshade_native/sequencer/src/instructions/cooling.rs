@@ -220,10 +220,18 @@ pub async fn execute_warm_camera(
     for step in 0..steps {
         if let Some(result) = ctx.check_cancelled() {
             // Turn off cooler on cancel
-            let _ = ctx
+            if let Err(error) = ctx
                 .device_ops
                 .camera_set_cooler(&camera_id, false, 20.0)
-                .await;
+                .await
+            {
+                tracing::warn!(
+                    "Warm camera '{}': switching the cooler off on cancel failed ({}); the \
+                     sensor is still being cooled and is not warming for shutdown",
+                    camera_id,
+                    error
+                );
+            }
             return result;
         }
 

@@ -659,6 +659,13 @@ export 'src/database/daos/narrowband_composites_dao.dart';
 // Durable mosaic projects + panels (Mosaic M2, v45).
 export 'src/database/daos/mosaic_projects_dao.dart';
 export 'src/database/daos/mosaic_panels_dao.dart';
+// Darkroom (v58): the non-destructive recipe stack + branch graph, the durable
+// dawn-job queue, and the delivery destinations + journal.
+export 'src/models/darkroom/darkroom_models.dart';
+export 'src/database/daos/recipes_dao.dart';
+export 'src/database/daos/darkroom_jobs_dao.dart';
+export 'src/database/daos/delivery_targets_dao.dart';
+export 'src/database/daos/delivery_journal_dao.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 // Calibration Library Manager (v46): unified browse / tag / auto-match over

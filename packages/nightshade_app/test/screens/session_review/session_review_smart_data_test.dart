@@ -101,6 +101,26 @@ class _FakeSeam implements PostSessionSeam {
       const Stream.empty();
 }
 
+/// A Night Doctor whose analysis always throws, standing in for the real
+/// failures the controller has to report: a query error, a corrupt row, a
+/// detector that blows up on one night's data.
+class _ThrowingNightAnalysisService extends NightAnalysisService {
+  _ThrowingNightAnalysisService({
+    required super.images,
+    required super.science,
+    required super.reports,
+  });
+
+  @override
+  Future<NightReport> computeReport({
+    int? sessionId,
+    int? targetId,
+    bool persist = true,
+  }) async {
+    throw StateError('night analysis failed in the detector');
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -176,6 +196,40 @@ void main() {
     expect(state().growthPoints, isEmpty);
     expect(state().bestNight, isNull);
     expect(state().annotationLayer, isNull);
+  });
+
+  test('a failed Night Doctor run is surfaced, not left as "analysis pending"',
+      () async {
+    // The null report renders NightReportPanel's "Analysis pending — the Night
+    // Doctor is still reviewing this session" card. Nothing is still running
+    // once computeReport has thrown, so the failure has to reach the operator
+    // through state.error (the screen's toast) rather than hide behind it.
+    final failing = ProviderContainer(overrides: [
+      databaseProvider.overrideWithValue(db),
+      postSessionSeamProvider.overrideWithValue(fakeSeam),
+      nightAnalysisServiceProvider.overrideWith(
+        (ref) => _ThrowingNightAnalysisService(
+          images: ref.watch(imagesDaoProvider),
+          science: ref.watch(scienceDaoProvider),
+          reports: ref.watch(nightReportsDaoProvider),
+        ),
+      ),
+    ]);
+    addTearDown(failing.dispose);
+
+    final scope = SessionReviewScope.session(sessionId);
+    failing.read(sessionReviewControllerProvider(scope).notifier);
+    SessionReviewState failingState() =>
+        failing.read(sessionReviewControllerProvider(scope));
+    for (var i = 0;
+        i < 50 && (failingState().loading || failingState().loadingSmartData);
+        i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+
+    expect(failingState().nightReport, isNull);
+    expect(failingState().error, isNotNull);
+    expect(failingState().error, contains('Night analysis failed'));
   });
 
   test('default view mode is narrative and setViewMode toggles it', () async {

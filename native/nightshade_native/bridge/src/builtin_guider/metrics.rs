@@ -440,11 +440,17 @@ pub(crate) async fn pulse_axis(
 pub(crate) async fn apply_settle_state(
     controller: Arc<RwLock<BuiltinGuiderState>>,
     rms_total: f64,
-    settle_pixels: f64,
-    settle_time: f64,
-    settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
     let mut guard = controller.write().await;
+    // The spec belongs to the episode, not to the loop: a dither installs its
+    // own settle tolerance, and judging its settle by the tolerance captured at
+    // `start_guiding` reported "settled" at a threshold the caller never asked
+    // for.
+    let SettleSpec {
+        pixels: settle_pixels,
+        time: settle_time,
+        timeout: settle_timeout,
+    } = guard.settle_spec;
 
     // Settling is an episode someone asked for — the first settle after
     // calibration, or a dither's. Guiding that has already settled is guiding,

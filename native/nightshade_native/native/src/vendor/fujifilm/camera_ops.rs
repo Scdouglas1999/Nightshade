@@ -183,9 +183,18 @@ impl NativeDevice for FujifilmCamera {
         let sdk = FujifilmSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = fujifilm_mutex().lock().await;
 
-        // Stop any ongoing exposure
+        // Stop any ongoing exposure. We still close the handle if this fails — the
+        // handle must be released — but a failed bulb stop means the shutter may be
+        // left open on a camera we are about to stop talking to, which the operator
+        // has to be told about.
         if self.is_bulb_mode {
-            let _ = self.stop_bulb_exposure().await;
+            if let Err(e) = self.stop_bulb_exposure().await {
+                tracing::error!(
+                    "Fujifilm {}: failed to close the bulb shutter before disconnect: {}. The shutter may still be open; power-cycle the camera if the exposure does not end.",
+                    self.id,
+                    e
+                );
+            }
         }
 
         // Close camera connection

@@ -156,7 +156,7 @@ void main() {
       expect(star, isNull);
     });
 
-    test('handles malformed numeric fields gracefully', () {
+    test('an unreadable ra/dec column rejects the row', () {
       final line = _buildHygLine(
         id: '50',
         hip: 'not_a_number',
@@ -173,10 +173,35 @@ void main() {
         con: '',
       );
 
-      // Should not throw, ra/dec default to 0, magnitude is null
+      // A row with no readable position is skipped by the loader, never placed
+      // at RA 0h / Dec 0. End-to-end coverage of the real parser lives in
+      // hyg_unparseable_position_test.dart; this replica mirrors the contract.
+      expect(() => _parseHygLinePublic(line), throwsFormatException);
+    });
+
+    test('a soft numeric field still degrades to null', () {
+      final line = _buildHygLine(
+        id: '50',
+        hip: 'not_a_number',
+        hd: '',
+        hr: '',
+        proper: 'BadData',
+        raHours: '3.5',
+        dec: '20.0',
+        mag: 'nope',
+        spect: 'K0',
+        ci: '',
+        bayer: '',
+        flam: '',
+        con: '',
+      );
+
+      // Magnitude and the cross-catalogue ids are optional: a star with an
+      // unreadable magnitude is still a star at a known place.
       final star = _parseHygLinePublic(line);
       expect(star, isNotNull);
       expect(star!.magnitude, isNull);
+      expect(star.id, 'HYG50');
     });
 
     test('CSV parsing handles quoted fields with commas', () {
@@ -569,8 +594,8 @@ Star? _parseHygLinePublic(String line) {
   final hdId = int.tryParse(parts[2]);
   final hrId = int.tryParse(parts[3]);
   final properName = parts.length > 6 ? parts[6] : '';
-  final raHours = double.tryParse(parts[7]) ?? 0;
-  final dec = double.tryParse(parts[8]) ?? 0;
+  final raHours = _requireSkyAnglePublic(parts[7], 'ra');
+  final dec = _requireSkyAnglePublic(parts[8], 'dec');
   final magnitude = double.tryParse(parts[13]);
   final spectralType = parts.length > 15 ? parts[15] : null;
   final colorIndex = parts.length > 16 ? double.tryParse(parts[16]) : null;
@@ -618,6 +643,15 @@ Star? _parseHygLinePublic(String line) {
     constellation: constellation?.isNotEmpty == true ? constellation : null,
     catalogIds: catalogIds,
   );
+}
+
+/// Replicates HygStarCatalog._requireSkyAngle
+double _requireSkyAnglePublic(String raw, String column) {
+  final value = double.tryParse(raw);
+  if (value == null || !value.isFinite) {
+    throw FormatException('HYG $column column is not a finite number', raw);
+  }
+  return value;
 }
 
 /// Replicates HygStarCatalog._parseCsvLine

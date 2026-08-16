@@ -48,11 +48,16 @@ extension _LogViewerActions on _LogViewerState {
     }
   }
 
-  /// Total size of the retained on-disk log files, for the scope prompt.
+  /// Total size of the retained on-disk log files, for the scope prompt, or
+  /// null when the retained set could not be enumerated at all.
   ///
-  /// Failure to stat one is not worth failing an export over; it just does not
-  /// count towards the estimate.
-  Future<int> _retainedLogBytes(LoggingService service) async {
+  /// Failure to stat ONE file is not worth failing an export over; it just does
+  /// not count towards the estimate, the same way `exportLogs` skips what it
+  /// cannot read. A failure to enumerate the set is different: every file is
+  /// then uncounted, and reporting the resulting 0 as the size of the history
+  /// tells the operator the full-history export is empty when nothing at all
+  /// was measured. That case returns null and the prompt says so.
+  Future<int?> _retainedLogBytes(LoggingService service) async {
     var total = 0;
     try {
       for (final path in await service.getLogFiles()) {
@@ -63,7 +68,7 @@ extension _LogViewerActions on _LogViewerState {
         }
       }
     } catch (_) {
-      return total;
+      return null;
     }
     return total;
   }
@@ -71,7 +76,7 @@ extension _LogViewerActions on _LogViewerState {
   /// Ask what the export should contain, naming the cost of each choice.
   Future<LogExportScope?> _askExportScope({
     required int visibleEntries,
-    required int historyBytes,
+    required int? historyBytes,
   }) {
     return showDialog<LogExportScope>(
       context: context,
@@ -127,8 +132,10 @@ extension _LogViewerActions on _LogViewerState {
                 ),
                 option(
                   title: 'Full history',
-                  subtitle: 'Every retained log file — about '
-                      '${_formatFileSize(historyBytes)}',
+                  subtitle: historyBytes == null
+                      ? 'Every retained log file — size could not be read'
+                      : 'Every retained log file — about '
+                          '${_formatFileSize(historyBytes)}',
                   scope: LogExportScope.fullHistory,
                 ),
               ],

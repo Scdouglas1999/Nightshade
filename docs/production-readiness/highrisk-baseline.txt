@@ -126,6 +126,7 @@ native/nightshade_native/indi/src/client/properties.rs:228:            .unwrap_o
 native/nightshade_native/indi/src/client/reader.rs:409:                                            group: get_attribute(e, "group").unwrap_or_default(),
 native/nightshade_native/indi/src/client/reader.rs:669:                    let text = e.unescape().unwrap_or_default().to_string();
 native/nightshade_native/indi/src/error.rs:155:                    .unwrap_or_default();
+native/nightshade_native/native/src/vendor/player_one/camera_ops.rs:157:        let sensor_temp = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
 native/nightshade_native/native/src/vendor/player_one/camera_ops.rs:170:            let live_enabled = self.get_control_bool(POAConfig::POA_COOLER).ok();
 native/nightshade_native/native/src/vendor/player_one/camera_ops.rs:348:        let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
 native/nightshade_native/native/src/vendor/player_one/camera_ops.rs:353:        let heater_power = self.get_control_int(POAConfig::POA_HEATER_POWER).ok();

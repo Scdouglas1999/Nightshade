@@ -95,11 +95,15 @@ pub(crate) async fn slew_to_pole_region(
         match polar_loop_control(generation) {
             PolarLoopControl::Continue => {}
             PolarLoopControl::Superseded => {
-                let _ = device_ops.mount_abort_slew(mount_id).await;
+                if let Err(e) = device_ops.mount_abort_slew(mount_id).await {
+                    emit_polar_stop_refused("A newer run took over", "measuring", &e);
+                }
                 return Ok(SlewOutcome::Superseded);
             }
             PolarLoopControl::Cancelled => {
-                let _ = device_ops.mount_abort_slew(mount_id).await;
+                if let Err(e) = device_ops.mount_abort_slew(mount_id).await {
+                    emit_polar_stop_refused("Cancelled", "measuring", &e);
+                }
                 return Ok(SlewOutcome::Cancelled);
             }
         }
@@ -121,11 +125,21 @@ pub(crate) async fn slew_to_pole_region(
         }
 
         if Instant::now() >= deadline {
-            let _ = device_ops.mount_abort_slew(mount_id).await;
-            return Err(format!(
-                "Timed out after {}s waiting for the mount to reach the pole region",
-                POLE_SLEW_TIMEOUT_SECS
-            ));
+            // The abort is the only thing standing between a timed-out slew and
+            // a mount that keeps driving, so its failure belongs in the error
+            // the caller shows — not discarded behind the timeout message.
+            let abort = device_ops.mount_abort_slew(mount_id).await;
+            return Err(match abort {
+                Ok(()) => format!(
+                    "Timed out after {}s waiting for the mount to reach the pole region",
+                    POLE_SLEW_TIMEOUT_SECS
+                ),
+                Err(e) => format!(
+                    "Timed out after {}s waiting for the mount to reach the pole region, and \
+                     the mount did not accept the stop command ({}) — it may still be slewing",
+                    POLE_SLEW_TIMEOUT_SECS, e
+                ),
+            });
         }
 
         tokio::time::sleep(Duration::from_millis(500)).await;

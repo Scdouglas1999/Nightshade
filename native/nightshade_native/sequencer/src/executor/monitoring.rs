@@ -456,7 +456,7 @@ pub(super) async fn apply_recovery_escalation(
         // "Running". Mirror the recovered branch (same shared helper): restore
         // tracking for all causes, loud error on failure (never silently leave a
         // resumable Pause that exposes untracked).
-        let _ = restore_tracking_after_recovery(
+        let tracking_warning = restore_tracking_after_recovery(
             s.device_ops,
             s.mount_id,
             stop_tracking,
@@ -469,7 +469,15 @@ pub(super) async fn apply_recovery_escalation(
         {
             let mut prog = s.progress.write();
             prog.state = ExecutorState::Paused;
-            prog.message = Some(pause_message.clone());
+            // The status API (`sequencer_get_status`) reads this snapshot, not
+            // the event stream. Dropping the restore verdict here left the
+            // pause reason alone on screen while the mount sat untracked, so
+            // the operator's Resume exposed on a drifting mount. Carry the
+            // helper's verdict into the message the poller actually reads.
+            prog.message = Some(match &tracking_warning {
+                Some(warning) => format!("{pause_message} — {warning}"),
+                None => pause_message.clone(),
+            });
         }
         *s.current_recovery.write() = None;
         // Surface the reason as a critical-event banner so the operator (and any

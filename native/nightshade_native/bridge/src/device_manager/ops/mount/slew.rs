@@ -1,5 +1,28 @@
 use super::*;
 
+/// Describe the failed half (or halves) of a two-direction axis stop.
+///
+/// An INDI axis stop is two switch writes (east+west, north+south) and the
+/// caller only learns "the axis stopped" from the returned `Result`. Reporting
+/// only the second write let a failed first write pass as success while that
+/// direction's `TELESCOPE_MOTION_*` switch stayed On — the mount kept moving.
+/// Both labels are named so the log says which direction is still commanded.
+pub(crate) fn stop_failure_detail<E: std::fmt::Display>(
+    first: (&str, Result<(), E>),
+    second: (&str, Result<(), E>),
+) -> String {
+    let (first_label, first_result) = first;
+    let (second_label, second_result) = second;
+    let mut parts = Vec::new();
+    if let Err(e) = first_result {
+        parts.push(format!("{first_label}={e}"));
+    }
+    if let Err(e) = second_result {
+        parts.push(format!("{second_label}={e}"));
+    }
+    format!("stop failed for {}", parts.join("; "))
+}
+
 impl DeviceManager {
     // Mount control
 
@@ -585,12 +608,27 @@ impl DeviceManager {
                                     DeviceOpError::driver(e)
                                 });
                             } else {
-                                // Stop both directions
-                                let _ = mount.move_east(false).await;
-                                return mount.move_west(false).await.map_err(|e| {
-                                    tracing::error!("mount_move_axis INDI error (stop RA): {}", e);
-                                    DeviceOpError::driver(e)
-                                });
+                                // Stop both directions. Attempt-all, then report
+                                // BOTH outcomes: swallowing the east-stop meant a
+                                // successful west-stop returned Ok() while the
+                                // mount was still slewing east under
+                                // TELESCOPE_MOTION_WE — "axis stopped" was a lie
+                                // and no caller (manual slew release, guider,
+                                // safing) could see it.
+                                let east = mount.move_east(false).await;
+                                let west = mount.move_west(false).await;
+                                return match (east, west) {
+                                    (Ok(()), Ok(())) => Ok(()),
+                                    (east, west) => {
+                                        let detail =
+                                            stop_failure_detail(("east", east), ("west", west));
+                                        tracing::error!(
+                                            "mount_move_axis INDI error (stop RA): {}",
+                                            detail
+                                        );
+                                        Err(DeviceOpError::driver(detail))
+                                    }
+                                };
                             }
                         } else {
                             // Dec/Altitude axis
@@ -611,12 +649,23 @@ impl DeviceManager {
                                     DeviceOpError::driver(e)
                                 });
                             } else {
-                                // Stop both directions
-                                let _ = mount.move_north(false).await;
-                                return mount.move_south(false).await.map_err(|e| {
-                                    tracing::error!("mount_move_axis INDI error (stop Dec): {}", e);
-                                    DeviceOpError::driver(e)
-                                });
+                                // Stop both directions — see the RA arm above for
+                                // why a discarded north-stop cannot ride out on a
+                                // successful south-stop.
+                                let north = mount.move_north(false).await;
+                                let south = mount.move_south(false).await;
+                                return match (north, south) {
+                                    (Ok(()), Ok(())) => Ok(()),
+                                    (north, south) => {
+                                        let detail =
+                                            stop_failure_detail(("north", north), ("south", south));
+                                        tracing::error!(
+                                            "mount_move_axis INDI error (stop Dec): {}",
+                                            detail
+                                        );
+                                        Err(DeviceOpError::driver(detail))
+                                    }
+                                };
                             }
                         }
                     }
@@ -655,5 +704,46 @@ impl DeviceManager {
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod axis_stop_tests {
+    use super::stop_failure_detail;
+
+    /// The regression: the RA/Dec stop arms issued two switch writes and
+    /// returned only the second one's result, so a mount that refused the first
+    /// write reported a clean stop while that direction was still commanded.
+    #[test]
+    fn a_failed_first_write_is_named_even_when_the_second_succeeds() {
+        let detail = stop_failure_detail(
+            ("east", Err::<(), _>("device disconnected")),
+            ("west", Ok::<(), &str>(())),
+        );
+        assert_eq!(detail, "stop failed for east=device disconnected");
+    }
+
+    /// A failure on the second write alone must still name its direction.
+    #[test]
+    fn a_failed_second_write_is_named() {
+        let detail = stop_failure_detail(
+            ("north", Ok::<(), &str>(())),
+            ("south", Err::<(), _>("timeout")),
+        );
+        assert_eq!(detail, "stop failed for south=timeout");
+    }
+
+    /// Both halves failing reports both — the operator needs to know the whole
+    /// axis is still under motion, not just one direction of it.
+    #[test]
+    fn both_failures_are_reported_together() {
+        let detail = stop_failure_detail(
+            ("east", Err::<(), _>("write failed")),
+            ("west", Err::<(), _>("broken pipe")),
+        );
+        assert_eq!(
+            detail,
+            "stop failed for east=write failed; west=broken pipe"
+        );
     }
 }

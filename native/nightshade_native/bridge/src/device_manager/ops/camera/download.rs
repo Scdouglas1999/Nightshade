@@ -199,8 +199,18 @@ impl DeviceManager {
                             locked_client.subscribe()
                         };
 
-                        // Enable BLOB transfer if not already enabled
-                        let _ = camera.enable_blob().await;
+                        // Enable BLOB transfer if not already enabled. A refused
+                        // enableBLOB means the image can never arrive on this
+                        // connection, and the only symptom downstream is the
+                        // 30-second "Timeout waiting for INDI image BLOB" below —
+                        // which reads as a slow camera. Name the real cause.
+                        if let Err(e) = camera.enable_blob().await {
+                            warn!(
+                                "Failed to enable INDI BLOB transfer for {}: {}. No image can \
+                                 be delivered on this connection until it succeeds.",
+                                device_id, e
+                            );
+                        }
 
                         // Get image metadata
                         let width = match camera.get_sensor_width().await {

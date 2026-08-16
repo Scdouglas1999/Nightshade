@@ -34,8 +34,17 @@ class PredictiveAfSettingsController {
           models.add(
             FilterFocusModel.fromWireJson(Map<String, dynamic>.from(raw)),
           );
-        } catch (_) {
-          // A single corrupted historic row must not hide every healthy model.
+        } on Object catch (error) {
+          // A single corrupted historic row must not hide every healthy model,
+          // but the operator's model list is now short by one and nothing else
+          // reports that — say so instead of letting the row vanish silently.
+          developer.log(
+            'Skipping an unreadable predictive-AF model row from the host: '
+            '$error',
+            name: 'PredictiveAfService',
+            level: 900,
+            error: error,
+          );
         }
       }
       return PredictiveAfSettingsSnapshot(

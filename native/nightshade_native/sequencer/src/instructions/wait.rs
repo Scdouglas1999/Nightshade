@@ -17,7 +17,13 @@ pub(crate) async fn wait_for_mount_idle_with_progress(
 
     loop {
         if ctx.cancellation_token.load(Ordering::Relaxed) {
-            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            if let Err(error) = ctx.device_ops.mount_abort_slew(mount_id).await {
+                tracing::warn!(
+                    "Wait-for-slew: abort-slew failed on cancel ({}); the mount may still be \
+                     moving",
+                    error
+                );
+            }
             return Err("Operation cancelled".to_string());
         }
 

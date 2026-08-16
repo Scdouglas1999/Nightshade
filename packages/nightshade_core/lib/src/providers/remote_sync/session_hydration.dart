@@ -197,7 +197,12 @@ Future<void> _hydrateDeviceTelemetry(
     final notifier = _read(reader, cameraStateProvider.notifier);
     final temp = camera.sensorTemp;
     if (temp != null) {
-      notifier.updateTemperature(temp, camera.coolerPower ?? 0.0);
+      // `updateTemperature`'s power argument is null-aware
+      // (`clearCoolerPower: power == null`), and `CameraStatus.coolerPower` is
+      // null exactly when the host's driver reports no cooler power. Pass it
+      // through: the cards branch on `coolerPower != null` to show "unknown",
+      // so coercing to 0.0 here would claim a real 0 % reading.
+      notifier.updateTemperature(temp, camera.coolerPower);
     }
     notifier.setCooling(camera.coolerOn);
     final target = camera.targetTemp;

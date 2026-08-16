@@ -72,7 +72,10 @@ void _applyEquipmentTelemetry(
     // Camera temperature / cooling
     case 'CameraTemperatureChanged':
       final temp = (data['temperature'] as num?)?.toDouble();
-      final power = (data['coolerPower'] as num?)?.toDouble() ?? 0.0;
+      // Null-aware on purpose: `updateTemperature` clears the cached power when
+      // this is null, so a frame without `coolerPower` leaves the cards saying
+      // "unknown" rather than claiming a real 0 % reading.
+      final power = (data['coolerPower'] as num?)?.toDouble();
       if (temp != null) {
         _read(
           reader,

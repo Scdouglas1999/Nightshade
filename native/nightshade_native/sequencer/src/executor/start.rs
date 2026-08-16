@@ -709,7 +709,14 @@ impl SequenceExecutor {
                     let result = root_node.execute(&mut context).await;
                     let _ = execution_quiesced_tx.send(true);
                     if park_and_abort_for_execution.load(Ordering::Acquire) {
-                        let _ = park_and_abort_done_rx.wait_for(|done| *done).await;
+                        if let Err(error) = park_and_abort_done_rx.wait_for(|done| *done).await {
+                            tracing::warn!(
+                                "Park-and-abort handshake: the completion signal was dropped \
+                                 before the safe-state sweep reported done ({}); ending \
+                                 execution without waiting — verify the rig is parked",
+                                error
+                            );
+                        }
                     }
                     result
                 };

@@ -21,7 +21,13 @@ pub(crate) async fn wait_for_centering_correction_slew(
     let start_deadline = tokio::time::Instant::now() + CENTER_CORRECTION_SLEW_START_TIMEOUT;
     loop {
         if let Some(result) = ctx.check_cancelled() {
-            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            if let Err(error) = ctx.device_ops.mount_abort_slew(mount_id).await {
+                tracing::warn!(
+                    "Centering: abort-slew failed while cancelling before the correction slew \
+                     started ({}); the mount may still be moving",
+                    error
+                );
+            }
             return Err(result);
         }
 
@@ -35,7 +41,13 @@ pub(crate) async fn wait_for_centering_correction_slew(
         }
 
         if tokio::time::Instant::now() >= start_deadline {
-            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            if let Err(error) = ctx.device_ops.mount_abort_slew(mount_id).await {
+                tracing::warn!(
+                    "Centering: abort-slew failed after the correction slew never reported \
+                     startup ({}); the mount may still be moving",
+                    error
+                );
+            }
             return Err(InstructionResult::failure(format!(
                 "Centering correction slew did not report startup within {}s",
                 CENTER_CORRECTION_SLEW_START_TIMEOUT.as_secs()
@@ -47,7 +59,13 @@ pub(crate) async fn wait_for_centering_correction_slew(
     let complete_deadline = tokio::time::Instant::now() + CENTER_CORRECTION_SLEW_COMPLETE_TIMEOUT;
     loop {
         if let Some(result) = ctx.check_cancelled() {
-            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            if let Err(error) = ctx.device_ops.mount_abort_slew(mount_id).await {
+                tracing::warn!(
+                    "Centering: abort-slew failed while cancelling the in-progress correction \
+                     slew ({}); the mount may still be moving",
+                    error
+                );
+            }
             return Err(result);
         }
 
@@ -61,7 +79,13 @@ pub(crate) async fn wait_for_centering_correction_slew(
         }
 
         if tokio::time::Instant::now() >= complete_deadline {
-            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            if let Err(error) = ctx.device_ops.mount_abort_slew(mount_id).await {
+                tracing::warn!(
+                    "Centering: abort-slew failed after the correction slew overran its \
+                     completion timeout ({}); the mount may still be moving",
+                    error
+                );
+            }
             return Err(InstructionResult::failure(format!(
                 "Centering correction slew did not complete within {}s",
                 CENTER_CORRECTION_SLEW_COMPLETE_TIMEOUT.as_secs()
@@ -182,7 +206,13 @@ pub async fn execute_center(
             }
             _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
                 tracing::info!("Center cancelled during exposure, aborting...");
-                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
+                if let Err(error) = ctx.device_ops.camera_abort_exposure(&camera_id).await {
+                    tracing::warn!(
+                        "Center: abort-exposure failed on cancel ({}); the camera may still be \
+                         integrating and the next instruction can find it busy",
+                        error
+                    );
+                }
                 return InstructionResult::cancelled("Center cancelled");
             }
         };
@@ -328,7 +358,13 @@ pub async fn execute_center(
             }
             _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
                 tracing::info!("Center cancelled during correction slew, aborting...");
-                let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
+                if let Err(error) = ctx.device_ops.mount_abort_slew(&mount_id).await {
+                    tracing::warn!(
+                        "Center: abort-slew failed while cancelling the correction slew ({}); \
+                         the mount may still be moving",
+                        error
+                    );
+                }
                 return InstructionResult::cancelled("Center cancelled");
             }
         }

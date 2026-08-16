@@ -21,9 +21,14 @@
 //! yet. The cooler/gain/offset paths here default to the same "fall back to
 //! cached value or zero" semantics as the other vendor crates:
 //!
-//! * `get_control_int(GAIN/OFFSET).unwrap_or(0)` — gain/offset 0 is the
-//!   POA SDK minimum; UI shows live value once cooler stabilises. The status
-//!   poll is intentionally non-fatal; the next status tick will retry.
+//! * `get_control_int(GAIN/OFFSET).unwrap_or(self.current_gain/offset)` — a
+//!   failed read reports the value this driver last applied: the same two
+//!   numbers become the FITS GAIN/OFFSET cards in `download_image`. The status
+//!   poll stays non-fatal; the next tick retries the live read. `connect` seeds
+//!   both from the camera's own registers so the fallback is a real value, and
+//!   logs a WARN naming the control when that seed read fails — in that one
+//!   case the fallback is the 0 the struct was constructed with, and the WARN
+//!   is what makes it distinguishable from a camera genuinely set to 0.
 //! * `live_enabled.unwrap_or(cached.enabled)` / `live_target_c.unwrap_or(cached.target_c)`
 //!   — when live cooler probe fails, return the LAST KNOWN cached value
 //!   rather than zeroing-out, so the UI doesn't flicker during transient

@@ -688,8 +688,6 @@ pub(crate) async fn emit_grade_progress(
                     }
                 }
             }
-            // _ silence — used only for tracing above.
-            let _ = (hfr, eccentricity, star_count);
         }
     }
 }
