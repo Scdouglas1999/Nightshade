@@ -18,6 +18,10 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _createNarrowbandCompositesTable();
         await _createMosaicTables();
         await _createCalibrationTagsTable();
+        // After the post-session tables: `recipes` references
+        // `integrated_masters`, and `delivery_journal` references both
+        // `delivery_targets` and `darkroom_jobs`.
+        await _createDarkroomTables();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -62,6 +66,11 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
             "live by a previous process as 'interrupted'.",
           );
         }
+
+        // Close out Darkroom jobs a previous process left mid-flight, for the
+        // same reason and by the same rule as the sequence runs above: a
+        // 'running' row at open belongs to a process that is gone.
+        await _recoverInterruptedDarkroomJobs();
 
         // Rebuild session statistics that a dead process never got to write.
         //
@@ -160,6 +169,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _upgradeSchemaV55(m, from);
         await _upgradeSchemaV56(m, from);
         await _upgradeSchemaV57(m, from);
+        await _upgradeSchemaV58(m, from);
 
         await _ensureDefaultSettings();
         await _createCustomIndexes();

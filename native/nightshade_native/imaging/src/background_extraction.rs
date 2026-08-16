@@ -461,11 +461,19 @@ fn fit_channel(
 }
 
 /// One background sample: its pixel-space centre and its robust level.
+///
+/// Shared with the Darkroom recipe engine's `background_extract` operation,
+/// which lays its own sample grid and then hands the survivors to
+/// [`iterative_residual_fit`], so both paths fit the same surface from the same
+/// representation.
 #[derive(Debug, Clone, Copy)]
-struct Sample {
-    x: f64,
-    y: f64,
-    value: f64,
+pub(crate) struct Sample {
+    /// Sample centre, x in pixels.
+    pub(crate) x: f64,
+    /// Sample centre, y in pixels.
+    pub(crate) y: f64,
+    /// The sample's robust background level.
+    pub(crate) value: f64,
 }
 
 /// A detected star's centre and radius, in pixel space, used to reject sample
@@ -606,7 +614,7 @@ fn reject_contaminated(samples: &mut Vec<Sample>, star_centres: &[StarBox], samp
 /// [`BackgroundError::TooFewSamples`] if rejection drops the survivors below the
 /// term count, or [`BackgroundError::SingularFit`] if the system is degenerate.
 #[allow(clippy::too_many_arguments)]
-fn iterative_residual_fit(
+pub(crate) fn iterative_residual_fit(
     samples: &mut Vec<Sample>,
     width: usize,
     height: usize,
@@ -692,7 +700,7 @@ fn iterative_residual_fit(
 /// The count is `(degree+1)(degree+2)/2`. The exact ordering is an internal
 /// detail; what matters is that [`eval_poly`] and [`solve_poly_fit`] both use
 /// this single source of truth, so a coefficient and its monomial never drift.
-fn poly_terms(degree: usize) -> Vec<(u32, u32)> {
+pub(crate) fn poly_terms(degree: usize) -> Vec<(u32, u32)> {
     let mut terms = Vec::with_capacity((degree + 1) * (degree + 2) / 2);
     for total in 0..=degree {
         // i descends from `total` to 0 so the x-power leads: (total,0) … (0,total).
@@ -715,7 +723,7 @@ fn poly_terms(degree: usize) -> Vec<(u32, u32)> {
 /// hammering the allocator and contradict the module's "cheaper hot path" intent
 /// (see `powi_u32`). Hoisting the term list to one allocation per call site keeps
 /// this zero-alloc. `terms` and `coeffs` must come from the same degree.
-fn eval_poly(coeffs: &[f64], terms: &[(u32, u32)], nx: f64, ny: f64) -> f64 {
+pub(crate) fn eval_poly(coeffs: &[f64], terms: &[(u32, u32)], nx: f64, ny: f64) -> f64 {
     let mut acc = 0.0;
     for (k, &(i, j)) in terms.iter().enumerate() {
         if k >= coeffs.len() {
@@ -730,7 +738,7 @@ fn eval_poly(coeffs: &[f64], terms: &[(u32, u32)], nx: f64, ny: f64) -> f64 {
 /// single column/row maps that axis to 0 (a degenerate axis is constant, which
 /// the fit handles via the constant term).
 #[inline]
-fn normalise_xy(x: f64, y: f64, width: u32, height: u32) -> (f64, f64) {
+pub(crate) fn normalise_xy(x: f64, y: f64, width: u32, height: u32) -> (f64, f64) {
     let nx = if width > 1 {
         2.0 * x / (width as f64 - 1.0) - 1.0
     } else {
@@ -769,7 +777,7 @@ fn powi_u32(base: f64, exp: u32) -> f64 {
 /// row by the same running index, which is the natural and clearest form for a
 /// symmetric outer product.
 #[allow(clippy::needless_range_loop)]
-fn solve_poly_fit(
+pub(crate) fn solve_poly_fit(
     samples: &[Sample],
     width: usize,
     height: usize,

@@ -10,7 +10,7 @@
 //! `docs/FRB_TROUBLESHOOTING.md`). Every knob added later — new rejection
 //! algorithm, new resampler, drizzle params — then rides inside the JSON payload
 //! and never triggers another regen. This is the same trick the live stacker
-//! uses for node config (per project memory). The boundary is exactly four
+//! uses for node config (per project memory). The boundary is exactly five
 //! `String -> Result<String, String>` functions:
 //!
 //! * [`api_integrate_session`] — one-shot batch integration → linear FITS master.
@@ -18,11 +18,15 @@
 //!   finalize / info).
 //! * [`api_build_master_flat`] — build a unit-mean master flat from raw flats.
 //! * [`api_save_fits_master`] — re-export an in-memory buffer as a FITS master.
+//! * [`api_post_session_cancel`] — set / read / clear a run's cancellation flag.
 //!
-//! These are **stateless per call** (no process-wide singleton): the post-session
-//! engine can run in a Dart isolate without clobbering a live stacking session
-//! (which *is* a singleton). The calls are CPU-bound and synchronous; the Dart
-//! side runs them off the UI isolate.
+//! The pipeline is **stateless per call** (no process-wide singleton): the
+//! post-session engine can run in a Dart isolate without clobbering a live
+//! stacking session (which *is* a singleton). The one exception is the
+//! cancellation registry in [`cancel`], which holds a polled flag per run id and
+//! no pipeline state — a synchronous FFI descent has no other way to be stopped.
+//! The calls are CPU-bound and synchronous; the Dart side runs them off the UI
+//! isolate.
 
 use nightshade_imaging::calibration_masters::{
     build_master_flat, cosmetic_correct_transient, CosmeticConfig, MasterFlatConfig,
@@ -47,8 +51,8 @@ use nightshade_imaging::registration::{
 use nightshade_imaging::stacking::{CombineMethod, MasterOutputType};
 use nightshade_imaging::{
     add_wcs_headers, apply_stretch, apply_stretch_rgb_per_channel, auto_stretch_rgb_with_mode,
-    auto_stretch_stf, read_fits, read_image, write_fits, FitsHeader, ImageData, PixelType,
-    RgbStretchMode, WcsInfo,
+    auto_stretch_stf, read_fits, read_fits_header, read_image, write_fits, FitsHeader, ImageData,
+    PixelType, RgbStretchMode, WcsInfo,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -58,6 +62,10 @@ use crate::event::{EventSeverity, ImagingEvent};
 
 mod args;
 pub(crate) use args::*;
+mod calibration_report;
+pub(crate) use calibration_report::*;
+mod cancel;
+pub(crate) use cancel::*;
 pub mod entrypoints;
 pub use entrypoints::*;
 mod helpers;

@@ -44,8 +44,14 @@ pub(crate) struct MasterCreateArgs {
 #[serde(default, rename_all = "camelCase")]
 #[flutter_rust_bridge::frb(ignore)]
 pub(crate) struct MasterAddArgs {
+    /// Caller-chosen id this fold answers to for cancellation
+    /// ([`api_post_session_cancel`]). Empty ⇒ the fold is not cancellable.
+    pub(crate) run_id: String,
     pub(crate) sidecar_path: String,
     pub(crate) light_paths: Vec<String>,
+    /// Per-light exposure seconds, aligned to `light_paths`. Empty ⇒ unknown
+    /// (folded as 0 s); any other length than `light_paths` is refused rather
+    /// than zero-filled — these seconds become the finalized master's `EXPTIME`.
     pub(crate) exposures_sec: Vec<f64>,
     /// ISO date / session id for the fold log.
     pub(crate) label: String,
@@ -91,6 +97,13 @@ pub(crate) struct MasterAccumulateResult {
     /// per-sub weights instead of nulls.
     #[serde(default)]
     pub(crate) frame_weights: Vec<f64>,
+    /// Which dark / flat / bias shaped the frames folded in THIS `add` call, and
+    /// how well each matched them. `null` for create/finalize/info, which apply
+    /// no calibration. Every fold's report is also appended to the master's
+    /// calibration log beside the sidecar, and replayed into the finalized
+    /// master's FITS `HISTORY`.
+    #[serde(default)]
+    pub(crate) calibration: Option<CalibrationReport>,
 }
 
 pub(crate) fn master_create(args_json: &str) -> Result<MasterAccumulateResult, String> {
@@ -149,6 +162,7 @@ pub(crate) fn master_create(args_json: &str) -> Result<MasterAccumulateResult, S
         frames_added: 0,
         rejected: 0,
         frame_weights: Vec::new(),
+        calibration: None,
     })
 }
 
@@ -161,6 +175,18 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
     if args.light_paths.is_empty() {
         return Err("add requires at least one light".to_string());
     }
+    // One exposure per light, or none at all. Refused before the fold claims a
+    // cancellation id or touches the sidecar: these seconds accumulate into the
+    // master's `total_integration_seconds` and are stamped as its FITS `EXPTIME`
+    // at finalize, so a short list must not be back-filled with zeros.
+    let exposures = exposures_per_light(&args.exposures_sec, args.light_paths.len())?;
+
+    let cancel = RunCancelToken::register(&args.run_id)?;
+    cancel.check("calibrating", None, None)?;
+
+    // What the calibration masters for this fold actually are, measured against
+    // the fold's anchor sub.
+    let calibration_report = build_calibration_report(&args.light_paths[0], &args.calibration);
 
     let sidecar = Path::new(&args.sidecar_path);
     let bytes = std::fs::read(sidecar).map_err(|e| format!("failed to read sidecar: {e}"))?;
@@ -200,7 +226,6 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
     let mut buffers: Vec<Vec<f64>> = Vec::new();
     let mut coverages: Vec<CoverageMask> = Vec::new();
     let mut qualities: Vec<FrameQuality> = Vec::new();
-    let mut exposures: Vec<f64> = Vec::new();
 
     let norm_cfg = if args.settings.normalization.enabled {
         Some(build_normalization_config(&args.settings.normalization)?)
@@ -214,7 +239,11 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
             .collect()
     });
 
+    let fold_total = args.light_paths.len() as u32;
     for (i, path) in args.light_paths.iter().enumerate() {
+        // Each iteration registers and normalizes one full-sensor frame, so the
+        // flag is read before every sub rather than once for the fold.
+        cancel.check("registering", Some(i as u32), Some(fold_total))?;
         let read =
             read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
         let mut image = read.image;
@@ -234,7 +263,12 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
             .map_err(|e| format!("calibration of '{path}' failed: {e}"))?;
         }
         if args.calibration.cosmetic_correction {
-            let _ = cosmetic_correct_transient(&mut image, CosmeticConfig::default());
+            // The returned report is advisory; the error is not. The fold's
+            // calibration record states `cosmetic correction: applied` from the
+            // request flag alone, so a swallowed failure here folds a frame that
+            // never got the repair into a master that claims it.
+            cosmetic_correct_transient(&mut image, CosmeticConfig::default())
+                .map_err(|e| format!("cosmetic correction of '{path}' failed: {e}"))?;
         }
 
         let reg = register_frame(&ref_image, &image, &reg_cfg)
@@ -272,7 +306,6 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
         buffers.push(pixels);
         coverages.push(coverage);
         qualities.push(quality);
-        exposures.push(args.exposures_sec.get(i).copied().unwrap_or(0.0));
     }
 
     // Weight each fold's subs on a fixed, population-independent quality scale
@@ -307,12 +340,27 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
     } else {
         args.label.clone()
     };
+    // Last cancellation point: the fold commits to the sidecar below, and a
+    // committed fold must never be reported as cancelled.
+    cancel.check("integrating", None, None)?;
     let report = master
         .add_frames(&frames, &exposures, &label)
         .map_err(|e| format!("add_frames failed: {e}"))?;
 
     std::fs::write(sidecar, master.serialize())
         .map_err(|e| format!("failed to write sidecar: {e}"))?;
+
+    // The sidecar carries no calibration, and the FITS is only written at
+    // `finalize` — possibly nights later, in another process. The log beside the
+    // sidecar is where this fold's calibration survives until then.
+    append_fold_calibration(
+        sidecar,
+        FoldCalibration {
+            label: label.clone(),
+            lights: args.light_paths.len(),
+            report: calibration_report.clone(),
+        },
+    )?;
 
     Ok(MasterAccumulateResult {
         sidecar_path: args.sidecar_path,
@@ -326,6 +374,7 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
         frames_added: report.frames_added,
         rejected: report.rejected,
         frame_weights: weights,
+        calibration: Some(calibration_report),
     })
 }
 
@@ -335,10 +384,11 @@ pub(crate) fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult,
     if args.sidecar_path.trim().is_empty() || args.master_fits_path.trim().is_empty() {
         return Err("finalize requires sidecarPath and masterFitsPath".to_string());
     }
-    let bytes =
-        std::fs::read(&args.sidecar_path).map_err(|e| format!("failed to read sidecar: {e}"))?;
+    let sidecar = Path::new(&args.sidecar_path);
+    let bytes = std::fs::read(sidecar).map_err(|e| format!("failed to read sidecar: {e}"))?;
     let master =
         IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
+    let calibration_log = read_fold_calibration_log(sidecar)?;
 
     let image = master.finalize();
     let master_path = Path::new(&args.master_fits_path);
@@ -360,6 +410,12 @@ pub(crate) fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult,
         master.metadata.total_frames,
         master.metadata.folds.len()
     ));
+    let calibration_warns = write_fold_calibration_history(
+        &mut header,
+        calibration_log.as_ref(),
+        master.metadata.folds.len(),
+    );
+    header.set_bool("CALWARN", calibration_warns);
     write_fits(master_path, &image, &header)
         .map_err(|e| format!("failed to write master: {e:?}"))?;
 
@@ -386,6 +442,7 @@ pub(crate) fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult,
         frames_added: 0,
         rejected: 0,
         frame_weights: Vec::new(),
+        calibration: None,
     })
 }
 
@@ -408,6 +465,7 @@ pub(crate) fn master_info(args_json: &str) -> Result<MasterAccumulateResult, Str
         frames_added: 0,
         rejected: 0,
         frame_weights: Vec::new(),
+        calibration: None,
     })
 }
 

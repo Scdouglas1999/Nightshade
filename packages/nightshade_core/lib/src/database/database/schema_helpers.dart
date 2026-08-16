@@ -1077,6 +1077,208 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     ''');
   }
 
+  /// Create the v58 Darkroom tables — `recipes`, `darkroom_jobs`,
+  /// `delivery_targets`, and `delivery_journal` — plus their indexes.
+  ///
+  /// Called from both `onCreate` (fresh installs) and the `if (from < 58)`
+  /// `onUpgrade` branch. Every statement is `CREATE ... IF NOT EXISTS` so the
+  /// helper is idempotent and re-runnable. These are raw-DDL tables (the
+  /// dominant v27+ convention) accessed via `RecipesDao` / `DarkroomJobsDao` /
+  /// `DeliveryTargetsDao` / `DeliveryJournalDao`; see
+  /// `tables/darkroom_tables.dart` for the canonical schema documentation.
+  ///
+  /// Ordering matters on the fresh-install path: `delivery_journal` references
+  /// both `delivery_targets` and `darkroom_jobs`, and `recipes` references
+  /// `integrated_masters`, so this runs after `_createPostSessionTables`.
+  ///
+  /// Every enum-valued column carries a `CHECK` listing its legal wire strings.
+  /// The DAOs validate before writing, so a `CHECK` firing means a caller
+  /// bypassed them; it is the backstop, not the first line.
+  Future<void> _createDarkroomTables() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS recipes('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL,'
+      'session_id INTEGER REFERENCES imaging_sessions(id) ON DELETE SET NULL,'
+      'master_id INTEGER '
+      'REFERENCES integrated_masters(id) ON DELETE SET NULL,'
+      'base_master_path TEXT NOT NULL,'
+      "name TEXT NOT NULL DEFAULT '',"
+      "steps_json TEXT NOT NULL DEFAULT '[]',"
+      "created_by TEXT NOT NULL DEFAULT 'autopilot',"
+      'parent_recipe_id INTEGER REFERENCES recipes(id) ON DELETE RESTRICT,'
+      'divergence_index INTEGER,'
+      'schema_version INTEGER NOT NULL DEFAULT 1,'
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL,'
+      "CHECK (created_by IN ('autopilot', 'user')),"
+      'CHECK (schema_version >= 1),'
+      'CHECK (divergence_index IS NULL OR divergence_index >= 0),'
+      'CHECK ((parent_recipe_id IS NULL) = (divergence_index IS NULL)))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_recipes_target ON recipes (target_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_recipes_session ON recipes (session_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_recipes_master ON recipes (master_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_recipes_parent '
+      'ON recipes (parent_recipe_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_recipes_base_master '
+      'ON recipes (base_master_path)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_recipes_created ON recipes (created_at)',
+    );
+
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS darkroom_jobs('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'session_id INTEGER REFERENCES imaging_sessions(id) ON DELETE CASCADE,'
+      "kind TEXT NOT NULL DEFAULT 'dawn',"
+      "state TEXT NOT NULL DEFAULT 'queued',"
+      'progress REAL NOT NULL DEFAULT 0.0,'
+      'note TEXT,'
+      'error_text TEXT,'
+      'attempts INTEGER NOT NULL DEFAULT 0,'
+      'created_at INTEGER NOT NULL,'
+      'started_at INTEGER,'
+      'finished_at INTEGER,'
+      "CHECK (kind IN ('dawn', 'manual')),"
+      "CHECK (state IN ('queued', 'running', 'cancelled', 'done', 'failed')),"
+      'CHECK (progress >= 0.0 AND progress <= 1.0),'
+      'CHECK (attempts >= 0))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_darkroom_jobs_state '
+      'ON darkroom_jobs (state, created_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_darkroom_jobs_session '
+      'ON darkroom_jobs (session_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_darkroom_jobs_created '
+      'ON darkroom_jobs (created_at)',
+    );
+
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS delivery_targets('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'name TEXT NOT NULL,'
+      'kind TEXT NOT NULL,'
+      "config_json TEXT NOT NULL DEFAULT '{}',"
+      'enabled INTEGER NOT NULL DEFAULT 1,'
+      "content_json TEXT NOT NULL DEFAULT '[]',"
+      'secret_ref TEXT,'
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL,'
+      "CHECK (kind IN ('watched_folder', 'sftp', 'peer')),"
+      'CHECK (enabled IN (0, 1)))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_delivery_targets_enabled '
+      'ON delivery_targets (enabled, kind)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_delivery_targets_name '
+      'ON delivery_targets (name)',
+    );
+
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS delivery_journal('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'target_id INTEGER NOT NULL '
+      'REFERENCES delivery_targets(id) ON DELETE CASCADE,'
+      'job_id INTEGER NOT NULL '
+      'REFERENCES darkroom_jobs(id) ON DELETE CASCADE,'
+      'file_path TEXT NOT NULL,'
+      'bytes INTEGER NOT NULL DEFAULT 0,'
+      'checksum TEXT,'
+      "state TEXT NOT NULL DEFAULT 'retrying',"
+      'attempts INTEGER NOT NULL DEFAULT 0,'
+      'last_error TEXT,'
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL,'
+      'delivered_at INTEGER,'
+      "CHECK (state IN ('delivered', 'failed', 'retrying')),"
+      'CHECK (attempts >= 0),'
+      'CHECK (bytes >= 0),'
+      'UNIQUE(target_id, job_id, file_path))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_delivery_journal_target '
+      'ON delivery_journal (target_id, state)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_delivery_journal_job '
+      'ON delivery_journal (job_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_delivery_journal_state '
+      'ON delivery_journal (state, updated_at)',
+    );
+  }
+
+  /// Close out Darkroom jobs a previous process left mid-flight.
+  ///
+  /// A `darkroom_jobs` row is only 'running' while THIS process's executor is
+  /// driving it — that executor state lives in memory, so nothing can still be
+  /// running at the moment the database opens. Any row still marked 'running'
+  /// here is residue from a process that died mid-job: a crash, a force quit,
+  /// or safing that ran out its shutdown budget. Left alone, such a row is
+  /// permanent: the queue reports work in flight that nothing is driving, and
+  /// the night's masters are never produced.
+  ///
+  /// Recovered rows go back to 'queued' with `started_at` cleared and a note
+  /// saying what happened. `progress` is left where the dead process left it,
+  /// so the report can state how far that attempt got, and `attempts` is left
+  /// alone — it counts starts, and the restart will increment it.
+  ///
+  /// A job that has already used its [kDarkroomJobMaxAttempts] starts is moved
+  /// to 'failed' instead: a job that kills the process must not re-queue itself
+  /// forever.
+  Future<void> _recoverInterruptedDarkroomJobs() async {
+    final failed = await customUpdate(
+      "UPDATE darkroom_jobs SET state = 'failed', finished_at = ?, "
+      'error_text = ? WHERE state = ? AND attempts >= ?',
+      variables: [
+        Variable<int>(DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000),
+        const Variable<String>(
+          'Interrupted by a process exit on attempt '
+          '$kDarkroomJobMaxAttempts of $kDarkroomJobMaxAttempts; not retried.',
+        ),
+        const Variable<String>('running'),
+        const Variable<int>(kDarkroomJobMaxAttempts),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    final requeued = await customUpdate(
+      "UPDATE darkroom_jobs SET state = 'queued', started_at = NULL, "
+      'note = ? WHERE state = ?',
+      variables: [
+        const Variable<String>(
+          'Re-queued: the previous process exited while this job was running.',
+        ),
+        const Variable<String>('running'),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    if (failed > 0 || requeued > 0) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] Darkroom jobs left running by a previous process: '
+        're-queued $requeued, failed $failed at the attempt limit.',
+      );
+    }
+  }
+
   Future<bool> _columnExists(String table, String column) async {
     final result = await customSelect("PRAGMA table_info('$table')").get();
     return result.any((row) => row.data['name'] == column);

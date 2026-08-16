@@ -18,11 +18,21 @@ pub(crate) fn integrate_session(
     if args.output.master_fits_path.trim().is_empty() {
         return Err("output.masterFitsPath is required".to_string());
     }
+    // One exposure per light, or none at all. Refused before the run claims a
+    // cancellation id: a mismatched request is never a run.
+    let exposures = exposures_per_light(&args.exposures_sec, args.light_paths.len())?;
+
+    let cancel = RunCancelToken::register(&args.run_id)?;
+    cancel.check("calibrating", None, None)?;
 
     // Load calibration masters once (shared across all lights).
     let dark = load_optional_master(&args.calibration.dark, "dark")?;
     let flat = load_optional_master(&args.calibration.flat, "flat")?;
     let bias = load_optional_master(&args.calibration.bias, "bias")?;
+
+    // What the masters above actually are, measured against the group's anchor
+    // sub — the same first-sub anchor the Dart matcher selects on.
+    let calibration_report = build_calibration_report(&args.light_paths[0], &args.calibration);
 
     // Load + calibrate every light.
     let total_lights = args.light_paths.len() as u32;
@@ -34,6 +44,7 @@ pub(crate) fn integrate_session(
     );
     let mut loaded: Vec<LoadedLight> = Vec::with_capacity(args.light_paths.len());
     for (i, path) in args.light_paths.iter().enumerate() {
+        cancel.check("calibrating", Some(i as u32), Some(total_lights))?;
         let read =
             read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
         let mut image = read.image;
@@ -54,14 +65,19 @@ pub(crate) fn integrate_session(
         }
         if args.calibration.cosmetic_correction {
             // Self-derived hot/cold transient repair (cosmic rays, residual hot
-            // pixels). Operates per-channel in place; the report is advisory.
-            let _ = cosmetic_correct_transient(&mut image, CosmeticConfig::default());
+            // pixels). Operates per-channel in place; the RETURNED REPORT is
+            // advisory, but the error is not: the calibration report stamps
+            // `cosmetic correction: applied` straight off this request flag
+            // (`build_calibration_report`), so a swallowed failure here writes a
+            // master that claims a repair it never ran.
+            cosmetic_correct_transient(&mut image, CosmeticConfig::default())
+                .map_err(|e| format!("cosmetic correction of '{path}' failed: {e}"))?;
         }
-        let exposure_sec = args.exposures_sec.get(i).copied().unwrap_or(0.0);
+        // `exposures_per_light` guaranteed one entry per light, so `i` is in range.
         loaded.push(LoadedLight {
             path: path.clone(),
             image,
-            exposure_sec,
+            exposure_sec: exposures[i],
         });
         // Calibrate phase spans 0.0..0.20 across all lights.
         let done = (i + 1) as u32;
@@ -76,6 +92,7 @@ pub(crate) fn integrate_session(
     // Choose the reference frame.
     // The registration config is built first: reference choice must consult the
     // same star detector the registration will use.
+    cancel.check("reference", None, None)?;
     let reg_cfg = build_registration_config(&args.settings.align)?;
     let q_cfg = FrameQualityConfig::default();
     let ref_index = choose_reference(&args.reference, &loaded, &q_cfg, &reg_cfg)?;
@@ -114,6 +131,10 @@ pub(crate) fn integrate_session(
     );
     let mut registered: Vec<Registered> = Vec::with_capacity(loaded.len());
     for (i, light) in loaded.iter().enumerate() {
+        // Registering one full-sensor frame is the pipeline's longest
+        // uninterruptible step, so the flag is read before each one rather than
+        // only at the phase boundary.
+        cancel.check("registering", Some(i as u32), Some(total_lights))?;
         // Register phase spans 0.20..0.60; emit per frame (cheap), never per
         // pixel. Emitted at the top so both the reference (`continue`) and the
         // matched branches report uniform per-frame progress.
@@ -196,6 +217,7 @@ pub(crate) fn integrate_session(
         return Err("no subs could be registered + measured; nothing to integrate".to_string());
     }
 
+    cancel.check("weighting", None, None)?;
     emit_integration_progress("weighting", FRACTION_WEIGHT, None, None);
     let weights: Vec<f64> = if args.settings.weighting.enabled {
         let qualities: Vec<FrameQuality> = accepted_idx
@@ -228,6 +250,7 @@ pub(crate) fn integrate_session(
             .map(|ch| extract_channel(&ref_pixels, locations, chan, ch))
             .collect();
         for (pos, &i) in accepted_idx.iter().enumerate() {
+            cancel.check("normalizing", Some(pos as u32), Some(norm_total))?;
             // Normalize phase spans 0.62..0.80; emit per accepted sub (cheap),
             // emitted at the top so the reference (`continue`) frame still
             // advances the bar.
@@ -276,13 +299,18 @@ pub(crate) fn integrate_session(
         .collect();
 
     // `integrate_frames` has no inner progress callback, so bracket it: 0.80
-    // before, 0.92 after.
+    // before, 0.92 after. It is also the last point a cancellation can be
+    // honoured cheaply — the combine itself runs to completion once entered.
+    cancel.check("integrating", None, None)?;
     emit_integration_progress("integrating", FRACTION_INTEGRATE, None, None);
     let output = integrate_frames(&frames, width, height, channels, &int_cfg)
         .map_err(|e| format!("integration failed: {e}"))?;
     emit_integration_progress("integrating", FRACTION_INTEGRATE_DONE, None, None);
 
-    // Write the master FITS.
+    // Write the master FITS. This is the last cancellation point: past the
+    // write the master exists, and a run that reported itself cancelled while a
+    // complete master sat on disk would misdescribe it.
+    cancel.check("writing", None, None)?;
     emit_integration_progress("writing", FRACTION_WRITE, None, None);
     let master_path = Path::new(&args.output.master_fits_path);
     ensure_parent_dir(master_path)?;
@@ -294,6 +322,7 @@ pub(crate) fn integrate_session(
         sub_count,
         &args.settings.integration,
         reference_wcs.as_ref(),
+        &calibration_report,
     );
     write_fits(master_path, &output.master, &header)
         .map_err(|e| format!("failed to write master FITS: {e:?}"))?;
@@ -430,5 +459,6 @@ pub(crate) fn integrate_session(
         height,
         channels,
         per_frame_stats,
+        calibration: calibration_report,
     })
 }

@@ -195,13 +195,18 @@ pub(crate) struct OutputArgs {
 #[serde(default, rename_all = "camelCase")]
 #[flutter_rust_bridge::frb(ignore)]
 pub(crate) struct IntegrateSessionArgs {
+    /// Caller-chosen id this run answers to for cancellation
+    /// ([`api_post_session_cancel`]). Empty ⇒ the run is not cancellable, and no
+    /// registry entry is made.
+    pub(crate) run_id: String,
     /// Light-frame paths (FITS/XISF/etc.), in any order.
     pub(crate) light_paths: Vec<String>,
     /// Reference choice: a path among `light_paths`, or `"auto"`/empty for the
     /// highest-quality sub.
     pub(crate) reference: Option<String>,
     /// Per-light exposure seconds, aligned to `light_paths`. Used only to report
-    /// `totalIntegrationSec`. Empty ⇒ unknown (reported as 0).
+    /// `totalIntegrationSec`. Empty ⇒ unknown (reported as 0); any other length
+    /// than `light_paths` is refused rather than zero-filled.
     pub(crate) exposures_sec: Vec<f64>,
     pub(crate) calibration: CalibrationArgs,
     pub(crate) settings: IntegrationSettingsArgs,
@@ -299,4 +304,8 @@ pub(crate) struct IntegrateSessionResult {
     pub(crate) height: u32,
     pub(crate) channels: u32,
     pub(crate) per_frame_stats: Vec<PerFrameRecord>,
+    /// Exactly which dark / flat / bias shaped these pixels, how well each
+    /// matched the lights, and which corrections did not run at all. The same
+    /// statements are written into the master's FITS `HISTORY`.
+    pub(crate) calibration: CalibrationReport,
 }

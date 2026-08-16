@@ -1,0 +1,284 @@
+import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../models/darkroom/darkroom_job.dart';
+import '../../providers/database_provider.dart';
+import '../database.dart';
+
+/// Data-access object for the v58 `darkroom_jobs` table — the durable dawn-job
+/// queue.
+///
+/// The table is managed with raw DDL (see
+/// [NightshadeDatabase._createDarkroomTables]) rather than a drift `Table`
+/// class, so this DAO is a plain class that reads/writes through the database's
+/// `customSelect`/`customInsert`/`customStatement` APIs — mirroring
+/// [MosaicProjectsDao] and [CampaignsDao]. It is deliberately NOT a
+/// `@DriftAccessor`.
+///
+/// TYPED TRANSITIONS. Every state-changing method reads the row's current state
+/// first and refuses a move [DarkroomJobState.canTransitionTo] rejects, with a
+/// [DarkroomJobTransitionException] naming both ends. A missing row is a
+/// [DarkroomJobMissingException], never a silent zero-row update: a coordinator
+/// that thinks it holds a job it does not must find out.
+///
+/// CRASH RECOVERY is NOT here. Re-queueing rows left `running` by a dead
+/// process happens once, in `beforeOpen`
+/// (`NightshadeDatabase._recoverInterruptedDarkroomJobs`), because the rule
+/// that makes it sound — nothing can still be running at the moment the
+/// database opens — only holds at open. A second implementation reachable at
+/// other times would re-queue a job a live executor is holding.
+class DarkroomJobsDao {
+  DarkroomJobsDao(this._db);
+
+  final NightshadeDatabase _db;
+
+  static const String _columns =
+      'id, session_id, kind, state, progress, note, error_text, attempts, '
+      'created_at, started_at, finished_at';
+
+  /// Queue a job and return its id. The row starts
+  /// [DarkroomJobState.queued] at zero progress with no attempts spent.
+  Future<int> enqueue({
+    int? sessionId,
+    DarkroomJobKind kind = DarkroomJobKind.dawn,
+    String? note,
+    DateTime? createdAt,
+  }) {
+    final at = _toEpochSeconds(createdAt ?? DateTime.now());
+    return _db.customInsert(
+      'INSERT INTO darkroom_jobs('
+      'session_id, kind, state, progress, note, attempts, created_at'
+      ') VALUES (?, ?, ?, 0.0, ?, 0, ?)',
+      variables: [
+        Variable<int>(sessionId),
+        Variable<String>(kind.wire),
+        Variable<String>(DarkroomJobState.queued.wire),
+        Variable<String>(note),
+        Variable<int>(at),
+      ],
+    );
+  }
+
+  /// Fetch a job by id, or null when absent.
+  Future<DarkroomJob?> getById(int id) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM darkroom_jobs WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
+    if (rows.isEmpty) return null;
+    return _map(rows.first);
+  }
+
+  /// The oldest queued job, or null when the queue is empty. The order a
+  /// serialized coordinator drains in.
+  Future<DarkroomJob?> nextQueued() async {
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM darkroom_jobs WHERE state = ? '
+          'ORDER BY created_at ASC, id ASC LIMIT 1',
+          variables: [Variable<String>(DarkroomJobState.queued.wire)],
+        )
+        .get();
+    if (rows.isEmpty) return null;
+    return _map(rows.first);
+  }
+
+  /// Every job in [state], oldest first.
+  Future<List<DarkroomJob>> listByState(DarkroomJobState state) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM darkroom_jobs WHERE state = ? '
+          'ORDER BY created_at ASC, id ASC',
+          variables: [Variable<String>(state.wire)],
+        )
+        .get();
+    return rows.map(_map).toList();
+  }
+
+  /// Every job for one imaging session, newest first.
+  Future<List<DarkroomJob>> listForSession(int sessionId) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM darkroom_jobs WHERE session_id = ? '
+          'ORDER BY created_at DESC, id DESC',
+          variables: [Variable<int>(sessionId)],
+        )
+        .get();
+    return rows.map(_map).toList();
+  }
+
+  /// Take a queued job: state becomes [DarkroomJobState.running], `attempts`
+  /// increments, `started_at` is stamped, and any error text from a previous
+  /// attempt is cleared. Returns the job as it now stands.
+  Future<DarkroomJob> markRunning(int id, {DateTime? now}) async {
+    await _requireTransition(id, DarkroomJobState.running);
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    await _db.customUpdate(
+      'UPDATE darkroom_jobs SET state = ?, attempts = attempts + 1, '
+      'started_at = ?, error_text = NULL WHERE id = ?',
+      variables: [
+        Variable<String>(DarkroomJobState.running.wire),
+        Variable<int>(at),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    return _reread(id);
+  }
+
+  /// Report how far a running job has got, optionally with the current step as
+  /// [note]. Returns the job as it now stands.
+  ///
+  /// Throws [DarkroomJobNotRunningException] when no executor holds the job:
+  /// a late progress write must never repaint a terminal state as busy.
+  Future<DarkroomJob> updateProgress(
+    int id,
+    double progress, {
+    String? note,
+  }) async {
+    if (progress < 0.0 || progress > 1.0) {
+      throw ArgumentError.value(
+        progress,
+        'progress',
+        'a job progress fraction lies in 0.0 .. 1.0',
+      );
+    }
+    final current = await _require(id);
+    if (current.state != DarkroomJobState.running) {
+      throw DarkroomJobNotRunningException(id, current.state);
+    }
+    await _db.customUpdate(
+      'UPDATE darkroom_jobs SET progress = ?, '
+      'note = COALESCE(?, note) WHERE id = ?',
+      variables: [
+        Variable<double>(progress),
+        Variable<String>(note),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    return _reread(id);
+  }
+
+  /// Finish a running job: state becomes [DarkroomJobState.done], progress
+  /// reaches 1.0, `finished_at` is stamped. Returns the job as it now stands.
+  Future<DarkroomJob> markDone(int id, {String? note, DateTime? now}) async {
+    await _requireTransition(id, DarkroomJobState.done);
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    await _db.customUpdate(
+      'UPDATE darkroom_jobs SET state = ?, progress = 1.0, finished_at = ?, '
+      'note = COALESCE(?, note) WHERE id = ?',
+      variables: [
+        Variable<String>(DarkroomJobState.done.wire),
+        Variable<int>(at),
+        Variable<String>(note),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    return _reread(id);
+  }
+
+  /// Fail a running job with [errorText]. Progress is left where it stopped, so
+  /// the report can state how far the attempt got. Returns the job as it now
+  /// stands.
+  Future<DarkroomJob> markFailed(
+    int id,
+    String errorText, {
+    DateTime? now,
+  }) async {
+    await _requireTransition(id, DarkroomJobState.failed);
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    await _db.customUpdate(
+      'UPDATE darkroom_jobs SET state = ?, finished_at = ?, error_text = ? '
+      'WHERE id = ?',
+      variables: [
+        Variable<String>(DarkroomJobState.failed.wire),
+        Variable<int>(at),
+        Variable<String>(errorText),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    return _reread(id);
+  }
+
+  /// Cancel a queued or running job, recording [reason] as its error text.
+  /// Progress is left where it stopped. Returns the job as it now stands.
+  Future<DarkroomJob> markCancelled(
+    int id, {
+    String? reason,
+    DateTime? now,
+  }) async {
+    await _requireTransition(id, DarkroomJobState.cancelled);
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    await _db.customUpdate(
+      'UPDATE darkroom_jobs SET state = ?, finished_at = ?, '
+      'error_text = COALESCE(?, error_text) WHERE id = ?',
+      variables: [
+        Variable<String>(DarkroomJobState.cancelled.wire),
+        Variable<int>(at),
+        Variable<String>(reason),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    return _reread(id);
+  }
+
+  /// Delete a job by id. Its `delivery_journal` rows cascade. Returns the
+  /// number of rows changed.
+  Future<int> deleteJob(int id) {
+    return _db.customUpdate(
+      'DELETE FROM darkroom_jobs WHERE id = ?',
+      variables: [Variable<int>(id)],
+      updateKind: UpdateKind.delete,
+    );
+  }
+
+  Future<DarkroomJob> _require(int id) async {
+    final job = await getById(id);
+    if (job == null) throw DarkroomJobMissingException(id);
+    return job;
+  }
+
+  Future<DarkroomJob> _reread(int id) => _require(id);
+
+  Future<void> _requireTransition(int id, DarkroomJobState to) async {
+    final current = await _require(id);
+    if (!current.state.canTransitionTo(to)) {
+      throw DarkroomJobTransitionException(id, current.state, to);
+    }
+  }
+
+  DarkroomJob _map(QueryRow row) {
+    final startedAt = row.readNullable<int>('started_at');
+    final finishedAt = row.readNullable<int>('finished_at');
+    return DarkroomJob(
+      id: row.read<int>('id'),
+      sessionId: row.readNullable<int>('session_id'),
+      kind: DarkroomJobKind.fromWire(row.read<String>('kind')),
+      state: DarkroomJobState.fromWire(row.read<String>('state')),
+      progress: row.read<double>('progress'),
+      note: row.readNullable<String>('note'),
+      errorText: row.readNullable<String>('error_text'),
+      attempts: row.read<int>('attempts'),
+      createdAt: _fromEpochSeconds(row.read<int>('created_at')),
+      startedAt: startedAt == null ? null : _fromEpochSeconds(startedAt),
+      finishedAt: finishedAt == null ? null : _fromEpochSeconds(finishedAt),
+    );
+  }
+
+  static int _toEpochSeconds(DateTime when) =>
+      when.toUtc().millisecondsSinceEpoch ~/ 1000;
+
+  static DateTime _fromEpochSeconds(int seconds) =>
+      DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
+}
+
+/// Riverpod provider for [DarkroomJobsDao].
+final darkroomJobsDaoProvider = Provider<DarkroomJobsDao>((ref) {
+  return DarkroomJobsDao(ref.watch(databaseProvider));
+});

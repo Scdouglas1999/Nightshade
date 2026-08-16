@@ -15,6 +15,33 @@ pub(crate) fn load_optional_master(
     }
 }
 
+/// Expand the caller's `exposuresSec` into exactly one exposure per light,
+/// refusing any list that is neither empty nor as long as the frame list.
+///
+/// An omitted / empty list is the documented "no exposure metadata" shape and
+/// reports every frame as 0 s. A list that is *present but the wrong length* is
+/// a different thing: back-filling its tail with 0 s silently under-reports
+/// `totalIntegrationSec`, and on the accumulating path those missing seconds
+/// become the master's FITS `EXPTIME` card. The HTTP surfaces
+/// (`POST /api/post-session/integrate`, `.../master-accumulate`) forward request
+/// bodies to the bridge unvalidated, so the refusal has to live here.
+pub(crate) fn exposures_per_light(
+    exposures_sec: &[f64],
+    lights: usize,
+) -> Result<Vec<f64>, String> {
+    if exposures_sec.is_empty() {
+        return Ok(vec![0.0; lights]);
+    }
+    if exposures_sec.len() != lights {
+        return Err(format!(
+            "exposuresSec has {} entries but {lights} light frames were supplied; \
+             supply one exposure per light, or omit exposuresSec entirely",
+            exposures_sec.len()
+        ));
+    }
+    Ok(exposures_sec.to_vec())
+}
+
 /// Pick the reference frame index: an explicit path among the loaded lights, or
 /// (for `"auto"`/empty) the highest-quality sub by an SNR·sharpness·roundness
 /// composite measured on the *un-aligned* light.
@@ -340,10 +367,18 @@ pub(crate) fn auto_reject(sub_count: usize, low: f64, high: f64) -> Reject {
     }
 }
 
+/// Build the integrated master's FITS header.
+///
+/// The calibration report is written out as `HISTORY` cards so the identity of
+/// every applied dark / flat / bias — and every correction that did **not** run
+/// — travels with the file rather than only with the database row that indexed
+/// it. `CALWARN` summarises the same thing as a single boolean card a reader can
+/// branch on without parsing prose.
 pub(crate) fn build_master_header(
     sub_count: usize,
     int_args: &IntegrationArgs,
     reference_wcs: Option<&WcsInfo>,
+    calibration: &CalibrationReport,
 ) -> FitsHeader {
     let mut header = FitsHeader::new();
     header.set_string("IMAGETYP", "MASTER_LIGHT");
@@ -353,10 +388,14 @@ pub(crate) fn build_master_header(
     // FITS keywords are capped at 8 chars (see `fits::is_valid_keyword`).
     header.set_string("COMBMETH", &int_args.combine);
     header.set_string("REJECTM", &int_args.reject);
+    header.set_bool("CALWARN", calibration.has_warnings());
     header.add_history(&format!(
         "Integrated {sub_count} subs (combine={}, reject={})",
         int_args.combine, int_args.reject
     ));
+    for line in calibration_history_lines(calibration) {
+        header.add_history(&line);
+    }
     // Carry the registration reference's WCS into the master so the mosaic
     // stitcher's `wcs_from_header` succeeds *without* a post-hoc plate solve. The
     // integration output lives on the reference's pixel grid (every sub is

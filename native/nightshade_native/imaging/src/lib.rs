@@ -38,6 +38,7 @@ mod platesolve;
 mod processing; // NEW: Tiled image processing
 mod raw; // NEW: RAW file support
 mod reader; // NEW: Memory-mapped readers
+pub mod recipe; // Darkroom recipe engine: non-destructive, replayable op stack
 pub mod registration; // NEW: High-quality star-based registration
 mod robust_stats; // The crate's one set of order statistics (median / percentile conventions)
 pub mod sky_atlas; // NEW: HEALPix-tiled additive all-sky accumulator (the 5.0 keystone)
