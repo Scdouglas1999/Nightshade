@@ -15,17 +15,15 @@ void store_dart_post_cobject(DartPostCObjectFnType ptr);
 typedef struct _Dart_Handle* Dart_Handle;
 
 /**
- * Default event buffer size.
- *
- * This is sized to handle burst scenarios like:
- * - Rapid autofocus loops (100+ events in seconds)
- * - High-frequency guiding corrections (10+ per second)
- * - Multiple simultaneous device state changes
- *
- * The buffer uses a broadcast channel, so if any receiver falls behind by more than
- * this many events, it will receive a `Lagged` error and skip to the latest events.
- * Increasing this value uses more memory but reduces the chance of dropping events
- * when the Dart side is slow to consume them.
+ * The `SensorType` ordinal for an RGGB-family colour-filter array, the one
+ * family whose element order [`BayerPattern`] can name.
+ */
+#define SENSOR_TYPE_RGGB 2
+
+/**
+ * Default event buffer size: 4096 broadcast slots, enough for the burstiest
+ * producers (autofocus loops, 10 Hz guiding corrections). A receiver that falls
+ * further behind than this gets `Lagged` and skips to the latest events.
  */
 #define DEFAULT_EVENT_BUFFER_SIZE 4096
 
@@ -33,12 +31,9 @@ typedef struct _Dart_Handle* Dart_Handle;
  * Simulated sensor dimensions.
  *
  * This is THE sensor. `SimulatedCamera::default` and
- * `device_capabilities::get_simulator_capabilities` both declare these numbers,
- * so the frame a caller receives matches the geometry the camera advertised.
- * They previously disagreed three ways — a 4144x2822 declaration, a 4144x2822
- * randomised generator on the manual-capture path, and this 1920x1080
- * deterministic one on the sequencer path — which meant no measurement taken
- * through one path could be compared with the other.
+ * `device_capabilities::get_simulator_capabilities` declare these same numbers,
+ * so the frame a caller receives matches the geometry the camera advertised and
+ * a measurement taken through one capture path is comparable with the other.
  */
 #define SIM_W 1920
 
@@ -1610,6 +1605,14 @@ typedef struct wire_cst_cover_calibrator_status {
   int32_t max_brightness;
 } wire_cst_cover_calibrator_status;
 
+typedef struct wire_cst_darkroom_preview {
+  uint32_t width;
+  uint32_t height;
+  bool is_color;
+  struct wire_cst_list_prim_u_8_strict *rgba;
+  struct wire_cst_list_prim_u_8_strict *report_json;
+} wire_cst_darkroom_preview;
+
 typedef struct wire_cst_device_api_version {
   struct wire_cst_list_prim_u_8_strict *device_id;
   int32_t driver_type;
@@ -2611,6 +2614,24 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__node_
                                                                                                                      double rate_per_min,
                                                                                                                      double *target_temp);
 
+void frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_cancel(int64_t port_,
+                                                                                           struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_registry(int64_t port_,
+                                                                                             struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_export(int64_t port_,
+                                                                                                  struct wire_cst_list_prim_u_8_strict *recipe_json,
+                                                                                                  struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview(int64_t port_,
+                                                                                                   struct wire_cst_list_prim_u_8_strict *recipe_json,
+                                                                                                   struct wire_cst_list_prim_u_8_strict *context_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_validate(int64_t port_,
+                                                                                             struct wire_cst_list_prim_u_8_strict *recipe_json,
+                                                                                             struct wire_cst_list_prim_u_8_strict *context_json);
+
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_debayer_fits_file(int64_t port_,
                                                                                struct wire_cst_list_prim_u_8_strict *file_path,
                                                                                int32_t pattern,
@@ -3126,6 +3147,9 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__plate_solve__api
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_platesolve_set_config(struct wire_cst_plate_solver_config_payload *config);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_platesolve_verify(struct wire_cst_list_prim_u_8_strict *executable_path);
+
+void frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_post_session_cancel(int64_t port_,
+                                                                                                   struct wire_cst_list_prim_u_8_strict *args_json);
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_read_fits_file(int64_t port_,
                                                                             struct wire_cst_list_prim_u_8_strict *file_path);
@@ -4073,6 +4097,11 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__get_ascom_mount_coords);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__move_ascom_focuser);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__slew_ascom_mount);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_cancel);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_registry);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_export);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_validate);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_capture_preview);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_get_recommended_settings);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_set_readout_mode);
@@ -4343,6 +4372,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_build_master_flat);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_integrate_session);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_master_accumulate);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_post_session_cancel);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_save_fits_master);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_get_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_is_armed);

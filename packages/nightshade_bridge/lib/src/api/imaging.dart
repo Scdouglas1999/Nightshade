@@ -506,15 +506,8 @@ Uint8List apiGenerateFitsThumbnail({
   maxSize: maxSize,
 );
 
-/// Run INDI autofocus routine
-///
-/// # Arguments
-/// * `camera_id` - INDI camera device ID (format: "indi:host:port:device_name")
-/// * `focuser_id` - INDI focuser device ID (format: "indi:host:port:device_name")
-/// * `config` - Autofocus configuration
-///
-/// # Returns
-/// Autofocus result with best focus position and curve data
+/// Run the INDI autofocus routine and return the best focus position with its
+/// curve data. Device ids are INDI-form: `indi:host:port:device_name`.
 Future<IndiAutofocusResultApi> apiRunIndiAutofocus({
   required String cameraId,
   required String focuserId,
@@ -864,17 +857,9 @@ class ApiLiveStackingConfig {
   final double matchFluxTolerance;
   final int minMatchedPairs;
 
-  /// Sensor acquisition mode: `"mono"`, `"osc"`, or `"auto"` (case-insensitive).
-  ///
-  /// - `mono` — frames are single-channel luminance; never debayered.
-  /// - `osc` — frames are a Bayer CFA mosaic that *must* be debayered to RGB;
-  ///   an unresolvable pattern is a hard error (no silent mono-fallback that
-  ///   would scramble the colour mosaic).
-  /// - `auto` — debayer only when the frame actually carries Bayer geometry
-  ///   (or `bayer_pattern` is supplied); otherwise treat as mono.
-  ///
-  /// Defaults to `"mono"` so existing callers keep the historic single-channel
-  /// behaviour byte-for-byte.
+  /// Sensor acquisition mode: `"mono"`, `"osc"`, or `"auto"` (case-insensitive),
+  /// defaulting to `"mono"`. The three modes are specified on
+  /// `stacking_api::LiveStackingConfigApi::sensor_mode`.
   final String sensorMode;
 
   /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`,

@@ -169,6 +169,11 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       jobManager: _jobManager,
     );
 
+    // Darkroom peer delivery. Not JobManager-backed: the manifest and the
+    // acknowledgement are short reads and one journal write, and the artifact
+    // download is a streamed file the client resumes itself.
+    _darkroomDeliveryHandlers = DarkroomDeliveryHandlers(container);
+
     // broadcast controller that fans out NightshadeEvents from
     // the backend stream to every connected SSE subscriber. Created here
     // (rather than in `start()`) so it can be passed to the handler ctor

@@ -8,6 +8,7 @@ import 'api/api_version.dart';
 import 'api/connection.dart';
 import 'api/connection/alpaca_connections.dart';
 import 'api/connection/ascom_connections.dart';
+import 'api/darkroom/entrypoints.dart';
 import 'api/devices/camera.dart';
 import 'api/devices/cover_calibrator.dart';
 import 'api/devices/dome.dart';
@@ -123,7 +124,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1262008658;
+  int get rustContentHash => -839265060;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -517,6 +518,29 @@ abstract class RustLibApi extends BaseApi {
     required String name,
     required double ratePerMin,
     double? targetTemp,
+  });
+
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomCancel({
+    required String argsJson,
+  });
+
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomRegistry({
+    required String argsJson,
+  });
+
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomRenderExport({
+    required String recipeJson,
+    required String argsJson,
+  });
+
+  Future<DarkroomPreview> crateApiDarkroomEntrypointsApiDarkroomRenderPreview({
+    required String recipeJson,
+    required String contextJson,
+  });
+
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomValidate({
+    required String recipeJson,
+    required String contextJson,
   });
 
   Future<Uint8List> crateApiImagingApiDebayerFitsFile({
@@ -1124,6 +1148,10 @@ abstract class RustLibApi extends BaseApi {
 
   PlateSolverInfo crateApiPlateSolveApiPlatesolveVerify({
     required String executablePath,
+  });
+
+  Future<String> crateApiPostSessionEntrypointsApiPostSessionCancel({
+    required String argsJson,
   });
 
   Future<FitsReadResult> crateApiImagingApiReadFitsFile({
@@ -4458,6 +4486,173 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_create_warm_camera_node",
         argNames: ["id", "name", "ratePerMin", "targetTemp"],
+      );
+
+  @override
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomCancel({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire
+              .wire__crate__api__darkroom__entrypoints__api_darkroom_cancel(
+                port_,
+                arg0,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiDarkroomEntrypointsApiDarkroomCancelConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDarkroomEntrypointsApiDarkroomCancelConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_darkroom_cancel",
+        argNames: ["argsJson"],
+      );
+
+  @override
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomRegistry({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire
+              .wire__crate__api__darkroom__entrypoints__api_darkroom_registry(
+                port_,
+                arg0,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiDarkroomEntrypointsApiDarkroomRegistryConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDarkroomEntrypointsApiDarkroomRegistryConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_darkroom_registry",
+        argNames: ["argsJson"],
+      );
+
+  @override
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomRenderExport({
+    required String recipeJson,
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(recipeJson);
+          var arg1 = cst_encode_String(argsJson);
+          return wire
+              .wire__crate__api__darkroom__entrypoints__api_darkroom_render_export(
+                port_,
+                arg0,
+                arg1,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiDarkroomEntrypointsApiDarkroomRenderExportConstMeta,
+        argValues: [recipeJson, argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDarkroomEntrypointsApiDarkroomRenderExportConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_darkroom_render_export",
+        argNames: ["recipeJson", "argsJson"],
+      );
+
+  @override
+  Future<DarkroomPreview> crateApiDarkroomEntrypointsApiDarkroomRenderPreview({
+    required String recipeJson,
+    required String contextJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(recipeJson);
+          var arg1 = cst_encode_String(contextJson);
+          return wire
+              .wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview(
+                port_,
+                arg0,
+                arg1,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_darkroom_preview,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta:
+            kCrateApiDarkroomEntrypointsApiDarkroomRenderPreviewConstMeta,
+        argValues: [recipeJson, contextJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDarkroomEntrypointsApiDarkroomRenderPreviewConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_darkroom_render_preview",
+        argNames: ["recipeJson", "contextJson"],
+      );
+
+  @override
+  Future<String> crateApiDarkroomEntrypointsApiDarkroomValidate({
+    required String recipeJson,
+    required String contextJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(recipeJson);
+          var arg1 = cst_encode_String(contextJson);
+          return wire
+              .wire__crate__api__darkroom__entrypoints__api_darkroom_validate(
+                port_,
+                arg0,
+                arg1,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiDarkroomEntrypointsApiDarkroomValidateConstMeta,
+        argValues: [recipeJson, contextJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDarkroomEntrypointsApiDarkroomValidateConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_darkroom_validate",
+        argNames: ["recipeJson", "contextJson"],
       );
 
   @override
@@ -9194,6 +9389,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_platesolve_verify",
         argNames: ["executablePath"],
+      );
+
+  @override
+  Future<String> crateApiPostSessionEntrypointsApiPostSessionCancel({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire
+              .wire__crate__api__post_session__entrypoints__api_post_session_cancel(
+                port_,
+                arg0,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiPostSessionEntrypointsApiPostSessionCancelConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiPostSessionEntrypointsApiPostSessionCancelConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_post_session_cancel",
+        argNames: ["argsJson"],
       );
 
   @override
@@ -16014,6 +16241,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DarkroomPreview dco_decode_darkroom_preview(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return DarkroomPreview(
+      width: dco_decode_u_32(arr[0]),
+      height: dco_decode_u_32(arr[1]),
+      isColor: dco_decode_bool(arr[2]),
+      rgba: dco_decode_list_prim_u_8_strict(arr[3]),
+      reportJson: dco_decode_String(arr[4]),
+    );
+  }
+
+  @protected
   DebayerAlgorithmApi dco_decode_debayer_algorithm_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return DebayerAlgorithmApi.values[raw as int];
@@ -19901,6 +20143,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
     return CoverState.values[inner];
+  }
+
+  @protected
+  DarkroomPreview sse_decode_darkroom_preview(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_width = sse_decode_u_32(deserializer);
+    var var_height = sse_decode_u_32(deserializer);
+    var var_isColor = sse_decode_bool(deserializer);
+    var var_rgba = sse_decode_list_prim_u_8_strict(deserializer);
+    var var_reportJson = sse_decode_String(deserializer);
+    return DarkroomPreview(
+      width: var_width,
+      height: var_height,
+      isColor: var_isColor,
+      rgba: var_rgba,
+      reportJson: var_reportJson,
+    );
   }
 
   @protected
@@ -25020,6 +25279,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_cover_state(CoverState self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_darkroom_preview(
+    DarkroomPreview self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.width, serializer);
+    sse_encode_u_32(self.height, serializer);
+    sse_encode_bool(self.isColor, serializer);
+    sse_encode_list_prim_u_8_strict(self.rgba, serializer);
+    sse_encode_String(self.reportJson, serializer);
   }
 
   @protected

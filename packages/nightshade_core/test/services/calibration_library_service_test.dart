@@ -366,6 +366,160 @@ void main() {
     });
   });
 
+  group('unrecorded gain / offset', () {
+    test('a light with no recorded gain still matches on the remaining '
+        'dimensions and reports gain unverified', () async {
+      // The only dark in the library was shot at gain 100. Before the light's
+      // unknown gain propagated as null it was compared as 0, so this dark
+      // could never match and dark subtraction was silently skipped.
+      await insertDark(
+        exposureTime: 300,
+        gain: 100,
+        offset: 50,
+        temperature: -10,
+      );
+
+      final match = await service.match(
+        const LightFrameContext(
+          gain: null,
+          offset: 50,
+          exposureSeconds: 300,
+          temperature: -10,
+        ),
+      );
+
+      expect(match.dark, isNotNull);
+      expect(match.dark!.record.gain, 100);
+      expect(
+        match.dark!.reasons.any((r) => r.contains('gain UNVERIFIED')),
+        isTrue,
+      );
+      expect(
+        match.dark!.reasons.any((r) => r.contains('gain 0')),
+        isFalse,
+        reason: 'an unrecorded gain is never rendered as a value',
+      );
+      expect(
+        match.dark!.warnings.any(
+          (w) => w.contains('record no gain') && w.contains('dark'),
+        ),
+        isTrue,
+      );
+      expect(
+        match.dark!.score,
+        lessThan(100),
+        reason: 'a pick verified on fewer dimensions is a weaker pick',
+      );
+    });
+
+    test('an unrecorded gain does not relax the dimensions that ARE '
+        'recorded', () async {
+      await insertDark(exposureTime: 300, gain: 100, offset: 50);
+
+      final wrongOffset = await service.match(
+        const LightFrameContext(gain: null, offset: 99, exposureSeconds: 300),
+      );
+      expect(wrongOffset.dark, isNull);
+
+      final wrongBin = await service.match(
+        const LightFrameContext(
+          gain: null,
+          offset: 50,
+          exposureSeconds: 300,
+          binX: 2,
+          binY: 2,
+        ),
+      );
+      expect(wrongBin.dark, isNull);
+    });
+
+    test('an unrecorded offset is reported on the bias and flat picks '
+        'too', () async {
+      await insertDark(
+        exposureTime: 0,
+        gain: 100,
+        offset: 50,
+        frameType: 'bias',
+      );
+      await insertFlat(filter: 'L', gain: 100, offset: 50);
+
+      final match = await service.match(
+        const LightFrameContext(
+          gain: 100,
+          offset: null,
+          exposureSeconds: 300,
+          filter: 'L',
+        ),
+      );
+
+      expect(match.bias, isNotNull);
+      expect(
+        match.bias!.warnings.any(
+          (w) => w.contains('record no offset') && w.contains('bias'),
+        ),
+        isTrue,
+      );
+      expect(match.flat, isNotNull);
+      expect(
+        match.flat!.warnings.any(
+          (w) => w.contains('record no offset') && w.contains('flat'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('the set-level miss warning says unrecorded, never gain 0', () async {
+      // Nothing in the library at all: both types miss and the warning has to
+      // describe the context it failed to satisfy.
+      final match = await service.match(
+        const LightFrameContext(
+          gain: null,
+          offset: null,
+          exposureSeconds: 300,
+          filter: 'L',
+        ),
+      );
+
+      expect(match.dark, isNull);
+      final darkWarning = match.warnings.firstWhere(
+        (w) => w.contains('No matching master dark'),
+      );
+      expect(darkWarning, contains('gain unrecorded'));
+      expect(darkWarning, contains('offset unrecorded'));
+      expect(darkWarning, isNot(contains('gain 0')));
+    });
+
+    test('a fully recorded tuple is unchanged: exact reason, no unverified '
+        'warning, full score', () async {
+      await insertDark(
+        exposureTime: 300,
+        gain: 100,
+        offset: 50,
+        temperature: -10,
+      );
+
+      final match = await service.match(
+        const LightFrameContext(
+          gain: 100,
+          offset: 50,
+          exposureSeconds: 300,
+          temperature: -10,
+        ),
+      );
+      expect(match.dark, isNotNull);
+      expect(
+        match.dark!.reasons,
+        contains(
+          'Exact gain 100 / offset 50 / bin 1x1 match (required for '
+          'darks)',
+        ),
+      );
+      expect(match.dark!.reasons.any((r) => r.contains('UNVERIFIED')), isFalse);
+      expect(match.dark!.warnings, isEmpty);
+      expect(match.dark!.score, 100);
+    });
+  });
+
   group('tags + listing', () {
     test('setTags / setNotes round-trip onto the listed record', () async {
       final id = await insertDark(exposureTime: 300);

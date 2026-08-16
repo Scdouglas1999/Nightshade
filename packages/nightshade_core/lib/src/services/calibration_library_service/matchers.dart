@@ -1,5 +1,11 @@
 part of '../calibration_library_service.dart';
 
+/// Score charged for one capture dimension the lights never recorded, so a pick
+/// made on fewer verified dimensions can never outscore one that agreed on all
+/// of them. Same size as the unknown-temperature penalty in [_applyTempScore] —
+/// both say the same thing: this dimension went unchecked.
+const double _unverifiedDimensionPenalty = 10.0;
+
 extension _CalibrationLibraryMatchers on CalibrationLibraryService {
   // Per-type matchers
 
@@ -8,17 +14,9 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
     LightFrameContext ctx,
     CalibrationMatchTolerances tol,
   ) {
-    // Hard requirements: exact gain / offset / binning, compatible camera.
-    final candidates = darks
-        .where(
-          (r) =>
-              r.gain == ctx.gain &&
-              r.offset == ctx.offset &&
-              r.binX == ctx.binX &&
-              r.binY == ctx.binY &&
-              _cameraCompatible(r, ctx),
-        )
-        .toList();
+    // Hard requirements: exact gain / offset / binning, compatible camera —
+    // for every one of those the lights actually carry.
+    final candidates = darks.where((r) => _tupleMatches(r, ctx)).toList();
     if (candidates.isEmpty) return null;
 
     final exposureTol = tol.dark.exposureSecs;
@@ -72,12 +70,15 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
     });
     final best = pool.first;
 
-    final reasons = <String>[
-      'Exact gain ${ctx.gain} / offset ${ctx.offset} / bin '
-          '${ctx.binX}x${ctx.binY} match (required for darks)',
-    ];
+    final reasons = <String>[_tupleReason(ctx, requiredFor: 'darks')];
     final warnings = <String>[];
-    var score = 100.0;
+    var score = _applyUnverifiedTuple(
+      score: 100.0,
+      ctx: ctx,
+      reasons: reasons,
+      warnings: warnings,
+      label: 'dark',
+    );
     double? scaleFactor;
 
     if (scaled) {
@@ -137,16 +138,7 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
     LightFrameContext ctx,
     CalibrationMatchTolerances tol,
   ) {
-    final pool = biases
-        .where(
-          (r) =>
-              r.gain == ctx.gain &&
-              r.offset == ctx.offset &&
-              r.binX == ctx.binX &&
-              r.binY == ctx.binY &&
-              _cameraCompatible(r, ctx),
-        )
-        .toList();
+    final pool = biases.where((r) => _tupleMatches(r, ctx)).toList();
     if (pool.isEmpty) return null;
 
     pool.sort((a, b) {
@@ -157,12 +149,17 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
     final best = pool.first;
 
     final reasons = <String>[
-      'Exact gain ${ctx.gain} / offset ${ctx.offset} / bin '
-          '${ctx.binX}x${ctx.binY} match',
+      _tupleReason(ctx),
       'Newest of ${pool.length} candidate${pool.length == 1 ? '' : 's'}',
     ];
     final warnings = <String>[];
-    var score = 100.0;
+    var score = _applyUnverifiedTuple(
+      score: 100.0,
+      ctx: ctx,
+      reasons: reasons,
+      warnings: warnings,
+      label: 'bias',
+    );
     if (!best.isMaster) {
       score -= 15;
       warnings.add('Matched a raw bias frame, not a stacked master.');
@@ -183,16 +180,7 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
     CalibrationMatchTolerances tol,
   ) {
     final wantFilter = ctx.filter?.trim();
-    var pool = flats
-        .where(
-          (r) =>
-              r.gain == ctx.gain &&
-              r.offset == ctx.offset &&
-              r.binX == ctx.binX &&
-              r.binY == ctx.binY &&
-              _cameraCompatible(r, ctx),
-        )
-        .toList();
+    var pool = flats.where((r) => _tupleMatches(r, ctx)).toList();
     if (wantFilter != null && wantFilter.isNotEmpty) {
       pool = pool
           .where((r) => r.filter != null && r.filter!.trim() == wantFilter)
@@ -248,7 +236,13 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
           '(${CalibrationLibraryService._fmtDate(best.createdAt)})',
     ];
     final warnings = <String>[];
-    var score = 100.0;
+    var score = _applyUnverifiedTuple(
+      score: 100.0,
+      ctx: ctx,
+      reasons: reasons,
+      warnings: warnings,
+      label: 'flat',
+    );
 
     score = _applyTempScore(
       score: score,
@@ -325,6 +319,72 @@ extension _CalibrationLibraryMatchers on CalibrationLibraryService {
       reasons: reasons,
       warnings: warnings,
     );
+  }
+
+  // Capture-tuple gating
+
+  /// Whether [r] agrees with [ctx] on every capture dimension the lights
+  /// actually recorded.
+  ///
+  /// Gain and offset are exact requirements when the context knows them. A null
+  /// on the CONTEXT side means the lights never recorded that dimension, so
+  /// there is nothing to compare it against and it drops out of the filter —
+  /// the pick is then reported as unverified on that dimension by
+  /// [_applyUnverifiedTuple]. A null on the RECORD side is different: the master
+  /// exists and simply does not state its gain, which cannot satisfy a
+  /// requirement the lights DO state, so it is excluded.
+  bool _tupleMatches(CalibrationMasterRecord r, LightFrameContext ctx) =>
+      (ctx.gain == null || r.gain == ctx.gain) &&
+      (ctx.offset == null || r.offset == ctx.offset) &&
+      r.binX == ctx.binX &&
+      r.binY == ctx.binY &&
+      _cameraCompatible(r, ctx);
+
+  /// The capture dimensions the lights never recorded, in report order.
+  List<String> _unverifiedTupleDimensions(LightFrameContext ctx) => [
+    if (ctx.gain == null) 'gain',
+    if (ctx.offset == null) 'offset',
+  ];
+
+  /// The tuple line for a pick's reasons, naming only the dimensions that were
+  /// really compared. An unrecorded gain/offset is left out here and stated
+  /// explicitly by [_applyUnverifiedTuple] instead of being printed as a value.
+  String _tupleReason(LightFrameContext ctx, {String? requiredFor}) {
+    final compared = <String>[
+      if (ctx.gain != null) 'gain ${ctx.gain}',
+      if (ctx.offset != null) 'offset ${ctx.offset}',
+      'bin ${ctx.binX}x${ctx.binY}',
+    ];
+    final tail = requiredFor == null ? '' : ' (required for $requiredFor)';
+    return 'Exact ${compared.join(' / ')} match$tail';
+  }
+
+  /// Charge and report every capture dimension the lights never recorded.
+  ///
+  /// Each unknown dimension appends a reason line saying it went UNVERIFIED and
+  /// an operator-facing warning, then subtracts [_unverifiedDimensionPenalty].
+  /// The warnings ride out on [CalibrationMatchSet.allWarnings] into the
+  /// post-session outcome and the master's stored calibration account, so a
+  /// master calibrated without a verified gain says so instead of reading like
+  /// an exact match.
+  double _applyUnverifiedTuple({
+    required double score,
+    required LightFrameContext ctx,
+    required List<String> reasons,
+    required List<String> warnings,
+    required String label,
+  }) {
+    var out = score;
+    for (final dimension in _unverifiedTupleDimensions(ctx)) {
+      out -= _unverifiedDimensionPenalty;
+      reasons.add('$dimension UNVERIFIED (the lights record none)');
+      warnings.add(
+        'The light frames record no $dimension, so the $label was matched '
+        'without comparing it — confirm the $label was shot at the same '
+        '$dimension.',
+      );
+    }
+    return out;
   }
 
   // Scoring helpers

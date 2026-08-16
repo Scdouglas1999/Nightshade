@@ -56,6 +56,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildFocusModelRoutes(_focusModelHandlers),
       ...buildStackingRoutes(_stackingHandlers),
       ...buildPostSessionRoutes(_postSessionHandlers),
+      ...buildDarkroomDeliveryRoutes(_darkroomDeliveryHandlers),
       ...buildJobRoutes(_jobHandlers),
       ...buildSessionOwnershipRoutes(_sessionOwnershipHandlers),
     ];

@@ -49,6 +49,7 @@ export 'routes/sequence_management_routes.dart';
 export 'routes/replay_debug_routes.dart';
 export 'routes/sequencer_routes.dart';
 export 'routes/stacking_routes.dart';
+export 'routes/darkroom_delivery_routes.dart';
 export 'routes/post_session_routes.dart';
 export 'routes/session_ownership_routes.dart';
 export 'routes/session_routes.dart';

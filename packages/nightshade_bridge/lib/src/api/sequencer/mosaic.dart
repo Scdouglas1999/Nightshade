@@ -8,20 +8,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`, `from`, `from`
 
-/// Calculate mosaic panel positions given center coordinates and configuration
-///
-/// # Arguments
-/// * `center_ra` - Center RA in hours (0-24)
-/// * `center_dec` - Center Dec in degrees (-90 to +90)
-/// * `panel_width_arcmin` - Panel width in arcminutes
-/// * `panel_height_arcmin` - Panel height in arcminutes
-/// * `overlap_percent` - Overlap percentage (0-50)
-/// * `rotation` - Rotation angle in degrees
-/// * `panels_horizontal` - Number of horizontal panels
-/// * `panels_vertical` - Number of vertical panels
-///
-/// # Returns
-/// Vector of MosaicPanelResult with calculated RA/Dec for each panel
+/// Calculate the RA/Dec of every mosaic panel around a centre. `center_ra` is in
+/// hours (0-24) and `center_dec` in degrees (-90 to +90); panel size is in
+/// arcminutes, `overlap_percent` in 0-50, `rotation` in degrees.
 List<MosaicPanelResult> apiCalculateMosaicPanels({
   required double centerRa,
   required double centerDec,
@@ -74,17 +63,9 @@ double apiEstimateMosaicTime({
   overheadPerPanelSecs: overheadPerPanelSecs,
 );
 
-/// Calculate altitude for a target at a specific time and observer location
-///
-/// # Arguments
-/// * `ra_hours` - Right Ascension in hours (0-24)
-/// * `dec_degrees` - Declination in degrees (-90 to +90)
-/// * `latitude` - Observer's latitude in degrees (-90 to +90, positive is north)
-/// * `longitude` - Observer's longitude in degrees (-180 to +180, positive is east)
-/// * `time_unix_millis` - UTC time as Unix timestamp in milliseconds
-///
-/// # Returns
-/// Altitude in degrees above the horizon (-90 to +90)
+/// Altitude in degrees above the horizon (-90 to +90) for a target at `ra_hours`
+/// (hours, 0-24) / `dec_degrees` (degrees), seen from `latitude` / `longitude`
+/// in degrees (north and east positive) at `time_unix_millis` (UTC epoch ms).
 double apiCalculateAltitude({
   required double raHours,
   required double decDegrees,

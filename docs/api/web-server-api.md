@@ -454,6 +454,74 @@ List recent images.
 }
 ```
 
+## Darkroom Delivery (peer pull)
+
+A rig publishes each dawn job's artifacts for a paired desktop to collect. The
+rig never uploads to a peer: artifacts are served by authenticated GET with RFC
+7233 `Range`/`If-Range`/`ETag`, so a desktop resumes a multi-gigabyte master
+rather than restarting it.
+
+Every request identifies the calling machine with the `peer` id configured on
+the rig's delivery destination. A manifest is per peer; an id from one peer's
+manifest does not resolve for another.
+
+### GET /api/darkroom/delivery/manifest/{jobId}?peer={peerId}
+
+The signed list of what this job published for that peer.
+
+```json
+{
+  "manifest": {
+    "version": 1,
+    "jobId": 12,
+    "peerId": "office-pc",
+    "generatedAt": "2026-08-16T06:12:30.000Z",
+    "entries": [
+      {
+        "artifactId": "<sha256 of the rig-side path>",
+        "targetId": 3,
+        "fileName": "M31_Ha_master.fits",
+        "bytes": 4194304000,
+        "checksum": "<sha256 of the bytes>"
+      }
+    ],
+    "unavailable": []
+  },
+  "signature": {"algorithm": "hmac-sha256-token-v1", "value": "<hex>"}
+}
+```
+
+`signature` is an HMAC over the manifest's canonical (recursively key-sorted)
+JSON under a key derived from the calling token's digest, which a paired client
+re-derives from the token it holds. A server running with no token configured
+answers with `"signature": null` and a `signatureAbsentReason`; a client that
+authenticated with a token treats that as a refusal.
+
+`unavailable` lists files the job published that the rig cannot serve right
+now, each with the reason — an absence stated rather than an entry omitted.
+
+`404 unknown_delivery_peer` when no enabled peer destination carries that peer
+id.
+
+### GET /api/darkroom/delivery/artifact/{jobId}/{artifactId}?peer={peerId}
+
+The bytes. Answers `200` with `accept-ranges: bytes` and a strong `etag`,
+`206` with `content-range` for a satisfiable single range, and `416` with
+`content-range: bytes */N` for anything malformed, multi-range or out of
+bounds. `artifactId` comes from the manifest and resolves only through the
+journal rows this job published for this peer; a path used as an id is a `404`.
+
+### POST /api/darkroom/delivery/ack/{jobId}
+
+```json
+{"peerId": "office-pc", "artifactId": "<from the manifest>", "checksum": "<sha256>"}
+```
+
+Records that the file arrived and verified, which is what turns the rig's
+journal row from awaiting-pull into delivered — the rig served bytes, and only
+the puller knows they landed intact. `409 checksum_mismatch` when the
+acknowledged digest is not the one the rig's own copy hashes to.
+
 ## WebSocket Support
 
 ### WebSocket Connection

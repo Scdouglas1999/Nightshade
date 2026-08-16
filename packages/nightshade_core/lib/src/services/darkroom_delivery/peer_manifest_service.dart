@@ -1,0 +1,212 @@
+/// Builds the manifest a paired desktop pulls, and resolves the opaque ids in
+/// it back to files on the rig.
+///
+/// The publication is the set of `delivery_journal` rows a peer destination
+/// holds for one job. Everything the desktop is allowed to fetch is in those
+/// rows, so an id that resolves to nothing is a request for a file this job
+/// never published — refused, rather than reached for on disk.
+///
+/// Sizes and checksums are read at manifest time rather than recalled from the
+/// journal. The journal records a checksum only once a file has ARRIVED, and a
+/// peer file has not arrived until the desktop pulls it; describing the bytes
+/// as they are right now also means the manifest agrees with whatever the
+/// download endpoint is about to serve. The cost is one pass over the
+/// published files per manifest request, which is why a desktop asks for a
+/// manifest once per job rather than polling it.
+library;
+
+import '../../database/daos/delivery_journal_dao.dart';
+import '../../database/daos/delivery_targets_dao.dart';
+import '../../models/darkroom/delivery.dart';
+import 'delivery_artifact.dart';
+import 'delivery_failure.dart';
+import 'delivery_manifest.dart';
+import 'peer_publication_transport.dart';
+
+/// No enabled peer destination on this rig answers to the requested peer id.
+class UnknownDeliveryPeerException implements Exception {
+  /// The peer id the caller asked as.
+  final String peerId;
+
+  const UnknownDeliveryPeerException(this.peerId);
+
+  @override
+  String toString() =>
+      'No enabled peer delivery destination is configured for "$peerId"';
+}
+
+/// One published file, resolved from a manifest id.
+class PublishedArtifact {
+  /// The `delivery_targets.id` that published it.
+  final int targetId;
+
+  /// The `darkroom_jobs.id` it belongs to.
+  final int jobId;
+
+  /// Absolute path on the rig.
+  final String filePath;
+
+  const PublishedArtifact({
+    required this.targetId,
+    required this.jobId,
+    required this.filePath,
+  });
+}
+
+/// Serves the peer-pull side of delivery.
+class PeerManifestService {
+  final DeliveryTargetsDao _targets;
+  final DeliveryJournalDao _journal;
+  final DateTime Function() _clock;
+
+  PeerManifestService({
+    required DeliveryTargetsDao targets,
+    required DeliveryJournalDao journal,
+    DateTime Function()? clock,
+  }) : _targets = targets,
+       _journal = journal,
+       _clock = clock ?? DateTime.now;
+
+  /// The manifest of everything [jobId] published for [peerId].
+  ///
+  /// Throws [UnknownDeliveryPeerException] when no enabled peer destination
+  /// carries that peer id — a manifest served to an unrecognised caller would
+  /// hand one desktop another desktop's night.
+  ///
+  /// A file a job published that is no longer on disk is left out and its
+  /// absence is what the desktop sees; the rig's own journal row still records
+  /// that it was published, so the morning report can still say the file is
+  /// owed.
+  Future<DeliveryManifest> buildManifest({
+    required int jobId,
+    required String peerId,
+  }) async {
+    final targetIds = await _peerTargetIds(peerId);
+    final entries = <DeliveryManifestEntry>[];
+    final unavailable = <UnavailableArtifact>[];
+    for (final row in await _journal.listForJob(jobId)) {
+      if (!targetIds.contains(row.targetId)) continue;
+      if (row.state == DeliveryAttemptState.failed) continue;
+      final DeliveryFile file;
+      try {
+        file = await DeliveryFile.describe(row.filePath);
+      } on DeliveryFailure catch (failure) {
+        // The published file is gone or unreadable on the rig. Listing it
+        // would promise the desktop a download that cannot be served, and
+        // leaving it out silently would read as a job that produced less.
+        unavailable.add(
+          UnavailableArtifact(
+            artifactId: artifactIdForPath(row.filePath),
+            reason: failure.journalText,
+          ),
+        );
+        continue;
+      }
+      entries.add(
+        DeliveryManifestEntry(
+          artifactId: artifactIdForPath(row.filePath),
+          targetId: row.targetId,
+          fileName: file.fileName,
+          bytes: file.bytes,
+          checksum: file.checksum,
+        ),
+      );
+    }
+    return DeliveryManifest(
+      jobId: jobId,
+      peerId: peerId,
+      generatedAt: _clock().toUtc(),
+      entries: entries,
+      unavailable: unavailable,
+    );
+  }
+
+  /// Resolve [artifactId] to the file it names, or null when this job
+  /// published nothing under that id for this peer.
+  Future<PublishedArtifact?> resolveArtifact({
+    required int jobId,
+    required String peerId,
+    required String artifactId,
+  }) async {
+    final targetIds = await _peerTargetIds(peerId);
+    for (final row in await _journal.listForJob(jobId)) {
+      if (!targetIds.contains(row.targetId)) continue;
+      if (artifactIdForPath(row.filePath) != artifactId) continue;
+      return PublishedArtifact(
+        targetId: row.targetId,
+        jobId: row.jobId,
+        filePath: row.filePath,
+      );
+    }
+    return null;
+  }
+
+  /// Record that a paired desktop pulled and verified one published file.
+  ///
+  /// This is what turns a peer row from published into delivered. The rig
+  /// cannot observe the arrival itself — it served bytes, which is not the
+  /// same as the bytes landing intact on the other machine — so the claim in
+  /// the morning report comes from the puller.
+  ///
+  /// Throws [UnknownDeliveryPeerException] when the caller is not a configured
+  /// peer, [DeliveryJournalMissingException] when this job published nothing
+  /// under that id for that peer, and [DeliveryFailure] with
+  /// [DeliveryFailureKind.checksumMismatch] when the acknowledged checksum is
+  /// not the one the manifest published, so a desktop cannot mark a corrupt
+  /// pull as delivered.
+  Future<DeliveryJournalEntry> acknowledgePull({
+    required int jobId,
+    required String peerId,
+    required String artifactId,
+    required String checksum,
+  }) async {
+    final artifact = await resolveArtifact(
+      jobId: jobId,
+      peerId: peerId,
+      artifactId: artifactId,
+    );
+    if (artifact == null) {
+      throw DeliveryJournalMissingException(0, jobId, artifactId);
+    }
+    final onRig = await DeliveryFile.describe(artifact.filePath);
+    if (onRig.checksum != checksum) {
+      throw DeliveryFailure(
+        DeliveryFailureKind.checksumMismatch,
+        'The pull of ${onRig.fileName} reported $checksum but the rig\'s copy '
+        'hashes to ${onRig.checksum}',
+      );
+    }
+    return _journal.markDelivered(
+      targetId: artifact.targetId,
+      jobId: artifact.jobId,
+      filePath: artifact.filePath,
+      checksum: checksum,
+      bytes: onRig.bytes,
+      now: _clock(),
+    );
+  }
+
+  Future<Set<int>> _peerTargetIds(String peerId) async {
+    final wanted = peerId.trim();
+    if (wanted.isEmpty) throw UnknownDeliveryPeerException(peerId);
+    final ids = <int>{};
+    for (final destination in await _targets.listEnabled()) {
+      if (destination.kind != ArtifactDestinationKind.peer) continue;
+      final id = destination.id;
+      if (id == null) continue;
+      final String configured;
+      try {
+        configured = PeerPublicationTransport.readPeerId(destination);
+      } on DeliveryFailure {
+        // A peer destination with no usable peerId answers to nobody. The
+        // delivery service reports that configuration failure when it tries to
+        // publish; here it simply matches no request, and one misconfigured
+        // destination does not deny another peer its manifest.
+        continue;
+      }
+      if (configured == wanted) ids.add(id);
+    }
+    if (ids.isEmpty) throw UnknownDeliveryPeerException(peerId);
+    return ids;
+  }
+}

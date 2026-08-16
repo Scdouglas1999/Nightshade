@@ -254,8 +254,7 @@ Future<void> apiSequencerUpdateCloudMotion({
       predictedClearSkyAz: predictedClearSkyAz,
     );
 
-/// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
-/// weather-safety verdict into the executor.
+/// Push the Dart-side weather-safety verdict into the executor.
 ///
 /// The in-sequencer `WeatherUnsafe` trigger keys off the hardware
 /// `safety_is_safe` poll only; a rig WITHOUT a hardware safety device never

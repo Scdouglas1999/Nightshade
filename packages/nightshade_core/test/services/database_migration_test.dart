@@ -705,10 +705,10 @@ CREATE TABLE captured_images (
     },
   );
 
-  test('fresh database is at schema 57 with stacked_results table', () async {
+  test('fresh database is at schema 58 with stacked_results table', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
-      expect(db.schemaVersion, equals(57));
+      expect(db.schemaVersion, equals(58));
 
       // v48 (Night Narrator): the narrator_events table must exist on a
       // fresh install (drift createAll) just like on the upgrade path.
@@ -750,6 +750,50 @@ CREATE TABLE captured_images (
           .toSet();
       expect(indexNames, contains('idx_stacked_results_session'));
       expect(indexNames, contains('idx_stacked_results_target'));
+
+      // v58 (7.0 Darkroom data layer): onCreate must raise the same four raw
+      // DDL tables the v57 -> v58 upgrade step adds, or a fresh install would
+      // run the Darkroom against a schema the upgrade path guarantees and the
+      // create path does not. Same table + index set asserted in
+      // migration_v57_to_v58_test.dart.
+      final darkroomTables = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN "
+            "('recipes', 'darkroom_jobs', 'delivery_targets', "
+            "'delivery_journal')",
+          )
+          .get();
+      expect(
+        darkroomTables.map((row) => row.data['name']).toSet(),
+        equals({
+          'recipes',
+          'darkroom_jobs',
+          'delivery_targets',
+          'delivery_journal',
+        }),
+        reason:
+            'onCreate must create the Darkroom tables for fresh installs '
+            '(7.0 Darkroom data layer v58).',
+      );
+      expect(
+        indexNames,
+        containsAll(<String>[
+          'idx_recipes_target',
+          'idx_recipes_session',
+          'idx_recipes_master',
+          'idx_recipes_parent',
+          'idx_recipes_base_master',
+          'idx_recipes_created',
+          'idx_darkroom_jobs_state',
+          'idx_darkroom_jobs_session',
+          'idx_darkroom_jobs_created',
+          'idx_delivery_targets_enabled',
+          'idx_delivery_targets_name',
+          'idx_delivery_journal_target',
+          'idx_delivery_journal_job',
+          'idx_delivery_journal_state',
+        ]),
+      );
     } finally {
       await db.close();
     }
@@ -780,7 +824,7 @@ CREATE TABLE captured_images (
           .customSelect('PRAGMA user_version')
           .getSingle();
       expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
-      expect(db.schemaVersion, equals(57));
+      expect(db.schemaVersion, equals(58));
 
       final tableRow = await db
           .customSelect(

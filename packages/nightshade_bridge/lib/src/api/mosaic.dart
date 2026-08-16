@@ -23,8 +23,6 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// stretched preview are written too.
 ///
 /// `args_json` is a [`StitchMosaicArgs`]; the result is a [`StitchMosaicResult`].
-/// Every failure (no panels, unreadable FITS, missing/degenerate WCS, oversized
-/// canvas, write failure) surfaces as `Err(String)` — never a silent partial
-/// mosaic.
+/// Every failure surfaces as `Err(String)` rather than a partial mosaic.
 Future<String> apiStitchMosaic({required String argsJson}) =>
     RustLib.instance.api.crateApiMosaicApiStitchMosaic(argsJson: argsJson);

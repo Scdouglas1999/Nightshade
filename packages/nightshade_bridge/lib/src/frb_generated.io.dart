@@ -8,6 +8,7 @@ import 'api/api_version.dart';
 import 'api/connection.dart';
 import 'api/connection/alpaca_connections.dart';
 import 'api/connection/ascom_connections.dart';
+import 'api/darkroom/entrypoints.dart';
 import 'api/devices/camera.dart';
 import 'api/devices/cover_calibrator.dart';
 import 'api/devices/dome.dart';
@@ -401,6 +402,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoverState dco_decode_cover_state(dynamic raw);
+
+  @protected
+  DarkroomPreview dco_decode_darkroom_preview(dynamic raw);
 
   @protected
   DebayerAlgorithmApi dco_decode_debayer_algorithm_api(dynamic raw);
@@ -1352,6 +1356,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoverState sse_decode_cover_state(SseDeserializer deserializer);
+
+  @protected
+  DarkroomPreview sse_decode_darkroom_preview(SseDeserializer deserializer);
 
   @protected
   DebayerAlgorithmApi sse_decode_debayer_algorithm_api(
@@ -3820,6 +3827,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     );
     wireObj.brightness = cst_encode_i_32(apiObj.brightness);
     wireObj.max_brightness = cst_encode_i_32(apiObj.maxBrightness);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_darkroom_preview(
+    DarkroomPreview apiObj,
+    wire_cst_darkroom_preview wireObj,
+  ) {
+    wireObj.width = cst_encode_u_32(apiObj.width);
+    wireObj.height = cst_encode_u_32(apiObj.height);
+    wireObj.is_color = cst_encode_bool(apiObj.isColor);
+    wireObj.rgba = cst_encode_list_prim_u_8_strict(apiObj.rgba);
+    wireObj.report_json = cst_encode_String(apiObj.reportJson);
   }
 
   @protected
@@ -7376,6 +7395,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_cover_state(CoverState self, SseSerializer serializer);
 
   @protected
+  void sse_encode_darkroom_preview(
+    DarkroomPreview self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_debayer_algorithm_api(
     DebayerAlgorithmApi self,
     SseSerializer serializer,
@@ -10496,6 +10521,162 @@ class RustLibWire implements BaseWire {
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               double,
               ffi.Pointer<ffi.Double>,
+            )
+          >();
+
+  void wire__crate__api__darkroom__entrypoints__api_darkroom_cancel(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__darkroom__entrypoints__api_darkroom_cancel(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_cancelPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_cancel',
+      );
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_cancel =
+      _wire__crate__api__darkroom__entrypoints__api_darkroom_cancelPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__darkroom__entrypoints__api_darkroom_registry(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__darkroom__entrypoints__api_darkroom_registry(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_registryPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_registry',
+      );
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_registry =
+      _wire__crate__api__darkroom__entrypoints__api_darkroom_registryPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__darkroom__entrypoints__api_darkroom_render_export(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> recipe_json,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__darkroom__entrypoints__api_darkroom_render_export(
+      port_,
+      recipe_json,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_render_exportPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_export',
+      );
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_render_export =
+      _wire__crate__api__darkroom__entrypoints__api_darkroom_render_exportPtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            )
+          >();
+
+  void wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> recipe_json,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> context_json,
+  ) {
+    return _wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview(
+      port_,
+      recipe_json,
+      context_json,
+    );
+  }
+
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_render_previewPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview',
+      );
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview =
+      _wire__crate__api__darkroom__entrypoints__api_darkroom_render_previewPtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            )
+          >();
+
+  void wire__crate__api__darkroom__entrypoints__api_darkroom_validate(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> recipe_json,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> context_json,
+  ) {
+    return _wire__crate__api__darkroom__entrypoints__api_darkroom_validate(
+      port_,
+      recipe_json,
+      context_json,
+    );
+  }
+
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_validatePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_validate',
+      );
+  late final _wire__crate__api__darkroom__entrypoints__api_darkroom_validate =
+      _wire__crate__api__darkroom__entrypoints__api_darkroom_validatePtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             )
           >();
 
@@ -14396,6 +14577,33 @@ class RustLibWire implements BaseWire {
             WireSyncRust2DartDco Function(
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             )
+          >();
+
+  void wire__crate__api__post_session__entrypoints__api_post_session_cancel(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__post_session__entrypoints__api_post_session_cancel(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__post_session__entrypoints__api_post_session_cancelPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_post_session_cancel',
+      );
+  late final _wire__crate__api__post_session__entrypoints__api_post_session_cancel =
+      _wire__crate__api__post_session__entrypoints__api_post_session_cancelPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
           >();
 
   void wire__crate__api__imaging__api_read_fits_file(
@@ -23472,6 +23680,21 @@ final class wire_cst_cover_calibrator_status extends ffi.Struct {
   external int max_brightness;
 }
 
+final class wire_cst_darkroom_preview extends ffi.Struct {
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  @ffi.Bool()
+  external bool is_color;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> rgba;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> report_json;
+}
+
 final class wire_cst_device_api_version extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id;
 
@@ -24629,6 +24852,8 @@ final class wire_cst_xisf_read_result extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_record_string_string> properties;
 }
+
+const int SENSOR_TYPE_RGGB = 2;
 
 const int DEFAULT_EVENT_BUFFER_SIZE = 4096;
 

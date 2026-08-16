@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../localization/nightshade_localizations.dart';
 import 'catalog_settings_screen.dart';
+import 'delivery_settings.dart';
 import 'equipment_profiles_screen.dart';
 import 'settings_search_index.g.dart';
 import 'integrations_settings.dart';
@@ -662,6 +663,24 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
           build: (isMobile) => CapturedImagesSettings(isMobile: isMobile),
         ),
         SettingsSectionDef(
+          key: 'delivery',
+          label: 'Delivery',
+          icon: LucideIcons.send,
+          keywords: const [
+            'delivery',
+            'destination',
+            'watched folder',
+            'sftp',
+            'nas',
+            'copy',
+            'artifacts',
+            'masters',
+            'peer',
+            'pull',
+          ],
+          build: (isMobile) => DeliverySettings(isMobile: isMobile),
+        ),
+        SettingsSectionDef(
           key: 'replay-debug',
           label: t('settingsReplayDebug'),
           icon: LucideIcons.bug,
@@ -811,6 +830,7 @@ const List<List<String>> _structuralGroups = [
     'rig-catalogs',
     'captured-images',
     'focus-model',
+    'delivery',
     'replay-debug',
   ],
 ];

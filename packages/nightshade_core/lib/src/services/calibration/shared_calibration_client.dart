@@ -213,8 +213,12 @@ class SharedCalibrationClient {
     final query = <String, String>{
       if (context.cameraId != null && context.cameraId!.trim().isNotEmpty)
         'camera': context.cameraId!.trim(),
-      'gain': '${context.gain}',
-      'offset': '${context.offset}',
+      // A gain/offset the lights never recorded is omitted rather than sent as
+      // 0: the hub would otherwise return the gain-0 shelf as if that were what
+      // was asked for. Omitted, the hub's coarse set stays unnarrowed on that
+      // dimension and the local re-score reports it unverified.
+      if (context.gain != null) 'gain': '${context.gain}',
+      if (context.offset != null) 'offset': '${context.offset}',
       'binX': '${context.binX}',
       'binY': '${context.binY}',
       'limit': '$limit',

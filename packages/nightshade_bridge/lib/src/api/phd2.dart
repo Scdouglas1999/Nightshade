@@ -234,11 +234,10 @@ Future<BuiltinGuiderConfig> apiBuiltinGuiderGetConfig() =>
 ///
 /// This is the bridged entry point for the `#[frb(ignore)]`
 /// `builtin_guider::get_tracked_stars_json` DTO: the built-in guider tracks up
-/// to `GUIDE_MAX_TRACKED_STARS` reference stars, but the PHD2-shaped aggregate
-/// `Phd2Status` only carries rms/snr/star_mass, so the per-star list never
-/// reached the Dart guider UI (its star-list panel rendered empty on real
-/// hardware). The host FFI backend calls this from `phd2GetStatus()` and decodes
-/// the JSON into `Phd2Status.trackedStars`.
+/// to `GUIDE_MAX_TRACKED_STARS` reference stars, and the PHD2-shaped aggregate
+/// `Phd2Status` carries only rms/snr/star_mass, so the per-star list reaches the
+/// Dart guider UI through this call. The host FFI backend calls it from
+/// `phd2GetStatus()` and decodes the JSON into `Phd2Status.trackedStars`.
 ///
 /// Returns `{"count":0,"stars":[]}` when the built-in guider is not the active
 /// guider or is not tracking (e.g. PHD2/external guiders), so it is always safe

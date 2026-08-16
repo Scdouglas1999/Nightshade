@@ -17,6 +17,11 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// [`IntegrateSessionResult`]. All failure modes (no subs, unreadable frame,
 /// no consistent geometry, write failure) surface as `Err(String)` — never a
 /// silent partial stack.
+///
+/// Passing a non-empty `runId` makes the run cancellable through
+/// [`api_post_session_cancel`]. A cancelled run returns `Err` carrying the JSON
+/// encoding of a [`CancelledOutcome`] (`{"kind":"cancelled", …}`) and writes no
+/// master — cancellation is never reported as a partial success.
 Future<String> apiIntegrateSession({required String argsJson}) => RustLib
     .instance
     .api
@@ -32,6 +37,10 @@ Future<String> apiIntegrateSession({required String argsJson}) => RustLib
 /// Returns a [`MasterAccumulateResult`]. The running accumulator state lives in
 /// the `.nsmaster` sidecar; the FITS is the shareable artifact written on
 /// `finalize` (and re-finalizable after more `add`s).
+///
+/// `add` accepts a `runId` and honours [`api_post_session_cancel`] the same way
+/// [`api_integrate_session`] does: a cancelled fold returns the encoded
+/// [`CancelledOutcome`] and leaves the sidecar untouched.
 Future<String> apiMasterAccumulate({required String argsJson}) => RustLib
     .instance
     .api
@@ -58,3 +67,26 @@ Future<String> apiSaveFitsMaster({required String argsJson}) => RustLib
     .instance
     .api
     .crateApiPostSessionEntrypointsApiSaveFitsMaster(argsJson: argsJson);
+
+/// Set, read, or drop the cancellation flag for a post-session run.
+///
+/// A post-session call is one synchronous FFI descent with no await point, so
+/// Dart cannot abort it — it can only ask the native loops to stop. `op` selects
+/// the operation, defaulting to `cancel`:
+///
+/// * `cancel` `{ runId }` — request cancellation. Honoured at the next stage
+///   boundary or frame, always before the master is written. A request for a run
+///   that has not started yet is **pre-armed**: safing can fire before the run
+///   reaches Rust, and the run then stops at its first check.
+/// * `status` `{ op: "status", runId }` — read whether the run is in flight and
+///   whether cancellation has been requested.
+/// * `clear`  `{ op: "clear", runId }` — drop a pre-armed cancellation. Refused
+///   for a run in flight, which would otherwise resurrect a stopped run.
+///
+/// `args_json` is a [`PostSessionCancelArgs`]; the result is a
+/// [`PostSessionCancelResult`]. A blank `runId`, an unknown `op`, or clearing a
+/// live run surface as `Err(String)`.
+Future<String> apiPostSessionCancel({required String argsJson}) => RustLib
+    .instance
+    .api
+    .crateApiPostSessionEntrypointsApiPostSessionCancel(argsJson: argsJson);

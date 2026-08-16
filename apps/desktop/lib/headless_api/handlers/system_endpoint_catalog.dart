@@ -419,6 +419,12 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/post-session/extract-background',
     'POST /api/post-session/combine-channels',
     'POST /api/post-session/master-accumulate',
+    // Darkroom peer delivery: the rig publishes a signed per-job manifest and
+    // the paired desktop pulls the bytes with Range/If-Range, then says what
+    // landed. Pull, not push — the protocol has no inbound artifact receiver.
+    'GET /api/darkroom/delivery/manifest/<jobId>',
+    'GET /api/darkroom/delivery/artifact/<jobId>/<artifactId>',
+    'POST /api/darkroom/delivery/ack/<jobId>',
     // Imaging / calibration host-compute helpers
     'GET /api/imaging/fits-dimensions',
     'GET /api/calibration/settings',

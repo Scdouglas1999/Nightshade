@@ -129,6 +129,7 @@ pub async fn api_invalidate_discovery_cache() {
 
 pub(crate) mod api_version;
 pub(crate) mod connection;
+pub mod darkroom;
 pub mod devices;
 pub mod diagnostics;
 pub mod difference_image;
@@ -158,6 +159,13 @@ pub(crate) mod storage;
 
 pub use api_version::*;
 pub use connection::*;
+// Re-exported by name, not by glob: `darkroom` and `post_session` both carry an
+// `entrypoints` submodule, and two globs re-exporting that name make it
+// ambiguous at the crate root.
+pub use darkroom::{
+    api_darkroom_cancel, api_darkroom_registry, api_darkroom_render_export,
+    api_darkroom_render_preview, api_darkroom_validate, DarkroomPreview,
+};
 pub use devices::*;
 pub use diagnostics::*;
 pub use difference_image::*;

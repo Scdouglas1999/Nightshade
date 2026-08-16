@@ -118,6 +118,7 @@ class MasterAccumulationService {
     required String label,
     IntegrationSettings settings = IntegrationSettings.defaults,
     String? biasPath,
+    String? runId,
   }) async {
     if (subs.isEmpty) {
       throw ArgumentError.value(subs, 'subs', 'must not be empty');
@@ -159,6 +160,10 @@ class MasterAccumulationService {
       'label': label,
       'calibration': calibration,
       'settings': settings.toBridgeSettings(),
+      // A fold started without a run id is not cancellable, and the native side
+      // says so rather than pretending. With one, `api_post_session_cancel`
+      // stops it at its next frame and the sidecar is left untouched.
+      if (runId != null && runId.isNotEmpty) 'runId': runId,
     });
 
     // Record each freshly-folded sub. The native add path either folds a sub or

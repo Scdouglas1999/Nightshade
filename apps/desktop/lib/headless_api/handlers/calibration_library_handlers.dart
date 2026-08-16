@@ -135,9 +135,16 @@ class CalibrationLibraryHandlers {
   }
 
   /// POST /api/calibration-library/match — preview the auto-selection for a
-  /// light-frame context. Body: `{gain, offset, exposureSeconds, temperature?,
-  /// filter?, binX?, binY?, cameraId?, opticalTrainId?, sensorWidth?,
-  /// sensorHeight?}`.
+  /// light-frame context. Body: `{exposureSeconds, gain?, offset?,
+  /// temperature?, filter?, binX?, binY?, cameraId?, opticalTrainId?,
+  /// sensorWidth?, sensorHeight?}`.
+  ///
+  /// `gain` and `offset` are optional because a caller's own capture metadata
+  /// may not carry them (`captured_images.gain`/`.offset` are nullable). An
+  /// omitted one is passed to the matcher as UNKNOWN, which drops that
+  /// dimension from the comparison and marks the pick unverified on it — the
+  /// alternative, defaulting to 0, would silently match the caller's lights
+  /// against a gain-0 library.
   ///
   /// `cameraId` and `sensorWidth`/`sensorHeight` feed the quality gate: a
   /// REMOTE shared master is folded into the ranking only when it was shot on the
@@ -152,8 +159,8 @@ class CalibrationLibraryHandlers {
 
     final context = LightFrameContext(
       cameraId: optionalString(body, 'cameraId'),
-      gain: requireInt(body, 'gain'),
-      offset: requireInt(body, 'offset'),
+      gain: optionalInt(body, 'gain'),
+      offset: optionalInt(body, 'offset'),
       exposureSeconds: requireDouble(body, 'exposureSeconds', min: 0),
       temperature: optionalDouble(body, 'temperature'),
       filter: optionalString(body, 'filter'),

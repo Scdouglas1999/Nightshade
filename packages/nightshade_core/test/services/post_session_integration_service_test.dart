@@ -411,12 +411,15 @@ void main() {
     await db.close();
   });
 
+  /// Inserts one accepted light sub. [gain] / [offset] accept null to model the
+  /// real nullable columns — a camera or driver that never reported them.
   Future<CapturedImage> insertSub({
     required String path,
     String? filter,
     double quality = 80.0,
     double hfr = 2.0,
-    int gain = 100,
+    int? gain = 100,
+    int? offset = 10,
     DateTime? capturedAt,
   }) async {
     final id = await db
@@ -429,7 +432,7 @@ void main() {
             exposureDuration: 120.0,
             capturedAt: capturedAt ?? DateTime(2026, 6, 7, 22),
             gain: Value(gain),
-            offset: const Value(10),
+            offset: Value(offset),
             binX: const Value(1),
             binY: const Value(1),
             filter: Value(filter),
@@ -562,6 +565,85 @@ void main() {
           seam.integrateCalls.single['calibration'] as Map<String, dynamic>;
       expect(calibration.containsKey('dark'), isFalse);
       expect(calibration.containsKey('flat'), isFalse);
+    },
+  );
+
+  test('a sub with no recorded gain still matches the library masters and the '
+      'outcome marks the dimension unverified', () async {
+    // Both masters were shot at gain 100 / offset 10. The sub carries no
+    // gain: comparing that against a fabricated 0 would have missed both and
+    // silently skipped dark + flat correction.
+    await darkLibrary.createMasterDarkEntryForTest(db);
+    await flatDao.addEntry(
+      filePath: '/cal/master_flat_L.fits',
+      filter: 'L',
+      gain: 100,
+      offset: 10,
+      binX: 1,
+      binY: 1,
+      temperature: -10.0,
+    );
+
+    final subs = [await insertSub(path: '/l/a.fits', filter: 'L', gain: null)];
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      outputFitsPathBuilder: (bucket) => '/out/$bucket.fits',
+    );
+
+    final calibration =
+        seam.integrateCalls.single['calibration'] as Map<String, dynamic>;
+    expect(calibration['dark'], '/cal/master_dark.fits');
+    expect(calibration['flat'], '/cal/master_flat_L.fits');
+
+    // The applied-masters account states the dimension it could not compare
+    // instead of reading like an exact match.
+    final warnings = outcomes.single.calibrationWarnings;
+    expect(
+      warnings.where((w) => w.contains('record no gain')),
+      hasLength(2),
+      reason: 'both the dark and the flat pick report the unverified gain',
+    );
+    expect(warnings.any((w) => w.contains('gain 0')), isFalse);
+
+    // …and it survives into stats_json, which the dawn autopilot and the
+    // morning report read back.
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    final stats = jsonDecode(master!.statsJson) as Map<String, dynamic>;
+    expect(
+      (stats['calibrationWarnings'] as List).cast<String>().any(
+        (w) => w.contains('record no gain'),
+      ),
+      isTrue,
+    );
+  });
+
+  test(
+    'a sub with no recorded gain does not match a master of another offset',
+    () async {
+      // The library's only dark is at offset 10; the sub records offset 99.
+      // The unknown gain drops out of the comparison, the recorded offset does
+      // not.
+      await darkLibrary.createMasterDarkEntryForTest(db);
+
+      final subs = [
+        await insertSub(path: '/l/a.fits', filter: 'L', gain: null, offset: 99),
+      ];
+      final outcomes = await service.integrate(
+        subs: subs,
+        settings: IntegrationSettings.defaults,
+        outputFitsPathBuilder: (bucket) => '/out/$bucket.fits',
+      );
+
+      final calibration =
+          seam.integrateCalls.single['calibration'] as Map<String, dynamic>;
+      expect(calibration.containsKey('dark'), isFalse);
+      expect(
+        outcomes.single.calibrationWarnings.any(
+          (w) => w.contains('No matching master dark'),
+        ),
+        isTrue,
+      );
     },
   );
 

@@ -10,6 +10,18 @@ import 'package:path/path.dart' as p;
 /// morning.
 const String kAutoIntegrateSettingKey = 'post_session.auto_integrate';
 
+/// App-settings key controlling whether the dawn autopilot's Darkroom pass runs
+/// after the masters exist: compose a first-draft recipe per master, render the
+/// draft, write the night report, deliver it, and send the morning message.
+///
+/// **Absent means on.** Automatic integration is already an explicit opt-in
+/// (`kAutoIntegrateSettingKey`), and the draft is the half of that opt-in the
+/// operator actually looks at in the morning; a rig that integrates all night
+/// and then declines to draft would be the surprising behaviour. Only the
+/// literal string `false` turns it off, so an unreadable value leaves the
+/// feature on rather than silently disabling the headline of the release.
+const String kDarkroomAutoDraftSettingKey = 'darkroom.auto_draft';
+
 /// Result of an auto-integration attempt, surfaced to the run-completion host so
 /// it can toast / notify the user.
 class AutoIntegrationResult {
@@ -25,11 +37,23 @@ class AutoIntegrationResult {
   /// True when the feature was enabled but processing failed.
   final bool failed;
 
+  /// What the Darkroom pass did with the masters this run produced, or null
+  /// when it did not run (the setting is off, or the integration produced
+  /// nothing to draft over).
+  final DawnJobOutcome? darkroom;
+
+  /// Why the Darkroom pass did not run, or null when it did. Stated so a run
+  /// that produced masters and no draft explains itself instead of looking
+  /// half-finished.
+  final String? darkroomSkippedReason;
+
   const AutoIntegrationResult({
     required this.ran,
     required this.message,
     this.masterId,
     this.failed = false,
+    this.darkroom,
+    this.darkroomSkippedReason,
   });
 
   static const AutoIntegrationResult disabled =
@@ -95,6 +119,16 @@ class AutoIntegrationService {
   AutoIntegrationService(this._ref);
 
   final Ref _ref;
+
+  /// The cancellation handle the native post-session pipeline knows this
+  /// session's integration by.
+  ///
+  /// Derived from the session id alone, so a handle raised from anywhere —
+  /// safing, a headless endpoint, another process's restart — names the same
+  /// run without holding a reference to this object. A run started without one
+  /// is not cancellable and the native side says so, which is why every
+  /// integrate and fold on this path carries it.
+  static String integrationRunIdFor(int sessionId) => 'post-session-$sessionId';
 
   /// Run auto-integration for [sessionId] when enabled. Returns
   /// [AutoIntegrationResult.disabled] when the setting is off or there is
@@ -179,6 +213,7 @@ class AutoIntegrationService {
                   subs: group,
                   label: DateTime.now().toIso8601String().split('T').first,
                   settings: settings,
+                  runId: integrationRunIdFor(sessionId),
                 );
         accumulatedSubs += result.framesAdded;
         accumulatedRejected += result.rejected;
@@ -209,6 +244,7 @@ class AutoIntegrationService {
                   settings: settings,
                   targetId: targetId,
                   targetName: targetName,
+                  runId: integrationRunIdFor(sessionId),
                   outputFitsPathBuilder: (filterBucket) {
                     final stamp = DateTime.now().millisecondsSinceEpoch;
                     final base = _safeName(targetName ?? 'session');
@@ -246,6 +282,12 @@ class AutoIntegrationService {
       );
     }
 
+    // The Darkroom pass owns the morning message when it runs: it knows what
+    // was drafted, what the calibration did and where the artifacts went, so a
+    // separate "master ready" push minutes earlier would be the same night
+    // announced twice.
+    final darkroom = await _runDarkroom(sessionId);
+
     await _afterSuccess(
       sessionId: sessionId,
       targetId: targetId,
@@ -253,17 +295,73 @@ class AutoIntegrationService {
       integrationSeconds: accumulatedSeconds + batchSeconds,
       framesKept: totalKept,
       framesRejected: totalRejected,
+      announce: darkroom.outcome == null,
     );
 
     return AutoIntegrationResult(
       ran: true,
       masterId: firstBatchMasterId,
+      darkroom: darkroom.outcome,
+      darkroomSkippedReason: darkroom.skippedReason,
       message: _summaryMessage(
         totalKept: totalKept,
         batchMasters: batchMasters,
         accumulatedInto: accumulatedInto,
+        darkroom: darkroom.outcome,
       ),
     );
+  }
+
+  /// Run the Darkroom pass for [sessionId], or state why it did not run.
+  ///
+  /// The pass never throws out of here: its own job row records every ending,
+  /// and a draft that could not be made must not undo masters that already
+  /// exist on disk.
+  Future<({DawnJobOutcome? outcome, String? skippedReason})> _runDarkroom(
+    int sessionId,
+  ) async {
+    final raw = await _ref
+        .read(settingsDaoProvider)
+        .getSetting(kDarkroomAutoDraftSettingKey);
+    if (raw == 'false') {
+      return (
+        outcome: null,
+        skippedReason:
+            'The automatic Darkroom draft is switched off, so tonight\'s '
+            'masters were integrated without one.',
+      );
+    }
+    try {
+      final outcome =
+          await _ref.read(dawnAutopilotServiceProvider).runDawnForSession(
+                sessionId,
+              );
+      return (outcome: outcome, skippedReason: null);
+    } catch (error) {
+      _ref.read(loggingServiceProvider).error(
+        'The Darkroom pass could not be started',
+        source: 'AutoIntegrationService',
+        fields: {'sessionId': sessionId, 'error': '$error'},
+      );
+      return (
+        outcome: null,
+        skippedReason:
+            'The Darkroom pass could not be started, so the masters exist '
+            'without a draft: $error',
+      );
+    }
+  }
+
+  /// Ask the Darkroom job [jobId] to stop.
+  ///
+  /// Exposed here because the run-completion host is where an operator's
+  /// "stop" reaches the dawn pipeline; the flag it raises is the engine's own
+  /// plus the autopilot's, so a render already inside Rust stops at its next
+  /// poll and the pipeline stops before the next master.
+  Future<void> cancelDarkroomJob(int jobId, {String? reason}) {
+    return _ref
+        .read(dawnAutopilotServiceProvider)
+        .requestCancel(jobId, reason: reason);
   }
 
   /// Build the run-completion toast covering BOTH paths: subs folded into
@@ -274,7 +372,13 @@ class AutoIntegrationService {
     required int totalKept,
     required int batchMasters,
     required List<String> accumulatedInto,
+    DawnJobOutcome? darkroom,
   }) {
+    final drafts = darkroom?.report?.draftsRendered;
+    if (drafts != null && drafts > 0) {
+      return 'Your image is ready — integrated $totalKept subs, '
+          '$drafts draft${drafts == 1 ? '' : 's'} ready in the Darkroom.';
+    }
     final parts = <String>[];
     if (batchMasters > 0) {
       parts.add('$batchMasters master${batchMasters == 1 ? '' : 's'}');
@@ -309,7 +413,13 @@ class AutoIntegrationService {
   ///  (a) compute + persist the Night Doctor report for [sessionId]
   ///      ([NightAnalysisService.computeReport]), and
   ///  (b) enqueue a "master ready" phone push
-  ///      (`Your TARGET master is ready — Hh Mm, +x% from culling`).
+  ///      (`Your TARGET master is ready — Hh Mm, +x% from culling`), only when
+  ///      [announce] is true.
+  ///
+  /// [announce] is false when the Darkroom pass ran: that pass sends the
+  /// morning message, which states everything this push does and adds what was
+  /// drafted, what the calibration did, and where the files went. Two messages
+  /// for one night is how an operator learns to ignore both.
   ///
   /// Any failure in either is swallowed (logged via the result is not possible
   /// here — this runs after the result is decided) so an unattended morning
@@ -321,6 +431,7 @@ class AutoIntegrationService {
     required double integrationSeconds,
     required int framesKept,
     required int framesRejected,
+    required bool announce,
   }) async {
     // (a) Night Doctor report. Best-effort: a reporting failure must never
     // sink the integration run.
@@ -334,6 +445,7 @@ class AutoIntegrationService {
     }
 
     // (b) "Master ready" push. Independently guarded from (a).
+    if (!announce) return;
     try {
       final body = _masterReadyBody(
         targetName: targetName,

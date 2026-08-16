@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1262008658;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -839265060;
 
 // Section: executor
 
@@ -1784,6 +1784,128 @@ fn wire__crate__api__sequencer__node_factory__api_create_warm_camera_node_impl(
                 )?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__darkroom__entrypoints__api_darkroom_cancel_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_darkroom_cancel",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::darkroom::entrypoints::api_darkroom_cancel(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__darkroom__entrypoints__api_darkroom_registry_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_darkroom_registry",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::darkroom::entrypoints::api_darkroom_registry(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__darkroom__entrypoints__api_darkroom_render_export_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    recipe_json: impl CstDecode<String>,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_darkroom_render_export",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_recipe_json = recipe_json.cst_decode();
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::darkroom::entrypoints::api_darkroom_render_export(
+                        api_recipe_json,
+                        api_args_json,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    recipe_json: impl CstDecode<String>,
+    context_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_darkroom_render_preview",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_recipe_json = recipe_json.cst_decode();
+            let api_context_json = context_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::darkroom::entrypoints::api_darkroom_render_preview(
+                        api_recipe_json,
+                        api_context_json,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__darkroom__entrypoints__api_darkroom_validate_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    recipe_json: impl CstDecode<String>,
+    context_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_darkroom_validate",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_recipe_json = recipe_json.cst_decode();
+            let api_context_json = context_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::darkroom::entrypoints::api_darkroom_validate(
+                        api_recipe_json,
+                        api_context_json,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -5686,6 +5808,29 @@ fn wire__crate__api__plate_solve__api_platesolve_verify_impl(
                     crate::api::plate_solve::api_platesolve_verify(api_executable_path)?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__post_session__entrypoints__api_post_session_cancel_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_post_session_cancel",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::post_session::entrypoints::api_post_session_cancel(
+                        api_args_json,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -11011,6 +11156,24 @@ impl SseDecode for crate::device::CoverState {
     }
 }
 
+impl SseDecode for crate::api::darkroom::entrypoints::DarkroomPreview {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_width = <u32>::sse_decode(deserializer);
+        let mut var_height = <u32>::sse_decode(deserializer);
+        let mut var_isColor = <bool>::sse_decode(deserializer);
+        let mut var_rgba = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_reportJson = <String>::sse_decode(deserializer);
+        return crate::api::darkroom::entrypoints::DarkroomPreview {
+            width: var_width,
+            height: var_height,
+            is_color: var_isColor,
+            rgba: var_rgba,
+            report_json: var_reportJson,
+        };
+    }
+}
+
 impl SseDecode for crate::api::imaging::DebayerAlgorithmApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -15938,6 +16101,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::CoverState> for crate::dev
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::darkroom::entrypoints::DarkroomPreview {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.is_color.into_into_dart().into_dart(),
+            self.rgba.into_into_dart().into_dart(),
+            self.report_json.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::darkroom::entrypoints::DarkroomPreview
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::darkroom::entrypoints::DarkroomPreview>
+    for crate::api::darkroom::entrypoints::DarkroomPreview
+{
+    fn into_into_dart(self) -> crate::api::darkroom::entrypoints::DarkroomPreview {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::imaging::DebayerAlgorithmApi {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -19998,6 +20185,17 @@ impl SseEncode for crate::device::CoverState {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::darkroom::entrypoints::DarkroomPreview {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.width, serializer);
+        <u32>::sse_encode(self.height, serializer);
+        <bool>::sse_encode(self.is_color, serializer);
+        <Vec<u8>>::sse_encode(self.rgba, serializer);
+        <String>::sse_encode(self.report_json, serializer);
     }
 }
 
@@ -24200,6 +24398,18 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::darkroom::entrypoints::DarkroomPreview> for wire_cst_darkroom_preview {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::darkroom::entrypoints::DarkroomPreview {
+            crate::api::darkroom::entrypoints::DarkroomPreview {
+                width: self.width.cst_decode(),
+                height: self.height.cst_decode(),
+                is_color: self.is_color.cst_decode(),
+                rgba: self.rgba.cst_decode(),
+                report_json: self.report_json.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::imaging::DetectedStarInfo> for wire_cst_detected_star_info {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::imaging::DetectedStarInfo {
@@ -27217,6 +27427,22 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_darkroom_preview {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                width: Default::default(),
+                height: Default::default(),
+                is_color: Default::default(),
+                rgba: core::ptr::null_mut(),
+                report_json: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_darkroom_preview {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_detected_star_info {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -29748,6 +29974,61 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_cancel(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__darkroom__entrypoints__api_darkroom_cancel_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_registry(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__darkroom__entrypoints__api_darkroom_registry_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_export(
+        port_: i64,
+        recipe_json: *mut wire_cst_list_prim_u_8_strict,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__darkroom__entrypoints__api_darkroom_render_export_impl(
+            port_,
+            recipe_json,
+            args_json,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview(
+        port_: i64,
+        recipe_json: *mut wire_cst_list_prim_u_8_strict,
+        context_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview_impl(
+            port_,
+            recipe_json,
+            context_json,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_validate(
+        port_: i64,
+        recipe_json: *mut wire_cst_list_prim_u_8_strict,
+        context_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__darkroom__entrypoints__api_darkroom_validate_impl(
+            port_,
+            recipe_json,
+            context_json,
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_debayer_fits_file(
         port_: i64,
         file_path: *mut wire_cst_list_prim_u_8_strict,
@@ -31143,6 +31424,14 @@ mod io {
         executable_path: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
         wire__crate__api__plate_solve__api_platesolve_verify_impl(executable_path)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_post_session_cancel(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__post_session__entrypoints__api_post_session_cancel_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -34011,6 +34300,15 @@ mod io {
         calibrator_state: i32,
         brightness: i32,
         max_brightness: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_darkroom_preview {
+        width: u32,
+        height: u32,
+        is_color: bool,
+        rgba: *mut wire_cst_list_prim_u_8_strict,
+        report_json: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

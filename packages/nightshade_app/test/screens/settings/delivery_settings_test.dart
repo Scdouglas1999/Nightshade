@@ -1,0 +1,588 @@
+// Widget tests for the Delivery settings section (Darkroom Phase B, W4).
+//
+// What these lock in:
+//
+//   1. crud_round_trip — Add watched folder writes a real v58
+//      `delivery_targets` row (kind, config_json path, content_json selection,
+//      enabled), the list then renders it, editing renames it, and Delete
+//      removes it. The assertions read the DATABASE, not the widget tree, so a
+//      dialog that looks like it saved but writes nothing fails here.
+//   2. masked_secret_never_rendered — an SFTP destination whose key is in the
+//      keyring shows the masked placeholder and NEVER the key, in the list row
+//      and in the editor. This is the one leak that cannot be un-shipped.
+//   3. journal_states — every status sentence is derived from a
+//      `delivery_journal` row: delivered / will-retry / failed / awaiting a
+//      peer pull, plus the three honest not-delivering states (never run,
+//      nothing selected, off). A configured-but-never-run destination must not
+//      read as one that has delivered — the mock-push lesson.
+//   4. a11y_semantics — the per-destination switch and edit control publish
+//      names that say WHICH destination they act on.
+//
+// The database is the real in-memory `NightshadeDatabase` from the harness, so
+// the DAOs, the raw-DDL v58 tables and their CHECK constraints are all
+// exercised. The keyring is the in-memory `SecretsStore` double; the pairing
+// database is replaced by the `pairedDesktopReaderProvider` seam so no test
+// opens the on-disk pairing store.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/screens/settings/delivery_settings.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
+    show PairedDevice;
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../harness/harness.dart';
+
+/// Drops "overflowed" layout exceptions for the current test; re-forwards the
+/// rest to the default presenter. The delivery rows are multi-line and a long
+/// status sentence can spill a few pixels at the test surface size.
+void _swallowKnownOverflows() {
+  final defaultOnError = FlutterError.onError;
+  FlutterError.onError = (FlutterErrorDetails details) {
+    if (details.exceptionAsString().contains('overflowed')) return;
+    defaultOnError?.call(details);
+  };
+  addTearDown(() {
+    FlutterError.onError = defaultOnError;
+  });
+}
+
+List<Override> _overrides({
+  SecretsStore? secrets,
+  List<PairedDevice> pairedDevices = const <PairedDevice>[],
+}) {
+  return [
+    secretsStoreProvider.overrideWithValue(
+      secrets ?? SecretsStore(InMemorySecureKeyValueStore()),
+    ),
+    pairedDesktopReaderProvider.overrideWithValue(() async => pairedDevices),
+  ];
+}
+
+Future<HarnessHandle> _pumpDelivery(
+  WidgetTester tester,
+  NightshadeDatabase database, {
+  SecretsStore? secrets,
+  List<PairedDevice> pairedDevices = const <PairedDevice>[],
+}) {
+  return pumpAppScreen(
+    tester,
+    const DeliverySettings(),
+    database: database,
+    size: const Size(1280, 1400),
+    extraOverrides: _overrides(secrets: secrets, pairedDevices: pairedDevices),
+  );
+}
+
+Finder _dialogTextFields() => find.descendant(
+      of: find.byType(NightshadeDialog),
+      matching: find.byType(TextField),
+    );
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'crud_round_trip: adding a watched folder writes the v58 row, editing '
+    'renames it and deleting removes it',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+
+      await _pumpDelivery(tester, database);
+
+      expect(
+        find.text('No delivery destination'),
+        findsOneWidget,
+        reason: 'With no rows the card must say nothing is copied off this '
+            'machine.',
+      );
+
+      await tester.tap(find.text('Add watched folder'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(_dialogTextFields().at(0), 'nas');
+      await tester.enterText(_dialogTextFields().at(1), '/mnt/nas/nightshade');
+      // The four checkboxes follow the model's declaration order:
+      // linear masters, draft render, stage exports, night report.
+      await tester.tap(find.byType(NightshadeCheckbox).at(0));
+      await tester.tap(find.byType(NightshadeCheckbox).at(1));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      final created = await targets.listAll();
+      expect(created, hasLength(1));
+      expect(created.single.name, 'nas');
+      expect(created.single.kind, ArtifactDestinationKind.watchedFolder);
+      expect(created.single.enabled, isTrue);
+      expect(created.single.content, {
+        ArtifactContent.linearMasters,
+        ArtifactContent.draftRender,
+      });
+      expect(
+        decodeDestinationConfig(created.single.configJson)['path'],
+        '/mnt/nas/nightshade',
+      );
+      expect(
+        created.single.secretRef,
+        isNull,
+        reason: 'A watched folder needs no key material.',
+      );
+
+      expect(find.text('nas'), findsOneWidget);
+      expect(
+        find.textContaining('No delivery has run yet.'),
+        findsOneWidget,
+        reason:
+            'A destination that has never been delivered to must say so, not '
+            'imply it is delivering.',
+      );
+      expect(
+        find.textContaining('Sends Linear masters, Draft render'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('Edit nas'));
+      await tester.pumpAndSettle();
+      await tester.enterText(_dialogTextFields().at(0), 'office-nas');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      final renamed = await targets.listAll();
+      expect(renamed.single.name, 'office-nas');
+      expect(
+        decodeDestinationConfig(renamed.single.configJson)['path'],
+        '/mnt/nas/nightshade',
+        reason: 'A rename must not drop the transport config.',
+      );
+
+      await tester.tap(find.byTooltip('Edit office-nas'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      // ConfirmDialog's own destructive button.
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Delete').last);
+      await tester.pumpAndSettle();
+
+      expect(await targets.listAll(), isEmpty);
+      expect(find.text('No delivery destination'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'disabling_a_destination_persists_and_stops_claiming_delivery',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      await targets.create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.linearMasters},
+      );
+
+      await _pumpDelivery(tester, database);
+      expect(find.textContaining('No delivery has run yet.'), findsOneWidget);
+
+      await tester.tap(find.byType(NightshadeSwitch).first);
+      await tester.pumpAndSettle();
+
+      final stored = await targets.listAll();
+      expect(stored.single.enabled, isFalse);
+      expect(
+          find.textContaining('Off — nothing is sent here.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'masked_secret_never_rendered: the SFTP key is shown only as a masked '
+    'indicator, in the row and in the editor',
+    (tester) async {
+      _swallowKnownOverflows();
+      const privateKey = 'BEGIN-OPENSSH-PRIVATE-KEY-do-not-render-me';
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final id = await targets.create(
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.sftp,
+        configJson: '{"host":"office.local","port":22,"user":"sean",'
+            '"remoteDir":"/srv/astro/incoming"}',
+        content: {ArtifactContent.linearMasters},
+      );
+      final secrets = SecretsStore(InMemorySecureKeyValueStore());
+      await secrets.write(deliverySecretRef(id), privateKey);
+      await targets.update(id, secretRef: deliverySecretRef(id));
+
+      await _pumpDelivery(tester, database, secrets: secrets);
+
+      expect(find.textContaining(kDeliverySecretPlaceholder), findsOneWidget);
+      expect(
+        find.textContaining(privateKey),
+        findsNothing,
+        reason: 'The stored key must never reach the widget tree.',
+      );
+      expect(
+        find.textContaining('sean@office.local:22'),
+        findsOneWidget,
+        reason: 'The non-secret endpoint is what the row identifies.',
+      );
+
+      await tester.tap(find.byTooltip('Edit office-pc'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining(privateKey),
+        findsNothing,
+        reason: 'The editor pre-fills nothing from the keyring.',
+      );
+      expect(
+        find.textContaining(kDeliverySecretPlaceholder),
+        findsWidgets,
+        reason: 'The key field advertises the stored key as masked.',
+      );
+    },
+  );
+
+  testWidgets(
+    'journal_states: each status sentence is read out of delivery_journal',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final journal = DeliveryJournalDao(database);
+      final deliveredAt = DateTime.utc(2026, 8, 16, 6, 12);
+      // `delivery_journal.job_id` is a foreign key into `darkroom_jobs`, so
+      // the night's job has to exist before anything can be journaled against
+      // it.
+      final jobId = await DarkroomJobsDao(database).enqueue();
+
+      final happy = await targets.create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.linearMasters},
+      );
+      for (final file in const ['/out/L.fits', '/out/R.fits']) {
+        await journal.recordAttempt(
+          targetId: happy,
+          jobId: jobId,
+          filePath: file,
+          bytes: 1020054733,
+        );
+        await journal.markDelivered(
+          targetId: happy,
+          jobId: jobId,
+          filePath: file,
+          checksum: 'abc',
+          now: deliveredAt,
+        );
+      }
+
+      final unreachable = await targets.create(
+        name: 'attic-nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/attic"}',
+        content: {ArtifactContent.linearMasters},
+      );
+      await journal.recordAttempt(
+        targetId: unreachable,
+        jobId: jobId,
+        filePath: '/out/L.fits',
+      );
+      await journal.markRetrying(
+        targetId: unreachable,
+        jobId: jobId,
+        filePath: '/out/L.fits',
+        error: 'attic-nas is unreachable',
+      );
+
+      final broken = await targets.create(
+        name: 'usb-drive',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/usb"}',
+        content: {ArtifactContent.nightReport},
+      );
+      await journal.recordAttempt(
+        targetId: broken,
+        jobId: jobId,
+        filePath: '/out/report.txt',
+      );
+      await journal.markFailed(
+        targetId: broken,
+        jobId: jobId,
+        filePath: '/out/report.txt',
+        error: 'the drive filled up',
+      );
+
+      final peer = await targets.create(
+        name: 'desk',
+        kind: ArtifactDestinationKind.peer,
+        configJson: '{"peerId":"office-pc"}',
+        content: {ArtifactContent.draftRender},
+      );
+      await journal.recordAttempt(
+        targetId: peer,
+        jobId: jobId,
+        filePath: '/out/draft.jpg',
+        bytes: 2048,
+      );
+
+      await targets.create(
+        name: 'empty-selection',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nowhere"}',
+      );
+
+      await _pumpDelivery(
+        tester,
+        database,
+        pairedDevices: [
+          PairedDevice(
+            deviceId: 'office-pc',
+            deviceName: 'Office PC',
+            sessionToken: 'token',
+            pairedAt: DateTime.utc(2026, 8, 1),
+            lastConnectedAt: DateTime.utc(2026, 8, 15, 22),
+            deviceType: 'desktop',
+            isActive: true,
+            authGrantSpec: 'control',
+          ),
+        ],
+      );
+
+      expect(find.textContaining('Delivered '), findsOneWidget);
+      expect(find.textContaining('2 files, 1.9 GB'), findsOneWidget);
+      expect(
+        find.textContaining('attic-nas is unreachable — will retry'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('1 file of 1 file failed — the drive filled up'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('waiting for office-pc to pull'),
+        findsOneWidget,
+        reason:
+            'A published peer row is owed a PULL, not a retry — the journal '
+            'state is the same and the sentence must not be.',
+      );
+      expect(find.textContaining('Pairing: Office PC'), findsOneWidget);
+      expect(
+        find.textContaining('Nothing selected'),
+        findsOneWidget,
+        reason:
+            'A destination with no content selected receives nothing and must '
+            'say so.',
+      );
+    },
+  );
+
+  testWidgets(
+    'peer_without_pairing_says_nothing_can_pull',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'desk',
+        kind: ArtifactDestinationKind.peer,
+        configJson: '{"peerId":"office-pc"}',
+        content: {ArtifactContent.draftRender},
+      );
+
+      await _pumpDelivery(tester, database);
+
+      expect(find.text('Paired desktop pulls'), findsWidgets);
+      expect(
+        find.textContaining('no active pairing answers to "office-pc"'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'sftp_without_a_key_refuses_to_look_configured',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.sftp,
+        configJson: '{"host":"office.local","port":22,"user":"sean",'
+            '"remoteDir":"/srv/astro"}',
+        content: {ArtifactContent.linearMasters},
+      );
+
+      await _pumpDelivery(tester, database);
+
+      expect(
+        find.textContaining('No key in the keyring'),
+        findsOneWidget,
+        reason:
+            'Without a key SSH cannot authenticate, so the row must not read '
+            'as ready.',
+      );
+      expect(find.textContaining('SSH key: none stored'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'mobile_layout_does_not_overflow: a long remote path is clipped inside '
+    'the card, not painted past its edge',
+    (tester) async {
+      // Deliberately NOT swallowing overflow errors: this test exists to fail
+      // when a destination row paints outside its card on a phone.
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'observatory-nas-in-the-garden-shed',
+        kind: ArtifactDestinationKind.sftp,
+        configJson: '{"host":"observatory.longer.example.internal","port":2222,'
+            '"user":"astrophotographer",'
+            '"remoteDir":"/srv/astro/incoming/nightshade/masters/2026"}',
+        content: ArtifactContent.values.toSet(),
+      );
+
+      await pumpAppScreen(
+        tester,
+        const DeliverySettings(isMobile: true),
+        database: database,
+        size: const Size(360, 740),
+        extraOverrides: _overrides(),
+      );
+
+      expect(find.text('observatory-nas-in-the-garden-shed'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'sftp_key_goes_to_the_keyring_and_never_into_config_json',
+    (tester) async {
+      _swallowKnownOverflows();
+      const privateKey = 'BEGIN-OPENSSH-PRIVATE-KEY-keyring-only';
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final secrets = SecretsStore(InMemorySecureKeyValueStore());
+
+      await _pumpDelivery(tester, database, secrets: secrets);
+      await tester.tap(find.text('Add SFTP destination'));
+      await tester.pumpAndSettle();
+
+      // Name, Host, Port, User, Remote directory, Private key.
+      await tester.enterText(_dialogTextFields().at(0), 'office-pc');
+      await tester.enterText(_dialogTextFields().at(1), 'office.local');
+      await tester.enterText(_dialogTextFields().at(3), 'sean');
+      await tester.enterText(_dialogTextFields().at(4), '/srv/astro');
+      await tester.enterText(_dialogTextFields().at(5), privateKey);
+      await tester.tap(find.byType(NightshadeCheckbox).at(0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      final stored = await targets.listAll();
+      expect(stored, hasLength(1));
+      final secretRef = stored.single.secretRef;
+      expect(secretRef, isNotNull);
+      expect(await secrets.read(secretRef!), privateKey);
+      expect(
+        stored.single.configJson.contains(privateKey),
+        isFalse,
+        reason:
+            'config_json rides export and backup, so key material must never '
+            'be written there.',
+      );
+      // The v58 guard the DAO applies on every write, restated here so a
+      // future editor field that smuggles a credential fails this test.
+      assertNoSecretsInConfig(stored.single.configJson);
+
+      await tester.tap(find.byTooltip('Edit office-pc'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove stored key'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      final cleared = await targets.listAll();
+      expect(cleared.single.secretRef, isNull);
+      expect(await secrets.has(secretRef), isFalse);
+      expect(find.textContaining('No key in the keyring'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a11y_semantics: the per-destination controls name the destination they '
+    'act on',
+    (tester) async {
+      _swallowKnownOverflows();
+      final semantics = tester.ensureSemantics();
+
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.linearMasters},
+      );
+
+      await _pumpDelivery(tester, database);
+
+      expect(find.bySemanticsLabel(RegExp('Deliver to nas')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Edit nas')), findsOneWidget);
+
+      // Disposed inside the body: the framework verifies no handle is live
+      // before `addTearDown` callbacks run.
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'remote_mode_refuses_to_show_this_device_rows_as_the_hosts',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'local-only',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/local"}',
+        content: {ArtifactContent.linearMasters},
+      );
+
+      await pumpAppScreen(
+        tester,
+        const DeliverySettings(),
+        database: database,
+        size: const Size(1280, 1000),
+        extraOverrides: [
+          ..._overrides(),
+          isRemoteModeProvider.overrideWithValue(true),
+        ],
+      );
+
+      expect(
+        find.text('Delivery destinations live on the imaging host'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('local-only'),
+        findsNothing,
+        reason: 'This device\'s own rows are not the host\'s and must not be '
+            'presented as them.',
+      );
+    },
+  );
+}

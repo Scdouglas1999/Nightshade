@@ -259,6 +259,14 @@ class CalibrationLibraryService {
   ///    also warns.
   ///  * **Defect maps**: per camera id; nearest temperature bucket.
   ///
+  /// A gain / offset the CONTEXT does not carry ([LightFrameContext.gain] /
+  /// [LightFrameContext.offset] null — the lights' capture metadata never
+  /// recorded it) is not compared at all: matching proceeds on the remaining
+  /// dimensions, the pick's `reasons` name the dimension as UNVERIFIED and its
+  /// `warnings` say the master was chosen without it. No substitute value is
+  /// invented, so a metadata-less sub can neither silently draw the masters of
+  /// a gain-0 library nor spuriously fail every candidate.
+  ///
   /// When a shared calibration library is configured ([_remoteLibrary]) and
   /// [includeRemote] is set, ranked remote candidates join the same per-type
   /// ranking, local-first on an exact tuple tie. The chosen master's provenance
@@ -324,9 +332,9 @@ class CalibrationLibraryService {
     );
     if (dark == null) {
       setWarnings.add(
-        'No matching master dark (gain ${context.gain}, offset '
-        '${context.offset}, bin ${context.binX}x${context.binY}, '
-        '${_fmtSecs(context.exposureSeconds)}) — dark subtraction will be '
+        'No matching master dark (gain ${context.gain ?? 'unrecorded'}, offset '
+        '${context.offset ?? 'unrecorded'}, bin ${context.binX}x${context.binY}'
+        ', ${_fmtSecs(context.exposureSeconds)}) — dark subtraction will be '
         'skipped.',
       );
     }
@@ -348,9 +356,9 @@ class CalibrationLibraryService {
           ? ''
           : ' for filter ${context.filter!.trim()}';
       setWarnings.add(
-        'No matching master flat$filterPart (gain ${context.gain}, bin '
-        '${context.binX}x${context.binY}) — flat-field correction will be '
-        'skipped.',
+        'No matching master flat$filterPart (gain '
+        '${context.gain ?? 'unrecorded'}, bin ${context.binX}x${context.binY}) '
+        '— flat-field correction will be skipped.',
       );
     }
 

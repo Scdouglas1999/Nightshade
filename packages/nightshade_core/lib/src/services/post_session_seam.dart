@@ -534,6 +534,18 @@ class IntegrateSessionResult {
   final int channels;
   final List<PerFrameRecord> perFrameStats;
 
+  /// The applied-masters calibration report the native side built from the
+  /// files themselves: one entry per dark / flat / bias slot with its match
+  /// quality, the dimensions that differ, the dimensions nothing could compare,
+  /// and the staleness term. Null for a master integrated by a build that did
+  /// not write one.
+  ///
+  /// Carried opaquely because the shape is the native
+  /// `CalibrationReport`'s, and it is persisted verbatim into
+  /// `integrated_masters.stats_json` so the morning report reads the same
+  /// account after a restart that it would have read at integration time.
+  final Map<String, dynamic>? calibration;
+
   const IntegrateSessionResult({
     required this.masterFitsPath,
     required this.previewPath,
@@ -549,6 +561,7 @@ class IntegrateSessionResult {
     required this.height,
     required this.channels,
     required this.perFrameStats,
+    this.calibration,
   });
 
   factory IntegrateSessionResult.fromJson(Map<String, dynamic> json) {
@@ -572,6 +585,9 @@ class IntegrateSessionResult {
       height: (json['height'] as num?)?.toInt() ?? 0,
       channels: (json['channels'] as num?)?.toInt() ?? 1,
       perFrameStats: frames,
+      calibration: json['calibration'] is Map<String, dynamic>
+          ? json['calibration'] as Map<String, dynamic>
+          : null,
     );
   }
 }

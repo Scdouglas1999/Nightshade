@@ -393,6 +393,7 @@ class HeadlessApiServer {
   // JobManager-backed: each long-running compute op returns {jobId} and runs in
   // the background on the host's FFI pipeline.
   late final PostSessionHandlers _postSessionHandlers;
+  late final DarkroomDeliveryHandlers _darkroomDeliveryHandlers;
 
   // Run-Watch (phone/tablet monitoring).
   // The handler exposes /api/run-watch/{snapshot,frame-thumbnail,events}.

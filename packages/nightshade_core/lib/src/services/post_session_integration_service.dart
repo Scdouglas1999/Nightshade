@@ -106,6 +106,7 @@ class PostSessionIntegrationService {
     bool generatePreview = true,
     double? hintRaHours,
     double? hintDecDegrees,
+    String? runId,
   }) async {
     if (subs.isEmpty) {
       throw ArgumentError.value(subs, 'subs', 'must not be empty');
@@ -152,6 +153,13 @@ class PostSessionIntegrationService {
         'exposuresSec': exposures,
         'calibration': calibration.toBridgeJson(),
         'settings': settings.toBridgeSettings(),
+        // A run started without a run id is not cancellable, and the native
+        // side says so rather than pretending. With one,
+        // `api_post_session_cancel` stops it at the next stage boundary and no
+        // master is written. Every filter group of one call shares the id, so
+        // one cancellation ends the night's integration rather than one group
+        // of it.
+        if (runId != null && runId.isNotEmpty) 'runId': runId,
         'output': {
           'masterFitsPath': masterFitsPath,
           if (previewPath != null) 'previewPngPath': previewPath,
@@ -170,6 +178,7 @@ class PostSessionIntegrationService {
         settings: settings,
         result: result,
         subs: groupSubs,
+        calibrationWarnings: calibration.warnings,
       );
 
       // Smart Morning Report extensions: the marginal-SNR improvement curve and

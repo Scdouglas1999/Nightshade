@@ -11,6 +11,8 @@
 // heavy orchestration services (accumulate + batch integrate) are faked so the
 // routing decision is observable without native code.
 
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,7 +25,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// and echoes a result reflecting the folded sub count. All other members throw
 /// (they are never reached on the auto-integration path under test).
 class _FakeAccumulationService implements MasterAccumulationService {
-  final List<({int masterId, List<DbCapturedImage> subs})> calls = [];
+  final List<({int masterId, List<DbCapturedImage> subs, String? runId})>
+      calls = [];
 
   @override
   Future<MasterAccumulateResult> addNight({
@@ -32,8 +35,9 @@ class _FakeAccumulationService implements MasterAccumulationService {
     required String label,
     IntegrationSettings settings = IntegrationSettings.defaults,
     String? biasPath,
+    String? runId,
   }) async {
-    calls.add((masterId: masterId, subs: subs));
+    calls.add((masterId: masterId, subs: subs, runId: runId));
     return MasterAccumulateResult(
       sidecarPath: '/sidecar_$masterId.nsmaster',
       masterPath: null,
@@ -58,6 +62,7 @@ class _FakeAccumulationService implements MasterAccumulationService {
 /// produces one outcome per filter bucket (mirroring the real fan-out).
 class _FakeIntegrationService implements PostSessionIntegrationService {
   final List<List<DbCapturedImage>> calls = [];
+  final List<String?> runIds = [];
 
   @override
   Future<List<PostSessionIntegrationOutcome>> integrate({
@@ -71,8 +76,10 @@ class _FakeIntegrationService implements PostSessionIntegrationService {
     bool generatePreview = true,
     double? hintRaHours,
     double? hintDecDegrees,
+    String? runId,
   }) async {
     calls.add(subs);
+    runIds.add(runId);
     // Group by trimmed filter, one outcome per bucket — the real service's
     // contract — so the caller's per-filter accounting is exercised honestly.
     final byBucket = <String, List<DbCapturedImage>>{};
@@ -109,6 +116,114 @@ class _FakeIntegrationService implements PostSessionIntegrationService {
       throw UnimplementedError('${invocation.memberName} not faked');
 }
 
+/// A Darkroom seam the stub autopilot never reaches. Present so the stub can be
+/// constructed; a call here is a test wiring error, not a runtime path.
+class _UnusedDarkroom implements DarkroomSeam {
+  const _UnusedDarkroom();
+
+  Never _unused(String call) =>
+      throw StateError('the stub autopilot reached the Darkroom seam ($call)');
+
+  @override
+  Future<Map<String, dynamic>> validate({
+    required String recipeJson,
+    required Map<String, dynamic> context,
+  }) async =>
+      _unused('validate');
+
+  @override
+  Future<DarkroomRenderedPreview> renderPreview({
+    required String recipeJson,
+    required Map<String, dynamic> context,
+  }) async =>
+      _unused('renderPreview');
+
+  @override
+  Future<Map<String, dynamic>> renderExport({
+    required String recipeJson,
+    required Map<String, dynamic> args,
+  }) async =>
+      _unused('renderExport');
+
+  @override
+  Future<Map<String, dynamic>> registry(Map<String, dynamic> args) async =>
+      _unused('registry');
+
+  @override
+  Future<Map<String, dynamic>> cancel(Map<String, dynamic> args) async =>
+      _unused('cancel');
+}
+
+class _UnusedNotifier implements DawnMorningNotifier {
+  const _UnusedNotifier();
+
+  @override
+  Future<DawnNotificationDecision> announce(DawnJobReport report) async =>
+      throw StateError('the stub autopilot reached the morning notifier');
+}
+
+class _UnusedTransport implements ArtifactTransport {
+  const _UnusedTransport();
+
+  @override
+  ArtifactDestinationKind get kind => ArtifactDestinationKind.watchedFolder;
+
+  @override
+  Future<void> open(List<DeliveryFile> artifacts) async =>
+      throw StateError('the stub autopilot reached delivery');
+
+  @override
+  Future<TransportDeliveryOutcome> deliver(DeliveryFile artifact) async =>
+      throw StateError('the stub autopilot reached delivery');
+
+  @override
+  Future<void> close() async {}
+}
+
+/// Records which sessions the run-completion path handed to the Darkroom pass.
+class _StubDawnAutopilot extends DawnAutopilotService {
+  _StubDawnAutopilot(NightshadeDatabase db)
+      : super(
+          jobs: DarkroomJobsDao(db),
+          recipes: RecipesDao(db),
+          masters: IntegratedMastersDao(db),
+          targets: TargetsDao(db),
+          resolver: DawnMasterResolver(
+            images: ImagesDao(db),
+            masters: IntegratedMastersDao(db),
+          ),
+          drafts: const DawnDraftBuilder(darkroom: _UnusedDarkroom()),
+          darkroom: const _UnusedDarkroom(),
+          photometry: DawnPhotometryResolver(
+            coneSearch: (centre, radius, {maxMagnitude}) async => const [],
+          ),
+          delivery: DeliveryService(
+            targets: DeliveryTargetsDao(db),
+            journal: DeliveryJournalDao(db),
+            transportFactory: (destination, jobId) => const _UnusedTransport(),
+          ),
+          notifier: const _UnusedNotifier(),
+          outputDirectory: _refuse,
+        );
+
+  static Future<String> _refuse() async =>
+      throw StateError('the stub autopilot resolved an output directory');
+
+  final List<int> sessions = [];
+
+  @override
+  Future<DawnJobOutcome> runDawnForSession(int sessionId) async {
+    sessions.add(sessionId);
+    return const DawnJobOutcome(
+      jobId: 7,
+      state: DarkroomJobState.done,
+      report: null,
+      reportPath: null,
+      failure: null,
+    );
+  }
+}
+
 class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
@@ -133,20 +248,31 @@ void main() {
   late NightshadeDatabase db;
   late _FakeAccumulationService accumulate;
   late _FakeIntegrationService integrate;
+  late _StubDawnAutopilot darkroom;
+  late PushNotificationService push;
+  late List<PushNotification> pushes;
+  late StreamSubscription<PushNotification> pushSubscription;
   late ProviderContainer container;
 
   setUp(() {
     db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     accumulate = _FakeAccumulationService();
     integrate = _FakeIntegrationService();
+    darkroom = _StubDawnAutopilot(db);
+    push = PushNotificationService();
+    pushes = <PushNotification>[];
+    pushSubscription = push.notifications.listen(pushes.add);
     container = ProviderContainer(overrides: [
       databaseProvider.overrideWithValue(db),
       masterAccumulationServiceProvider.overrideWithValue(accumulate),
       postSessionIntegrationServiceProvider.overrideWithValue(integrate),
+      dawnAutopilotServiceProvider.overrideWithValue(darkroom),
+      pushNotificationServiceProvider.overrideWithValue(push),
     ]);
   });
 
   tearDown(() async {
+    await pushSubscription.cancel();
     container.dispose();
     await db.close();
   });
@@ -383,6 +509,78 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(recording.calls, [20],
         reason: 'Stopped runs must not auto-integrate');
+  });
+
+  test('every native integration call carries the session\'s cancel handle',
+      () async {
+    await enableAutoIntegrate();
+    final sessionId = await insertSession();
+    final targetId = await insertTarget('M42');
+    final lMaster =
+        await insertAccumulatingMaster(targetId: targetId, filter: 'L');
+    await insertSub(sessionId: sessionId, targetId: targetId, filter: 'L');
+    await insertSub(sessionId: sessionId, targetId: targetId, filter: 'Ha');
+
+    await container
+        .read(autoIntegrationServiceProvider)
+        .maybeRunForSession(sessionId);
+
+    final handle = AutoIntegrationService.integrationRunIdFor(sessionId);
+    expect(accumulate.calls.single.masterId, lMaster);
+    expect(accumulate.calls.single.runId, handle);
+    expect(integrate.runIds, [handle],
+        reason: 'a run with no handle cannot be stopped by safing');
+  });
+
+  test(
+      'the run-completion path hands the night to the Darkroom pass, which '
+      'owns the morning message', () async {
+    await enableAutoIntegrate();
+    final sessionId = await insertSession();
+    final targetId = await insertTarget('M42');
+    await insertSub(sessionId: sessionId, targetId: targetId, filter: 'L');
+
+    final result = await container
+        .read(autoIntegrationServiceProvider)
+        .maybeRunForSession(sessionId);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(result.ran, isTrue);
+    expect(darkroom.sessions, [sessionId]);
+    expect(result.darkroom, isNotNull);
+    expect(result.darkroomSkippedReason, isNull);
+    expect(
+      pushes.where((p) => p.eventType == 'PostSessionMasterReady'),
+      isEmpty,
+      reason: 'the Darkroom pass sends the morning report, so the integration '
+          'half must not announce the same night a second time',
+    );
+  });
+
+  test('with the Darkroom draft switched off the run says so and still pushes',
+      () async {
+    await enableAutoIntegrate();
+    await db.settingsDao.setSetting(kDarkroomAutoDraftSettingKey, 'false');
+    final sessionId = await insertSession();
+    final targetId = await insertTarget('M42');
+    await insertSub(sessionId: sessionId, targetId: targetId, filter: 'L');
+
+    final result = await container
+        .read(autoIntegrationServiceProvider)
+        .maybeRunForSession(sessionId);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(result.ran, isTrue);
+    expect(darkroom.sessions, isEmpty);
+    expect(result.darkroom, isNull);
+    expect(result.darkroomSkippedReason, contains('switched off'));
+    expect(
+      pushes.where((p) => p.eventType == 'PostSessionMasterReady'),
+      hasLength(1),
+      reason:
+          'with no Darkroom pass to announce the night, the integration half '
+          'keeps its own push',
+    );
   });
 
   test('remote clients neither process local data nor store the host setting',

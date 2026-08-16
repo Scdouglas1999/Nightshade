@@ -16,15 +16,6 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 ///
 /// This function queries the actual device to determine what features it supports.
 /// The result varies by device type (camera, mount, focuser, filter wheel).
-///
-/// # Arguments
-/// * `device_id` - The full device ID string (e.g., "ascom:ASCOM.Camera.Simulator")
-///
-/// # Returns
-/// * `DeviceCapabilities` - An enum containing the appropriate capability struct
-///
-/// # Errors
-/// * Returns error if device type is unsupported or device cannot be queried
 Future<DeviceCapabilities> apiGetDeviceCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetDeviceCapabilities(
@@ -32,14 +23,6 @@ Future<DeviceCapabilities> apiGetDeviceCapabilities({
 );
 
 /// Get camera capabilities for a specific camera device.
-///
-/// This is a convenience wrapper that returns only camera capabilities.
-///
-/// # Arguments
-/// * `device_id` - The camera device ID
-///
-/// # Returns
-/// * `CameraCapabilities` - Camera-specific capability information
 Future<CameraCapabilities> apiGetCameraCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetCameraCapabilities(
@@ -47,28 +30,12 @@ Future<CameraCapabilities> apiGetCameraCapabilities({
 );
 
 /// Get mount capabilities for a specific mount device.
-///
-/// This is a convenience wrapper that returns only mount capabilities.
-///
-/// # Arguments
-/// * `device_id` - The mount/telescope device ID
-///
-/// # Returns
-/// * `MountCapabilities` - Mount-specific capability information
 Future<MountCapabilities> apiGetMountCapabilities({required String deviceId}) =>
     RustLib.instance.api.crateApiDiagnosticsApiGetMountCapabilities(
       deviceId: deviceId,
     );
 
 /// Get focuser capabilities for a specific focuser device.
-///
-/// This is a convenience wrapper that returns only focuser capabilities.
-///
-/// # Arguments
-/// * `device_id` - The focuser device ID
-///
-/// # Returns
-/// * `FocuserCapabilities` - Focuser-specific capability information
 Future<FocuserCapabilities> apiGetFocuserCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetFocuserCapabilities(
@@ -76,14 +43,6 @@ Future<FocuserCapabilities> apiGetFocuserCapabilities({
 );
 
 /// Get filter wheel capabilities for a specific filter wheel device.
-///
-/// This is a convenience wrapper that returns only filter wheel capabilities.
-///
-/// # Arguments
-/// * `device_id` - The filter wheel device ID
-///
-/// # Returns
-/// * `FilterWheelCapabilities` - Filter wheel-specific capability information
 Future<FilterWheelCapabilities> apiGetFilterwheelCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetFilterwheelCapabilities(
@@ -91,14 +50,6 @@ Future<FilterWheelCapabilities> apiGetFilterwheelCapabilities({
 );
 
 /// Get rotator capabilities for a specific rotator device.
-///
-/// This is a convenience wrapper that returns only rotator capabilities.
-///
-/// # Arguments
-/// * `device_id` - The rotator device ID
-///
-/// # Returns
-/// * `RotatorCapabilities` - Rotator-specific capability information
 Future<RotatorCapabilities> apiGetRotatorCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetRotatorCapabilities(
@@ -106,28 +57,12 @@ Future<RotatorCapabilities> apiGetRotatorCapabilities({
 );
 
 /// Get dome capabilities for a specific dome device.
-///
-/// This is a convenience wrapper that returns only dome capabilities.
-///
-/// # Arguments
-/// * `device_id` - The dome device ID
-///
-/// # Returns
-/// * `DomeCapabilities` - Dome-specific capability information
 Future<DomeCapabilities> apiGetDomeCapabilities({required String deviceId}) =>
     RustLib.instance.api.crateApiDiagnosticsApiGetDomeCapabilities(
       deviceId: deviceId,
     );
 
 /// Get cover calibrator capabilities for a specific cover calibrator device.
-///
-/// This is a convenience wrapper that returns only cover calibrator capabilities.
-///
-/// # Arguments
-/// * `device_id` - The cover calibrator device ID
-///
-/// # Returns
-/// * `CoverCalibratorCapabilities` - Cover calibrator-specific capability information
 Future<CoverCalibratorCapabilities> apiGetCoverCalibratorCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetCoverCalibratorCapabilities(
@@ -135,14 +70,6 @@ Future<CoverCalibratorCapabilities> apiGetCoverCalibratorCapabilities({
 );
 
 /// Get weather capabilities for a specific weather/observing conditions device.
-///
-/// This is a convenience wrapper that returns only weather capabilities.
-///
-/// # Arguments
-/// * `device_id` - The weather device ID
-///
-/// # Returns
-/// * `WeatherCapabilities` - Weather-specific capability information
 Future<WeatherCapabilities> apiGetWeatherCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetWeatherCapabilities(
@@ -150,14 +77,6 @@ Future<WeatherCapabilities> apiGetWeatherCapabilities({
 );
 
 /// Get safety monitor capabilities for a specific safety monitor device.
-///
-/// This is a convenience wrapper that returns only safety monitor capabilities.
-///
-/// # Arguments
-/// * `device_id` - The safety monitor device ID
-///
-/// # Returns
-/// * `SafetyMonitorCapabilities` - Safety monitor-specific capability information
 Future<SafetyMonitorCapabilities> apiGetSafetyMonitorCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetSafetyMonitorCapabilities(
@@ -165,14 +84,6 @@ Future<SafetyMonitorCapabilities> apiGetSafetyMonitorCapabilities({
 );
 
 /// Get switch capabilities for a specific switch device.
-///
-/// This is a convenience wrapper that returns only switch capabilities.
-///
-/// # Arguments
-/// * `device_id` - The switch device ID
-///
-/// # Returns
-/// * `SwitchCapabilities` - Switch-specific capability information
 Future<SwitchCapabilities> apiGetSwitchCapabilities({
   required String deviceId,
 }) => RustLib.instance.api.crateApiDiagnosticsApiGetSwitchCapabilities(
@@ -184,12 +95,6 @@ Future<SwitchCapabilities> apiGetSwitchCapabilities({
 /// Returns a list of known device characteristics and workarounds that are
 /// automatically applied. This information can be displayed in the equipment
 /// screen to inform users about device-specific behaviors.
-///
-/// # Arguments
-/// * `device_id` - The device identifier (e.g., "native:zwo:ASI294MC Pro")
-///
-/// # Returns
-/// * `Vec<QuirkInfo>` - List of quirks with categories and descriptions
 List<QuirkInfo> apiGetDeviceQuirks({required String deviceId}) => RustLib
     .instance
     .api
@@ -199,39 +104,17 @@ List<QuirkInfo> apiGetDeviceQuirks({required String deviceId}) => RustLib
 ///
 /// QHY discovery can be disabled if the QHY SDK causes crashes or hangs on the
 /// user's system. When disabled, QHY cameras will not appear in device discovery.
-///
-/// # Returns
-/// * `true` - QHY discovery is enabled (default)
-/// * `false` - QHY discovery is disabled
 bool apiIsQhyDiscoveryEnabled() =>
     RustLib.instance.api.crateApiDiagnosticsApiIsQhyDiscoveryEnabled();
 
-/// Enable or disable QHY camera discovery.
-///
-/// Use this function to disable QHY discovery if it causes problems:
-/// - SDK crashes during enumeration
-/// - Discovery hangs and never completes
-/// - Conflicts with other camera SDKs
-///
-/// When disabled:
-/// - `discover_devices()` returns empty for QHY cameras/filter wheels
-/// - Existing QHY camera connections are not affected
-/// - The setting persists for the session but resets on restart
-///
-/// # Arguments
-/// * `enabled` - Whether to enable QHY discovery
-///
-/// # Example Use Cases
-/// 1. Disable if QHY SDK not installed to speed up discovery
-/// 2. Disable if QHY SDK crashes on this system
-/// 3. Disable temporarily to troubleshoot conflicts
+/// Enable or disable QHY camera discovery, for systems where the QHY SDK crashes
+/// or hangs during enumeration. While disabled, `discover_devices()` returns no
+/// QHY cameras or filter wheels; existing QHY connections are unaffected. The
+/// setting lasts for the session and resets on restart.
 void apiSetQhyDiscoveryEnabled({required bool enabled}) => RustLib.instance.api
     .crateApiDiagnosticsApiSetQhyDiscoveryEnabled(enabled: enabled);
 
 /// Get information about QHY SDK availability and discovery status.
-///
-/// # Returns
-/// * `QhyDiscoveryStatus` - Status information about QHY discovery
 QhyDiscoveryStatus apiGetQhyDiscoveryStatus() =>
     RustLib.instance.api.crateApiDiagnosticsApiGetQhyDiscoveryStatus();
 

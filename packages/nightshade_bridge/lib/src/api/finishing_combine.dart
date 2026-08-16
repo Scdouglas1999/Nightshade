@@ -22,9 +22,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// per-pixel drizzle-weight map is written there too.
 ///
 /// `args_json` is a [`DrizzleIntegrateArgs`]; the result is a
-/// [`DrizzleIntegrateResult`]. Every failure (no frames, unreadable frame,
-/// missing Bayer header in Bayer mode, geometry mismatch, bad parameters, write
-/// failure) surfaces as `Err(String)` — never a silent partial stack.
+/// [`DrizzleIntegrateResult`]. Every failure surfaces as `Err(String)` rather
+/// than a partial stack.
 Future<String> apiDrizzleIntegrate({required String argsJson}) => RustLib
     .instance
     .api

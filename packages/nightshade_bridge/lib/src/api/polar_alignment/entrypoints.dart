@@ -34,21 +34,13 @@ Future<void> apiStopPolarAlignment() => RustLib.instance.api
 /// and the observer's geographic location it recovers the polar-axis
 /// azimuth and altitude error.
 ///
-/// # Arguments
-/// * `exposure_time` — exposure duration per frame, seconds.
-/// * `solve_timeout` — plate-solve timeout per frame, seconds.
-/// * `binning` — camera binning factor (1, 2, or 4 typical).
-/// * `is_north` — northern hemisphere observer flag.
-/// * `acceptance_threshold_arcsec` — alignment auto-completes when the
-///   total error stays below this for 3 seconds (default 30″ = good for
-///   ~3-minute unguided subs).
-/// * `iteration_cadence_secs` — re-solve cadence (default 3s).
-/// * `gain`, `offset` — optional camera parameters.
+/// Alignment auto-completes once the total error stays under
+/// `acceptance_threshold_arcsec` for 3 seconds; 30″ is the default and is good
+/// for ~3-minute unguided subs. `iteration_cadence_secs` defaults to 3 s.
 ///
-/// # Errors
-/// Returns `NightshadeError::OperationFailed` if a plate solver is not
-/// available (the user must install ASTAP), if no camera/mount is
-/// connected, or if the observer location is not configured.
+/// Fails with `NightshadeError::OperationFailed` when no plate solver is
+/// installed, no camera or mount is connected, or the observer location is not
+/// configured.
 Future<void> apiStartAllSkyPolarAlignment({
   required double exposureTime,
   required double solveTimeout,

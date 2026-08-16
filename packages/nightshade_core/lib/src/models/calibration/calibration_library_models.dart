@@ -347,8 +347,21 @@ class CalibrationLibraryFilter {
 /// Capture parameters of the light frames a calibration set is matched for.
 class LightFrameContext {
   final String? cameraId;
-  final int gain;
-  final int offset;
+
+  /// Sensor gain / read offset the lights were captured at, or null when the
+  /// capture metadata never recorded them (`captured_images.gain` and
+  /// `.offset` are both nullable, and a driver that does not report them
+  /// leaves the column empty).
+  ///
+  /// Both are HARD match requirements when known — a master shot at another
+  /// gain has a different dark-current scale, and one at another offset a
+  /// different read pedestal. When null the matcher cannot compare the
+  /// dimension at all: it drops out of the candidate filter, the pick reports
+  /// it as unverified, and no number is invented for it. Substituting 0 here
+  /// would either hand the lights the masters of a gain-0 library or reject
+  /// every candidate the camera actually produced.
+  final int? gain;
+  final int? offset;
   final double exposureSeconds;
   final double? temperature;
   final String? filter;
@@ -380,8 +393,11 @@ class LightFrameContext {
   factory LightFrameContext.fromJson(Map<String, dynamic> json) =>
       LightFrameContext(
         cameraId: json['cameraId'] as String?,
-        gain: (json['gain'] as num?)?.toInt() ?? 0,
-        offset: (json['offset'] as num?)?.toInt() ?? 0,
+        // An absent gain/offset stays absent across the wire: the sender is
+        // saying it does not know, and the matcher reports that dimension
+        // unverified rather than matching against a number nobody measured.
+        gain: (json['gain'] as num?)?.toInt(),
+        offset: (json['offset'] as num?)?.toInt(),
         exposureSeconds: (json['exposureSeconds'] as num?)?.toDouble() ?? 0.0,
         temperature: (json['temperature'] as num?)?.toDouble(),
         filter: json['filter'] as String?,
@@ -394,8 +410,8 @@ class LightFrameContext {
 
   Map<String, dynamic> toJson() => {
     if (cameraId != null) 'cameraId': cameraId,
-    'gain': gain,
-    'offset': offset,
+    if (gain != null) 'gain': gain,
+    if (offset != null) 'offset': offset,
     'exposureSeconds': exposureSeconds,
     if (temperature != null) 'temperature': temperature,
     if (filter != null) 'filter': filter,

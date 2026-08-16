@@ -9,6 +9,7 @@ extension _PostSessionIntegrationHelpers on PostSessionIntegrationService {
     required IntegrationSettings settings,
     required IntegrateSessionResult result,
     required List<CapturedImage> subs,
+    required List<String> calibrationWarnings,
   }) async {
     final name = _masterName(targetName: targetName, filter: filter);
     final masterId = await _mastersDao.insertMaster(
@@ -30,7 +31,7 @@ extension _PostSessionIntegrationHelpers on PostSessionIntegrationService {
       totalIntegrationSeconds: result.totalIntegrationSec,
       filter: filter,
       settingsJson: settings.toJsonString(),
-      statsJson: _statsJson(result),
+      statsJson: _statsJson(result, calibrationWarnings),
     );
 
     // Fold-record each sub, keyed by file path so the per-frame native stats map
@@ -58,13 +59,23 @@ extension _PostSessionIntegrationHelpers on PostSessionIntegrationService {
   }
 
   /// Resolve calibration masters for one filter group from the subs' shared
-  /// capture parameters (gain / exposure / temperature / binning / filter).
+  /// capture parameters (gain / offset / exposure / temperature / binning /
+  /// filter).
   ///
   /// The group's first sub anchors the match parameters; in practice a filter
   /// group from one session shares gain/binning. A dark match requires the
   /// library to hold a compatible master dark, and a flat match requires a
   /// registered master flat for the filter — both return null when absent
   /// (calibration is then skipped for that master type, never faked).
+  ///
+  /// The anchor's gain, offset and sensor temperature are all nullable columns:
+  /// a camera or driver that never reported one leaves it empty. Each is passed
+  /// through AS NULL rather than substituted, so the matcher compares the
+  /// dimensions the frames actually carry and reports the rest as unverified —
+  /// its warnings ride out on [ResolvedCalibration.warnings] into the outcome
+  /// and into `integrated_masters.stats_json`, where the dawn autopilot and the
+  /// morning report read the same account. Comparing an unrecorded gain against
+  /// 0 would instead quietly pick whatever a gain-0 library holds.
   ///
   /// Selection routes through [CalibrationLibraryService.match] so its scored
   /// picks and operator-facing warnings reach the outcome and the morning
@@ -75,21 +86,16 @@ extension _PostSessionIntegrationHelpers on PostSessionIntegrationService {
     required bool cosmeticCorrection,
   }) async {
     final anchor = subs.first;
-    final gain = anchor.gain ?? 0;
-    final offset = anchor.offset ?? 0;
-    final binX = anchor.binX;
-    final binY = anchor.binY;
-    final temperature = anchor.sensorTemp;
 
     final matchSet = await _calibrationLibrary.match(
       LightFrameContext(
-        gain: gain,
-        offset: offset,
+        gain: anchor.gain,
+        offset: anchor.offset,
         exposureSeconds: anchor.exposureDuration,
-        temperature: temperature,
+        temperature: anchor.sensorTemp,
         filter: anchor.filter,
-        binX: binX,
-        binY: binY,
+        binX: anchor.binX,
+        binY: anchor.binY,
       ),
       // The automated post-session pipeline can only apply a master that is
       // already on local disk: a REMOTE candidate's `filePath` is null until
@@ -180,12 +186,25 @@ extension _PostSessionIntegrationHelpers on PostSessionIntegrationService {
     return base;
   }
 
-  String _statsJson(IntegrateSessionResult result) {
-    return '{'
-        '"framesIntegrated":${result.framesIntegrated},'
-        '"framesRejected":${result.framesRejected},'
-        '"rmsResidual":${result.rmsResidual},'
-        '"totalIntegrationSec":${result.totalIntegrationSec}'
-        '}';
+  /// The `integrated_masters.stats_json` payload.
+  ///
+  /// It carries the native applied-masters report verbatim alongside the frame
+  /// counts, because the report is otherwise only in the master's FITS header
+  /// and in a native result that does not survive the call. The dawn autopilot
+  /// reads it back from this column, so a job re-queued after a crash states
+  /// the same calibration account the first attempt would have.
+  String _statsJson(
+    IntegrateSessionResult result,
+    List<String> calibrationWarnings,
+  ) {
+    return jsonEncode({
+      'framesIntegrated': result.framesIntegrated,
+      'framesRejected': result.framesRejected,
+      'rmsResidual': result.rmsResidual,
+      'totalIntegrationSec': result.totalIntegrationSec,
+      if (result.calibration != null) 'calibration': result.calibration,
+      if (calibrationWarnings.isNotEmpty)
+        'calibrationWarnings': calibrationWarnings,
+    });
   }
 }

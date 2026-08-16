@@ -244,6 +244,19 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Maximum temperature difference for dark matching',
     'Temperature tolerance',
   ],
+  'delivery': [
+    'Delivery',
+    'Delivery destinations',
+    'Folder',
+    'Host',
+    'Name',
+    'Paired desktop pulls',
+    'Peer id',
+    'Port',
+    'Private key',
+    'Remote directory',
+    'User',
+  ],
   'equipment-profiles': [
     'Camera Defaults',
     'Device Assignments',
@@ -384,7 +397,6 @@ const Map<String, List<String>> kSettingsSearchTerms = {
   ],
   'logs': [
     'Entries on screen',
-    'Every retained log file — about',
     'Full history',
   ],
   'notifications': [

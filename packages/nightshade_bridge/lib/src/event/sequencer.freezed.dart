@@ -496,8 +496,7 @@ class SequencerEvent_Stopped extends SequencerEvent {
 
 /// The run this terminal belongs to, when the publisher knows it.
 /// Episode identity for the dashboard's stop fold: without it a
-/// bare terminal and a neighbouring press are indistinguishable
-/// (Wave K refutation K2).
+/// bare terminal and a neighbouring press are indistinguishable.
  final  PlatformInt64? sequenceRunId;
 
 /// Create a copy of SequencerEvent
