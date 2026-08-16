@@ -390,7 +390,7 @@ jobs:
       - name: Build Rust native bridge (release)
         run: cargo build --locked --release --manifest-path native/nightshade_native/bridge/Cargo.toml
 
-      # SEC-001: bake the trusted OTA public key into the binary. Empty secret
+      # Bake the trusted OTA public key into the binary. Empty secret
       # -> empty define -> runtime OTA stays fail-closed-disabled; the build
       # still succeeds (unsigned beta).
       - name: Build Flutter Windows app (release)

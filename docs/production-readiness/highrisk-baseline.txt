@@ -6,7 +6,9 @@ apps/desktop/lib/headless_api/handlers/sequencer/sequencer_start_preflight.dart:
 apps/desktop/lib/headless_api_server.dart:475:  /// implementations throw [UnimplementedError] until an operator wires
 apps/desktop/lib/headless_api_server/event_forwarding.dart:300:    } on UnimplementedError catch (e) {
 apps/desktop/lib/headless_api_server/event_forwarding.dart:320:  /// scaffolds throw [UnimplementedError]; the headless server logs
+apps/mobile/lib/screens/replay/session_replay_screen.dart:57:      // genuinely not implemented, and an empty timeline would read as a
 apps/mobile/lib/services/voice_control_service.dart:40:/// becomes a visible failure rather than a silent no-op.
+apps/mobile/lib/services/voice_control_service.dart:40:/// failure rather than a silent no-op.
 native/nightshade_native/alpaca/src/client/config.rs:199:        .unwrap_or_default()
 native/nightshade_native/alpaca/src/safetymonitor.rs:286:            driver_info: driver_info.unwrap_or_default(),
 native/nightshade_native/alpaca/src/switch.rs:159:            let request_line = request.lines().next().unwrap_or_default().to_string();
@@ -41,6 +43,7 @@ native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1229:            .un
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1361:            .unwrap_or_default()
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1554:            Err("not implemented".to_string())
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1562:            Err("not implemented".to_string())
+native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1590:            "CoolerPower is not implemented (reported by ASCOM.Simulator.Camera, 0x80040400)";
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:474:                            let readout_modes = cam.readout_modes().unwrap_or_default();
 native/nightshade_native/bridge/src/device_capabilities/alpaca.rs:172:                camera.disconnect().await.ok();
 native/nightshade_native/bridge/src/device_capabilities/alpaca.rs:209:                focuser.disconnect().await.ok();
@@ -76,6 +79,9 @@ native/nightshade_native/bridge/src/device_id/mod.rs:434:                    let
 native/nightshade_native/bridge/src/device_id/mod.rs:456:        let device_index = device_id_str.parse::<i32>().ok();
 native/nightshade_native/bridge/src/device_manager/connection.rs:814:    /// `connect_simulator`): a silent no-op would hide bugs where the user
 native/nightshade_native/bridge/src/device_manager/ops/camera/download.rs:242:                        let temp = camera.get_temperature().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera/download.rs:575:                offset_x: Err("BayerOffsetX not implemented".to_string()),
+native/nightshade_native/bridge/src/device_manager/ops/camera/download.rs:576:                offset_y: Err("BayerOffsetY not implemented".to_string()),
+native/nightshade_native/bridge/src/device_manager/ops/camera/download.rs:683:            offset_y: Err("BayerOffsetY not implemented".to_string()),
 native/nightshade_native/bridge/src/device_manager/ops/camera/download.rs:96:                    let temp = camera.ccd_temperature().await.ok();
 native/nightshade_native/bridge/src/device_manager/ops/camera/mod.rs:461:        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
 native/nightshade_native/bridge/src/device_manager/ops/camera/mod.rs:571:        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
@@ -133,6 +139,9 @@ native/nightshade_native/sequencer/src/executor/start.rs:420:            .unwrap
 native/nightshade_native/sequencer/src/executor/start.rs:4455:                                                    result.message.unwrap_or_default()
 native/nightshade_native/sequencer/src/executor/start.rs:4639:                                                result.message.unwrap_or_default()
 native/nightshade_native/sequencer/src/executor/start.rs:4773:                                                            .unwrap_or_default()
+native/nightshade_native/sequencer/src/executor/start/trigger_monitor.rs:1789:                                    result.message.unwrap_or_default()
+native/nightshade_native/sequencer/src/executor/start/trigger_monitor.rs:1959:                                result.message.unwrap_or_default()
+native/nightshade_native/sequencer/src/executor/start/trigger_monitor.rs:2087:                                            .unwrap_or_default()
 native/nightshade_native/sequencer/src/instructions/autofocus.rs:202:                config.filter.as_deref().unwrap_or_default().trim()
 native/nightshade_native/sequencer/src/instructions/grading.rs:489:                            .unwrap_or_default(),
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1093:        ctx.autofocus_config.clone().unwrap_or_default()
@@ -157,6 +166,7 @@ packages/nightshade_app/lib/screens/planetarium/planetarium_screen/actions.dart:
 packages/nightshade_app/lib/screens/planetarium/widgets/view_controls.dart:366:      // UnimplementedError there — so the chart goes to a sandbox path and
 packages/nightshade_app/lib/screens/sequencer/tabs/sequence_library_tab/sequence_card.dart:838:        // UnimplementedError: getSavePath() has not been implemented."
 packages/nightshade_app/lib/screens/sequencer/widgets/node_summary_inline_editors.dart:203:    // '+' re-applies 4+1 and is a silent no-op, while the popup keeps
+packages/nightshade_app/lib/screens/settings/backup_screen.dart:410:  /// UnimplementedError — so on those platforms the file goes to a sandbox path
 packages/nightshade_app/lib/screens/settings/backup_screen.dart:44:/// iOS have no save dialog (`getSavePath` throws UnimplementedError), so
 packages/nightshade_app/lib/screens/settings/equipment_profiles_screen_parts/screen_shell.dart:74:/// save dialog (`getSavePath` throws UnimplementedError), so exporting a
 packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/discord_transport_section.dart:94:          return const _PrepResult.ok();
@@ -177,6 +187,7 @@ packages/nightshade_core/lib/src/services/device_service/connections/imaging_cha
 packages/nightshade_core/lib/src/services/notification/transports/email_transport.dart:154:      return NotificationResult.ok();
 packages/nightshade_core/lib/src/services/notification/transports/in_app_transport.dart:50:    return NotificationResult.ok();
 packages/nightshade_core/lib/src/services/notification/transports/mqtt_transport.dart:119:          '[Notifications/MQTT] QoS 2 downgraded to QoS 1 (PUBREC/PUBREL not implemented).',
+packages/nightshade_core/lib/src/services/notification/transports/mqtt_transport.dart:14:// QoS 2 is intentionally not implemented; a user choice of 2 downgrades to 1
 packages/nightshade_core/lib/src/services/notification/transports/mqtt_transport.dart:14:// QoS 2 is intentionally not implemented; if the user picks 2 we
 packages/nightshade_core/lib/src/services/notification/transports/mqtt_transport.dart:160:      return NotificationResult.ok();
 packages/nightshade_core/lib/src/services/notification/transports/system_push_transport.dart:50:      return NotificationResult.ok();

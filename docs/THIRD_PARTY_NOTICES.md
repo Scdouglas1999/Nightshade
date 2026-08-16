@@ -68,8 +68,9 @@ source links, transformation description, and license link. The transformed
 catalog packs themselves are offered under CC BY-SA 4.0; that data license
 does not replace the license for Nightshade's program code.
 
-The repository's `de421.bsp` development file is not declared as a Flutter
-asset and is not included in the official release archives.
+No JPL ephemeris kernel is bundled or redistributed. Sun and moon positions
+are computed from the Astronomical Almanac low-precision series in
+`native/nightshade_native/sequencer/src/scheduling/ephemeris.rs`.
 
 ## Vendor device SDKs are not redistributed
 

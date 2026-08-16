@@ -192,6 +192,11 @@ Cargo.lock
 # =============================================================================
 SDKs/
 
+# 17 MB JPL DE421 ephemeris kernel. No reader for it exists in any crate or
+# package; sun and moon positions come from the analytic series in
+# native/nightshade_native/sequencer/src/scheduling/ephemeris.rs.
+/de421.bsp
+
 # =============================================================================
 # Logs and Temporary Files
 # =============================================================================
@@ -206,15 +211,17 @@ temp_*.txt
 # =============================================================================
 # Development/Debug Scripts (root level)
 # =============================================================================
-# Temporary PowerShell scripts
-check_*.ps1
-find_*.ps1
-verify_*.ps1
-test_*.ps1
+# Temporary PowerShell scripts. Anchored to the root: unanchored globs also
+# hide supported tooling deeper in the tree (scripts/test_lan_push.ps1 and
+# scripts/test_update_system.ps1 are documented in docs/OTA_UPDATE_TESTING.md).
+/check_*.ps1
+/find_*.ps1
+/verify_*.ps1
+/test_*.ps1
 
 # Temporary fix scripts
-fix_*.sh
-fix_*.py
+/fix_*.sh
+/fix_*.py
 
 # Temporary Dart test scripts (root level only)
 /test_*.dart

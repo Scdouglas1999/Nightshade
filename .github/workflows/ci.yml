@@ -171,8 +171,8 @@ jobs:
       - name: Runtime Behavioral Gate
         run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt --min-files 796
 
-      # Architecture §1: nightshade_core is the only Dart package that may
-      # import package:nightshade_bridge. The audit fails closed (exit 1) on any
+      # nightshade_core is the only Dart package that may import
+      # package:nightshade_bridge. The audit fails closed (exit 1) on any
       # un-whitelisted importer; the self-test validates its exemption,
       # whitelist, and violation-detection logic.
       - name: Bridge Boundary Gate
