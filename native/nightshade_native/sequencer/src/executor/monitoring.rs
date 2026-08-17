@@ -102,6 +102,66 @@ pub(super) async fn trigger_monitor_stall_watchdog(
     }
 }
 
+/// Where the ACTIVE TARGET is right now: the two sky quantities the trigger
+/// monitor refreshes on every tick for the triggers that ask about the target.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct TargetSkyState {
+    /// Degrees above the horizon; feeds `AltitudeLimit`.
+    pub altitude_degrees: f64,
+    /// Signed hour angle in hours, normalized to `[-12, +12]` — negative is
+    /// east of the meridian. Feeds every `MeridianFlip` trigger method that
+    /// reasons about transit, and the exposure gate that holds a frame the
+    /// flip would interrupt.
+    pub hour_angle_hours: f64,
+}
+
+/// Compute [`TargetSkyState`] for the active target, or `None` when either the
+/// target or the observing site is unknown (nothing to compute from, and a
+/// fabricated value would be worse than an inert trigger).
+///
+/// Both values come from the TARGET's own coordinates. The altitude always
+/// did; the hour angle used to be recomputed from `mount_get_coordinates`
+/// instead, which is a different question with a different answer whenever the
+/// mount is not tracking the target — parked at home, mid-slew, still on the
+/// previous target, or (the case that shipped) sitting at its power-on RA 0h
+/// while the sequence was still changing filters. `MeridianFlip` then fired on
+/// the parked mount's hour angle for a target 1.5h east of the meridian, and
+/// the flip's own banner printed the target's honest `-1.50h` a millisecond
+/// later. One target-derived source ends that disagreement; the exposure gate
+/// in `instructions::center` was already computing the target's own hour angle
+/// precisely because it could not trust this field.
+///
+/// `now` is a parameter rather than `Utc::now()` so the transit geometry is
+/// testable without waiting for the sky to turn.
+pub(super) fn target_sky_state(
+    target_ra_degrees: Option<f64>,
+    target_dec_degrees: Option<f64>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<TargetSkyState> {
+    let (ra_degrees, dec_degrees, latitude, longitude) =
+        match (target_ra_degrees, target_dec_degrees, latitude, longitude) {
+            (Some(ra), Some(dec), Some(lat), Some(lon)) => (ra, dec, lat, lon),
+            _ => return None,
+        };
+
+    // `TriggerState` stores target RA in DEGREES (it is compared against
+    // plate-solve output); the astronomy helpers take hours.
+    let ra_hours = ra_degrees / 15.0;
+    let lst = crate::meridian::local_sidereal_time(crate::meridian::julian_day(&now), longitude);
+    Some(TargetSkyState {
+        altitude_degrees: crate::meridian::calculate_altitude(
+            ra_hours,
+            dec_degrees,
+            latitude,
+            longitude,
+            now,
+        ),
+        hour_angle_hours: crate::meridian::hour_angle(ra_hours, lst),
+    })
+}
+
 /// Decide whether a mount tracking poll represents a genuine *loss* of tracking
 /// (an ON → OFF transition) rather than tracking simply not having started yet.
 ///

@@ -1504,3 +1504,84 @@ fn the_trigger_dispatch_releases_the_camera_only_through_the_guard() {
          what happens when one is forgotten — ten minutes of blocked frames per firing."
     );
 }
+
+/// The live defect (2026-08-17, D1 sim-night harness, release bundle): the
+/// meridian-flip trigger fired 1.5 ms after the run started, on a target 1.5h
+/// EAST of the meridian, and the flip's own banner printed the contradiction —
+///
+///   [MERIDIAN] FLIP TRIGGER ACTIVATED
+///   [MERIDIAN]   Hour Angle: -1.50h (-90.0 minutes past meridian)
+///   [MERIDIAN]   Current Pier Side: Unknown
+///
+/// — because the trigger was evaluating a hour angle recomputed from
+/// `mount_get_coordinates`, and the mount was still sitting at its parked
+/// RA 0h while the sequence changed its first filter. HA = LST - 0h = +2.6h
+/// that morning: 159 minutes "past the meridian" against a 5-minute window.
+///
+/// The published hour angle must be the TARGET's. The function takes no mount
+/// reading at all, which is the structural half of the proof; the numeric
+/// assertions below are the other half, and the parked-mount value is asserted
+/// AGAINST so that re-deriving it from mount coordinates fails here.
+#[test]
+fn the_published_hour_angle_belongs_to_the_target_not_the_mount() {
+    use chrono::TimeZone;
+
+    let latitude = 40.0;
+    let longitude = -105.0;
+    let now = chrono::Utc
+        .with_ymd_and_hms(2026, 8, 17, 11, 55, 26)
+        .unwrap();
+    let lst = crate::meridian::local_sidereal_time(crate::meridian::julian_day(&now), longitude);
+
+    // The harness target: 1.5h east of the meridian, at dec = latitude.
+    let target_ra_hours = (lst + 1.5).rem_euclid(24.0);
+    let sky = target_sky_state(
+        Some(target_ra_hours * 15.0),
+        Some(latitude),
+        Some(latitude),
+        Some(longitude),
+        now,
+    )
+    .expect("target and site are both known");
+
+    assert!(
+        (sky.hour_angle_hours - -1.5).abs() < 1e-6,
+        "a target 1.5h east of the meridian must publish HA -1.50h, got {:+.4}h",
+        sky.hour_angle_hours
+    );
+
+    // What the retired mount-derived computation would have published: the
+    // simulator (and plenty of drivers) park at RA 0h, so its hour angle is
+    // the local sidereal time itself — positive for half of every day, and
+    // hours "past the meridian" for a target that has not transited.
+    let parked_mount_hour_angle = crate::meridian::hour_angle(0.0, lst);
+    assert!(
+        parked_mount_hour_angle > 2.0,
+        "the parked mount really is hours 'past the meridian' at this instant: {parked_mount_hour_angle:+.4}h"
+    );
+    assert!(
+        (sky.hour_angle_hours - parked_mount_hour_angle).abs() > 4.0,
+        "the published hour angle must not be the parked mount's"
+    );
+
+    // Altitude is target-derived too, and always was: 1.5h east of transit at
+    // dec = latitude is high but no longer overhead.
+    assert!(
+        (60.0..85.0).contains(&sky.altitude_degrees),
+        "target altitude {:.2}° is not the geometry of a target 1.5h from transit \
+         at dec = latitude",
+        sky.altitude_degrees
+    );
+}
+
+/// No target, or no observing site, means the sky state cannot be computed —
+/// and an absent value is what keeps the altitude and meridian triggers inert
+/// rather than firing on a fabricated one.
+#[test]
+fn the_sky_state_abstains_without_a_target_or_a_site() {
+    let now = chrono::Utc::now();
+    assert!(target_sky_state(None, Some(40.0), Some(40.0), Some(-105.0), now).is_none());
+    assert!(target_sky_state(Some(60.0), None, Some(40.0), Some(-105.0), now).is_none());
+    assert!(target_sky_state(Some(60.0), Some(40.0), None, Some(-105.0), now).is_none());
+    assert!(target_sky_state(Some(60.0), Some(40.0), Some(40.0), None, now).is_none());
+}

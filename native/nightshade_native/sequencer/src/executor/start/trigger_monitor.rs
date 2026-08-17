@@ -355,14 +355,12 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                 }
             }
 
-            // Compute target altitude so the
-            // AltitudeLimit trigger has something to evaluate.
-            // Inputs: target RA/Dec (set when a TargetHeader
-            // node enters), observer lat/lon (seeded above or
-            // by UpdateLocation), and current UTC time. Uses
-            // the existing `meridian::calculate_altitude`
-            // helper so the math is unified with the
-            // meridian-flip predictions.
+            // Compute where the active TARGET is, so the
+            // AltitudeLimit and MeridianFlip triggers have
+            // something to evaluate. Inputs: target RA/Dec (set
+            // when a TargetHeader node enters), observer lat/lon
+            // (seeded above or by UpdateLocation), and current
+            // UTC time.
             //
             // Three "can't evaluate" cases:
             //   1. No target set yet (sequence hasn't entered
@@ -373,52 +371,60 @@ pub(super) async fn run_trigger_monitor_poll_loop(
             //   3. Both — same outcome.
             //
             // For case (2), emit a one-shot warning so the
-            // operator sees that altitude triggers are dead
-            // until location is supplied. The `&&` guard makes
-            // it impossible to fire on (1) alone (no point
-            // warning before any target has been entered).
-            match (
+            // operator sees that these triggers are dead until
+            // location is supplied. The `&&` guard makes it
+            // impossible to fire on (1) alone (no point warning
+            // before any target has been entered).
+            match target_sky_state(
                 state.target_ra,
                 state.target_dec,
                 state.observer_latitude,
                 state.observer_longitude,
+                chrono::Utc::now(),
             ) {
-                (Some(ra_deg), Some(dec_deg), Some(lat), Some(lon)) => {
-                    let now = chrono::Utc::now();
-                    // TriggerState stores RA in degrees;
-                    // calculate_altitude expects hours.
-                    let ra_hours = ra_deg / 15.0;
-                    let alt = crate::meridian::calculate_altitude(ra_hours, dec_deg, lat, lon, now);
-                    state.current_altitude = Some(alt);
+                Some(sky) => {
+                    state.current_altitude = Some(sky.altitude_degrees);
+                    state.update_hour_angle(sky.hour_angle_hours);
                     tracing::trace!(
-                        "Computed target altitude: {:.2}° (RA={:.4}h, Dec={:.4}°, lat={:.4}, lon={:.4})",
-                        alt, ra_hours, dec_deg, lat, lon
+                        "Computed target sky state: altitude {:.2}°, hour angle {:+.4}h",
+                        sky.altitude_degrees,
+                        sky.hour_angle_hours
                     );
                 }
-                (Some(_), Some(_), _, _) if !altitude_warned_no_location => {
-                    // target known but no location — altitude
-                    // protection is effectively disabled, so this
-                    // is a user-visible ExecutorEvent::Error rather
-                    // than a log line. Gated by the one-shot
-                    // sentinel (the guard above) so a permanently
+                None => {
+                    // Nothing to compute from. Drop whatever was
+                    // published before rather than let the altitude
+                    // and meridian triggers keep evaluating it: a
+                    // checkpoint resume restores both values, and a
+                    // number computed for another target at another
+                    // hour is exactly the input this loop exists to
+                    // stop feeding them.
+                    state.current_altitude = None;
+                    state.current_hour_angle = None;
+
+                    // A target with no location is worth saying out
+                    // loud — altitude and meridian protection are
+                    // then INACTIVE, which is a user-visible
+                    // ExecutorEvent::Error rather than a log line.
+                    // Gated by a one-shot sentinel so a permanently
                     // unconfigured location does not flood the event
-                    // stream every second; once warned, this falls
-                    // to the silent catch-all below.
-                    let msg = "AltitudeLimit trigger configured but \
-                         observer location is not set — altitude \
-                         protection is INACTIVE. Set location in \
-                         Profile to enable.";
-                    tracing::warn!("{}", msg);
-                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                        message: msg.to_string(),
-                    });
-                    altitude_warned_no_location = true;
-                }
-                _ => {
-                    // No target — silent. The trigger evaluator
-                    // already returns false when
-                    // current_altitude is None, so this is the
-                    // correct "wait for a target" state.
+                    // stream every second. No target at all is
+                    // silent: that is the ordinary "wait for a
+                    // TargetHeader" state.
+                    if state.target_ra.is_some()
+                        && state.target_dec.is_some()
+                        && !altitude_warned_no_location
+                    {
+                        let msg = "AltitudeLimit and meridian-flip triggers need \
+                             an observing site, but observer location is not set \
+                             — altitude and meridian-flip protection are \
+                             INACTIVE. Set location in Profile to enable.";
+                        tracing::warn!("{}", msg);
+                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                            message: msg.to_string(),
+                        });
+                        altitude_warned_no_location = true;
+                    }
                 }
             }
         }
@@ -468,11 +474,6 @@ pub(super) async fn run_trigger_monitor_poll_loop(
             let pier_side_result = bounded_poll(
                 "mount_side_of_pier",
                 device_ops_for_triggers.mount_side_of_pier(mount_id),
-            )
-            .await;
-            let coords_result = bounded_poll(
-                "mount_get_coordinates",
-                device_ops_for_triggers.mount_get_coordinates(mount_id),
             )
             .await;
 
@@ -554,19 +555,13 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                 state.update_pier_side(ps);
             }
 
-            // Hour angle is required for the MeridianFlip trigger's
-            // hour-angle-threshold mode; the mount only gives us RA,
-            // so we recompute HA = LST - RA here using the observer
-            // longitude (already validated above before this branch).
-            if let Ok((ra_hours, _dec)) = coords_result {
-                if let Some(lon) = state.observer_longitude {
-                    let now = chrono::Utc::now();
-                    let jd = crate::meridian::julian_day(&now);
-                    let lst = crate::meridian::local_sidereal_time(jd, lon);
-                    let ha = crate::meridian::hour_angle(ra_hours, lst);
-                    state.update_hour_angle(ha);
-                }
-            }
+            // The mount is NOT asked for its coordinates here. The hour angle
+            // every MeridianFlip method evaluates is the TARGET's (computed
+            // above, once per tick, from the target's own RA) — recomputing it
+            // from `mount_get_coordinates` asked a different question and
+            // answered it with whatever the mount was pointing at, including
+            // its parked home position before the run's first slew. See
+            // `monitoring::target_sky_state`.
         }
 
         // TemperatureShift refocus must key off a temperature

@@ -2,17 +2,19 @@
 //!
 //! Split by concern: [`trigger`] holds the [`Trigger`] record and its
 //! condition evaluation, [`state`] the observed-condition snapshot the
-//! evaluation reads, [`manager`] the collection that ticks them all, and
-//! [`dawn`] the twilight helper. This module is declarations and shared
-//! constants only.
+//! evaluation reads, [`manager`] the collection that ticks them all,
+//! [`meridian_window`] the shared flip-window test, and [`dawn`] the twilight
+//! helper. This module is declarations and shared constants only.
 
 mod dawn;
 mod manager;
+mod meridian_window;
 mod state;
 mod trigger;
 
 pub use dawn::*;
 pub use manager::*;
+pub use meridian_window::*;
 pub use state::*;
 pub use trigger::*;
 
@@ -33,6 +35,8 @@ pub const CAMERA_BUSY_DOWNLOAD_SLACK_SECS: f64 = 20.0;
 
 #[cfg(test)]
 mod cross_run_target_hygiene_tests;
+#[cfg(test)]
+mod east_target_flip_tests;
 #[cfg(test)]
 mod filter_change_edge_tests;
 #[cfg(test)]

@@ -84,6 +84,25 @@ pub enum MeridianFlipEvent {
 /// Callback type for receiving flip events
 pub type FlipEventCallback = Box<dyn Fn(MeridianFlipEvent) + Send + Sync>;
 
+/// How far the target is from the meridian, and on which side, as a phrase the
+/// flip banner can put in parentheses after the signed hour angle.
+///
+/// The banner used to render every hour angle as "N minutes past meridian",
+/// so a flip that fired east of transit announced itself as "-90.0 minutes
+/// past meridian" — arithmetically honest and unreadable. The trigger can no
+/// longer fire east of transit, but this event is also emitted by an
+/// operator-placed MeridianFlip instruction, where a negative hour angle is a
+/// legitimate (if unusual) thing to command, and the log has to say plainly
+/// which side of the meridian the flip happened on.
+pub(crate) fn meridian_offset_phrase(hour_angle_hours: f64) -> String {
+    let minutes = hour_angle_hours * 60.0;
+    if minutes < 0.0 {
+        format!("{:.1} minutes BEFORE the meridian", -minutes)
+    } else {
+        format!("{minutes:.1} minutes past the meridian")
+    }
+}
+
 /// Builder for creating flip event sequences with logging
 pub struct FlipEventEmitter {
     callback: Option<FlipEventCallback>,
@@ -127,10 +146,10 @@ impl FlipEventEmitter {
                 tracing::info!("{} FLIP TRIGGER ACTIVATED", self.log_prefix);
                 tracing::info!("{}   Target: {}", self.log_prefix, target_name);
                 tracing::info!(
-                    "{}   Hour Angle: {:.2}h ({:.1} minutes past meridian)",
+                    "{}   Hour Angle: {:+.2}h ({})",
                     self.log_prefix,
                     hour_angle,
-                    hour_angle * 60.0
+                    meridian_offset_phrase(*hour_angle)
                 );
                 tracing::info!(
                     "{}   Current Pier Side: {:?}",
@@ -241,5 +260,27 @@ impl FlipEventEmitter {
 impl Default for FlipEventEmitter {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The banner has to name the SIDE, not just a signed number. The live
+    /// defect's log line read "-90.0 minutes past meridian" for a target 1.5h
+    /// east of transit, which is the arithmetic being honest and the sentence
+    /// not being.
+    #[test]
+    fn the_offset_phrase_names_the_side_of_the_meridian() {
+        assert_eq!(
+            meridian_offset_phrase(-1.5),
+            "90.0 minutes BEFORE the meridian"
+        );
+        assert_eq!(
+            meridian_offset_phrase(0.25),
+            "15.0 minutes past the meridian"
+        );
+        assert_eq!(meridian_offset_phrase(0.0), "0.0 minutes past the meridian");
     }
 }

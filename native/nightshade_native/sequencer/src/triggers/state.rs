@@ -41,29 +41,22 @@ pub(super) fn looks_like_tracking_limit_hit(state: &TriggerState) -> bool {
         }
     }
 
-    let ha = match state.current_hour_angle {
-        Some(ha) if ha > 0.0 => ha,
-        _ => {
-            tracing::debug!(
-                "Tracking lost but HA={:?} - not past meridian, not a limit hit",
-                state.current_hour_angle
-            );
-            return false;
-        }
+    // Same window as the flip trigger itself, minus the threshold: a mount
+    // that stopped tracking BEFORE its target transited did not hit a
+    // meridian-side tracking limit, whatever else went wrong.
+    let past_meridian = match state.current_hour_angle {
+        Some(ha) => super::on_pre_flip_side(ha, state.pier_side),
+        None => false,
     };
-
-    let on_pre_flip_side = match state.pier_side {
-        Some(PierSide::West) => true,
-        Some(PierSide::East) => false,
-        _ => true,
-    };
-
-    if !on_pre_flip_side {
-        tracing::debug!("Tracking lost but pier side is East - already flipped");
-        return false;
+    if !past_meridian {
+        tracing::debug!(
+            "Tracking lost but HA={:?} / pier {:?} is not the pre-flip side past the \
+             meridian - not a limit hit",
+            state.current_hour_angle,
+            state.pier_side
+        );
     }
-
-    ha > 0.0
+    past_meridian
 }
 
 /// State information used by triggers
@@ -80,7 +73,20 @@ pub struct TriggerState {
     pub autofocus_invalidation_reason: Option<String>,
 
     // Meridian flip - enhanced fields
-    /// Current hour angle of the target in hours (negative = east, positive = west of meridian)
+    /// Hour angle of the ACTIVE TARGET in hours, signed and normalized to
+    /// `[-12, +12]`: negative is east of the meridian (not yet transited),
+    /// positive is west of it.
+    ///
+    /// Written by the executor's monitor loop from the target's own RA and the
+    /// observer longitude — never from the mount's reported pointing. Those two
+    /// are the same number only while the mount is actually tracking the
+    /// target, and the gap between them is not a rounding difference: a mount
+    /// parked at its home position (RA 0h on every simulator, and on plenty of
+    /// drivers) reads whatever the local sidereal time happens to be, so a run
+    /// whose first target was 1.5h EAST of the meridian was flipped 1.5 ms
+    /// after it started, before the first slew, on the strength of the parked
+    /// mount's +2.6h. The trigger is about the target's transit; the target's
+    /// own coordinates are the only honest input to it.
     pub current_hour_angle: Option<f64>,
     /// Current pier side of the mount
     pub pier_side: Option<PierSide>,
@@ -837,7 +843,10 @@ impl TriggerState {
 
     // Meridian Flip State Management
 
-    /// Update the current hour angle (call periodically from mount polling)
+    /// Update the active target's hour angle. Called every monitor tick with a
+    /// value recomputed from the TARGET's coordinates — see
+    /// [`TriggerState::current_hour_angle`] for why the mount's own pointing is
+    /// not that value.
     pub fn update_hour_angle(&mut self, hour_angle: f64) {
         self.current_hour_angle = Some(hour_angle);
     }
@@ -1022,13 +1031,7 @@ impl TriggerState {
         }
 
         if let Some(ha) = self.current_hour_angle {
-            let minutes_past = ha * 60.0;
-            let on_pre_flip_side = match self.pier_side {
-                Some(PierSide::West) => ha > 0.0,
-                Some(PierSide::East) => false,
-                _ => ha > 0.0,
-            };
-            (on_pre_flip_side && ha > 0.0, Some(minutes_past))
+            (super::on_pre_flip_side(ha, self.pier_side), Some(ha * 60.0))
         } else {
             (false, None)
         }

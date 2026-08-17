@@ -17,8 +17,12 @@ def lst_hours(unix, lon_deg):
     gmst = (18.697374558 + 24.06570982441908 * d) % 24.0
     return (gmst + lon_deg / 15.0) % 24.0
 
-# Zenith target: transiting now at the harness site, altitude ~90 deg.
-ZENITH_RA = round(lst_hours(time.time(), SITE_LON), 4)
+# High-and-east target: 1.5h east of the meridian at dec=latitude — altitude
+# ~75 degrees (clears any altitude gate) while transit stays 1.5h away, so
+# the meridian-flip window can never fire during a short harness night.
+# (RA == LST put the target AT transit: every run rolled dice with the flip
+# window, and a fired flip pauses on the unsolvable simulator field.)
+ZENITH_RA = round((lst_hours(time.time(), SITE_LON) + 1.5) % 24.0, 4)
 ZENITH_DEC = SITE_LAT
 
 def exposure(fid, filt, idx):

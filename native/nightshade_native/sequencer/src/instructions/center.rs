@@ -523,19 +523,17 @@ pub(crate) async fn wait_for_meridian_flip_window(
             return None;
         }
         let ha = current_target_hour_angle(ctx).or(polled_ha)?;
-        // Mirror the trigger's pre-flip-side logic exactly. Pier East is the
-        // post-flip side, where the trigger can no longer fire; on West (and
-        // on Unknown / unreported, which is what a simulator and many mounts
-        // give) it additionally requires a POSITIVE hour angle — i.e. the
-        // target is west of the meridian.
+        // The trigger's own pre-flip-side test, called rather than re-derived:
+        // a target east of the meridian has no flip to be interrupted by, and
+        // pier East is the post-flip side where the trigger can no longer fire.
         //
-        // Mirroring only the East case holds a target EAST of the meridian
+        // Testing only the East case holds a target EAST of the meridian
         // (negative HA) with unreported pier side: `fire_in_secs` comes out
-        // non-positive from a stale HA left over by an earlier run — the mount
-        // poll only runs while a sequence is executing, so the first frame of a
-        // run reads the previous run's value — and every light frame then blocks
-        // for the gate's full bound on a trigger that cannot fire.
-        if matches!(pier, Some(crate::PierSide::East)) || ha <= 0.0 {
+        // non-positive from a stale HA left over by an earlier run — the
+        // monitor only runs while a sequence is executing, so the first frame
+        // of a run reads the previous run's value — and every light frame then
+        // blocks for the gate's full bound on a trigger that cannot fire.
+        if !crate::triggers::on_pre_flip_side(ha, pier) {
             return None;
         }
 
@@ -578,18 +576,19 @@ pub(crate) async fn wait_for_meridian_flip_window(
             return None;
         }
         // The gate does not perform the flip — it waits for the TRIGGER to
-        // request one. The trigger decides from the MOUNT's hour angle
-        // (`TriggerState::current_hour_angle`, written by the executor's
-        // mount-poll loop) and returns false outright when the mount has not
-        // reported one, or when that hour angle is not on the pre-flip side.
-        // The gate predicts from the TARGET's hour angle instead, which is the
-        // right question for "would the flip interrupt THIS frame" but says
-        // nothing about whether the flip can be requested at all.
+        // request one, and holding is only meaningful while the trigger could
+        // still fire. Both now read the same quantity (the TARGET's hour
+        // angle: this gate computes it directly, the trigger reads the copy
+        // the executor's monitor refreshes each tick), so the only remaining
+        // way for the trigger to be unable to fire is for the monitor not to
+        // have published a value yet — no target stamped into the trigger
+        // state, or no observing site.
         //
-        // When the two disagree the gate waits for an event that cannot
-        // arrive. Live repro (headless Linux build, sim camera + sim mount,
-        // site 40N 42E, target pinned 12 min west of the meridian, threshold
-        // 5 min): the run reached 1/3 and reported
+        // That gap used to be a permanent disagreement rather than a startup
+        // race: the trigger evaluated the MOUNT's hour angle. Live repro
+        // (headless Linux build, sim camera + sim mount, site 40N 42E, target
+        // pinned 12 min west of the meridian, threshold 5 min): the run
+        // reached 1/3 and reported
         //   Waiting for the meridian flip before the next 2s exposure: the
         //   flip became due 423s ago (hour angle +0.20h, threshold 5 min past
         //   meridian) and would interrupt the frame
@@ -599,24 +598,20 @@ pub(crate) async fn wait_for_meridian_flip_window(
         // threshold the flip is only 7 minutes late, well inside
         // OVERDUE_GRACE_SECS, so every frame paid the full 30-minute bound.
         //
-        // Holding is only meaningful while the trigger could still fire. If
-        // the mount has not reported a position, or reports one east of the
-        // meridian, there is no flip to be interrupted by and the honest move
-        // is to expose. Checked at gate ENTRY only (`!announced`) so a hold
-        // that began legitimately still runs to MERIDIAN_GATE_MAX_WAIT while a
-        // flip is actually in progress — during a flip slew the mount's hour
-        // angle legitimately swings around.
-        let trigger_can_fire = polled_ha.is_some_and(|mount_ha| mount_ha > 0.0);
+        // Checked at gate ENTRY only (`!announced`) so a hold that began
+        // legitimately still runs to MERIDIAN_GATE_MAX_WAIT while a flip is
+        // actually in progress.
+        let trigger_can_fire = polled_ha.is_some_and(|published_ha| published_ha > 0.0);
         if !announced && !trigger_can_fire {
             let observed = match polled_ha {
-                Some(mount_ha) => format!("reports hour angle {mount_ha:+.2}h"),
-                None => "has not reported a position".to_string(),
+                Some(published_ha) => format!("evaluating hour angle {published_ha:+.2}h"),
+                None => "has no hour angle for the target yet".to_string(),
             };
             let message = format!(
                 "Not holding the next {exposure_secs:.0}s exposure for a meridian flip: the \
-                 target is {ha:+.2}h past the meridian but the mount {observed}, so the flip \
-                 trigger cannot fire. Exposing instead of waiting for a flip that will not \
-                 happen — check that the mount is tracking the target."
+                 target is {ha:+.2}h past the meridian but the flip trigger is {observed}, so \
+                 it cannot fire. Exposing instead of waiting for a flip that will not happen — \
+                 check that the observing site is set and a target is active."
             );
             tracing::warn!("{}", message);
             control.report(&message);
@@ -664,13 +659,12 @@ pub(crate) async fn wait_for_meridian_flip_window(
 /// Hour angle of the ACTIVE TARGET right now, in hours, normalized to
 /// [-12, +12]. Negative is east of the meridian.
 ///
-/// Recomputed from the target's own RA and the observer longitude rather than
-/// read off `TriggerState::current_hour_angle`, which the executor's
-/// mount-poll loop writes only while a sequence is running, only for the
-/// MOUNT's reported coordinates, and never invalidates between runs. This is
-/// fresh by construction and answers the question the gate is actually asking
-/// ("will the flip for THIS target interrupt THIS frame"). Falls back to the
-/// polled value when the target or the site is unknown.
+/// Recomputed from this instruction's own target RA and observer longitude
+/// rather than read off `TriggerState::current_hour_angle`, which the
+/// executor's monitor loop writes only while a sequence is running and does
+/// not invalidate between runs. This is fresh by construction. Falls back to
+/// the published value when the target or the site is unknown here — the two
+/// are the same quantity, computed from the same target coordinates.
 pub(crate) fn current_target_hour_angle(ctx: &InstructionContext) -> Option<f64> {
     let ra_hours = ctx.target_ra?;
     let longitude = ctx.longitude?;

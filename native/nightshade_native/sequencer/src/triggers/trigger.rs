@@ -2,7 +2,7 @@
 
 use super::state::looks_like_tracking_limit_hit;
 use super::{TriggerState, FOCUS_DRIFT_WINDOW_MAX};
-use crate::{PierSide, RecoveryAction, TriggerType};
+use crate::{RecoveryAction, TriggerType};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
@@ -289,22 +289,18 @@ impl Trigger {
 
                 match config.trigger_method {
                     crate::MeridianTriggerMethod::MinutesPastMeridian => {
-                        if let Some(ha) = state.current_hour_angle {
-                            let minutes_past = ha * 60.0;
-                            // Pier-side guards a degenerate post-flip case: once
-                            // we are on the post-flip side, HA is still positive
-                            // but a second flip would be wrong. Unknown is
-                            // permissive (legacy mounts that don't report pier
-                            // side); a positive HA there still implies we are
-                            // past meridian and should flip.
-                            let on_pre_flip_side = match state.pier_side {
-                                Some(PierSide::West) => ha > 0.0,
-                                Some(PierSide::East) => false,
-                                _ => ha > 0.0,
-                            };
-                            on_pre_flip_side && minutes_past >= config.minutes_past_meridian
-                        } else {
-                            false
+                        // `current_hour_angle` is the TARGET's hour angle
+                        // (see `TriggerState::current_hour_angle`), so the
+                        // window test below is asking about the object the
+                        // sequence is imaging, not about wherever the mount
+                        // happens to be parked or slewing through.
+                        match state.current_hour_angle {
+                            Some(ha) => super::flip_window_open(
+                                ha,
+                                state.pier_side,
+                                config.minutes_past_meridian / 60.0,
+                            ),
+                            None => false,
                         }
                     }
                     crate::MeridianTriggerMethod::MinutesBeforeLimit => {
@@ -325,15 +321,14 @@ impl Trigger {
                         }
                     }
                     crate::MeridianTriggerMethod::HourAngleThreshold => {
-                        if let Some(ha) = state.current_hour_angle {
-                            let on_pre_flip_side = match state.pier_side {
-                                Some(PierSide::West) => ha > 0.0,
-                                Some(PierSide::East) => false,
-                                _ => ha > 0.0,
-                            };
-                            on_pre_flip_side && ha >= config.hour_angle_threshold
-                        } else {
-                            false
+                        // Same window, threshold already expressed in hours.
+                        match state.current_hour_angle {
+                            Some(ha) => super::flip_window_open(
+                                ha,
+                                state.pier_side,
+                                config.hour_angle_threshold,
+                            ),
+                            None => false,
                         }
                     }
                     crate::MeridianTriggerMethod::OnTrackingLimitHit => {
