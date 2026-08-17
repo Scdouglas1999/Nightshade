@@ -307,8 +307,9 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
 /// Decode a destination's `config_json` into a map the editor can mutate.
 ///
 /// Unknown keys are preserved by every edit path, which is what keeps
-/// `hostKeyFingerprint` (the SSH trust-on-first-use pin) and `minFreeBytes`
-/// alive through a name change made in this page.
+/// `hostKeyFingerprint` and `hostKey` (the two halves of the SSH
+/// trust-on-first-use pin) and `minFreeBytes` alive through a name change made
+/// in this page.
 ///
 /// Returns an empty map when the column does not hold a JSON object: such a
 /// row cannot describe a transport, and the status line reports it as

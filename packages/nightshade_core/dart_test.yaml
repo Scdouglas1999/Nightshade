@@ -44,6 +44,18 @@ tags:
   # keeping CI and default `flutter test` runs offline and deterministic.
   live-network:
 
+  # The real-sshd tag covers tests that start a userland OpenSSH server on
+  # loopback (127.0.0.1, first free port in 2299-2310, its own temp directory)
+  # and drive the SFTP delivery transport against it. Nothing leaves the
+  # machine and nothing outside the temp directory is written, so unlike
+  # live-network this tag is NOT env-gated: on a machine that has sshd the
+  # tests run and prove the transport against the real wire, and on one that
+  # does not they skip themselves with a reason naming the missing binary.
+  # Registered here so the runner recognises the tag and so a run that wants
+  # only these (`--tags real-sshd`) or none of them
+  # (`--exclude-tags real-sshd`) can say so.
+  real-sshd:
+
   # The golden tag covers pixel-diff / perceptual golden tests whose baselines
   # are host-specific (GPU rasteriser + font hinting differ across OSes). The
   # committed baselines were captured on one host and produce ~1-1.5% diffs on

@@ -6,7 +6,9 @@
 //
 // Every test here scripts the command runner. None of them proves the
 // transport works against a real sshd — that is validation this suite cannot
-// perform and does not claim.
+// perform and does not claim. `sftp_real_sshd_test.dart` does, against a
+// userland OpenSSH server, and the two are complementary: the scripted runner
+// can produce failures a real server will not produce on demand.
 
 import 'dart:convert';
 import 'dart:io';
@@ -85,14 +87,16 @@ class _ScriptedRunner implements SftpCommandRunner {
 }
 
 /// A host-key line shaped like `ssh-keyscan` output, plus the fingerprint
-/// OpenSSH would print for it.
-({String line, String fingerprint}) hostKeyLine(String seed) {
+/// OpenSSH would print for it and the `<algorithm> <key>` pair a destination
+/// row stores.
+({String line, String fingerprint, String storedKey}) hostKeyLine(String seed) {
   final blob = utf8.encode('ssh-ed25519-key-material-$seed');
   final encoded = base64.encode(blob);
   final digest = base64.encode(sha256.convert(blob).bytes).replaceAll('=', '');
   return (
     line: 'office.local ssh-ed25519 $encoded',
     fingerprint: 'SHA256:$digest',
+    storedKey: 'ssh-ed25519 $encoded',
   );
 }
 
@@ -100,7 +104,7 @@ void main() {
   late Directory tempDir;
   late SecretsStore secrets;
   late InMemorySecureKeyValueStore keyring;
-  late List<String> pinned;
+  late List<HostKeyScanEntry> pinned;
 
   const secretRef = 'delivery.office_pc_key';
 
@@ -118,6 +122,7 @@ void main() {
 
   ArtifactDestination destination({
     String? fingerprint,
+    String? storedKey,
     String? authMethod,
     String? ref = secretRef,
     String? digestCommand,
@@ -132,6 +137,7 @@ void main() {
         'user': 'sean',
         'remoteDir': '/srv/astro/incoming',
         if (fingerprint != null) 'hostKeyFingerprint': fingerprint,
+        if (storedKey != null) 'hostKey': storedKey,
         if (authMethod != null) 'authMethod': authMethod,
         if (digestCommand != null) 'digestCommand': digestCommand,
       }),
@@ -152,7 +158,7 @@ void main() {
       jobId: 12,
       secrets: secrets,
       runner: runner,
-      pinHostKey: (fingerprint) async => pinned.add(fingerprint),
+      pinHostKey: (key) async => pinned.add(key),
     );
   }
 
@@ -256,7 +262,12 @@ void main() {
       final t = transport(runner);
       await t.open([await master()]);
 
-      expect(pinned, [key.fingerprint]);
+      expect(pinned.single.fingerprint, key.fingerprint);
+      expect(
+        pinned.single.knownHostsKey,
+        key.storedKey,
+        reason: 'the key itself is stored, so later deliveries need no scan',
+      );
       final sshCall = runner.calls.firstWhere((c) => c.executable == 'ssh');
       final knownHostsOption = sshCall.args.firstWhere(
         (a) => a.startsWith('UserKnownHostsFile='),
@@ -264,7 +275,10 @@ void main() {
       final knownHosts = File(
         knownHostsOption.substring('UserKnownHostsFile='.length),
       );
-      expect(await knownHosts.readAsString(), '${key.line}\n');
+      expect(
+        await knownHosts.readAsString(),
+        '$kSftpHostKeyAlias ${key.storedKey}\n',
+      );
       expect(sshCall.args, contains('StrictHostKeyChecking=yes'));
       expect(sshCall.args, contains('BatchMode=yes'));
       await t.close();
@@ -380,8 +394,62 @@ void main() {
         );
         await t.open([await master()]);
 
-        expect(pinned, isEmpty, reason: 'an existing pin is not rewritten');
+        expect(
+          pinned.single.fingerprint,
+          ed.fingerprint,
+          reason: 'the trusted fingerprint is unchanged — what is written is '
+              'the key behind it, so the next delivery needs no scan',
+        );
         await t.close();
+      },
+    );
+
+    test(
+      'a destination that already stores its key makes no scan at all',
+      () async {
+        final key = hostKeyLine('stored');
+        final runner = _ScriptedRunner();
+
+        final t = transport(
+          runner,
+          target: destination(
+            fingerprint: key.fingerprint,
+            storedKey: key.storedKey,
+          ),
+        );
+        await t.open([await master()]);
+
+        expect(runner.calls.where((c) => c.executable == 'ssh-keyscan'), isEmpty);
+        expect(pinned, isEmpty);
+        await t.close();
+      },
+    );
+
+    test(
+      'a stored key that does not match the stored fingerprint is refused '
+      'rather than half-trusted',
+      () async {
+        final key = hostKeyLine('stored');
+        final other = hostKeyLine('other');
+        final runner = _ScriptedRunner();
+
+        await expectLater(
+          transport(
+            runner,
+            target: destination(
+              fingerprint: other.fingerprint,
+              storedKey: key.storedKey,
+            ),
+          ).open([await master()]),
+          throwsA(
+            isA<DeliveryFailure>().having(
+              (f) => f.kind,
+              'kind',
+              DeliveryFailureKind.configurationInvalid,
+            ),
+          ),
+        );
+        expect(runner.calls, isEmpty);
       },
     );
   });
@@ -699,7 +767,7 @@ void main() {
       final entries = parseHostKeyScan('${key.line}\n');
 
       expect(entries.single.fingerprint, key.fingerprint);
-      expect(entries.single.line, key.line);
+      expect(entries.single.knownHostsKey, key.storedKey);
     });
 
     test('ignores comment lines and unparseable rows', () {

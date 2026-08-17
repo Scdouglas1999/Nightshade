@@ -7,6 +7,7 @@
 /// {"host": "office.local", "port": 22, "user": "sean",
 ///  "remoteDir": "/srv/astro/incoming",
 ///  "hostKeyFingerprint": "SHA256:s0m3Base64",
+///  "hostKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...",
 ///  "digestCommand": "sha256sum"}
 /// ```
 ///
@@ -15,12 +16,24 @@
 /// directory for the duration of the delivery.
 ///
 /// **Host key pinning.** On the first delivery the transport scans the
-/// server's host keys, pins one fingerprint onto the destination row, and
-/// writes a known-hosts file for the session. Every later delivery requires
-/// the server to still present that key: a mismatch is a
-/// [DeliveryFailureKind.hostKeyMismatch] failure and no bytes move. This is
-/// trust on first use — the first connection is the one an attacker would have
-/// to already own.
+/// server's host keys, pins one of them — both its fingerprint and the key
+/// itself — onto the destination row, and writes a known-hosts file for the
+/// session. Every later delivery hands that key to OpenSSH as the only one it
+/// will accept, so a server presenting anything else is refused by `ssh`
+/// itself before a byte moves and reported as
+/// [DeliveryFailureKind.hostKeyMismatch]. This is trust on first use — the
+/// first connection is the one an attacker would have to already own.
+///
+/// The pinned key is stored because `ssh-keyscan` is not free. One scan opens
+/// SIX unauthenticated connections (measured against OpenSSH 10.5), and an
+/// sshd built after 9.8 penalises a source that connects without
+/// authenticating: three scans in a row is enough for the server to start
+/// dropping the rig's connections outright, corrected credentials and all.
+/// Scanning therefore happens once per destination, not once per delivery.
+///
+/// The session's known-hosts file holds exactly one key and names it under
+/// [kSftpHostKeyAlias] rather than under `host:port`, which is what keeps the
+/// stored pin free of `ssh-keyscan`'s `[host]:port` formatting.
 ///
 /// **Password authentication is not offered.** OpenSSH deliberately refuses to
 /// read a password from a pipe, and the alternative (`sshpass`) is not a
@@ -54,11 +67,28 @@ const Duration kSftpUploadTimeout = Duration(minutes: 30);
 /// names none.
 const String kDefaultRemoteDigestCommand = 'sha256sum';
 
+/// The name the session's known-hosts file records the pinned key under.
+///
+/// The file holds exactly one key and is thrown away with the session, so the
+/// name is free. Using a fixed one (via OpenSSH's `HostKeyAlias`) means the
+/// stored pin is the key alone, with no `[host]:port` pattern to keep in step
+/// with the row it sits on. Which server the key is accepted for is decided by
+/// the row's own host and port, not by the text of a known-hosts pattern.
+const String kSftpHostKeyAlias = 'nightshade-delivery';
+
+/// OpenSSH's own exit status: the SSH transport failed and the remote command
+/// never ran. Every other status came from the remote command itself.
+const int kOpenSshTransportExitCode = 255;
+
+/// What `test` exits when it answers "no". A remote existence check that ends
+/// any other way did not answer at all.
+const int kRemoteTestFalseExitCode = 1;
+
 /// Called when the transport learns a host key it had no pin for, so the
 /// caller can persist it onto the destination row. Delivery does not continue
-/// until the pin is durable — a fingerprint that lives only in memory would be
+/// until the pin is durable — a key that lives only in memory would be
 /// re-learned (and re-trusted) on the next attempt.
-typedef HostKeyPinWriter = Future<void> Function(String fingerprint);
+typedef HostKeyPinWriter = Future<void> Function(HostKeyScanEntry key);
 
 /// Copies artifacts to an SFTP server, one atomic file at a time.
 class SftpTransport implements ArtifactTransport {
@@ -92,7 +122,14 @@ class SftpTransport implements ArtifactTransport {
   Future<void> open(List<DeliveryFile> artifacts) async {
     final config = _SftpConfig.parse(destination);
 
-    for (final tool in const ['ssh', 'sftp', 'ssh-keyscan']) {
+    for (final tool in <String>[
+      'ssh',
+      'sftp',
+      // Only a destination with no key pinned yet scans for one, so a machine
+      // without `ssh-keyscan` can still deliver to every destination that has
+      // already been through its first delivery.
+      if (config.hostKey == null) 'ssh-keyscan',
+    ]) {
       if (!await _runner.isAvailable(tool)) {
         throw DeliveryFailure(
           DeliveryFailureKind.transportToolMissing,
@@ -185,11 +222,24 @@ class SftpTransport implements ArtifactTransport {
       '-d',
       config.quotedRemoteDir,
     ], timeout: kSftpControlCommandTimeout);
-    if (!probe.succeeded) {
+    if (probe.exitCode == kRemoteTestFalseExitCode) {
+      // The remote `test` ran and said no: the directory is not there right
+      // now, which a later attempt may find mounted again.
       throw DeliveryFailure(
         DeliveryFailureKind.destinationUnreachable,
-        '${config.userAtHost}:${config.remoteDir} did not answer as a '
-        'directory: ${probe.diagnostic}',
+        '${config.userAtHost}:${config.remoteDir} is not a directory on the '
+        'server',
+      );
+    }
+    if (!probe.succeeded) {
+      // Anything else means the probe never reached a shell — a refused
+      // connection, a key the server would not take, a host key that changed.
+      // Those are different problems with different answers, and OpenSSH says
+      // which on stderr.
+      throw DeliveryFailure(
+        classifyOpenSshFailure(probe),
+        'Reaching ${config.userAtHost}:${config.remoteDir} failed: '
+        '${probe.diagnostic}',
       );
     }
 
@@ -236,6 +286,20 @@ class SftpTransport implements ArtifactTransport {
         'copies and never overwrites',
       );
     }
+    if (existing.exitCode != kRemoteTestFalseExitCode) {
+      // "Not answered" is not "not there". The delivery ends in an SFTP
+      // `rename`, which OpenSSH performs as a POSIX rename — it REPLACES
+      // whatever sits at the final name, silently and without an error. The
+      // promise that delivery never overwrites therefore rests entirely on
+      // this check, so an unanswered check stops the delivery instead of
+      // being read as an empty destination.
+      throw DeliveryFailure(
+        classifyOpenSshFailure(existing),
+        'Whether ${artifact.fileName} is already on ${config.userAtHost} could '
+        'not be determined (${existing.diagnostic}), and delivery does not '
+        'upload over an answer it does not have',
+      );
+    }
 
     final upload = await _runner.run(
       'sftp',
@@ -246,7 +310,7 @@ class SftpTransport implements ArtifactTransport {
     if (!upload.succeeded) {
       await _removeRemote(session, stagedPath);
       throw DeliveryFailure(
-        DeliveryFailureKind.transportFailure,
+        classifyOpenSshFailure(upload),
         'Uploading ${artifact.fileName} to ${config.userAtHost} failed: '
         '${upload.diagnostic}',
       );
@@ -271,7 +335,7 @@ class SftpTransport implements ArtifactTransport {
     if (!rename.succeeded) {
       await _removeRemote(session, stagedPath);
       throw DeliveryFailure(
-        DeliveryFailureKind.transportFailure,
+        classifyOpenSshFailure(rename),
         'Renaming ${artifact.fileName} into place on ${config.userAtHost} '
         'failed: ${rename.diagnostic}',
       );
@@ -291,12 +355,22 @@ class SftpTransport implements ArtifactTransport {
     if (session != null) await _deleteWorkDir(session.workDir);
   }
 
-  /// Scan the server's host keys, compare them with the pin on the
-  /// destination row, and write the known-hosts file the session uses.
+  /// Write the known-hosts file the session uses, scanning the server for a
+  /// key first when this destination has none pinned yet.
   Future<String> _pinAndWriteKnownHosts({
     required _SftpConfig config,
     required File knownHosts,
   }) async {
+    final pinnedKey = config.hostKey;
+    if (pinnedKey != null) {
+      // The key itself is pinned, so OpenSSH enforces it: a server presenting
+      // anything else fails the connection before the first command. No scan
+      // is needed, and none is made — see the note on `ssh-keyscan` and source
+      // penalties in the library doc.
+      await _writeKnownHosts(knownHosts, pinnedKey);
+      return pinnedKey.fingerprint;
+    }
+
     final scan = await _runner.run('ssh-keyscan', [
       '-p',
       '${config.port}',
@@ -314,14 +388,18 @@ class SftpTransport implements ArtifactTransport {
     final expected = config.hostKeyFingerprint;
     if (expected == null) {
       final learned = entries.first;
-      await _pinHostKey(learned.fingerprint);
-      await knownHosts.writeAsString('${learned.line}\n');
+      await _pinHostKey(learned);
+      await _writeKnownHosts(knownHosts, learned);
       return learned.fingerprint;
     }
 
     for (final entry in entries) {
       if (entry.fingerprint == expected) {
-        await knownHosts.writeAsString('${entry.line}\n');
+        // The trust decision is unchanged — this is the fingerprint already on
+        // the row. Storing the key behind it is what lets every later delivery
+        // skip the scan.
+        await _pinHostKey(entry);
+        await _writeKnownHosts(knownHosts, entry);
         return entry.fingerprint;
       }
     }
@@ -332,6 +410,9 @@ class SftpTransport implements ArtifactTransport {
       'pinned to $expected; nothing was sent',
     );
   }
+
+  Future<void> _writeKnownHosts(File knownHosts, HostKeyScanEntry key) =>
+      knownHosts.writeAsString('$kSftpHostKeyAlias ${key.knownHostsKey}\n');
 
   /// The remote digest of [remotePath], as lowercase hex.
   Future<String> _remoteDigest(_SftpSession session, String remotePath) async {
@@ -357,6 +438,17 @@ class SftpTransport implements ArtifactTransport {
           DeliveryFailureKind.transportToolMissing,
           '`$command` on ${config.userAtHost} answered "${digest.isEmpty ? result.stdout.trim() : digest}", '
           'which is not a SHA-256 digest',
+        );
+      }
+      if (result.exitCode == kOpenSshTransportExitCode) {
+        // SSH failed, so the digest command never ran. Falling through to the
+        // next candidate would end in "this server offers no SHA-256 command",
+        // sending the operator to install coreutils over what is a dropped
+        // connection or a refused key.
+        throw DeliveryFailure(
+          classifyOpenSshFailure(result),
+          'Verifying $remotePath on ${config.userAtHost} could not be started: '
+          '${result.diagnostic}',
         );
       }
       last = result;
@@ -394,15 +486,39 @@ class SftpTransport implements ArtifactTransport {
   }
 }
 
-/// One host key `ssh-keyscan` reported.
+/// One host key, as OpenSSH writes it in a known-hosts file: the algorithm
+/// name and the base64 key, without the host pattern in front of them.
+///
+/// The host pattern is left off because the session writes its own: what a
+/// destination row stores is the key, and `ssh-keyscan`'s `[host]:port` prefix
+/// is formatting that would then have to be kept in step with the row.
 class HostKeyScanEntry {
-  /// The known-hosts line, verbatim.
-  final String line;
+  /// The key algorithm, e.g. `ssh-ed25519`.
+  final String algorithm;
 
-  /// OpenSSH's `SHA256:<base64>` fingerprint of the key blob on that line.
+  /// The base64 key blob, verbatim.
+  final String blob;
+
+  /// OpenSSH's `SHA256:<base64>` fingerprint of that key.
   final String fingerprint;
 
-  const HostKeyScanEntry({required this.line, required this.fingerprint});
+  const HostKeyScanEntry({
+    required this.algorithm,
+    required this.blob,
+    required this.fingerprint,
+  });
+
+  /// The two fields a known-hosts line carries after its host pattern. This
+  /// is also what the destination row stores.
+  String get knownHostsKey => '$algorithm $blob';
+
+  /// Read back a key stored as `<algorithm> <base64>`, or null when that is
+  /// not what the string holds.
+  static HostKeyScanEntry? parse(String storedKey) {
+    final parts = storedKey.trim().split(RegExp(r'\s+'));
+    if (parts.length != 2) return null;
+    return _entryFor(algorithm: parts[0], encodedBlob: parts[1]);
+  }
 }
 
 /// Parse `ssh-keyscan` output into host-key entries with their OpenSSH
@@ -412,6 +528,10 @@ class HostKeyScanEntry {
 /// `ssh-keygen -lf`: it is exactly the unpadded base64 of the SHA-256 of the
 /// key blob, so computing it removes one binary from the dependency list and
 /// one place the two could disagree.
+///
+/// `ssh-keyscan` writes its progress comments to STDOUT, interleaved with the
+/// keys — one `# host:port SSH-2.0-…` line per connection it opens — so the
+/// comment skip below is load-bearing, not decoration.
 List<HostKeyScanEntry> parseHostKeyScan(String scanOutput) {
   final entries = <HostKeyScanEntry>[];
   for (final raw in const LineSplitter().convert(scanOutput)) {
@@ -419,23 +539,69 @@ List<HostKeyScanEntry> parseHostKeyScan(String scanOutput) {
     if (line.isEmpty || line.startsWith('#')) continue;
     final parts = line.split(RegExp(r'\s+'));
     if (parts.length < 3) continue;
-    final List<int>? blob = _decodeBase64(parts[2]);
-    if (blob == null) continue;
-    final digest = sha256.convert(blob);
-    final encoded = base64.encode(digest.bytes).replaceAll('=', '');
-    entries.add(HostKeyScanEntry(line: line, fingerprint: 'SHA256:$encoded'));
+    final entry = _entryFor(algorithm: parts[1], encodedBlob: parts[2]);
+    if (entry != null) entries.add(entry);
   }
   return entries;
+}
+
+/// Classify a failed `ssh` or `sftp` run from what OpenSSH actually wrote.
+///
+/// Every string matched here was taken from a real OpenSSH 10.5 client
+/// talking to a real sshd, not from the manual. The kind decides whether the
+/// retry sweep tries again, and getting that wrong is expensive in both
+/// directions: a rejected key retried every few minutes is what an sshd built
+/// after 9.8 penalises, and it will start dropping the rig's connections
+/// outright once the penalty passes its threshold.
+DeliveryFailureKind classifyOpenSshFailure(SftpCommandResult result) {
+  final text = '${result.stderr}\n${result.stdout}';
+  if (text.contains('REMOTE HOST IDENTIFICATION HAS CHANGED') ||
+      text.contains('Host key verification failed')) {
+    return DeliveryFailureKind.hostKeyMismatch;
+  }
+  // Every refusal OpenSSH could be made to produce here says "Permission
+  // denied": the server rejecting the key ("(publickey)"), the server offering
+  // only a method batch mode cannot use ("(keyboard-interactive)"), and the
+  // server rejecting the write ("dest open …: Permission denied"). All three
+  // are terminal, and all three are fixed by a person, not by a retry.
+  if (text.contains('Permission denied') ||
+      text.contains('UNPROTECTED PRIVATE KEY FILE')) {
+    return DeliveryFailureKind.permissionDenied;
+  }
+  if (text.contains('Connection refused') ||
+      text.contains('No such file or directory') ||
+      text.contains('Could not resolve hostname')) {
+    return DeliveryFailureKind.destinationUnreachable;
+  }
+  return DeliveryFailureKind.transportFailure;
+}
+
+/// Build an entry from an algorithm and a base64 key, or null when the key
+/// does not decode.
+///
+/// A line whose key field is not base64 is not a host key — `ssh-keyscan`
+/// also emits comment and error lines. Skipping it here is what makes the
+/// caller's "presented no host key" failure fire when NONE of the lines
+/// parse.
+HostKeyScanEntry? _entryFor({
+  required String algorithm,
+  required String encodedBlob,
+}) {
+  final List<int>? blob = _decodeBase64(encodedBlob);
+  if (blob == null || blob.isEmpty) return null;
+  final digest = sha256.convert(blob);
+  final encoded = base64.encode(digest.bytes).replaceAll('=', '');
+  return HostKeyScanEntry(
+    algorithm: algorithm,
+    blob: encodedBlob,
+    fingerprint: 'SHA256:$encoded',
+  );
 }
 
 List<int>? _decodeBase64(String value) {
   try {
     return base64.decode(value);
   } on FormatException {
-    // A keyscan line whose third field is not base64 is not a host key —
-    // `ssh-keyscan` also emits comment and error lines. Skipping it here is
-    // what makes the caller's "presented no host key" failure fire when NONE
-    // of the lines parse.
     return null;
   }
 }
@@ -447,6 +613,10 @@ class _SftpConfig {
   final String user;
   final String remoteDir;
   final String? hostKeyFingerprint;
+
+  /// The pinned host key itself, once a first delivery has learned it. When
+  /// this is set no scan is made and OpenSSH enforces the pin.
+  final HostKeyScanEntry? hostKey;
   final String digestCommand;
 
   const _SftpConfig({
@@ -455,6 +625,7 @@ class _SftpConfig {
     required this.user,
     required this.remoteDir,
     required this.hostKeyFingerprint,
+    required this.hostKey,
     required this.digestCommand,
   });
 
@@ -504,6 +675,40 @@ class _SftpConfig {
         'is not a fingerprint string',
       );
     }
+    final pinnedFingerprint = (fingerprint as String?)?.trim();
+
+    final storedKey = config['hostKey'];
+    HostKeyScanEntry? hostKey;
+    if (storedKey != null) {
+      if (storedKey is! String || storedKey.trim().isEmpty) {
+        throw DeliveryFailure(
+          DeliveryFailureKind.configurationInvalid,
+          'hostKey on this SFTP destination is $storedKey, which is not a '
+          'stored host key',
+        );
+      }
+      hostKey = HostKeyScanEntry.parse(storedKey);
+      if (hostKey == null) {
+        throw const DeliveryFailure(
+          DeliveryFailureKind.configurationInvalid,
+          'hostKey on this SFTP destination is not an OpenSSH host key '
+          '("<algorithm> <base64 key>")',
+        );
+      }
+      if (pinnedFingerprint != null &&
+          pinnedFingerprint.isNotEmpty &&
+          hostKey.fingerprint != pinnedFingerprint) {
+        // Two pins that disagree is not something to pick a winner from: one
+        // of them was edited by hand or by a bug, and trusting either would be
+        // trusting a key nobody decided on.
+        throw DeliveryFailure(
+          DeliveryFailureKind.configurationInvalid,
+          'This SFTP destination pins the fingerprint $pinnedFingerprint but '
+          'stores a host key whose fingerprint is ${hostKey.fingerprint}; '
+          'clear one of them and let the next delivery re-pin',
+        );
+      }
+    }
 
     final digest = config['digestCommand'];
     if (digest != null && (digest is! String || digest.trim().isEmpty)) {
@@ -522,7 +727,8 @@ class _SftpConfig {
       port: port,
       user: user,
       remoteDir: remoteDir,
-      hostKeyFingerprint: (fingerprint as String?)?.trim(),
+      hostKeyFingerprint: pinnedFingerprint,
+      hostKey: hostKey,
       digestCommand: digestCommand,
     );
   }
@@ -561,6 +767,13 @@ class _SftpSession {
   /// `BatchMode=yes` and `NumberOfPasswordPrompts=0` are what turn a server
   /// that wants a password into an immediate non-zero exit instead of a
   /// process blocked on a prompt no one will ever see.
+  ///
+  /// `LogLevel=ERROR` is what keeps a server's login banner out of the failure
+  /// message. OpenSSH prints the banner on STDERR ahead of everything else, so
+  /// at the default log level a delivery to a banner-carrying server reports
+  /// "AUTHORIZED USE ONLY" as the reason it failed. Refusals — a denied key, a
+  /// refused connection, a changed host key, an SFTP write that could not open
+  /// its destination — are all logged above ERROR and survive.
   List<String> get _commonOptions => <String>[
     '-o',
     'BatchMode=yes',
@@ -571,6 +784,8 @@ class _SftpSession {
     '-o',
     'GlobalKnownHostsFile=${p.join(workDir.path, 'no_global_known_hosts')}',
     '-o',
+    'HostKeyAlias=$kSftpHostKeyAlias',
+    '-o',
     'IdentitiesOnly=yes',
     '-o',
     'PasswordAuthentication=no',
@@ -578,6 +793,8 @@ class _SftpSession {
     'NumberOfPasswordPrompts=0',
     '-o',
     'ConnectTimeout=15',
+    '-o',
+    'LogLevel=ERROR',
     '-i',
     keyFile.path,
   ];

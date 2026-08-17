@@ -53,7 +53,7 @@ class DefaultArtifactTransportFactory {
           jobId: jobId,
           secrets: _secrets,
           runner: _runner,
-          pinHostKey: (fingerprint) => _pinHostKey(destination, fingerprint),
+          pinHostKey: (key) => _pinHostKey(destination, key),
         );
       case ArtifactDestinationKind.peer:
         return PeerPublicationTransport(destination: destination, jobId: jobId);
@@ -62,12 +62,16 @@ class DefaultArtifactTransportFactory {
 
   /// Persist a newly learned SSH host key onto the destination row.
   ///
-  /// The pin has to be durable before the first byte moves: a fingerprint held
-  /// only in memory would be re-learned — and so re-trusted — on the next
-  /// attempt, which is trust on EVERY use rather than trust on first use.
+  /// The pin has to be durable before the first byte moves: a key held only in
+  /// memory would be re-learned — and so re-trusted — on the next attempt,
+  /// which is trust on EVERY use rather than trust on first use.
+  ///
+  /// Both halves are written. The fingerprint is what the operator reads and
+  /// compares; the key itself is what the next delivery hands to OpenSSH so it
+  /// can enforce the pin without scanning the server again.
   Future<void> _pinHostKey(
     ArtifactDestination destination,
-    String fingerprint,
+    HostKeyScanEntry key,
   ) async {
     final id = destination.id;
     if (id == null) return;
@@ -75,7 +79,8 @@ class DefaultArtifactTransportFactory {
     final config = decoded is Map
         ? decoded.cast<String, Object?>()
         : <String, Object?>{};
-    config['hostKeyFingerprint'] = fingerprint;
+    config['hostKeyFingerprint'] = key.fingerprint;
+    config['hostKey'] = key.knownHostsKey;
     await _targets.update(id, configJson: jsonEncode(config));
   }
 }

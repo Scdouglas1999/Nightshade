@@ -470,8 +470,11 @@ class _DestinationEditorDialogState
         if (movedHost) {
           // The pin identifies one server. Carrying it to a different
           // host/port would refuse the new server's key forever, or — worse —
-          // accept a different machine under the old machine's trust.
+          // accept a different machine under the old machine's trust. Both
+          // halves go: the fingerprint the operator reads, and the key itself,
+          // which is what OpenSSH is handed to enforce the pin.
           config.remove('hostKeyFingerprint');
+          config.remove('hostKey');
         }
         config['host'] = host;
         config['port'] = port;
