@@ -97,9 +97,9 @@ class ManualDarkroomRun {
         final drafts = result.report?.draftsRendered ?? 0;
         return drafts > 0
             ? 'Darkroom pass finished — $drafts draft'
-                  '${drafts == 1 ? '' : 's'} ready.'
+                '${drafts == 1 ? '' : 's'} ready.'
             : 'Darkroom pass finished without a draft; the night report says '
-                  'why.';
+                'why.';
       case DarkroomJobState.cancelled:
         return result.failure ?? 'The Darkroom pass was stopped.';
       case DarkroomJobState.queued:

@@ -37,34 +37,35 @@ IntegratedMaster _master({
   required String name,
   String? fitsPath,
   AccumulationMode mode = AccumulationMode.batch,
-}) => IntegratedMaster(
-  id: id,
-  targetId: 1,
-  name: name,
-  filter: 'Ha',
-  masterFitsPath: fitsPath,
-  previewPngPath: null,
-  sidecarPath: null,
-  rejectionMapPath: null,
-  width: 4000,
-  height: 3000,
-  channels: 1,
-  frameCount: 40,
-  totalIntegrationSeconds: 12000,
-  accumulationMode: mode,
-  status: mode == AccumulationMode.batch
-      ? IntegratedMasterStatus.finalized
-      : IntegratedMasterStatus.accumulating,
-  settingsJson: '{}',
-  statsJson: '{}',
-  createdAt: DateTime.utc(2026, 8, 15),
-  updatedAt: DateTime.utc(2026, 8, 16),
-);
+}) =>
+    IntegratedMaster(
+      id: id,
+      targetId: 1,
+      name: name,
+      filter: 'Ha',
+      masterFitsPath: fitsPath,
+      previewPngPath: null,
+      sidecarPath: null,
+      rejectionMapPath: null,
+      width: 4000,
+      height: 3000,
+      channels: 1,
+      frameCount: 40,
+      totalIntegrationSeconds: 12000,
+      accumulationMode: mode,
+      status: mode == AccumulationMode.batch
+          ? IntegratedMasterStatus.finalized
+          : IntegratedMasterStatus.accumulating,
+      settingsJson: '{}',
+      statsJson: '{}',
+      createdAt: DateTime.utc(2026, 8, 15),
+      updatedAt: DateTime.utc(2026, 8, 16),
+    );
 
 Widget _panelHarness(Widget child) => MaterialApp(
-  theme: NightshadeTheme.dark,
-  home: Scaffold(body: SingleChildScrollView(child: child)),
-);
+      theme: NightshadeTheme.dark,
+      home: Scaffold(body: SingleChildScrollView(child: child)),
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

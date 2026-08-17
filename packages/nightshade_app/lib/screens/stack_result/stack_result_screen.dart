@@ -321,7 +321,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           message: sessionId != null
               ? 'Open this night\'s linear master in the Darkroom'
               : 'This stack has no imaging session, so there is no linear '
-                    'master to refine.',
+                  'master to refine.',
           child: NightshadeButton(
             key: const ValueKey('stack_result_refine_in_darkroom'),
             label: 'Refine in Darkroom',
@@ -330,7 +330,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             size: ButtonSize.small,
             onPressed: sessionId != null
                 ? () =>
-                      unawaited(openDarkroomForSession(context, ref, sessionId))
+                    unawaited(openDarkroomForSession(context, ref, sessionId))
                 : null,
           ),
         ),

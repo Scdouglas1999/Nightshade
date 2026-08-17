@@ -164,7 +164,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     final diverged = branch.divergenceIndex == null
         ? 'a root recipe'
         : 'diverges from recipe ${branch.parentRecipeId} after step '
-              '${branch.divergenceIndex}';
+            '${branch.divergenceIndex}';
     return Tooltip(
       message: '${branch.label} — $author, $steps, $diverged.'
           '${comparing ? ' Shown as B in the compare pane.' : ''}',
@@ -243,8 +243,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           )
         else if (compareTargets.isEmpty)
           const Tooltip(
-            message:
-                'A compare needs a second recipe over these same pixels. '
+            message: 'A compare needs a second recipe over these same pixels. '
                 'Duplicate this one as a variant to make one.',
             child: NightshadeButton(
               label: 'Compare',
@@ -299,8 +298,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         runSpacing: NightshadeTokens.spaceXs,
         children: [
           NightshadeButton(
-            label:
-                'Delete "${refusal.label}" and its '
+            label: 'Delete "${refusal.label}" and its '
                 '${refusal.childIds.length} '
                 '${refusal.childIds.length == 1 ? 'branch' : 'branches'}',
             icon: NightshadeIcons.delete,
@@ -326,7 +324,8 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   Future<void> _promptDuplicate() async {
     final state = ref.read(darkroomBranchControllerProvider(widget.scope));
     final current = state.branchFor(widget.recipeId);
-    final suggested = '${current?.label ?? 'Recipe ${widget.recipeId}'} variant';
+    final suggested =
+        '${current?.label ?? 'Recipe ${widget.recipeId}'} variant';
     final name = await _promptForName(
       title: 'Duplicate as variant',
       body:
@@ -351,8 +350,8 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     final state = ref.read(darkroomBranchControllerProvider(widget.scope));
     final current = state.branchFor(widget.recipeId);
     if (current == null) {
-      // Opening the field with a blank value would propose erasing a label this
-      // build simply has not read yet.
+      // A blank rename field would propose erasing a name that has not been
+      // loaded; refuse until the branch list is read.
       NightshadeToastHelper.show(
         context: context,
         message:
@@ -600,7 +599,7 @@ class _DarkroomNameDialogState extends State<_DarkroomNameDialog> {
             onSubmitted: (_) => _confirm(),
             errorText: text.isEmpty
                 ? 'A branch needs a name to be told apart from the others on '
-                      'the bar.'
+                    'the bar.'
                 : null,
           ),
         ],

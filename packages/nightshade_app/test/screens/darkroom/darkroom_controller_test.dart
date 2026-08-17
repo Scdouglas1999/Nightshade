@@ -121,11 +121,11 @@ class _ScriptedDarkroom implements DarkroomSeam {
                 'index': i,
                 'opId': (steps[i] as Map<String, dynamic>)['opId'],
                 'opVersion': 1,
-                'outcome': ((steps[i] as Map<String, dynamic>)['enabled']
-                            as bool) ==
-                        false
-                    ? 'disabled'
-                    : (skipReasons.containsKey(i) ? 'skipped' : 'applied'),
+                'outcome':
+                    ((steps[i] as Map<String, dynamic>)['enabled'] as bool) ==
+                            false
+                        ? 'disabled'
+                        : (skipReasons.containsKey(i) ? 'skipped' : 'applied'),
                 if (skipReasons.containsKey(i)) 'reason': skipReasons[i],
               },
           ],
@@ -348,10 +348,11 @@ void main() {
     await settle(scope);
     final baseline = darkroom.previewCount;
 
-    final controller = container.read(darkroomControllerProvider(scope).notifier)
-      ..toggleStep(0)
-      ..toggleStep(1)
-      ..toggleStep(0);
+    final controller =
+        container.read(darkroomControllerProvider(scope).notifier)
+          ..toggleStep(0)
+          ..toggleStep(1)
+          ..toggleStep(0);
     expect(controller.state.steps[0].enabled, isTrue);
 
     // Nothing has rendered yet: the debounce is still open.
@@ -366,7 +367,8 @@ void main() {
     }
     expect(darkroom.previewCount, baseline + 1);
     expect(controller.state.steps[1].enabled, isFalse);
-    expect(controller.state.reportFor(1)!.outcome, DarkroomStepOutcome.disabled);
+    expect(
+        controller.state.reportFor(1)!.outcome, DarkroomStepOutcome.disabled);
   });
 
   test('a superseded render is cancelled by its own id and dropped', () async {

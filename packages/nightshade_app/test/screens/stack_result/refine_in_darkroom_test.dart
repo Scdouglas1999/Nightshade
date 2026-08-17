@@ -17,18 +17,18 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 StackAndShareResult _result({int? sessionId}) => StackAndShareResult(
-  id: 21,
-  targetName: 'Veil',
-  sessionId: sessionId,
-  framesStacked: 12,
-  framesAttempted: 12,
-  integrationSecs: 1440,
-  avgAlignmentResidual: 0.4,
-  width: 2,
-  height: 2,
-  channels: 1,
-  createdAt: DateTime.utc(2026, 8, 1),
-);
+      id: 21,
+      targetName: 'Veil',
+      sessionId: sessionId,
+      framesStacked: 12,
+      framesAttempted: 12,
+      integrationSecs: 1440,
+      avgAlignmentResidual: 0.4,
+      width: 2,
+      height: 2,
+      channels: 1,
+      createdAt: DateTime.utc(2026, 8, 1),
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -18,14 +18,14 @@ import '../../harness/mock_database.dart';
 const String _masterPath = '/tmp/nightshade-test/m31_L.fits';
 
 String _steps(int count) => jsonEncode([
-  for (var i = 0; i < count; i++)
-    {
-      'opId': 'background_extract',
-      'opVersion': 1,
-      'params': <String, dynamic>{},
-      'enabled': true,
-    },
-]);
+      for (var i = 0; i < count; i++)
+        {
+          'opId': 'background_extract',
+          'opVersion': 1,
+          'params': <String, dynamic>{},
+          'enabled': true,
+        },
+    ]);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -144,7 +144,8 @@ void main() {
     expect(stateFor(root).branches.single.label, 'Night one');
   });
 
-  test('renaming a row that is gone says so instead of reporting success', () async {
+  test('renaming a row that is gone says so instead of reporting success',
+      () async {
     final root = await seedRoot();
     final controller = controllerFor(root);
     await controller.refresh();
@@ -170,7 +171,8 @@ void main() {
     expect(stateFor(variant).deleteRefusal, isNull);
   });
 
-  test('a parent with branches is REFUSED, and the refusal names them', () async {
+  test('a parent with branches is REFUSED, and the refusal names them',
+      () async {
     final root = await seedRoot(name: 'Draft');
     final warmer = await dao.branchFrom(
       parentRecipeId: root,
@@ -247,7 +249,8 @@ void main() {
     expect(state.lineageError, isNull);
   });
 
-  test('an unreadable step list is reported as unreadable, not as zero', () async {
+  test('an unreadable step list is reported as unreadable, not as zero',
+      () async {
     final root = await dao.create(
       baseMasterPath: _masterPath,
       name: 'Corrupt',

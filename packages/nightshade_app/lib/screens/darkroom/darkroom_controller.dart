@@ -49,11 +49,11 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// that is still inside the engine, and by then the container that owns
   /// [ref] may already be tearing down.
   DarkroomController(Ref ref, this._scope)
-    : _darkroom = ref.read(darkroomSeamProvider),
-      _recipes = ref.read(recipesDaoProvider),
-      _masters = ref.read(integratedMastersDaoProvider),
-      _photometry = ref.read(dawnPhotometryResolverProvider),
-      super(const DarkroomState()) {
+      : _darkroom = ref.read(darkroomSeamProvider),
+        _recipes = ref.read(recipesDaoProvider),
+        _masters = ref.read(integratedMastersDaoProvider),
+        _photometry = ref.read(dawnPhotometryResolverProvider),
+        super(const DarkroomState()) {
     unawaited(_load());
   }
 
@@ -503,8 +503,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // them here would attach each message to the wrong card. Only the
       // whole-recipe sentence describes an order that is not on screen.
       state = state.copyWith(
-        reorderRefusal:
-            verdict.error ??
+        reorderRefusal: verdict.error ??
             'The engine refused that order without naming a reason.',
       );
       return false;
@@ -556,8 +555,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   }) {
     final now = DateTime.now();
     final lastAt = _lastEditAt;
-    final continues =
-        coalesceKey != null &&
+    final continues = coalesceKey != null &&
         coalesceKey == _lastEditKey &&
         lastAt != null &&
         now.difference(lastAt) < kDarkroomEditCoalesceWindow;
@@ -755,7 +753,8 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     await _requestCancel(renderId, announce: true);
   }
 
-  Future<void> _requestCancel(String? renderId, {required bool announce}) async {
+  Future<void> _requestCancel(String? renderId,
+      {required bool announce}) async {
     if (renderId == null) return;
     if (announce) state = state.copyWith(cancelRequested: true);
     try {
@@ -862,9 +861,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
 
 /// Family provider keyed by the scope, so a recipe opened by id and a master
 /// opened by id are independent controllers.
-final darkroomControllerProvider =
-    StateNotifierProvider.family<
-      DarkroomController,
-      DarkroomState,
-      DarkroomScope
-    >((ref, scope) => DarkroomController(ref, scope));
+final darkroomControllerProvider = StateNotifierProvider.family<
+    DarkroomController,
+    DarkroomState,
+    DarkroomScope>((ref, scope) => DarkroomController(ref, scope));

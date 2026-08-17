@@ -84,8 +84,7 @@ class _DarkroomRecipePanel extends StatelessWidget {
             if (state.isLinear)
               const _DarkroomTag(
                 label: 'Linear',
-                tooltip:
-                    'Every step is switched off, so the viewport is the '
+                tooltip: 'Every step is switched off, so the viewport is the '
                     'master\'s own pixels. Nothing was destroyed — each step '
                     'and its parameters are intact.',
               ),
@@ -155,9 +154,8 @@ class _DarkroomRecipePanel extends StatelessWidget {
           icon: NightshadeIcons.frame,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
-          onPressed: state.steps.isEmpty || state.isLinear
-              ? null
-              : onResetToLinear,
+          onPressed:
+              state.steps.isEmpty || state.isLinear ? null : onResetToLinear,
         ),
         const SizedBox(height: NightshadeTokens.spaceXs),
         Text(
@@ -268,6 +266,7 @@ class _DarkroomRecipePanel extends StatelessWidget {
         );
     }
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
+    return Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: children);
   }
 }

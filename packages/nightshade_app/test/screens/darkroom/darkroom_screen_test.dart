@@ -81,9 +81,9 @@ class _ScriptedDarkroom implements DarkroomSeam {
                 'opId': (steps[i] as Map<String, dynamic>)['opId'],
                 'outcome':
                     ((steps[i] as Map<String, dynamic>)['enabled'] as bool) ==
-                        false
-                    ? 'disabled'
-                    : (skipReasons.containsKey(i) ? 'skipped' : 'applied'),
+                            false
+                        ? 'disabled'
+                        : (skipReasons.containsKey(i) ? 'skipped' : 'applied'),
                 if (skipReasons.containsKey(i)) 'reason': skipReasons[i],
               },
           ],
@@ -150,11 +150,11 @@ DawnPhotometryResolver _emptyPhotometry() {
 const String _masterPath = '/tmp/nightshade-test/m31_L.fits';
 
 Map<String, dynamic> _step(String opId, {bool enabled = true}) => {
-  'opId': opId,
-  'opVersion': 1,
-  'params': <String, dynamic>{},
-  'enabled': enabled,
-};
+      'opId': opId,
+      'opVersion': 1,
+      'params': <String, dynamic>{},
+      'enabled': enabled,
+    };
 
 class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) {

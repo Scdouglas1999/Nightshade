@@ -219,12 +219,10 @@ class DarkroomState {
       rendering: rendering ?? this.rendering,
       cancelRequested: cancelRequested ?? this.cancelRequested,
       renderError: clearRenderError ? null : (renderError ?? this.renderError),
-      cancelledPhase: clearCancelledPhase
-          ? null
-          : (cancelledPhase ?? this.cancelledPhase),
-      reorderRefusal: clearReorderRefusal
-          ? null
-          : (reorderRefusal ?? this.reorderRefusal),
+      cancelledPhase:
+          clearCancelledPhase ? null : (cancelledPhase ?? this.cancelledPhase),
+      reorderRefusal:
+          clearReorderRefusal ? null : (reorderRefusal ?? this.reorderRefusal),
       photometryNote: photometryNote ?? this.photometryNote,
       photometryStarCount: photometryStarCount ?? this.photometryStarCount,
       canUndo: canUndo ?? this.canUndo,

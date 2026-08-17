@@ -214,9 +214,8 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
             label: '1:1',
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: state.preview?.scaleFromMaster == null
-                ? null
-                : _oneToOne,
+            onPressed:
+                state.preview?.scaleFromMaster == null ? null : _oneToOne,
           ),
           Semantics(
             label: masterScale == null
@@ -269,8 +268,7 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         return EmptyState(
           icon: NightshadeIcons.stopCircle,
           title: 'The render was stopped',
-          body:
-              'It stopped during ${state.cancelledPhase}, so there are no '
+          body: 'It stopped during ${state.cancelledPhase}, so there are no '
               'pixels to show yet.',
           action: NightshadeButton(
             label: 'Render again',

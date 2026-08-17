@@ -75,38 +75,40 @@ void main() {
     );
   });
 
-  test('routeRendered carries the payload to the push, not to the others',
-      () async {
-    final rig = build();
-    final pushes = <PushNotification>[];
-    final sub = rig.push.notifications.listen(pushes.add);
+  test(
+    'routeRendered carries the payload to the push, not to the others',
+    () async {
+      final rig = build();
+      final pushes = <PushNotification>[];
+      final sub = rig.push.notifications.listen(pushes.add);
 
-    rig.router.routeRendered(
-      category: NotificationCategory.darkroomDraftReady,
-      title: 'M31 — 3h 42m integrated',
-      body: '112 frames used, 8 rejected.',
-      deepLink: 'darkroom_draft:412',
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    await sub.cancel();
+      rig.router.routeRendered(
+        category: NotificationCategory.darkroomDraftReady,
+        title: 'M31 — 3h 42m integrated',
+        body: '112 frames used, 8 rejected.',
+        deepLink: 'darkroom_draft:412',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await sub.cancel();
 
-    expect(pushes, hasLength(1));
-    expect(pushes.single.deepLink, 'darkroom_draft:412');
-    expect(pushes.single.eventType, 'darkroomDraftReady');
-    expect(pushes.single.category, EventCategory.imaging);
-    expect(
-      pushes.single.priority,
-      PushNotificationPriority.normal,
-      reason: 'the night is already over; nothing here is an emergency',
-    );
+      expect(pushes, hasLength(1));
+      expect(pushes.single.deepLink, 'darkroom_draft:412');
+      expect(pushes.single.eventType, 'darkroomDraftReady');
+      expect(pushes.single.category, EventCategory.imaging);
+      expect(
+        pushes.single.priority,
+        PushNotificationPriority.normal,
+        reason: 'the night is already over; nothing here is an emergency',
+      );
 
-    // The in-app transport still received the message, unchanged.
-    expect(rig.inApp.sent, hasLength(1));
-    expect(
-      rig.inApp.sent.single.category,
-      NotificationCategory.darkroomDraftReady,
-    );
-  });
+      // The in-app transport still received the message, unchanged.
+      expect(rig.inApp.sent, hasLength(1));
+      expect(
+        rig.inApp.sent.single.category,
+        NotificationCategory.darkroomDraftReady,
+      );
+    },
+  );
 
   test('a routed message with no payload carries none on the wire', () async {
     final rig = build();
@@ -144,17 +146,19 @@ void main() {
     expect(json['deepLink'], 'darkroom_draft:412');
   });
 
-  test('routeNotificationNode still routes as custom with no payload',
-      () async {
-    final rig = build();
-    final pushes = <PushNotification>[];
-    final sub = rig.push.notifications.listen(pushes.add);
+  test(
+    'routeNotificationNode still routes as custom with no payload',
+    () async {
+      final rig = build();
+      final pushes = <PushNotification>[];
+      final sub = rig.push.notifications.listen(pushes.add);
 
-    rig.router.routeNotificationNode(title: 'scripted', body: 'node');
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    await sub.cancel();
+      rig.router.routeNotificationNode(title: 'scripted', body: 'node');
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await sub.cancel();
 
-    expect(rig.inApp.sent.single.category, NotificationCategory.custom);
-    expect(pushes, isEmpty, reason: 'custom is in-app only by default');
-  });
+      expect(rig.inApp.sent.single.category, NotificationCategory.custom);
+      expect(pushes, isEmpty, reason: 'custom is in-app only by default');
+    },
+  );
 }

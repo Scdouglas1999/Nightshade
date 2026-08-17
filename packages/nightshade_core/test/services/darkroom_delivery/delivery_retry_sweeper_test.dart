@@ -135,21 +135,24 @@ void main() {
     expect(sweeper.isSweeping, isFalse);
   });
 
-  test('a throwing sweep releases the latch and leaves the timer armed', () async {
-    final sweeper = build(interval: const Duration(seconds: 30));
-    addTearDown(sweeper.stop);
-    sweeper.start();
-    delivery.failWith = StateError('the journal is unreadable');
+  test(
+    'a throwing sweep releases the latch and leaves the timer armed',
+    () async {
+      final sweeper = build(interval: const Duration(seconds: 30));
+      addTearDown(sweeper.stop);
+      sweeper.start();
+      delivery.failWith = StateError('the journal is unreadable');
 
-    expect(await sweeper.sweepOnce(), isNull);
-    expect(sweeper.isSweeping, isFalse);
-    expect(
-      sweeper.isRunning,
-      isTrue,
-      reason: 'the next tick is the retry; a failure must not disarm it',
-    );
+      expect(await sweeper.sweepOnce(), isNull);
+      expect(sweeper.isSweeping, isFalse);
+      expect(
+        sweeper.isRunning,
+        isTrue,
+        reason: 'the next tick is the retry; a failure must not disarm it',
+      );
 
-    delivery.failWith = null;
-    expect(await sweeper.sweepOnce(), isNotNull);
-  });
+      delivery.failWith = null;
+      expect(await sweeper.sweepOnce(), isNotNull);
+    },
+  );
 }

@@ -122,11 +122,11 @@ class DarkroomStep {
 
   /// The wire form the recipe engine decodes.
   Map<String, dynamic> toJson() => {
-    'opId': opId,
-    'opVersion': opVersion,
-    'params': params,
-    'enabled': enabled,
-  };
+        'opId': opId,
+        'opVersion': opVersion,
+        'params': params,
+        'enabled': enabled,
+      };
 
   DarkroomStep copyWith({Map<String, dynamic>? params, bool? enabled}) {
     return DarkroomStep(

@@ -209,7 +209,8 @@ void main() {
           ]),
         ),
         isNull,
-        reason: 'a draft with no saved recipe has nothing for the editor to open',
+        reason:
+            'a draft with no saved recipe has nothing for the editor to open',
       );
     });
   });

@@ -583,10 +583,11 @@ void main() {
     // the balance from there.
     final recipes = await RecipesDao(db).listForMaster(masterPath);
     final persisted = jsonDecode(recipes.single.stepsJson) as List;
-    expect(
-      ((persisted[1] as Map)['params'] as Map)['channelScale'],
-      [1.25, 1.0, 0.8125],
-    );
+    expect(((persisted[1] as Map)['params'] as Map)['channelScale'], [
+      1.25,
+      1.0,
+      0.8125,
+    ]);
 
     // Pinning changes the pixels under the stretch — the registry measured with
     // the colour step skipping — so the stretch is measured again over the
@@ -828,7 +829,8 @@ void main() {
     expect(
       outcome.succeeded,
       isTrue,
-      reason: 'a measurement that could not be repeated is a note, not a '
+      reason:
+          'a measurement that could not be repeated is a note, not a '
           'failed job',
     );
     final draft = outcome.report!.masters.single.draft!;

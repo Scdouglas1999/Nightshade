@@ -32,17 +32,17 @@ class _ScriptedResolver implements DawnMasterResolver {
 }
 
 DawnMaster _master(int id) => DawnMaster(
-  masterId: id,
-  targetId: 1,
-  name: 'M31 Ha',
-  filter: 'Ha',
-  masterFitsPath: '/masters/m31_ha.fits',
-  channels: 1,
-  width: 4000,
-  height: 3000,
-  frameCount: 40,
-  totalIntegrationSeconds: 12000,
-);
+      masterId: id,
+      targetId: 1,
+      name: 'M31 Ha',
+      filter: 'Ha',
+      masterFitsPath: '/masters/m31_ha.fits',
+      channels: 1,
+      width: 4000,
+      height: 3000,
+      frameCount: 40,
+      totalIntegrationSeconds: 12000,
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -172,6 +172,7 @@ void main() {
     );
 
     expect(target.masterId, isNull);
-    expect(target.unavailableReason, 'M31 Ha: this master is still accumulating.');
+    expect(
+        target.unavailableReason, 'M31 Ha: this master is still accumulating.');
   });
 }

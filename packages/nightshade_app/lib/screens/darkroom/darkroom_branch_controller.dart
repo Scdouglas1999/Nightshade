@@ -54,8 +54,7 @@ class DarkroomBranchScope {
   int get hashCode => Object.hash(masterPath, recipeId);
 
   @override
-  String toString() =>
-      'DarkroomBranchScope($masterPath, recipe=$recipeId)';
+  String toString() => 'DarkroomBranchScope($masterPath, recipe=$recipeId)';
 }
 
 /// One recipe in the branch family, as the bar draws it.
@@ -241,14 +240,12 @@ class DarkroomBranchState {
       loadError: clearLoadError ? null : (loadError ?? this.loadError),
       branches: branches ?? this.branches,
       lineage: lineage ?? this.lineage,
-      lineageError: clearLineageError
-          ? null
-          : (lineageError ?? this.lineageError),
+      lineageError:
+          clearLineageError ? null : (lineageError ?? this.lineageError),
       busy: busy ?? this.busy,
       actionError: clearActionError ? null : (actionError ?? this.actionError),
-      deleteRefusal: clearDeleteRefusal
-          ? null
-          : (deleteRefusal ?? this.deleteRefusal),
+      deleteRefusal:
+          clearDeleteRefusal ? null : (deleteRefusal ?? this.deleteRefusal),
       createdBranchId: clearCreatedBranchId
           ? null
           : (createdBranchId ?? this.createdBranchId),
@@ -259,8 +256,8 @@ class DarkroomBranchState {
 /// Drives the branch bar over one master.
 class DarkroomBranchController extends StateNotifier<DarkroomBranchState> {
   DarkroomBranchController(Ref ref, this._scope)
-    : _recipes = ref.read(recipesDaoProvider),
-      super(const DarkroomBranchState()) {
+      : _recipes = ref.read(recipesDaoProvider),
+        super(const DarkroomBranchState()) {
     unawaited(refresh());
   }
 
@@ -660,9 +657,7 @@ class DarkroomBranchController extends StateNotifier<DarkroomBranchState> {
 }
 
 /// Family provider keyed by the master path and the open recipe.
-final darkroomBranchControllerProvider =
-    StateNotifierProvider.family<
-      DarkroomBranchController,
-      DarkroomBranchState,
-      DarkroomBranchScope
-    >((ref, scope) => DarkroomBranchController(ref, scope));
+final darkroomBranchControllerProvider = StateNotifierProvider.family<
+    DarkroomBranchController,
+    DarkroomBranchState,
+    DarkroomBranchScope>((ref, scope) => DarkroomBranchController(ref, scope));

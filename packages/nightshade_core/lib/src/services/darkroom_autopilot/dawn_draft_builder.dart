@@ -718,7 +718,9 @@ class DawnDraftBuilder {
 
   /// The auto stretch parameters a `screen`-encoded render reports, or null when
   /// the reply does not carry a complete set.
-  static Map<String, dynamic>? _screenTransferFrom(Map<String, dynamic> report) {
+  static Map<String, dynamic>? _screenTransferFrom(
+    Map<String, dynamic> report,
+  ) {
     final encoding = report['encoding'];
     if (encoding is! Map<String, dynamic>) return null;
     final transfer = encoding['screenTransfer'];

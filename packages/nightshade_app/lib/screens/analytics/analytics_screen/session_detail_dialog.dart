@@ -100,9 +100,9 @@ class _SessionDetailDialog extends ConsumerWidget {
                               // the pop.
                               final target =
                                   await resolveDarkroomTargetForSession(
-                                    ref,
-                                    session.id,
-                                  );
+                                ref,
+                                session.id,
+                              );
                               if (!context.mounted) return;
                               final masterId = target.masterId;
                               if (masterId == null) {

@@ -209,14 +209,12 @@ class _MasterCard extends StatelessWidget {
                       key: const ValueKey('master_open_in_darkroom'),
                       label: 'Darkroom',
                       icon: NightshadeIcons.sliders,
-                      onPressed: (busy || !canRefine)
-                          ? null
-                          : onOpenInDarkroom,
+                      onPressed: (busy || !canRefine) ? null : onOpenInDarkroom,
                       tooltip: canRefine
                           ? 'Edit this master\'s recipe in the Darkroom'
                           : 'This master has no linear FITS yet. Finalize the '
-                                'accumulation first — the Darkroom renders '
-                                'from linear pixels, not from the preview.',
+                              'accumulation first — the Darkroom renders '
+                              'from linear pixels, not from the preview.',
                     ),
                     if (accumulating)
                       _MiniButton(

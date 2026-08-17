@@ -85,8 +85,8 @@ class _ScriptedDarkroom implements DarkroomSeam {
                 'opId': (steps[i] as Map<String, dynamic>)['opId'],
                 'outcome':
                     ((steps[i] as Map<String, dynamic>)['enabled'] as bool)
-                    ? 'applied'
-                    : 'disabled',
+                        ? 'applied'
+                        : 'disabled',
               },
           ],
         },
@@ -171,11 +171,11 @@ DawnPhotometryResolver _emptyPhotometry() {
 const String _masterPath = '/tmp/nightshade-test/m31_L.fits';
 
 Map<String, dynamic> _step(String opId, {bool enabled = true}) => {
-  'opId': opId,
-  'opVersion': 1,
-  'params': <String, dynamic>{},
-  'enabled': enabled,
-};
+      'opId': opId,
+      'opVersion': 1,
+      'params': <String, dynamic>{},
+      'enabled': enabled,
+    };
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -389,7 +389,8 @@ void main() {
 
     expect(find.text('That branch has branches of its own'), findsOneWidget);
     expect(find.textContaining('Warmer'), findsWidgets);
-    expect(find.textContaining('cannot be deleted while 1 branch'), findsOneWidget);
+    expect(find.textContaining('cannot be deleted while 1 branch'),
+        findsOneWidget);
     // The refusal offers the one destructive alternative the DAO actually has.
     expect(
       find.textContaining('Delete "Draft" and its 1 branch'),

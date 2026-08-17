@@ -86,8 +86,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               ? const EmptyState.compact(
                   icon: NightshadeIcons.layers,
                   title: 'Nothing interpreted yet',
-                  body:
-                      'This recipe carries no operations, so the viewport is '
+                  body: 'This recipe carries no operations, so the viewport is '
                       'the linear master itself.',
                 )
               : ReorderableListView.builder(
@@ -305,9 +304,8 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       case null:
         icon = NightshadeIcons.help;
         tint = colors.textMuted;
-        label = step.enabled
-            ? 'Not rendered yet'
-            : 'Off — nothing has rendered it';
+        label =
+            step.enabled ? 'Not rendered yet' : 'Off — nothing has rendered it';
     }
     // Icon AND words, never colour alone: under the red-night palette success,
     // warning and error are all reds, so a badge that carried its meaning in
@@ -337,9 +335,8 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       alignment: Alignment.centerLeft,
       child: NightshadeButton(
         label: expanded ? 'Hide parameters' : 'Parameters',
-        icon: expanded
-            ? NightshadeIcons.chevronUp
-            : NightshadeIcons.chevronDown,
+        icon:
+            expanded ? NightshadeIcons.chevronUp : NightshadeIcons.chevronDown,
         variant: ButtonVariant.ghost,
         size: ButtonSize.small,
         onPressed: () => setState(() {
@@ -411,8 +408,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             if (!present)
               _DarkroomTag(
                 label: 'default',
-                tooltip:
-                    'This recipe stores no value for ${spec.name}, so the '
+                tooltip: 'This recipe stores no value for ${spec.name}, so the '
                     'operation reads its own documented default. Moving the '
                     'control writes a value; clearing it hands the parameter '
                     'back to the operation.',

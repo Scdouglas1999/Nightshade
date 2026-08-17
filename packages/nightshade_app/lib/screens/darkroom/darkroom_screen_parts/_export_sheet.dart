@@ -5,12 +5,11 @@ part of '../darkroom_screen.dart';
 /// Mirrors `stackResultSavePickerProvider`: the production picker is a platform
 /// dialog on desktop and a sandbox path plus the share sheet on touch, and
 /// neither can run inside a widget test.
-typedef DarkroomSavePicker =
-    Future<String?> Function({
-      required String suggestedName,
-      required List<String> allowedExtensions,
-      required String confirmButtonText,
-    });
+typedef DarkroomSavePicker = Future<String?> Function({
+  required String suggestedName,
+  required List<String> allowedExtensions,
+  required String confirmButtonText,
+});
 
 Future<String?> _defaultDarkroomSavePicker({
   required String suggestedName,
@@ -221,8 +220,8 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final domain = _domain();
-    final rasterAllowed = domain == _DarkroomStageDomain.stretched ||
-        _screenTransfer;
+    final rasterAllowed =
+        domain == _DarkroomStageDomain.stretched || _screenTransfer;
 
     return NightshadeDialog(
       title: 'Export "${widget.recipeName}"',
@@ -326,9 +325,9 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             Tooltip(
               message: hasSteps
                   ? 'Replay the stack through one step and write what it '
-                        'produced.'
+                      'produced.'
                   : 'This recipe carries no steps, so there is no step to stop '
-                        'after. Add one, or export the linear master.',
+                      'after. Add one, or export the linear master.',
               child: NightshadeChip(
                 label: 'After a step',
                 selected: _stageKind == _DarkroomExportStageKind.afterStep,
@@ -409,10 +408,10 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
                   enabled: !format.isRaster || rasterAllowed,
                   onTap: !format.isRaster || rasterAllowed
                       ? () => setState(() {
-                          _format = format;
-                          _result = null;
-                          _stopped = null;
-                        })
+                            _format = format;
+                            _result = null;
+                            _stopped = null;
+                          })
                       : null,
                 ),
               ),
@@ -440,10 +439,10 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             onChanged: _exporting
                 ? null
                 : (value) => setState(() {
-                    _screenTransfer = value;
-                    _result = null;
-                    _stopped = null;
-                  }),
+                      _screenTransfer = value;
+                      _result = null;
+                      _stopped = null;
+                    }),
           ),
         ],
       ],
@@ -587,15 +586,15 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       case _DarkroomStageDomain.undetermined:
         return widget.catalog == null
             ? 'The operation catalogue could not be read, so this build cannot '
-                  'tell whether the ${_stageLabel()} has a display mapping. '
-                  'FITS keeps whatever the pixels are; switch on the auto '
-                  'stretch to render the 8/16-bit files through the engine\'s '
-                  'own transfer.'
+                'tell whether the ${_stageLabel()} has a display mapping. '
+                'FITS keeps whatever the pixels are; switch on the auto '
+                'stretch to render the 8/16-bit files through the engine\'s '
+                'own transfer.'
             : 'This stack carries an operation whose stage this build does not '
-                  'model, so whether the ${_stageLabel()} has a display '
-                  'mapping is unstated. FITS keeps whatever the pixels are; '
-                  'switch on the auto stretch to render the 8/16-bit files '
-                  'through the engine\'s own transfer.';
+                'model, so whether the ${_stageLabel()} has a display '
+                'mapping is unstated. FITS keeps whatever the pixels are; '
+                'switch on the auto stretch to render the 8/16-bit files '
+                'through the engine\'s own transfer.';
     }
   }
 
@@ -647,7 +646,9 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       _DarkroomExportStageKind.finalStack => 'final',
     };
     final base = sanitizeExportFileName(
-      widget.recipeName.isEmpty ? 'recipe-${widget.recipeId}' : widget.recipeName,
+      widget.recipeName.isEmpty
+          ? 'recipe-${widget.recipeId}'
+          : widget.recipeName,
     ).replaceAll(' ', '_');
     return '$base-$stage.${_format.extensions.first}';
   }
@@ -663,8 +664,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       _result = null;
       _stopped = null;
     });
-    final renderId =
-        'darkroom-export-${widget.recipeId}-'
+    final renderId = 'darkroom-export-${widget.recipeId}-'
         '${DateTime.now().microsecondsSinceEpoch}';
     _renderId = renderId;
 
@@ -724,7 +724,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       setState(
         () => _stopped =
             'The export was stopped during ${cancelled.phase}. No file was '
-            'written.',
+                'written.',
       );
     } on DarkroomSeamException catch (error) {
       if (!mounted) return;
@@ -828,7 +828,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       transfer == null
           ? 'No screen transfer was applied.'
           : 'The engine\'s auto stretch was applied to the 8/16-bit files '
-                'only; the recipe was not changed.',
+              'only; the recipe was not changed.',
     );
     final fingerprint = reply['recipeFingerprint'];
     if (fingerprint is String && fingerprint.isNotEmpty) {

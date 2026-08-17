@@ -31,8 +31,8 @@ class _TutorialsDisabledNotifier extends TutorialNotifier {
 class _NoopTutorialProgressDao implements TutorialProgressDao {
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
-    'NoopTutorialProgressDao.${invocation.memberName} called in test',
-  );
+        'NoopTutorialProgressDao.${invocation.memberName} called in test',
+      );
 }
 
 void main() {
@@ -76,11 +76,13 @@ void main() {
           ),
           dbSessionImagesProvider(
             5,
-          ).overrideWith((ref) => Stream<List<DbCapturedImage>>.value(const [])),
+          ).overrideWith(
+              (ref) => Stream<List<DbCapturedImage>>.value(const [])),
           tutorialProvider.overrideWith((ref) => _TutorialsDisabledNotifier()),
         ],
         child: const MaterialApp(
-          home: Scaffold(body: AnalyticsScreen(initialTab: AnalyticsTab.history)),
+          home:
+              Scaffold(body: AnalyticsScreen(initialTab: AnalyticsTab.history)),
         ),
       ),
     );

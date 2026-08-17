@@ -168,9 +168,8 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     if (state.offer != null) return 'No recipe yet';
     final enabled = state.steps.where((step) => step.enabled).length;
     final total = state.steps.length;
-    final stack = total == 1
-        ? '1 step · $enabled on'
-        : '$total steps · $enabled on';
+    final stack =
+        total == 1 ? '1 step · $enabled on' : '$total steps · $enabled on';
     if (state.rendering) return '$stack · rendering…';
     if (state.savePending) return '$stack · saving…';
     return stack;
@@ -333,9 +332,8 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       _DarkroomExportSheet.show(
         context,
         recipeId: recipeId,
-        recipeName: state.recipeName.isEmpty
-            ? 'Recipe $recipeId'
-            : state.recipeName,
+        recipeName:
+            state.recipeName.isEmpty ? 'Recipe $recipeId' : state.recipeName,
         baseMasterPath: state.baseMasterPath,
         author: state.author,
         steps: state.steps,
@@ -382,8 +380,7 @@ class _DarkroomStartOfferView extends StatelessWidget {
               EmptyState(
                 icon: NightshadeIcons.palette,
                 title: '${offer.masterName} has no recipe yet',
-                body:
-                    'This linear master is ${offer.width}×${offer.height}, '
+                body: 'This linear master is ${offer.width}×${offer.height}, '
                     '${offer.channels} channel${offer.channels == 1 ? '' : 's'}. '
                     'Nothing interpretive has been applied to it. Choose where '
                     'to start — either way the master itself is untouched.',

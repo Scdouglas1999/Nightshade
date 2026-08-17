@@ -45,10 +45,10 @@ class DarkroomSessionTarget {
   final String? unavailableReason;
 
   const DarkroomSessionTarget.master(int this.masterId)
-    : unavailableReason = null;
+      : unavailableReason = null;
 
   const DarkroomSessionTarget.unavailable(String this.unavailableReason)
-    : masterId = null;
+      : masterId = null;
 }
 
 /// Resolve the linear master the Darkroom should open for [sessionId].
@@ -91,7 +91,7 @@ Future<DarkroomSessionTarget> resolveDarkroomTargetForSession(
   return DarkroomSessionTarget.unavailable(
     blocked == null
         ? 'This session has no integrated master yet. Integrate it in Session '
-              'Review first, then refine it here.'
+            'Review first, then refine it here.'
         : '${blocked.name}: ${blocked.reason}.',
   );
 }

@@ -31,9 +31,14 @@ void main() {
     });
 
     test('the pre-existing arms are unchanged', () {
-      expect(routeForNotificationPayload('image_ready:M31.fits'),
-          '/imaging/preview/${Uri.encodeComponent('M31.fits')}');
-      expect(routeForNotificationPayload('sequence_complete:M31'), '/sequencer');
+      expect(
+        routeForNotificationPayload('image_ready:M31.fits'),
+        '/imaging/preview/${Uri.encodeComponent('M31.fits')}',
+      );
+      expect(
+        routeForNotificationPayload('sequence_complete:M31'),
+        '/sequencer',
+      );
       expect(routeForNotificationPayload('guiding_lost'), '/guiding');
       expect(routeForNotificationPayload('safety'), '/weather');
       expect(routeForNotificationPayload('push:weatherUnsafe'), '/dashboard');
@@ -52,10 +57,9 @@ void main() {
     final service = MobileNotificationService();
 
     NotificationResponse tap(String? payload) => NotificationResponse(
-          notificationResponseType:
-              NotificationResponseType.selectedNotification,
-          payload: payload,
-        );
+      notificationResponseType: NotificationResponseType.selectedNotification,
+      payload: payload,
+    );
 
     setUp(() {
       service.resetLaunchReplayForTesting();
@@ -112,23 +116,25 @@ void main() {
           ),
         );
 
-    test('a tap that started the app routes once, not once per rebuild',
-        () async {
-      final seen = <String>[];
-      service.setNavigator(seen.add);
-      var reads = 0;
-      service.launchDetailsReader = () async {
-        reads++;
-        return launched('darkroom_draft:31');
-      };
+    test(
+      'a tap that started the app routes once, not once per rebuild',
+      () async {
+        final seen = <String>[];
+        service.setNavigator(seen.add);
+        var reads = 0;
+        service.launchDetailsReader = () async {
+          reads++;
+          return launched('darkroom_draft:31');
+        };
 
-      await service.handleLaunchNotification();
-      await service.handleLaunchNotification();
-      await service.handleLaunchNotification();
+        await service.handleLaunchNotification();
+        await service.handleLaunchNotification();
+        await service.handleLaunchNotification();
 
-      expect(seen, ['/darkroom?recipe=31']);
-      expect(reads, 1, reason: 'the once-only guard latches after the first');
-    });
+        expect(seen, ['/darkroom?recipe=31']);
+        expect(reads, 1, reason: 'the once-only guard latches after the first');
+      },
+    );
 
     test('a launch that no notification caused routes nothing', () async {
       final seen = <String>[];

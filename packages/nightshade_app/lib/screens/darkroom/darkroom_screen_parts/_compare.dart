@@ -94,7 +94,8 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
   @override
   void didUpdateWidget(covariant _DarkroomCompareView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.mode != oldWidget.mode || widget.bRecipeId != oldWidget.bRecipeId) {
+    if (widget.mode != oldWidget.mode ||
+        widget.bRecipeId != oldWidget.bRecipeId) {
       _stopBlink();
       _showingA = true;
       if (widget.mode == _DarkroomCompareMode.blink) _startBlink();
@@ -164,11 +165,8 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           _DarkroomTag(
-            label: blinkMode
-                ? (_showA ? 'Showing A' : 'Showing B')
-                : 'A | B',
-            tooltip:
-                'A is "${widget.aLabel}" — this editor\'s current stack, '
+            label: blinkMode ? (_showA ? 'Showing A' : 'Showing B') : 'A | B',
+            tooltip: 'A is "${widget.aLabel}" — this editor\'s current stack, '
                 'unsaved edits included. B is "${widget.bLabel}".',
           ),
           if (blinkMode)

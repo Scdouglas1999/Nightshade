@@ -66,7 +66,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
       message: run.autoDraftEnabled
           ? run.message
           : '${run.message} Automatic drafts are switched off, so this one was '
-                'made because you asked.',
+              'made because you asked.',
       severity: run.succeeded
           ? NightshadeAlertSeverity.success
           : NightshadeAlertSeverity.warning,
@@ -177,9 +177,9 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                   Tooltip(
                     message: sessionId != null
                         ? 'Draft tonight\'s masters in the Darkroom now, '
-                              'without waiting for dawn'
+                            'without waiting for dawn'
                         : 'This review spans a target rather than one night. '
-                              'Open a single session to process it.',
+                            'Open a single session to process it.',
                     child: NightshadeButton(
                       key: const ValueKey('session_review_process_now'),
                       label: 'Process now',
