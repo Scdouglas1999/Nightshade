@@ -204,14 +204,22 @@ class _GradientRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final swatchSize = compact ? 10.0 : 14.0;
     final fontSize = compact ? 10.0 : 11.0;
+    // The entries above name the ramp as fixed [NightshadeChartColors]
+    // constants; this is where it becomes a painted colour. Red night is a
+    // WAVELENGTH constraint, so drawing `seriesGreen` raw put a solid green
+    // swatch on a red-night screen — and this strip sits inline on the Imaging
+    // HUD, not just in a dialog the user opened on purpose.
+    final resolved = swatches
+        .map((c) => NightshadeChartColors.forTheme(c, colors))
+        .toList(growable: false);
     final children = <Widget>[];
-    for (var i = 0; i < swatches.length; i++) {
+    for (var i = 0; i < resolved.length; i++) {
       children.add(
         Container(
           width: swatchSize,
           height: swatchSize,
           decoration: BoxDecoration(
-            color: swatches[i],
+            color: resolved[i],
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             border: Border.all(color: colors.border, width: 0.5),
           ),
@@ -228,7 +236,7 @@ class _GradientRow extends StatelessWidget {
           ),
         ),
       );
-      if (i != swatches.length - 1) {
+      if (i != resolved.length - 1) {
         children.add(const SizedBox(width: 10));
       }
     }

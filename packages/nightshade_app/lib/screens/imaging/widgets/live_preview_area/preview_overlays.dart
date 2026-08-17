@@ -92,6 +92,7 @@ class _CompassScaleBarOverlay extends ConsumerWidget {
             showScaleBar: showScaleBar,
             zoomLevel: zoomLevel,
             readoutsVisible: readoutsVisible,
+            colors: NightshadeColors.of(context),
           ),
         ),
       ),
@@ -107,6 +108,7 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
   final bool showScaleBar;
   final double zoomLevel;
   final bool readoutsVisible;
+  final NightshadeColors colors;
 
   _CompassScaleBarCombinedPainter({
     required this.plateSolve,
@@ -114,6 +116,7 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
     required this.showScaleBar,
     required this.zoomLevel,
     required this.readoutsVisible,
+    required this.colors,
   });
 
   /// The scale-bar painter this widget draws with.
@@ -125,10 +128,17 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
       );
 
   /// The compass painter this widget draws with.
-  CompassOverlayPainter compassPainter() => CompassOverlayPainter(
-        rotationDegrees: plateSolve.rotation,
-        bottomMargin: readoutsVisible ? PreviewReadoutInsets.stats : null,
-      );
+  ///
+  /// Built once per painter instance, never per `paint`: it resolves its axis
+  /// hues for the active theme at construction, and rebuilding it inside the
+  /// draw would put that resolve on every frame.
+  late final CompassOverlayPainter _compass = CompassOverlayPainter(
+    rotationDegrees: plateSolve.rotation,
+    bottomMargin: readoutsVisible ? PreviewReadoutInsets.stats : null,
+    colors: colors,
+  );
+
+  CompassOverlayPainter compassPainter() => _compass;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -146,7 +156,8 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
         oldDelegate.showCompass != showCompass ||
         oldDelegate.showScaleBar != showScaleBar ||
         oldDelegate.zoomLevel != zoomLevel ||
-        oldDelegate.readoutsVisible != readoutsVisible;
+        oldDelegate.readoutsVisible != readoutsVisible ||
+        oldDelegate.colors != colors;
   }
 }
 

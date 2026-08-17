@@ -1,5 +1,35 @@
 part of '../overlay_painters.dart';
 
+// The science overlays encode a measurement in COLOUR, so their ramp endpoints
+// are chart series in every sense that matters: painted raw they put a green
+// heatmap, a navy uniformity map and a yellow residual field over the preview
+// on a red-night screen, undoing the dark adaptation the mode exists to
+// protect. Each endpoint below stays a NAME and is mapped through
+// `NightshadeChartColors.forTheme` once, at painter construction — never inside
+// `paint`, which runs per tile per frame.
+//
+// `NightshadeChartColors` has no diverging-ramp API today, only the three-stop
+// legend lists (`psfGradient`, `uniformityGradient`, `clipHighGradient`,
+// `clipLowGradient`) that `ScienceOverlayLegend` renders as swatches. A future
+// ramp API should own the whole ramp — resolve every stop for the theme and
+// sample it by t — so the painted surface and the legend that explains it come
+// from one declaration; today they are separate hues that agree only by
+// convention. Interpolating between ALREADY-RESOLVED endpoints (as below) is
+// what keeps red night red: lerping the named hues first and resolving after
+// would put a green-dominant midpoint on the screen.
+
+/// PSF heatmap ramp: tight stars.
+@visibleForTesting
+const Color namedPsfTight = Color(0xFF0B6E4F);
+
+/// PSF heatmap ramp: bloated or elongated stars.
+@visibleForTesting
+const Color namedPsfBloated = Color(0xFFC0392B);
+
+/// PSF heatmap: a tile with no measurable stars.
+@visibleForTesting
+const Color namedPsfNoStars = Color(0xFF4A5568);
+
 class SciencePsfOverlayPainter extends CustomPainter {
   final List<PsfFieldTileRow> tiles;
   final Offset imageOffset;
@@ -7,13 +37,21 @@ class SciencePsfOverlayPainter extends CustomPainter {
   final double imageWidth;
   final double imageHeight;
 
+  /// Ramp endpoints resolved for the active theme at construction.
+  final Color tightColor;
+  final Color bloatedColor;
+  final Color noStarsColor;
+
   SciencePsfOverlayPainter({
     required this.tiles,
     required this.imageOffset,
     required this.zoomLevel,
     required this.imageWidth,
     required this.imageHeight,
-  });
+    required NightshadeColors colors,
+  })  : tightColor = NightshadeChartColors.forTheme(namedPsfTight, colors),
+        bloatedColor = NightshadeChartColors.forTheme(namedPsfBloated, colors),
+        noStarsColor = NightshadeChartColors.forTheme(namedPsfNoStars, colors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -62,12 +100,8 @@ class SciencePsfOverlayPainter extends CustomPainter {
           : ((tile.medianFwhm - low) / (high - low)).clamp(0.0, 1.0);
       final fill = Paint()
         ..color = (tile.starCount <= 0
-                ? const Color(0xFF4A5568)
-                : Color.lerp(
-                    const Color(0xFF0B6E4F),
-                    const Color(0xFFC0392B),
-                    norm,
-                  )!)
+                ? noStarsColor
+                : Color.lerp(tightColor, bloatedColor, norm)!)
             .withValues(alpha: tile.starCount > 0 ? 0.28 : 0.12)
         ..style = PaintingStyle.fill;
 
@@ -91,7 +125,10 @@ class SciencePsfOverlayPainter extends CustomPainter {
         imageOffset != oldDelegate.imageOffset ||
         zoomLevel != oldDelegate.zoomLevel ||
         imageWidth != oldDelegate.imageWidth ||
-        imageHeight != oldDelegate.imageHeight;
+        imageHeight != oldDelegate.imageHeight ||
+        // A theme flip changes nothing else about the painter, so without this
+        // the heatmap keeps its old-theme ramp until the tiles change.
+        tightColor != oldDelegate.tightColor;
   }
 
   double _percentile(List<double> sortedValues, double p) {
@@ -110,16 +147,31 @@ class SciencePsfOverlayPainter extends CustomPainter {
   }
 }
 
+/// Residual vector field: the shaft.
+@visibleForTesting
+const Color namedResidualShaft = Color(0xFFF1C40F);
+
+/// Residual vector field: the arrowhead, a shade darker than the shaft.
+@visibleForTesting
+const Color namedResidualHead = Color(0xFFF39C12);
+
 class ScienceResidualOverlayPainter extends CustomPainter {
   final List<AstrometryResidualVectorRow> vectors;
   final Offset imageOffset;
   final double zoomLevel;
 
+  /// Vector hues resolved for the active theme at construction: `paint` draws
+  /// up to 350 vectors, so the remap cannot live in the loop.
+  final Color shaftColor;
+  final Color headColor;
+
   ScienceResidualOverlayPainter({
     required this.vectors,
     required this.imageOffset,
     required this.zoomLevel,
-  });
+    required NightshadeColors colors,
+  })  : shaftColor = NightshadeChartColors.forTheme(namedResidualShaft, colors),
+        headColor = NightshadeChartColors.forTheme(namedResidualHead, colors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -128,11 +180,11 @@ class ScienceResidualOverlayPainter extends CustomPainter {
     }
 
     final linePaint = Paint()
-      ..color = const Color(0xFFF1C40F).withValues(alpha: 0.75)
+      ..color = shaftColor.withValues(alpha: 0.75)
       ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
     final headPaint = Paint()
-      ..color = const Color(0xFFF39C12).withValues(alpha: 0.85)
+      ..color = headColor.withValues(alpha: 0.85)
       ..style = PaintingStyle.fill;
 
     final magnitudes = vectors
@@ -173,9 +225,18 @@ class ScienceResidualOverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant ScienceResidualOverlayPainter oldDelegate) {
     return vectors != oldDelegate.vectors ||
         imageOffset != oldDelegate.imageOffset ||
-        zoomLevel != oldDelegate.zoomLevel;
+        zoomLevel != oldDelegate.zoomLevel ||
+        shaftColor != oldDelegate.shaftColor;
   }
 }
+
+/// Uniformity ramp: a flat background.
+@visibleForTesting
+const Color namedUniformityFlat = Color(0xFF0B3D91);
+
+/// Uniformity ramp: a strong gradient (vignetting, moonglow).
+@visibleForTesting
+const Color namedUniformityStrong = Color(0xFFFF8C42);
 
 class ScienceUniformityOverlayPainter extends CustomPainter {
   final List<ScienceTileMetricRow> tiles;
@@ -185,6 +246,10 @@ class ScienceUniformityOverlayPainter extends CustomPainter {
   final double imageHeight;
   final double opacity;
 
+  /// Ramp endpoints resolved for the active theme at construction.
+  final Color flatColor;
+  final Color strongColor;
+
   ScienceUniformityOverlayPainter({
     required this.tiles,
     required this.imageOffset,
@@ -192,7 +257,10 @@ class ScienceUniformityOverlayPainter extends CustomPainter {
     required this.imageWidth,
     required this.imageHeight,
     required this.opacity,
-  });
+    required NightshadeColors colors,
+  })  : flatColor = NightshadeChartColors.forTheme(namedUniformityFlat, colors),
+        strongColor =
+            NightshadeChartColors.forTheme(namedUniformityStrong, colors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -236,11 +304,7 @@ class ScienceUniformityOverlayPainter extends CustomPainter {
           ? 0.0
           : ((tile.value - low) / (high - low)).clamp(0.0, 1.0);
       final fill = Paint()
-        ..color = Color.lerp(
-          const Color(0xFF0B3D91),
-          const Color(0xFFFF8C42),
-          norm,
-        )!
+        ..color = Color.lerp(flatColor, strongColor, norm)!
             .withValues(alpha: opacity)
         ..style = PaintingStyle.fill;
 
@@ -264,7 +328,8 @@ class ScienceUniformityOverlayPainter extends CustomPainter {
         zoomLevel != oldDelegate.zoomLevel ||
         imageWidth != oldDelegate.imageWidth ||
         imageHeight != oldDelegate.imageHeight ||
-        opacity != oldDelegate.opacity;
+        opacity != oldDelegate.opacity ||
+        flatColor != oldDelegate.flatColor;
   }
 
   double _percentile(List<double> sortedValues, double p) {
@@ -283,6 +348,14 @@ class ScienceUniformityOverlayPainter extends CustomPainter {
   }
 }
 
+/// Clip map: pixels hitting the noise floor.
+@visibleForTesting
+const Color namedClipLow = Color(0xFF3B82F6);
+
+/// Clip map: pixels saturating.
+@visibleForTesting
+const Color namedClipHigh = Color(0xFFEF4444);
+
 class ScienceClipOverlayPainter extends CustomPainter {
   final List<ScienceTileMetricRow> highTiles;
   final List<ScienceTileMetricRow> lowTiles;
@@ -292,6 +365,11 @@ class ScienceClipOverlayPainter extends CustomPainter {
   final double imageHeight;
   final double opacity;
 
+  /// Ramp endpoints resolved for the active theme at construction: `paint`
+  /// lerps them once per grid cell.
+  final Color lowClipColor;
+  final Color highClipColor;
+
   ScienceClipOverlayPainter({
     required this.highTiles,
     required this.lowTiles,
@@ -300,7 +378,9 @@ class ScienceClipOverlayPainter extends CustomPainter {
     required this.imageWidth,
     required this.imageHeight,
     required this.opacity,
-  });
+    required NightshadeColors colors,
+  })  : lowClipColor = NightshadeChartColors.forTheme(namedClipLow, colors),
+        highClipColor = NightshadeChartColors.forTheme(namedClipHigh, colors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -353,8 +433,8 @@ class ScienceClipOverlayPainter extends CustomPainter {
         }
         final alpha = (math.max(high, low) / 100.0).clamp(0.08, 1.0) * opacity;
         final fillColor = Color.lerp(
-          const Color(0xFF3B82F6), // low clipping: blue
-          const Color(0xFFEF4444), // high clipping: red
+          lowClipColor,
+          highClipColor,
           high / math.max(1.0, high + low),
         )!
             .withValues(alpha: alpha);
@@ -384,6 +464,7 @@ class ScienceClipOverlayPainter extends CustomPainter {
         zoomLevel != oldDelegate.zoomLevel ||
         imageWidth != oldDelegate.imageWidth ||
         imageHeight != oldDelegate.imageHeight ||
-        opacity != oldDelegate.opacity;
+        opacity != oldDelegate.opacity ||
+        lowClipColor != oldDelegate.lowClipColor;
   }
 }

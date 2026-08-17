@@ -7,6 +7,24 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../accessible_dropdown.dart';
 import 'adaptive_chart_container.dart';
 
+/// FWHM-surface ramp endpoints, as NAMES rather than painted colours.
+///
+/// The surface encodes its measurement in COLOUR, which makes these chart
+/// series: painted raw they drew a blue-to-red surface and a matching key over
+/// a red-night screen, undoing the dark adaptation the mode exists to protect.
+/// Map them with [NightshadeChartColors.forTheme] once per painter/build, then
+/// interpolate between the RESOLVED endpoints — lerping the names first and
+/// resolving after would put an off-axis midpoint back on the screen.
+///
+/// `NightshadeChartColors` offers no diverging-ramp API today; a future one
+/// should own the whole ramp so the surface and the scale bar that explains it
+/// come from a single declaration instead of agreeing by convention.
+@visibleForTesting
+const Color namedSurfaceLowValue = Color(0xFF1D4ED8);
+
+@visibleForTesting
+const Color namedSurfaceHighValue = Color(0xFFDC2626);
+
 /// Lowest / highest elevation the surface can be tipped to, in radians.
 const double _minPitch = 0.1;
 const double _maxPitch = 1.45;
@@ -572,8 +590,16 @@ class _ValueScaleBar extends StatelessWidget {
                 height: 8,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(4),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1D4ED8), Color(0xFFDC2626)],
+                  // The scale bar explains the surface, so it must be the
+                  // SAME ramp: painted raw it advertised a blue-to-red key
+                  // beside a red-night surface that no longer had one.
+                  gradient: LinearGradient(
+                    colors: [
+                      NightshadeChartColors.forTheme(
+                          namedSurfaceLowValue, colors),
+                      NightshadeChartColors.forTheme(
+                          namedSurfaceHighValue, colors),
+                    ],
                   ),
                 ),
               ),
@@ -637,6 +663,12 @@ class _SurfacePainter extends CustomPainter {
   final int? selectedRow;
   final int? selectedCol;
 
+  /// Surface ramp endpoints resolved for the active theme at construction:
+  /// [_surfaceColor] is called once per tile and once per contour segment, so
+  /// the remap cannot live inside it.
+  final Color lowValueColor;
+  final Color highValueColor;
+
   _SurfacePainter({
     required this.tiles,
     required this.yaw,
@@ -646,7 +678,10 @@ class _SurfacePainter extends CustomPainter {
     required this.colors,
     this.selectedRow,
     this.selectedCol,
-  });
+  })  : lowValueColor =
+            NightshadeChartColors.forTheme(namedSurfaceLowValue, colors),
+        highValueColor =
+            NightshadeChartColors.forTheme(namedSurfaceHighValue, colors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -769,11 +804,8 @@ class _SurfacePainter extends CustomPainter {
     }
   }
 
-  Color _surfaceColor(double norm) => Color.lerp(
-        const Color(0xFF1D4ED8),
-        const Color(0xFFDC2626),
-        norm,
-      )!;
+  Color _surfaceColor(double norm) =>
+      Color.lerp(lowValueColor, highValueColor, norm)!;
 
   @override
   bool shouldRepaint(covariant _SurfacePainter oldDelegate) {
@@ -783,6 +815,7 @@ class _SurfacePainter extends CustomPainter {
         zExaggeration != oldDelegate.zExaggeration ||
         showContour != oldDelegate.showContour ||
         selectedRow != oldDelegate.selectedRow ||
-        selectedCol != oldDelegate.selectedCol;
+        selectedCol != oldDelegate.selectedCol ||
+        lowValueColor != oldDelegate.lowValueColor;
   }
 }

@@ -80,6 +80,7 @@ void main() {
     final compass = CompassOverlayPainter(
       rotationDegrees: 12,
       bottomMargin: PreviewReadoutInsets.stats,
+      colors: NightshadeColors.dark,
     );
     expect(
       compass.boundsIn(_viewport).bottom,

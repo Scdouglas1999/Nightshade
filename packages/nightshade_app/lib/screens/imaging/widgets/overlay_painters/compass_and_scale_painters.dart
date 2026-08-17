@@ -13,6 +13,14 @@ abstract final class PreviewReadoutInsets {
   static const double stats = 16 + 110 + 8;
 }
 
+/// Compass rose: the North axis.
+@visibleForTesting
+const Color namedCompassNorth = Color(0xFFFF4444);
+
+/// Compass rose: the East axis.
+@visibleForTesting
+const Color namedCompassEast = Color(0xFF44AAFF);
+
 class CompassOverlayPainter extends CustomPainter {
   /// WCS rotation angle in degrees (position angle, North through East).
   final double rotationDegrees;
@@ -27,12 +35,24 @@ class CompassOverlayPainter extends CustomPainter {
   /// is already occupied. Defaults to [margin].
   final double? bottomMargin;
 
+  /// Axis hues resolved for the active theme at construction.
+  ///
+  /// The two arrows are a categorical series encoded in HUE, so painted raw the
+  /// East arrow and its label drew #44AAFF — a bright blue — over a red-night
+  /// preview, undoing the dark adaptation the mode exists to protect. In red
+  /// night the two separate by lightness instead, and the N/E glyphs at the
+  /// tips carry the rest of the distinction.
+  final Color northColor;
+  final Color eastColor;
+
   CompassOverlayPainter({
     required this.rotationDegrees,
+    required NightshadeColors colors,
     this.radius = 60.0,
     this.margin = 20.0,
     this.bottomMargin,
-  });
+  })  : northColor = NightshadeChartColors.forTheme(namedCompassNorth, colors),
+        eastColor = NightshadeChartColors.forTheme(namedCompassEast, colors);
 
   /// The circle this painter will draw on a canvas of [size].
   ///
@@ -85,7 +105,7 @@ class CompassOverlayPainter extends CustomPainter {
     final nTip = Offset(centerX + nDx, centerY + nDy);
 
     final nPaint = Paint()
-      ..color = const Color(0xFFFF4444)
+      ..color = northColor
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -94,7 +114,7 @@ class CompassOverlayPainter extends CustomPainter {
     _drawArrowHead(canvas, center, nTip, arrowHeadSize, nPaint);
 
     // "N" label at tip
-    _drawLabel(canvas, 'N', nTip, rotRad, radius, const Color(0xFFFF4444));
+    _drawLabel(canvas, 'N', nTip, rotRad, radius, northColor);
 
     // East arrow (perpendicular to north, 90 degrees clockwise on sky)
     final eRotRad = rotRad + (math.pi / 2.0);
@@ -103,7 +123,7 @@ class CompassOverlayPainter extends CustomPainter {
     final eTip = Offset(centerX + eDx, centerY + eDy);
 
     final ePaint = Paint()
-      ..color = const Color(0xFF44AAFF)
+      ..color = eastColor
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -112,7 +132,7 @@ class CompassOverlayPainter extends CustomPainter {
     _drawArrowHead(canvas, center, eTip, arrowHeadSize, ePaint);
 
     // "E" label at tip
-    _drawLabel(canvas, 'E', eTip, eRotRad, radius, const Color(0xFF44AAFF));
+    _drawLabel(canvas, 'E', eTip, eRotRad, radius, eastColor);
   }
 
   void _drawArrowHead(

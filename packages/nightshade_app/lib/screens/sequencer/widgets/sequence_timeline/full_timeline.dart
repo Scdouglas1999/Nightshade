@@ -1,5 +1,48 @@
 part of '../sequence_timeline.dart';
 
+/// The three twilight band hues as NAMES rather than painted colours.
+///
+/// [NightshadeChartColors] tokens the astronomical band only; civil and
+/// nautical have no chart token yet, so they are named here as the same kind of
+/// thing and mapped through the same remap. Band hue is chart data, not chrome:
+/// red night is a WAVELENGTH constraint, so painting these raw washed a solid
+/// Material blue across a timeline whose every other pixel was red, undoing the
+/// dark adaptation the mode exists to protect. Resolve them with
+/// [_TwilightBandColors.of] — never paint the constants directly.
+@visibleForTesting
+final Color namedCivilTwilightBand = Colors.lightBlue.withValues(alpha: 0.2);
+
+@visibleForTesting
+final Color namedNauticalTwilightBand = Colors.blue.withValues(alpha: 0.3);
+
+@visibleForTesting
+final Color namedAstroTwilightBand = NightshadeChartColors.twilightAstro();
+
+/// The named band hues resolved onto the active theme, once per build.
+///
+/// Resolved as a set rather than at each band: the overlay adds six regions and
+/// the legend three swatches from these same three hues, and a per-site remap
+/// is how the legend and the band it explains drift apart.
+class _TwilightBandColors {
+  final Color civil;
+  final Color nautical;
+  final Color astro;
+
+  const _TwilightBandColors({
+    required this.civil,
+    required this.nautical,
+    required this.astro,
+  });
+
+  factory _TwilightBandColors.of(NightshadeColors colors) =>
+      _TwilightBandColors(
+        civil: NightshadeChartColors.forTheme(namedCivilTwilightBand, colors),
+        nautical:
+            NightshadeChartColors.forTheme(namedNauticalTwilightBand, colors),
+        astro: NightshadeChartColors.forTheme(namedAstroTwilightBand, colors),
+      );
+}
+
 /// Full timeline view with labels, astronomical overlays, and details
 class _FullTimeline extends ConsumerStatefulWidget {
   final NightshadeColors colors;
@@ -210,6 +253,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     required Map<String, ObjectVisibility>? targetWindows,
     required bool showOverlay,
   }) {
+    final bands = _TwilightBandColors.of(widget.colors);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -259,7 +303,8 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
                   children: [
                     // Twilight overlay bands (behind the timeline segments)
                     if (showOverlay && twilight != null)
-                      _buildTwilightOverlay(twilight, constraints.maxWidth),
+                      _buildTwilightOverlay(
+                          twilight, constraints.maxWidth, bands),
 
                     // Timeline segments
                     widget.totalDuration > 0
@@ -343,21 +388,17 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               const SizedBox(width: 8),
               _LegendItem(
                 colors: widget.colors,
-                // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro);
-                // no civil/nautical chart token exists yet, kept exact-valued.
-                color: Colors.lightBlue.withValues(alpha: 0.2),
+                color: bands.civil,
                 label: 'Civil',
               ),
               _LegendItem(
                 colors: widget.colors,
-                // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro);
-                // no civil/nautical chart token exists yet, kept exact-valued.
-                color: Colors.blue.withValues(alpha: 0.3),
+                color: bands.nautical,
                 label: 'Nautical',
               ),
               _LegendItem(
                 colors: widget.colors,
-                color: NightshadeChartColors.twilightAstro(),
+                color: bands.astro,
                 label: 'Astro',
               ),
             ],
@@ -368,7 +409,11 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
   }
 
   /// Build twilight overlay bands behind the timeline
-  Widget _buildTwilightOverlay(TwilightTimes twilight, double totalWidth) {
+  Widget _buildTwilightOverlay(
+    TwilightTimes twilight,
+    double totalWidth,
+    _TwilightBandColors bands,
+  ) {
     if (widget.totalDuration <= 0) {
       return const SizedBox.shrink();
     }
@@ -403,50 +448,22 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     }
 
     // Civil twilight (evening): sunset to civil dusk
-    addRegion(
-      twilight.sunset,
-      twilight.civilDusk,
-      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
-      Colors.lightBlue.withValues(alpha: 0.2),
-    );
+    addRegion(twilight.sunset, twilight.civilDusk, bands.civil);
 
     // Nautical twilight (evening): civil dusk to nautical dusk
-    addRegion(
-      twilight.civilDusk,
-      twilight.nauticalDusk,
-      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
-      Colors.blue.withValues(alpha: 0.3),
-    );
+    addRegion(twilight.civilDusk, twilight.nauticalDusk, bands.nautical);
 
     // Astronomical twilight (evening): nautical dusk to astronomical dusk
-    addRegion(
-      twilight.nauticalDusk,
-      twilight.astronomicalDusk,
-      NightshadeChartColors.twilightAstro(),
-    );
+    addRegion(twilight.nauticalDusk, twilight.astronomicalDusk, bands.astro);
 
     // Astronomical twilight (morning): astronomical dawn to nautical dawn
-    addRegion(
-      twilight.astronomicalDawn,
-      twilight.nauticalDawn,
-      NightshadeChartColors.twilightAstro(),
-    );
+    addRegion(twilight.astronomicalDawn, twilight.nauticalDawn, bands.astro);
 
     // Nautical twilight (morning): nautical dawn to civil dawn
-    addRegion(
-      twilight.nauticalDawn,
-      twilight.civilDawn,
-      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
-      Colors.blue.withValues(alpha: 0.3),
-    );
+    addRegion(twilight.nauticalDawn, twilight.civilDawn, bands.nautical);
 
     // Civil twilight (morning): civil dawn to sunrise
-    addRegion(
-      twilight.civilDawn,
-      twilight.sunrise,
-      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
-      Colors.lightBlue.withValues(alpha: 0.2),
-    );
+    addRegion(twilight.civilDawn, twilight.sunrise, bands.civil);
 
     return Stack(
       children: regions.map((region) {

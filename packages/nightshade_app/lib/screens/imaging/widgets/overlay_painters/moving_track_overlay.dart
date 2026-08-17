@@ -16,16 +16,35 @@ class ProjectedMovingTrack {
   });
 }
 
+/// Moving-track confidence ramp: a weak candidate.
+@visibleForTesting
+const Color namedTrackLowConfidence = Color(0xFFF59E0B);
+
+/// Moving-track confidence ramp: a confident detection.
+@visibleForTesting
+const Color namedTrackHighConfidence = Color(0xFF22C55E);
+
 class ScienceMovingTrackOverlayPainter extends CustomPainter {
   final List<ProjectedMovingTrack> tracks;
   final Offset imageOffset;
   final double zoomLevel;
 
+  /// Confidence-ramp endpoints resolved for the active theme at construction.
+  /// The ramp is a chart series — confidence is encoded in hue — and painted
+  /// raw its confident end drew solid green over a red-night preview. `paint`
+  /// lerps per track, so the remap has to happen before the loop.
+  final Color lowConfidenceColor;
+  final Color highConfidenceColor;
+
   ScienceMovingTrackOverlayPainter({
     required this.tracks,
     required this.imageOffset,
     required this.zoomLevel,
-  });
+    required NightshadeColors colors,
+  })  : lowConfidenceColor =
+            NightshadeChartColors.forTheme(namedTrackLowConfidence, colors),
+        highConfidenceColor =
+            NightshadeChartColors.forTheme(namedTrackHighConfidence, colors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -44,8 +63,8 @@ class ScienceMovingTrackOverlayPainter extends CustomPainter {
       }
 
       final confidenceColor = Color.lerp(
-        const Color(0xFFF59E0B),
-        const Color(0xFF22C55E),
+        lowConfidenceColor,
+        highConfidenceColor,
         track.confidence.clamp(0.0, 1.0),
       )!;
 
@@ -87,7 +106,8 @@ class ScienceMovingTrackOverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant ScienceMovingTrackOverlayPainter oldDelegate) {
     return tracks != oldDelegate.tracks ||
         imageOffset != oldDelegate.imageOffset ||
-        zoomLevel != oldDelegate.zoomLevel;
+        zoomLevel != oldDelegate.zoomLevel ||
+        lowConfidenceColor != oldDelegate.lowConfidenceColor;
   }
 }
 

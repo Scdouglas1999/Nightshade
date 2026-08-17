@@ -51,7 +51,16 @@ class GrowthCurvePanel extends StatelessWidget {
         ? -1
         : sorted.indexWhere((p) => _sameDay(p.date, best!.date));
 
-    const lineColor = NightshadeChartColors.seriesBlue;
+    // The series hue is a NAME, not the colour that gets painted. Red night is
+    // a WAVELENGTH constraint, so painting the constant raw put #6B95B8 — a
+    // solid blue line, its dots and its area fill — on a card whose every other
+    // pixel was red, undoing the dark adaptation the mode exists to protect.
+    // Resolved once here so the line, the dots and the fill below cannot drift
+    // apart.
+    final lineColor = NightshadeChartColors.forTheme(
+      NightshadeChartColors.seriesBlue,
+      colors,
+    );
 
     return NightshadeCard(
       child: Padding(
