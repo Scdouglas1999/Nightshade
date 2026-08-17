@@ -161,17 +161,21 @@ Q "SELECT file_path,state,attempts,last_error FROM delivery_journal;" | sed 's/^
 MISS=0
 for f in $(Q "SELECT file_path FROM delivery_journal WHERE state='delivered';"); do
   bn=$(basename "$f")
-  if [ -f "$DROP/$bn" ]; then
+  # Delivered names carry a rig-identity prefix (delivery_naming.dart), so the
+  # drop-side file is found by suffix, not by equality; exactly one must match.
+  hits=$(find "$DROP" -maxdepth 1 -type f -name "*${bn}" | wc -l)
+  dropfile=$(find "$DROP" -maxdepth 1 -type f -name "*${bn}" | head -1)
+  if [ "$hits" = "1" ] && [ -f "$dropfile" ]; then
     case "$bn" in
       *_report.json)
         # The report is written pre-delivery and updated post-delivery with the
         # delivery outcome, so the delivered copy is the earlier version by
         # design. Assert both parse and describe the same job instead.
-        SAME=$(python3 -c "import json;a=json.load(open('$f'));b=json.load(open('$DROP/$bn'));print('yes' if a.get('jobId',a.get('job_id'))==b.get('jobId',b.get('job_id')) else 'no')" 2>/dev/null)
+        SAME=$(python3 -c "import json;a=json.load(open('$f'));b=json.load(open('$dropfile'));print('yes' if a.get('jobId',a.get('job_id'))==b.get('jobId',b.get('job_id')) else 'no')" 2>/dev/null)
         [ "$SAME" = "yes" ] || { MISS=$((MISS+1)); say "  report job-id mismatch or unparseable: $bn"; }
         ;;
       *)
-        A=$(sha256sum "$f" | cut -d' ' -f1); Bc=$(sha256sum "$DROP/$bn" | cut -d' ' -f1)
+        A=$(sha256sum "$f" | cut -d' ' -f1); Bc=$(sha256sum "$dropfile" | cut -d' ' -f1)
         [ "$A" = "$Bc" ] || { MISS=$((MISS+1)); say "  checksum mismatch: $bn"; }
         ;;
     esac
