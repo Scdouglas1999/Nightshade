@@ -23,6 +23,52 @@ import 'delivery_failure.dart';
 /// litter is bounded by the number of files in flight.
 const String kStagedDeliverySuffix = '.nsdelivery-part';
 
+/// Re-type [failure] — raised reading a file that lives in the DESTINATION —
+/// by asking which side actually went away.
+///
+/// [sha256OfFile] cannot know whose file it is holding, so it calls every
+/// unreadable path [DeliveryFailureKind.sourceMissing]: terminal, and phrased
+/// as the rig having lost the master. Every file delivery reads BACK — the
+/// staged copy, the name already sitting at the destination — is on the far
+/// side, so that verdict blames the night's data for an unmounted NAS and
+/// records `failed` on an attempt the sweep would have survived.
+///
+/// [sourcePath] is stat-ed here, at failure time, rather than trusted from the
+/// describe pass minutes ago: a source still on the rig means the DESTINATION
+/// is what disappeared, which is exactly the failure another attempt fixes.
+///
+/// [failure] comes from [sha256OfFile], whose message already names the file it
+/// could not read, so the destination path is not repeated here — what is
+/// added is the verdict on the OTHER side.
+Future<DeliveryFailure> destinationReadFailure({
+  required String sourcePath,
+  required DeliveryFailure failure,
+}) async {
+  final cause = failure.cause ?? failure;
+  if (!await File(sourcePath).exists()) {
+    return DeliveryFailure(
+      DeliveryFailureKind.sourceMissing,
+      '${failure.message}. $sourcePath is no longer on the rig either, so the '
+      'artifact itself is gone',
+      cause: cause,
+    );
+  }
+  if (failure.kind == DeliveryFailureKind.permissionDenied) {
+    return DeliveryFailure(
+      DeliveryFailureKind.permissionDenied,
+      '${failure.message}. That is the destination\'s copy and $sourcePath is '
+      'still on the rig, so the destination is what refused the read',
+      cause: cause,
+    );
+  }
+  return DeliveryFailure(
+    DeliveryFailureKind.destinationUnreachable,
+    '${failure.message}. That is the destination\'s copy and $sourcePath is '
+    'still on the rig, so the destination went away, not the artifact',
+    cause: cause,
+  );
+}
+
 /// A staged copy waiting to be committed onto its final name.
 class AtomicFileWrite {
   /// Final path the file takes on [commit].
@@ -63,22 +109,29 @@ class AtomicFileWrite {
 
     try {
       await File(artifact.sourcePath).copy(stagedPath);
-    } on PathAccessException catch (error) {
-      throw DeliveryFailure(
-        DeliveryFailureKind.permissionDenied,
-        'Writing $stagedPath is not permitted',
-        cause: error,
-      );
     } on FileSystemException catch (error) {
-      throw DeliveryFailure(
-        _kindForWriteFailure(error),
-        'Copying ${artifact.fileName} to ${directory.path} failed: '
-        '${error.message}${await _remove(staged)}',
-        cause: error,
+      throw await _copyFailure(
+        artifact: artifact,
+        directory: directory,
+        staged: staged,
+        error: error,
       );
     }
 
-    final landed = await sha256OfFile(staged);
+    final String landed;
+    try {
+      landed = await sha256OfFile(staged);
+    } on DeliveryFailure catch (failure) {
+      final typed = await destinationReadFailure(
+        sourcePath: artifact.sourcePath,
+        failure: failure,
+      );
+      throw DeliveryFailure(
+        typed.kind,
+        '${typed.message}${await _remove(staged)}',
+        cause: typed.cause,
+      );
+    }
     if (landed != artifact.checksum) {
       throw DeliveryFailure(
         DeliveryFailureKind.checksumMismatch,
@@ -121,14 +174,57 @@ class AtomicFileWrite {
   /// describing a cleanup that did not succeed, or an empty string.
   Future<String> abandon() => _remove(File(stagedPath));
 
-  static DeliveryFailureKind _kindForWriteFailure(FileSystemException error) {
+  /// Type a copy that the operating system refused, by which side it was
+  /// complaining about.
+  ///
+  /// The copy reads the rig and writes the destination, so one
+  /// [FileSystemException] can mean either. A full destination is its own
+  /// kind; otherwise the SOURCE is stat-ed HERE, because a master that
+  /// vanished between the describe pass and this copy is terminal — no later
+  /// attempt finds it — while everything else belongs to the destination and
+  /// is worth another attempt.
+  static Future<DeliveryFailure> _copyFailure({
+    required DeliveryFile artifact,
+    required Directory directory,
+    required File staged,
+    required FileSystemException error,
+  }) async {
+    final trailer = await _remove(staged);
     // errno 28 is ENOSPC on every platform Nightshade ships to. A full
-    // destination is retried overnight; anything else is a transport failure
-    // until a clearer cause appears.
+    // destination is retried overnight; space is freed by other things
+    // finishing.
     if (error.osError?.errorCode == 28) {
-      return DeliveryFailureKind.insufficientSpace;
+      return DeliveryFailure(
+        DeliveryFailureKind.insufficientSpace,
+        'Copying ${artifact.fileName} to ${directory.path} failed: '
+        '${error.message}$trailer',
+        cause: error,
+      );
     }
-    return DeliveryFailureKind.transportFailure;
+    if (!await File(artifact.sourcePath).exists()) {
+      return DeliveryFailure(
+        DeliveryFailureKind.sourceMissing,
+        'Copying ${artifact.fileName} to ${directory.path} failed '
+        '(${error.message}) and ${artifact.sourcePath} is no longer on the '
+        'rig$trailer',
+        cause: error,
+      );
+    }
+    if (error is PathAccessException) {
+      return DeliveryFailure(
+        DeliveryFailureKind.permissionDenied,
+        'Copying ${artifact.fileName} to ${directory.path} is not permitted '
+        '(${error.message}); ${artifact.sourcePath} is still on the '
+        'rig$trailer',
+        cause: error,
+      );
+    }
+    return DeliveryFailure(
+      DeliveryFailureKind.transportFailure,
+      'Copying ${artifact.fileName} to ${directory.path} failed: '
+      '${error.message}; ${artifact.sourcePath} is still on the rig$trailer',
+      cause: error,
+    );
   }
 
   /// Delete [file] and return a sentence to append to the failure that is

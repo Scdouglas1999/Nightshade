@@ -479,6 +479,34 @@ class AutoIntegrationService {
         .requestCancel(jobId, reason: reason);
   }
 
+  /// Ask whatever Darkroom pass is live over [sessionId] to stop, and report
+  /// which job that was.
+  ///
+  /// [runDarkroomNow] only hands its job id back when the pass has already
+  /// finished, so an operator standing in front of a pass that is minutes into
+  /// rendering has nothing to name. The durable row does: the session's newest
+  /// non-terminal job IS the pass in flight, because the autopilot runs one job
+  /// at a time.
+  ///
+  /// Returns the job asked to stop, or null when the session has no live job —
+  /// the press landed in the gap between the enqueue and the row, or the pass
+  /// finished on its own. The caller states which happened rather than
+  /// reporting a stop that did not occur.
+  Future<int?> cancelDarkroomPassForSession(
+    int sessionId, {
+    String? reason,
+  }) async {
+    final jobs =
+        await _ref.read(darkroomJobsDaoProvider).listForSession(sessionId);
+    for (final job in jobs) {
+      final id = job.id;
+      if (id == null || job.isTerminal) continue;
+      await cancelDarkroomJob(id, reason: reason);
+      return id;
+    }
+    return null;
+  }
+
   /// Build the run-completion toast covering BOTH paths: subs folded into
   /// existing accumulating masters and subs freshly batch-integrated. Reports
   /// the total subs across every filter so a multi-filter night never

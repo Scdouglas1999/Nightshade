@@ -488,7 +488,21 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     final candidate = List<DarkroomStep>.from(steps);
     candidate.insert(target, candidate.removeAt(oldIndex));
 
-    final verdict = await _validateSteps(candidate);
+    final DarkroomValidation? verdict;
+    try {
+      verdict = await _validateSteps(candidate);
+    } catch (error) {
+      // The caller is a drag gesture, which cannot await this future: anything
+      // thrown here would be an unobserved async error, and the list would snap
+      // back with no reason stated anywhere on the screen. The move is refused
+      // and the failure is named instead.
+      if (!mounted) return false;
+      state = state.copyWith(
+        reorderRefusal: 'That order could not be checked with the engine, so '
+            'the move was not made: $error',
+      );
+      return false;
+    }
     if (!mounted) return false;
     if (verdict == null) {
       state = state.copyWith(

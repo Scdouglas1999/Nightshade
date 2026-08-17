@@ -46,6 +46,10 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// When set, the next preview throws this instead of answering.
   Object? previewError;
 
+  /// When set, `validate` throws this instead of answering — the shape a
+  /// decode fault or a poisoned engine lock takes at the seam.
+  Object? validateThrows;
+
   final List<String> validateRecipes = [];
   final List<Map<String, dynamic>> previewContexts = [];
   final List<String> previewRecipes = [];
@@ -60,6 +64,11 @@ class _ScriptedDarkroom implements DarkroomSeam {
     required Map<String, dynamic> context,
   }) async {
     validateRecipes.add(recipeJson);
+    final thrown = validateThrows;
+    if (thrown != null) {
+      validateThrows = null;
+      throw thrown;
+    }
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
     return {
@@ -105,7 +114,20 @@ class _ScriptedDarkroom implements DarkroomSeam {
       isColor: false,
       rgba: Uint8List(4 * 4 * 4),
       report: {
-        'encoding': 'screen transfer over linear pixels',
+        // The engine's own shape (bridge render.rs `description`): an object,
+        // never a sentence.
+        'encoding': {
+          'requested': 'auto',
+          'applied': 'screen',
+          'sourceDomain': 'linear',
+          'clampedSamples': 0,
+          'screenTransfer': {
+            'blackPoint': 529.75,
+            'whitePoint': 531.19,
+            'd': 2.57,
+          },
+          'screenTransferAffectsRecipe': false,
+        },
         'level': {
           'level': 1,
           'levelCount': 3,
@@ -708,6 +730,76 @@ void main() {
     expect(stretch.stage, DarkroomOpStage.stretched);
     expect(stretch.param('blackPoint')!.isSliderRanged, isFalse);
     expect(stretch.param('blackPoint')!.independent, isFalse);
+  });
+
+  test('the render report\'s encoding object is read, not stringified',
+      () async {
+    final id = await seedRecipe(steps: [_step('background_extract')]);
+    final state = await settle(DarkroomScope.recipe(id));
+
+    final encoding = state.preview!.encoding;
+    expect(encoding.applied, 'screen');
+    expect(encoding.sourceDomain, 'linear');
+    expect(encoding.screenTransfer, isNotNull);
+    expect(encoding.screenTransfer!['blackPoint'], 529.75);
+    // Both halves are named, so the strip never blames the engine for an
+    // omission it did not make.
+    expect(encoding.sentence, contains('screen transfer'));
+    expect(encoding.sentence, contains('still-linear pixels'));
+    expect(encoding.sentence, isNot(contains('did not name')));
+  });
+
+  test('an encoding block the reply omits is reported as unstated', () {
+    final encoding = decodeDarkroomEncoding(const <String, dynamic>{});
+    expect(encoding.applied, isNull);
+    expect(encoding.sourceDomain, isNull);
+    expect(encoding.screenTransfer, isNull);
+    expect(
+      encoding.sentence,
+      'the engine did not name the display transfer it applied',
+    );
+  });
+
+  test('an encoding block naming only the transfer says so for the domain', () {
+    final encoding = decodeDarkroomEncoding(const <String, dynamic>{
+      'encoding': <String, dynamic>{'applied': 'unit'},
+    });
+    expect(encoding.applied, 'unit');
+    expect(encoding.sourceDomain, isNull);
+    expect(encoding.sentence, contains('own samples'));
+    expect(encoding.sentence, contains('domain the engine did not name'));
+  });
+
+  test('a reorder whose check throws is refused with the failure named',
+      () async {
+    final id = await seedRecipe(
+      steps: [_step('background_extract'), _step('stretch')],
+    );
+    final scope = DarkroomScope.recipe(id);
+    await settle(scope);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+
+    darkroom.validateThrows = StateError('the registry lock was poisoned');
+    final accepted = await controller.reorderStep(1, 0);
+
+    // The caller is a drag gesture that cannot await this, so a throw here
+    // would have been an unobserved async error and a silently snapped-back
+    // card. It is a stated refusal instead.
+    expect(accepted, isFalse);
+    expect(
+      controller.state.reorderRefusal,
+      contains('could not be checked with the engine'),
+    );
+    expect(
+      controller.state.reorderRefusal,
+      contains('the registry lock was poisoned'),
+    );
+    expect(controller.state.steps.map((s) => s.opId), [
+      'background_extract',
+      'stretch',
+    ]);
   });
 
   test('a stored step list that is not a step list is reported', () async {

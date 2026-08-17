@@ -304,11 +304,25 @@ List<DarkroomStepReport> decodeDarkroomStepReports(
   return List.unmodifiable(out);
 }
 
-/// The display transfer the engine applied, in its own words.
-String decodeDarkroomEncoding(Map<String, dynamic> report) {
+/// Decode the `encoding` block of a render report.
+///
+/// The block is an object — `applied`, `sourceDomain`, and `screenTransfer`
+/// when the engine lifted the picture for display. A reply that carries no
+/// object leaves every field unstated, and the viewport then says the engine
+/// named nothing rather than naming a transfer nothing reported.
+DarkroomEncoding decodeDarkroomEncoding(Map<String, dynamic> report) {
   final encoding = report['encoding'];
-  if (encoding is String && encoding.isNotEmpty) return encoding;
-  return 'the engine did not name the display transfer it applied';
+  if (encoding is! Map<String, dynamic>) return DarkroomEncoding.unstated;
+  final applied = encoding['applied'];
+  final domain = encoding['sourceDomain'];
+  final screen = encoding['screenTransfer'];
+  return DarkroomEncoding(
+    applied: applied is String && applied.isNotEmpty ? applied : null,
+    sourceDomain: domain is String && domain.isNotEmpty ? domain : null,
+    screenTransfer: screen is Map<String, dynamic> && screen.isNotEmpty
+        ? Map<String, dynamic>.unmodifiable(screen)
+        : null,
+  );
 }
 
 /// The pyramid level a render answered at, or null when the reply did not name

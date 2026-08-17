@@ -37,6 +37,12 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   /// second press queue a second job over the same masters.
   bool _darkroomRunning = false;
 
+  /// True once the operator has asked the running pass to stop. The stop is
+  /// cooperative — the engine's flag is polled between tiles and the pipeline
+  /// checks it between masters — so the control says "Stopping…" and stays
+  /// disabled rather than pretending the pass is already over.
+  bool _stopRequested = false;
+
   SessionReviewController get _controller =>
       ref.read(sessionReviewControllerProvider(widget.scope).notifier);
 
@@ -47,14 +53,22 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   /// that were each processed on their own.
   Future<void> _processTonightNow(int sessionId) async {
     if (_darkroomRunning) return;
-    setState(() => _darkroomRunning = true);
+    setState(() {
+      _darkroomRunning = true;
+      _stopRequested = false;
+    });
     final ManualDarkroomRun run;
     try {
       run = await ref
           .read(autoIntegrationServiceProvider)
           .runDarkroomNow(sessionId);
     } finally {
-      if (mounted) setState(() => _darkroomRunning = false);
+      if (mounted) {
+        setState(() {
+          _darkroomRunning = false;
+          _stopRequested = false;
+        });
+      }
     }
     if (!mounted) return;
     // The masters are re-read because a finished pass has written recipes the
@@ -70,6 +84,57 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
       severity: run.succeeded
           ? NightshadeAlertSeverity.success
           : NightshadeAlertSeverity.warning,
+    );
+  }
+
+  /// Ask the running Darkroom pass to stop.
+  ///
+  /// The pass is minutes of native rendering per master, and without this the
+  /// only way out of one started by mistake — over the wrong night, with the
+  /// wrong masters, or while the operator wants the machine for something else
+  /// — is to wait it out or kill the app. The stop is cooperative: the engine's
+  /// cancellation flag is raised for this job's render id and the autopilot's
+  /// own flag stops the pipeline before the next master, so a render already
+  /// inside Rust ends at its next poll rather than instantly. The toast says
+  /// exactly that; the pass's own outcome toast reports how it actually ended.
+  Future<void> _stopTonightsPass(int sessionId) async {
+    if (_stopRequested) return;
+    setState(() => _stopRequested = true);
+    final int? jobId;
+    try {
+      jobId = await ref
+          .read(autoIntegrationServiceProvider)
+          .cancelDarkroomPassForSession(
+            sessionId,
+            reason: 'Stopped from Session Review',
+          );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _stopRequested = false);
+      NightshadeToastHelper.show(
+        context: context,
+        message: 'The Darkroom pass could not be stopped: $error',
+        severity: NightshadeAlertSeverity.error,
+      );
+      return;
+    }
+    if (!mounted) return;
+    if (jobId == null) {
+      // Nothing was asked to stop, so the control goes back to offering it.
+      setState(() => _stopRequested = false);
+      NightshadeToastHelper.show(
+        context: context,
+        message: 'There is no Darkroom pass to stop for this session — it has '
+            'either finished already or has not reached its job yet.',
+        severity: NightshadeAlertSeverity.info,
+      );
+      return;
+    }
+    NightshadeToastHelper.show(
+      context: context,
+      message: 'Stopping the Darkroom pass. A master already being rendered '
+          'finishes that render first; nothing after it is started.',
+      severity: NightshadeAlertSeverity.warning,
     );
   }
 
@@ -192,6 +257,24 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                           : () => _processTonightNow(sessionId),
                     ),
                   ),
+                  // The way out of a pass that is already under way. Present
+                  // only while one is: a Stop that is always on the header
+                  // would be a control with nothing to stop.
+                  if (_darkroomRunning && sessionId != null)
+                    Tooltip(
+                      message: 'Stop the Darkroom pass. The master being '
+                          'rendered finishes; nothing after it starts.',
+                      child: NightshadeButton(
+                        key: const ValueKey('session_review_stop_pass'),
+                        label: _stopRequested ? 'Stopping…' : 'Stop',
+                        icon: NightshadeIcons.stop,
+                        variant: ButtonVariant.destructive,
+                        size: ButtonSize.small,
+                        onPressed: _stopRequested
+                            ? null
+                            : () => _stopTonightsPass(sessionId),
+                      ),
+                    ),
                   NightshadeButton(
                     label: 'Refresh',
                     icon: NightshadeIcons.refresh,

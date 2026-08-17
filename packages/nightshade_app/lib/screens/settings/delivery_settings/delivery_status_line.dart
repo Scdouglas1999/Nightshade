@@ -42,6 +42,14 @@ class DeliveryStatusLine {
   const DeliveryStatusLine(this.kind, this.sentence);
 
   /// Read [view] and state what is true of it.
+  ///
+  /// The journal outranks the configuration. A destination whose last run
+  /// failed for a reason the configuration does not name — no `ssh` binary, a
+  /// full disk, a conflicting file — used to have that verdict replaced by
+  /// whatever structural gap was checked first, which both hid the real
+  /// mechanism and pointed the operator at a fix (store a key) that could not
+  /// change the outcome. So the newest verdict leads and the structural note
+  /// rides behind it.
   static DeliveryStatusLine of(DeliveryDestinationView view) {
     final destination = view.destination;
     if (!destination.enabled) {
@@ -50,23 +58,44 @@ class DeliveryStatusLine {
         'Off — nothing is sent here.',
       );
     }
-    if (destination.content.isEmpty) {
-      return const DeliveryStatusLine(
-        DeliveryStatusKind.incomplete,
-        'Nothing selected — this destination receives no files.',
+    final note = _configurationNote(view);
+    if (view.lastRun.isNotEmpty) {
+      final verdict = _lastRunSentence(view);
+      if (note == null) return verdict;
+      return DeliveryStatusLine(
+        verdict.kind,
+        '${_ended(verdict.sentence)} $note',
       );
     }
-    final blocker = _configurationBlocker(view);
-    if (blocker != null) {
-      return DeliveryStatusLine(DeliveryStatusKind.incomplete, blocker);
+    if (note != null) {
+      return DeliveryStatusLine(DeliveryStatusKind.incomplete, note);
     }
-    if (view.lastRun.isEmpty) {
-      return const DeliveryStatusLine(
-        DeliveryStatusKind.neverRun,
-        'No delivery has run yet.',
-      );
+    return const DeliveryStatusLine(
+      DeliveryStatusKind.neverRun,
+      'No delivery has run yet.',
+    );
+  }
+
+  /// [sentence] with a full stop, unless it already ends in punctuation. The
+  /// journal verdict ends in raw `last_error` text, which may end with a
+  /// bracket, a path or nothing at all, and running that straight into the
+  /// configuration note would read as one run-on claim.
+  static String _ended(String sentence) {
+    final trimmed = sentence.trimRight();
+    if (trimmed.isEmpty) return trimmed;
+    return '.!?'.contains(trimmed[trimmed.length - 1]) ? trimmed : '$trimmed.';
+  }
+
+  /// What is structurally in this destination's way, or null when nothing is.
+  ///
+  /// An empty content selection is one of these rather than a state of its
+  /// own: it stops delivery exactly the way a missing path does, and it is
+  /// reported the same way wherever delivery is summarized.
+  static String? _configurationNote(DeliveryDestinationView view) {
+    if (view.destination.content.isEmpty) {
+      return 'Nothing selected — this destination receives no files.';
     }
-    return _lastRunSentence(view);
+    return _configurationBlocker(view);
   }
 
   /// The reason this destination cannot deliver as configured, or null when

@@ -1243,16 +1243,22 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   ///
   /// A job that has already used its [kDarkroomJobMaxAttempts] starts is moved
   /// to 'failed' instead: a job that kills the process must not re-queue itself
-  /// forever.
+  /// forever. Its `note` is replaced along with its state, because the note the
+  /// dead attempt left — the step it was on, or the re-queue line a previous
+  /// recovery wrote — describes work that is over and would read on a failed
+  /// row as though it were still going.
   Future<void> _recoverInterruptedDarkroomJobs() async {
     final failed = await customUpdate(
       "UPDATE darkroom_jobs SET state = 'failed', finished_at = ?, "
-      'error_text = ? WHERE state = ? AND attempts >= ?',
+      'error_text = ?, note = ? WHERE state = ? AND attempts >= ?',
       variables: [
         Variable<int>(DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000),
         const Variable<String>(
           'Interrupted by a process exit on attempt '
           '$kDarkroomJobMaxAttempts of $kDarkroomJobMaxAttempts; not retried.',
+        ),
+        const Variable<String>(
+          'Stopped at the retry limit; this job is not re-queued.',
         ),
         const Variable<String>('running'),
         const Variable<int>(kDarkroomJobMaxAttempts),

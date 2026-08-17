@@ -68,9 +68,12 @@ class _SessionDetailDialog extends ConsumerWidget {
                         children: [
                           // Open the Session Review / Morning Report (cull +
                           // integrate).
-                          IconButton(
+                          _headerAction(
                             key: const ValueKey('session_detail_review'),
-                            icon: const Icon(LucideIcons.sparkles, size: 18),
+                            icon: LucideIcons.sparkles,
+                            label: isRemote
+                                ? 'Review on imaging host'
+                                : 'Review & Integrate',
                             onPressed: () {
                               if (isRemote) {
                                 context.showInfoSnackBar(
@@ -82,17 +85,17 @@ class _SessionDetailDialog extends ConsumerWidget {
                               context.push(
                                   '/session-review?session=${session.id}');
                             },
-                            tooltip: isRemote
-                                ? 'Review on imaging host'
-                                : 'Review & Integrate',
                           ),
                           // Open the night's linear master in the Darkroom.
                           // Resolves the session's masters first so a session
                           // that was never integrated says so instead of
                           // opening an editor with nothing in it.
-                          IconButton(
+                          _headerAction(
                             key: const ValueKey('session_detail_darkroom'),
-                            icon: const Icon(LucideIcons.sliders, size: 18),
+                            icon: LucideIcons.sliders,
+                            label: isRemote
+                                ? 'Refine on imaging host'
+                                : 'Refine in Darkroom',
                             onPressed: () async {
                               // Resolve BEFORE dismissing: a session with no
                               // master must leave the dialog up to carry the
@@ -114,49 +117,44 @@ class _SessionDetailDialog extends ConsumerWidget {
                               Navigator.of(context).pop();
                               openDarkroomForMaster(context, masterId);
                             },
-                            tooltip: isRemote
-                                ? 'Refine on imaging host'
-                                : 'Refine in Darkroom',
                           ),
                           // View the rich Feature-A session report.
-                          IconButton(
-                            icon:
-                                const Icon(LucideIcons.fileBarChart, size: 18),
+                          _headerAction(
+                            icon: LucideIcons.fileBarChart,
+                            label: 'Session Report',
                             onPressed: () =>
                                 SessionReportDialog.show(context, session.id),
-                            tooltip: 'Session Report',
                           ),
                           // Export buttons
-                          IconButton(
-                            icon: const Icon(LucideIcons.fileJson, size: 18),
+                          _headerAction(
+                            icon: LucideIcons.fileJson,
+                            label: l10n.text('analyticsExportJson'),
                             onPressed: () => _exportJson(context, ref),
-                            tooltip: l10n.text('analyticsExportJson'),
                           ),
-                          IconButton(
-                            icon: const Icon(LucideIcons.fileSpreadsheet,
-                                size: 18),
+                          _headerAction(
+                            icon: LucideIcons.fileSpreadsheet,
+                            label: l10n.text('analyticsExportCsv'),
                             onPressed: () => _exportCsv(context, ref),
-                            tooltip: l10n.text('analyticsExportCsv'),
                           ),
-                          IconButton(
-                            icon: const Icon(LucideIcons.fileText, size: 18),
+                          _headerAction(
+                            icon: LucideIcons.fileText,
+                            label: l10n.text('analyticsExportHtml'),
                             onPressed: () => _exportReport(context, ref),
-                            tooltip: l10n.text('analyticsExportHtml'),
                           ),
                           // Share only exists where the OS has a share sheet.
                           // On desktop `shareXFiles()` is unimplemented, and
                           // the CSV button beside it already writes the same
                           // file and shows its path.
                           if (Platform.isAndroid || Platform.isIOS)
-                            IconButton(
-                              icon: const Icon(LucideIcons.share, size: 18),
+                            _headerAction(
+                              icon: LucideIcons.share,
+                              label: l10n.text('share'),
                               onPressed: () => _exportAndShare(context, ref),
-                              tooltip: l10n.text('share'),
                             ),
-                          IconButton(
-                            icon: const Icon(LucideIcons.x, size: 18),
+                          _headerAction(
+                            icon: LucideIcons.x,
+                            label: l10n.text('commonClose'),
                             onPressed: () => Navigator.of(context).pop(),
-                            tooltip: l10n.text('commonClose'),
                           ),
                         ],
                       ),
@@ -195,6 +193,33 @@ class _SessionDetailDialog extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// One header action: an icon button that publishes [label] as its accessible
+  /// name.
+  ///
+  /// The name goes on the [Icon], not on a surrounding [Semantics]. A Material
+  /// [IconButton] wraps itself in `Semantics(container: true, …)`, so an
+  /// enclosing `Semantics(label: …)` cannot merge into it: it forms a SECOND
+  /// node above the button, and the split publishes a named node with no tap
+  /// action over a nameless node that carries the action. `Icon.semanticLabel`
+  /// sits inside the button's own node instead, which is why one node comes out
+  /// carrying the name, the button role, the enabled state and the tap
+  /// together. Before this every one of these buttons published an empty name —
+  /// seven anonymous buttons in the header, unreachable by name and
+  /// indistinguishable from each other to a screen reader.
+  Widget _headerAction({
+    Key? key,
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      key: key,
+      icon: Icon(icon, size: 18, semanticLabel: label),
+      onPressed: onPressed,
+      tooltip: label,
     );
   }
 

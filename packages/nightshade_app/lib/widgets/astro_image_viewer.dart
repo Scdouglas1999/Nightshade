@@ -84,6 +84,10 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
   int? _lastHeight;
   bool? _lastIsColor;
   bool _initialScaleSet = false;
+
+  /// A post-frame fit write is pending; layout passes must not schedule
+  /// another (the write itself happens outside layout — see build).
+  bool _initialFitScheduled = false;
   double? _effectiveMinScale;
 
   late TransformationController _transformationController;
@@ -305,13 +309,21 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
             fitScale < widget.minScale ? fitScale : widget.minScale;
         _effectiveMinScale = effectiveMinScale;
 
-        // Set initial fit transform once we know the container size
-        // This is safe to call during build since it only updates the
-        // transformation controller (not widget state) and only runs once
+        // Set initial fit transform once we know the container size. The
+        // write is deferred to a post-frame callback: a caller-supplied
+        // controller can have listeners that setState, and notifying them
+        // from inside this layout callback wedges the enclosing
+        // LayoutBuilder's build scope in release builds (the framework's
+        // debugNeedsLayout assert that catches it is stripped).
         if (!_initialScaleSet &&
+            !_initialFitScheduled &&
             containerSize.width > 0 &&
             containerSize.height > 0) {
-          _setInitialFitTransform(containerSize);
+          _initialFitScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _initialFitScheduled = false;
+            if (mounted) _setInitialFitTransform(containerSize);
+          });
         }
 
         return Listener(

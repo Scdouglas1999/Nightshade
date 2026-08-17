@@ -309,6 +309,18 @@ class DawnMasterReport {
   /// True when a draft image exists for this master.
   bool get hasDraft => draftRenderPath != null;
 
+  /// True when the pipeline actually read this master's pixels.
+  ///
+  /// [draft] is the composition the registry answered with, and the registry
+  /// only answers after it has opened the FITS and measured it. A null draft
+  /// therefore means the read itself failed — a truncated file, a path that
+  /// vanished — while a non-null draft with a [failure] means the pixels were
+  /// read and a later stage (the export, the step measurement) stopped.
+  ///
+  /// Delivery keys on this: a master whose bytes could not be read must not be
+  /// copied to a destination as though it were the night's result.
+  bool get pixelsWereRead => draft != null;
+
   /// The master as report JSON.
   Map<String, dynamic> toJson() => {
     'masterId': master.masterId,
@@ -445,10 +457,40 @@ class DawnJobReport {
     return names.length == 1 ? names.single : null;
   }
 
+  /// The same report recorded under another [state], carrying [failure].
+  ///
+  /// The pipeline uses it to rewrite the report as the ending the job row
+  /// actually took, so the artifact on disk can never announce a state the row
+  /// never reached.
+  DawnJobReport withEnding({required String state, String? failure}) =>
+      DawnJobReport(
+        jobId: jobId,
+        kind: kind,
+        sessionId: sessionId,
+        startedAt: startedAt,
+        finishedAt: finishedAt,
+        state: state,
+        masters: masters,
+        withoutFile: withoutFile,
+        delivery: delivery,
+        deliveryProblems: deliveryProblems,
+        notification: notification,
+        failure: failure ?? this.failure,
+      );
+
   /// The notification's title line.
+  ///
+  /// A night that rendered nothing says so. "Your 0 drafts are ready" reads as
+  /// a successful delivery of nothing, which is the cry-wolf shape in reverse:
+  /// the operator has to open the report to learn that the headline was about
+  /// an empty hand.
   String get headline {
     final target = primaryTargetName;
     final time = formatDawnIntegration(integrationSeconds);
+    if (draftsRendered == 0) {
+      return '${target ?? 'Your night'} — no draft was rendered; '
+          '$time integrated';
+    }
     if (target == null) {
       return draftsRendered == 1
           ? 'Your draft is ready — $time integrated'
@@ -487,8 +529,12 @@ class DawnJobReport {
     final deliveryReport = delivery;
     if (deliveryReport != null) {
       lines.add('Delivery — ${deliveryReport.summary}.');
-      lines.addAll(deliveryProblems);
     }
+    // Outside the `delivery != null` arm: the problems that matter most are the
+    // ones raised when nothing could be handed to a destination at all, and
+    // those are exactly the runs where there is no destination report to nest
+    // them under.
+    lines.addAll(deliveryProblems);
     final stopped = failure;
     if (stopped != null) lines.add(stopped);
     return lines.join('\n');
@@ -528,6 +574,10 @@ class DawnJobReport {
             'failed': delivery!.failed,
             'problems': deliveryProblems,
           },
+    // Also at the top level, because a run that delivered nothing has no
+    // `delivery` object to carry its problems and those are the runs whose
+    // problems the operator most needs.
+    'deliveryProblems': deliveryProblems,
     'notification': notification?.toJson(),
     'failure': failure,
   };

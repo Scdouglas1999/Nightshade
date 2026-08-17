@@ -410,7 +410,10 @@ def _states(node) -> str:
         "slider", "spin button", "entry", "text", "link", "page tab",
         "list item",
     }
-    if interactive and not (raw & {"enabled", "sensitive"}):
+    # Flutter's Linux AT-SPI bridge keeps `sensitive` on a disabled button
+    # while dropping `enabled`/`focusable`, so requiring both absent meant no
+    # disabled button ever printed [DISABLED]. `enabled` alone is the truth.
+    if interactive and "enabled" not in raw:
         flags.append("DISABLED")
     if "showing" not in raw:
         flags.append("offscreen")

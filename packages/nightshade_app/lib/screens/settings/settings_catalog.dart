@@ -480,6 +480,27 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
           ],
           build: (isMobile) => AdaptiveConditionsSettings(isMobile: isMobile),
         ),
+        // Where the night's masters, draft render and report leave the rig —
+        // the tail of the unattended night, so it sits with the rest of it
+        // rather than under Advanced between the Log Viewer and Replay Debug.
+        SettingsSectionDef(
+          key: 'delivery',
+          label: 'Delivery',
+          icon: LucideIcons.send,
+          keywords: const [
+            'delivery',
+            'destination',
+            'watched folder',
+            'sftp',
+            'nas',
+            'copy',
+            'artifacts',
+            'masters',
+            'peer',
+            'pull',
+          ],
+          build: (isMobile) => DeliverySettings(isMobile: isMobile),
+        ),
       ],
     ),
     SettingsGroupDef(
@@ -663,24 +684,6 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
           build: (isMobile) => CapturedImagesSettings(isMobile: isMobile),
         ),
         SettingsSectionDef(
-          key: 'delivery',
-          label: 'Delivery',
-          icon: LucideIcons.send,
-          keywords: const [
-            'delivery',
-            'destination',
-            'watched folder',
-            'sftp',
-            'nas',
-            'copy',
-            'artifacts',
-            'masters',
-            'peer',
-            'pull',
-          ],
-          build: (isMobile) => DeliverySettings(isMobile: isMobile),
-        ),
-        SettingsSectionDef(
           key: 'replay-debug',
           label: t('settingsReplayDebug'),
           icon: LucideIcons.bug,
@@ -820,7 +823,13 @@ const List<List<String>> _structuralGroups = [
     'annotations',
     'catalogs',
   ],
-  ['sequencer', 'preflight', 'weather-safety', 'adaptive-conditions'],
+  [
+    'sequencer',
+    'preflight',
+    'weather-safety',
+    'adaptive-conditions',
+    'delivery',
+  ],
   ['science', 'observation-log', 'observing-lists'],
   ['notifications', 'integrations', 'remote-access'],
   [
@@ -830,7 +839,6 @@ const List<List<String>> _structuralGroups = [
     'rig-catalogs',
     'captured-images',
     'focus-model',
-    'delivery',
     'replay-debug',
   ],
 ];

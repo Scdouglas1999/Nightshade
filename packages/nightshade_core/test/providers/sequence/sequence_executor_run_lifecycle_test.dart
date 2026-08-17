@@ -63,6 +63,10 @@ class _RecordingSessionNotifier extends SessionStateNotifier {
   final List<String> endedStatuses = [];
   bool throwOnEnd = false;
 
+  /// The `dbSessionId` the most recent [startSession] handed out — the id a
+  /// terminal result must carry for the night that just ended.
+  int get lastSessionId => 1000 + startCount;
+
   /// When set, [endSession] awaits this before recording — so a test can hold
   /// the finalization drive parked in the busy `finalizing` state (durable
   /// cleanup in flight) and assert on admission/report while it is suspended.
@@ -2088,6 +2092,104 @@ void main() {
       ).called(1);
 
       await executor.stop();
+    });
+  });
+
+  group('N. the headless load -> start path, twice in one process', () {
+    // The appliance's canonical flow is POST /api/sequencer/load ->
+    // POST /api/sequencer/start, which never calls start(): the handler opens
+    // the `imaging_sessions` row itself and reaches this executor only through
+    // attachHostListenersForNativeRun. So nothing on that path clears the per-
+    // run finalization latches, and the FIRST night leaves `_settledRunStatus`
+    // behind. Reproduced on the release bundle with
+    // tools/harness/d1_sim_night/two_nights.sh: night two reached `completed`
+    // on the wire, its session row stayed `active` forever, and no integration
+    // and no draft were ever made for it.
+
+    /// One headless night: the handler's session row, the handler's attach,
+    /// then the native `Completed` the run ends on.
+    Future<void> headlessNight(
+      ProviderContainer c,
+      SequenceExecutor executor,
+      String name,
+    ) async {
+      await c
+          .read(sessionStateProvider.notifier)
+          .startSession(targetName: name);
+      await executor.attachHostListenersForNativeRun();
+      eventController.add(_sequencerEvent('Completed'));
+      await pumpEvents();
+      await executor.terminalCleanupSettledForTest;
+    }
+
+    test('the second night finalizes its own session', () async {
+      final container = buildContainer();
+      _stubBackendForStart(backend);
+      final executor = container.read(sequenceExecutorProvider);
+
+      await headlessNight(container, executor, 'night one');
+      expect(session.endedStatuses, ['completed']);
+
+      await headlessNight(container, executor, 'night two');
+      expect(
+        session.endedStatuses,
+        ['completed', 'completed'],
+        reason:
+            'the second night ended on the wire, so its session row must be '
+            'closed too — an open row is a night nothing will ever integrate',
+      );
+    });
+
+    test(
+      'the second night publishes ITS session for post-processing',
+      () async {
+        final container = buildContainer();
+        _stubBackendForStart(backend);
+        final executor = container.read(sequenceExecutorProvider);
+
+        await headlessNight(container, executor, 'night one');
+        final first = container.read(sequenceTerminalRunResultProvider)!;
+
+        await headlessNight(container, executor, 'night two');
+        final second = container.read(sequenceTerminalRunResultProvider)!;
+
+        // The terminal result is what auto-integration and the dawn Darkroom
+        // pass key off (autoIntegrationCoordinatorProvider reads dbSessionId).
+        // A missing or stale one is a night with masters nobody makes.
+        expect(second.dbSessionId, isNot(first.dbSessionId));
+        expect(second.dbSessionId, session.lastSessionId);
+        expect(second.generation, greaterThan(first.generation));
+        expect(second.runStatus, 'completed');
+      },
+    );
+
+    test('a retained cleanupFailed transaction survives a re-attach', () async {
+      final container = buildContainer();
+      _stubBackendForStart(backend);
+      final executor = container.read(sequenceExecutorProvider);
+
+      // Night one cannot close its session: the drive settles to the retryable
+      // cleanupFailed and KEEPS its transaction for the retry.
+      session.throwOnEnd = true;
+      await headlessNight(container, executor, 'night one');
+      expect(
+        container.read(sequenceExecutionStateProvider),
+        SequenceExecutionState.cleanupFailed,
+      );
+
+      // A re-attach must not discard that transaction: the run's hardware
+      // ending was never fully recorded, and a fresh finalization on top would
+      // publish a verdict for a run whose cleanup never finished.
+      await executor.attachHostListenersForNativeRun();
+      eventController.add(_sequencerEvent('Completed'));
+      await pumpEvents();
+      await executor.terminalCleanupSettledForTest;
+
+      expect(
+        container.read(sequenceExecutionStateProvider),
+        SequenceExecutionState.cleanupFailed,
+      );
+      expect(container.read(sequenceTerminalRunResultProvider), isNull);
     });
   });
 }

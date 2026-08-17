@@ -184,7 +184,11 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
                 setState(() {});
               },
             ),
-          _holdToCompare(),
+          // Blink only. Side by side already has both renders on screen, so
+          // pinning B there changes nothing — and a control that publishes an
+          // on/off state while changing nothing on screen is the shape of every
+          // dead control in this app's history.
+          if (blinkMode) _holdToCompare(),
           if (bState.rendering)
             const _DarkroomTag(
               label: 'B is rendering…',
@@ -344,10 +348,20 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
 /// A press-and-hold control: held means "show the other recipe".
 ///
 /// Hand-rolled rather than a [NightshadeButton] because the gesture IS the
-/// control. A button's callback fires on release, which is the moment this
-/// affordance ends; wiring one to an empty closure to borrow the styling would
-/// leave a control that looks pressable and does nothing on tap.
-class _DarkroomHoldToCompare extends StatelessWidget {
+/// control for a pointer. A button's callback fires on release, which is the
+/// moment this affordance ends; wiring one to an empty closure to borrow the
+/// styling would leave a control that looks pressable and does nothing on tap.
+///
+/// **A hold is not the only way to work it.** A press-and-hold cannot be
+/// performed from a keyboard or from assistive tech, and the earlier shape —
+/// `Semantics(button)` over an `ExcludeSemantics(GestureDetector)` — published
+/// a node with no tap action and no enabled state, which the AT-SPI bridge
+/// reported as `Hold to see … [DISABLED]`: a control that read as broken and
+/// could not be operated at all. So the same control is also a TOGGLE: it
+/// carries `toggled`, publishes tap and long-press actions, takes keyboard
+/// focus, and Enter/Space pin the other recipe up and release it again. The
+/// pointer path is unchanged — press pins, release comes back.
+class _DarkroomHoldToCompare extends StatefulWidget {
   final String label;
   final bool held;
   final ValueChanged<bool> onHeldChanged;
@@ -359,46 +373,101 @@ class _DarkroomHoldToCompare extends StatelessWidget {
   });
 
   @override
+  State<_DarkroomHoldToCompare> createState() => _DarkroomHoldToCompareState();
+}
+
+class _DarkroomHoldToCompareState extends State<_DarkroomHoldToCompare> {
+  /// True while the keyboard focus ring is on this control.
+  bool _focused = false;
+
+  void _toggle() => widget.onHeldChanged(!widget.held);
+
+  @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final held = widget.held;
+    final active = held || _focused;
     return Semantics(
       button: true,
-      label: label,
-      hint: 'Press and hold to show the other recipe; release to come back.',
-      child: ExcludeSemantics(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (_) => onHeldChanged(true),
-          onTapUp: (_) => onHeldChanged(false),
-          onTapCancel: () => onHeldChanged(false),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceSm,
-              vertical: NightshadeTokens.spaceXs,
-            ),
-            decoration: BoxDecoration(
-              color: held ? colors.surfaceAlt : colors.surface,
-              borderRadius: NightshadeTokens.borderRadiusSm,
-              border: Border.all(
-                color: held ? colors.primary : colors.border,
+      // Stated, not implied: `Semantics` publishes the isEnabled flag only when
+      // the field is given, and without it the AT-SPI bridge reports the
+      // working control as disabled.
+      enabled: true,
+      toggled: held,
+      label: widget.label,
+      hint: held
+          ? 'Showing the other recipe. Release the press, or activate this '
+              'control again, to come back.'
+          : 'Press and hold to show the other recipe; release to come back. '
+              'From a keyboard, activate it to pin the other recipe up and '
+              'activate it again to come back.',
+      // The actions the pointer gesture cannot offer assistive tech. Both land
+      // on the same toggle, so an activation pins B up and the next one
+      // releases it — the explicit release a hold has no way to express.
+      onTap: _toggle,
+      onLongPress: _toggle,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowFocusHighlight: (value) {
+          if (!mounted || _focused == value) return;
+          setState(() => _focused = value);
+        },
+        actions: <Type, Action<Intent>>{
+          // Enter and Space arrive as ActivateIntent from the app-level default
+          // shortcuts; ButtonActivateIntent is the web variant.
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              _toggle();
+              return null;
+            },
+          ),
+          ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+            onInvoke: (_) {
+              _toggle();
+              return null;
+            },
+          ),
+        },
+        // The gesture keeps its own semantics out of the way: a
+        // `TapGestureRecognizer` publishes its own tap action, which would
+        // collide with the one declared above and split this control into two
+        // nodes — a named one with no action over an anonymous one with the
+        // action.
+        child: ExcludeSemantics(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (_) => widget.onHeldChanged(true),
+            onTapUp: (_) => widget.onHeldChanged(false),
+            onTapCancel: () => widget.onHeldChanged(false),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceSm,
+                vertical: NightshadeTokens.spaceXs,
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  NightshadeIcons.visible,
-                  size: NightshadeTokens.iconSm,
-                  color: held ? colors.primary : colors.textSecondary,
+              decoration: BoxDecoration(
+                color: held ? colors.surfaceAlt : colors.surface,
+                borderRadius: NightshadeTokens.borderRadiusSm,
+                border: Border.all(
+                  color: active ? colors.primary : colors.border,
                 ),
-                const SizedBox(width: NightshadeTokens.spaceXs),
-                Text(
-                  label,
-                  style: NightshadeTypography.labelSm.copyWith(
-                    color: held ? colors.primary : colors.textSecondary,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    NightshadeIcons.visible,
+                    size: NightshadeTokens.iconSm,
+                    color: active ? colors.primary : colors.textSecondary,
                   ),
-                ),
-              ],
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Text(
+                    widget.label,
+                    style: NightshadeTypography.labelSm.copyWith(
+                      color: active ? colors.primary : colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

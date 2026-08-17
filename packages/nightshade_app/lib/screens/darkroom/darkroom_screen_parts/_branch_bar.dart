@@ -1,5 +1,13 @@
 part of '../darkroom_screen.dart';
 
+/// Why "Compare" is unavailable while this master carries one recipe.
+///
+/// One sentence, used as both the tooltip and the disabled control's
+/// accessible name, so the hover and the screen reader say the same thing.
+const String _kCompareNeedsSibling =
+    'A compare needs a second recipe over these same pixels. Duplicate this '
+    'one as a variant to make one.';
+
 /// The branch switcher: every recipe written over this master, which one is
 /// open, and the actions that change the set.
 ///
@@ -242,15 +250,32 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
             onPressed: () => widget.onCompareWith(null),
           )
         else if (compareTargets.isEmpty)
-          const Tooltip(
-            message: 'A compare needs a second recipe over these same pixels. '
-                'Duplicate this one as a variant to make one.',
-            child: NightshadeButton(
-              label: 'Compare',
-              icon: NightshadeIcons.layers,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: null,
+          // Disabled AND explained. The button's own semantics node published
+          // an enabled push button while the paint said otherwise, so the only
+          // statement of "there is nothing to compare against" was a hover
+          // tooltip — invisible to the keyboard, to a screen reader, and to
+          // anyone who simply pressed it. The reason rides on the accessible
+          // name and the node is excluded below so one honest node is published
+          // rather than two contradicting ones.
+          Tooltip(
+            message: _kCompareNeedsSibling,
+            child: Semantics(
+              // Its own node, not an annotation merged into whatever encloses
+              // it: merged, the disabled flag lands on a container that is not
+              // this control and the button still publishes as live.
+              container: true,
+              button: true,
+              enabled: false,
+              label: 'Compare — $_kCompareNeedsSibling',
+              child: const ExcludeSemantics(
+                child: NightshadeButton(
+                  label: 'Compare',
+                  icon: NightshadeIcons.layers,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: null,
+                ),
+              ),
             ),
           )
         else

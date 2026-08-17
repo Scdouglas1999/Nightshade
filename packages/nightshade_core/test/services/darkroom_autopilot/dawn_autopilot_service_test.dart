@@ -80,6 +80,14 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// Runs before each registry call.
   Future<void> Function()? beforeRegistry;
 
+  /// Errors the registry raises for a given `masterPath`, so a multi-master
+  /// test can fail exactly one master no matter what order they resolve in.
+  Map<String, Object> registryErrors = {};
+
+  /// Runs after each export, with the export's own args — the hook a test uses
+  /// to change the world between the draft and delivery.
+  Future<void> Function(Map<String, dynamic> args)? afterExport;
+
   final List<Map<String, dynamic>> registryCalls = [];
   final List<Map<String, dynamic>> previewContexts = [];
   final List<String> previewRecipes = [];
@@ -90,6 +98,8 @@ class _ScriptedDarkroom implements DarkroomSeam {
   Future<Map<String, dynamic>> registry(Map<String, dynamic> args) async {
     await beforeRegistry?.call();
     registryCalls.add(args);
+    final scripted = registryErrors[args['masterPath']];
+    if (scripted != null) throw scripted;
     if (!registryAnswers) return {'schemaVersion': 1, 'ops': <dynamic>[]};
     return {
       'schemaVersion': 1,
@@ -181,6 +191,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
       final path = (output as Map<String, dynamic>)['path'] as String;
       await File(path).writeAsBytes(const [0xFF, 0xD8, 0xFF, 0xD9]);
     }
+    await afterExport?.call(args);
     return {'stage': 'final', 'outputs': outputs};
   }
 
@@ -216,6 +227,78 @@ class _RecordingNotifier implements DawnMorningNotifier {
   Future<DawnNotificationDecision> announce(DawnJobReport report) async {
     announced.add(report);
     return decision;
+  }
+}
+
+/// A transport that accepts everything and records what it was handed, so a
+/// test can read the exact file list that reached a destination.
+class _RecordingTransport implements ArtifactTransport {
+  _RecordingTransport(this.delivered);
+
+  /// Absolute source paths, in the order delivery offered them.
+  final List<String> delivered;
+
+  @override
+  ArtifactDestinationKind get kind => ArtifactDestinationKind.watchedFolder;
+
+  @override
+  Future<void> open(List<DeliveryFile> artifacts) async {}
+
+  @override
+  Future<TransportDeliveryOutcome> deliver(DeliveryFile artifact) async {
+    delivered.add(artifact.sourcePath);
+    return TransportDeliveryOutcome(
+      disposition: DeliveryDisposition.delivered,
+      checksum: artifact.checksum,
+      destinationDescription: 'the recording destination',
+    );
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
+/// A jobs DAO that can refuse a state write a set number of times, the way a
+/// database held by another writer refuses one.
+class _FlakyJobsDao extends DarkroomJobsDao {
+  _FlakyJobsDao(super.db);
+
+  /// How many `markFailed` calls are refused before one is let through.
+  int refuseFailedWrites = 0;
+
+  /// How many `markDone` calls are refused before one is let through.
+  int refuseDoneWrites = 0;
+
+  /// Job ids whose `markRunning` throws outright, so `runJob` itself raises.
+  final Set<int> refuseToStart = <int>{};
+
+  int failedWriteAttempts = 0;
+
+  @override
+  Future<DarkroomJob> markRunning(int id, {DateTime? now}) {
+    if (refuseToStart.contains(id)) {
+      throw StateError('the database refused to start job $id');
+    }
+    return super.markRunning(id, now: now);
+  }
+
+  @override
+  Future<DarkroomJob> markFailed(int id, String errorText, {DateTime? now}) {
+    failedWriteAttempts++;
+    if (refuseFailedWrites > 0) {
+      refuseFailedWrites--;
+      throw StateError('database is locked');
+    }
+    return super.markFailed(id, errorText, now: now);
+  }
+
+  @override
+  Future<DarkroomJob> markDone(int id, {String? note, DateTime? now}) {
+    if (refuseDoneWrites > 0) {
+      refuseDoneWrites--;
+      throw StateError('database is locked');
+    }
+    return super.markDone(id, note: note, now: now);
   }
 }
 
@@ -332,9 +415,10 @@ void main() {
   DawnAutopilotService buildService({
     ArtifactTransportFactory? transportFactory,
     List<Star> catalog = const [],
+    DarkroomJobsDao? jobs,
   }) {
     return DawnAutopilotService(
-      jobs: DarkroomJobsDao(db),
+      jobs: jobs ?? DarkroomJobsDao(db),
       recipes: RecipesDao(db),
       masters: IntegratedMastersDao(db),
       targets: TargetsDao(db),
@@ -1245,6 +1329,47 @@ void main() {
   });
 
   test(
+    'a job failed at the attempts cap drops the note the dead attempt left',
+    () async {
+      final capDir = await Directory.systemTemp.createTemp('dawn-cap');
+      addTearDown(() => capDir.delete(recursive: true));
+      final file = File('${capDir.path}/nightshade.sqlite');
+
+      final first = NightshadeDatabase.forTesting(NativeDatabase(file));
+      final sessionId = await first
+          .into(first.imagingSessions)
+          .insert(ImagingSessionsCompanion.insert(startTime: DateTime.now()));
+      final jobId = await DarkroomJobsDao(first).enqueue(sessionId: sessionId);
+      await DarkroomJobsDao(first).markRunning(jobId);
+      // The state a job reaches after it has killed the process on every allowed
+      // start: still `running`, its attempts spent, carrying the note the last
+      // recovery wrote.
+      await first.customStatement(
+        'UPDATE darkroom_jobs SET attempts = ?, note = ? WHERE id = ?',
+        [
+          kDarkroomJobMaxAttempts,
+          'Re-queued: the previous process exited while this job was running.',
+          jobId,
+        ],
+      );
+      await first.close();
+
+      final second = NightshadeDatabase.forTesting(NativeDatabase(file));
+      addTearDown(second.close);
+      final recovered = await DarkroomJobsDao(second).getById(jobId);
+
+      expect(recovered!.state, DarkroomJobState.failed);
+      expect(recovered.errorText, contains('not retried'));
+      expect(
+        recovered.note,
+        isNot(contains('Re-queued')),
+        reason: 'a failed row must not say it is going to run again',
+      );
+      expect(recovered.note, contains('not re-queued'));
+    },
+  );
+
+  test(
     'a job that names no session fails instead of drafting nothing quietly',
     () async {
       final jobId = await DarkroomJobsDao(db).enqueue();
@@ -1252,6 +1377,333 @@ void main() {
 
       expect(outcome.state, DarkroomJobState.failed);
       expect(outcome.failure, contains('names no imaging session'));
+    },
+  );
+
+  test('a master whose pixels could not be read is held back from delivery '
+      'while the rest of the night goes', () async {
+    final delivered = <String>[];
+    await DeliveryTargetsDao(db).create(
+      name: 'office-pc',
+      kind: ArtifactDestinationKind.watchedFolder,
+      configJson: '{"path":"/mnt/office"}',
+      content: ArtifactContent.values.toSet(),
+    );
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    final goodPath = '${workspace.path}/M42_L_master.fits';
+    final badPath = '${workspace.path}/M42_R_master.fits';
+    await insertMaster(imageIds: [imageId], filter: 'L', path: goodPath);
+    await insertMaster(imageIds: [imageId], filter: 'R', path: badPath);
+    // The registry refuses that master's pixels, the way it refuses a
+    // truncated FITS: the draft can never be composed for it.
+    darkroom.registryErrors = {
+      badPath: DarkroomSeamException(
+        'registry',
+        "cannot read '$badPath' as FITS: IO error",
+        const FormatException('unexpected end of FITS data'),
+      ),
+    };
+
+    final outcome = await buildService(
+      transportFactory: (destination, jobId) => _RecordingTransport(delivered),
+    ).runDawnForSession(sessionId);
+
+    expect(outcome.succeeded, isTrue);
+    final unreadable = outcome.report!.masters.firstWhere(
+      (m) => m.master.masterFitsPath == badPath,
+    );
+    expect(unreadable.pixelsWereRead, isFalse);
+    expect(unreadable.failure, contains('cannot read'));
+
+    expect(
+      delivered,
+      isNot(contains(badPath)),
+      reason: 'a master the pass just called unreadable is not the night',
+    );
+    expect(delivered, contains(goodPath));
+    expect(delivered.where((f) => f.endsWith('_report.json')), hasLength(1));
+    expect(
+      outcome.report!.deliveryProblems.join('\n'),
+      contains('was not delivered'),
+    );
+    expect(outcome.report!.body, contains('was not delivered'));
+    final job = await DarkroomJobsDao(db).getById(outcome.jobId);
+    expect(job!.note, contains('not delivered'));
+    // Nothing in the journal claims the unreadable file reached anywhere.
+    final journal = await DeliveryJournalDao(db).listForJob(outcome.jobId);
+    expect(journal.map((row) => row.filePath), isNot(contains(badPath)));
+  });
+
+  test('a master that vanishes after it is drafted costs only itself, never '
+      'the drafts and the report', () async {
+    final delivered = <String>[];
+    await DeliveryTargetsDao(db).create(
+      name: 'office-pc',
+      kind: ArtifactDestinationKind.watchedFolder,
+      configJson: '{"path":"/mnt/office"}',
+      content: ArtifactContent.values.toSet(),
+    );
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    final keptPath = '${workspace.path}/M42_L_master.fits';
+    final goingPath = '${workspace.path}/M42_R_master.fits';
+    await insertMaster(imageIds: [imageId], filter: 'L', path: keptPath);
+    await insertMaster(imageIds: [imageId], filter: 'R', path: goingPath);
+    // Both masters draft; that file then disappears between its draft and
+    // delivery, which is what a cleanup script or a pulled drive does.
+    darkroom.afterExport = (args) async {
+      if (args['masterPath'] == goingPath) File(goingPath).deleteSync();
+    };
+
+    final outcome = await buildService(
+      transportFactory: (destination, jobId) => _RecordingTransport(delivered),
+    ).runDawnForSession(sessionId);
+
+    expect(outcome.succeeded, isTrue);
+    expect(delivered, isNot(contains(goingPath)));
+    expect(delivered, contains(keptPath));
+    expect(
+      delivered.where((f) => f.endsWith('_report.json')),
+      hasLength(1),
+      reason: 'the night report always goes',
+    );
+    expect(
+      delivered.where((f) => f.endsWith('.jpg')),
+      hasLength(2),
+      reason: 'both drafts were rendered before the file went missing',
+    );
+    expect(outcome.report!.delivery, isNotNull);
+    expect(
+      outcome.report!.deliveryProblems.join('\n'),
+      contains('no longer on disk'),
+    );
+  });
+
+  test('a night that rendered no draft never announces "0 drafts"', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    darkroom.beforeRegistry = () async {
+      throw const DarkroomSeamException(
+        'registry',
+        'cannot read as FITS',
+        'unexpected end of FITS data',
+      );
+    };
+
+    final outcome = await buildService().runDawnForSession(sessionId);
+
+    final report = outcome.report!;
+    expect(report.draftsRendered, 0);
+    expect(report.headline, isNot(contains('0 drafts')));
+    expect(report.headline, contains('no draft was rendered'));
+    expect(
+      (jsonDecode(File(outcome.reportPath!).readAsStringSync())
+          as Map<String, dynamic>)['headline'],
+      report.headline,
+    );
+  });
+
+  test('a draft is named for the target and the filter it covers', () async {
+    final sessionId = await insertSession();
+    final targetId = await insertTarget('NGC 7000');
+    final imageId = await insertSub(sessionId: sessionId, targetId: targetId);
+    await insertMaster(imageIds: [imageId], targetId: targetId, filter: 'Ha');
+
+    await buildService().runDawnForSession(sessionId);
+
+    final recipe = (await RecipesDao(db).listForMaster(masterPath)).single;
+    expect(recipe.name, 'NGC 7000 Ha draft');
+  });
+
+  test('a re-run over the same master supersedes its own draft instead of '
+      'stacking a second one', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    final recipes = RecipesDao(db);
+
+    await buildService().runDawnForSession(sessionId);
+    final first = (await recipes.listForMaster(masterPath)).single;
+
+    // The second pass measures a different stack, the way a resumed attempt
+    // re-derives the draft from the same master.
+    darkroom.draftSteps = [
+      {
+        'opId': 'crop',
+        'opVersion': 1,
+        'params': <String, dynamic>{},
+        'enabled': true,
+      },
+      {
+        'opId': 'stretch',
+        'opVersion': 1,
+        'params': {'blackPoint': 0.25, 'whitePoint': 0.9},
+        'enabled': true,
+      },
+    ];
+    final second = await buildService().runDawnForSession(sessionId);
+
+    final rows = await recipes.listForMaster(masterPath);
+    expect(rows, hasLength(1), reason: 'one master, one autopilot draft');
+    expect(rows.single.id, first.id, reason: 'the same row, rewritten');
+    expect(second.report!.masters.single.recipeId, first.id);
+    expect(
+      (jsonDecode(rows.single.stepsJson) as List).map(
+        (s) => (s as Map)['opId'],
+      ),
+      ['crop', 'stretch'],
+      reason: 'the row carries the second pass\'s measurements',
+    );
+  });
+
+  test('a draft the operator has branched from is left alone and the next '
+      'pass writes its own row', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    final recipes = RecipesDao(db);
+
+    await buildService().runDawnForSession(sessionId);
+    final first = (await recipes.listForMaster(masterPath)).single;
+    await recipes.branchFrom(
+      parentRecipeId: first.id!,
+      divergenceIndex: 1,
+      name: 'my version',
+    );
+
+    await buildService().runDawnForSession(sessionId);
+
+    final roots = (await recipes.listForMaster(
+      masterPath,
+    )).where((r) => r.parentRecipeId == null).toList();
+    expect(roots, hasLength(2));
+    expect(
+      (jsonDecode(roots.firstWhere((r) => r.id == first.id).stepsJson) as List)
+          .length,
+      3,
+      reason: 'the branched row keeps the steps its branch diverged from',
+    );
+  });
+
+  test('a stopped job names the stage in the row and keeps the raw exception '
+      'in the log', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    darkroom.beforeRegistry = () async {
+      throw StateError(
+        'SqliteException(5): while executing statement, database is locked\n'
+        '  Causing statement: UPDATE darkroom_jobs SET state = ?, '
+        'parameters: failed, 1786932105',
+      );
+    };
+
+    final outcome = await buildService().runDawnForSession(sessionId);
+
+    expect(outcome.state, DarkroomJobState.failed);
+    final job = await DarkroomJobsDao(db).getById(outcome.jobId);
+    expect(job!.errorText, startsWith('The dawn pass stopped while '));
+    expect(job.errorText, contains('drafting'));
+    expect(
+      job.errorText,
+      isNot(contains('Causing statement')),
+      reason: 'the SQL and its bound parameters belong in the log',
+    );
+    expect(job.errorText, isNot(contains('parameters:')));
+  });
+
+  test(
+    'an over-long error keeps its head and its tail, not just its head',
+    () async {
+      final sessionId = await insertSession();
+      final imageId = await insertSub(sessionId: sessionId);
+      await insertMaster(imageIds: [imageId]);
+      darkroom.beforeRegistry = () async {
+        throw StateError(
+          "PathAccessException: Creation failed, path = '${'/very-long-dir' * 20}"
+          "/darkroom' (OS Error: Permission denied, errno = 13)",
+        );
+      };
+
+      final outcome = await buildService().runDawnForSession(sessionId);
+
+      final job = await DarkroomJobsDao(db).getById(outcome.jobId);
+      expect(job!.errorText, contains('PathAccessException'));
+      expect(job.errorText, contains('…'));
+      expect(
+        job.errorText,
+        contains('Permission denied, errno = 13'),
+        reason: 'the half that says what to do about it survives the elision',
+      );
+    },
+  );
+
+  test('a refused failure write is retried rather than left running with no '
+      'error at all', () async {
+    final jobs = _FlakyJobsDao(db)..refuseFailedWrites = 2;
+    final jobId = await jobs.enqueue();
+
+    final outcome = await buildService(jobs: jobs).runJob(jobId);
+
+    expect(jobs.failedWriteAttempts, 3);
+    expect(outcome.state, DarkroomJobState.failed);
+    final job = await DarkroomJobsDao(db).getById(jobId);
+    expect(job!.state, DarkroomJobState.failed);
+    expect(job.errorText, contains('names no imaging session'));
+  });
+
+  test('one job that cannot be recorded does not abort the drain', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    final jobs = _FlakyJobsDao(db);
+    final wedged = await jobs.enqueue(
+      sessionId: sessionId,
+      kind: DarkroomJobKind.dawn,
+    );
+    final follower = await jobs.enqueue(
+      sessionId: sessionId,
+      kind: DarkroomJobKind.dawn,
+    );
+    jobs.refuseToStart.add(wedged);
+
+    final outcomes = await buildService(jobs: jobs).drainQueue();
+
+    expect(outcomes.map((o) => o.jobId), [follower]);
+    final second = await DarkroomJobsDao(db).getById(follower);
+    expect(second!.state, DarkroomJobState.done);
+    final first = await DarkroomJobsDao(db).getById(wedged);
+    expect(
+      first!.state,
+      DarkroomJobState.queued,
+      reason: 'the row it could not start is left for the next open',
+    );
+  });
+
+  test(
+    'a report is never written claiming an ending the row never took',
+    () async {
+      final sessionId = await insertSession();
+      final imageId = await insertSub(sessionId: sessionId);
+      await insertMaster(imageIds: [imageId]);
+      final jobs = _FlakyJobsDao(db)..refuseDoneWrites = 99;
+
+      final outcome = await buildService(
+        jobs: jobs,
+      ).runDawnForSession(sessionId);
+
+      expect(outcome.state, DarkroomJobState.failed);
+      final onDisk =
+          jsonDecode(
+                File(
+                  '${output.path}/darkroom/job_${outcome.jobId}_report.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(onDisk['state'], 'failed');
+      expect(onDisk['failure'], contains('closing the job row'));
     },
   );
 }

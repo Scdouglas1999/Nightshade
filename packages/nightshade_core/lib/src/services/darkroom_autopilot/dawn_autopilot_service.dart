@@ -112,6 +112,26 @@ class DawnAutopilotService {
   /// master after the engine has released its own flag.
   final Set<int> _cancelRequested = <int>{};
 
+  /// The stage each running job is in, in the words the failure sentence uses.
+  /// The catch-all cannot see where in the descent an exception came from, so
+  /// the pipeline records where it is as it goes.
+  final Map<int, String> _stage = <int, String>{};
+
+  /// How many times a state-mark write is retried after a refusal before the
+  /// failure is let out.
+  static const int _markRetryAttempts = 5;
+
+  /// The first retry delay; it doubles on each further attempt, so five
+  /// retries span a little under eight seconds in total.
+  static const Duration _markRetryFirstDelay = Duration(milliseconds: 250);
+
+  /// Longest error detail carried into the operator-facing failure text, and
+  /// how that budget splits either side of the elision when it is exceeded.
+  static const int _failureDetailLimit = 160;
+  static const int _failureDetailHead = 100;
+  static const int _failureDetailTail =
+      _failureDetailLimit - _failureDetailHead - 1;
+
   DawnAutopilotService({
     required DarkroomJobsDao jobs,
     required RecipesDao recipes,
@@ -181,14 +201,41 @@ class DawnAutopilotService {
   /// This is what picks up the rows the open-time crash recovery re-queued.
   /// Jobs run one at a time: two Darkroom renders over the same master would
   /// fight for the render cache and for the one cancellation id.
+  ///
+  /// **One job cannot end the drain.** Every job runs behind its own guard, so
+  /// a row this process cannot even record the failure of — a database locked
+  /// by another writer is the case that happens — costs that job and nothing
+  /// else. The queue behind it still runs.
+  ///
+  /// **Every id is offered once.** A job whose run threw before it could leave
+  /// `queued` is still the oldest queued row, so taking "the oldest" again
+  /// would hand back the same job forever. The queue is re-read each pass and
+  /// the first id not yet tried is taken, which keeps the oldest-first order,
+  /// picks up anything enqueued while the drain ran, and leaves the row that
+  /// could not start `queued` for the next open to recover.
   Future<List<DawnJobOutcome>> drainQueue() async {
     final outcomes = <DawnJobOutcome>[];
+    final tried = <int>{};
     while (true) {
-      final next = await _jobs.nextQueued();
+      int? next;
+      for (final job in await _jobs.listByState(DarkroomJobState.queued)) {
+        final id = job.id;
+        if (id == null || tried.contains(id)) continue;
+        next = id;
+        break;
+      }
       if (next == null) break;
-      final id = next.id;
-      if (id == null) break;
-      outcomes.add(await runJob(id));
+      tried.add(next);
+      try {
+        outcomes.add(await runJob(next));
+      } catch (error, stack) {
+        _logger?.error(
+          'The dawn job could not be run or recorded; the rest of the queue '
+          'still runs',
+          source: 'DawnAutopilotService',
+          fields: {'jobId': next, 'error': '$error', 'stack': '$stack'},
+        );
+      }
     }
     return outcomes;
   }
@@ -259,12 +306,12 @@ class DawnAutopilotService {
     final startedAt = _clock();
     await _jobs.markRunning(jobId, now: startedAt);
 
+    _stage[jobId] = 'reading the job row';
     final sessionId = job.sessionId;
     if (sessionId == null) {
-      final failed = await _jobs.markFailed(
+      final failed = await _markFailed(
         jobId,
         'This job names no imaging session, so there is nothing to process',
-        now: _clock(),
       );
       return DawnJobOutcome(
         jobId: jobId,
@@ -324,12 +371,22 @@ class DawnAutopilotService {
         failure: '$lost',
       );
     } catch (error, stack) {
+      final stage = _stage[jobId] ?? 'running the dawn pass';
+      // The exception, its type and its stack go here — the log is where a
+      // `SqliteException` with its causing statement belongs. The row gets the
+      // sentence below, which names the stage that stopped.
       _logger?.error(
-        'The dawn job failed',
+        'The dawn job failed while $stage',
         source: 'DawnAutopilotService',
-        fields: {'jobId': jobId, 'error': '$error', 'stack': '$stack'},
+        fields: {
+          'jobId': jobId,
+          'stage': stage,
+          'errorType': error.runtimeType.toString(),
+          'error': '$error',
+          'stack': '$stack',
+        },
       );
-      final failed = await _jobs.markFailed(jobId, '$error', now: _clock());
+      final failed = await _markFailed(jobId, _failureSentence(stage, error));
       return DawnJobOutcome(
         jobId: jobId,
         state: failed.state,
@@ -339,6 +396,101 @@ class DawnAutopilotService {
       );
     } finally {
       _cancelRequested.remove(jobId);
+      _stage.remove(jobId);
+    }
+  }
+
+  /// The operator-facing sentence for a stopped job: the stage that stopped,
+  /// and the error's own opening line.
+  ///
+  /// Only the first line, and only up to [_failureDetailLimit] characters of
+  /// it. A raw `SqliteException` carries its causing SQL statement and every
+  /// bound parameter on the following lines, which is diagnostic text for the
+  /// log, not something to hand an operator reading a job row at 7am. The whole
+  /// exception is logged beside this, so nothing is lost.
+  ///
+  /// An over-long line is elided in the MIDDLE, not cut off at the end: the
+  /// head carries the exception's own name and the tail carries what a message
+  /// built around a long path ends with — `(OS Error: Permission denied)` —
+  /// which is the half that says what to do about it.
+  static String _failureSentence(String stage, Object error) {
+    final first = '$error'.split('\n').first.trim();
+    final detail = first.length <= _failureDetailLimit
+        ? first
+        : '${first.substring(0, _failureDetailHead)}…'
+              '${first.substring(first.length - _failureDetailTail)}';
+    if (detail.isEmpty) {
+      return 'The dawn pass stopped while $stage; the log records the error.';
+    }
+    return 'The dawn pass stopped while $stage: $detail. '
+        'The log records the full error.';
+  }
+
+  /// Fail [jobId] with [errorText], retrying the write while it is refused.
+  ///
+  /// The mark is the only record that the attempt ended. A transient refusal —
+  /// another writer holding the database — would otherwise leave the row
+  /// `running` with an empty error for as long as this process lives, which
+  /// reads exactly like a job still working.
+  Future<DarkroomJob> _markFailed(int jobId, String errorText) =>
+      _withWriteRetry(
+        jobId,
+        'record the failure',
+        () => _jobs.markFailed(jobId, errorText, now: _clock()),
+      );
+
+  /// Finish [jobId], retrying the write while it is refused — the same reason
+  /// as [_markFailed]: a finished job left `running` is a job the operator is
+  /// told is still going.
+  Future<DarkroomJob> _markDone(int jobId, String note) => _withWriteRetry(
+    jobId,
+    'record the completion',
+    () => _jobs.markDone(jobId, note: note, now: _clock()),
+  );
+
+  /// Run [write], retrying a refusal a bounded number of times with a doubling
+  /// delay, then letting the last failure out.
+  ///
+  /// The bound is what makes this honest: the write is retried, never assumed.
+  /// When every attempt is refused the caller still sees the exception and the
+  /// row keeps whatever state it had, which the open-time crash recovery picks
+  /// up on the next start.
+  Future<T> _withWriteRetry<T>(
+    int jobId,
+    String what,
+    Future<T> Function() write,
+  ) async {
+    var delay = _markRetryFirstDelay;
+    for (var attempt = 1; ; attempt++) {
+      try {
+        return await write();
+      } on DarkroomJobMissingException {
+        rethrow;
+      } on DarkroomJobTransitionException {
+        rethrow;
+      } catch (error) {
+        if (attempt > _markRetryAttempts) {
+          _logger?.error(
+            'The dawn job could not $what after $attempt attempts; the row '
+            'keeps its current state for the next start to recover',
+            source: 'DawnAutopilotService',
+            fields: {'jobId': jobId, 'error': '$error'},
+          );
+          rethrow;
+        }
+        _logger?.warning(
+          'The dawn job could not $what; retrying',
+          source: 'DawnAutopilotService',
+          fields: {
+            'jobId': jobId,
+            'attempt': attempt,
+            'retryInMs': delay.inMilliseconds,
+            'error': '$error',
+          },
+        );
+        await Future<void>.delayed(delay);
+        delay *= 2;
+      }
     }
   }
 
@@ -351,12 +503,12 @@ class DawnAutopilotService {
     final renderId = renderIdFor(jobId);
     _stopIfCancelled(jobId, 'the master lookup');
 
+    _stage[jobId] = "looking up the night's masters";
     final set = await _resolver.resolve(sessionId);
+    _stage[jobId] = 'preparing the Darkroom output directory';
     final baseDirectory = await _darkroomDirectory();
 
     final reports = <DawnMasterReport>[];
-    final linearMasters = <String>[];
-    final draftRenders = <String>[];
 
     for (var index = 0; index < set.masters.length; index++) {
       _stopIfCancelled(jobId, 'master ${index + 1} of ${set.masters.length}');
@@ -375,11 +527,30 @@ class DawnAutopilotService {
           master: master,
           renderId: renderId,
           directory: baseDirectory,
-          linearMasters: linearMasters,
-          draftRenders: draftRenders,
         ),
       );
     }
+
+    // PER-MASTER ACCOUNTING. Only the masters whose pixels this pass actually
+    // read go to a destination; a truncated or vanished FITS is excluded here
+    // and named in the report, because copying it out would put a file the
+    // pipeline has just called unreadable in the operator's hands under the
+    // name of the night's result. The excluded master costs nobody else's
+    // draft: the rest of the set still delivers.
+    final linearMasters = <String>[
+      for (final master in reports)
+        if (master.pixelsWereRead) master.master.masterFitsPath,
+    ];
+    final draftRenders = <String>[
+      for (final master in reports)
+        if (master.draftRenderPath != null) master.draftRenderPath!,
+    ];
+    final excluded = <String>[
+      for (final master in reports)
+        if (!master.pixelsWereRead)
+          '${master.master.name} was not delivered: '
+              '${master.failure ?? 'its pixels could not be read'}.',
+    ];
 
     _stopIfCancelled(jobId, 'the night report');
     await _reportProgress(jobId, 0.85, 'Writing the night report');
@@ -394,7 +565,7 @@ class DawnAutopilotService {
       masters: reports,
       withoutFile: set.withoutFile,
       delivery: null,
-      deliveryProblems: const [],
+      deliveryProblems: excluded,
       notification: null,
       failure: null,
     );
@@ -419,7 +590,7 @@ class DawnAutopilotService {
       masters: reports,
       withoutFile: set.withoutFile,
       delivery: delivered.report,
-      deliveryProblems: delivered.problems,
+      deliveryProblems: [...excluded, ...delivered.problems],
       notification: null,
       failure: null,
     );
@@ -444,15 +615,34 @@ class DawnAutopilotService {
       masters: reports,
       withoutFile: set.withoutFile,
       delivery: delivered.report,
-      deliveryProblems: delivered.problems,
+      deliveryProblems: [...excluded, ...delivered.problems],
       notification: decision,
       failure: null,
     );
+
+    // The row is closed BEFORE the report that announces the ending is
+    // written. The report is the artifact the operator reads; a report saying
+    // `done` over a row that never got there is a contradiction they have no
+    // way to resolve. When the mark cannot be made the report is rewritten as
+    // the stop it is, and the failure path records it.
+    _stage[jobId] = 'closing the job row';
+    try {
+      await _markDone(jobId, _completionNote(report));
+    } catch (error) {
+      await _writeReport(
+        baseDirectory,
+        jobId,
+        report.withEnding(
+          state: DarkroomJobState.failed.wire,
+          failure: _failureSentence('closing the job row', error),
+        ),
+      );
+      rethrow;
+    }
     // Rewrite the report so the delivered copy and the local copy differ only
     // in that the delivered one was read a moment earlier.
     final finalPath = await _writeReport(baseDirectory, jobId, report);
 
-    await _jobs.markDone(jobId, note: _completionNote(report), now: _clock());
     return DawnJobOutcome(
       jobId: jobId,
       state: DarkroomJobState.done,
@@ -466,17 +656,16 @@ class DawnAutopilotService {
   ///
   /// A master that cannot be drafted produces a report line naming the reason
   /// and the job continues: one unreadable master must not cost the operator
-  /// the drafts of every other filter.
+  /// the drafts of every other filter. Whether the master itself is delivered
+  /// is decided by the caller from [DawnMasterReport.pixelsWereRead], never
+  /// here — this method's business is the draft.
   Future<DawnMasterReport> _draftOneMaster({
     required int jobId,
     required int sessionId,
     required DawnMaster master,
     required String renderId,
     required String directory,
-    required List<String> linearMasters,
-    required List<String> draftRenders,
   }) async {
-    linearMasters.add(master.masterFitsPath);
     final row = await _masters.getById(master.masterId);
     final stats = row == null
         ? DawnMasterStats.unrecorded
@@ -539,16 +728,11 @@ class DawnAutopilotService {
       );
     }
 
-    final recipeId = await _recipes.create(
-      targetId: master.targetId,
+    final recipeId = await _persistDraftRecipe(
       sessionId: sessionId,
-      masterId: master.masterId,
-      baseMasterPath: master.masterFitsPath,
-      name: 'Draft',
+      master: master,
+      name: _draftName(targetName: targetName, master: master),
       stepsJson: draft.encodeStepsJson(),
-      createdBy: RecipeAuthor.autopilot,
-      schemaVersion: kRecipeSchemaVersion,
-      createdAt: _clock(),
     );
 
     final draftPath = p.join(
@@ -589,7 +773,6 @@ class DawnAutopilotService {
       );
     }
 
-    draftRenders.add(draftPath);
     return DawnMasterReport(
       master: master,
       targetName: targetName,
@@ -601,41 +784,161 @@ class DawnAutopilotService {
     );
   }
 
+  /// The name a first draft carries, from the target and the filter it covers.
+  ///
+  /// A library where every autopilot row reads `Draft` is a library the
+  /// operator cannot pick a night out of. The target names the field and the
+  /// filter names the channel; with no target row the master's own name
+  /// already carries the filter, so it is used whole rather than repeated.
+  static String _draftName({
+    required String? targetName,
+    required DawnMaster master,
+  }) {
+    final target = targetName?.trim();
+    if (target == null || target.isEmpty) return '${master.name} draft';
+    final filter = master.filter?.trim();
+    if (filter == null || filter.isEmpty) return '$target draft';
+    return '$target $filter draft';
+  }
+
+  /// Write this pass's draft for [master], superseding the row a dead attempt
+  /// left behind rather than adding a second one.
+  ///
+  /// **Why supersede and not delete.** The recipes table records no job id, so
+  /// "the rows the dead attempt created" can only be identified by what they
+  /// are: the autopilot's own root draft over this master, for this session.
+  /// That row is re-derived from the same master by the resumed attempt, so
+  /// rewriting its steps says exactly what happened — one draft per master,
+  /// carrying this attempt's measurements. Deleting instead would break every
+  /// deep link the earlier attempt's notification already sent, and
+  /// [RecipesDao.deleteRecipe] refuses a row with branches anyway.
+  ///
+  /// **A branched row is never touched.** Once the operator has branched from a
+  /// draft, its step list is the base their branch's `divergence_index` counts
+  /// into; rewriting it would leave the branch describing a lineage that never
+  /// happened. Those get a fresh row, which is the honest record of a second
+  /// draft existing.
+  ///
+  /// The write is two statements — the steps, then the name — because the DAO
+  /// exposes them separately and neither is worth a transaction the DAO does
+  /// not offer: the steps are what the draft IS, and a name that lags them by a
+  /// statement is cosmetic.
+  Future<int> _persistDraftRecipe({
+    required int sessionId,
+    required DawnMaster master,
+    required String name,
+    required String stepsJson,
+  }) async {
+    final now = _clock();
+    for (final existing in await _recipes.listForMaster(
+      master.masterFitsPath,
+    )) {
+      final id = existing.id;
+      if (id == null) continue;
+      if (existing.createdBy != RecipeAuthor.autopilot) continue;
+      if (existing.sessionId != sessionId) continue;
+      if (existing.parentRecipeId != null) continue;
+      if ((await _recipes.childrenOf(id)).isNotEmpty) continue;
+      await _recipes.updateSteps(
+        id,
+        stepsJson,
+        schemaVersion: kRecipeSchemaVersion,
+        now: now,
+      );
+      await _recipes.rename(id, name, now: now);
+      return id;
+    }
+    return _recipes.create(
+      targetId: master.targetId,
+      sessionId: sessionId,
+      masterId: master.masterId,
+      baseMasterPath: master.masterFitsPath,
+      name: name,
+      stepsJson: stepsJson,
+      createdBy: RecipeAuthor.autopilot,
+      schemaVersion: kRecipeSchemaVersion,
+      createdAt: now,
+    );
+  }
+
   /// Hand the night's artifacts to delivery.
   ///
   /// Never throws and never fails the job: [DeliveryService] answers with a
   /// report rather than an exception, and a source file that vanished between
   /// integration and delivery is reported here as the problem it is.
+  ///
+  /// **One missing file costs only itself.** [DeliveryArtifactSet.build] stats
+  /// and hashes every source and raises on the first it cannot read, which
+  /// would take the good drafts and the night report down with one master that
+  /// went missing after it was drafted. Each artifact is described on its own
+  /// here, so the set that reaches delivery is exactly the files that are
+  /// there, and the ones that are not are named. The set keeps
+  /// [DeliveryArtifactSet.build]'s order — by artifact class, then by the order
+  /// listed — so two runs of one job deliver in the same order.
   Future<({DeliveryRunReport? report, List<String> problems})> _deliver({
     required int jobId,
     required List<String> linearMasters,
     required List<String> draftRenders,
     required String? reportPath,
   }) async {
-    final DeliveryArtifactSet set;
-    try {
-      set = await DeliveryArtifactSet.build(
-        jobId: jobId,
-        sources: {
-          ArtifactContent.linearMasters: linearMasters,
-          ArtifactContent.draftRender: draftRenders,
-          if (reportPath != null) ArtifactContent.nightReport: [reportPath],
-        },
-      );
-    } on DeliveryFailure catch (error) {
+    final sources = <ArtifactContent, List<String>>{
+      ArtifactContent.linearMasters: linearMasters,
+      ArtifactContent.draftRender: draftRenders,
+      if (reportPath != null) ArtifactContent.nightReport: [reportPath],
+    };
+    final artifacts = <DeliveryArtifact>[];
+    final problems = <String>[];
+    for (final content in ArtifactContent.values) {
+      for (final path in sources[content] ?? const <String>[]) {
+        try {
+          artifacts.add(
+            await DeliveryArtifact.describeArtifact(
+              content: content,
+              path: path,
+            ),
+          );
+        } on DeliveryFailure catch (error) {
+          problems.add(
+            '${p.basename(path)} was not delivered: '
+            '${error.message}.',
+          );
+          _logger?.warning(
+            'A dawn artifact could not be handed to delivery; the rest of the '
+            'set still goes',
+            source: 'DawnAutopilotService',
+            fields: {
+              'jobId': jobId,
+              'path': path,
+              'content': content.wire,
+              'error': error.message,
+            },
+          );
+        }
+      }
+    }
+    if (artifacts.isEmpty) {
       return (
         report: null,
-        problems: <String>['Nothing was delivered: ${error.message}.'],
+        problems: <String>[
+          ...problems,
+          'Nothing was delivered: this job produced no file that could be '
+              'read at delivery time.',
+        ],
       );
     }
 
     final report = await _delivery.deliverJobArtifacts(
-      set,
+      DeliveryArtifactSet(jobId: jobId, artifacts: artifacts),
       isCancelled: () => _cancelRequested.contains(jobId),
     );
     return (
       report: report,
       problems: <String>[
+        ...problems,
+        // Pass-level problems first: an unreadable destination list means the
+        // per-destination list below is empty for a reason, not because
+        // nothing is configured.
+        ...report.problems,
         for (final destination in report.destinations) ...destination.problems,
       ],
     );
@@ -701,7 +1004,13 @@ class DawnAutopilotService {
 
   /// Advance the job's progress, treating a row that has left this executor as
   /// the stop it is.
+  ///
+  /// The note doubles as the stage a failure sentence names, so the two can
+  /// never describe different steps.
   Future<void> _reportProgress(int jobId, double progress, String note) async {
+    _stage[jobId] = note.isEmpty
+        ? 'running the dawn pass'
+        : '${note[0].toLowerCase()}${note.substring(1)}';
     await _jobs.updateProgress(jobId, progress.clamp(0.0, 1.0), note: note);
   }
 
@@ -709,9 +1018,14 @@ class DawnAutopilotService {
     if (_cancelRequested.contains(jobId)) throw _DawnCancelled(where);
   }
 
-  /// The one line the job row carries after it finishes: what was drafted and
-  /// where the first draft image is, because the row has no artifact column.
+  /// The one line the job row carries after it finishes: what was drafted,
+  /// what was held back, and where the first draft image is, because the row
+  /// has no artifact column.
   static String _completionNote(DawnJobReport report) {
+    final withheld = report.masters.where((m) => !m.pixelsWereRead).length;
+    final tail = withheld == 0
+        ? ''
+        : '; $withheld master(s) were not delivered — see the night report';
     final first = report.masters.firstWhere(
       (master) => master.hasDraft,
       orElse: () => report.masters.isEmpty ? _noMasters : report.masters.first,
@@ -720,7 +1034,7 @@ class DawnAutopilotService {
     if (path == null) {
       return 'No draft was rendered; see the night report for the reason';
     }
-    return '${report.draftsRendered} draft(s) ready; first at $path';
+    return '${report.draftsRendered} draft(s) ready; first at $path$tail';
   }
 
   static const DawnMasterReport _noMasters = DawnMasterReport(

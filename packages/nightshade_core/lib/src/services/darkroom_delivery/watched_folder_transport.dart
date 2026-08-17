@@ -133,7 +133,18 @@ class WatchedFolderTransport implements ArtifactTransport {
 
     final existing = File(p.join(root.path, artifact.fileName));
     if (await existing.exists()) {
-      final onDisk = await sha256OfFile(existing);
+      final String onDisk;
+      try {
+        onDisk = await sha256OfFile(existing);
+      } on DeliveryFailure catch (failure) {
+        // The file being hashed is the destination's, not the rig's. A share
+        // that unmounts between the exists() and the read must not be recorded
+        // as the master having vanished.
+        throw await destinationReadFailure(
+          sourcePath: artifact.sourcePath,
+          failure: failure,
+        );
+      }
       if (onDisk == artifact.checksum) {
         // The same bytes are already there — a previous attempt that was
         // interrupted after the rename, or a re-run of the same job. Claiming

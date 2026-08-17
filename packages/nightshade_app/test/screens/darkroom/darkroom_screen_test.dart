@@ -10,6 +10,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,7 +73,20 @@ class _ScriptedDarkroom implements DarkroomSeam {
       isColor: false,
       rgba: Uint8List(2 * 2 * 4),
       report: {
-        'encoding': 'auto stretch applied for display only',
+        // The engine's own shape (bridge render.rs `description`): an object,
+        // never a sentence.
+        'encoding': {
+          'requested': 'auto',
+          'applied': 'screen',
+          'sourceDomain': 'linear',
+          'clampedSamples': 0,
+          'screenTransfer': {
+            'blackPoint': 529.75,
+            'whitePoint': 531.19,
+            'd': 2.57,
+          },
+          'screenTransferAffectsRecipe': false,
+        },
         'level': {'level': 0, 'scaleFromMaster': 1.0},
         'report': {
           'steps': [
@@ -246,13 +261,26 @@ void main() {
     expect(find.byType(AstroImageViewer), findsNothing);
   });
 
-  testWidgets('a link that names nothing explains itself', (tester) async {
+  testWidgets('a link that names nothing explains itself and offers a way out',
+      (tester) async {
     await pump(tester, const DarkroomScope.empty());
     expect(find.text('Nothing to open in the Darkroom'), findsOneWidget);
     expect(
       find.textContaining('named neither a recipe nor a master'),
       findsOneWidget,
     );
+    // The header action is suppressed here, so without this the only route out
+    // of the sentinel is the nav rail.
+    expect(find.text('Back to session review'), findsOneWidget);
+  });
+
+  testWidgets('a recipe id with no row names the row AND a route back', (
+    tester,
+  ) async {
+    await pump(tester, const DarkroomScope.recipe(4242));
+    expect(find.text('Nothing to open in the Darkroom'), findsOneWidget);
+    expect(find.textContaining('Recipe 4242 does not exist'), findsOneWidget);
+    expect(find.text('Back to session review'), findsOneWidget);
   });
 
   testWidgets('a recipe renders its stack, its picture and its outcomes', (
@@ -308,8 +336,115 @@ void main() {
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 40));
     }
+    // The CARD, not only the header: the screen once repainted its step count
+    // while every card kept the state before the toggle.
+    expect(
+      tester
+          .widget<NightshadeSwitch>(find.byType(NightshadeSwitch).first)
+          .value,
+      isFalse,
+    );
     expect(find.text('Off — the render skipped it'), findsOneWidget);
+    expect(find.text('1 step · 0 on'), findsOneWidget);
     await drain(tester);
+  });
+
+  testWidgets('the viewport names the transfer the engine applied', (
+    tester,
+  ) async {
+    final id = await seedRecipe([_step('background_extract')]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    // The engine names it; the strip must not claim otherwise.
+    expect(
+      find.textContaining('the engine did not name the display transfer'),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('a screen transfer, applied for display only'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('over still-linear pixels'), findsOneWidget);
+    // The lift's own numbers ride behind the tag beside it.
+    expect(find.text('Screen transfer'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a refused reorder states itself on the panel, not only in a '
+      'toast', (tester) async {
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('color_calibrate'),
+    ]);
+    final scope = DarkroomScope.recipe(id);
+    final handle = await pump(tester, scope);
+
+    darkroom.validateOk = false;
+    await handle.container
+        .read(darkroomControllerProvider(scope).notifier)
+        .reorderStep(1, 0);
+    await tester.pump();
+    await tester.pump();
+
+    // The card snaps back on its own, which reads as a dropped gesture; the
+    // engine's sentence stays beside the stack it is about.
+    expect(find.text('That move was refused'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(NightshadeAlert),
+        matching: find.textContaining('linear operation cannot run after a '
+            'stretch'),
+      ),
+      findsWidgets,
+    );
+    await drain(tester);
+  });
+
+  testWidgets('compare with no sibling publishes disabled and why', (
+    tester,
+  ) async {
+    final id = await seedRecipe([_step('background_extract')]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    final handle = tester.ensureSemantics();
+    final compare = find.bySemanticsLabel(RegExp('^Compare — '));
+    expect(compare, findsOneWidget);
+    final flags = tester.getSemantics(compare).flagsCollection;
+    expect(flags.isButton, isTrue);
+    // Tristate.isFalse, not Tristate.none: a control that publishes no enabled
+    // state at all reads to assistive tech — and to the audit harness — as a
+    // live button, however dimly it is painted.
+    expect(flags.isEnabled, Tristate.isFalse);
+    expect(
+      tester.getSemantics(compare).label,
+      contains('Duplicate this one as a variant'),
+    );
+    handle.dispose();
+  });
+
+  testWidgets(
+      'the recipe panel scrolls visibly and keeps the skip reason '
+      'above the fold', (tester) async {
+    final id = await seedRecipe([_step('color_calibrate')]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    // An always-drawn scrollbar is what turns the card's cut-off last line
+    // into "there is more below" rather than into a rendering fault.
+    expect(
+      find.descendant(
+        of: find.byType(AdaptivePanelLayout),
+        matching: find.byType(Scrollbar),
+      ),
+      findsWidgets,
+    );
+    final alert = find.text('Colour calibration has no catalogue stars');
+    expect(alert, findsOneWidget);
+    // Above the recipe's own identity block, which is the reference material
+    // that pushed the reason past the fold at desktop width.
+    expect(
+      tester.getTopLeft(alert).dy,
+      lessThan(tester.getTopLeft(find.text('Base master')).dy),
+    );
   });
 
   testWidgets('the parameter controls come from the registry schema', (

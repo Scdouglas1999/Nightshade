@@ -64,8 +64,28 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
   /// Repaint the readout. The transform changes on wheel zoom, on drag-pan and
   /// on pinch; [AstroImageViewer.onTransformChanged] fires only for the first
   /// of those, so the readout listens to the controller instead.
+  ///
+  /// One of those changes arrives from INSIDE the layout phase: the viewer
+  /// measures its container in a layout callback and writes the initial fit
+  /// straight to this controller. Marking this widget dirty then asks for a
+  /// build during a layout that is already running — the request lands against
+  /// a render object whose layout is in flight, is dropped when that layout
+  /// finishes, and takes the enclosing panel layout's build scope down with it:
+  /// every later rebuild of the viewport, the recipe panel and the history
+  /// stack is skipped until a window resize forces a real relayout. Debug
+  /// builds catch it on an assert inside the framework's own scheduler; release
+  /// builds strip that assert, which is why the editor froze only when shipped.
+  /// Repainting on the next frame is the same readout one frame later, and it
+  /// is the only moment at which asking for a build is legal.
   void _onTransformChanged() {
     if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
     setState(() {});
   }
 
@@ -323,6 +343,8 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
   Widget _encodingStrip(NightshadeColors colors, DarkroomState state) {
     final preview = state.preview;
     if (preview == null) return const SizedBox.shrink();
+    final encoding = preview.encoding;
+    final screenTransfer = encoding.screenTransfer;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -333,13 +355,36 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         horizontal: NightshadeTokens.spaceMd,
         vertical: NightshadeTokens.spaceXs,
       ),
-      child: Text(
-        'Display transfer: ${preview.encoding}',
-        style: NightshadeTypography.captionSm.copyWith(
-          color: colors.textSecondary,
-        ),
+      child: Wrap(
+        spacing: NightshadeTokens.spaceSm,
+        runSpacing: NightshadeTokens.spaceXs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            'Display transfer: ${encoding.sentence}',
+            style: NightshadeTypography.captionSm.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          // The lift's own numbers, behind the tag rather than on the strip:
+          // they are what makes "display only" checkable, and they are the
+          // engine's, not the recipe's.
+          if (screenTransfer != null)
+            _DarkroomTag(
+              label: 'Screen transfer',
+              tooltip: 'The display lift the engine applied, in its own '
+                  'numbers: ${_describeParams(screenTransfer)}. It is not a '
+                  'step of this recipe, so no export carries it.',
+            ),
+        ],
       ),
     );
+  }
+
+  /// A parameter map as `key value` pairs in a stable order.
+  static String _describeParams(Map<String, dynamic> params) {
+    final keys = params.keys.toList()..sort();
+    return [for (final key in keys) '$key ${params[key]}'].join(', ');
   }
 }
 

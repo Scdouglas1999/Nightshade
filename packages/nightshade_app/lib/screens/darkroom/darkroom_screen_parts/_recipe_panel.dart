@@ -2,7 +2,14 @@ part of '../darkroom_screen.dart';
 
 /// What this recipe is, what the last render did with it, and the edits that
 /// act on the stack as a whole.
-class _DarkroomRecipePanel extends StatelessWidget {
+///
+/// The panel is taller than the slot it is given, so it scrolls — and a scroll
+/// region whose only cue is a line sliced in half at the fold reads as a bug
+/// rather than as an invitation. Its scrollbar is therefore always drawn, and
+/// the one thing on the panel that reports something NOT happening — the
+/// colour calibration having no catalogue stars — is placed above the fold
+/// instead of a scroll away.
+class _DarkroomRecipePanel extends StatefulWidget {
   final DarkroomState state;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
@@ -18,6 +25,23 @@ class _DarkroomRecipePanel extends StatelessWidget {
   });
 
   @override
+  State<_DarkroomRecipePanel> createState() => _DarkroomRecipePanelState();
+}
+
+class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
+  /// Owned here because an always-visible scrollbar needs the controller its
+  /// scroll view uses; there is no ambient one in a side panel.
+  final ScrollController _scroll = ScrollController();
+
+  DarkroomState get state => widget.state;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Column(
@@ -25,39 +49,46 @@ class _DarkroomRecipePanel extends StatelessWidget {
       children: [
         const SectionHeader(title: 'Recipe'),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _identity(colors),
-                const SizedBox(height: NightshadeTokens.spaceLg),
-                _editActions(colors),
-                const SizedBox(height: NightshadeTokens.spaceLg),
-                _renderStatus(colors),
-                if (state.photometryNote != null) ...[
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-                  NightshadeAlert(
-                    severity: NightshadeAlertSeverity.info,
-                    title: 'Colour calibration has no catalogue stars',
-                    message: state.photometryNote!,
-                    compact: true,
-                  ),
-                ],
-                if (state.photometryStarCount > 0) ...[
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-                  Text(
-                    '${state.photometryStarCount} catalogue stars are lent to '
-                    'the colour calibration on every render. It solves the '
-                    'balance from them each time rather than storing fitted '
-                    'channel scales, so a coarse preview level can detect too '
-                    'few stars and record the step as skipped.',
-                    style: NightshadeTypography.captionSm.copyWith(
-                      color: colors.textSecondary,
+          child: Scrollbar(
+            controller: _scroll,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _scroll,
+              padding: const EdgeInsets.fromLTRB(
+                NightshadeTokens.spaceMd,
+                NightshadeTokens.spaceMd,
+                NightshadeTokens.spaceLg,
+                NightshadeTokens.spaceLg,
+              ),
+              // Ordered by what has to be readable without scrolling: the
+              // controls, then the account of the last render (its status and
+              // the reason a step did NOT run). The base master and the two
+              // paragraphs about it are reference — true, worth keeping, and
+              // the right thing to put below the fold, since they were what
+              // pushed the skip reason off the bottom of the card.
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _editActions(colors),
+                  const SizedBox(height: NightshadeTokens.spaceLg),
+                  _renderStatus(colors),
+                  if (state.photometryStarCount > 0) ...[
+                    const SizedBox(height: NightshadeTokens.spaceMd),
+                    Text(
+                      '${state.photometryStarCount} catalogue stars are lent '
+                      'to the colour calibration on every render. It solves '
+                      'the balance from them each time rather than storing '
+                      'fitted channel scales, so a coarse preview level can '
+                      'detect too few stars and record the step as skipped.',
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.textSecondary,
+                      ),
                     ),
-                  ),
+                  ],
+                  const SizedBox(height: NightshadeTokens.spaceLg),
+                  _identity(colors),
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -133,7 +164,7 @@ class _DarkroomRecipePanel extends StatelessWidget {
                 icon: NightshadeIcons.undo,
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
-                onPressed: state.canUndo ? onUndo : null,
+                onPressed: state.canUndo ? widget.onUndo : null,
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
@@ -143,7 +174,7 @@ class _DarkroomRecipePanel extends StatelessWidget {
                 icon: NightshadeIcons.repeat,
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
-                onPressed: state.canRedo ? onRedo : null,
+                onPressed: state.canRedo ? widget.onRedo : null,
               ),
             ),
           ],
@@ -154,8 +185,9 @@ class _DarkroomRecipePanel extends StatelessWidget {
           icon: NightshadeIcons.frame,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
-          onPressed:
-              state.steps.isEmpty || state.isLinear ? null : onResetToLinear,
+          onPressed: state.steps.isEmpty || state.isLinear
+              ? null
+              : widget.onResetToLinear,
         ),
         const SizedBox(height: NightshadeTokens.spaceXs),
         Text(
@@ -228,6 +260,22 @@ class _DarkroomRecipePanel extends StatelessWidget {
           ),
         );
       }
+      // Before the button, not after it: this is part of the account of what
+      // the last render did, and every row it sits below is a row that can
+      // push it past the fold of a fixed-height panel.
+      final photometryNote = state.photometryNote;
+      if (photometryNote != null) {
+        children
+          ..add(const SizedBox(height: NightshadeTokens.spaceSm))
+          ..add(
+            NightshadeAlert(
+              severity: NightshadeAlertSeverity.info,
+              title: 'Colour calibration has no catalogue stars',
+              message: photometryNote,
+              compact: true,
+            ),
+          );
+      }
       children
         ..add(const SizedBox(height: NightshadeTokens.spaceSm))
         ..add(
@@ -236,7 +284,7 @@ class _DarkroomRecipePanel extends StatelessWidget {
             icon: NightshadeIcons.refresh,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: () => onRerender(),
+            onPressed: () => widget.onRerender(),
           ),
         );
     }

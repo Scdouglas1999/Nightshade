@@ -927,6 +927,37 @@ class SequenceExecutor {
     _ref.read(sequenceTerminalRunResultProvider.notifier).state = null;
   }
 
+  /// Release a SETTLED run's terminal latches for a native launch that does not
+  /// come through [start] / [resumeFromCheckpoint].
+  ///
+  /// Those two call [_resetFinalizationForNewRun] as their first acquisition
+  /// step. The headless appliance's canonical flow — `POST /api/sequencer/load`
+  /// -> `POST /api/sequencer/start` — calls neither: it opens the session row
+  /// itself and reaches this executor only through
+  /// [attachHostListenersForNativeRun]. Without this release the first run of
+  /// such a process finalizes normally and leaves [_settledRunStatus] set, and
+  /// the "this run already settled" guard in [_onTerminalEvent] then refuses
+  /// every later run's `Completed`: the second night runs, reaches `completed`
+  /// on the wire and never finalizes — its `imaging_sessions` row stays open,
+  /// no terminal result publishes, and so nothing integrates it and no draft is
+  /// ever made.
+  ///
+  /// A RETAINED transaction is left alone. `stopFailed` / `cleanupFailed` keep
+  /// their [RunFinalization] precisely so a retry — or a late authoritative
+  /// terminal — resumes that exact transaction; discarding it here would strand
+  /// a run whose hardware was never confirmed stopped.
+  void _releaseSettledRunForNextNativeRun() {
+    if (_finalization != null || _finalizationFuture != null) return;
+    if (_settledRunStatus == null) return;
+    _logger.info(
+      'A new native run is starting on an executor whose previous run settled '
+      'as "$_settledRunStatus"; releasing that run\'s terminal state so this '
+      'one can finalize',
+      source: 'SequenceExecutor',
+    );
+    _resetFinalizationForNewRun();
+  }
+
   /// Single rollback path for a failed [start] / [resumeFromCheckpoint], routed
   /// through the SAME [_driveFinalization] transaction as a natural terminal and
   /// an explicit stop so their ordering and guarantees can never drift.
@@ -2124,9 +2155,14 @@ class SequenceExecutor {
   /// before every native start: a run that ended in `stopFailed` /
   /// `cleanupFailed` deliberately retains its subscription, and a previous
   /// run's normal teardown cancels it.
+  ///
+  /// Because it is the ONE site every native launch passes through, it is also
+  /// where a launch that did not come from [start] gets the previous run's
+  /// terminal latches released — see [_releaseSettledRunForNextNativeRun].
   Future<void> attachHostListenersForNativeRun() async {
     _ensureBackendAuthority();
     final backend = _backend;
+    _releaseSettledRunForNextNativeRun();
     await _nativeEventSubscription?.cancel();
     _nativeEventSubscription = backend.eventStream.listen(
       _handleSequencerEvent,

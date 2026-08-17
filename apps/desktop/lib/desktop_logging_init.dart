@@ -61,6 +61,36 @@ String resolveDesktopDataRoot({
   return appSupportPath;
 }
 
+/// Resolves the directory that owns this instance's native profile, settings
+/// and plate-solver JSON.
+///
+/// The native store holds the observer site the sequencer, the planetarium and
+/// `GET /api/settings/location` all read, so it follows the same
+/// operator-configured data directory as `nightshade.db` and `pairing.db` —
+/// [nightshadeDatabaseDirEnv]. It did not: it resolved straight to
+/// `getApplicationDocumentsDirectory()/Nightshade/profiles`, so an instance
+/// pinned to its own database still read and rewrote the machine-wide file.
+/// One process then answered `GET /api/settings` with the scratch database's
+/// 0,0 and `GET /api/settings/location` with another install's real site,
+/// and every scratch or harness run mutated the operator's own settings.
+///
+/// With no override the path is unchanged, so an existing install keeps its
+/// profiles exactly where they are.
+Future<String> resolveDesktopProfileDirectory({
+  Map<String, String>? environment,
+  Future<Directory> Function()? documentsDirectoryProvider,
+}) async {
+  final env = environment ?? Platform.environment;
+  final overrideDir = env[nightshadeDatabaseDirEnv]?.trim();
+  if (overrideDir != null && overrideDir.isNotEmpty) {
+    return path.join(overrideDir, 'profiles');
+  }
+
+  final appDir =
+      await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
+  return path.join(appDir.path, 'Nightshade', 'profiles');
+}
+
 /// Resolves and creates this instance's log directory, publishing the same
 /// root to `NIGHTSHADE_DATA_DIR` for the Rust side.
 ///
@@ -97,11 +127,11 @@ Future<AppVersionInfo> loadDesktopAppVersion() async {
   return AppVersionInfo(version: packageInfo.version, buildNumber: buildNumber);
 }
 
-/// Initialise the Rust bridge with a log directory under the platform's
-/// application-support folder, then wire profile + settings storage onto
-/// the same root. Returns the resolved paths so the rest of the bootstrap
-/// can hand them to the `LoggingService` and `ProfileService` without
-/// re-querying [getApplicationSupportDirectory].
+/// Initialise the Rust bridge with this instance's log directory, then wire
+/// native profile + settings storage onto [resolveDesktopProfileDirectory].
+/// Returns the resolved paths so the rest of the bootstrap can hand them to
+/// the `LoggingService` and `ProfileService` without re-querying
+/// [getApplicationSupportDirectory].
 ///
 /// This step must run before any provider that touches the Rust runtime
 /// (every backend method goes through `bridge.NativeBridge`), so it lives
@@ -143,8 +173,7 @@ Future<DesktopBootPaths> initialiseDesktopLogging() async {
     );
   }
 
-  final appDir = await getApplicationDocumentsDirectory();
-  final profileDir = path.join(appDir.path, 'Nightshade', 'profiles');
+  final profileDir = await resolveDesktopProfileDirectory();
   await Directory(profileDir).create(recursive: true);
   await bridge.NativeBridge.apiInitProfileStorage(storagePath: profileDir);
   await bridge.NativeBridge.apiInitSettingsStorage(storagePath: profileDir);

@@ -468,6 +468,76 @@ class DarkroomValidation {
   });
 }
 
+/// What the engine did to turn a render into the RGBA the viewport paints.
+///
+/// The engine answers with an OBJECT, never a sentence: which transfer it
+/// applied, which domain the render was in when it applied it, and — when the
+/// transfer was the screen one — that transfer's own parameters. The three are
+/// separate facts and none stands in for another: a screen transfer over
+/// still-linear pixels is a display-only lift that no export carries, while
+/// unit encoding of stretched pixels IS the recipe's own output.
+@immutable
+class DarkroomEncoding {
+  /// The transfer the engine applied — `screen` for the display lift, `unit`
+  /// for the render's own samples. Null when the reply named none.
+  final String? applied;
+
+  /// The domain the render was in — `linear` or `stretched`. Null when the
+  /// reply named none.
+  final String? sourceDomain;
+
+  /// The screen transfer's own parameters, when the engine applied one and
+  /// named them. Null otherwise.
+  final Map<String, dynamic>? screenTransfer;
+
+  const DarkroomEncoding({
+    required this.applied,
+    required this.sourceDomain,
+    required this.screenTransfer,
+  });
+
+  /// The reply carried no encoding block, so nothing about the transfer is
+  /// known. Rendered as the engine having named nothing rather than as any
+  /// particular transfer.
+  static const DarkroomEncoding unstated = DarkroomEncoding(
+    applied: null,
+    sourceDomain: null,
+    screenTransfer: null,
+  );
+
+  /// The strip's sentence: what was applied, over what, and which half the
+  /// engine left unstated when it left one unstated.
+  String get sentence {
+    final transfer = switch (applied) {
+      'screen' => 'a screen transfer, applied for display only',
+      'unit' => 'the render\'s own samples, unchanged',
+      null => null,
+      final String named => 'a transfer the engine named "$named"',
+    };
+    final domain = switch (sourceDomain) {
+      'linear' => 'still-linear pixels',
+      'stretched' => 'stretched pixels',
+      null => null,
+      final String named => 'pixels the engine called "$named"',
+    };
+    if (transfer == null && domain == null) {
+      return 'the engine did not name the display transfer it applied';
+    }
+    if (domain == null) {
+      return '$transfer, over pixels whose domain the engine did not name';
+    }
+    if (transfer == null) {
+      return 'over $domain, through a transfer the engine did not name';
+    }
+    return '$transfer, over $domain';
+  }
+
+  /// [sentence], so a caller that interpolates this value states the same fact
+  /// the strip does rather than a Dart type name.
+  @override
+  String toString() => sentence;
+}
+
 /// The pixels of one render, in the shape [AstroImageViewer] decodes.
 @immutable
 class DarkroomPreviewImage {
@@ -478,10 +548,10 @@ class DarkroomPreviewImage {
   /// Row-major RGBA8 samples, four bytes per pixel.
   final Uint8List rgba;
 
-  /// The display transfer the engine applied, in its own words — a still-linear
-  /// stage is shown through a screen transfer, and saying so is what keeps the
-  /// picture from being read as the recipe's own output.
-  final String encoding;
+  /// The display transfer the engine applied — a still-linear stage is shown
+  /// through a screen transfer, and saying so is what keeps the picture from
+  /// being read as the recipe's own output.
+  final DarkroomEncoding encoding;
 
   /// The pyramid level rendered (level 0 is the master's own pixels), or null
   /// when the reply named none.

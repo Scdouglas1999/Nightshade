@@ -153,6 +153,16 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
   });
 
   /// Show the sheet over [context].
+  ///
+  /// [showAdaptiveModal], not `showDialog`: on a phone this is a bottom sheet
+  /// rather than a 640-wide card floating in the middle of a 430-wide screen.
+  ///
+  /// `isDismissible: false` is fixed when the route is pushed, and an export can
+  /// start at any moment after that — so the barrier is closed for the whole
+  /// life of the sheet rather than opened and hoped about. Escape is handled
+  /// inside [_DarkroomExportSheetState.build] instead, where the live
+  /// `_exporting` flag can answer it: it pops when nothing is running, and says
+  /// why it will not when a render is inside the engine.
   static Future<void> show(
     BuildContext context, {
     required int recipeId,
@@ -164,11 +174,11 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
     required List<DarkroomStepReport> reports,
     required List<Map<String, dynamic>> catalogStars,
   }) {
-    return showDialog<void>(
+    return showAdaptiveModal<void>(
       context: context,
-      // A render is inside the engine while this is up; dismissing the barrier
-      // would leave it running with nothing left to report its outcome to.
-      barrierDismissible: false,
+      designWidth: 640,
+      phoneMode: PhoneModalMode.bottomSheet,
+      isDismissible: false,
       builder: (_) => _DarkroomExportSheet(
         recipeId: recipeId,
         recipeName: recipeName,
@@ -216,6 +226,32 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// failed.
   String? _stopped;
 
+  /// Why an Escape was refused, when one arrived mid-export.
+  String? _dismissRefused;
+
+  /// Escape closes the sheet, unless an export is inside the engine.
+  ///
+  /// The modal barrier cannot decide this — `isDismissible` is fixed when the
+  /// route is pushed and an export starts later — so the key is answered here,
+  /// where `_exporting` is the live flag. A refusal is stated on the sheet
+  /// rather than swallowed: a key that does nothing and says nothing reads as a
+  /// broken window.
+  void _handleEscape() {
+    if (_exporting) {
+      setState(
+        () => _dismissRefused = _cancelRequested
+            ? 'The export has been asked to stop and has not answered yet. '
+                'This sheet stays up until it does — it is the only thing left '
+                'to report the outcome to.'
+            : 'An export is inside the engine. Stop it first, or wait for it '
+                'to finish: closing now would leave the render running with '
+                'nothing left to report its outcome to.',
+      );
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -223,10 +259,34 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     final rasterAllowed =
         domain == _DarkroomStageDomain.stretched || _screenTransfer;
 
-    return NightshadeDialog(
+    // Surface, not NightshadeDialog: `showAdaptiveModal` already supplies the
+    // frame — a Dialog on tablet/desktop, a bottom sheet on a phone — and
+    // nesting a second Dialog inside it stretches that frame into a full-height
+    // slab.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): _handleEscape,
+      },
+      child: Focus(
+        autofocus: true,
+        // The focus is only here to give the Escape binding somewhere to live.
+        // Publishing it annotates the sheet's own frame as focusable, and a
+        // focusable node with no enabled state is what the AT-SPI bridge
+        // reports as `Export "Draft" [DISABLED]` — measured, on this build.
+        includeSemantics: false,
+        child: _surface(colors, domain, rasterAllowed),
+      ),
+    );
+  }
+
+  Widget _surface(
+    NightshadeColors colors,
+    _DarkroomStageDomain domain,
+    bool rasterAllowed,
+  ) {
+    return NightshadeDialogSurface(
       title: 'Export "${widget.recipeName}"',
       icon: NightshadeIcons.download,
-      width: 640,
       closeEnabled: !_exporting,
       actions: [
         if (_exporting)
@@ -261,6 +321,15 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
           _formatPicker(colors, domain, rasterAllowed),
           const SizedBox(height: NightshadeTokens.spaceLg),
           _provenanceNote(colors),
+          if (_dismissRefused != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            NightshadeAlert(
+              severity: NightshadeAlertSeverity.warning,
+              title: 'This sheet stays up while the export runs',
+              message: _dismissRefused!,
+              compact: true,
+            ),
+          ],
           if (_stopped != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             NightshadeAlert(
@@ -301,6 +370,41 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   // Pickers
   // -----------------------------------------------------------------------
 
+  /// One segment of the Stage / Format pickers, with [reason] readable by both
+  /// a pointer and a screen reader.
+  ///
+  /// A [Tooltip] alone puts the reason behind a hover, which is nothing at all
+  /// on a touch screen and nothing at all to assistive tech — a refused format
+  /// announced as the bare word "PNG" states no reason for its refusal. The
+  /// same sentence therefore goes into the node's `hint`. It merges into the
+  /// chip's own semantics node rather than forming a second one: `hint` sets no
+  /// flag and no action, so it is compatible with the chip's
+  /// button/enabled/selected configuration, and one node comes out carrying the
+  /// label, the role, the enabled state, the selection AND the reason.
+  ///
+  /// [onTap] is dropped when [enabled] is false — an unavailable option must not
+  /// publish a live tap action beside its disabled flag.
+  Widget _optionChip({
+    required String label,
+    required String reason,
+    required bool selected,
+    required VoidCallback onTap,
+    bool enabled = true,
+  }) {
+    return Semantics(
+      hint: reason,
+      child: Tooltip(
+        message: reason,
+        child: NightshadeChip(
+          label: label,
+          selected: selected,
+          enabled: enabled,
+          onTap: enabled ? onTap : null,
+        ),
+      ),
+    );
+  }
+
   Widget _stagePicker(NightshadeColors colors) {
     final hasSteps = widget.steps.isNotEmpty;
     return Column(
@@ -317,28 +421,28 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
           spacing: NightshadeTokens.spaceXs,
           runSpacing: NightshadeTokens.spaceXs,
           children: [
-            NightshadeChip(
+            _optionChip(
               label: 'Linear master',
+              reason: 'Write the master\'s own pixels, with the recipe '
+                  'travelling along as provenance.',
               selected: _stageKind == _DarkroomExportStageKind.linear,
               onTap: () => _setStage(_DarkroomExportStageKind.linear),
             ),
-            Tooltip(
-              message: hasSteps
+            _optionChip(
+              label: 'After a step',
+              reason: hasSteps
                   ? 'Replay the stack through one step and write what it '
                       'produced.'
                   : 'This recipe carries no steps, so there is no step to stop '
                       'after. Add one, or export the linear master.',
-              child: NightshadeChip(
-                label: 'After a step',
-                selected: _stageKind == _DarkroomExportStageKind.afterStep,
-                enabled: hasSteps,
-                onTap: hasSteps
-                    ? () => _setStage(_DarkroomExportStageKind.afterStep)
-                    : null,
-              ),
+              selected: _stageKind == _DarkroomExportStageKind.afterStep,
+              enabled: hasSteps,
+              onTap: () => _setStage(_DarkroomExportStageKind.afterStep),
             ),
-            NightshadeChip(
+            _optionChip(
               label: 'Final',
+              reason: 'Write every enabled step, at the master\'s full '
+                  'resolution.',
               selected: _stageKind == _DarkroomExportStageKind.finalStack,
               onTap: () => _setStage(_DarkroomExportStageKind.finalStack),
             ),
@@ -398,22 +502,18 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
           runSpacing: NightshadeTokens.spaceXs,
           children: [
             for (final format in _DarkroomExportFormat.values)
-              Tooltip(
-                message: format.isRaster && !rasterAllowed
+              _optionChip(
+                label: format.label,
+                reason: format.isRaster && !rasterAllowed
                     ? _rasterRefusal(domain)
                     : _formatNote(format),
-                child: NightshadeChip(
-                  label: format.label,
-                  selected: _format == format,
-                  enabled: !format.isRaster || rasterAllowed,
-                  onTap: !format.isRaster || rasterAllowed
-                      ? () => setState(() {
-                            _format = format;
-                            _result = null;
-                            _stopped = null;
-                          })
-                      : null,
-                ),
+                selected: _format == format,
+                enabled: !format.isRaster || rasterAllowed,
+                onTap: () => setState(() {
+                  _format = format;
+                  _result = null;
+                  _stopped = null;
+                }),
               ),
           ],
         ),
@@ -663,6 +763,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       _cancelRequested = false;
       _result = null;
       _stopped = null;
+      _dismissRefused = null;
     });
     final renderId = 'darkroom-export-${widget.recipeId}-'
         '${DateTime.now().microsecondsSinceEpoch}';
@@ -738,6 +839,9 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
         setState(() {
           _exporting = false;
           _cancelRequested = false;
+          // The refusal named a render that is no longer running; leaving it on
+          // screen would state something untrue about the sheet.
+          _dismissRefused = null;
         });
       }
     }

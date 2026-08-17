@@ -18,6 +18,8 @@ library;
 
 import 'dart:async';
 
+import 'package:path/path.dart' as p;
+
 import '../../database/daos/delivery_journal_dao.dart';
 import '../../database/daos/delivery_targets_dao.dart';
 import '../../models/darkroom/delivery.dart';
@@ -41,8 +43,10 @@ bool _stopRequested(DeliveryCancellation? isCancelled) =>
 
 /// What happened to one destination on one pass.
 class DeliveryDestinationReport {
-  /// The destination row's id.
-  final int targetId;
+  /// The destination row's id, or null for a destination that has no database
+  /// row — nothing about which can be journalled, and which therefore has no
+  /// id to state.
+  final int? targetId;
 
   /// The destination's operator-facing name, as the morning report prints it.
   final String name;
@@ -62,6 +66,17 @@ class DeliveryDestinationReport {
   /// Files whose attempts are spent, or whose failure no retry can change.
   final int failed;
 
+  /// Files whose journal row could not be written.
+  ///
+  /// These are neither retrying nor failed: the journal is the ONLY state the
+  /// sweep reads, so a file with no row is one nothing will ever pick up
+  /// again. Counting it as `retrying` promises an attempt that cannot happen.
+  final int unjournalled;
+
+  /// Why this destination was handed no files at all, when it was handed none.
+  /// Null whenever [attempted] is greater than zero.
+  final String? nothingToSend;
+
   /// One sentence per problem, each naming the mechanism.
   final List<String> problems;
 
@@ -74,19 +89,25 @@ class DeliveryDestinationReport {
     required this.retrying,
     required this.failed,
     required this.problems,
+    this.unjournalled = 0,
+    this.nothingToSend,
   });
 
   /// Total files this destination was asked to take on this pass.
-  int get attempted => delivered + awaitingPull + retrying + failed;
+  int get attempted =>
+      delivered + awaitingPull + retrying + failed + unjournalled;
 
   /// The morning report's line for this destination.
   String get summary {
-    if (attempted == 0) return '$name: nothing selected';
+    if (attempted == 0) {
+      return '$name: ${nothingToSend ?? 'nothing selected'}';
+    }
     final parts = <String>[
       if (delivered > 0) '$delivered delivered',
       if (awaitingPull > 0) '$awaitingPull awaiting pull',
       if (retrying > 0) '$retrying retrying',
       if (failed > 0) '$failed failed',
+      if (unjournalled > 0) '$unjournalled not journalled',
     ];
     return '$name: ${parts.join(', ')}';
   }
@@ -100,7 +121,17 @@ class DeliveryRunReport {
   /// One entry per destination the pass touched.
   final List<DeliveryDestinationReport> destinations;
 
-  const DeliveryRunReport({required this.jobId, required this.destinations});
+  /// Problems that belong to the pass rather than to any one destination —
+  /// the destination list itself being unreadable is the only one so far.
+  /// They are what stops an empty [destinations] from being read as "nothing
+  /// is configured".
+  final List<String> problems;
+
+  const DeliveryRunReport({
+    required this.jobId,
+    required this.destinations,
+    this.problems = const [],
+  });
 
   /// Files that arrived and verified.
   int get delivered => destinations.fold<int>(0, (sum, d) => sum + d.delivered);
@@ -115,13 +146,27 @@ class DeliveryRunReport {
   /// Files that will not be attempted again.
   int get failed => destinations.fold<int>(0, (sum, d) => sum + d.failed);
 
+  /// Files nothing was recorded for, so nothing will pick them up again.
+  int get unjournalled =>
+      destinations.fold<int>(0, (sum, d) => sum + d.unjournalled);
+
   /// True when every file this pass touched reached a destination.
-  bool get everythingLanded => retrying == 0 && failed == 0;
+  bool get everythingLanded =>
+      problems.isEmpty && retrying == 0 && failed == 0 && unjournalled == 0;
 
   /// The morning report's paragraph.
-  String get summary => destinations.isEmpty
-      ? 'No delivery destination is enabled'
-      : destinations.map((d) => d.summary).join('; ');
+  ///
+  /// "No delivery destination is enabled" is a claim about the destination
+  /// table, so it is stated only when the table was read and was empty of
+  /// enabled rows — never when the read failed, and never when a destination
+  /// was skipped for taking none of this job's files.
+  String get summary {
+    if (destinations.isNotEmpty) {
+      return destinations.map((d) => d.summary).join('; ');
+    }
+    if (problems.isNotEmpty) return problems.join('; ');
+    return 'No delivery destination is enabled';
+  }
 }
 
 /// Runs deliveries and owns the journal that records them.
@@ -133,6 +178,15 @@ class DeliveryService {
   final LoggingService? _logger;
   final DateTime Function() _clock;
 
+  /// How many times one journal write is asked before the pass gives up on
+  /// recording it. The dawn pipeline writes the same database, so a write can
+  /// lose a lock to work that is about to finish; asking again a bounded
+  /// number of times costs nothing and saves the row.
+  final int _journalWriteAttempts;
+
+  /// Wait between journal-write attempts.
+  final Duration _journalWriteBackoff;
+
   DeliveryService({
     required DeliveryTargetsDao targets,
     required DeliveryJournalDao journal,
@@ -140,12 +194,16 @@ class DeliveryService {
     DeliveryRetryPolicy policy = DeliveryRetryPolicy.standard,
     LoggingService? logger,
     DateTime Function()? clock,
+    int journalWriteAttempts = 3,
+    Duration journalWriteBackoff = const Duration(milliseconds: 200),
   }) : _targets = targets,
        _journal = journal,
        _transportFactory = transportFactory,
        _policy = policy,
        _logger = logger,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now,
+       _journalWriteAttempts = journalWriteAttempts,
+       _journalWriteBackoff = journalWriteBackoff;
 
   /// Deliver [set] to every enabled destination that selected each artifact.
   ///
@@ -161,19 +219,30 @@ class DeliveryService {
     } catch (error, stack) {
       // The destination list is unreadable, so nothing can be delivered and
       // nothing can be journalled. The pipeline still finishes: this is
-      // reported, not raised.
+      // reported, not raised — and it is reported as the read failing, which
+      // is not the same fact as no destination being configured.
       _logger?.error(
         'Delivery could not read its destination list: $error',
         source: 'DeliveryService',
         fields: {'stack': stack.toString()},
       );
-      return DeliveryRunReport(jobId: set.jobId, destinations: const []);
+      return DeliveryRunReport(
+        jobId: set.jobId,
+        destinations: const [],
+        problems: [
+          'The delivery destination list could not be read ($error), so '
+              'nothing was sent and nothing was journalled',
+        ],
+      );
     }
 
     final reports = <DeliveryDestinationReport>[];
     for (final destination in destinations) {
       final selected = set.selectedFor(destination);
-      if (selected.isEmpty) continue;
+      if (selected.isEmpty) {
+        reports.add(_nothingToSend(destination));
+        continue;
+      }
       reports.add(
         await _runDestination(
           destination: destination,
@@ -230,6 +299,33 @@ class DeliveryService {
     return DeliveryRunReport(jobId: null, destinations: reports);
   }
 
+  /// The report entry for a destination this job handed no files to.
+  ///
+  /// Two different facts share this shape and the sentence says which: a
+  /// destination that selects no class of artifact receives nothing on every
+  /// night, while one that selects a class this job did not produce is
+  /// correctly configured and simply had nothing to take. Skipping the
+  /// destination entirely made both read as "no delivery destination is
+  /// enabled" in the morning report.
+  DeliveryDestinationReport _nothingToSend(ArtifactDestination destination) {
+    final selection = destination.content;
+    final reason = selection.isEmpty
+        ? 'nothing selected, so it receives no files'
+        : 'the job produced none of the '
+              '${selection.map((c) => c.wire).join(', ')} it takes';
+    return DeliveryDestinationReport(
+      targetId: destination.id,
+      name: destination.name,
+      kind: destination.kind,
+      delivered: 0,
+      awaitingPull: 0,
+      retrying: 0,
+      failed: 0,
+      problems: const [],
+      nothingToSend: reason,
+    );
+  }
+
   Future<DeliveryDestinationReport> _runDestination({
     required ArtifactDestination destination,
     required int jobId,
@@ -239,7 +335,7 @@ class DeliveryService {
     final targetId = destination.id;
     if (targetId == null) {
       return DeliveryDestinationReport(
-        targetId: 0,
+        targetId: null,
         name: destination.name,
         kind: destination.kind,
         delivered: 0,
@@ -406,43 +502,30 @@ class DeliveryService {
     // a file nothing remembers trying.
     final DeliveryJournalEntry attempt;
     try {
-      attempt = await _journal.recordAttempt(
-        targetId: targetId,
-        jobId: jobId,
-        filePath: file.sourcePath,
-        bytes: file.bytes,
-        now: _clock(),
+      attempt = await _journalWrite(
+        () => _journal.recordAttempt(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: file.sourcePath,
+          bytes: file.bytes,
+          now: _clock(),
+        ),
       );
     } catch (error, stack) {
-      _logger?.error(
-        'The delivery journal could not record an attempt for '
-        '${file.sourcePath}: $error',
-        source: 'DeliveryService',
-        fields: {'stack': stack.toString()},
-      );
-      tally.retrying++;
-      tally.problems.add(
-        'The journal refused an attempt row for ${file.fileName}, so this '
-        'file was not sent',
+      _journalWriteRefused(
+        what: 'the attempt row for ${file.fileName}',
+        filePath: file.sourcePath,
+        detail: 'The file was not sent',
+        error: error,
+        stack: stack,
+        tally: tally,
       );
       return;
     }
 
+    final TransportDeliveryOutcome outcome;
     try {
-      final outcome = await transport.deliver(file);
-      if (outcome.disposition == DeliveryDisposition.awaitingPull) {
-        tally.awaitingPull++;
-        return;
-      }
-      await _journal.markDelivered(
-        targetId: targetId,
-        jobId: jobId,
-        filePath: file.sourcePath,
-        checksum: outcome.checksum,
-        bytes: file.bytes,
-        now: _clock(),
-      );
-      tally.delivered++;
+      outcome = await transport.deliver(file);
     } catch (error, stack) {
       final failure = _asFailure(error, destination);
       _log(failure, destination, stack);
@@ -452,6 +535,40 @@ class DeliveryService {
         filePath: file.sourcePath,
         attempts: attempt.attempts,
         failure: failure,
+        tally: tally,
+      );
+      return;
+    }
+
+    if (outcome.disposition == DeliveryDisposition.awaitingPull) {
+      tally.awaitingPull++;
+      return;
+    }
+
+    // The bytes are on the destination from here on. A journal write that
+    // fails now is a bookkeeping failure, not a transport one — calling it a
+    // transport failure would schedule a retry of a file that already arrived.
+    try {
+      await _journalWrite(
+        () => _journal.markDelivered(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: file.sourcePath,
+          checksum: outcome.checksum,
+          bytes: file.bytes,
+          now: _clock(),
+        ),
+      );
+      tally.delivered++;
+    } catch (error, stack) {
+      _journalWriteRefused(
+        what: 'the delivered row for ${file.fileName}',
+        filePath: file.sourcePath,
+        detail:
+            'The file DID reach ${outcome.destinationDescription}, but no row '
+            'records that',
+        error: error,
+        stack: stack,
         tally: tally,
       );
     }
@@ -472,21 +589,24 @@ class DeliveryService {
   }) async {
     final DeliveryJournalEntry attempt;
     try {
-      attempt = await _journal.recordAttempt(
-        targetId: targetId,
-        jobId: jobId,
-        filePath: filePath,
-        bytes: bytes,
-        now: _clock(),
+      attempt = await _journalWrite(
+        () => _journal.recordAttempt(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: filePath,
+          bytes: bytes,
+          now: _clock(),
+        ),
       );
     } catch (error, stack) {
-      _logger?.error(
-        'The delivery journal could not record an attempt for $filePath: '
-        '$error',
-        source: 'DeliveryService',
-        fields: {'stack': stack.toString()},
+      _journalWriteRefused(
+        what: 'the attempt row for ${p.basename(filePath)}',
+        filePath: filePath,
+        detail: 'The outcome it would have carried was ${failure.journalText}',
+        error: error,
+        stack: stack,
+        tally: tally,
       );
-      tally.retrying++;
       return;
     }
     await _recordJournalOutcome(
@@ -514,34 +634,85 @@ class DeliveryService {
         : failure.journalText;
     try {
       if (terminal) {
-        await _journal.markFailed(
-          targetId: targetId,
-          jobId: jobId,
-          filePath: filePath,
-          error: text,
-          now: _clock(),
+        await _journalWrite(
+          () => _journal.markFailed(
+            targetId: targetId,
+            jobId: jobId,
+            filePath: filePath,
+            error: text,
+            now: _clock(),
+          ),
         );
         tally.failed++;
       } else {
-        await _journal.markRetrying(
-          targetId: targetId,
-          jobId: jobId,
-          filePath: filePath,
-          error: text,
-          now: _clock(),
+        await _journalWrite(
+          () => _journal.markRetrying(
+            targetId: targetId,
+            jobId: jobId,
+            filePath: filePath,
+            error: text,
+            now: _clock(),
+          ),
         );
         tally.retrying++;
       }
     } catch (error, stack) {
-      _logger?.error(
-        'The delivery journal could not record the outcome for $filePath: '
-        '$error',
-        source: 'DeliveryService',
-        fields: {'stack': stack.toString()},
+      _journalWriteRefused(
+        what:
+            'the ${terminal ? 'failed' : 'retrying'} row for '
+            '${p.basename(filePath)}',
+        filePath: filePath,
+        detail: 'The attempt was spent and its outcome is unrecorded',
+        error: error,
+        stack: stack,
+        tally: tally,
       );
-      tally.retrying++;
     }
     tally.problems.add(text);
+  }
+
+  /// Perform one journal write, asking again a bounded number of times.
+  ///
+  /// Throws the LAST refusal when the budget is spent, so the caller writes
+  /// the honest sentence rather than this deciding what the failure means.
+  Future<T> _journalWrite<T>(Future<T> Function() write) async {
+    for (var attempt = 1; ; attempt++) {
+      try {
+        return await write();
+      } on Object {
+        if (attempt >= _journalWriteAttempts) rethrow;
+        await Future<void>.delayed(_journalWriteBackoff);
+      }
+    }
+  }
+
+  /// State that a journal write was refused, and count the file as one nothing
+  /// recorded.
+  ///
+  /// Never counted as retrying: the sweep's whole work list comes from
+  /// `delivery_journal`, so a file with no row is a file no later pass can
+  /// find. Reporting it as retrying is the promise of an attempt that will
+  /// never be made.
+  void _journalWriteRefused({
+    required String what,
+    required String filePath,
+    required String detail,
+    required Object error,
+    required StackTrace stack,
+    required _Tally tally,
+  }) {
+    _logger?.error(
+      'The delivery journal refused $what for $filePath after '
+      '$_journalWriteAttempts attempts: $error',
+      source: 'DeliveryService',
+      fields: {'stack': stack.toString()},
+    );
+    tally.unjournalled++;
+    tally.problems.add(
+      'The delivery journal refused $what after $_journalWriteAttempts '
+      'attempts ($error). $detail. No retry sweep can pick this file up, '
+      'because the sweep reads its work list out of the journal',
+    );
   }
 
   Future<void> _closeQuietly(ArtifactTransport transport, _Tally tally) async {
@@ -604,6 +775,7 @@ class _Tally {
   int awaitingPull = 0;
   int retrying = 0;
   int failed = 0;
+  int unjournalled = 0;
   final List<String> problems = [];
 
   _Tally(this.destination, this.targetId);
@@ -616,6 +788,7 @@ class _Tally {
     awaitingPull: awaitingPull,
     retrying: retrying,
     failed: failed,
+    unjournalled: unjournalled,
     problems: List<String>.unmodifiable(problems),
   );
 }

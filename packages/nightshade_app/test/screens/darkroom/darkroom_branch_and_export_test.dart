@@ -10,13 +10,17 @@
 //  * the export sheet shows the engine's raster refusal as readable text, not
 //    just a greyed chip, and one switch turns it into a choice;
 //  * a FITS export names its `.nsrecipe` sidecar on the wire rather than hoping
-//    the engine derives one.
+//    the engine derives one;
+//  * what those controls publish to assistive tech — the refusal's reason, the
+//    export sheet's answer to Escape, its phone presentation, and a
+//    hold-to-compare that a keyboard can work.
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_controller.dart';
@@ -75,7 +79,20 @@ class _ScriptedDarkroom implements DarkroomSeam {
       isColor: false,
       rgba: Uint8List(4 * 4 * 4),
       report: {
-        'encoding': 'auto stretch applied for display only',
+        // The engine's own shape (bridge render.rs `description`): an object,
+        // never a sentence.
+        'encoding': {
+          'requested': 'auto',
+          'applied': 'screen',
+          'sourceDomain': 'linear',
+          'clampedSamples': 0,
+          'screenTransfer': {
+            'blackPoint': 529.75,
+            'whitePoint': 531.19,
+            'd': 2.57,
+          },
+          'screenTransferAffectsRecipe': false,
+        },
         'level': {'level': 0, 'scaleFromMaster': 1.0},
         'report': {
           'steps': [
@@ -716,6 +733,238 @@ void main() {
     expect(pickerCalls, hasLength(1));
     expect(darkroom.exportArgs, isEmpty);
     expect(find.text('Written'), findsNothing);
+    await drain(tester);
+  });
+
+  // ---------------------------------------------------------------------
+  // Accessibility and the modal contract
+  //
+  // Driving the release build through AT-SPI turned up four things the widget
+  // tree above could not see: the refused format chips announced no reason for
+  // their refusal, Escape did nothing at all, the sheet stayed a 640-wide
+  // centred card on a 430-wide phone, and hold-to-compare published a button
+  // with no enabled state and no action — reported as `[DISABLED]`, unusable
+  // from a keyboard or from assistive tech.
+  // ---------------------------------------------------------------------
+
+  SemanticsData dataFor(WidgetTester tester, Finder finder) =>
+      tester.getSemantics(finder).getSemanticsData();
+
+  testWidgets('a refused format announces the refusal, not just a grey chip', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final root = await seedRecipe([_step('background_extract')]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    final png = dataFor(tester, find.widgetWithText(NightshadeChip, 'PNG'));
+    expect(png.label, 'PNG');
+    expect(png.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(png.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+    expect(png.hasFlag(SemanticsFlag.isEnabled), isFalse);
+    // No live tap beside the disabled flag — the refusal is not a dare.
+    expect(png.hasAction(SemanticsAction.tap), isFalse);
+    // The reason travels with the control, not only in a hover tooltip.
+    expect(png.hint, contains('still linear ADU'));
+
+    final fits = dataFor(tester, find.widgetWithText(NightshadeChip, 'FITS'));
+    expect(fits.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    expect(fits.hasFlag(SemanticsFlag.isSelected), isTrue);
+    expect(fits.hasAction(SemanticsAction.tap), isTrue);
+    expect(fits.hint, contains('Always available'));
+
+    // Turning the auto stretch on makes the same chip readable as available.
+    await tester.tap(find.byType(NightshadeSwitch).last);
+    await settle(tester);
+    final pngNow = dataFor(tester, find.widgetWithText(NightshadeChip, 'PNG'));
+    expect(pngNow.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    expect(pngNow.hasAction(SemanticsAction.tap), isTrue);
+    expect(pngNow.hint, contains('16-bit PNG'));
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+    handle.dispose();
+  });
+
+  testWidgets('Escape closes the export sheet when nothing is running', (
+    tester,
+  ) async {
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+    expect(find.textContaining('Export "Draft"'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester);
+
+    expect(find.textContaining('Export "Draft"'), findsNothing);
+    await drain(tester);
+  });
+
+  testWidgets('Escape mid-export keeps the sheet up and says why', (
+    tester,
+  ) async {
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    final held = Completer<void>();
+    darkroom.holdExport = held;
+    await tester.tap(find.text('Export'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Stop'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+
+    expect(find.textContaining('Export "Draft"'), findsOneWidget);
+    expect(
+      find.text('This sheet stays up while the export runs'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('nothing left to report its outcome to'),
+      findsOneWidget,
+    );
+
+    // And it stops saying so once the render is out of the engine.
+    held.complete();
+    await settle(tester);
+    expect(
+      find.text('This sheet stays up while the export runs'),
+      findsNothing,
+    );
+    await drain(tester);
+  });
+
+  testWidgets('a phone gets the export sheet as a bottom sheet', (
+    tester,
+  ) async {
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root, size: const Size(430, 932));
+    await openExport(tester);
+
+    expect(find.byType(BottomSheet), findsOneWidget);
+    final sheet = tester.getRect(find.byType(BottomSheet));
+    // Anchored to the bottom edge and the full width of the viewport, not a
+    // 640-wide card floating in the middle of a 430-wide screen.
+    expect(sheet.left, closeTo(0, 0.5));
+    expect(sheet.width, closeTo(430, 0.5));
+    expect(sheet.bottom, closeTo(932, 0.5));
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('a desktop window keeps the export sheet a centred dialog', (
+    tester,
+  ) async {
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byType(Dialog), findsWidgets);
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('hold-to-compare is an operable toggle, not a dead button', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+    await enterCompare(tester);
+    await tester.tap(find.widgetWithText(NightshadeChip, 'Blink'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    final hold = find.text('Hold to see Warmer');
+    expect(hold, findsOneWidget);
+    final node = tester.getSemantics(hold);
+    final data = node.getSemanticsData();
+    expect(data.label, 'Hold to see Warmer');
+    expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
+    // The whole defect: `Semantics(button:)` with no `enabled` and no action
+    // published a node the AT-SPI bridge reported as DISABLED.
+    expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+    expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    expect(data.hasFlag(SemanticsFlag.hasToggledState), isTrue);
+    expect(data.hasFlag(SemanticsFlag.isToggled), isFalse);
+    expect(data.hasFlag(SemanticsFlag.isFocusable), isTrue);
+    expect(data.hasAction(SemanticsAction.tap), isTrue);
+    expect(data.hasAction(SemanticsAction.longPress), isTrue);
+    expect(data.hint, contains('activate'));
+
+    // Operated the way assistive tech operates it: activate pins the other
+    // recipe up, activate again releases it. A press-and-hold cannot be
+    // performed at all from a keyboard or a screen reader.
+    final owner = tester.binding.pipelineOwner.semanticsOwner!;
+    owner.performAction(node.id, SemanticsAction.tap);
+    await tester.pump();
+    expect(find.text('Showing B'), findsOneWidget);
+    expect(
+      tester.getSemantics(hold).getSemanticsData().hasFlag(
+            SemanticsFlag.isToggled,
+          ),
+      isTrue,
+    );
+    // The blink timer cannot take it away while it is pinned.
+    await tester.pump(kDarkroomBlinkInterval * 2);
+    expect(find.text('Showing B'), findsOneWidget);
+
+    owner.performAction(tester.getSemantics(hold).id, SemanticsAction.tap);
+    await tester.pump();
+    expect(
+      tester.getSemantics(hold).getSemanticsData().hasFlag(
+            SemanticsFlag.isToggled,
+          ),
+      isFalse,
+    );
+    await drain(tester);
+    handle.dispose();
+  });
+
+  testWidgets('side by side offers no hold control, having nothing to hold', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+    await enterCompare(tester);
+
+    // Both renders are already on screen, so pinning B changes nothing — and a
+    // control that publishes an on/off state while changing nothing is a lie.
+    expect(find.byType(AstroImageViewer), findsNWidgets(2));
+    expect(find.text('Hold to see Warmer'), findsNothing);
     await drain(tester);
   });
 }

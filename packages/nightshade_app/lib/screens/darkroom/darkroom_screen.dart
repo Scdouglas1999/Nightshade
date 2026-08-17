@@ -16,6 +16,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -210,10 +211,22 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     }
     final loadError = state.loadError;
     if (loadError != null) {
+      // The header's own action is suppressed here — there is no recipe to
+      // reload — so this empty state is the whole screen. Without a way out of
+      // it the only route back is the nav rail, and the reason it names (a
+      // recipe or master that is gone) is one the session review can answer:
+      // it lists the masters that DO have pixels to interpret.
       return EmptyState(
         icon: NightshadeIcons.imageOff,
         title: 'Nothing to open in the Darkroom',
         body: loadError,
+        action: NightshadeButton(
+          label: 'Back to session review',
+          icon: NightshadeIcons.history,
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          onPressed: () => context.go('/analytics?tab=history'),
+        ),
       );
     }
     final offer = state.offer;

@@ -81,6 +81,25 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               compact: true,
             ),
           ),
+        // A refused move snaps the card back to where it started, which on its
+        // own looks like a dropped gesture. The engine's own sentence stays on
+        // the panel — beside the stack it is about — until the next edit
+        // clears it, rather than only flashing past in a toast.
+        if (state.reorderRefusal != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              NightshadeTokens.spaceMd,
+              NightshadeTokens.spaceSm,
+              NightshadeTokens.spaceMd,
+              0,
+            ),
+            child: NightshadeAlert(
+              severity: NightshadeAlertSeverity.warning,
+              title: 'That move was refused',
+              message: state.reorderRefusal!,
+              compact: true,
+            ),
+          ),
         Expanded(
           child: steps.isEmpty
               ? const EmptyState.compact(
@@ -101,8 +120,14 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                   // onReorderItem, not onReorder: it reports the destination
                   // already adjusted for the removal, which is the index the
                   // controller inserts at.
+                  //
+                  // The list callback is synchronous, so the answer is read off
+                  // the state the controller publishes rather than awaited
+                  // here; the controller states every refusal on that state and
+                  // throws nothing, so `unawaited` drops a verdict this widget
+                  // has no other use for, not an error.
                   onReorderItem: (oldIndex, newIndex) {
-                    widget.onReorder(oldIndex, newIndex);
+                    unawaited(widget.onReorder(oldIndex, newIndex));
                   },
                   itemBuilder: (context, index) =>
                       _card(context, colors, state, index),

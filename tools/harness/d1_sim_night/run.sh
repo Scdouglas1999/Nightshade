@@ -5,30 +5,53 @@
 # docs/plans/nightshade_7_0_d1_runbook.md for the seam evidence.
 #   D1_SCRATCH  scratch root (default /tmp/nightshade-d1-harness; wiped each run)
 #   D1_BUNDLE   bundle binary (default: this repo's release build)
+#   D1_PORT     API port (default 8093) — give a concurrent run its own port
+#               and its own D1_SCRATCH and the two never meet
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 D1="${D1_SCRATCH:-/tmp/nightshade-d1-harness}"
 mkdir -p "$D1"
 BUNDLE="${D1_BUNDLE:-$HERE/../../../apps/desktop/build/linux/x64/release/bundle/nightshade_desktop}"
 T=d1-secret-token
-P=8093
+P="${D1_PORT:-8093}"
 B="http://127.0.0.1:$P"
 AH="Authorization: Bearer $T"
 DBDIR=$D1/db; OUT=$D1/captures; DROP=$D1/drop; DATA=$D1/data
 LOG=$D1/app.log
+PIDFILE=$D1/app.pid
 PASS=0; FAIL=0
 say()  { echo "[d1] $*"; }
 ok()   { PASS=$((PASS+1)); echo "[d1]   PASS: $*"; }
 bad()  { FAIL=$((FAIL+1)); echo "[d1]   FAIL: $*"; }
 api()  { curl -sf -m 10 -H "$AH" "$@"; }
 
-pkill -f nightshade_desktop 2>/dev/null; sleep 1
+# Reap only what a previous run of THIS script left behind. `pkill -f
+# nightshade_desktop` killed every instance on the machine — a parallel harness
+# on another port, another agent's sweep, the operator's own running rig — so
+# the pid is recorded and re-identified by its command line before any signal
+# goes out. A recycled pid belonging to something else does not match and is
+# left alone.
+reap_previous() {
+  [ -f "$PIDFILE" ] || return 0
+  old=$(cat "$PIDFILE" 2>/dev/null)
+  rm -f "$PIDFILE"
+  case "$old" in ''|*[!0-9]*) return 0;; esac
+  kill -0 "$old" 2>/dev/null || return 0
+  tr '\0' ' ' < "/proc/$old/cmdline" 2>/dev/null | grep -q -- "--port=$P" || return 0
+  say "reaping leftover instance from a previous run (pid $old, port $P)"
+  kill -TERM "$old" 2>/dev/null
+  for i in $(seq 1 15); do kill -0 "$old" 2>/dev/null || return 0; sleep 1; done
+  kill -9 "$old" 2>/dev/null
+}
+
+reap_previous
 rm -rf "$DBDIR" "$OUT" "$DROP" "$DATA"; mkdir -p "$DBDIR" "$OUT" "$DROP" "$DATA"
 
 launch() {
   NIGHTSHADE_DATABASE_DIR=$DBDIR NIGHTSHADE_DATA_DIR=$DATA LIBGL_ALWAYS_SOFTWARE=1 \
     "$BUNDLE" --headless --auth-token=$T --port=$P >> "$LOG" 2>&1 &
   APP=$!
+  echo "$APP" > "$PIDFILE"
   for i in $(seq 1 40); do
     sleep 1
     curl -sf -m 2 "$B/api/info" >/dev/null 2>&1 && return 0
@@ -36,7 +59,7 @@ launch() {
   done
   bad "API never came up"; return 1
 }
-stopapp() { kill -TERM $APP 2>/dev/null; for i in $(seq 1 15); do kill -0 $APP 2>/dev/null || return 0; sleep 1; done; kill -9 $APP 2>/dev/null; }
+stopapp() { kill -TERM $APP 2>/dev/null; for i in $(seq 1 15); do kill -0 $APP 2>/dev/null || { rm -f "$PIDFILE"; return 0; }; sleep 1; done; kill -9 $APP 2>/dev/null; rm -f "$PIDFILE"; }
 
 say "=== phase 1: schema-creation boot ==="
 launch || exit 1
@@ -168,7 +191,6 @@ say "  master header probe: $WCS"
 
 say "=== phase 8: teardown ==="
 stopapp
-pkill -f nightshade_desktop 2>/dev/null
 say "=== RESULT: PASS=$PASS FAIL=$FAIL ==="
 tail -5 "$LOG" | sed 's/^/[d1-log] /'
 [ "$FAIL" -eq 0 ]

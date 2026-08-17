@@ -720,7 +720,7 @@ pub(crate) fn draft_for_master(
             "opId": "color_calibrate",
             "outcome": "omitted",
             "reason": format!(
-                "this master has {} channel(s); the colour fit needs a three-channel master, so a per-filter mono master is combined first",
+                "this master has {} channel(s) and the colour fit needs three, so this draft covers the one channel it was given; to calibrate colour, combine the per-filter masters into a single three-channel master and draft that composite",
                 base.channels()
             ),
         }));
