@@ -1074,7 +1074,7 @@
     // arrive only when something changes.
     fetchAllStatus();
 
-    state.pingInterval = setInterval(() => api.sendPing(), 30000);
+    state.pingInterval = setInterval(() => api.sendPing(), SERVER_HEARTBEAT_MS);
 
     // Why a slow watchdog instead of a 3 s poll: WS pushes carry the panel
     // state. We only re-fetch when the socket has been silent for
@@ -1112,13 +1112,24 @@
   // real": one reachability probe, one banner, one status flip.
   // =========================================================================
 
-  // How long the dashboard may go without a completed exchange before it must
-  // stop presenting its cache as live. The WS heartbeat is 30 s, so this is
-  // one heartbeat plus a probe's worth of slack.
-  const SERVER_CONTACT_STALE_MS = 12000;
-  // Cadence of the reachability probe while the socket is down. Well inside
-  // the read budget (60/s) and cheap: /api/info is a static answer.
+  // Cadence of the reachability probe. Well inside the read budget (60/s) and
+  // cheap: /api/info is a static answer.
   const REACHABILITY_PROBE_MS = 5000;
+  // The dashboard's own proof-of-life clock. An idle server pushes no events,
+  // so on a quiet night the ping/pong below is the ONLY thing that stamps
+  // contact — every staleness decision is counted in beats of this clock, not
+  // in wall-clock seconds picked independently of it.
+  const SERVER_HEARTBEAT_MS = 30000;
+  // One missed beat is a question, not a verdict: the watchdog answers it by
+  // probing the server directly (see checkStaleness).
+  const HEARTBEAT_GRACE_MS = SERVER_HEARTBEAT_MS + REACHABILITY_PROBE_MS;
+  // Two missed beats with nothing to show for them is the verdict. Below one
+  // full beat the dashboard cannot tell "quiet" from "gone": at 12000 ms a
+  // measured 200 s soak against a healthy, idle server spent 26 of 40 samples
+  // on "No contact" while every request in flight was being answered.
+  const MISSED_HEARTBEATS_BEFORE_STALE = 2;
+  const SERVER_CONTACT_STALE_MS =
+    SERVER_HEARTBEAT_MS * MISSED_HEARTBEATS_BEFORE_STALE + REACHABILITY_PROBE_MS;
 
   let lastReachabilityProbeAt = 0;
   let reachabilityProbeInFlight = false;
@@ -1169,6 +1180,13 @@
     return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
   }
 
+  /// True while the panels are painted with the lost-contact overlay, so the
+  /// recovery edge can be told from a run of healthy ticks. Staleness is a
+  /// state of the link, not a mark burned into the badge: without this the
+  /// badge that went "unknown" on one missed exchange stayed "unknown" for the
+  /// rest of the session, over every subsequent healthy poll.
+  let linkStaleAsserted = false;
+
   /// Repaint the banner + header status from the current link state. The
   /// header must never read "Connected" while this returns stale.
   function renderLinkState() {
@@ -1195,8 +1213,16 @@
       if (api.isConnected && text && text.textContent === 'No contact') {
         setConnectionStatus('connected');
       }
+      // Contact is back: hand the panels the overlay took over back to the
+      // renderer that owns them, so they say what the last data says — the
+      // real state if a status has arrived, "connecting" if none ever has.
+      if (linkStaleAsserted) {
+        linkStaleAsserted = false;
+        renderSequencerPanel();
+      }
       return;
     }
+    linkStaleAsserted = true;
 
     const last = lastServerContactAt();
     const age = last > 0 ? Date.now() - last : null;
@@ -1225,9 +1251,14 @@
     const now = Date.now();
     const wsSilentMs = state.lastWsMessageAt > 0 ? now - state.lastWsMessageAt : Infinity;
 
-    // Reachability: while the socket is down, ask the server directly rather
-    // than inferring health from a silence the socket cannot explain.
-    if (api.isConnected && !api.isWsConnected &&
+    // Reachability: ask the server directly rather than inferring health from
+    // a silence. Two ways to earn the question — the socket is down, or the
+    // socket claims to be up but a whole heartbeat has passed with nothing on
+    // it (a black-holed connection looks open to the browser). Either way the
+    // answer, not the clock, is what decides the banner.
+    const contactAge = now - lastServerContactAt();
+    if (api.isConnected &&
+        (!api.isWsConnected || contactAge > HEARTBEAT_GRACE_MS) &&
         now - lastReachabilityProbeAt > REACHABILITY_PROBE_MS) {
       probeServerReachable();
     }
@@ -3321,10 +3352,13 @@
     const progressText = document.getElementById('seq-progress-text');
 
     if (!state.sequencerStatus) {
-      // No status has arrived. The bar is indeterminate, so it carries no
+      // No status has arrived. "idle" here was an assertion about a rig this
+      // page had never heard from — a run in progress reads as a parked
+      // telescope until the first answer lands. Say what is actually true:
+      // we are still connecting. The bar is indeterminate, so it carries no
       // aria-valuenow — announcing "0 percent" would state a progress figure
       // the server never sent.
-      if (statusEl) renderBadge(statusEl, 'idle', 'badge-idle');
+      if (statusEl) renderBadge(statusEl, 'connecting', 'badge-idle');
       if (nodeEl) nodeEl.textContent = '--';
       if (messageEl) messageEl.textContent = '';
       if (progressBar) progressBar.style.width = '0%';

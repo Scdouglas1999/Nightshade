@@ -57,6 +57,20 @@ class _DarkroomBranchBar extends ConsumerStatefulWidget {
   /// Open the export sheet for the open recipe.
   final VoidCallback onExport;
 
+  /// The other masters the same night produced, with the newest recipe over
+  /// each. Empty when the night produced one master.
+  final List<DarkroomSiblingDraft> siblings;
+
+  /// Why the night's other masters could not be listed, when they could not.
+  final String? siblingsError;
+
+  /// Read a `.nsrecipe` sidecar and open it as a new recipe over this master.
+  final VoidCallback onImportRecipe;
+
+  /// True while an import is reading a file, so a second press cannot start a
+  /// second one.
+  final bool importBusy;
+
   const _DarkroomBranchBar({
     required this.scope,
     required this.editorScope,
@@ -67,6 +81,10 @@ class _DarkroomBranchBar extends ConsumerStatefulWidget {
     required this.onCompareWith,
     required this.onCompareModeChanged,
     required this.onExport,
+    required this.siblings,
+    required this.siblingsError,
+    required this.onImportRecipe,
+    required this.importBusy,
   });
 
   @override
@@ -107,6 +125,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
               compact: true,
             ),
           ],
+          ..._siblings(colors),
           const SizedBox(height: NightshadeTokens.spaceSm),
           _actions(state),
           if (state.loadError != null) ...[
@@ -211,6 +230,78 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
             )
           : chip,
     );
+  }
+
+  /// The night's OTHER masters, and the recipe over each.
+  ///
+  /// Every in-app "refine this night" control resolves one master for the
+  /// session and opens it, so a four-filter night hands the editor one of four
+  /// drafts. The branch chips above describe the branches of THIS master only,
+  /// and nothing else on the screen said the other three drafts existed — they
+  /// were reachable, but only by leaving for the session review and walking
+  /// into the workbench.
+  ///
+  /// Master-scoped links, not recipe-scoped: a master with no recipe opens the
+  /// offer to compose one, and a master with several opens its newest, which is
+  /// the same thing every other entry point does.
+  List<Widget> _siblings(NightshadeColors colors) {
+    final error = widget.siblingsError;
+    if (error != null) {
+      return [
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        NightshadeAlert(
+          severity: NightshadeAlertSeverity.info,
+          message: error,
+          compact: true,
+        ),
+      ];
+    }
+    final siblings = widget.siblings;
+    if (siblings.isEmpty) return const [];
+    final drafted = siblings.where((s) => s.recipeId != null).length;
+    return [
+      const SizedBox(height: NightshadeTokens.spaceXs),
+      Text(
+        drafted == siblings.length
+            ? 'This night produced ${siblings.length + 1} masters and every '
+                'one of them carries a recipe. The others:'
+            : 'This night produced ${siblings.length + 1} masters; '
+                '$drafted of the other ${siblings.length} '
+                '${siblings.length == 1 ? 'carries' : 'carry'} a recipe:',
+        style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
+      ),
+      const SizedBox(height: NightshadeTokens.spaceXs),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final sibling in siblings) ...[
+              Tooltip(
+                message: sibling.recipeId == null
+                    ? '${sibling.masterName} has no recipe yet. Opening it '
+                        'offers a draft or an empty stack.'
+                    : '${sibling.masterName} — '
+                        '"${sibling.recipeName ?? 'Recipe '
+                            '${sibling.recipeId}'}", '
+                        '${sibling.author == RecipeAuthor.autopilot ? 'drafted '
+                            'by the autopilot' : 'written by you'}.',
+                child: NightshadeChip(
+                  label: sibling.recipeId == null
+                      ? '${sibling.label} — no recipe yet'
+                      : sibling.label,
+                  icon: sibling.author == RecipeAuthor.autopilot
+                      ? NightshadeIcons.sparkle
+                      : NightshadeIcons.user,
+                  onTap: () =>
+                      context.go(darkroomMasterLocation(sibling.masterId)),
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceXs),
+            ],
+          ],
+        ),
+      ),
+    ];
   }
 
   /// The open recipe's ancestry, so a branch says where it came from.
@@ -328,6 +419,17 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           size: ButtonSize.small,
           onPressed: widget.onExport,
         ),
+        // The other half of the sidecar the export sheet promises writes "so
+        // the recipe survives outside the database". Without a reader that
+        // sentence described a file the product could not consume.
+        NightshadeButton(
+          label: 'Import .nsrecipe',
+          icon: NightshadeIcons.upload,
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          isLoading: widget.importBusy,
+          onPressed: widget.importBusy ? null : widget.onImportRecipe,
+        ),
       ],
     );
   }
@@ -422,6 +524,13 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     final state = ref.read(darkroomBranchControllerProvider(widget.scope));
     final current = state.branchFor(widget.recipeId);
     final label = current?.label ?? 'Recipe ${widget.recipeId}';
+    // The children are known BEFORE the dialog is built, and the dialog said
+    // nothing about them: the operator confirmed a destructive action and only
+    // then met the refusal naming branches they had not been told existed.
+    final childIds = current?.childIds ?? const <int>[];
+    final childLabels = [
+      for (final id in childIds) state.branchFor(id)?.label ?? 'Recipe $id',
+    ];
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -444,13 +553,41 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
             onPressed: () => Navigator.of(dialogContext).pop(true),
           ),
         ],
-        child: Text(
-          'The recipe row goes; the linear master it renders does not. Nothing '
-          'in the Darkroom has ever written to those pixels, so deleting this '
-          'branch loses only the interpretation.',
-          style: NightshadeTypography.bodySm.copyWith(
-            color: NightshadeColors.of(dialogContext).textSecondary,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (childLabels.isNotEmpty) ...[
+              NightshadeAlert(
+                severity: NightshadeAlertSeverity.warning,
+                title: childLabels.length == 1
+                    ? 'One branch diverges from this one'
+                    : '${childLabels.length} branches diverge from this one',
+                // Agrees in number with the branches it names: one child reads
+                // "records the step … it stopped matching", several read
+                // "record … they stopped matching".
+                message: '${childLabels.join(', ')} '
+                    '${childLabels.length == 1 ? 'records' : 'record'} the '
+                    'step of "$label" '
+                    '${childLabels.length == 1 ? 'it' : 'they'} stopped '
+                    'matching, so this delete will be refused until '
+                    '${childLabels.length == 1 ? 'it goes' : 'they go'} too. '
+                    'Confirming asks for it and the refusal then offers to '
+                    'delete the whole line — nothing is deleted before you '
+                    'choose that.',
+                compact: true,
+              ),
+              const SizedBox(height: NightshadeTokens.spaceMd),
+            ],
+            Text(
+              'The recipe row goes; the linear master it renders does not. '
+              'Nothing in the Darkroom has ever written to those pixels, so '
+              'deleting this branch loses only the interpretation.',
+              style: NightshadeTypography.bodySm.copyWith(
+                color: NightshadeColors.of(dialogContext).textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -506,6 +643,16 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     final fallback = _firstBranchId(after);
     if (fallback != null && context.mounted) {
       context.go(darkroomRecipeLocation(fallback));
+      return;
+    }
+    // The same tail [_promptDelete] has, and its absence here is what stranded
+    // the editor: a cascade delete that took the last recipe over a master left
+    // the route scoped to the dead recipe id, so the screen rendered "Recipe 1
+    // does not exist" over a master that was intact on disk and one link away
+    // from offering a fresh start.
+    final masterId = widget.masterId;
+    if (masterId != null && context.mounted) {
+      context.go(darkroomMasterLocation(masterId));
     }
   }
 

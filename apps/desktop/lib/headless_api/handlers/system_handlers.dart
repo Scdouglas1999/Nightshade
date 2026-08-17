@@ -34,6 +34,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shelf/shelf.dart';
 
+import '../auth/public_paths.dart';
 import '../request_context.dart';
 import '../response_helpers.dart';
 import '../route_metadata.dart' as route_metadata;
@@ -230,21 +231,12 @@ class SystemHandlers {
       'eventReplayBufferOldestSeq': view.eventReplayBufferOldestSeq(),
       'apiOnlyMode': true,
       'webUIAvailable': dashboardAvailable,
-      'publicEndpoints': [
-        '/api/info',
-        '/api/pairing/start',
-        '/api/pairing/verify',
-        '/api/pairing/lan-claim',
-        '/dashboard',
-        // the run-watch SPA bundle is auth-exempt so the
-        // phone can load it before pairing. The /api/run-watch/*
-        // endpoints themselves still require a Bearer token.
-        '/run-watch',
-        // browser pairing page: a no-app, no-SSH way to pair from any
-        // LAN browser. Auth-exempt like /api/info; the page calls the
-        // already-public pairing endpoints client-side.
-        '/pair',
-      ],
+      // Read straight off the declaration the auth middleware enforces, so
+      // the catalog cannot drift from what the server actually serves without
+      // a token. A subtree root (`/dashboard`, `/run-watch`) stands for the
+      // whole SPA bundle; the `/api/run-watch/*` data endpoints behind it
+      // still require a bearer token.
+      'publicEndpoints': publishedPublicEndpoints(),
       'endpoints': availableHeadlessEndpoints(),
     }, headers: _apiCompatibilityHeaders());
   }

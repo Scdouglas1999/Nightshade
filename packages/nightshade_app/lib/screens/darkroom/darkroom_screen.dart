@@ -13,6 +13,8 @@
 library;
 
 import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:io' show Directory;
 import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
@@ -136,20 +138,102 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
 
     return Scaffold(
       backgroundColor: colors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            ScreenHeader(
-              title: state.hasRecipe ? state.recipeName : 'Darkroom',
-              subtitle: _subtitle(state),
-              icon: NightshadeIcons.palette,
-              trailing: _headerAction(state),
+      // The Darkroom is a PUSHED route with no destination of its own on the
+      // nav rail: the rail keeps highlighting whatever the operator came from,
+      // and until this binding existed the only way out was to press a
+      // different rail destination — Escape and Alt+Left both did nothing at
+      // all, which reads as a broken window rather than as a screen with no
+      // back. The rail's claim becomes true once leaving returns to what it is
+      // pointing at.
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): _leave,
+          const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true):
+              _leave,
+        },
+        child: Focus(
+          autofocus: true,
+          // Publishing this node annotates the whole screen as a focusable
+          // control with no enabled state, which the AT-SPI bridge reports as a
+          // disabled button wrapping the editor — the same trap the export
+          // sheet's own Escape host documents.
+          includeSemantics: false,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                ScreenHeader(
+                  title: state.hasRecipe ? state.recipeName : 'Darkroom',
+                  subtitle: _subtitle(state),
+                  icon: NightshadeIcons.palette,
+                  trailing: _headerActions(state),
+                ),
+                Expanded(child: _body(context, colors, state)),
+              ],
             ),
-            Expanded(child: _body(context, colors, state)),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  /// Leave the Darkroom the way it was entered.
+  ///
+  /// Popping is what a pushed route deserves: it returns to the screen the nav
+  /// rail is still highlighting. A Darkroom reached by a deep link has nothing
+  /// to pop to, and goes to the session review — the same destination the
+  /// screen's own empty state offers, because that is the surface that lists
+  /// the masters there are pixels for.
+  ///
+  /// Nothing is refused and nothing is lost on the way out. A render inside the
+  /// engine is asked to stop by the controller's own dispose, and a debounced
+  /// edit that has not reached the recipe row is issued there too; the back
+  /// control says which of those is happening rather than blocking on it.
+  void _leave() {
+    final router = GoRouter.of(context);
+    if (router.canPop()) {
+      router.pop();
+      return;
+    }
+    context.go('/analytics?tab=history');
+  }
+
+  /// The header's action slot: the way out, and the render control.
+  Widget _headerActions(DarkroomState state) {
+    final render = _headerAction(state);
+    // Stated on the control itself, because it is the state that decides what
+    // leaving does: the pending write is issued by the controller's dispose,
+    // and an operator who cannot see that a write is outstanding has no way to
+    // know whether leaving costs them the edit.
+    final pending = state.savePending
+        ? 'Back — this edit is still being written to the recipe, and leaving '
+            'issues that write'
+        : 'Back to where the Darkroom was opened from';
+    return Wrap(
+      spacing: NightshadeTokens.spaceXs,
+      runSpacing: NightshadeTokens.spaceXs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Semantics(
+          container: true,
+          button: true,
+          enabled: true,
+          label: pending,
+          excludeSemantics: true,
+          onTap: _leave,
+          child: Tooltip(
+            message: '$pending. Escape and Alt+Left do the same.',
+            child: NightshadeButton(
+              label: 'Back',
+              icon: NightshadeIcons.arrowLeft,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: _leave,
+            ),
+          ),
+        ),
+        if (render != null) render,
+      ],
     );
   }
 
@@ -236,8 +320,11 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         offer: offer,
         busy: state.offerBusy,
         error: state.offerError,
+        siblings: state.siblings,
+        siblingsError: state.siblingsError,
         onStartFromLinear: _controller.startFromLinear,
         onDraftForMe: _controller.draftForMe,
+        onImportRecipe: () => unawaited(_controller.importRecipe()),
       );
     }
 
@@ -259,6 +346,10 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
           onCompareWith: (id) => setState(() => _compareRecipeId = id),
           onCompareModeChanged: (mode) => setState(() => _compareMode = mode),
           onExport: () => _openExportSheet(state),
+          siblings: state.siblings,
+          siblingsError: state.siblingsError,
+          onImportRecipe: () => unawaited(_controller.importRecipe()),
+          importBusy: state.offerBusy,
         ),
         Expanded(child: _editorOrCompare(context, colors, state)),
       ],
@@ -266,12 +357,26 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
   }
 
   /// The editor, or the two-recipe compare when one is armed.
+  ///
+  /// Compare replaces the PRIMARY region and nothing else. It used to replace
+  /// the whole panel layout, which took the Recipe and History panels off the
+  /// screen and out of the accessibility tree — so the one thing an A/B compare
+  /// is for, reading what differs between two interpretations, was reduced to
+  /// two pictures with no way to see which steps differ, beside a picker whose
+  /// own copy promises "what differs on screen is the interpretation". The
+  /// panels are collapsible on every layout this screen takes, so keeping them
+  /// costs the comparator nothing: a phone still segments, and a desktop panel
+  /// still drags down to 280 pixels or across to give the two panes the width.
   Widget _editorOrCompare(
     BuildContext context,
     NightshadeColors colors,
     DarkroomState state,
   ) {
     final compareId = _compareRecipeId;
+    Widget primary = _DarkroomViewport(
+      state: state,
+      onRerender: _controller.refreshRender,
+    );
     if (compareId != null) {
       final branches = ref.watch(
         darkroomBranchControllerProvider(
@@ -282,7 +387,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         ),
       );
       final other = branches.branchFor(compareId);
-      return _DarkroomCompareView(
+      primary = _DarkroomCompareView(
         aState: state,
         aLabel: state.recipeName.isEmpty
             ? 'Recipe ${state.recipeId}'
@@ -300,15 +405,13 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       // operator dragging a sheet up and down to reach a slider. On a phone the
       // three regions reflow into three full-width views instead.
       phoneStrategy: PhonePanelStrategy.segmented,
-      primarySegmentLabel: 'Image',
-      primarySegmentIcon: NightshadeIcons.image,
+      primarySegmentLabel: compareId == null ? 'Image' : 'A | B',
+      primarySegmentIcon:
+          compareId == null ? NightshadeIcons.image : NightshadeIcons.layers,
       initialPanelWidth: 360,
       minPanelWidth: 280,
       maxPanelWidth: 520,
-      primary: _DarkroomViewport(
-        state: state,
-        onRerender: _controller.refreshRender,
-      ),
+      primary: primary,
       secondary: [
         AdaptivePanel(
           title: 'Recipe',
@@ -370,15 +473,30 @@ class _DarkroomStartOfferView extends StatelessWidget {
   final DarkroomStartOffer offer;
   final bool busy;
   final String? error;
+
+  /// The other masters of the same night, so the offer says the night produced
+  /// more than the one master this route resolved to.
+  final List<DarkroomSiblingDraft> siblings;
+
+  /// Why the night's other masters could not be listed.
+  final String? siblingsError;
+
   final VoidCallback onStartFromLinear;
   final VoidCallback onDraftForMe;
+
+  /// The third way to give a master a recipe: read one back out of a
+  /// `.nsrecipe` sidecar an export wrote.
+  final VoidCallback onImportRecipe;
 
   const _DarkroomStartOfferView({
     required this.offer,
     required this.busy,
     required this.error,
+    required this.siblings,
+    required this.siblingsError,
     required this.onStartFromLinear,
     required this.onDraftForMe,
+    required this.onImportRecipe,
   });
 
   @override
@@ -419,8 +537,12 @@ class _DarkroomStartOfferView extends StatelessWidget {
               Text(
                 'The operation registry measures this master and proposes a '
                 'first stack — a crop off the registration edge, a background '
-                'fit, denoise, color where there is color to calibrate, and '
-                'a stretch. Every step arrives adjustable.',
+                'fit, denoise, ${offer.isColor ? 'a colour calibration' : ''
+                    'no colour calibration, because the fit needs three '
+                    'channels and this master has '
+                    '${offer.channels}'}, and a stretch. Every step arrives '
+                'adjustable, and the draft states anything else it left out '
+                'and why.',
                 style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textSecondary,
                 ),
@@ -440,10 +562,77 @@ class _DarkroomStartOfferView extends StatelessWidget {
                   color: colors.textSecondary,
                 ),
               ),
+              const SizedBox(height: NightshadeTokens.spaceLg),
+              NightshadeButton(
+                label: 'Import .nsrecipe',
+                icon: NightshadeIcons.upload,
+                variant: ButtonVariant.outline,
+                onPressed: busy ? null : onImportRecipe,
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                'Read back the sidecar an export writes beside its file. The '
+                'steps arrive exactly as the file stores them, checked against '
+                'this build — an operation this build does not register is '
+                'kept and its card says so, rather than being dropped on the '
+                'way in.',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+              ..._siblingsBlock(context, colors),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// The night's other masters, stated here as well as on the branch bar.
+  ///
+  /// This view is where a night with four masters most often lands after a
+  /// delete, and a master with no recipe carries no branch bar at all — so
+  /// without this the offer is the one screen in the Darkroom that could not
+  /// say the other three drafts exist.
+  List<Widget> _siblingsBlock(
+    BuildContext context,
+    NightshadeColors colors,
+  ) {
+    final error = siblingsError;
+    if (error != null) {
+      return [
+        const SizedBox(height: NightshadeTokens.spaceLg),
+        NightshadeAlert(
+          severity: NightshadeAlertSeverity.info,
+          message: error,
+          compact: true,
+        ),
+      ];
+    }
+    if (siblings.isEmpty) return const [];
+    return [
+      const SizedBox(height: NightshadeTokens.spaceLg),
+      Text(
+        'This night produced ${siblings.length + 1} masters. The others:',
+        style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
+      ),
+      const SizedBox(height: NightshadeTokens.spaceXs),
+      Wrap(
+        spacing: NightshadeTokens.spaceXs,
+        runSpacing: NightshadeTokens.spaceXs,
+        children: [
+          for (final sibling in siblings)
+            NightshadeChip(
+              label: sibling.recipeId == null
+                  ? '${sibling.label} — no recipe yet'
+                  : sibling.label,
+              icon: sibling.author == RecipeAuthor.autopilot
+                  ? NightshadeIcons.sparkle
+                  : NightshadeIcons.user,
+              onTap: () => context.go(darkroomMasterLocation(sibling.masterId)),
+            ),
+        ],
+      ),
+    ];
   }
 }

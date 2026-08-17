@@ -446,6 +446,73 @@ void main() {
     });
   });
 
+  // A failed copy said WHAT it could not do and never WHY. On a drop folder
+  // that ran out of inodes the journal, the morning report and the Settings
+  // status line all read
+  //   insufficientSpace: Copying <master> to <drop> failed: Cannot copy file
+  //   to '<drop>/.<master>.1.nsdelivery-part'
+  // — a sentence that would be word-for-word identical for a read-only mount,
+  // a dead symlink or a name too long for the filesystem. The reason was in
+  // hand the whole time: `osError.errorCode == 28` is what picked
+  // `insufficientSpace` one line earlier.
+  group('the operating system\'s reason', () {
+    test('a full destination says "No space left on device", not just that the '
+        'copy failed', () {
+      // Exactly the exception dart:io raises when File.copy hits ENOSPC: the
+      // act in `message`, the reason in `osError`.
+      const enospc = FileSystemException(
+        "Cannot copy file to '/drop/.M31_Ha_master.fits.1.nsdelivery-part'",
+        '/rig/M31_Ha_master.fits',
+        OSError('No space left on device', 28),
+      );
+
+      final sentence = fileSystemReason(enospc);
+      expect(sentence, contains('No space left on device'));
+      expect(sentence, contains('errno 28'));
+      expect(
+        sentence,
+        contains("Cannot copy file to '/drop/"),
+        reason: 'the file the copy was writing is still named',
+      );
+    });
+
+    test('an exception with no OS error is reported as it stands', () {
+      const bare = FileSystemException('Delivery was cancelled', '/rig/x.fits');
+      expect(fileSystemReason(bare), 'Delivery was cancelled');
+    });
+
+    test('a real refused copy carries its errno through to the operator '
+        'sentence', () async {
+      final artifact = await writeMaster('M31_Ha_master.fits');
+      // A destination directory that is not there: a genuine OS refusal with a
+      // real errno, so this proves the wiring rather than the wording.
+      final missing = Directory(p.join(tempDir.path, 'gone', 'deeper'));
+
+      await expectLater(
+        AtomicFileWrite.stage(
+          artifact: artifact,
+          deliveredName: artifact.fileName,
+          directory: missing,
+          jobId: 7,
+        ),
+        throwsA(
+          isA<DeliveryFailure>().having(
+            (f) => f.message,
+            'message',
+            allOf(
+              contains('M31_Ha_master.fits'),
+              contains(missing.path),
+              contains('errno '),
+              // The OS reason, whatever this platform words it as, is present
+              // rather than the act alone.
+              isNot(endsWith("nsdelivery-part'")),
+            ),
+          ),
+        ),
+      );
+    });
+  });
+
   group('describing artifacts', () {
     test('a missing source is reported, never skipped', () async {
       await expectLater(

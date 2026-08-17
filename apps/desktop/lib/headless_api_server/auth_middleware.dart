@@ -4,50 +4,14 @@ part of '../headless_api_server.dart';
 extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
   /// Middleware that validates Bearer token authentication.
   ///
-  /// Public endpoints are exempt from authentication:
-  /// - GET /api/info
+  /// The authentication-exempt surface is declared once in
+  /// `headless_api/auth/public_paths.dart` and enforced here; `GET /api/info`
+  /// publishes that same declaration as `publicEndpoints`.
   ///
   /// WebSocket endpoints (/api/ws, /events) require authentication when enabled.
   /// They accept the token via Authorization header or `token` query parameter
   /// (since browsers cannot set custom headers on WebSocket upgrades).
   Middleware _authMiddleware() {
-    // Endpoints that don't require authentication. Pairing endpoints are
-    // public because the dashboard has no bearer token until the user
-    // completes the first pairing flow; the 6-digit code shown on the
-    // desktop console is the out-of-band trust factor.
-    const publicPaths = {
-      '/api/info',
-      '/api/pairing/start',
-      '/api/pairing/verify',
-      // One-tap LAN pairing. Pre-auth like start/verify; the handler enforces
-      // the private-LAN source-address + lanOpen-policy gate itself.
-      '/api/pairing/lan-claim',
-      // live-stacking broadcast endpoints. The audience
-      // at an outreach event has not paired the device; the
-      // LiveStackingNode's own `auth_token` field is the access gate
-      // (constant-time compared inside BroadcastService.authorize).
-      // Adding these paths here bypasses the dashboard's pairing-token
-      // middleware so a phone-in-the-audience can fetch them with no
-      // bearer token; the broadcast handler does its own auth check.
-      '/api/broadcast/info',
-      '/api/broadcast/live-stack',
-      '/api/broadcast/sse',
-      '/broadcast',
-      // Public browser pairing page. Auth-exempt like /api/info: it is a
-      // static HTML page that drives the (already-public) pairing endpoints
-      // client-side, so an operator can pair from any LAN browser without the
-      // mobile app or terminal access.
-      '/pair',
-      // Site root. It only redirects an HTML client to the already-public
-      // dashboard or answers a JSON pointer, so exempting it exposes nothing
-      // and keeps a browser off a raw 401 body.
-      '/',
-      // Browsers request this unprompted on every page load, so a 401 here
-      // would spam the console and log an auth failure per page view for a
-      // file this server does not serve.
-      '/favicon.ico',
-    };
-
     // WebSocket paths that support query-param auth: the legacy ?token= form
     // or the single-use ?ticket= form.
     //
@@ -76,17 +40,11 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
           return innerHandler(request);
         }
 
-        // Skip auth for public endpoints and dashboard static files
+        // Skip auth for the declared public surface (exact paths plus the two
+        // SPA bundle roots) — the same declaration /api/info publishes.
         final requestId = _requestIdFrom(request);
         final path = '/${request.url.path}';
-        // /run-watch ships the phone SPA which must load before the user
-        // has any token at all. Once the SPA fetches /api/run-watch/* it
-        // attaches the bearer token like every other client, so only the
-        // bundle itself is auth-exempt.
-        if (publicPaths.contains(path) ||
-            path.startsWith('/dashboard') ||
-            path == '/run-watch' ||
-            path.startsWith('/run-watch/')) {
+        if (isPublicApiPath(path)) {
           return innerHandler(request);
         }
 

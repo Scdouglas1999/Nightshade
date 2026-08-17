@@ -906,6 +906,62 @@ fn the_published_schema_matches_each_operations_own_validation() {
     }
 }
 
+#[test]
+fn every_parameter_publishes_a_human_display_name() {
+    let reply = parse(&api_darkroom_registry("{}".to_string()).expect("the catalogue must build"));
+    let ops = reply["ops"].as_array().expect("the catalogue is an array");
+    let mut checked = 0usize;
+    for op in ops {
+        for param in op["params"].as_array().expect("params is an array") {
+            let wire = param["name"].as_str().expect("a parameter names its key");
+            let shown = param["displayName"]
+                .as_str()
+                .unwrap_or_else(|| panic!("{wire} publishes no displayName"));
+            assert!(
+                !shown.is_empty(),
+                "{wire} publishes an empty displayName, which labels no control"
+            );
+            // The point of the field: a control labelled with the wire key asks
+            // the operator to know the engine's own vocabulary. A row that just
+            // repeats the key has not been written.
+            assert_ne!(
+                shown, wire,
+                "{wire} repeats its wire key as its display name"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked >= 20, "only {checked} parameters were checked");
+}
+
+#[test]
+fn the_stretch_states_the_unit_its_points_are_measured_in() {
+    let reply = parse(&api_darkroom_registry("{}".to_string()).expect("the catalogue must build"));
+    let ops = reply["ops"].as_array().expect("the catalogue is an array");
+    let stretch = ops
+        .iter()
+        .find(|op| op["id"] == json!("stretch"))
+        .expect("stretch is registered");
+    for key in ["blackPoint", "whitePoint"] {
+        let param = stretch["params"]
+            .as_array()
+            .expect("params is an array")
+            .iter()
+            .find(|p| p["name"] == json!(key))
+            .unwrap_or_else(|| panic!("stretch documents {key}"));
+        // The bounds are +/-1e12, which is the engine's accepted range and not
+        // an ADU range any master occupies. The unit is what tells the operator
+        // that 529.74 is a plausible value and 0.5 is not.
+        assert!(
+            param["displayName"]
+                .as_str()
+                .expect("a display name")
+                .contains("ADU"),
+            "{key} states no unit, so its +/-1e12 bounds read as an ADU range"
+        );
+    }
+}
+
 /// One probe value in the shape the parameter's kind takes.
 fn bounded(param: &super::schema::ParamDoc, value: f64) -> Value {
     match param.kind {

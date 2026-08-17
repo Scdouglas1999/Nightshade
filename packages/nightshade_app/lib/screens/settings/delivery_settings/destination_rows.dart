@@ -85,119 +85,140 @@ class _DestinationRow extends ConsumerWidget {
       color: colors.textMuted,
     );
 
-    return MergeSemantics(
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 12.0 : NightshadeTokens.spaceLg,
-          vertical: isMobile ? 12.0 : 14.0,
-        ),
-        decoration: BoxDecoration(
-          border: isLast
-              ? null
-              : Border(
-                  bottom: BorderSide(
-                    color: colors.border.withValues(alpha: 0.5),
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12.0 : NightshadeTokens.spaceLg,
+        vertical: isMobile ? 12.0 : 14.0,
+      ),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: colors.border.withValues(alpha: 0.5),
+                ),
+              ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: isMobile ? 32.0 : 36.0,
+            height: isMobile ? 32.0 : 36.0,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: NightshadeTokens.borderRadiusMd,
+            ),
+            child: Icon(
+              deliveryKindIcon(destination.kind),
+              size: isMobile ? 14.0 : NightshadeTokens.iconSm,
+              color: colors.textSecondary,
+            ),
+          ),
+          SizedBox(width: isMobile ? 10 : 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // The description reads as ONE node — name, transport and
+                // endpoint, what the journal says, what it sends — because six
+                // fragments in a row is not how anyone reads a destination.
+                // The merge stops here, at the text. A row-wide MergeSemantics
+                // swallowed the switch's toggle state and the Edit button's tap
+                // into the same node, so a screen reader was handed a single
+                // checkable button named with the whole card, ending in "Edit
+                // <name>", that did nothing when activated and offered no way
+                // to reach either control.
+                MergeSemantics(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        destination.name,
+                        style: (isMobile
+                                ? NightshadeTypography.labelSm
+                                : NightshadeTypography.label)
+                            .copyWith(color: colors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      // A remote directory or a deep mount path is long and has
+                      // few break opportunities, so it is clipped rather than
+                      // allowed to push the row past the card edge. The full
+                      // value is in the editor, which is where it is changed.
+                      Text(
+                        '${deliveryKindLabel(destination.kind)} · '
+                        '${deliveryEndpointSummary(destination)}',
+                        style: detailStyle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceXs),
+                      _StatusLine(status: status),
+                      if (destination.kind == ArtifactDestinationKind.peer) ...[
+                        const SizedBox(height: 2),
+                        _PeerPairingLine(destination: destination),
+                      ],
+                      const SizedBox(height: 2),
+                      Text(
+                        deliveryContentSummary(destination.content),
+                        style: detailStyle,
+                      ),
+                      if (destination.kind == ArtifactDestinationKind.sftp) ...[
+                        const SizedBox(height: 2),
+                        Text(_secretIndicator(view), style: detailStyle),
+                      ],
+                    ],
                   ),
                 ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: isMobile ? 32.0 : 36.0,
-              height: isMobile ? 32.0 : 36.0,
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: NightshadeTokens.borderRadiusMd,
-              ),
-              child: Icon(
-                deliveryKindIcon(destination.kind),
-                size: isMobile ? 14.0 : NightshadeTokens.iconSm,
-                color: colors.textSecondary,
-              ),
+                // The one state an operator can act on from here: every
+                // attempt is spent, so nothing on the rig will look at those
+                // files again until somebody says to. It follows the
+                // description rather than interrupting it, the way a step
+                // card's controls follow its text.
+                if (status.kind == DeliveryStatusKind.failed && id != null)
+                  _RetryNowButton(destination: destination, id: id),
+              ],
             ),
-            SizedBox(width: isMobile ? 10 : 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                spacing: NightshadeTokens.spaceSm,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Text(
-                    destination.name,
-                    style: (isMobile
-                            ? NightshadeTypography.labelSm
-                            : NightshadeTypography.label)
-                        .copyWith(color: colors.textPrimary),
+                  // container, not a bare annotation: without a node of its own
+                  // the switch's toggle state and tap action are absorbed by
+                  // whatever node encloses it, which is how the whole row
+                  // became one control carrying [ON].
+                  Semantics(
+                    container: true,
+                    label: 'Deliver to ${destination.name}',
+                    child: NightshadeSwitch(
+                      value: destination.enabled,
+                      onChanged: id == null
+                          ? null
+                          : (value) =>
+                              _setEnabled(context, ref, id, value: value),
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  // A remote directory or a deep mount path is long and has
-                  // few break opportunities, so it is clipped rather than
-                  // allowed to push the row past the card edge. The full value
-                  // is in the editor, which is where it is changed.
-                  Text(
-                    '${deliveryKindLabel(destination.kind)} · '
-                    '${deliveryEndpointSummary(destination)}',
-                    style: detailStyle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  AccessibleIconButton(
+                    icon: LucideIcons.settings2,
+                    label: 'Edit ${destination.name}',
+                    size: 18,
+                    onPressed: id == null
+                        ? null
+                        : () => _DestinationEditorDialog.edit(
+                              context,
+                              ref,
+                              view: view,
+                            ),
                   ),
-                  const SizedBox(height: NightshadeTokens.spaceXs),
-                  _StatusLine(status: status),
-                  // The one state an operator can act on from here: every
-                  // attempt is spent, so nothing on the rig will look at those
-                  // files again until somebody says to.
-                  if (status.kind == DeliveryStatusKind.failed && id != null)
-                    _RetryNowButton(destination: destination, id: id),
-                  if (destination.kind == ArtifactDestinationKind.peer) ...[
-                    const SizedBox(height: 2),
-                    _PeerPairingLine(destination: destination),
-                  ],
-                  const SizedBox(height: 2),
-                  Text(
-                    deliveryContentSummary(destination.content),
-                    style: detailStyle,
-                  ),
-                  if (destination.kind == ArtifactDestinationKind.sftp) ...[
-                    const SizedBox(height: 2),
-                    Text(_secretIndicator(view), style: detailStyle),
-                  ],
                 ],
               ),
             ),
-            Flexible(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Wrap(
-                  spacing: NightshadeTokens.spaceSm,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Semantics(
-                      label: 'Deliver to ${destination.name}',
-                      child: NightshadeSwitch(
-                        value: destination.enabled,
-                        onChanged: id == null
-                            ? null
-                            : (value) =>
-                                _setEnabled(context, ref, id, value: value),
-                      ),
-                    ),
-                    AccessibleIconButton(
-                      icon: LucideIcons.settings2,
-                      label: 'Edit ${destination.name}',
-                      size: 18,
-                      onPressed: id == null
-                          ? null
-                          : () => _DestinationEditorDialog.edit(
-                                context,
-                                ref,
-                                view: view,
-                              ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -270,35 +291,39 @@ class _UnreadableDestinationRowState
     final colors = NightshadeColors.of(context);
     final row = widget.row;
     final id = row.id;
-    return MergeSemantics(
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: widget.isMobile ? 12.0 : NightshadeTokens.spaceLg,
-          vertical: widget.isMobile ? 12.0 : 14.0,
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.isMobile ? 12.0 : NightshadeTokens.spaceLg,
+        vertical: widget.isMobile ? 12.0 : 14.0,
+      ),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
         ),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: widget.isMobile ? 32.0 : 36.0,
-              height: widget.isMobile ? 32.0 : 36.0,
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: NightshadeTokens.borderRadiusMd,
-              ),
-              child: Icon(
-                LucideIcons.fileWarning,
-                size: widget.isMobile ? 14.0 : NightshadeTokens.iconSm,
-                color: colors.error,
-              ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: widget.isMobile ? 32.0 : 36.0,
+            height: widget.isMobile ? 32.0 : 36.0,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: NightshadeTokens.borderRadiusMd,
             ),
-            SizedBox(width: widget.isMobile ? 10 : 14),
-            Expanded(
+            child: Icon(
+              LucideIcons.fileWarning,
+              size: widget.isMobile ? 14.0 : NightshadeTokens.iconSm,
+              color: colors.error,
+            ),
+          ),
+          SizedBox(width: widget.isMobile ? 10 : 14),
+          Expanded(
+            // Same split as a readable row: the description is one node, and
+            // Delete — the only thing this row can do — keeps its own. Merged
+            // together, the single destructive control on the page arrived as a
+            // 4-line name ending in "Delete".
+            child: MergeSemantics(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -329,22 +354,22 @@ class _UnreadableDestinationRowState
                 ],
               ),
             ),
-            if (id != null)
-              Flexible(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: NightshadeButton(
-                    label: 'Delete',
-                    icon: LucideIcons.trash2,
-                    variant: ButtonVariant.destructive,
-                    size: ButtonSize.small,
-                    isLoading: _deleting,
-                    onPressed: _deleting ? null : () => _delete(id),
-                  ),
+          ),
+          if (id != null)
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: NightshadeButton(
+                  label: 'Delete',
+                  icon: LucideIcons.trash2,
+                  variant: ButtonVariant.destructive,
+                  size: ButtonSize.small,
+                  isLoading: _deleting,
+                  onPressed: _deleting ? null : () => _delete(id),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }

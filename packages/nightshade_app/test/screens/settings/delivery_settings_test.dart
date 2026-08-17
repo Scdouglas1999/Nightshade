@@ -24,7 +24,10 @@
 // database is replaced by the `pairedDesktopReaderProvider` seam so no test
 // opens the on-disk pairing store.
 
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/delivery_settings.dart';
@@ -803,6 +806,92 @@ void main() {
     },
   );
 
+  // Naming the controls is not enough if they are not controls. A row-wide
+  // MergeSemantics folded the switch, the Edit button and every line of the
+  // description into ONE checkable node whose name was the whole card —
+  // "nas / Watched folder · /mnt/nas / No delivery has run yet. / Sends Linear
+  // masters / Deliver to nas / Edit nas [ON]" — so a screen reader had one
+  // button that did nothing when activated, no toggle and no way to reach the
+  // editor. Contrast the step cards, which publish the toggle, the parameters
+  // button and Remove separately.
+  testWidgets(
+    'a11y_nodes: the destination row publishes its toggle, its editor and its '
+    'description as separate nodes',
+    (tester) async {
+      _swallowKnownOverflows();
+      final semantics = tester.ensureSemantics();
+
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.linearMasters},
+      );
+
+      await _pumpDelivery(tester, database);
+
+      // The switch is its own node: named for the destination it delivers to,
+      // carrying the on/off state and nothing else. The name is EXACTLY that —
+      // when the row merged, this label was only a fragment of a 5-line blob.
+      final toggleNode = tester.getSemantics(
+        find.bySemanticsLabel('Deliver to nas'),
+      );
+      final toggle = toggleNode.getSemanticsData();
+      expect(toggle.label, 'Deliver to nas');
+      expect(
+        toggle.flagsCollection.isToggled,
+        Tristate.isTrue,
+        reason: 'the switch must arrive as a switch reporting its own state, '
+            'not as a plain button',
+      );
+
+      // The editor is a second node, and it is the one carrying the tap.
+      final editNode = tester.getSemantics(find.bySemanticsLabel('Edit nas'));
+      final edit = editNode.getSemanticsData();
+      expect(edit.label, 'Edit nas');
+      expect(edit.hasAction(SemanticsAction.tap), isTrue);
+      expect(
+        editNode.id,
+        isNot(toggleNode.id),
+        reason: 'one node cannot be both the switch and the editor',
+      );
+
+      // The body is a third node: it says what the destination is and what the
+      // journal reports, and it claims no action, because activating it does
+      // nothing.
+      final body = tester
+          .getSemantics(
+            find.descendant(
+              of: find.byType(MergeSemantics),
+              matching: find.text('nas'),
+            ),
+          )
+          .getSemanticsData();
+      expect(body.label, contains('Watched folder · /mnt/nas'));
+      expect(body.label, contains('Sends Linear masters'));
+      expect(
+        body.label,
+        isNot(contains('Edit nas')),
+        reason: 'the description must not swallow the controls beside it',
+      );
+      expect(
+        body.hasAction(SemanticsAction.tap),
+        isFalse,
+        reason: 'a row body that does nothing when activated must not offer '
+            'an activation',
+      );
+      expect(
+        body.flagsCollection.isToggled,
+        Tristate.none,
+        reason: 'the description is not a switch and must not report one',
+      );
+
+      semantics.dispose();
+    },
+  );
+
   testWidgets(
     'remote_mode_refuses_to_show_this_device_rows_as_the_hosts',
     (tester) async {
@@ -910,6 +999,57 @@ void main() {
           await database.customSelect('SELECT id FROM delivery_targets').get();
       expect(rows, isEmpty);
       expect(find.text('No delivery destination'), findsOneWidget);
+    },
+  );
+
+  // The unreadable row carries the page's one destructive control, and it was
+  // merged into the row's description in the same way — a 4-line name ending
+  // in "Delete". A screen reader must be able to find Delete as Delete.
+  testWidgets(
+    'a11y_nodes: the unreadable row keeps Delete as a control of its own',
+    (tester) async {
+      _swallowKnownOverflows();
+      final semantics = tester.ensureSemantics();
+
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+      await database.customStatement(
+        'INSERT INTO delivery_targets('
+        'name, kind, config_json, enabled, content_json, created_at, '
+        'updated_at) VALUES (?, ?, ?, 1, ?, ?, ?)',
+        ['bad-row', 'watched_folder', '{}', '["hdr_composite"]', now, now],
+      );
+
+      await _pumpDelivery(tester, database);
+
+      final delete = tester
+          .getSemantics(find.widgetWithText(NightshadeButton, 'Delete'))
+          .getSemanticsData();
+      expect(delete.label, contains('Delete'));
+      expect(delete.hasAction(SemanticsAction.tap), isTrue);
+      expect(
+        delete.label,
+        isNot(contains('This row cannot be read')),
+        reason: 'the button is named for what it does, not for the whole row',
+      );
+
+      final body = tester
+          .getSemantics(
+            find.descendant(
+              of: find.byType(MergeSemantics),
+              matching: find.text('bad-row'),
+            ),
+          )
+          .getSemanticsData();
+      expect(body.label, contains('This row cannot be read'));
+      expect(
+        body.label,
+        isNot(contains('Delete')),
+        reason: 'the explanation must not absorb the button that acts on it',
+      );
+
+      semantics.dispose();
     },
   );
 }

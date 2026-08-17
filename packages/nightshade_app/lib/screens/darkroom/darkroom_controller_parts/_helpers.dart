@@ -176,6 +176,7 @@ List<DarkroomParamSpec> _decodeParams(List<dynamic> raw) {
     if (entry is! Map<String, dynamic>) continue;
     final name = entry['name'];
     if (name is! String) continue;
+    final displayName = entry['displayName'];
     final kindWire = entry['kind'];
     final allowed = entry['allowed'];
     final required = entry['required'];
@@ -184,6 +185,12 @@ List<DarkroomParamSpec> _decodeParams(List<dynamic> raw) {
     out.add(
       DarkroomParamSpec(
         name: name,
+        // The wire key when the registry publishes no display name: a build
+        // whose catalogue predates the field labels its controls with the key
+        // it does have rather than with a name this file made up.
+        displayName: displayName is String && displayName.trim().isNotEmpty
+            ? displayName.trim()
+            : name,
         kindWire: kindWire is String ? kindWire : 'unstated',
         kind: DarkroomParamKind.fromWire(kindWire is String ? kindWire : null),
         required: required is bool && required,
@@ -259,6 +266,139 @@ List<String> decodeDarkroomDraftNotes(Map<String, dynamic> reply) {
     out.add('$opId — $verdict: $why');
   }
   return List.unmodifiable(out);
+}
+
+/// A `.nsrecipe` file the operator chose, and what it holds.
+@immutable
+class DarkroomSidecarPick {
+  /// Absolute path of the chosen file, so the import can say what it read.
+  final String path;
+
+  /// The file's text, exactly as it was on disk.
+  final String text;
+
+  const DarkroomSidecarPick({required this.path, required this.text});
+}
+
+/// Choose and read a `.nsrecipe` sidecar, as a seam a test can script.
+///
+/// Both halves are unavailable inside a widget test — the platform file chooser
+/// and the read off disk — so they are one overridable function rather than two
+/// calls the import path makes directly. Answers null when the operator backed
+/// out of the chooser.
+typedef DarkroomSidecarReader = Future<DarkroomSidecarPick?> Function();
+
+Future<DarkroomSidecarPick?> _defaultDarkroomSidecarReader() async {
+  final file = await openFile(
+    acceptedTypeGroups: const [
+      XTypeGroup(
+        label: 'Nightshade recipe sidecar',
+        extensions: ['nsrecipe'],
+      ),
+    ],
+    confirmButtonText: 'Import recipe',
+  );
+  if (file == null) return null;
+  // XFile's own read, not `dart:io`: the chooser already handed back a handle,
+  // and on the platforms whose chooser returns a content URI rather than a path
+  // that handle is the only thing that can be read.
+  return DarkroomSidecarPick(path: file.path, text: await file.readAsString());
+}
+
+/// Override point for the `.nsrecipe` import source (tests script this).
+final darkroomSidecarReaderProvider = Provider<DarkroomSidecarReader>(
+  (ref) => _defaultDarkroomSidecarReader,
+);
+
+/// A `.nsrecipe` sidecar, read back.
+///
+/// The sidecar is what an export writes beside its file so the recipe survives
+/// outside the database. This is the reader for it: the same document, decoded
+/// into the step list the editor edits, plus the provenance the sidecar carries
+/// about the pixels it was written over.
+@immutable
+class DarkroomImportedRecipe {
+  /// The steps the sidecar stored, in application order.
+  final List<DarkroomStep> steps;
+
+  /// The master the sidecar's export was rendered from, when it named one.
+  /// Never used as the imported recipe's base — the import writes a recipe over
+  /// the master the operator is looking at — but stated, so an import over a
+  /// different master says so.
+  final String? masterPath;
+
+  /// The recipe fingerprint the exporting build computed, when it recorded one.
+  final String? fingerprint;
+
+  /// The recipe schema version the sidecar declares, when it declares one.
+  final int? schemaVersion;
+
+  const DarkroomImportedRecipe({
+    required this.steps,
+    required this.masterPath,
+    required this.fingerprint,
+    required this.schemaVersion,
+  });
+}
+
+/// Decode a `.nsrecipe` sidecar document.
+///
+/// Throws [DarkroomRecipeFormatException] naming what the file holds instead:
+/// an import that silently produced an empty stack would look like a recipe
+/// that was read and decided on nothing, and a truncated sidecar is exactly the
+/// case this refusal exists for.
+DarkroomImportedRecipe decodeDarkroomSidecar(String text) {
+  final Object? document;
+  try {
+    document = jsonDecode(text);
+  } on FormatException catch (error) {
+    throw DarkroomRecipeFormatException(
+      'this file is not JSON, so it carries no recipe to read: '
+      '${error.message}',
+    );
+  }
+  if (document is! Map<String, dynamic>) {
+    throw DarkroomRecipeFormatException(
+      'this file holds ${darkroomJsonKind(document)}, and a .nsrecipe sidecar '
+      'is a JSON object',
+    );
+  }
+  final kind = document['kind'];
+  if (kind != 'nsrecipe') {
+    throw DarkroomRecipeFormatException(
+      kind is String
+          ? 'this file declares itself a "$kind" document, not the "nsrecipe" '
+              'sidecar an export writes'
+          : 'this file declares no "kind", so it is not a .nsrecipe sidecar '
+              'this build can read',
+    );
+  }
+  final recipe = document['recipe'];
+  if (recipe is! Map<String, dynamic>) {
+    throw const DarkroomRecipeFormatException(
+      'this sidecar carries no recipe object, so it names no operations',
+    );
+  }
+  final steps = recipe['steps'];
+  if (steps is! List) {
+    throw DarkroomRecipeFormatException(
+      'this sidecar\'s recipe carries ${darkroomJsonKind(steps)} where its '
+      'step list belongs',
+    );
+  }
+  final masterPath = document['masterPath'] ?? recipe['baseMasterRef'];
+  final fingerprint = document['fingerprint'];
+  return DarkroomImportedRecipe(
+    steps: [
+      for (var i = 0; i < steps.length; i++)
+        DarkroomStep.fromJson(steps[i], index: i),
+    ],
+    masterPath:
+        masterPath is String && masterPath.isNotEmpty ? masterPath : null,
+    fingerprint:
+        fingerprint is String && fingerprint.isNotEmpty ? fingerprint : null,
+    schemaVersion: darkroomInteger(document['schemaVersion']),
+  );
 }
 
 /// Decode a `validate` reply.

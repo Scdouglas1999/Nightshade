@@ -1,5 +1,49 @@
 part of '../darkroom_controller.dart';
 
+/// Another master from the same night, and the newest recipe written over it.
+///
+/// Every in-app "refine this night" entry point resolves ONE master and opens
+/// it, so a four-filter night hands the editor one of four drafts and says
+/// nothing about the other three. This is the statement that they exist: one
+/// entry per sibling master, with the recipe that opens it when it has one.
+@immutable
+class DarkroomSiblingDraft {
+  /// `integrated_masters.id` of the sibling.
+  final int masterId;
+
+  /// The sibling master's own library name.
+  final String masterName;
+
+  /// The filter it covers, or null for an unfiltered master.
+  final String? filter;
+
+  /// The newest recipe over those pixels, or null when the master carries none
+  /// yet — in which case the link opens the master and offers a first one.
+  final int? recipeId;
+
+  /// That recipe's label, or null when there is no recipe.
+  final String? recipeName;
+
+  /// Who wrote that recipe, or null when there is none.
+  final RecipeAuthor? author;
+
+  const DarkroomSiblingDraft({
+    required this.masterId,
+    required this.masterName,
+    required this.filter,
+    required this.recipeId,
+    required this.recipeName,
+    required this.author,
+  });
+
+  /// The words the branch bar prints on the link.
+  String get label {
+    final name = recipeName;
+    if (name == null || name.trim().isEmpty) return masterName;
+    return '$masterName · ${name.trim()}';
+  }
+}
+
 /// What the Darkroom is showing right now.
 ///
 /// The state is rebuilt whole on every change; there is no in-place mutation,
@@ -128,6 +172,31 @@ class DarkroomState {
   /// Why the last write to the recipe row failed. Null when the row is current.
   final String? saveError;
 
+  /// What the operation registry decided NOT to put in this recipe's draft, one
+  /// sentence per operation it left out, with the reason it gave.
+  ///
+  /// The registry records these while composing a draft, and until they reached
+  /// here they existed only in the night report on disk: the operator was
+  /// promised "color where there is color to calibrate" and then handed a
+  /// four-step stack that said nothing about the colour step it did not carry.
+  /// Empty when the draft omitted nothing, and when the open recipe was not
+  /// drafted in this session.
+  final List<String> draftNotes;
+
+  /// The other masters of the same night, with the newest recipe over each.
+  ///
+  /// Empty when the night produced one master, or before the walk settles.
+  final List<DarkroomSiblingDraft> siblings;
+
+  /// Why the night's other masters could not be listed, in the words the bar
+  /// prints. Null when the walk succeeded — including when it succeeded and
+  /// found none.
+  final String? siblingsError;
+
+  /// What the last `.nsrecipe` import read, in the file's own numbers. Null
+  /// when nothing was imported into this editor session.
+  final String? importNote;
+
   const DarkroomState({
     this.loading = true,
     this.loadError,
@@ -160,6 +229,10 @@ class DarkroomState {
     this.canRedo = false,
     this.savePending = false,
     this.saveError,
+    this.draftNotes = const [],
+    this.siblings = const [],
+    this.siblingsError,
+    this.importNote,
   });
 
   /// True when a recipe is open and editable.
@@ -282,6 +355,12 @@ class DarkroomState {
     bool? savePending,
     String? saveError,
     bool clearSaveError = false,
+    List<String>? draftNotes,
+    List<DarkroomSiblingDraft>? siblings,
+    String? siblingsError,
+    bool clearSiblingsError = false,
+    String? importNote,
+    bool clearImportNote = false,
   }) {
     return DarkroomState(
       loading: loading ?? this.loading,
@@ -317,6 +396,11 @@ class DarkroomState {
       canRedo: canRedo ?? this.canRedo,
       savePending: savePending ?? this.savePending,
       saveError: clearSaveError ? null : (saveError ?? this.saveError),
+      draftNotes: draftNotes ?? this.draftNotes,
+      siblings: siblings ?? this.siblings,
+      siblingsError:
+          clearSiblingsError ? null : (siblingsError ?? this.siblingsError),
+      importNote: clearImportNote ? null : (importNote ?? this.importNote),
     );
   }
 }

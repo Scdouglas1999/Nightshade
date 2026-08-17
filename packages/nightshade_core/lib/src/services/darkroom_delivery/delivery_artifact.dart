@@ -75,7 +75,7 @@ class DeliveryFile {
     } on FileSystemException catch (error) {
       throw DeliveryFailure(
         DeliveryFailureKind.sourceMissing,
-        'Reading $path failed: ${error.message}',
+        'Reading $path failed: ${fileSystemReason(error)}',
         cause: error,
       );
     }
@@ -185,7 +185,7 @@ Future<String> sha256OfFile(File file) async {
   } on FileSystemException catch (error) {
     throw DeliveryFailure(
       DeliveryFailureKind.sourceMissing,
-      'Reading ${file.path} failed: ${error.message}',
+      'Reading ${file.path} failed: ${fileSystemReason(error)}',
       cause: error,
     );
   } finally {

@@ -270,6 +270,16 @@ class DarkroomParamSpec {
   /// Wire key.
   final String name;
 
+  /// What the control's label reads, with the unit the registry states.
+  ///
+  /// The wire key is the recipe engine's own vocabulary — `d`, `b`,
+  /// `blackPoint` — and a control labelled with it asks the operator to know
+  /// the engine's field names. The registry publishes a display name beside
+  /// every key; when it publishes none this falls back to [name], because the
+  /// wire key is then the only name that exists and inventing a prettier one
+  /// would label the control with something no schema states.
+  final String displayName;
+
   /// The type token exactly as the registry wrote it, so an unmodelled kind can
   /// be named in the message that explains why it has no control.
   final String kindWire;
@@ -306,6 +316,7 @@ class DarkroomParamSpec {
 
   const DarkroomParamSpec({
     required this.name,
+    required this.displayName,
     required this.kindWire,
     required this.kind,
     required this.required,

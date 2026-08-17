@@ -60,6 +60,15 @@ impl ParamKind {
 pub(crate) struct ParamDoc {
     /// Wire key.
     pub(crate) name: &'static str,
+    /// What an operator calls this parameter, with its unit where it has one.
+    ///
+    /// The wire key is the recipe's own vocabulary — `d`, `b`, `blackPoint` —
+    /// and an editor that labels a control with it asks the operator to know
+    /// the engine's field names. The registry owns the unit as well as the
+    /// range, so it states both here rather than leaving the editor to invent
+    /// either. The wire key is still published beside it, so a control can be
+    /// matched to the JSON the recipe stores.
+    pub(crate) display_name: &'static str,
     pub(crate) kind: ParamKind,
     /// Whether the payload must carry it.
     pub(crate) required: bool,
@@ -110,6 +119,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "sampleSpacing",
+                display_name: "Sample spacing (master pixels)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(8.0),
@@ -124,6 +134,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "exclusionPercentile",
+                display_name: "Darkest-sample fraction kept",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.05),
@@ -138,6 +149,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "modelOrder",
+                display_name: "Background polynomial degree",
                 kind: ParamKind::Integer,
                 required: false,
                 min: Some(0.0),
@@ -160,6 +172,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "blackPoint",
+                display_name: "Black point (ADU)",
                 kind: ParamKind::Number,
                 required: true,
                 min: Some(-1e12),
@@ -174,6 +187,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "whitePoint",
+                display_name: "White point (ADU)",
                 kind: ParamKind::Number,
                 required: true,
                 min: Some(-1e12),
@@ -188,6 +202,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "d",
+                display_name: "Stretch intensity",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -202,6 +217,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "b",
+                display_name: "Local intensity",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(-5.0),
@@ -216,6 +232,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "symmetryPoint",
+                display_name: "Symmetry point (normalised)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -238,6 +255,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "x",
+                display_name: "Left edge (master pixels)",
                 kind: ParamKind::Integer,
                 required: false,
                 min: Some(0.0),
@@ -252,6 +270,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "y",
+                display_name: "Top edge (master pixels)",
                 kind: ParamKind::Integer,
                 required: false,
                 min: Some(0.0),
@@ -266,6 +285,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "width",
+                display_name: "Width (master pixels)",
                 kind: ParamKind::Integer,
                 required: true,
                 min: Some(1.0),
@@ -280,6 +300,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "height",
+                display_name: "Height (master pixels)",
                 kind: ParamKind::Integer,
                 required: true,
                 min: Some(1.0),
@@ -302,6 +323,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "channelScale",
+                display_name: "Per-channel scales",
                 kind: ParamKind::NumberArray,
                 required: false,
                 min: Some(1e-6),
@@ -316,6 +338,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "whiteRefBv",
+                display_name: "Neutral colour (B-V)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(-0.5),
@@ -330,6 +353,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "magLimit",
+                display_name: "Faintest catalogue magnitude (V)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(5.0),
@@ -344,6 +368,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "matchRadiusPx",
+                display_name: "Match radius (render pixels)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.5),
@@ -358,6 +383,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "minStars",
+                display_name: "Fewest matched stars",
                 kind: ParamKind::Integer,
                 required: false,
                 min: Some(8.0),
@@ -380,6 +406,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "scaleCount",
+                display_name: "Wavelet scales",
                 kind: ParamKind::Integer,
                 required: false,
                 min: Some(1.0),
@@ -394,6 +421,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "thresholdSigma",
+                display_name: "Detail threshold (noise sigmas)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -408,6 +436,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "strength",
+                display_name: "Strength",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -422,6 +451,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "chromaStrength",
+                display_name: "Chroma strength",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -444,6 +474,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "amount",
+                display_name: "Amount",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -458,6 +489,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "maskThresholdSigma",
+                display_name: "Mask threshold (noise sigmas)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(1.0),
@@ -472,6 +504,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "maskDilatePx",
+                display_name: "Mask dilation (render pixels)",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -494,6 +527,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "amount",
+                display_name: "Saturation change",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(-1.0),
@@ -508,6 +542,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "protection",
+                display_name: "Highlight protection",
                 kind: ParamKind::Number,
                 required: false,
                 min: Some(0.0),
@@ -530,6 +565,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
         params: &[
             ParamDoc {
                 name: "mode",
+                display_name: "Curve mode",
                 kind: ParamKind::Enumerated,
                 required: false,
                 min: None,
@@ -544,6 +580,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "x",
+                display_name: "Control-point inputs",
                 kind: ParamKind::NumberList,
                 required: false,
                 min: Some(0.0),
@@ -558,6 +595,7 @@ pub(crate) const OP_DOCS: &[OpDoc] = &[
             },
             ParamDoc {
                 name: "y",
+                display_name: "Control-point outputs",
                 kind: ParamKind::NumberList,
                 required: false,
                 min: Some(0.0),
@@ -620,6 +658,7 @@ pub(crate) fn ops_json() -> Result<Value, String> {
         for param in doc.params {
             let mut entry = json!({
                 "name": param.name,
+                "displayName": param.display_name,
                 "kind": param.kind.as_wire(),
                 "required": param.required,
                 "example": table_json(param.example_json, doc.id, param.name, "example")?,

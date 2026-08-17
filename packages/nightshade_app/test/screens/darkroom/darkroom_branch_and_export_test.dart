@@ -923,11 +923,15 @@ void main() {
     expect(png.label, startsWith('PNG'));
     expect(png.label, contains('still linear ADU'));
 
+    // An AVAILABLE option takes the same shape. Its reason used to ride the
+    // hint, which the Linux AT-SPI bridge publishes nowhere — so the only
+    // statement of what FITS writes was a hover tooltip.
     final fits = dataFor(tester, find.widgetWithText(NightshadeChip, 'FITS'));
     expect(fits.hasFlag(SemanticsFlag.isEnabled), isTrue);
     expect(fits.hasFlag(SemanticsFlag.isSelected), isTrue);
     expect(fits.hasAction(SemanticsAction.tap), isTrue);
-    expect(fits.hint, contains('Always available'));
+    expect(fits.label, startsWith('FITS'));
+    expect(fits.label, contains('Always available'));
 
     // Turning the auto stretch on makes the same chip readable as available.
     await tester.tap(find.byType(NightshadeSwitch).last);
@@ -935,7 +939,7 @@ void main() {
     final pngNow = dataFor(tester, find.widgetWithText(NightshadeChip, 'PNG'));
     expect(pngNow.hasFlag(SemanticsFlag.isEnabled), isTrue);
     expect(pngNow.hasAction(SemanticsAction.tap), isTrue);
-    expect(pngNow.hint, contains('16-bit PNG'));
+    expect(pngNow.label, contains('16-bit PNG'));
 
     Navigator.of(tester.element(find.text('Export'))).pop();
     await settle(tester);

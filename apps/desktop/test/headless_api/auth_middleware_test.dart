@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_desktop/headless_api/auth/public_paths.dart';
 import 'package:nightshade_desktop/headless_api/auth_policy.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -93,6 +94,57 @@ void main() {
       );
       expect(response.headers['x-nightshade-minimum-api-version'], '2.4.0');
     });
+
+    // D4W-4. The auth-exempt surface used to be written out twice — once as
+    // the middleware's allowlist, once as `/api/info`'s `publicEndpoints` —
+    // and the published copy had drifted: it named seven paths while the
+    // server actually answered thirteen without a token, omitting every
+    // broadcast endpoint, the site root and the favicon. Both now read the one
+    // declaration in `headless_api/auth/public_paths.dart`, and what is
+    // asserted here is the behaviour: everything published answers
+    // unauthenticated, and the omitted six are back in the catalog.
+    test('publishes the endpoints it really serves without a token', () async {
+      final info = await _request(client, baseUri, '/api/info');
+
+      expect(info.statusCode, HttpStatus.ok);
+      final published = (info.body['publicEndpoints'] as List).cast<String>();
+      expect(published, equals(publishedPublicEndpoints()));
+      expect(
+        published,
+        containsAll(<String>[
+          '/api/broadcast/info',
+          '/api/broadcast/live-stack',
+          '/api/broadcast/sse',
+          '/broadcast',
+          '/',
+          '/favicon.ico',
+        ]),
+      );
+
+      for (final path in published) {
+        final response = await _rawRequest(client, baseUri, path);
+        expect(
+          response.statusCode,
+          isNot(HttpStatus.unauthorized),
+          reason: '$path is published as public and must not demand a token',
+        );
+      }
+    });
+
+    test('serves the SPA bundle under a published root', () async {
+      final response = await _rawRequest(client, baseUri, '/run-watch/');
+
+      expect(response.statusCode, isNot(HttpStatus.unauthorized));
+    });
+
+    test(
+      'a path that merely starts like a public root still needs a token',
+      () async {
+        final response = await _request(client, baseUri, '/dashboard-internal');
+
+        expect(response.statusCode, HttpStatus.unauthorized);
+      },
+    );
 
     test('preserves caller-supplied request IDs on protected errors', () async {
       final response = await _request(

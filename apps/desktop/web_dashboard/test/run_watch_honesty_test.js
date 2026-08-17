@@ -416,3 +416,96 @@ test('retryAfterSecsFrom prefers the body, then the header, then one second',
     // A hostile window cannot park the page for hours.
     assert.equal(await api.retryAfterSecsFrom(res({ retryAfterSecs: 100000 })), 300);
   });
+
+// ---------------------------------------------------------------------------
+// D4W-3 — a cancelled night is not an idle rig
+// ---------------------------------------------------------------------------
+
+/**
+ * What GET /api/run-watch/snapshot actually answers six seconds after
+ * POST /api/sequencer/stop, measured against the release bundle: the sequencer
+ * status says `cancelled` while the executor's own progress block has already
+ * fallen back to `idle` — `SequenceExecutionState` has no cancelled member.
+ */
+function cancelledSnapshot(progressExtra) {
+  return runningSnapshot({
+    sequencer: {
+      state: 'cancelled',
+      currentNodeName: null,
+      progress: Object.assign({
+        state: 'idle',
+        currentTarget: 'D1 Simulated Field',
+        currentNodeName: null,
+        totalExposures: 12,
+        completedExposures: 1,
+        progressPercent: 0.083,
+      }, progressExtra || {}),
+    },
+  });
+}
+
+test('a cancelled run is not reported as an idle rig', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  api.applySnapshot(cancelledSnapshot());
+  assert.equal(doc.getElementById('state-badge').textContent, 'cancelled',
+    'the badge must read the field the snapshot actually carries');
+  assert.equal(doc.getElementById('seq-name').textContent, 'D1 Simulated Field');
+});
+
+test('a cancelled run with nothing left to name still says cancelled', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  api.applySnapshot(cancelledSnapshot({ currentTarget: null }));
+  assert.equal(doc.getElementById('state-badge').textContent, 'cancelled');
+  assert.equal(doc.getElementById('seq-name').textContent, 'Cancelled',
+    'an unnamed cancelled run must not read "Idle"');
+});
+
+test('a live run still reports the executor state, not the wire state', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  // The executor is mid-run and the sequencer status lags a state behind: the
+  // block describing the live run wins.
+  api.applySnapshot(runningSnapshot({
+    sequencer: {
+      state: 'idle',
+      currentNodeName: 'Exposure L',
+      progress: { state: 'running', currentTarget: 'D1 Simulated Field' },
+    },
+  }));
+  assert.equal(doc.getElementById('state-badge').textContent, 'running');
+});
+
+test('a genuinely idle rig still reads idle', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  api.applySnapshot(runningSnapshot({
+    sequencer: { state: 'idle', currentNodeName: null, progress: { state: 'idle' } },
+  }));
+  assert.equal(doc.getElementById('state-badge').textContent, 'idle');
+  assert.equal(doc.getElementById('seq-name').textContent, 'Idle');
+});
+
+test('a snapshot that names no state at all is unknown, never idle', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  api.applySnapshot(runningSnapshot({ sequencer: { progress: {} } }));
+  assert.equal(doc.getElementById('state-badge').textContent, 'unknown');
+  assert.ok(doc.getElementById('state-badge').className.includes('badge-error'));
+});
+
+// ---------------------------------------------------------------------------
+// D4W-5 — before the first snapshot, the page is connecting
+// ---------------------------------------------------------------------------
+
+test('the shipped markup asserts no rig state before the first snapshot', () => {
+  const html = fs.readFileSync(path.join(RUN_WATCH, 'index.html'), 'utf8');
+  const badge = html.match(/<span id="state-badge"[^>]*>([^<]*)</);
+  assert.ok(badge, 'the state badge must exist in the markup');
+  assert.equal(badge[1].trim(), 'connecting',
+    'a page that has heard nothing must not claim the rig is idle');
+  const name = html.match(/<span id="seq-name"[^>]*>([^<]*)</);
+  assert.ok(name, 'the sequence-name slot must exist in the markup');
+  assert.match(name[1].trim(), /^Connecting/);
+});

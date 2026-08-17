@@ -16,10 +16,13 @@ import 'package:nightshade_core/src/database/daos/delivery_targets_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/darkroom/delivery.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/artifact_transport.dart';
+import 'package:nightshade_core/src/services/darkroom_delivery/atomic_file_write.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_artifact.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_failure.dart';
+import 'package:nightshade_core/src/services/darkroom_delivery/delivery_naming.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_retry_policy.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_service.dart';
+import 'package:nightshade_core/src/services/darkroom_delivery/watched_folder_transport.dart';
 import 'package:path/path.dart' as p;
 
 /// A transport whose behaviour the test dictates per file.
@@ -514,6 +517,60 @@ void main() {
       final row = (await DeliveryJournalDao(db).listForJob(1)).single;
       expect(row.state, DeliveryAttemptState.failed);
       expect(row.lastError, contains('sourceMissing'));
+    });
+
+    // `delivery_journal.last_error` is the sentence the morning report and the
+    // Settings > Delivery status line both print. It used to name the act and
+    // not the cause — "failed: Cannot copy file to '<staged path>'" — for
+    // every refusal the filesystem could make, so a full drive, a read-only
+    // mount and a name the filesystem would not take all read identically.
+    // The real transport, a real refused copy, and the row the operator reads.
+    test('a copy the filesystem refuses journals the reason it gave, not just '
+        'that it failed', () async {
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      final drop = await Directory(p.join(tempDir.path, 'drop')).create();
+      await DeliveryTargetsDao(db).create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: jsonEncode({'path': drop.path, kDeliveryRigIdKey: ''}),
+        content: const {ArtifactContent.linearMasters},
+      );
+      final set = await artifactSet();
+      // A directory sitting on the staged name. `File.copy` onto a directory
+      // is EISDIR on every platform Nightshade ships to, and unlike a
+      // permission bit no user — root included — can copy over it, so this
+      // reproduces a genuine OS refusal deterministically.
+      await Directory(
+        p.join(
+          drop.path,
+          '.${set.artifacts.single.fileName}.1$kStagedDeliverySuffix',
+        ),
+      ).create();
+
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (destination, jobId) =>
+            WatchedFolderTransport(destination: destination, jobId: jobId),
+      );
+
+      final report = await service.deliverJobArtifacts(set);
+      expect(report.delivered, 0);
+
+      final row = (await DeliveryJournalDao(db).listForJob(1)).single;
+      expect(row.lastError, contains('M31_Ha_master.fits'));
+      expect(
+        row.lastError,
+        contains('errno '),
+        reason: 'the operator sentence must carry the reason the OS gave',
+      );
+      expect(
+        row.lastError,
+        isNot(endsWith("$kStagedDeliverySuffix'")),
+        reason: 'the sentence used to end at the act it could not perform',
+      );
     });
   });
 

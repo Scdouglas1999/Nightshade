@@ -90,10 +90,13 @@
         <span class="topbar-title">Nightshade</span>
       </div>
       <div class="topbar-center">
-        <span id="seq-name" class="seq-name">Idle</span>
+        <!-- Shipped state: no snapshot has arrived, so the header names the
+             page's own situation and asserts nothing about the rig.
+             applySnapshot replaces both on the first answer. -->
+        <span id="seq-name" class="seq-name">Connecting…</span>
       </div>
       <div class="topbar-right">
-        <span id="state-badge" class="badge badge-idle" role="status">idle</span>
+        <span id="state-badge" class="badge badge-idle" role="status">connecting</span>
         <span id="connection-dot" class="conn-dot conn-disconnected" title="Disconnected" aria-label="Connection status"></span>
       </div>
     </header>

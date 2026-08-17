@@ -25,6 +25,7 @@ import 'headless_api/auth/auth_cookie.dart';
 import 'headless_api/auth/cors_policy.dart';
 import 'headless_api/auth/pairing_attempt_tracker.dart';
 import 'headless_api/auth/pairing_service.dart';
+import 'headless_api/auth/public_paths.dart';
 import 'headless_api/auth/timing.dart';
 import 'headless_api/auth/token_resolver.dart';
 import 'headless_api/auth/ws_ticket_manager.dart';

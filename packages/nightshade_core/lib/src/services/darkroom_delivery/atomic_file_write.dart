@@ -172,7 +172,7 @@ class AtomicFileWrite {
       throw DeliveryFailure(
         DeliveryFailureKind.transportFailure,
         'Renaming ${p.basename(stagedPath)} onto ${p.basename(finalPath)} '
-        'failed: ${error.message}',
+        'failed: ${fileSystemReason(error)}',
         cause: error,
       );
     }
@@ -199,14 +199,19 @@ class AtomicFileWrite {
     required FileSystemException error,
   }) async {
     final trailer = await _remove(staged);
+    // The operator's sentence carries the operating system's own reason, not
+    // just the act. `error.message` for a failed copy is "Cannot copy file to
+    // '<staged path>'" and nothing more, so a full drive, a read-only mount
+    // and a broken symlink all reported the same words; the errno read one
+    // line below already proves the reason was in hand.
+    final reason = fileSystemReason(error);
     // errno 28 is ENOSPC on every platform Nightshade ships to. A full
     // destination is retried overnight; space is freed by other things
     // finishing.
     if (error.osError?.errorCode == 28) {
       return DeliveryFailure(
         DeliveryFailureKind.insufficientSpace,
-        'Copying $deliveredName to ${directory.path} failed: '
-        '${error.message}$trailer',
+        'Copying $deliveredName to ${directory.path} failed: $reason$trailer',
         cause: error,
       );
     }
@@ -214,7 +219,7 @@ class AtomicFileWrite {
       return DeliveryFailure(
         DeliveryFailureKind.sourceMissing,
         'Copying $deliveredName to ${directory.path} failed '
-        '(${error.message}) and ${artifact.sourcePath} is no longer on the '
+        '($reason) and ${artifact.sourcePath} is no longer on the '
         'rig$trailer',
         cause: error,
       );
@@ -223,7 +228,7 @@ class AtomicFileWrite {
       return DeliveryFailure(
         DeliveryFailureKind.permissionDenied,
         'Copying $deliveredName to ${directory.path} is not permitted '
-        '(${error.message}); ${artifact.sourcePath} is still on the '
+        '($reason); ${artifact.sourcePath} is still on the '
         'rig$trailer',
         cause: error,
       );
@@ -231,7 +236,7 @@ class AtomicFileWrite {
     return DeliveryFailure(
       DeliveryFailureKind.transportFailure,
       'Copying ${artifact.fileName} to ${directory.path} failed: '
-      '${error.message}; ${artifact.sourcePath} is still on the rig$trailer',
+      '$reason; ${artifact.sourcePath} is still on the rig$trailer',
       cause: error,
     );
   }
@@ -248,7 +253,8 @@ class AtomicFileWrite {
       return '';
     } on FileSystemException catch (error) {
       return ' (the staged copy at ${file.path} could not be removed: '
-          '${error.message}; the next attempt for this job overwrites it)';
+          '${fileSystemReason(error)}; the next attempt for this job '
+          'overwrites it)';
     }
   }
 }

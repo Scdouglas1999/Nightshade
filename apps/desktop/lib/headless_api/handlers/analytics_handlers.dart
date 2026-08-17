@@ -1,9 +1,29 @@
+import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
 import '../validation.dart';
+
+/// The grading verdict over one session's LIGHT frames.
+///
+/// Separate from `successfulExposures`/`failedExposures`, which count what the
+/// CAMERA returned: a frame can expose and download perfectly and still be
+/// rejected for trailing or cloud. A night whose every sub was rejected writes
+/// exactly the same `12 / 12 / 0` exposure row as a night whose every sub was
+/// kept, so those two columns cannot answer "did this night produce anything".
+/// These two can, because they are read off the frames themselves.
+class SessionGrading {
+  const SessionGrading({required this.accepted, required this.rejected});
+
+  /// A session with no light frames on record — not an assumption that the
+  /// frames were good, which is the direction the old surfaces failed in.
+  const SessionGrading.noFrames() : accepted = 0, rejected = 0;
+
+  final int accepted;
+  final int rejected;
+}
 
 /// Handlers for session management and analytics
 class AnalyticsHandlers {
@@ -13,6 +33,11 @@ class AnalyticsHandlers {
   /// accumulate slowly; 1000 is far more than any "recent" list shows and keeps
   /// a negative from becoming SQLite `LIMIT -1` (all rows).
   static const int _maxRecentSessionsLimit = 1000;
+
+  /// Session ids bound into one grading read. Well under SQLite's own
+  /// bound-variable ceiling, so the shape of the query never depends on how
+  /// many nights the rig has recorded.
+  static const int _idsPerGradingRead = 500;
 
   AnalyticsHandlers(this.container);
 
@@ -119,9 +144,7 @@ class AnalyticsHandlers {
     final database = container.read(databaseProvider);
     final sessions = await database.sessionsDao.getAllSessions();
 
-    return jsonOk({
-      "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-    });
+    return jsonOk({"sessions": await _sessionsToJson(database, sessions)});
   }
 
   // Get Session By ID
@@ -136,7 +159,12 @@ class AnalyticsHandlers {
       return jsonNotFound({"error": "Session not found: $id"});
     }
 
-    return jsonOk({"session": _sessionToJson(session)});
+    return jsonOk({
+      "session": _sessionToJson(
+        session,
+        await _gradingFor(database, session.id),
+      ),
+    });
   }
 
   // Get active session
@@ -151,7 +179,10 @@ class AnalyticsHandlers {
     }
 
     // Return the most recent active session
-    return jsonOk({"session": _sessionToJson(activeSessions.first)});
+    final active = activeSessions.first;
+    return jsonOk({
+      "session": _sessionToJson(active, await _gradingFor(database, active.id)),
+    });
   }
 
   // Get recent sessions
@@ -172,9 +203,7 @@ class AnalyticsHandlers {
     final database = container.read(databaseProvider);
     final sessions = await database.sessionsDao.getRecentSessions(limit: limit);
 
-    return jsonOk({
-      "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-    });
+    return jsonOk({"sessions": await _sessionsToJson(database, sessions)});
   }
 
   // Create session
@@ -388,6 +417,11 @@ class AnalyticsHandlers {
 
     // Get images for this session
     final images = await database.imagesDao.getImagesForSession(sessionId);
+    // The same read the list surfaces use, rather than a second tally over the
+    // rows already in hand: two counters over one fact drift, and this endpoint
+    // and `/api/sessions` disagreeing about one night is exactly the defect
+    // this call closes.
+    final grading = await _gradingFor(database, sessionId);
 
     // Calculate stats
     int lightCount = 0;
@@ -396,28 +430,12 @@ class AnalyticsHandlers {
     int biasCount = 0;
     double totalHfr = 0;
     int hfrCount = 0;
-    // The grading verdict, counted over LIGHTS only.
-    //
-    // Distinct from successful/failed exposures above, which count what the
-    // camera returned: a frame can expose perfectly and still be rejected for
-    // trailing or cloud. Without these two on the wire a remote client can
-    // only report "10 successful", which is the opposite of what the operator
-    // sees after culling three of them — and every accepted/rejected surface
-    // off the rig had to guess. Calibration frames are not graded, so folding
-    // them in would inflate `accepted` with darks and flats.
-    int acceptedLights = 0;
-    int rejectedLights = 0;
     final filterCounts = <String, int>{};
 
     for (final img in images) {
       switch (img.frameType) {
         case 'light':
           lightCount++;
-          if (img.isAccepted) {
-            acceptedLights++;
-          } else {
-            rejectedLights++;
-          }
           break;
         case 'dark':
           darkCount++;
@@ -446,8 +464,8 @@ class AnalyticsHandlers {
         "successfulExposures": session.successfulExposures,
         "failedExposures": session.failedExposures,
         "totalIntegrationSecs": session.totalIntegrationSecs,
-        "acceptedLights": acceptedLights,
-        "rejectedLights": rejectedLights,
+        "acceptedLights": grading.accepted,
+        "rejectedLights": grading.rejected,
         "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : session.avgHfr,
         "avgGuidingRms": session.avgGuidingRms,
         "autofocusCount": session.autofocusCount,
@@ -574,14 +592,106 @@ class AnalyticsHandlers {
     final database = container.read(databaseProvider);
     final sessions = await database.sessionsDao.getSessionsForTarget(tid);
 
-    return jsonOk({
-      "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-    });
+    return jsonOk({"sessions": await _sessionsToJson(database, sessions)});
   }
 
   // Helpers
 
-  Map<String, dynamic> _sessionToJson(ImagingSession session) {
+  /// Accepted and rejected LIGHT frames per session id, counted from
+  /// `captured_images` — the one place the grading verdict is recorded.
+  ///
+  /// Every session surface reads it through here, so the list and the
+  /// per-session stats cannot disagree about the same night. They did: the
+  /// list served `imaging_sessions.successful_exposures` on its own, which the
+  /// session writer stamps from completed exposures, so a night whose twelve
+  /// subs were all rejected for low star count reported "successful 12,
+  /// failed 0" while `/api/sessions/<id>/stats` — the only surface that then
+  /// read the frames — reported 0 accepted and 12 rejected.
+  ///
+  /// One grouped read for the whole page: a hundred-session list stays one
+  /// query instead of a hundred. Calibration frames are excluded because they
+  /// are never graded, so counting them would inflate `accepted` with darks
+  /// and flats nobody culled.
+  Future<Map<int, SessionGrading>> _gradingBySession(
+    NightshadeDatabase database,
+    List<int> sessionIds,
+  ) async {
+    if (sessionIds.isEmpty) return const <int, SessionGrading>{};
+
+    final accepted = <int, int>{};
+    final rejected = <int, int>{};
+    // `/api/sessions` is unbounded, and SQLite refuses a statement with more
+    // bound variables than its compiled limit. A rig with more nights than one
+    // batch reads them in several statements rather than raising a limit error
+    // on the endpoint an operator opens to see the season.
+    for (
+      var start = 0;
+      start < sessionIds.length;
+      start += _idsPerGradingRead
+    ) {
+      final batch = sessionIds.sublist(
+        start,
+        (start + _idsPerGradingRead).clamp(0, sessionIds.length),
+      );
+      final placeholders = List.filled(batch.length, '?').join(', ');
+      final rows = await database
+          .customSelect(
+            'SELECT session_id, is_accepted, COUNT(*) AS frames '
+            'FROM captured_images '
+            "WHERE frame_type = 'light' AND session_id IN ($placeholders) "
+            'GROUP BY session_id, is_accepted',
+            variables: [for (final id in batch) Variable<int>(id)],
+            readsFrom: {database.capturedImages},
+          )
+          .get();
+      for (final row in rows) {
+        final sessionId = row.read<int>('session_id');
+        final frames = row.read<int>('frames');
+        final bucket = row.read<bool>('is_accepted') ? accepted : rejected;
+        bucket[sessionId] = (bucket[sessionId] ?? 0) + frames;
+      }
+    }
+
+    return {
+      for (final id in sessionIds)
+        id: SessionGrading(
+          accepted: accepted[id] ?? 0,
+          rejected: rejected[id] ?? 0,
+        ),
+    };
+  }
+
+  /// The grading verdict for a single session.
+  Future<SessionGrading> _gradingFor(
+    NightshadeDatabase database,
+    int sessionId,
+  ) async {
+    final bySession = await _gradingBySession(database, [sessionId]);
+    return bySession[sessionId] ?? const SessionGrading.noFrames();
+  }
+
+  /// Serialize a list of sessions, reading every session's grading verdict in
+  /// one query rather than one per row.
+  Future<List<Map<String, dynamic>>> _sessionsToJson(
+    NightshadeDatabase database,
+    List<ImagingSession> sessions,
+  ) async {
+    final grading = await _gradingBySession(database, [
+      for (final session in sessions) session.id,
+    ]);
+    return [
+      for (final session in sessions)
+        _sessionToJson(
+          session,
+          grading[session.id] ?? const SessionGrading.noFrames(),
+        ),
+    ];
+  }
+
+  Map<String, dynamic> _sessionToJson(
+    ImagingSession session,
+    SessionGrading grading,
+  ) {
     return {
       'id': session.id,
       'name': session.name,
@@ -594,6 +704,12 @@ class AnalyticsHandlers {
       'totalExposures': session.totalExposures,
       'successfulExposures': session.successfulExposures,
       'failedExposures': session.failedExposures,
+      // What the culling actually decided. `successfulExposures` above answers
+      // "did the camera return the frame"; these answer "is the frame worth
+      // stacking", and a client that shows only the first reports a clean
+      // night for a session whose every sub was thrown away.
+      'acceptedLights': grading.accepted,
+      'rejectedLights': grading.rejected,
       'totalIntegrationSecs': session.totalIntegrationSecs,
       'avgHfr': session.avgHfr,
       'avgGuidingRms': session.avgGuidingRms,

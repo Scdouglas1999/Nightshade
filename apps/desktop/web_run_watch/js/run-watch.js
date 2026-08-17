@@ -495,13 +495,33 @@ async function fetchSnapshot() {
   }
 }
 
+/// The state the snapshot actually reports.
+///
+/// `progress.state` is the executor's own `SequenceExecutionState`, an enum
+/// with no member for a cancelled run: once a run is stopped it reads `idle`
+/// while `sequencer.state` — the field the same snapshot carries straight from
+/// `/api/sequencer/status` — reads `cancelled`. Reading the executor block
+/// unconditionally told the operator the rig was idle 8% into a night that had
+/// just been cancelled. So: the executor block wins while it is describing a
+/// live run, and the moment it falls back to `idle` the sequencer status —
+/// which is the one that knows how the run ended — is what gets rendered.
+function reportedSequencerState(progress, sequencer) {
+  const executing = String((progress && progress.state) || '').toLowerCase();
+  const reported = String((sequencer && sequencer.state) || '').toLowerCase();
+  if (executing && executing !== 'idle') return executing;
+  if (reported) return reported;
+  // An executor that says idle with nothing to contradict it is idle. A
+  // snapshot that names no state at all is not idle, it is unknown.
+  return executing || 'unknown';
+}
+
 function applySnapshot(data) {
   if (!data) return;
 
   // Sequencer state badge
   const sequencer = data.sequencer || {};
   const progress = sequencer.progress || {};
-  const state = (progress.state || sequencer.state || 'idle').toLowerCase();
+  const state = reportedSequencerState(progress, sequencer);
   const unknown = state === 'unknown';
   const badge = $('state-badge');
   badge.textContent = state;
@@ -515,10 +535,13 @@ function applySnapshot(data) {
   lastKnownState = state;
 
   // state 'unknown' means the server's read failed. Never fall back to
-  // 'Idle' there — the run may well still be going.
+  // 'Idle' there — the run may well still be going. With nothing named and a
+  // state that is not idle either (a cancelled run keeps no current node),
+  // the state word itself is the only true thing left to show.
   $('seq-name').textContent =
     progress.currentTarget || sequencer.currentNodeName ||
-    (unknown ? (progress.message || 'Status unavailable') : 'Idle');
+    (unknown ? (progress.message || 'Status unavailable')
+             : state.charAt(0).toUpperCase() + state.slice(1));
 
   // Active target. `coordinatesKnown: false` is the headless case — the native
   // executor holds the sequence, so the host can name the target but cannot

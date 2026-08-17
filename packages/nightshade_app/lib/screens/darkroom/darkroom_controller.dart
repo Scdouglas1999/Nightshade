@@ -31,9 +31,11 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'package:file_selector/file_selector.dart' show XTypeGroup, openFile;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:path/path.dart' as p;
 
 part 'darkroom_controller_parts/_models.dart';
 part 'darkroom_controller_parts/_state.dart';
@@ -56,7 +58,10 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       : _darkroom = ref.read(darkroomSeamProvider),
         _recipes = ref.read(recipesDaoProvider),
         _masters = ref.read(integratedMastersDaoProvider),
+        _images = ref.read(imagesDaoProvider),
+        _nightMasters = ref.read(dawnMasterResolverProvider),
         _photometry = ref.read(dawnPhotometryResolverProvider),
+        _sidecars = ref.read(darkroomSidecarReaderProvider),
         super(const DarkroomState()) {
     unawaited(_load());
   }
@@ -65,7 +70,10 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   final DarkroomSeam _darkroom;
   final RecipesDao _recipes;
   final IntegratedMastersDao _masters;
+  final ImagesDao _images;
+  final DawnMasterResolver _nightMasters;
   final DawnPhotometryResolver _photometry;
+  final DarkroomSidecarReader _sidecars;
 
   Timer? _renderDebounce;
   Timer? _saveDebounce;
@@ -170,9 +178,15 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         final recipe = await _recipes.getById(recipeId);
         if (!mounted) return;
         if (recipe == null) {
+          // Nothing about the master: `recipes.master_id` is ON DELETE SET
+          // NULL, so deleting a master cannot take a recipe row with it, and
+          // this sentence used to blame a master that was still on disk and
+          // still openable — beside a delete dialog that had just said the
+          // linear master survives.
           _fail(
-            'Recipe $recipeId does not exist. It may have been deleted along '
-            'with the master it was written for.',
+            'Recipe $recipeId no longer has a row. Deleting a branch removes '
+            'the recipe and nothing else, so whichever linear master it was '
+            'written over is still in the library.',
           );
           return;
         }
@@ -218,6 +232,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
           height: master.height,
         ),
       );
+      unawaited(_loadSiblings(masterId));
     } catch (error) {
       if (!mounted) return;
       _fail('The Darkroom could not read this master or its recipes: $error');
@@ -311,6 +326,11 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       canRedo: false,
       savePending: false,
       clearSaveError: true,
+      // The notes and the import receipt describe how the recipe being
+      // REPLACED came to be. Carrying either across would attribute one
+      // recipe's provenance to another.
+      draftNotes: const [],
+      clearImportNote: true,
     );
 
     _lastEditKey = null;
@@ -318,9 +338,84 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     // A render still inside the engine is rendering the recipe this one
     // replaces, so its pixels must not land in the new recipe's viewport.
     _supersedeRunningRender();
+    unawaited(_loadSiblings(recipe.masterId));
     await _resolvePhotometry(recipe.masterId);
     if (!mounted) return;
     unawaited(_refreshNow());
+  }
+
+  /// List the other masters the same night produced, with the newest recipe
+  /// over each.
+  ///
+  /// Every in-app entry point resolves ONE master for a session and opens it,
+  /// so a four-filter night silently hands the editor one of four drafts. The
+  /// walk is the resolver the dawn autopilot itself uses, reached from this
+  /// master's own fold records, so the set it lists is the set the night's
+  /// report counted.
+  Future<void> _loadSiblings(int? masterId) async {
+    if (masterId == null) {
+      state = state.copyWith(siblings: const [], clearSiblingsError: true);
+      return;
+    }
+    try {
+      final imageIds = await _masters.getFoldedImageIds(masterId);
+      if (!mounted) return;
+      int? sessionId;
+      for (final imageId in imageIds) {
+        final image = await _images.getImageById(imageId);
+        if (!mounted) return;
+        final id = image?.sessionId;
+        if (id != null) {
+          sessionId = id;
+          break;
+        }
+      }
+      if (sessionId == null) {
+        // Said, not swallowed: a master with no fold record back to a session
+        // is a master this walk cannot place in a night, and the bar prints
+        // that rather than an empty list that reads as "there are no others".
+        state = state.copyWith(
+          siblings: const [],
+          siblingsError:
+              'No frame of this master records the session it was captured in, '
+              'so the other masters of the same night cannot be found from '
+              'here. Open them from the session review.',
+        );
+        return;
+      }
+      final set = await _nightMasters.resolve(sessionId);
+      if (!mounted) return;
+      final siblings = <DarkroomSiblingDraft>[];
+      for (final master in set.masters) {
+        if (master.masterId == masterId) continue;
+        final overThem = await _recipes.listForMaster(master.masterFitsPath);
+        if (!mounted) return;
+        // listForMaster orders newest first, so this is the recipe a link to
+        // the master would open.
+        final newest = overThem.isEmpty ? null : overThem.first;
+        siblings.add(
+          DarkroomSiblingDraft(
+            masterId: master.masterId,
+            masterName: master.name,
+            filter: master.filter,
+            recipeId: newest?.id,
+            recipeName: newest?.name,
+            author: newest?.createdBy,
+          ),
+        );
+      }
+      state = state.copyWith(
+        siblings: List.unmodifiable(siblings),
+        clearSiblingsError: true,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      state = state.copyWith(
+        siblings: const [],
+        siblingsError:
+            'The other masters of this night could not be read: $error',
+      );
+    }
   }
 
   /// Resolve the catalogue stars `color_calibrate` needs, or state why there
@@ -412,7 +507,13 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     final offer = state.offer;
     if (offer == null || state.offerBusy) return;
     state = state.copyWith(offerBusy: true, clearOfferError: true);
-    await _createRecipe(offer: offer, steps: const [], name: 'Linear');
+    await _createRecipe(
+      masterId: offer.masterId,
+      targetId: offer.targetId,
+      masterFitsPath: offer.masterFitsPath,
+      steps: const [],
+      name: 'Linear',
+    );
   }
 
   /// Ask the operation registry for a first draft measured from the offered
@@ -423,6 +524,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     state = state.copyWith(offerBusy: true, clearOfferError: true);
 
     final List<DarkroomStep> steps;
+    final List<String> notes;
     try {
       final reply = await _darkroom.registry({
         'masterPath': offer.masterFitsPath,
@@ -430,6 +532,13 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       });
       if (!mounted) return;
       steps = decodeDarkroomDraft(reply);
+      // The registry decides about more operations than it ends up carrying,
+      // and records why it left each of the others out. Until this call the
+      // notes reached the night report on disk and nothing else: the offer
+      // promises "color where there is color to calibrate" and then a mono
+      // master got a four-step stack that never said the colour step was
+      // omitted, let alone why.
+      notes = decodeDarkroomDraftNotes(reply);
     } on DarkroomCancelledOutcome catch (cancelled) {
       if (!mounted) return;
       state = state.copyWith(
@@ -454,19 +563,37 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       return;
     }
 
-    await _createRecipe(offer: offer, steps: steps, name: 'Draft');
+    await _createRecipe(
+      masterId: offer.masterId,
+      targetId: offer.targetId,
+      masterFitsPath: offer.masterFitsPath,
+      steps: steps,
+      name: 'Draft',
+      draftNotes: notes,
+    );
   }
 
+  /// Write a new recipe row over one master's pixels and open it.
+  ///
+  /// The three identity fields are taken one by one rather than as a whole
+  /// [DarkroomStartOffer]: the import path has a master and a path but no
+  /// offer, and building a synthetic offer for it meant filling the fields this
+  /// method never reads — the master's name, its channel count, its dimensions
+  /// — with zeros and empty strings that describe no master at all.
   Future<void> _createRecipe({
-    required DarkroomStartOffer offer,
+    required int masterId,
+    required int? targetId,
+    required String masterFitsPath,
     required List<DarkroomStep> steps,
     required String name,
+    List<String> draftNotes = const [],
+    String? importNote,
   }) async {
     try {
       final id = await _recipes.create(
-        targetId: offer.targetId,
-        masterId: offer.masterId,
-        baseMasterPath: offer.masterFitsPath,
+        targetId: targetId,
+        masterId: masterId,
+        baseMasterPath: masterFitsPath,
         name: name,
         stepsJson: jsonEncode([for (final step in steps) step.toJson()]),
         createdBy: RecipeAuthor.user,
@@ -485,7 +612,15 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         return;
       }
       state = state.copyWith(offerBusy: false);
+      // AFTER the open: [_openRecipe] rebuilds the provenance fields empty so a
+      // previous recipe's notes cannot follow the editor onto this one, so the
+      // notes about THIS recipe are attached once it is the one open.
       await _openRecipe(created);
+      if (!mounted) return;
+      state = state.copyWith(
+        draftNotes: List.unmodifiable(draftNotes),
+        importNote: importNote,
+      );
     } catch (error) {
       if (!mounted) return;
       state = state.copyWith(
@@ -493,6 +628,210 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         offerError: 'The recipe could not be created: $error',
       );
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Importing a recipe written outside the database
+  // ---------------------------------------------------------------------
+
+  /// Read a `.nsrecipe` sidecar and open it as a new recipe over the master
+  /// this editor is on.
+  ///
+  /// The sidecar is what every export writes beside its file, and until this
+  /// existed it was write-only: the export sheet promised the recipe "survives
+  /// outside the database" and nothing in the product could read one back.
+  ///
+  /// The import is deliberately NOT a merge and NOT a replace of the open
+  /// stack: it writes a new recipe row over THESE pixels, so the recipe the
+  /// operator was working on is untouched and the imported one arrives as a
+  /// branch they can compare against.
+  ///
+  /// The steps are taken exactly as the file stores them, including operations
+  /// this build does not register. They are handed to `validate` and the
+  /// verdict is stated, but nothing is dropped or rewritten: the step cards
+  /// already name the operation version this build does not register, and
+  /// silently discarding such a step would import a recipe the file does not
+  /// contain.
+  Future<void> importRecipe() async {
+    if (state.offerBusy) return;
+    final offer = state.offer;
+    final masterId = offer?.masterId ?? state.masterId;
+    final masterPath = offer?.masterFitsPath ?? state.baseMasterPath;
+    if (masterId == null || masterPath.isEmpty) {
+      state = state.copyWith(
+        offerError:
+            'This editor is not on a library master, so an imported recipe '
+            'would have no pixels to be written over. Open a master from the '
+            'session review and import there.',
+      );
+      return;
+    }
+
+    state = state.copyWith(offerBusy: true, clearOfferError: true);
+    final DarkroomSidecarPick? pick;
+    try {
+      pick = await _sidecars();
+    } catch (error) {
+      if (!mounted) return;
+      state = state.copyWith(
+        offerBusy: false,
+        offerError: 'That file could not be read: $error',
+      );
+      return;
+    }
+    if (!mounted) return;
+    if (pick == null) {
+      // The chooser was dismissed. Nothing was read and nothing was written.
+      state = state.copyWith(offerBusy: false);
+      return;
+    }
+
+    final DarkroomImportedRecipe imported;
+    try {
+      imported = decodeDarkroomSidecar(pick.text);
+    } on DarkroomRecipeFormatException catch (error) {
+      state = state.copyWith(
+        offerBusy: false,
+        offerError: '${p.basename(pick.path)} was not imported: '
+            '${error.message}.',
+      );
+      return;
+    }
+    if (imported.steps.isEmpty) {
+      state = state.copyWith(
+        offerBusy: false,
+        offerError: '${p.basename(pick.path)} carries a recipe with no steps, '
+            'so importing it would create a recipe that interprets nothing. '
+            'Start from linear instead, which is the same thing said out loud.',
+      );
+      return;
+    }
+
+    final verdict = await _validateImported(imported.steps, masterPath);
+    if (!mounted) return;
+
+    final targetId = offer?.targetId ?? await _targetIdFor(masterId);
+    if (!mounted) return;
+
+    await _createRecipe(
+      masterId: masterId,
+      targetId: targetId,
+      masterFitsPath: masterPath,
+      steps: imported.steps,
+      name: _importedRecipeName(pick.path),
+      importNote: _describeImport(pick, imported, verdict, masterPath),
+    );
+  }
+
+  /// Ask the engine about an imported step list before it becomes a row.
+  ///
+  /// Answers null when the engine could not be asked, which the receipt then
+  /// states rather than claiming the import was checked.
+  Future<DarkroomValidation?> _validateImported(
+    List<DarkroomStep> steps,
+    String masterPath,
+  ) async {
+    try {
+      final reply = await _darkroom.validate(
+        // No row exists yet, so the envelope carries the id the engine uses
+        // only to name the recipe back in its own messages.
+        recipeJson: jsonEncode({
+          'id': 'darkroom-import',
+          'schemaVersion': kDarkroomRecipeSchemaVersion,
+          'baseMasterRef': masterPath,
+          'createdBy': RecipeAuthor.user.wire,
+          'steps': [for (final step in steps) step.toJson()],
+        }),
+        context: const <String, dynamic>{},
+      );
+      return decodeDarkroomValidation(reply);
+    } on DarkroomSeamException {
+      return null;
+    }
+  }
+
+  Future<int?> _targetIdFor(int masterId) async {
+    try {
+      final master = await _masters.getById(masterId);
+      return master?.targetId;
+    } catch (error, stack) {
+      // The target is bookkeeping on the new row, so a read that fails leaves
+      // it unset rather than stopping an import the operator asked for — and
+      // says so in the log, because a library read that did not work is a fact
+      // about the database and not about this import.
+      developer.log(
+        'Darkroom: the target of master $masterId could not be read while '
+        'importing a recipe, so the new row carries none: $error',
+        name: 'Darkroom',
+        level: 900,
+        stackTrace: stack,
+      );
+      return null;
+    }
+  }
+
+  /// The branch name an imported recipe arrives under: the file's own name,
+  /// stripped of the sidecar extension, so the bar names what was read.
+  static String _importedRecipeName(String path) {
+    var name = p.basename(path);
+    for (final suffix in const [
+      '.nsrecipe',
+      '.fits',
+      '.fit',
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.tif',
+      '.tiff'
+    ]) {
+      if (name.toLowerCase().endsWith(suffix)) {
+        name = name.substring(0, name.length - suffix.length);
+      }
+    }
+    name = name.trim();
+    return name.isEmpty ? 'Imported recipe' : 'Imported: $name';
+  }
+
+  /// What the import read, in the file's own numbers and the engine's verdict.
+  static String _describeImport(
+    DarkroomSidecarPick pick,
+    DarkroomImportedRecipe imported,
+    DarkroomValidation? verdict,
+    String masterPath,
+  ) {
+    final steps = imported.steps.length;
+    final lines = <String>[
+      'Imported $steps step${steps == 1 ? '' : 's'} from '
+          '${p.basename(pick.path)}.',
+    ];
+    final from = imported.masterPath;
+    if (from != null && from != masterPath) {
+      lines.add(
+        'That sidecar was written over $from. This recipe replays its steps '
+        'over the master this editor is on, so any step whose parameters were '
+        'measured from those other pixels is now over these.',
+      );
+    }
+    final fingerprint = imported.fingerprint;
+    if (fingerprint != null) {
+      lines.add('Recipe fingerprint recorded in the sidecar: $fingerprint.');
+    }
+    if (verdict == null) {
+      lines.add(
+        'The engine could not be asked whether these steps validate, so the '
+        'per-step verdicts below are the only account of them.',
+      );
+    } else if (verdict.ok) {
+      lines.add('Every step validates against this build.');
+    } else {
+      final refused = verdict.steps.where((issue) => !issue.isClean).length;
+      lines.add(
+        'This build refuses $refused of them; each card says which and why. '
+        'Nothing was dropped on the way in — the recipe is stored exactly as '
+        'the file holds it.',
+      );
+    }
+    return lines.join('\n');
   }
 
   // ---------------------------------------------------------------------

@@ -321,7 +321,10 @@ void main() {
   ) async {
     await pump(tester, const DarkroomScope.recipe(4242));
     expect(find.text('Nothing to open in the Darkroom'), findsOneWidget);
-    expect(find.textContaining('Recipe 4242 does not exist'), findsOneWidget);
+    expect(
+      find.textContaining('Recipe 4242 no longer has a row'),
+      findsOneWidget,
+    );
     expect(find.text('Back to session review'), findsOneWidget);
   });
 

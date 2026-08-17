@@ -193,6 +193,26 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                     ),
                   ),
                 ),
+                // The drag handle is the only thing that moved a step, and a
+                // press-and-drag cannot be performed from a keyboard or from
+                // assistive tech: the handle publishes a panel with no action,
+                // so a walk of this stack found four "Reorder <op>" panels and
+                // no way to reorder anything. These are the same move, as two
+                // ordinary buttons.
+                _moveButton(
+                  title: title,
+                  index: index,
+                  up: true,
+                  enabled: index > 0,
+                  stepCount: state.steps.length,
+                ),
+                _moveButton(
+                  title: title,
+                  index: index,
+                  up: false,
+                  enabled: index < state.steps.length - 1,
+                  stepCount: state.steps.length,
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,6 +312,59 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
           ],
         ),
       ),
+    );
+  }
+
+  /// One end of the keyboard-reachable reorder.
+  ///
+  /// The destination is the index the step lands at once it has been lifted out
+  /// of the list — the same index [_DarkroomHistoryPanel.onReorder] takes from
+  /// the drag — so moving up is `index - 1` and moving down is `index + 1`.
+  ///
+  /// At the ends the control is DISABLED and says which end it is at, rather
+  /// than being dropped: a card that loses a control the card above it has
+  /// makes the two read as different kinds of card. The controller clamps an
+  /// out-of-range destination back onto the step's own index, so an enabled
+  /// control at an end would be a button that does nothing.
+  Widget _moveButton({
+    required String title,
+    required int index,
+    required bool up,
+    required bool enabled,
+    required int stepCount,
+  }) {
+    final direction = up ? 'up' : 'down';
+    final position = '${index + 1} of $stepCount';
+    final label = enabled
+        ? 'Move $title $direction'
+        : 'Move $title $direction — it is already '
+            '${up ? 'first' : 'last'} in the stack ($position)';
+    void move() {
+      unawaited(widget.onReorder(index, up ? index - 1 : index + 1));
+    }
+
+    final button = IconButton(
+      icon: Icon(
+        up ? NightshadeIcons.arrowUp : NightshadeIcons.arrowDown,
+        size: NightshadeTokens.iconSm,
+      ),
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      padding: EdgeInsets.zero,
+      tooltip: label,
+      onPressed: enabled ? move : null,
+    );
+    // Its own node with the enabled flag STATED: an IconButton with a null
+    // callback publishes no enabled state of its own, which the AT-SPI bridge
+    // reports as a live button that does nothing when pressed.
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: enabled,
+      label: label,
+      excludeSemantics: true,
+      onTap: enabled ? move : null,
+      child: button,
     );
   }
 
@@ -527,20 +600,32 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
         Row(
           children: [
             Expanded(
-              child: Text(
-                spec.name,
-                style: NightshadeTypography.labelSm.copyWith(
-                  color: colors.textPrimary,
+              // The registry's display name, with the unit it states. The wire
+              // key rides in the tooltip rather than on the label: `d`, `b` and
+              // `symmetryPoint` are the engine's own field names, and a control
+              // labelled with one asks the operator to know them — while a
+              // stored recipe is still read in those keys, so they cannot
+              // simply be dropped.
+              child: Tooltip(
+                message: spec.displayName == spec.name
+                    ? spec.name
+                    : '${spec.displayName} — stored in this recipe as '
+                        '"${spec.name}"',
+                child: Text(
+                  spec.displayName,
+                  style: NightshadeTypography.labelSm.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
               ),
             ),
             if (!present)
               _DarkroomTag(
                 label: 'default',
-                tooltip: 'This recipe stores no value for ${spec.name}, so the '
-                    'operation reads its own documented default. Moving the '
-                    'control writes a value; clearing it hands the parameter '
-                    'back to the operation.',
+                tooltip: 'This recipe stores no value for "${spec.name}", so '
+                    'the operation reads its own documented default. Moving '
+                    'the control writes a value; clearing it hands the '
+                    'parameter back to the operation.',
               )
             else if (spec.defaultValue != null)
               Semantics(
@@ -551,7 +636,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                 // parameters publishes four sibling nodes, and "Use default"
                 // said three words that name none of them. Reading order is
                 // not a name.
-                label: 'Use default for ${spec.name}',
+                label: 'Use default for ${spec.displayName}',
                 excludeSemantics: true,
                 onTap: () => widget.onParamChanged(index, spec.name, null),
                 child: NightshadeButton(
@@ -663,13 +748,24 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             ),
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
+          // The readout is a FIELD, not a label. A slider spanning the whole
+          // documented range cannot resolve a working region much narrower than
+          // it: the stretch's intensity accepts 0…100 and the autopilot's own
+          // measured value is 1.938, so one click a finger's width along the
+          // track set 35.263 — an eighteen-fold change — and the render came
+          // back a flat white field. The range shown is still the registry's
+          // own; typing here is how the region between two pixels of travel is
+          // reached, and how a value read off a previous recipe is put back
+          // exactly.
           SizedBox(
-            width: 64,
-            child: Text(
-              _formatNumber(clamped, isInteger),
-              textAlign: TextAlign.end,
-              style: NightshadeTypography.monoSm.copyWith(
-                color: colors.textPrimary,
+            width: 116,
+            child: _DarkroomNumberField(
+              label: 'Exact',
+              value: value,
+              onChanged: (parsed) => widget.onParamChanged(
+                index,
+                spec.name,
+                parsed == null ? null : (isInteger ? parsed.round() : parsed),
               ),
             ),
           ),
@@ -786,11 +882,18 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     );
   }
 
+  /// The control's own name: what the parameter is called, and the bounds the
+  /// registry accepts for it.
+  ///
+  /// The bounds are named as ACCEPTED bounds rather than printed bare. The
+  /// stretch's points accept ±1e12 — the engine's limit, not a range any
+  /// master's ADU occupies — and a bare "(-1.00e+12 … 1.00e+12)" beside a
+  /// measured 529.74 reads as the range the operator is choosing within.
   static String _rangeLabel(DarkroomParamSpec spec) {
     final min = spec.min;
     final max = spec.max;
-    if (min == null || max == null) return spec.name;
-    return '${spec.name} (${_formatNumber(min, false)} … '
+    if (min == null || max == null) return spec.displayName;
+    return '${spec.displayName} (accepts ${_formatNumber(min, false)} … '
         '${_formatNumber(max, false)})';
   }
 

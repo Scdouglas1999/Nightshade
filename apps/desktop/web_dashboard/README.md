@@ -162,6 +162,10 @@ rules that a remote monitoring page cannot bend:
 | A progressbar carries no `aria-valuenow` until a value is reported | `aria-valuenow="0"` announces "0 percent" — a figure nobody sent. |
 | A control button reports the server's own answer | `POST /api/sequencer/stop` answers 200 with `wasRunning: false` when there is nothing to stop. |
 | An unknown integration denominator renders `--` | `SequenceProgress.totalIntegrationSecs` is only filled in by the editor-driven start path, so a headless run's snapshot carries no total; the phone used to print `24s / 0s`. |
+| The staleness window is counted in missed heartbeats, never in a wall-clock number picked apart from the poll cadence | An idle server pushes no events, so the 30 s ping/pong is the only thing that stamps contact. Against a 12 s window a healthy, idle server was declared lost for 18 s of every 30 s cycle — 26 of 40 samples over a 200 s soak. |
+| Staleness is a link state, not a mark on the badge: contact returning hands the badge back to the data | The badge that went `unknown` on one missed exchange stayed `unknown` for the rest of the session, over every later healthy poll, because only the header was restored. |
+| The run badge reads the field the snapshot actually carries | `SequenceExecutionState` has no `cancelled` member, so a stopped run reads `progress.state: 'idle'` while `sequencer.state` reads `cancelled` — and the phone told the operator the rig was idle 8 % into a night that had just been cancelled. |
+| Before the first answer both surfaces say **connecting** and assert nothing | The shipped markup and the no-status render path both claimed `idle` — a live run reads as a parked telescope until the first exchange lands. |
 
 ## Reference screenshots
 

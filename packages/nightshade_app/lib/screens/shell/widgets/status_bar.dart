@@ -330,17 +330,7 @@ class _StatusBarState extends ConsumerState<StatusBar> {
       // ("Simulated Cam") with the thermometer glyph painted straight against
       // it, so the bar reads as broken rather than scrolled.
       if (!widget.compact) ...[
-        // The strip still scrolls at 1000 px, so the pill at the viewport edge
-        // is sliced mid-word and dissolved by the fade with nothing saying it
-        // was cut. An ellipsis is how this app says "truncated" everywhere
-        // else, so the cut gets one — drawn OUTSIDE the viewport, flush against
-        // it, because inside it would scroll away with the text it describes.
-        if (_pillsCutRight) _PillsCutMarker(colors: colors),
-        if (_pillsOverflow)
-          _PillsOverflowAffordance(
-            colors: colors,
-            onTap: _scrollPillsRight,
-          ),
+        ..._cutAffordance(colors),
         const SizedBox(width: 8),
         _divider(colors),
         const SizedBox(width: 12),
@@ -406,11 +396,23 @@ class _StatusBarState extends ConsumerState<StatusBar> {
         ),
       ),
       child: widget.compact
-          ? SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [...leading, ...trailing],
-              ),
+          // Phone: the whole strip scrolls, because at 430 px there is no
+          // width to pin readouts to. What it did NOT do was say so — the
+          // viewport sliced the chip at the edge in half and offered no fade,
+          // no mark and no control, so a bisected focuser glyph read as a
+          // rendering fault and Guider / Focus / clock looked absent rather
+          // than off-screen. The desktop bar already solved exactly this; the
+          // same three parts are used here, outside the viewport and flush
+          // against its right edge, since inside they would scroll away with
+          // the content they describe. Expanded bounds the scrolling child so
+          // the affordance cannot be pushed off the bar in turn.
+          ? Row(
+              children: [
+                Expanded(
+                  child: _scrollingStrip([...leading, ...trailing]),
+                ),
+                ..._cutAffordance(colors),
+              ],
             )
           // Desktop: the device pills take the slack and scroll when there is
           // none; the readouts on the right are never sacrificed. A bare
@@ -424,50 +426,72 @@ class _StatusBarState extends ConsumerState<StatusBar> {
                 // under a loose constraint, which would let the readouts drift
                 // left off the right edge. A tight fit makes the pill group take
                 // all the slack and scroll only once the slack runs out.
-                Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    // Layout changes arrive as ScrollMetricsNotification;
-                    // dragging arrives as ScrollNotification. Both change
-                    // whether anything is still hidden to the right, and the
-                    // fade and the cut mark are only honest if they track it.
-                    onNotification: (notification) {
-                      _updatePillsOverflow(notification.metrics);
-                      return false;
-                    },
-                    child: NotificationListener<ScrollMetricsNotification>(
-                      onNotification: (notification) {
-                        _updatePillsOverflow(notification.metrics);
-                        return false;
-                      },
-                      // Even after the labels are shed, a narrow bar with a long
-                      // profile name can still hold more pills than fit. Scrolling
-                      // alone is silent — the bar simply ended and looked complete,
-                      // so a disconnected mount was indistinguishable from no mount
-                      // at all. The fade says "there is more this way"; it appears
-                      // only while the group actually overflows.
-                      child: _pillsCutRight
-                          ? ShaderMask(
-                              shaderCallback: _fadeRightEdge,
-                              blendMode: BlendMode.dstIn,
-                              child: SingleChildScrollView(
-                                controller: _pillsController,
-                                scrollDirection: Axis.horizontal,
-                                child: Row(children: leading),
-                              ),
-                            )
-                          : SingleChildScrollView(
-                              controller: _pillsController,
-                              scrollDirection: Axis.horizontal,
-                              child: Row(children: leading),
-                            ),
-                    ),
-                  ),
-                ),
+                Expanded(child: _scrollingStrip(leading)),
                 ...trailing,
               ],
             ),
     );
   }
+
+  /// The horizontally scrolling group, with the edge fade that says content is
+  /// hidden past the right edge and the metrics wiring that keeps that claim
+  /// true.
+  ///
+  /// Both bars use it: the desktop bar scrolls its device pills, the phone bar
+  /// scrolls the whole strip. One implementation, so the phone cannot drift
+  /// back into scrolling silently.
+  Widget _scrollingStrip(List<Widget> children) {
+    final scroller = SingleChildScrollView(
+      controller: _pillsController,
+      scrollDirection: Axis.horizontal,
+      child: Row(children: children),
+    );
+    return NotificationListener<ScrollNotification>(
+      // Layout changes arrive as ScrollMetricsNotification; dragging arrives
+      // as ScrollNotification. Both change whether anything is still hidden to
+      // the right, and the fade and the cut mark are only honest if they track
+      // it.
+      onNotification: (notification) {
+        _updatePillsOverflow(notification.metrics);
+        return false;
+      },
+      child: NotificationListener<ScrollMetricsNotification>(
+        onNotification: (notification) {
+          _updatePillsOverflow(notification.metrics);
+          return false;
+        },
+        // Even after the labels are shed, a narrow bar with a long profile name
+        // can still hold more than fits. Scrolling alone is silent — the bar
+        // simply ended and looked complete, so a disconnected mount was
+        // indistinguishable from no mount at all. The fade says "there is more
+        // this way"; it appears only while the group actually overflows.
+        child: _pillsCutRight
+            ? ShaderMask(
+                shaderCallback: _fadeRightEdge,
+                blendMode: BlendMode.dstIn,
+                child: scroller,
+              )
+            : scroller,
+      ),
+    );
+  }
+
+  /// The truncation mark and the control that reaches what it marks.
+  ///
+  /// The strip still scrolls at 1000 px on desktop and at every phone width, so
+  /// the item at the viewport edge is sliced and dissolved by the fade with
+  /// nothing saying it was cut. An ellipsis is how this app says "truncated"
+  /// everywhere else, so the cut gets one; the chevron beside it is the control
+  /// a fade is not. Both are drawn OUTSIDE the viewport, flush against it,
+  /// because inside they would scroll away with the content they describe.
+  List<Widget> _cutAffordance(NightshadeColors colors) => [
+        if (_pillsCutRight) _PillsCutMarker(colors: colors),
+        if (_pillsOverflow)
+          _PillsOverflowAffordance(
+            colors: colors,
+            onTap: _scrollPillsRight,
+          ),
+      ];
 
   /// True while the pill group is wider than its viewport at all — i.e. some
   /// pill is unreachable without scrolling. Drives the scroll affordance,

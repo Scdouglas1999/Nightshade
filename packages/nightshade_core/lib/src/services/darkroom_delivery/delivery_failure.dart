@@ -12,8 +12,33 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 
 import '../../models/darkroom/delivery.dart';
+
+/// [error]'s own sentence with the operating system's reason attached.
+///
+/// `FileSystemException.message` names only the act — `Cannot copy file to
+/// '/drop/master.fits'`, `Failed to open file` — and the reason lives in
+/// `osError`.
+/// Reporting the act alone produced journal rows, morning-report problems and
+/// Settings status lines that all read
+/// `insufficientSpace: Copying X to Y failed: Cannot copy file to Z`: the kind
+/// prefix was the only thing naming a mechanism, and for every other errno
+/// even that was `transportFailure`, which names nothing. The reason was
+/// always in hand — the ENOSPC classification is made by reading
+/// `osError.errorCode` one line earlier — it simply never reached the
+/// operator's sentence.
+///
+/// The errno rides along because two different failures share one wording
+/// often enough to matter when someone reads the journal a week later.
+String fileSystemReason(FileSystemException error) {
+  final osError = error.osError;
+  if (osError == null) return error.message;
+  final reason = osError.message.trim();
+  if (reason.isEmpty) return error.message;
+  return '${error.message} — $reason (errno ${osError.errorCode})';
+}
 
 /// The mechanism that stopped a delivery.
 enum DeliveryFailureKind {

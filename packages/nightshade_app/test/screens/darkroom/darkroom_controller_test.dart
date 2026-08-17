@@ -406,7 +406,12 @@ void main() {
 
   test('a recipe id with no row says so', () async {
     final state = await settle(const DarkroomScope.recipe(4242));
-    expect(state.loadError, contains('Recipe 4242 does not exist'));
+    expect(state.loadError, contains('Recipe 4242 no longer has a row'));
+    // `recipes.master_id` is ON DELETE SET NULL, so a deleted master cannot
+    // take a recipe row with it. The sentence used to speculate that it might
+    // have, which read as "the master is gone" over a master still on disk.
+    expect(state.loadError, contains('still in the library'));
+    expect(state.loadError, isNot(contains('deleted along with the master')));
   });
 
   test('loading a recipe renders it once and reports every step', () async {
@@ -1179,7 +1184,7 @@ void main() {
 
     final reopened = await settle(scope);
     expect(reopened.hasRecipe, isFalse);
-    expect(reopened.loadError, contains('Recipe $id does not exist'));
+    expect(reopened.loadError, contains('Recipe $id no longer has a row'));
   });
 
   test(

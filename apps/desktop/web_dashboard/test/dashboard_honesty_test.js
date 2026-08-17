@@ -28,9 +28,22 @@ function fn(name) {
   return m[0];
 }
 
-/** Lift a top-level `const NAME = …;` line out of the IIFE. */
+/**
+ * Lift a top-level `const NAME = …;` declaration out of the IIFE. The value
+ * may wrap over several lines — a derived threshold is spelled as the
+ * arithmetic that produces it, and the test must read that arithmetic, not a
+ * number retyped here.
+ */
 function konst(name) {
-  const re = new RegExp('  const ' + name + ' = [^;]+;');
+  const re = new RegExp('  const ' + name + ' =[\\s\\S]*?;');
+  const m = APP.match(re);
+  assert.ok(m, name + ' must exist in app.js');
+  return m[0];
+}
+
+/** Lift a top-level `let NAME = …;` declaration out of the IIFE. */
+function letDecl(name) {
+  const re = new RegExp('  let ' + name + ' =[^;]*;');
   const m = APP.match(re);
   assert.ok(m, name + ' must exist in app.js');
   return m[0];
@@ -242,11 +255,20 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
   doc.getElementById('status-text').textContent = 'Connected';
   doc.getElementById('status-dot').className = 'status-dot connected';
   const calls = [];
+  const repaints = [];
+  // Mutable, so a test can move the clock and repaint through the SAME
+  // closure — the staleness flag the recovery edge turns on lives in there.
+  const api = { lastContactAt, isConnected, rateLimitRemainingSecs };
+  const state = { serverUnreachable: unreachable, lastWsMessageAt };
   const render = build(
     ['document', 'api', 'state', 'lastReachabilityProbeAt',
-      'setConnectionStatus', 'renderBadge'],
+      'setConnectionStatus', 'renderBadge', 'renderSequencerPanel'],
     [
+      konst('REACHABILITY_PROBE_MS'),
+      konst('SERVER_HEARTBEAT_MS'),
+      konst('MISSED_HEARTBEATS_BEFORE_STALE'),
       konst('SERVER_CONTACT_STALE_MS'),
+      letDecl('linkStaleAsserted'),
       fn('lastServerContactAt'),
       fn('isServerContactStale'),
       fn('formatAgeSeconds'),
@@ -255,14 +277,20 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
     'renderLinkState',
   )(
     doc,
-    { lastContactAt, isConnected, rateLimitRemainingSecs },
-    { serverUnreachable: unreachable, lastWsMessageAt },
+    api,
+    state,
     lastProbeAt,
-    (s) => { calls.push(s); },
+    (s) => {
+      calls.push(s);
+      if (s === 'connected') {
+        doc.getElementById('status-text').textContent = 'Connected';
+      }
+    },
     (el, label, cls) => { el.textContent = label; el.className = cls; },
+    () => { repaints.push('sequencer'); },
   );
   render();
-  return { doc, calls };
+  return { doc, calls, repaints, render, api, state };
 }
 
 // Measured before the fix: 65 s after SIGKILL the header still read a green
@@ -289,14 +317,69 @@ test('an unreachable server flips the header and raises a banner', () => {
 
 test('silence past the contact window is stale even without a failed probe', () => {
   const now = Date.now();
+  // Two whole heartbeats missed and then some: nothing has answered for well
+  // over a minute on a link the socket still believes is up.
   const { doc } = linkState({
     unreachable: false,
-    lastContactAt: now - 20000,
-    lastWsMessageAt: now - 20000,
+    lastContactAt: now - 70000,
+    lastWsMessageAt: now - 70000,
   });
   assert.equal(doc.getElementById('status-text').textContent, 'No contact');
   assert.match(doc.getElementById('link-banner').textContent,
     /No answer from the Nightshade server/);
+});
+
+// D4W-1. An idle server pushes no events, so the 30 s ping/pong is the only
+// thing that stamps contact and the gap between beats routinely reaches a full
+// interval. Measured against the 12 s window this code used to carry: over a
+// 200 s soak of a healthy, idle server the header spent 26 of 40 samples on
+// "No contact" while every request in flight was being answered.
+test('a healthy idle server between heartbeats is never declared lost', () => {
+  const now = Date.now();
+  for (const gap of [12001, 20000, 29500, 35000]) {
+    const { doc } = linkState({
+      unreachable: false,
+      lastContactAt: now - gap,
+      lastWsMessageAt: now - gap,
+    });
+    assert.equal(doc.getElementById('status-text').textContent, 'Connected',
+      gap + ' ms since the last beat is quiet, not lost');
+    assert.ok(doc.getElementById('link-banner').classList.contains('hidden'),
+      'no banner at ' + gap + ' ms');
+    assert.equal(doc.getElementById('seq-status').textContent, '',
+      'the badge is left to the sequencer renderer at ' + gap + ' ms');
+  }
+});
+
+// D4W-2. Staleness is a state of the link, not a mark burned into the badge:
+// the badge that went "unknown" on a missed exchange stayed "unknown" for the
+// rest of the session — through every later healthy poll — because only the
+// header was ever restored.
+test('contact returning hands the badge back to the real renderer', () => {
+  const now = Date.now();
+  const { doc, calls, repaints, render, api, state } = linkState({
+    unreachable: true,
+    lastContactAt: now - 70000,
+    lastWsMessageAt: now - 70000,
+    lastProbeAt: now - 1000,
+  });
+  assert.equal(doc.getElementById('seq-status').textContent, 'unknown');
+  assert.deepEqual(repaints, [], 'nothing to restore while still stale');
+
+  // The server answers again.
+  api.lastContactAt = Date.now();
+  state.lastWsMessageAt = Date.now();
+  state.serverUnreachable = false;
+  render();
+
+  assert.deepEqual(repaints, ['sequencer'],
+    'the sequencer panel repaints from the data, not from the overlay');
+  assert.ok(calls.includes('connected'));
+  assert.ok(doc.getElementById('link-banner').classList.contains('hidden'));
+
+  // A second healthy tick must not keep repainting: the edge fired once.
+  render();
+  assert.deepEqual(repaints, ['sequencer']);
 });
 
 test('a healthy link leaves the header alone and hides the banner', () => {
@@ -432,4 +515,40 @@ test('no progress bar declares aria-valuenow before it has a value', () => {
       name + ' must clear the value when status is unknown');
     assert.doesNotMatch(source, /setAttribute\('aria-valuenow', '0'\)/);
   }
+});
+
+// ---------------------------------------------------------------------------
+// D4W-5 — before the first answer, the page is connecting, not reporting
+// ---------------------------------------------------------------------------
+
+test('the sequencer badge asserts nothing before the first status', () => {
+  const doc = makeDocument([
+    'seq-status', 'seq-node', 'seq-message', 'seq-progress-bar',
+    'seq-progress-bar-container', 'seq-progress-text',
+  ]);
+  const render = build(
+    ['document', 'state', 'renderBadge', 'updateSequencerButtons',
+      'getSequencerBadgeClass', 'sequencerProgressPercent',
+      'renderOpsSequencerLoadPanel'],
+    [fn('renderSequencerPanel')],
+    'renderSequencerPanel',
+  )(
+    doc,
+    { sequencerStatus: null },
+    (el, label, cls) => { el.textContent = label; el.className = cls; },
+    () => {},
+    () => 'badge-idle',
+    () => 0,
+    () => {},
+  );
+  render();
+  assert.equal(doc.getElementById('seq-status').textContent, 'connecting',
+    'a rig this page has never heard from is not "idle"');
+  assert.equal(doc.getElementById('seq-progress-text').textContent, '');
+
+  // The shipped markup is what the operator sees for the first few hundred ms,
+  // before any JS has run — it must make the same claim, which is none.
+  const badge = HTML.match(/<span id="seq-status">[\s\S]*?<\/span>\s*<\/span>/);
+  assert.ok(badge, 'the sequencer status badge must exist in the markup');
+  assert.match(badge[0], />connecting</);
 });

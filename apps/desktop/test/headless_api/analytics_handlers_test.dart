@@ -325,6 +325,219 @@ void main() {
       expect((stats['frameBreakdown'] as Map)['light'], 10);
     });
 
+    // The all-rejected night: twelve subs exposed and downloaded perfectly,
+    // every one of them culled. `imaging_sessions` records that as
+    // `successful 12 / failed 0` — the identical row a fully accepted night
+    // writes — so the list surfaces, which served that row alone, told the
+    // operator the night worked while `/api/sessions/<id>/stats` said nothing
+    // survived. Same night, two answers. Both surfaces now read the frames.
+    test('every session surface reports the same grading verdict', () async {
+      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final testContainer = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(database)],
+      );
+      addTearDown(testContainer.dispose);
+      final testHandlers = AnalyticsHandlers(testContainer);
+
+      Future<int> seedSession({required String name, required int targetId}) =>
+          database
+              .into(database.imagingSessions)
+              .insert(
+                ImagingSessionsCompanion.insert(
+                  name: Value(name),
+                  startTime: DateTime.utc(2026, 8, 17),
+                  targetId: Value(targetId),
+                  totalExposures: const Value(12),
+                  successfulExposures: const Value(12),
+                ),
+              );
+
+      Future<void> addFrame({
+        required int sessionId,
+        required int index,
+        required String frameType,
+        required bool accepted,
+      }) => database
+          .into(database.capturedImages)
+          .insert(
+            CapturedImagesCompanion.insert(
+              filePath: '/l/$sessionId-$frameType$index.fits',
+              fileName: '$sessionId-$frameType$index.fits',
+              frameType: Value(frameType),
+              exposureDuration: 300.0,
+              capturedAt: DateTime.utc(2026, 8, 17),
+              sessionId: Value(sessionId),
+              isAccepted: Value(accepted),
+            ),
+          );
+
+      await database
+          .into(database.targets)
+          .insert(TargetsCompanion.insert(name: 'M31', ra: 10.68, dec: 41.27));
+
+      final rejectedNight = await seedSession(
+        name: 'all rejected',
+        targetId: 1,
+      );
+      for (var i = 0; i < 12; i++) {
+        await addFrame(
+          sessionId: rejectedNight,
+          index: i,
+          frameType: 'light',
+          accepted: false,
+        );
+      }
+      // A second night on the same target, kept, so the batched read is proven
+      // to attribute counts per session rather than smearing one total across
+      // the page.
+      final keptNight = await seedSession(name: 'all kept', targetId: 1);
+      for (var i = 0; i < 12; i++) {
+        await addFrame(
+          sessionId: keptNight,
+          index: i,
+          frameType: 'light',
+          accepted: true,
+        );
+      }
+      // Calibration is never graded and must not reach either count.
+      await addFrame(
+        sessionId: rejectedNight,
+        index: 99,
+        frameType: 'dark',
+        accepted: true,
+      );
+
+      Future<Map<String, Object?>> sessionFrom(
+        Future<Response> response,
+        String envelope, {
+        int? pick,
+      }) async {
+        final body = jsonDecode(await (await response).readAsString()) as Map;
+        if (pick == null) {
+          return (body[envelope] as Map).cast<String, Object?>();
+        }
+        final list = (body[envelope] as List).cast<Map<String, Object?>>();
+        return list.firstWhere((row) => row['id'] == pick);
+      }
+
+      final surfaces = <String, Map<String, Object?>>{
+        '/api/sessions': await sessionFrom(
+          testHandlers.handleGetAllSessions(
+            Request('GET', Uri.parse('http://localhost/api/sessions')),
+          ),
+          'sessions',
+          pick: rejectedNight,
+        ),
+        '/api/sessions/<id>': await sessionFrom(
+          testHandlers.handleGetSessionById(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/sessions/$rejectedNight'),
+            ),
+            '$rejectedNight',
+          ),
+          'session',
+        ),
+        '/api/sessions/recent': await sessionFrom(
+          testHandlers.handleGetRecentSessions(
+            Request('GET', Uri.parse('http://localhost/api/sessions/recent')),
+          ),
+          'sessions',
+          pick: rejectedNight,
+        ),
+        '/api/analytics/target/<id>/sessions': await sessionFrom(
+          testHandlers.handleGetSessionsForTarget(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/analytics/target/1/sessions'),
+            ),
+            '1',
+          ),
+          'sessions',
+          pick: rejectedNight,
+        ),
+        '/api/sessions/<id>/stats': await sessionFrom(
+          testHandlers.handleGetSessionStats(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/sessions/$rejectedNight/stats'),
+            ),
+            '$rejectedNight',
+          ),
+          'stats',
+        ),
+      };
+
+      for (final entry in surfaces.entries) {
+        expect(
+          entry.value['acceptedLights'],
+          0,
+          reason: '${entry.key} must say nothing survived this night',
+        );
+        expect(
+          entry.value['rejectedLights'],
+          12,
+          reason: '${entry.key} must name the twelve culled frames',
+        );
+        expect(
+          entry.value['successfulExposures'],
+          12,
+          reason:
+              '${entry.key} still answers the camera question honestly — '
+              'twelve exposures did complete',
+        );
+      }
+
+      final kept = await sessionFrom(
+        testHandlers.handleGetAllSessions(
+          Request('GET', Uri.parse('http://localhost/api/sessions')),
+        ),
+        'sessions',
+        pick: keptNight,
+      );
+      expect(kept['acceptedLights'], 12);
+      expect(kept['rejectedLights'], 0);
+    });
+
+    test(
+      'a session with no frames on record claims no accepted lights',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+        final testContainer = ProviderContainer(
+          overrides: [databaseProvider.overrideWithValue(database)],
+        );
+        addTearDown(testContainer.dispose);
+        final testHandlers = AnalyticsHandlers(testContainer);
+
+        final sessionId = await database
+            .into(database.imagingSessions)
+            .insert(
+              ImagingSessionsCompanion.insert(
+                startTime: DateTime.utc(2026, 8, 17),
+                totalExposures: const Value(4),
+                successfulExposures: const Value(4),
+              ),
+            );
+
+        final body =
+            jsonDecode(
+                  await (await testHandlers.handleGetSessionById(
+                    Request(
+                      'GET',
+                      Uri.parse('http://localhost/api/sessions/$sessionId'),
+                    ),
+                    '$sessionId',
+                  )).readAsString(),
+                )
+                as Map;
+        final session = body['session'] as Map;
+        expect(session['acceptedLights'], 0);
+        expect(session['rejectedLights'], 0);
+      },
+    );
+
     test('session creation rejects empty and unknown payloads', () async {
       final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
       addTearDown(database.close);

@@ -71,6 +71,11 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
                 children: [
                   _editActions(colors),
                   const SizedBox(height: NightshadeTokens.spaceLg),
+                  // Above the render account and far above the reference
+                  // material: both of these say what this recipe IS — what the
+                  // registry decided to leave out of it, and what file it was
+                  // read from — and neither is inferable from the stack.
+                  ..._provenance(),
                   _renderStatus(colors),
                   // Both halves of the photometry account — the stars there
                   // are, and the reason there are none — belong to one step. A
@@ -99,6 +104,42 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         ),
       ],
     );
+  }
+
+  /// What this recipe is, beyond its steps: what the registry left out of the
+  /// draft, and what file an import read it from.
+  ///
+  /// The draft notes were the registry's own account of every operation it
+  /// decided ABOUT and did not carry, and until they were rendered here they
+  /// existed only in the night report on disk. "Color where there is color to
+  /// calibrate" is a promise the offer makes; a mono master's four-step stack
+  /// is what arrives; the sentence in between is this.
+  List<Widget> _provenance() {
+    final notes = state.draftNotes;
+    final importNote = state.importNote;
+    if (notes.isEmpty && importNote == null) return const [];
+    return [
+      if (notes.isNotEmpty) ...[
+        NightshadeAlert(
+          severity: NightshadeAlertSeverity.info,
+          title: notes.length == 1
+              ? 'The draft left one operation out'
+              : 'The draft left ${notes.length} operations out',
+          message: notes.join('\n\n'),
+          compact: true,
+        ),
+        const SizedBox(height: NightshadeTokens.spaceLg),
+      ],
+      if (importNote != null) ...[
+        NightshadeAlert(
+          severity: NightshadeAlertSeverity.info,
+          title: 'Imported from a .nsrecipe sidecar',
+          message: importNote,
+          compact: true,
+        ),
+        const SizedBox(height: NightshadeTokens.spaceLg),
+      ],
+    ];
   }
 
   Widget _identity(NightshadeColors colors) {

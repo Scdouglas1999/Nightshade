@@ -15,9 +15,11 @@ Future<String?> _defaultDarkroomSavePicker({
   required String suggestedName,
   required List<String> allowedExtensions,
   required String confirmButtonText,
+  required String? initialDirectory,
 }) async {
   final target = await chooseExportTarget(
     suggestedName: suggestedName,
+    initialDirectory: initialDirectory,
     acceptedTypeGroups: [
       XTypeGroup(
         label: allowedExtensions.map((e) => e.toUpperCase()).join(' / '),
@@ -29,10 +31,60 @@ Future<String?> _defaultDarkroomSavePicker({
   return target?.path;
 }
 
+/// Where the save chooser opens: the profile's own darkroom output folder.
+///
+/// The chooser used to open wherever the process was launched from — for a
+/// release build, the bundle directory — while the profile's capture path and
+/// its `darkroom/` subfolder were configured, known, and already where every
+/// draft render and night report of this night had been written.
+///
+/// The directory is only OFFERED, never created and never written to: a chooser
+/// that opens at a path the operator then navigates away from must not have
+/// left a folder behind. `getSaveLocation` ignores an initial directory that
+/// does not exist, which is the same as not naming one, so a night that has not
+/// written a darkroom folder yet falls back to the capture root and then to the
+/// platform default.
+Future<String?> _darkroomOutputDirectory(SettingsDao settings) async {
+  final String configured;
+  try {
+    configured = (await settings.getImageOutputDirectory()).trim();
+  } catch (error, stack) {
+    // The chooser opening at the platform default is the documented behaviour
+    // of naming no directory, so a settings read that fails must not stop an
+    // export the operator asked for — but it is still a database read that did
+    // not work, and the log is where that is answerable.
+    developer.log(
+      'Darkroom: the capture output path could not be read, so the save '
+      'chooser opens at the platform default: $error',
+      name: 'Darkroom',
+      level: 900,
+      stackTrace: stack,
+    );
+    return null;
+  }
+  if (configured.isEmpty) return null;
+  final darkroom = p.join(configured, 'darkroom');
+  if (await Directory(darkroom).exists()) return darkroom;
+  if (await Directory(configured).exists()) return configured;
+  return null;
+}
+
 /// Override point for the Darkroom export destination (tests script this).
-final darkroomSavePickerProvider = Provider<DarkroomSavePicker>(
-  (ref) => _defaultDarkroomSavePicker,
-);
+final darkroomSavePickerProvider = Provider<DarkroomSavePicker>((ref) {
+  final settings = ref.watch(settingsDaoProvider);
+  return ({
+    required String suggestedName,
+    required List<String> allowedExtensions,
+    required String confirmButtonText,
+  }) async {
+    return _defaultDarkroomSavePicker(
+      suggestedName: suggestedName,
+      allowedExtensions: allowedExtensions,
+      confirmButtonText: confirmButtonText,
+      initialDirectory: await _darkroomOutputDirectory(settings),
+    );
+  };
+});
 
 /// Which stage of the stack an export materialises.
 enum _DarkroomExportStageKind {
@@ -429,14 +481,24 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// Flutter's own semantics tree, but the Linux AT-SPI bridge publishes only a
   /// node's NAME and description, and the hint reaches neither: every chip on
   /// this sheet comes back over AT-SPI as `'PNG' | button | desc: ''` —
-  /// measured on this build. So a REFUSED option carries its reason inside its
+  /// measured on this build. So an option carries its reason inside its
   /// accessible name, the shape the disabled Compare button already uses, and
   /// [ExcludeSemantics] drops the chip's own node so exactly one node comes out
   /// rather than a bare "PNG" nested under the sentence.
   ///
+  /// **Enabled options take the same shape as refused ones.** They used to take
+  /// the hint, so the only statement of what FITS writes, or of what "After a
+  /// step" produces, was a hover tooltip: nothing at all from a keyboard, from
+  /// a screen reader, or on a touch screen. An available choice needs its
+  /// reason as much as an unavailable one — that is what makes it a choice.
+  ///
   /// The name is the reason's only assistive-tech channel, never its only
-  /// channel outright: each picker states a live refusal on screen as well, for
-  /// the touch screen that has no hover and no screen reader.
+  /// channel outright: each picker states a live refusal on screen as well, and
+  /// [_chosenFormatNote] puts the selected format's own sentence on the sheet.
+  ///
+  /// The tooltip is width-CONSTRAINED. Unbounded, `_formatNote`'s sentence laid
+  /// out as one ~900-pixel line that escaped the modal barrier and painted
+  /// across the nav rail and the alert's own title row.
   ///
   /// [onTap] is dropped when [enabled] is false — an unavailable option must not
   /// publish a live tap action beside its disabled flag.
@@ -453,18 +515,58 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       enabled: enabled,
       onTap: enabled ? onTap : null,
     );
-    if (!enabled) {
-      return Semantics(
-        button: true,
-        enabled: false,
-        selected: selected,
-        label: '$label — $reason',
-        child: ExcludeSemantics(child: Tooltip(message: reason, child: chip)),
-      );
-    }
     return Semantics(
-      hint: reason,
-      child: Tooltip(message: reason, child: chip),
+      container: true,
+      button: true,
+      enabled: enabled,
+      selected: selected,
+      label: '$label — $reason',
+      onTap: enabled ? onTap : null,
+      child: ExcludeSemantics(
+        child: _boundedTooltip(message: reason, child: chip),
+      ),
+    );
+  }
+
+  /// A tooltip that wraps instead of running off the screen.
+  ///
+  /// `Tooltip` has no width of its own, so a long message lays out as a single
+  /// line as wide as it needs. `richMessage` is the one hook that takes a
+  /// widget, and a [ConstrainedBox] inside it is what gives the text something
+  /// to wrap against.
+  Widget _boundedTooltip({required String message, required Widget child}) {
+    return Builder(
+      builder: (context) {
+        final colors = NightshadeColors.of(context);
+        return Tooltip(
+          richMessage: WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: Text(
+                message,
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+
+  /// What the CHOSEN format writes, on screen.
+  ///
+  /// The per-chip reasons are an accessible name and a hover; this is the one
+  /// the operator reads without pointing at anything, about the option they
+  /// have actually taken.
+  Widget _chosenFormatNote(NightshadeColors colors) {
+    return Text(
+      '${_format.label}: ${_formatNote(_format)}',
+      style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
     );
   }
 
@@ -592,6 +694,8 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
               ),
           ],
         ),
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        _chosenFormatNote(colors),
         // Gated on the STAGE's own domain, never on `rasterAllowed`. Whether
         // these pixels need the engine's transfer is a fact about the stage;
         // `_screenTransfer` is the operator's answer to it. Gating this block

@@ -530,7 +530,10 @@
           <div class="panel-stale-indicator" id="stale-sequencer" role="status" aria-live="polite"></div>
           <div class="status-row">
             <span class="status-label">Status</span>
-            <span id="seq-status"><span class="badge badge-idle">idle</span></span>
+            <!-- Shipped state: nothing has been asked yet, so this asserts
+                 nothing about the rig. renderSequencerPanel replaces it with
+                 the server's own state on the first answer. -->
+            <span id="seq-status"><span class="badge badge-idle">connecting</span></span>
           </div>
           <div class="status-row">
             <span class="status-label">Current Node</span>
