@@ -1,0 +1,383 @@
+part of '../darkroom_screen.dart';
+
+/// Screen pixels per MASTER pixel in the Darkroom viewport.
+///
+/// The number is NOT the viewer's own zoom: the preview is rendered from a
+/// pyramid level, so a viewer scale of 1.0 over a level-2 preview draws one
+/// screen pixel per FOUR master pixels. Every readout that says a percentage
+/// must say it about the master, or it describes a picture that is not the
+/// operator's data.
+///
+/// Defaults to 1.0 so a reader that runs before the first render has laid out
+/// sees "unscaled" rather than zero. Published by [_DarkroomViewport], the only
+/// widget that knows both the viewport and the render's level.
+final darkroomDisplayScaleProvider = StateProvider<double>((ref) => 1.0);
+
+/// Widest zoom the Darkroom viewport allows.
+///
+/// Higher than the viewer's own default because 1:1 on a master pixel means a
+/// viewer scale of `1 / scaleFromMaster`: a level-4 preview needs 16× before a
+/// screen pixel is a master pixel.
+const double kDarkroomMaxViewerScale = 32.0;
+
+/// Narrowest zoom the Darkroom viewport allows.
+const double kDarkroomMinViewerScale = 0.05;
+
+/// Step one press of the zoom buttons takes.
+const double kDarkroomZoomStep = 1.25;
+
+/// The rendered image, and the controls that move the view over it.
+class _DarkroomViewport extends ConsumerStatefulWidget {
+  final DarkroomState state;
+
+  /// Re-check and re-render the committed stack now.
+  final Future<void> Function() onRerender;
+
+  const _DarkroomViewport({required this.state, required this.onRerender});
+
+  @override
+  ConsumerState<_DarkroomViewport> createState() => _DarkroomViewportState();
+}
+
+class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
+  /// Owned here, not by [AstroImageViewer], because the fit / 1:1 / zoom
+  /// controls drive it — and because a new render must not throw away the zoom
+  /// and pan the operator set on the previous one.
+  final TransformationController _transform = TransformationController();
+
+  /// The box the viewer is laid out in, measured in the last build.
+  Size _viewportSize = Size.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _transform.addListener(_onTransformChanged);
+  }
+
+  @override
+  void dispose() {
+    _transform.removeListener(_onTransformChanged);
+    _transform.dispose();
+    super.dispose();
+  }
+
+  /// Repaint the readout. The transform changes on wheel zoom, on drag-pan and
+  /// on pinch; [AstroImageViewer.onTransformChanged] fires only for the first
+  /// of those, so the readout listens to the controller instead.
+  void _onTransformChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  /// The viewer's own scale: screen pixels per RENDERED pixel.
+  double get _viewerScale => _transform.value.getMaxScaleOnAxis();
+
+  /// Screen pixels per MASTER pixel, or null when the render did not state the
+  /// level it answered at.
+  double? get _masterScale {
+    final scale = widget.state.preview?.scaleFromMaster;
+    if (scale == null) return null;
+    return _viewerScale * scale;
+  }
+
+  /// Hand the measured scale to readers outside this subtree.
+  ///
+  /// Deferred to a post-frame callback because it is computed inside `build`
+  /// and mutating a provider during a build is illegal. The equality guard
+  /// makes this converge in one extra frame rather than looping.
+  void _publishDisplayScale(double scale) {
+    if (ref.read(darkroomDisplayScaleProvider) == scale) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(darkroomDisplayScaleProvider.notifier).state = scale;
+    });
+  }
+
+  void _fit() {
+    final preview = widget.state.preview;
+    if (preview == null) return;
+    final size = _viewportSize;
+    if (size.width <= 0 || size.height <= 0) return;
+    if (preview.width <= 0 || preview.height <= 0) return;
+    final scaleX = size.width / preview.width;
+    final scaleY = size.height / preview.height;
+    final fit = scaleX < scaleY ? scaleX : scaleY;
+    _transform.value = Matrix4.identity()
+      ..translateByDouble(
+        (size.width - preview.width * fit) / 2,
+        (size.height - preview.height * fit) / 2,
+        0,
+        1.0,
+      )
+      ..scaleByDouble(fit, fit, 1.0, 1.0);
+  }
+
+  /// One screen pixel per MASTER pixel, as close as the zoom ceiling allows.
+  ///
+  /// A coarse pyramid level cannot reach 1:1 inside the ceiling; the readout
+  /// then shows the scale that was actually reached, so the picture is never
+  /// labelled 100% when it is not.
+  void _oneToOne() {
+    final scale = widget.state.preview?.scaleFromMaster;
+    if (scale == null) return;
+    _scaleAboutCentre(1.0 / scale);
+  }
+
+  void _zoomBy(double factor) => _scaleAboutCentre(_viewerScale * factor);
+
+  void _scaleAboutCentre(double target) {
+    final size = _viewportSize;
+    if (size.width <= 0 || size.height <= 0) return;
+    final current = _viewerScale;
+    if (current <= 0) return;
+    final clamped = target.clamp(
+      kDarkroomMinViewerScale,
+      kDarkroomMaxViewerScale,
+    );
+    if (clamped == current) return;
+    final factor = clamped / current;
+    final focalX = size.width / 2;
+    final focalY = size.height / 2;
+    final matrix = Matrix4.identity()
+      ..translateByDouble(focalX, focalY, 0, 1.0)
+      ..scaleByDouble(factor, factor, 1.0, 1.0)
+      ..translateByDouble(-focalX, -focalY, 0, 1.0);
+    _transform.value = matrix * _transform.value;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final state = widget.state;
+    final masterScale = _masterScale;
+    if (masterScale != null) _publishDisplayScale(masterScale);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _controls(colors, state, masterScale),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              _viewportSize = Size(
+                constraints.maxWidth,
+                constraints.maxHeight,
+              );
+              return _canvas(colors, state);
+            },
+          ),
+        ),
+        _encodingStrip(colors, state),
+      ],
+    );
+  }
+
+  Widget _controls(
+    NightshadeColors colors,
+    DarkroomState state,
+    double? masterScale,
+  ) {
+    final hasPreview = state.preview != null;
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceXs,
+      ),
+      child: Wrap(
+        spacing: NightshadeTokens.spaceXs,
+        runSpacing: NightshadeTokens.spaceXs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          AccessibleIconButton(
+            icon: NightshadeIcons.remove,
+            label: 'Zoom out',
+            size: NightshadeTokens.iconSm,
+            onPressed: hasPreview ? () => _zoomBy(1 / kDarkroomZoomStep) : null,
+          ),
+          AccessibleIconButton(
+            icon: NightshadeIcons.add,
+            label: 'Zoom in',
+            size: NightshadeTokens.iconSm,
+            onPressed: hasPreview ? () => _zoomBy(kDarkroomZoomStep) : null,
+          ),
+          NightshadeButton(
+            label: 'Fit',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: hasPreview ? _fit : null,
+          ),
+          NightshadeButton(
+            label: '1:1',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: state.preview?.scaleFromMaster == null
+                ? null
+                : _oneToOne,
+          ),
+          Semantics(
+            label: masterScale == null
+                ? 'Zoom relative to the master is unknown'
+                : 'Zoom ${(masterScale * 100).round()} percent of the master',
+            child: ExcludeSemantics(
+              child: Text(
+                masterScale == null
+                    ? '—'
+                    : '${(masterScale * 100).round()}% of master',
+                style: NightshadeTypography.monoSm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+          ),
+          if (state.preview?.level != null)
+            _DarkroomTag(
+              label: 'Level ${state.preview!.level}',
+              tooltip:
+                  'The pyramid level this preview was rendered from. Level 0 '
+                  'is the master\'s own pixels; export always renders at full '
+                  'resolution.',
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _canvas(NightshadeColors colors, DarkroomState state) {
+    final preview = state.preview;
+    if (preview == null) {
+      if (state.rendering) {
+        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      }
+      final renderError = state.renderError;
+      if (renderError != null) {
+        return EmptyState(
+          icon: NightshadeIcons.imageOff,
+          title: 'The render did not finish',
+          body: renderError,
+          action: NightshadeButton(
+            label: 'Render again',
+            icon: NightshadeIcons.refresh,
+            onPressed: () => widget.onRerender(),
+          ),
+        );
+      }
+      if (state.cancelledPhase != null) {
+        return EmptyState(
+          icon: NightshadeIcons.stopCircle,
+          title: 'The render was stopped',
+          body:
+              'It stopped during ${state.cancelledPhase}, so there are no '
+              'pixels to show yet.',
+          action: NightshadeButton(
+            label: 'Render again',
+            icon: NightshadeIcons.refresh,
+            onPressed: () => widget.onRerender(),
+          ),
+        );
+      }
+      return const EmptyState(
+        icon: NightshadeIcons.image,
+        title: 'Nothing rendered yet',
+        body:
+            'The recipe has not been rendered over this master. Adjust a step '
+            'or press Render again.',
+      );
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ColoredBox(
+            color: colors.background,
+            child: AstroImageViewer(
+              imageData: preview.rgba,
+              width: preview.width,
+              height: preview.height,
+              isColor: preview.isColor,
+              minScale: kDarkroomMinViewerScale,
+              maxScale: kDarkroomMaxViewerScale,
+              transformationController: _transform,
+            ),
+          ),
+        ),
+        // A re-render keeps the previous picture on screen and marks it as
+        // stale rather than blanking the canvas: an editor that flashes to
+        // empty on every slider frame is unreadable.
+        if (state.rendering)
+          Positioned(
+            top: NightshadeTokens.spaceSm,
+            right: NightshadeTokens.spaceSm,
+            child: _DarkroomTag(
+              label: state.cancelRequested ? 'Stopping…' : 'Rendering…',
+              tooltip:
+                  'The picture below is the previous render until this one '
+                  'lands.',
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _encodingStrip(NightshadeColors colors, DarkroomState state) {
+    final preview = state.preview;
+    if (preview == null) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceXs,
+      ),
+      child: Text(
+        'Display transfer: ${preview.encoding}',
+        style: NightshadeTypography.captionSm.copyWith(
+          color: colors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+/// A small labelled tag with an explanation behind it.
+///
+/// Deliberately not colour-coded: under the red-night palette every semantic
+/// hue collapses toward the same red, so a tag that carried meaning in its fill
+/// alone would say nothing at the telescope.
+class _DarkroomTag extends StatelessWidget {
+  final String label;
+  final String tooltip;
+
+  const _DarkroomTag({required this.label, required this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceSm,
+          vertical: 2,
+        ),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: NightshadeTokens.borderRadiusSm,
+          border: Border.all(color: colors.border),
+        ),
+        child: Text(
+          label,
+          style: NightshadeTypography.captionSm.copyWith(
+            color: colors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}

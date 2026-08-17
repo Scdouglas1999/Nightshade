@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/backend/event_types.dart' show EventSeverity;
+import '../models/notification/notification_categories.dart'
+    show NotificationCategory;
 import '../providers/notification_router_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/duration_format.dart';
@@ -110,11 +112,24 @@ class NotificationService {
 
   /// Send a notification based on the event type
   /// Returns true if at least one notification was sent successfully
+  ///
+  /// [routeAs] selects the routing-matrix row the message is fanned out under.
+  /// It defaults to `custom`, which is what every legacy caller has always
+  /// used; a caller whose message is its own kind of event names its category
+  /// so the operator gets a row to configure instead of sharing `custom` with
+  /// everything else. It does NOT replace [event] — that still decides the
+  /// AppSettings per-event gate above.
+  ///
+  /// [deepLink] is the phone's `type[:arg]` tap payload, carried through to
+  /// the systemPush transport. Null for a message whose event type alone says
+  /// where a tap should land.
   Future<bool> notify({
     required NotificationEvent event,
     required String title,
     required String message,
     NotificationPriority priority = NotificationPriority.normal,
+    NotificationCategory routeAs = NotificationCategory.custom,
+    String? deepLink,
   }) async {
     final settings = _readSettings();
     if (settings == null || !settings.notificationsEnabled) {
@@ -145,7 +160,13 @@ class NotificationService {
     // dark; the router adds the new transports on top. Only available when
     // constructed with a Riverpod `Ref` (the `.testing` constructor has none,
     // and the webhook/sound assertions there are unaffected).
-    _forwardToRouter(event: event, title: title, message: message);
+    _forwardToRouter(
+      event: event,
+      title: title,
+      message: message,
+      routeAs: routeAs,
+      deepLink: deepLink,
+    );
 
     final results = await Future.wait([
       _sendDiscordNotification(title, message, event, settings),
@@ -229,19 +250,26 @@ class NotificationService {
 
   /// Forward a legacy notification through the unified [NotificationRouter].
   ///
-  /// Routed as the `custom` category with the already-rendered title/message
-  /// so the operator's `custom` transport wiring (in-app + any external
-  /// transports / mobile push they opted in) applies. We do NOT re-map to a
-  /// finer category (e.g. sequenceCompleted): the router's own backend
-  /// event-stream subscription already classifies and pushes those real
-  /// events, so re-mapping here would double-fire systemPush for the same
-  /// milestone. `custom` defaults to in-app only, so this strictly ADDS to —
-  /// never duplicates — the classifier path while still flowing through the
-  /// single router producer.
+  /// Routed as [routeAs] — `custom` by default — with the already-rendered
+  /// title/message so the operator's transport wiring for that row (in-app plus
+  /// any external transports / mobile push they opted in) applies. We do NOT
+  /// re-map a legacy caller to a finer category (e.g. sequenceCompleted): the
+  /// router's own backend event-stream subscription already classifies and
+  /// pushes those real events, so re-mapping here would double-fire systemPush
+  /// for the same milestone. `custom` defaults to in-app only, so this strictly
+  /// ADDS to — never duplicates — the classifier path while still flowing
+  /// through the single router producer.
+  ///
+  /// A caller that passes its OWN [routeAs] is stating that no classifier arm
+  /// fires for it, which is why the dawn autopilot's morning message can carry
+  /// one: nothing on the backend event stream describes a finished Darkroom
+  /// pass.
   void _forwardToRouter({
     required NotificationEvent event,
     required String title,
     required String message,
+    NotificationCategory routeAs = NotificationCategory.custom,
+    String? deepLink,
   }) {
     final ref = _ref;
     if (ref == null) return; // `.testing` has no Ref; nothing to forward to.
@@ -259,12 +287,14 @@ class NotificationService {
       );
       return;
     }
-    router.routeNotificationNode(
+    router.routeRendered(
+      category: routeAs,
       title: title,
       body: message,
       severity: event == NotificationEvent.error
           ? EventSeverity.error
           : EventSeverity.info,
+      deepLink: deepLink,
     );
   }
 

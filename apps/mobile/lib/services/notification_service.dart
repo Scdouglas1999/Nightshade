@@ -130,6 +130,70 @@ const _infoPassiveDetails = NotificationDetails(
   ),
 );
 
+/// Map a notification [payload] to a go_router location.
+///
+/// Payload format follows the convention `type[:arg]`. Each route below is
+/// chosen so a tap lands on the screen most relevant to the firing event:
+/// safety/guiding goes to the dashboard summary, exposure failure goes to the
+/// imaging viewport, etc. An unrecognised type answers null rather than a
+/// fallback screen — a tap that lands somewhere arbitrary teaches the operator
+/// that notifications go nowhere useful.
+///
+/// Top-level so the table can be exercised without the plugin singleton.
+String? routeForNotificationPayload(String payload) {
+  final colon = payload.indexOf(':');
+  final type = colon == -1 ? payload : payload.substring(0, colon);
+  final arg = colon == -1 ? null : payload.substring(colon + 1);
+
+  switch (type) {
+    case 'image_ready':
+      if (arg == null || arg.isEmpty) return '/imaging';
+      return '/imaging/preview/${Uri.encodeComponent(arg)}';
+    case 'sequence_complete':
+    case 'sequence_failed':
+    case 'meridian_flip':
+    case 'target_completed':
+    case 'autofocus_failed':
+      return '/sequencer';
+    case 'exposure_failed':
+      return '/imaging';
+    case 'plate_solve_failed':
+    case 'centering_failed':
+      // Both job-failure paths land on the imaging viewport because that
+      // screen exposes the "solve again" / "re-center" actions.
+      return '/imaging';
+    case 'polar_alignment_failed':
+      // Polar align has its own dedicated screen; route there directly.
+      return '/polar-alignment';
+    case 'guiding_lost':
+      return '/guiding';
+    case 'safety':
+    case 'mount_parked':
+      return '/weather';
+    case 'equipment_disconnected':
+      return '/equipment';
+    case 'low_battery':
+    case 'low_disk_space':
+      return '/dashboard';
+    case 'ownership_taken_over':
+    case 'ownership_auto_released':
+      // Session ownership state lives on the dashboard banner; that's
+      // where the user resolves the take-over.
+      return '/dashboard';
+    case 'darkroom_draft':
+      // The dawn autopilot's morning message. The argument is the recipe row
+      // the pass saved; without one there is nothing specific to open, so the
+      // tap lands on the Darkroom's own empty/most-recent state rather than on
+      // a query for a recipe that does not exist.
+      if (arg == null || arg.isEmpty) return '/darkroom';
+      return '/darkroom?recipe=${Uri.encodeComponent(arg)}';
+    case 'push':
+      return '/dashboard';
+    default:
+      return null;
+  }
+}
+
 /// Desktop push is the one channel whose importance, priority and sound follow
 /// the payload's `priority` field, so it cannot be a constant.
 NotificationDetails _pushDetails({
@@ -474,6 +538,22 @@ class MobileNotificationService implements MobileNotificationSink {
   /// once even though the caller lives in a widget build that rebuilds.
   bool _launchNotificationRouted = false;
 
+  /// Reads the notification that cold-started the app. Overridable so a test
+  /// can drive the replay without a platform channel; production leaves it null
+  /// and the plugin answers.
+  @visibleForTesting
+  Future<NotificationAppLaunchDetails?> Function()? launchDetailsReader;
+
+  /// Clear the once-only cold-start guard and the injected reader.
+  ///
+  /// This service is a process singleton, so a test that exercises the replay
+  /// would otherwise leak its latched flag into the next one.
+  @visibleForTesting
+  void resetLaunchReplayForTesting() {
+    _launchNotificationRouted = false;
+    launchDetailsReader = null;
+  }
+
   /// Route a notification that cold-started the app from a terminated state.
   /// Launch-from-killed taps are delivered via
   /// [getNotificationAppLaunchDetails] rather than the
@@ -484,7 +564,9 @@ class MobileNotificationService implements MobileNotificationSink {
   Future<void> handleLaunchNotification() async {
     if (_launchNotificationRouted) return;
     try {
-      final details = await _notifications.getNotificationAppLaunchDetails();
+      final read =
+          launchDetailsReader ?? _notifications.getNotificationAppLaunchDetails;
+      final details = await read();
       if (details?.didNotificationLaunchApp == true) {
         final response = details?.notificationResponse;
         if (response?.payload != null) {
@@ -506,11 +588,16 @@ class MobileNotificationService implements MobileNotificationSink {
     }
   }
 
-  void _onNotificationTapped(NotificationResponse response) {
+  /// Route a tap, returning what it actually did.
+  ///
+  /// Exposed for tests through [handleNotificationResponse]; the plugin calls
+  /// it directly and discards the outcome, which is why every non-routed answer
+  /// is also logged here.
+  NotificationTapOutcome _onNotificationTapped(NotificationResponse response) {
     final payload = response.payload;
-    if (payload == null) return;
+    if (payload == null) return NotificationTapOutcome.noPayload;
 
-    final route = _routeForPayload(payload);
+    final route = routeForNotificationPayload(payload);
     if (route == null) {
       // Unknown payload shape — surfacing it loudly beats silent fallback.
       developer.log(
@@ -518,7 +605,7 @@ class MobileNotificationService implements MobileNotificationSink {
         name: 'MobileNotificationService',
         level: 900,
       );
-      return;
+      return NotificationTapOutcome.unknownPayload;
     }
 
     final navigator = _navigator;
@@ -530,64 +617,18 @@ class MobileNotificationService implements MobileNotificationSink {
         name: 'MobileNotificationService',
         level: 900,
       );
-      return;
+      return NotificationTapOutcome.noNavigator;
     }
 
     navigator(route);
+    return NotificationTapOutcome.routed;
   }
 
-  /// Map a notification [payload] to a go_router location.
-  ///
-  /// Payload format follows the convention `type[:arg]`. Each route below is
-  /// chosen so a tap lands on the screen most relevant to the firing event:
-  /// safety/guiding goes to the dashboard summary, exposure failure goes to
-  /// the imaging viewport, etc.
-  String? _routeForPayload(String payload) {
-    final colon = payload.indexOf(':');
-    final type = colon == -1 ? payload : payload.substring(0, colon);
-    final arg = colon == -1 ? null : payload.substring(colon + 1);
-
-    switch (type) {
-      case 'image_ready':
-        if (arg == null || arg.isEmpty) return '/imaging';
-        return '/imaging/preview/${Uri.encodeComponent(arg)}';
-      case 'sequence_complete':
-      case 'sequence_failed':
-      case 'meridian_flip':
-      case 'target_completed':
-      case 'autofocus_failed':
-        return '/sequencer';
-      case 'exposure_failed':
-        return '/imaging';
-      case 'plate_solve_failed':
-      case 'centering_failed':
-        // Both job-failure paths land on the imaging viewport because that
-        // screen exposes the "solve again" / "re-center" actions.
-        return '/imaging';
-      case 'polar_alignment_failed':
-        // Polar align has its own dedicated screen; route there directly.
-        return '/polar-alignment';
-      case 'guiding_lost':
-        return '/guiding';
-      case 'safety':
-      case 'mount_parked':
-        return '/weather';
-      case 'equipment_disconnected':
-        return '/equipment';
-      case 'low_battery':
-      case 'low_disk_space':
-        return '/dashboard';
-      case 'ownership_taken_over':
-      case 'ownership_auto_released':
-        // Session ownership state lives on the dashboard banner; that's
-        // where the user resolves the take-over.
-        return '/dashboard';
-      case 'push':
-        return '/dashboard';
-      default:
-        return null;
-    }
-  }
+  /// Drive the tap path a test holds a [NotificationResponse] for.
+  @visibleForTesting
+  NotificationTapOutcome handleNotificationResponse(
+    NotificationResponse response,
+  ) => _onNotificationTapped(response);
 
   @override
   Future<void> notifySequenceComplete(String targetName, int imageCount) async {
@@ -776,6 +817,15 @@ class MobileNotificationService implements MobileNotificationSink {
     final body = data['body'] as String? ?? '';
     final priority = data['priority'] as String? ?? 'normal';
     final eventType = data['eventType'] as String? ?? 'push';
+    // A push whose destination depends on an id the event type cannot carry
+    // ships its own tap payload; `push:<eventType>` is the fallback for the
+    // ones whose event type alone names a screen. An empty string is treated as
+    // absent so a host that sends the key blank does not produce a payload the
+    // route table can only log as unknown.
+    final deepLinkRaw = data['deepLink'];
+    final deepLink = deepLinkRaw is String && deepLinkRaw.isNotEmpty
+        ? deepLinkRaw
+        : null;
 
     // Map priority to Android notification importance and sound
     final bool playSound;
@@ -812,7 +862,7 @@ class MobileNotificationService implements MobileNotificationSink {
         priority: androidPriority,
         playSound: playSound,
       ),
-      payload: 'push:$eventType',
+      payload: deepLink ?? 'push:$eventType',
     );
   }
 

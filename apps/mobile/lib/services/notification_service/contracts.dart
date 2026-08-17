@@ -8,6 +8,27 @@ part of '../notification_service.dart';
 /// via the GoRouter instance it owns.
 typedef NotificationNavigator = void Function(String location);
 
+/// What a notification tap actually did.
+///
+/// A tap that goes nowhere is the failure mode this names: the payload was
+/// absent, no route matched it, or the app has no router yet. Each is logged
+/// where it happens AND returned, so a test can pin the reason rather than
+/// asserting on a log line nobody reads.
+enum NotificationTapOutcome {
+  /// The payload mapped to a location and the navigator was called.
+  routed,
+
+  /// The notification carried no payload, so there is nothing to route by.
+  noPayload,
+
+  /// The payload's `type` matches no arm of the route table.
+  unknownPayload,
+
+  /// The route resolved, but the app has not installed its router yet — the
+  /// cold-start window.
+  noNavigator,
+}
+
 /// Surface area of [MobileNotificationService] consumed by mobile-side
 /// subscribers (battery, foreground service, mobile-direct event notifier).
 ///

@@ -13,6 +13,7 @@ import '../../database/daos/delivery_targets_dao.dart';
 import '../../providers/notification_router_provider.dart'
     show secretsStoreProvider;
 import '../logging_service.dart';
+import 'delivery_retry_sweeper.dart';
 import 'delivery_service.dart';
 import 'delivery_transport_factory.dart';
 import 'peer_manifest_service.dart';
@@ -38,6 +39,23 @@ final deliveryServiceProvider = Provider<DeliveryService>((ref) {
     transportFactory: ref.watch(artifactTransportFactoryProvider),
     logger: ref.watch(loggingServiceProvider),
   );
+});
+
+/// The overnight driver for the retry sweep.
+///
+/// A `Provider` rather than a bootstrap-local object so the GUI and the daemon
+/// arm the same instance the rest of the graph would see. The timer is armed
+/// and torn down by whoever owns the process lifecycle (the embedded API
+/// server) — reading this provider alone starts nothing, because a sweeper that
+/// armed itself on first read would keep sweeping after the server it belongs
+/// to had stopped.
+final deliveryRetrySweeperProvider = Provider<DeliveryRetrySweeper>((ref) {
+  final sweeper = DeliveryRetrySweeper(
+    delivery: ref.watch(deliveryServiceProvider),
+    logger: ref.watch(loggingServiceProvider),
+  );
+  ref.onDispose(sweeper.stop);
+  return sweeper;
 });
 
 /// Serves the peer-pull surface: the manifest a paired desktop reads, the ids

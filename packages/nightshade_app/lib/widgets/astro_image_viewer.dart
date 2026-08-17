@@ -42,6 +42,22 @@ class AstroImageViewer extends StatefulWidget {
   /// Callback when zoom/pan state changes
   final ValueChanged<TransformationController>? onTransformChanged;
 
+  /// Externally owned view transform.
+  ///
+  /// Supplying one hands the caller two things this widget's private
+  /// controller cannot give: the ability to drive the transform (fit, 1:1,
+  /// zoom buttons) and the ability to share one transform between two viewers
+  /// for an A/B compare. The caller owns its lifecycle — this widget never
+  /// disposes a controller it did not create.
+  ///
+  /// It also changes what a NEW image buffer means. With the private
+  /// controller a new buffer is a new scene and is re-fitted; with an
+  /// externally owned one the caller is showing successive renders of the same
+  /// scene, so the first layout fits and every later buffer keeps the zoom and
+  /// pan the operator set. Throwing that away on each re-render is what makes
+  /// an editor unusable.
+  final TransformationController? transformationController;
+
   const AstroImageViewer({
     super.key,
     required this.imageData,
@@ -53,6 +69,7 @@ class AstroImageViewer extends StatefulWidget {
     this.enableInteraction = true,
     this.filterQuality = FilterQuality.medium,
     this.onTransformChanged,
+    this.transformationController,
   });
 
   @override
@@ -71,10 +88,15 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
 
   late TransformationController _transformationController;
 
+  /// True when this state created the controller and must therefore dispose it.
+  bool _ownsTransformationController = false;
+
   @override
   void initState() {
     super.initState();
-    _transformationController = TransformationController();
+    final supplied = widget.transformationController;
+    _ownsTransformationController = supplied == null;
+    _transformationController = supplied ?? TransformationController();
     _decodeImage();
   }
 
@@ -115,13 +137,24 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
   @override
   void didUpdateWidget(covariant AstroImageViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.transformationController != oldWidget.transformationController) {
+      if (_ownsTransformationController) _transformationController.dispose();
+      final supplied = widget.transformationController;
+      _ownsTransformationController = supplied == null;
+      _transformationController = supplied ?? TransformationController();
+      // A different transform is a different view, so the next layout fits it.
+      _initialScaleSet = false;
+    }
     // Only re-decode if the image data actually changed
     if (!identical(widget.imageData, _lastImageData) ||
         widget.width != _lastWidth ||
         widget.height != _lastHeight ||
         widget.isColor != _lastIsColor) {
-      // Reset initial scale flag so new image gets fit to container
-      _initialScaleSet = false;
+      // Re-fit only when this widget owns the transform. An externally owned
+      // controller means the caller is showing successive renders of one scene
+      // and holds the operator's zoom and pan; re-fitting here would throw
+      // those away on every re-render.
+      if (_ownsTransformationController) _initialScaleSet = false;
       _decodeImage();
     }
   }
@@ -182,7 +215,7 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
   @override
   void dispose() {
     _decodedImage?.dispose();
-    _transformationController.dispose();
+    if (_ownsTransformationController) _transformationController.dispose();
     super.dispose();
   }
 

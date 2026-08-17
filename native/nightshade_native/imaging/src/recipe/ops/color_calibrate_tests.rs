@@ -178,6 +178,17 @@ impl PhotometryCatalog for SceneCatalog {
             .cloned()
             .collect())
     }
+
+    fn identity(&self) -> String {
+        let mut text = String::new();
+        for star in &self.stars {
+            text.push_str(&format!(
+                "{},{},{},{};",
+                star.ra_deg, star.dec_deg, star.v_mag, star.b_minus_v
+            ));
+        }
+        crate::recipe::fingerprint_hex(text.as_bytes())
+    }
 }
 
 /// A catalogue that is installed but carries no colour-indexed star, the
@@ -193,6 +204,11 @@ impl PhotometryCatalog for EmptyCatalog {
         _mag_limit: f64,
     ) -> Result<Vec<CatalogStar>, CatalogError> {
         Ok(Vec::new())
+    }
+
+    fn identity(&self) -> String {
+        // Every query answers with nothing, so one identity covers them all.
+        "test-empty-catalog".to_string()
     }
 }
 
@@ -210,6 +226,12 @@ impl PhotometryCatalog for MissingCatalog {
         Err(CatalogError::Unavailable {
             reason: "the photometry pack is not downloaded".to_string(),
         })
+    }
+
+    fn identity(&self) -> String {
+        // Every query reports the same unavailability, so one identity covers
+        // them all.
+        "test-missing-catalog".to_string()
     }
 }
 
@@ -673,6 +695,14 @@ fn a_carried_balance_of_the_wrong_shape_is_rejected() {
         Err(OpError::ParamRange { key, .. }) if key == "channelScale"
     ));
     assert!(matches!(
+        ColorCalibrateV1.validate_params(&json!({ "channelScale": [2.0, 1.0, 0.5, 0.5] })),
+        Err(OpError::ParamRange { key, .. }) if key == "channelScale"
+    ));
+    assert!(matches!(
+        ColorCalibrateV1.validate_params(&json!({ "channelScale": [] })),
+        Err(OpError::ParamRange { key, .. }) if key == "channelScale"
+    ));
+    assert!(matches!(
         ColorCalibrateV1.validate_params(&json!({ "channelScale": [2.0, 1.0, 0.0] })),
         Err(OpError::ParamRange { key, .. }) if key == "channelScale"
     ));
@@ -680,6 +710,152 @@ fn a_carried_balance_of_the_wrong_shape_is_rejected() {
         ColorCalibrateV1.validate_params(&json!({ "channelScale": 2.0 })),
         Err(OpError::ParamType { key, .. }) if key == "channelScale"
     ));
+}
+
+#[test]
+fn a_carried_balance_that_is_not_three_finite_numbers_is_rejected() {
+    // JSON has no literal for a non-finite number, so one arrives as `null`, as
+    // a string, or out of the range a white balance is defined on. Every form is
+    // refused: a scale that is not a finite multiplier would write NaN into
+    // every pixel of a channel.
+    for payload in [
+        json!({ "channelScale": [2.0, 1.0, null] }),
+        json!({ "channelScale": [2.0, 1.0, "0.5"] }),
+        json!({ "channelScale": [2.0, 1.0, true] }),
+    ] {
+        assert!(
+            matches!(
+                ColorCalibrateV1.validate_params(&payload),
+                Err(OpError::ParamType { ref key, .. }) if key == "channelScale"
+            ),
+            "{payload} must be refused as a type error"
+        );
+    }
+    for payload in [
+        json!({ "channelScale": [2.0, 1.0, 1e12] }),
+        json!({ "channelScale": [2.0, 1.0, -1.0] }),
+    ] {
+        assert!(
+            matches!(
+                ColorCalibrateV1.validate_params(&payload),
+                Err(OpError::ParamRange { ref key, .. }) if key == "channelScale"
+            ),
+            "{payload} must be refused as a range error"
+        );
+    }
+}
+
+#[test]
+fn a_solve_reports_the_scales_it_fitted_and_the_evidence_behind_them() {
+    let scene = scene(200, 200, 0x005C_A1E5);
+    let ctx = OpContext::new().with_catalog(Arc::clone(&scene.catalog));
+    let base = Arc::new(scene.image);
+    let rendered = assert_deterministic(
+        &recipe_with(json!({})),
+        &base,
+        &registry(),
+        &ctx,
+        RenderOptions::full(),
+    )
+    .expect("the scene renders");
+
+    let measured = rendered.report.steps[0]
+        .measurement
+        .clone()
+        .expect("a step that solved a balance reports it");
+    assert_eq!(measured["source"], json!("solved"));
+
+    // The report is the fit that produced these pixels, not a second one: the
+    // same scene solved directly agrees to the last bit.
+    let direct = solve(&base, &json!({}), &ctx).expect("the scene solves");
+    assert_eq!(measured["channelScale"], json!(direct.channel_scale));
+    assert_eq!(measured["whiteRefBv"], json!(direct.white_ref_bv));
+    assert_eq!(measured["matchedStars"], json!(direct.matched));
+    assert_eq!(measured["residual"], json!(direct.residual));
+}
+
+#[test]
+fn pinning_the_reported_scales_replays_the_solved_render_bit_for_bit() {
+    // The read-back exists to be pinned: a draft solves once at full resolution
+    // and writes the scales into the step, and every later render — including a
+    // preview level that could never cross-match enough stars — replays those
+    // numbers. If pinning changed one bit, the editor would be showing a
+    // different picture from the one the proof render approved.
+    let scene = scene(200, 200, 0x9111_0AD5);
+    let ctx = OpContext::new().with_catalog(Arc::clone(&scene.catalog));
+    let base = Arc::new(scene.image);
+    let ops = registry();
+
+    let solved = assert_deterministic(
+        &recipe_with(json!({})),
+        &base,
+        &ops,
+        &ctx,
+        RenderOptions::full(),
+    )
+    .expect("the measuring render runs");
+    let scales = solved.report.steps[0]
+        .measurement
+        .as_ref()
+        .expect("the solve reports its scales")["channelScale"]
+        .clone();
+
+    // Pinned mode reads neither the catalogue nor the plate solve, so the
+    // replay runs under a context that carries neither.
+    let pinned = recipe_with(json!({ "channelScale": scales }));
+    let replayed = assert_deterministic(
+        &pinned,
+        &base,
+        &ops,
+        &OpContext::new(),
+        RenderOptions::full(),
+    )
+    .expect("the pinned render runs");
+
+    assert_pixels_identical(&solved.image, &replayed.image, "pinned vs re-fitted");
+    assert_wcs_identical(&solved.image, &replayed.image, "pinned vs re-fitted");
+    assert_eq!(replayed.report.steps[0].outcome, StepOutcome::Applied);
+    let pinned_report = replayed.report.steps[0]
+        .measurement
+        .as_ref()
+        .expect("a pinned step reports what it applied");
+    assert_eq!(pinned_report["source"], json!("pinned"));
+    assert_eq!(
+        pinned_report["channelScale"],
+        solved.report.steps[0].measurement.as_ref().expect("solved")["channelScale"]
+    );
+    assert!(
+        pinned_report.get("matchedStars").is_none() && pinned_report.get("whiteRefBv").is_none(),
+        "pinned mode fits nothing, so it reports no star count and no reference colour: {pinned_report}"
+    );
+}
+
+#[test]
+fn a_step_with_no_channel_scale_still_measures_and_still_applies_its_own_fit() {
+    // The read-back rides along; it does not change what an existing recipe
+    // renders. A step with no `channelScale` solves from the catalogue and
+    // applies exactly those scales, which is what `color_calibrate@1` has always
+    // done — so every recipe already on disk replays unchanged at version 1.
+    let scene = scene(200, 200, 0x0FF0_0FF0);
+    let ctx = OpContext::new().with_catalog(Arc::clone(&scene.catalog));
+    let solved = solve(&scene.image, &json!({}), &ctx).expect("the scene solves");
+    let out = ColorCalibrateV1
+        .apply(&scene.image, &json!({}), &ctx)
+        .expect("the scene calibrates");
+
+    for (index, (found, source)) in out.data().iter().zip(scene.image.data().iter()).enumerate() {
+        let scale = solved.channel_scale[index % 3];
+        let expected = if scale == 1.0 {
+            *source
+        } else {
+            (*source as f64 * scale) as f32
+        };
+        assert_eq!(
+            found.to_bits(),
+            expected.to_bits(),
+            "sample {index} must carry the step's own fit"
+        );
+    }
 }
 
 #[test]

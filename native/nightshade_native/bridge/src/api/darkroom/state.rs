@@ -274,43 +274,13 @@ pub(crate) fn base_pyramid(path: &Path) -> Result<Arc<ImagePyramid>, String> {
 // ---------------------------------------------------------------------------
 // Catalogue identity
 // ---------------------------------------------------------------------------
-
-/// The photometry the last render was given.
-static CATALOG_IDENTITY: OnceLock<Mutex<Option<String>>> = OnceLock::new();
-
-/// Record the photometry a render is about to use, dropping every cached step
-/// boundary when it differs from the last one.
-///
-/// The engine's cache key carries only *whether* a catalogue is attached, not
-/// what is in it — a handle whose stars changed is not distinguished. Two
-/// renders with different star lists would otherwise share the boundary after
-/// `color_calibrate` and the second would be served the first one's colours.
-/// This is where that is caught, and clearing is the documented remedy the
-/// engine names for a caller that reloads catalogue data.
-///
-/// Lock order: the catalogue lock is taken before the render-cache lock and
-/// never while the base-cache lock is held.
-pub(crate) fn note_catalog_identity(identity: Option<String>) {
-    let changed = {
-        let lock = CATALOG_IDENTITY.get_or_init(|| Mutex::new(None));
-        let mut current = match lock.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        if *current == identity {
-            false
-        } else {
-            *current = identity;
-            true
-        }
-    };
-    if changed {
-        tracing::debug!(
-            "Darkroom photometry changed between renders; dropping every cached render boundary"
-        );
-        render_cache().clear();
-    }
-}
+//
+// There is no catalogue bookkeeping here, and that is a guarantee rather than an
+// omission: `OpContext::identity` folds `PhotometryCatalog::identity` into every
+// step-boundary key, so a render given a different star list computes its own
+// boundaries instead of being served the previous list's colours. Clearing the
+// render cache when the photometry changes is therefore redundant — it throws
+// away boundaries that are still correct for the list that produced them.
 
 // ---------------------------------------------------------------------------
 // Render cancellation

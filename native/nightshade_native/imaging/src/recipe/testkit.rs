@@ -443,31 +443,47 @@ impl PhotometryCatalog for FixedCatalog {
     ) -> Result<Vec<CatalogStar>, CatalogError> {
         Ok(self.stars.clone())
     }
+
+    fn identity(&self) -> String {
+        let mut text = String::new();
+        for star in &self.stars {
+            text.push_str(&format!(
+                "{},{},{},{};",
+                star.ra_deg, star.dec_deg, star.v_mag, star.b_minus_v
+            ));
+        }
+        super::model::fingerprint_hex(text.as_bytes())
+    }
+}
+
+/// The three ordered stars [`fixed_catalog`] answers with.
+pub(crate) fn fixed_stars() -> Vec<CatalogStar> {
+    vec![
+        CatalogStar {
+            ra_deg: 10.1,
+            dec_deg: 41.0,
+            v_mag: 11.2,
+            b_minus_v: 0.62,
+        },
+        CatalogStar {
+            ra_deg: 10.2,
+            dec_deg: 41.1,
+            v_mag: 12.4,
+            b_minus_v: 0.41,
+        },
+        CatalogStar {
+            ra_deg: 10.3,
+            dec_deg: 41.2,
+            v_mag: 13.7,
+            b_minus_v: 1.05,
+        },
+    ]
 }
 
 /// A catalogue with three ordered stars.
 pub(crate) fn fixed_catalog() -> Arc<dyn PhotometryCatalog> {
     Arc::new(FixedCatalog {
-        stars: vec![
-            CatalogStar {
-                ra_deg: 10.1,
-                dec_deg: 41.0,
-                v_mag: 11.2,
-                b_minus_v: 0.62,
-            },
-            CatalogStar {
-                ra_deg: 10.2,
-                dec_deg: 41.1,
-                v_mag: 12.4,
-                b_minus_v: 0.41,
-            },
-            CatalogStar {
-                ra_deg: 10.3,
-                dec_deg: 41.2,
-                v_mag: 13.7,
-                b_minus_v: 1.05,
-            },
-        ],
+        stars: fixed_stars(),
     })
 }
 

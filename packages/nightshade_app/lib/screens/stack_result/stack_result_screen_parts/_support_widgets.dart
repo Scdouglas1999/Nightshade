@@ -3,27 +3,49 @@ part of '../stack_result_screen.dart';
 
 /// Export/share actions surfaced through the phone overflow menu (the four
 /// inline header buttons do not fit a phone-width [ScreenHeader] Row).
-enum _StackResultAction { png, jpeg, shareCard, astroBin }
+enum _StackResultAction { png, jpeg, shareCard, astroBin, darkroom }
 
 /// Icon + label row for a [_StackResultAction] popup-menu entry.
+///
+/// [reason] is the second line a DISABLED entry carries: a popup item has no
+/// tooltip to hang an explanation on, so the reason is part of the row or it is
+/// nowhere.
 class _ActionMenuRow extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? reason;
 
-  const _ActionMenuRow({required this.icon, required this.label});
+  const _ActionMenuRow({required this.icon, required this.label, this.reason});
 
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
+    final why = reason;
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: NightshadeTokens.iconSm, color: colors.textSecondary),
         const SizedBox(width: NightshadeTokens.spaceMd),
-        Text(
-          label,
-          style: NightshadeTypography.bodySm.copyWith(
-            color: colors.textPrimary,
+        // Flexible, not min-sized: the menu is 256px wide on a phone and a
+        // label that grows by a word must wrap rather than overflow the row.
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              if (why != null)
+                Text(
+                  why,
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
+            ],
           ),
         ),
       ],

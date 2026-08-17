@@ -26,6 +26,17 @@ class PushNotification {
   final EventCategory category;
   final DateTime timestamp;
 
+  /// Where a tap on this push should land, in the phone's own
+  /// `type[:arg]` payload convention (for example
+  /// `darkroom_draft:job-7-master-3`).
+  ///
+  /// Null for every push whose event type alone says where to go — the phone
+  /// already maps `push:<eventType>` to a screen. It is non-null only when the
+  /// destination depends on an id the event type cannot carry, which is why it
+  /// travels as an opaque payload rather than a route: the host does not own
+  /// the phone's route table and must not guess at its shape.
+  final String? deepLink;
+
   const PushNotification({
     required this.title,
     required this.body,
@@ -33,6 +44,7 @@ class PushNotification {
     required this.eventType,
     required this.category,
     required this.timestamp,
+    this.deepLink,
   });
 
   Map<String, dynamic> toJson() => {
@@ -43,6 +55,9 @@ class PushNotification {
     'eventType': eventType,
     'category': category.name,
     'timestamp': timestamp.millisecondsSinceEpoch,
+    // Omitted rather than sent as null so an older phone build, which reads
+    // the map key-by-key, sees exactly the shape it saw before.
+    if (deepLink != null) 'deepLink': deepLink,
   };
 }
 

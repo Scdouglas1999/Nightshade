@@ -16,10 +16,19 @@
 ///    at half the sample spacing, which doubles the lattice density per axis;
 ///    still failing, the step is left out and the operation's own reason is
 ///    recorded.
-///  * **Colour is proved at full resolution.** `color_calibrate@1` detects
-///    stars in the image it is handed, and a downsampled level does not hold
-///    enough of them. The draft therefore renders the colour step once at level
-///    0 and keeps it only when it actually applied there.
+///  * **Colour is proved at full resolution, and its answer is pinned.**
+///    `color_calibrate@1` detects stars in the image it is handed, and a
+///    downsampled level does not hold enough of them. The draft therefore
+///    renders the colour step once at level 0, keeps it only when it actually
+///    applied there, and writes the channel scales that render reported into the
+///    step. Every later render — the editor's coarse preview included — replays
+///    those numbers instead of re-fitting a field it cannot measure.
+///  * **The stretch is measured over the stack it actually sits on.** The
+///    registry measures the auto stretch over the prefix it drafted. When this
+///    composition changes that prefix — a background fit restored, a colour
+///    balance pinned where the registry's measurement had skipped it — the black
+///    and white points are measured again over the final prefix before the draft
+///    is persisted.
 library;
 
 import 'dart:convert';
@@ -50,6 +59,21 @@ const int kDraftMeasureMaxDimension = 1024;
 /// sample boxes and is the smallest change that can rescue a dense field.
 const double kBackgroundRetrySampleSpacing = 32.0;
 
+/// Channels `color_calibrate@1` balances, and the length of the `channelScale`
+/// payload it accepts.
+const int kColorChannelCount = 3;
+
+/// The `stretch@1` parameters the draft re-measures. Every one of them is
+/// written by the engine's own auto measurement, so a reply missing any of them
+/// is not a measurement this draft can adopt.
+const List<String> kStretchMeasuredParams = [
+  'blackPoint',
+  'whitePoint',
+  'd',
+  'b',
+  'symmetryPoint',
+];
+
 /// Operations whose defaults are the identity transform, so a draft that
 /// carried them would list a step that changes nothing.
 const Set<String> kIdentityAtDefaults = {'saturation', 'curves'};
@@ -76,7 +100,7 @@ class DawnDraftNote {
   /// The operation the note is about.
   final String opId;
 
-  /// `included`, `retried`, or `omitted`.
+  /// `included`, `retried`, `remeasured`, or `omitted`.
   final String outcome;
 
   /// Why, in the words the morning report prints.
@@ -136,6 +160,23 @@ class DawnDraft {
     'createdBy': 'autopilot',
     'steps': steps,
   });
+}
+
+/// One composition decision's result: the steps after it, and whether it left
+/// different pixels under the stretch.
+///
+/// The second half is what the stretch re-measurement keys on. A decision that
+/// removes a step the measurement had already recorded as skipped changes no
+/// pixel, and re-measuring after it would spend a render to arrive at the same
+/// numbers.
+class _DraftStage {
+  /// The step list after the decision.
+  final List<Map<String, dynamic>> steps;
+
+  /// Whether the pixels the stretch is measured over changed.
+  final bool movedThePrefix;
+
+  const _DraftStage({required this.steps, required this.movedThePrefix});
 }
 
 /// The draft could not be composed at all.
@@ -204,21 +245,44 @@ class DawnDraftBuilder {
         if (step is Map<String, dynamic>) Map<String, dynamic>.from(step),
     ];
     steps = _dropIdentitySteps(steps, notes);
-    steps = await _retryBackgroundExtract(
+    final background = await _retryBackgroundExtract(
       master: master,
       recipeId: recipeId,
       steps: steps,
       notes: notes,
       renderId: renderId,
     );
-    steps = await _proveColorCalibrate(
+    final colour = await _proveColorCalibrate(
       master: master,
       recipeId: recipeId,
-      steps: steps,
+      steps: background.steps,
       notes: notes,
       photometry: photometry,
       renderId: renderId,
     );
+    steps = colour.steps;
+
+    // The registry measured the stretch over the prefix it drafted. Either of
+    // the two decisions above can leave a different prefix under it, and a
+    // black point measured over other pixels is not a fit of these ones.
+    final causes = <String>[
+      if (background.movedThePrefix)
+        'the background fit was restored at a denser lattice',
+      if (colour.movedThePrefix)
+        'the colour balance is now pinned, so it applies at the level the '
+            'stretch is measured at instead of skipping there',
+    ];
+    if (causes.isNotEmpty) {
+      steps = await _remeasureStretch(
+        master: master,
+        recipeId: recipeId,
+        steps: steps,
+        notes: notes,
+        photometry: photometry,
+        renderId: renderId,
+        causes: causes,
+      );
+    }
 
     for (final step in steps) {
       final opId = step['opId'];
@@ -294,7 +358,10 @@ class DawnDraftBuilder {
   /// lattice to leave enough samples; halving the spacing quadruples the sample
   /// count, which is the change that rescues it. The retry is probed at the
   /// same level the registry measured at, so a pass here means a pass there.
-  Future<List<Map<String, dynamic>>> _retryBackgroundExtract({
+  ///
+  /// `movedThePrefix` is true only when the step was actually restored: the
+  /// pixels under the stretch changed, and the stretch is measured again.
+  Future<_DraftStage> _retryBackgroundExtract({
     required DawnMaster master,
     required String recipeId,
     required List<Map<String, dynamic>> steps,
@@ -302,11 +369,12 @@ class DawnDraftBuilder {
     required String renderId,
   }) async {
     const opId = 'background_extract';
-    if (steps.any((step) => step['opId'] == opId)) return steps;
+    final unchanged = _DraftStage(steps: steps, movedThePrefix: false);
+    if (steps.any((step) => step['opId'] == opId)) return unchanged;
     final omission = notes
         .where((n) => n.opId == opId && n.outcome == 'omitted')
         .toList(growable: false);
-    if (omission.isEmpty) return steps;
+    if (omission.isEmpty) return unchanged;
 
     final candidate = <String, dynamic>{
       'opId': opId,
@@ -343,7 +411,7 @@ class DawnDraftBuilder {
               'hand in the editor.',
         ),
       );
-      return steps;
+      return unchanged;
     }
 
     if (failure != null) {
@@ -357,7 +425,7 @@ class DawnDraftBuilder {
               'skipped: $failure',
         ),
       );
-      return steps;
+      return unchanged;
     }
 
     notes.add(
@@ -368,20 +436,31 @@ class DawnDraftBuilder {
             'the background fit failed at its default 64 px sample spacing and '
             'succeeded at '
             '${kBackgroundRetrySampleSpacing.toStringAsFixed(0)} px, so the '
-            'draft carries the denser lattice. The auto stretch was measured '
-            'before this step was restored, so its black and white points are '
-            'a starting point rather than a fit of these pixels.',
+            'draft carries the denser lattice.',
       ),
     );
-    return probed;
+    return _DraftStage(steps: probed, movedThePrefix: true);
   }
 
-  /// Prove the colour step at full resolution and keep it only when it applied.
+  /// Prove the colour step at full resolution, keep it only when it applied,
+  /// and pin the balance that render fitted.
   ///
   /// `color_calibrate@1` needs three channels, a plate solve, and stars it can
   /// both detect and cross-match. A step that can only skip belongs in the
   /// report, not in the history stack.
-  Future<List<Map<String, dynamic>>> _proveColorCalibrate({
+  ///
+  /// The proof render reports the channel scales it fitted, and they are written
+  /// into the step. That is what makes the editor usable: pinned, the step
+  /// applies the same balance at every pyramid level, where an unpinned step
+  /// would try to re-fit a downsampled level that holds too few detectable stars
+  /// and record itself as skipped — a colour-wrong preview of a master the draft
+  /// calibrates correctly.
+  ///
+  /// `movedThePrefix` is true when the scales were pinned. The registry measured
+  /// the draft with no catalogue attached, so the colour step skipped there;
+  /// pinned, it applies, and the pixels under the stretch are no longer the ones
+  /// the stretch was measured over.
+  Future<_DraftStage> _proveColorCalibrate({
     required DawnMaster master,
     required String recipeId,
     required List<Map<String, dynamic>> steps,
@@ -391,7 +470,7 @@ class DawnDraftBuilder {
   }) async {
     const opId = 'color_calibrate';
     final index = steps.indexWhere((step) => step['opId'] == opId);
-    if (index < 0) return steps;
+    if (index < 0) return _DraftStage(steps: steps, movedThePrefix: false);
 
     if (!master.isColor) {
       return _dropAt(
@@ -438,24 +517,100 @@ class DawnDraftBuilder {
       return _dropAt(steps, index, notes, opId, skipped);
     }
 
+    final scales = _channelScalesFrom(preview.report, index);
+    if (scales == null) {
+      notes.add(
+        DawnDraftNote(
+          opId: opId,
+          outcome: 'included',
+          reason:
+              'the colour fit applied at full resolution against '
+              '${photometry.stars.length} catalogue stars, but the render '
+              'reported no fitted channel scales to write into the step, so it '
+              'solves the balance again on every render: a preview at a reduced '
+              'level can detect too few stars and record the step as skipped '
+              'with that reason.',
+        ),
+      );
+      return _DraftStage(steps: steps, movedThePrefix: false);
+    }
+
     notes.add(
       DawnDraftNote(
         opId: opId,
         outcome: 'included',
         reason:
             'the colour fit applied at full resolution against '
-            '${photometry.stars.length} catalogue stars. It solves the balance '
-            'from that catalogue on every render — this build reads back no '
-            'fitted channel scales to write into the step — so a preview at a '
-            'reduced level can detect too few stars and record the step as '
-            'skipped with that reason.',
+            '${photometry.stars.length} catalogue stars, and the draft carries '
+            'the balance it fitted '
+            '(${scales.map((s) => s.toStringAsFixed(4)).join(', ')}). Every '
+            'later render replays those scales, so a preview at a reduced level '
+            'shows the same colour as the full-resolution proof instead of '
+            're-measuring a level that holds too few stars.',
       ),
     );
-    return steps;
+    return _DraftStage(
+      steps: _withPinnedChannelScale(steps, index, scales),
+      movedThePrefix: true,
+    );
+  }
+
+  /// The same steps with the colour step at [index] carrying [scales].
+  ///
+  /// Only `channelScale` is written. The reference colour the fit was evaluated
+  /// at is in the note, not in the payload: a pinned step reads no `whiteRefBv`,
+  /// and a parameter the render ignores would offer the editor a control that
+  /// changes nothing.
+  static List<Map<String, dynamic>> _withPinnedChannelScale(
+    List<Map<String, dynamic>> steps,
+    int index,
+    List<double> scales,
+  ) {
+    final out = List<Map<String, dynamic>>.from(steps);
+    final step = Map<String, dynamic>.from(out[index]);
+    final params = step['params'];
+    final pinned = params is Map<String, dynamic>
+        ? Map<String, dynamic>.from(params)
+        : <String, dynamic>{};
+    pinned['channelScale'] = scales;
+    step['params'] = pinned;
+    out[index] = step;
+    return out;
+  }
+
+  /// The per-channel scales the render reported for step [index], or null when
+  /// it reported none this draft can pin.
+  ///
+  /// Every element must be a finite number and there must be exactly
+  /// [kColorChannelCount] of them, because that is what the operation accepts —
+  /// a payload it would refuse is not a draft, and writing one would leave a
+  /// recipe that fails to validate the first time the editor opens it.
+  static List<double>? _channelScalesFrom(
+    Map<String, dynamic> report,
+    int index,
+  ) {
+    final inner = report['report'];
+    final steps = inner is Map<String, dynamic> ? inner['steps'] : null;
+    if (steps is! List) return null;
+    for (final entry in steps) {
+      if (entry is! Map<String, dynamic>) continue;
+      if (entry['index'] != index) continue;
+      final measured = entry['measured'];
+      if (measured is! Map<String, dynamic>) return null;
+      final raw = measured['channelScale'];
+      if (raw is! List || raw.length != kColorChannelCount) return null;
+      final scales = <double>[];
+      for (final value in raw) {
+        if (value is! num || !value.isFinite) return null;
+        scales.add(value.toDouble());
+      }
+      return scales;
+    }
+    return null;
   }
 
   /// Remove the step at [index], recording why.
-  static List<Map<String, dynamic>> _dropAt(
+  static _DraftStage _dropAt(
     List<Map<String, dynamic>> steps,
     int index,
     List<DawnDraftNote> notes,
@@ -464,7 +619,117 @@ class DawnDraftBuilder {
   ) {
     notes.add(DawnDraftNote(opId: opId, outcome: 'omitted', reason: reason));
     final kept = List<Map<String, dynamic>>.from(steps)..removeAt(index);
-    return kept;
+    // Dropping the colour step leaves the pixels the stretch was measured over
+    // exactly as they were: the registry measured with no catalogue attached, so
+    // the step was recorded as skipped there and changed nothing.
+    return _DraftStage(steps: kept, movedThePrefix: false);
+  }
+
+  /// Measure the auto stretch again over the prefix the draft ended up with.
+  ///
+  /// The measurement is the engine's own: asking a render for the `screen`
+  /// encoding runs `stretch@1`'s auto measurement over the pixels that render
+  /// produced and names the parameters it used in the reply — the same function,
+  /// over the same prefix, at the same level the registry measured the first
+  /// draft at. The reply's `screenTransferAffectsRecipe` says the render did not
+  /// touch the stored recipe, which is true; adopting the numbers is this
+  /// composition's own decision, taken here because the prefix moved under them.
+  ///
+  /// A measurement that cannot be read leaves the registry's parameters in
+  /// place and says so: a starting point measured over the wrong prefix is
+  /// still a starting point, while a fabricated one is not.
+  Future<List<Map<String, dynamic>>> _remeasureStretch({
+    required DawnMaster master,
+    required String recipeId,
+    required List<Map<String, dynamic>> steps,
+    required List<DawnDraftNote> notes,
+    required DawnPhotometry photometry,
+    required String renderId,
+    required List<String> causes,
+  }) async {
+    const opId = 'stretch';
+    final index = steps.indexWhere((step) => step['opId'] == opId);
+    if (index <= 0) {
+      // No stretch, or nothing under it: there is no prefix to measure over.
+      return steps;
+    }
+    final because = causes.join(' and ');
+
+    final DarkroomRenderedPreview preview;
+    try {
+      preview = await _darkroom.renderPreview(
+        recipeJson: _envelope(recipeId, master.masterFitsPath, steps),
+        context: {
+          'masterPath': master.masterFitsPath,
+          'maxDimension': kDraftMeasureMaxDimension,
+          'stopAfter': index - 1,
+          'renderId': renderId,
+          'encoding': 'screen',
+          'catalogStars': photometry.stars,
+        },
+      );
+    } on DarkroomSeamException catch (error) {
+      notes.add(
+        DawnDraftNote(
+          opId: opId,
+          outcome: 'included',
+          reason:
+              'the draft keeps the black and white points the registry measured: '
+              '$because, and the render that would have measured them again over '
+              'the final stack failed (${error.message}). They are a starting '
+              'point for these pixels rather than a fit of them.',
+        ),
+      );
+      return steps;
+    }
+
+    final measured = _screenTransferFrom(preview.report);
+    if (measured == null) {
+      notes.add(
+        DawnDraftNote(
+          opId: opId,
+          outcome: 'included',
+          reason:
+              'the draft keeps the black and white points the registry measured: '
+              '$because, and the render over the final stack reported no auto '
+              'stretch parameters to replace them with. They are a starting '
+              'point for these pixels rather than a fit of them.',
+        ),
+      );
+      return steps;
+    }
+
+    final out = List<Map<String, dynamic>>.from(steps);
+    final step = Map<String, dynamic>.from(out[index]);
+    step['params'] = measured;
+    out[index] = step;
+    notes.add(
+      DawnDraftNote(
+        opId: opId,
+        outcome: 'remeasured',
+        reason:
+            'the black and white points were measured again over the stack the '
+            'stretch actually sits on, because $because. They are a fit of the '
+            'pixels this draft renders, not of the ones the registry drafted.',
+      ),
+    );
+    return out;
+  }
+
+  /// The auto stretch parameters a `screen`-encoded render reports, or null when
+  /// the reply does not carry a complete set.
+  static Map<String, dynamic>? _screenTransferFrom(Map<String, dynamic> report) {
+    final encoding = report['encoding'];
+    if (encoding is! Map<String, dynamic>) return null;
+    final transfer = encoding['screenTransfer'];
+    if (transfer is! Map<String, dynamic>) return null;
+    final params = <String, dynamic>{};
+    for (final key in kStretchMeasuredParams) {
+      final value = transfer[key];
+      if (value is! num || !value.isFinite) return null;
+      params[key] = value.toDouble();
+    }
+    return params;
   }
 
   /// The skip reason the render report records for step [index], or null when

@@ -33,11 +33,16 @@ class SystemPushTransport extends NotificationTransport {
   @override
   bool get isConfigured => _service.config.enabled;
 
+  /// [deepLink] is the optional `type[:arg]` payload the phone routes the tap
+  /// with. Declared here and nowhere else because this is the only transport
+  /// that reaches a device with a route table; the base signature stays as it
+  /// is so the eight other transports are untouched by a mobile concern.
   @override
   Future<NotificationResult> send({
     required NotificationCategory category,
     required String title,
     required String body,
+    String? deepLink,
   }) async {
     final spec = _pushSpecFor(category);
     if (spec == null) {
@@ -60,6 +65,7 @@ class SystemPushTransport extends NotificationTransport {
         eventType: category.storageKey,
         category: _mapCategory(category),
         timestamp: DateTime.now(),
+        deepLink: deepLink,
       ),
     );
     return NotificationResult.ok();
@@ -189,6 +195,14 @@ class SystemPushTransport extends NotificationTransport {
           enabled: (c) => c.notifyAutofocusFailed,
           priority: PushNotificationPriority.normal,
         );
+      // The morning draft. No legacy per-event toggle ever existed for it, so
+      // the control is its own routing-matrix row; priority is the ordinary
+      // tier because it arrives after the night is over and nothing is at risk.
+      case NotificationCategory.darkroomDraftReady:
+        return const _PushSpec(
+          enabled: _always,
+          priority: PushNotificationPriority.normal,
+        );
 
       // Custom (user-defined NotificationNode / forwarded errors)
       // Always allowed when push is enabled; the user explicitly opted a
@@ -248,6 +262,9 @@ class SystemPushTransport extends NotificationTransport {
         return core.EventCategory.sequencer;
       case NotificationCategory.exposureFailed:
       case NotificationCategory.transientDiscovered:
+      // The draft is a picture the rig made, which is what the imaging
+      // category means on the wire.
+      case NotificationCategory.darkroomDraftReady:
         return core.EventCategory.imaging;
       case NotificationCategory.guidingLost:
       case NotificationCategory.guidingRecovered:

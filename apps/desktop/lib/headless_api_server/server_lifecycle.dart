@@ -287,6 +287,23 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       uploadConsentResolver: () => resolveMosaicUploadConsent(collabSettings),
     )..start();
 
+    // Arm the Darkroom delivery retry sweep. A destination that was asleep when
+    // the dawn job ran leaves journal rows with a due time in the future, and
+    // the sweep is the only thing that reads them: without this timer the due
+    // time passes with nobody watching until the next job happens to run. The
+    // sweeper is single-flight, so a slow SFTP pass never overlaps the next
+    // tick.
+    //
+    // Armed here, beside the mosaic driver, because this is the one lifecycle
+    // both the daemon and the GUI drive — and torn down with it. A GUI running
+    // with remote access switched off therefore has no periodic sweep; the
+    // one-shot catch-up both bootstraps run at startup still covers the rows
+    // that came due while the process was down.
+    _deliveryRetrySweeper?.stop();
+    final retrySweeper = container.read(deliveryRetrySweeperProvider);
+    _deliveryRetrySweeper = retrySweeper;
+    retrySweeper.start();
+
     // Subscribe to backend events and broadcast to WebSocket clients
     _subscribeToBackendEvents();
     _subscribeToSequenceCatalogUpdates();
@@ -724,6 +741,11 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // their own cleanup; only the scheduling stops.
     _collabMosaicPoller?.stop();
     _collabMosaicPoller = null;
+    // stop the Darkroom delivery retry sweep. A pass already in flight runs to
+    // its end — it owns journal rows it must finish writing — so only the
+    // scheduling stops here.
+    _deliveryRetrySweeper?.stop();
+    _deliveryRetrySweeper = null;
     await _jobManager.dispose();
     // tear down ownership state and broadcast controller.
     await _sessionOwnership.dispose();

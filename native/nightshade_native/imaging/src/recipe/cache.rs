@@ -15,9 +15,11 @@
 //!
 //! The key also carries [`OpContext::identity`], so attaching a photometric
 //! catalogue or a different plate solve invalidates the boundaries that
-//! depended on it. A catalogue contributes its presence, not its contents: a
-//! catalogue that gains stars under the same handle is not distinguished, and a
-//! caller that reloads catalogue data calls [`RenderCache::clear`].
+//! depended on it. A catalogue contributes its contents through
+//! [`PhotometryCatalog::identity`](super::model::PhotometryCatalog::identity),
+//! not merely its presence: a handle that gains stars keys differently, so a
+//! caller that reloads catalogue data needs no [`RenderCache::clear`] to keep
+//! one star list's colours out of another's render.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

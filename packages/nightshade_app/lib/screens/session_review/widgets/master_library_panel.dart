@@ -20,6 +20,14 @@ class MasterLibraryPanel extends StatelessWidget {
   final bool busy;
 
   final void Function(IntegratedMaster) onOpen;
+
+  /// Open the master in the Darkroom, where its recipe is editable.
+  ///
+  /// Separate from [onOpen], which shows the stretched preview in a dialog: one
+  /// looks at the pixels the integration produced, the other edits the
+  /// interpretation on top of them.
+  final void Function(IntegratedMaster) onOpenInDarkroom;
+
   final void Function(IntegratedMaster) onAddTonight;
   final void Function(IntegratedMaster) onFinalize;
   final void Function(IntegratedMaster) onDelete;
@@ -31,6 +39,7 @@ class MasterLibraryPanel extends StatelessWidget {
     required this.acceptedSubCount,
     required this.busy,
     required this.onOpen,
+    required this.onOpenInDarkroom,
     required this.onAddTonight,
     required this.onFinalize,
     required this.onDelete,
@@ -85,6 +94,7 @@ class MasterLibraryPanel extends StatelessWidget {
                 acceptedSubCount: acceptedSubCount,
                 busy: busy,
                 onOpen: () => onOpen(m),
+                onOpenInDarkroom: () => onOpenInDarkroom(m),
                 onAddTonight: () => onAddTonight(m),
                 onFinalize: () => onFinalize(m),
                 onDelete: () => onDelete(m),
@@ -101,6 +111,7 @@ class _MasterCard extends StatelessWidget {
   final int acceptedSubCount;
   final bool busy;
   final VoidCallback onOpen;
+  final VoidCallback onOpenInDarkroom;
   final VoidCallback onAddTonight;
   final VoidCallback onFinalize;
   final VoidCallback onDelete;
@@ -110,6 +121,7 @@ class _MasterCard extends StatelessWidget {
     required this.acceptedSubCount,
     required this.busy,
     required this.onOpen,
+    required this.onOpenInDarkroom,
     required this.onAddTonight,
     required this.onFinalize,
     required this.onDelete,
@@ -122,6 +134,7 @@ class _MasterCard extends StatelessWidget {
         master.accumulationMode == AccumulationMode.runningWeightedMean;
     final canOpen =
         master.previewPngPath != null || master.masterFitsPath != null;
+    final canRefine = master.masterFitsPath != null;
 
     return NightshadeCard(
       onTap: canOpen && !busy ? onOpen : null,
@@ -187,6 +200,24 @@ class _MasterCard extends StatelessWidget {
                         icon: NightshadeIcons.image,
                         onPressed: busy ? null : onOpen,
                       ),
+                    // The Darkroom edits the recipe over the LINEAR master, so
+                    // it needs the FITS — a preview PNG is a picture of a
+                    // decision already taken. An accumulating master writes its
+                    // FITS only at finalize, which is why the control says so
+                    // rather than opening an editor with no pixels.
+                    _MiniButton(
+                      key: const ValueKey('master_open_in_darkroom'),
+                      label: 'Darkroom',
+                      icon: NightshadeIcons.sliders,
+                      onPressed: (busy || !canRefine)
+                          ? null
+                          : onOpenInDarkroom,
+                      tooltip: canRefine
+                          ? 'Edit this master\'s recipe in the Darkroom'
+                          : 'This master has no linear FITS yet. Finalize the '
+                                'accumulation first — the Darkroom renders '
+                                'from linear pixels, not from the preview.',
+                    ),
                     if (accumulating)
                       _MiniButton(
                         label: 'Add tonight',
@@ -295,11 +326,17 @@ class _MiniButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool destructive;
 
+  /// Why the control is here, and — when [onPressed] is null — why it is not
+  /// available. A disabled control with no explanation reads as a bug.
+  final String? tooltip;
+
   const _MiniButton({
+    super.key,
     required this.label,
     required this.icon,
     required this.onPressed,
     this.destructive = false,
+    this.tooltip,
   });
 
   @override
@@ -310,6 +347,14 @@ class _MiniButton extends StatelessWidget {
         : destructive
             ? colors.error
             : colors.textSecondary;
+    final message = tooltip;
+    if (message != null) {
+      return Tooltip(message: message, child: _build(colors, fg));
+    }
+    return _build(colors, fg);
+  }
+
+  Widget _build(NightshadeColors colors, Color fg) {
     return Semantics(
         button: true,
         enabled: onPressed != null,

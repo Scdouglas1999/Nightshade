@@ -68,6 +68,15 @@ enum NotificationCategory {
   // Astronomical discovery (First Light / Pillar B)
   transientDiscovered('Transient Discovered'),
 
+  /// The dawn autopilot finished a night's Darkroom pass and there is a first
+  /// draft to look at.
+  ///
+  /// Its own category rather than a `sequenceCompleted` reuse because it is the
+  /// one notification that carries a deep link: the tap opens the draft's recipe
+  /// in the Darkroom, and a category shared with the end of a run would send
+  /// every run-completion push to the same place.
+  darkroomDraftReady('Darkroom Draft Ready'),
+
   // System / operational
   diskSpaceLow('Disk Space Low'),
   equipmentDisconnected('Equipment Disconnected'),
@@ -108,6 +117,9 @@ enum NotificationCategory {
       case NotificationCategory.sequenceStopped:
         return EventSeverity.info;
       case NotificationCategory.sequenceCompleted:
+      // The morning draft is good news waiting to be looked at, never an
+      // alarm — it fires hours after the rig has finished and parked.
+      case NotificationCategory.darkroomDraftReady:
         return EventSeverity.info;
       case NotificationCategory.frameRejected:
       case NotificationCategory.cloudArriving:
@@ -486,6 +498,10 @@ bool _systemPushByDefault(NotificationCategory c) {
     // must hear that the night continued degraded, or the decision row is
     // invisible until morning.
     case NotificationCategory.autofocusContinued:
+    // The morning draft is the message this whole release exists to send, and
+    // the person it is for is asleep in another room. In-app only would mean
+    // the operator learns about it when they next open the desktop app.
+    case NotificationCategory.darkroomDraftReady:
       return true;
     default:
       return false;

@@ -187,6 +187,12 @@ impl CancelledRender {
 
 /// The render report as wire JSON: one entry per step the render covered, in
 /// order, naming what happened to it and why.
+///
+/// A step that solved something while it ran carries it as `measured` — for
+/// `color_calibrate@1` the channel scales, the reference colour, the
+/// cross-matched star count and the fit residual. That is the read-back a draft
+/// pins into the recipe so later previews replay the balance rather than
+/// re-fitting it at a level that holds too few stars.
 pub(crate) fn report_json(report: &RenderReport) -> Value {
     let steps: Vec<Value> = report
         .steps
@@ -200,6 +206,9 @@ pub(crate) fn report_json(report: &RenderReport) -> Value {
             });
             if let StepOutcome::Skipped { reason } = &step.outcome {
                 entry["reason"] = Value::String(reason.clone());
+            }
+            if let Some(measured) = &step.measurement {
+                entry["measured"] = measured.clone();
             }
             entry
         })

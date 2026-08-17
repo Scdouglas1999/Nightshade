@@ -18,6 +18,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 
+import '../../utils/darkroom_navigation.dart';
 import '../../widgets/astro_image_viewer.dart';
 
 part 'stack_result_screen_parts/_export_seams.dart';
@@ -198,6 +199,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     Uint8List? rgba,
   ) {
     final canExport = !_exporting && rgba != null;
+    // The Darkroom edits the recipe over the night's LINEAR master, which is
+    // reached through the session this stack belongs to. A standalone stack —
+    // frames dropped in with no session row — has no such master, so the
+    // control says that rather than opening an editor with nothing behind it.
+    final sessionId = result.sessionId;
 
     // On a phone the four export buttons cannot share the ScreenHeader's Row
     // with the title without overflowing the ~430 px width, so collapse them
@@ -220,6 +226,10 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
               }
             case _StackResultAction.astroBin:
               _exportAstroBin(result);
+            case _StackResultAction.darkroom:
+              if (sessionId != null) {
+                unawaited(openDarkroomForSession(context, ref, sessionId));
+              }
           }
         },
         itemBuilder: (context) => [
@@ -252,6 +262,17 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             child: _ActionMenuRow(
               icon: NightshadeIcons.file,
               label: 'AstroBin',
+            ),
+          ),
+          PopupMenuItem(
+            value: _StackResultAction.darkroom,
+            enabled: sessionId != null,
+            child: _ActionMenuRow(
+              icon: NightshadeIcons.sliders,
+              label: 'Refine in Darkroom',
+              reason: sessionId != null
+                  ? null
+                  : 'No imaging session, so no linear master',
             ),
           ),
         ],
@@ -295,6 +316,23 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           icon: NightshadeIcons.file,
           size: ButtonSize.small,
           onPressed: !_exporting ? () => _exportAstroBin(result) : null,
+        ),
+        Tooltip(
+          message: sessionId != null
+              ? 'Open this night\'s linear master in the Darkroom'
+              : 'This stack has no imaging session, so there is no linear '
+                    'master to refine.',
+          child: NightshadeButton(
+            key: const ValueKey('stack_result_refine_in_darkroom'),
+            label: 'Refine in Darkroom',
+            icon: NightshadeIcons.sliders,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: sessionId != null
+                ? () =>
+                      unawaited(openDarkroomForSession(context, ref, sessionId))
+                : null,
+          ),
         ),
       ],
     );

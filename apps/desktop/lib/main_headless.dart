@@ -334,6 +334,17 @@ void main(List<String> args) async {
     // `post_session.auto_integrate` is silently inert on the appliance.
     container.read(autoIntegrationCoordinatorProvider);
 
+    // Darkroom: drain the dawn jobs a previous run left queued (the DB open
+    // re-queues rows a dead process abandoned mid-render), then catch up the
+    // delivery rows whose retry came due while the appliance was down. Both
+    // are fire-and-forget: an unreachable morning destination must never hold
+    // the "running" banner below.
+    resumeDarkroomWork(
+      container: container,
+      logger: runtimeLogger,
+      logSource: _headlessLogSource,
+    );
+
     // A headless appliance has no widget tree to lazily create services.
     // Start host-owned automatic backups explicitly from persisted settings.
     try {

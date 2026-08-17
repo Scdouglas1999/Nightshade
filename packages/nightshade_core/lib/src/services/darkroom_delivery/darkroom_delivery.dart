@@ -15,6 +15,7 @@ export 'delivery_failure.dart';
 export 'delivery_manifest.dart';
 export 'delivery_providers.dart';
 export 'delivery_retry_policy.dart';
+export 'delivery_retry_sweeper.dart';
 export 'delivery_service.dart';
 export 'delivery_transport_factory.dart';
 export 'peer_manifest_service.dart';

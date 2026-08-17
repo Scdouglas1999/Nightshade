@@ -260,6 +260,11 @@ class MobileSequenceHooks {
         // Build the legacy data shape that notifyPush expects.
         final eventType = frame.data['eventType'] as String?;
         final category = frame.data['category'] as String?;
+        // Carried through because the UDP copy and the WebSocket copy of one
+        // push must open the same screen: the dedup below suppresses whichever
+        // arrives second, so a deep link dropped here would be lost outright
+        // whenever the LAN frame wins the race.
+        final deepLink = frame.data['deepLink'] as String?;
         final priority = switch (frame.severity) {
           'critical' => 'critical',
           'warning' => 'high',
@@ -277,6 +282,7 @@ class MobileSequenceHooks {
           'priority': priority,
           if (eventType != null) 'eventType': eventType,
           if (category != null) 'category': category,
+          if (deepLink != null) 'deepLink': deepLink,
           'timestamp': frame.timestamp.millisecondsSinceEpoch,
           'id': frame.id,
           'source': 'lan_udp',

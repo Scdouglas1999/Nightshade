@@ -13,6 +13,7 @@ enum AppScreen {
   planetarium,
   framing,
   analytics,
+  darkroom,
   science,
   flatWizard,
   weather,
@@ -44,6 +45,10 @@ AppScreen locationToAppScreen(String location) {
   if (location.startsWith('/planetarium')) return AppScreen.planetarium;
   if (location.startsWith('/framing')) return AppScreen.framing;
   if (location.startsWith('/analytics')) return AppScreen.analytics;
+  // The Darkroom editor. Without this arm it reads as `unknown`, and the smart
+  // notification filter would pop "your draft is ready" over the very screen
+  // showing that draft.
+  if (location.startsWith('/darkroom')) return AppScreen.darkroom;
   // Transients folds into Science → Observing Alerts (the standalone route
   // redirects to /science?tab=transients), so it highlights the Science host.
   if (location.startsWith('/science')) return AppScreen.science;

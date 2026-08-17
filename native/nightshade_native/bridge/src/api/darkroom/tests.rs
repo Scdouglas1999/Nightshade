@@ -337,6 +337,45 @@ fn preview_records_a_skipped_step_with_the_reason_it_could_not_run() {
 }
 
 #[test]
+fn preview_reports_the_channel_scales_a_colour_step_applied() {
+    // The read-back the draft pins from. A pinned step reads no catalogue and no
+    // plate solve, so this exercises the whole path — entry point, engine, step
+    // report — with nothing to fit and nothing to be flaky about.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "pinned.fits", 64, 64, 3);
+    let recipe = recipe_json(
+        "r-pinned",
+        "master:pinned",
+        json!([
+            {"opId": "denoise", "opVersion": 1, "params": {}, "enabled": true},
+            {
+                "opId": "color_calibrate",
+                "opVersion": 1,
+                "params": {"channelScale": [1.5, 1.0, 0.8]},
+                "enabled": true,
+            },
+        ]),
+    );
+
+    let preview = api_darkroom_render_preview(
+        recipe,
+        json!({"masterPath": master.to_string_lossy()}).to_string(),
+    )
+    .expect("a pinned balance renders with no photometry");
+
+    let report = parse(&preview.report_json);
+    let colour = &report["report"]["steps"][1];
+    assert_eq!(colour["opId"], json!("color_calibrate"));
+    assert_eq!(colour["outcome"], json!("applied"));
+    assert_eq!(colour["measured"]["source"], json!("pinned"));
+    assert_eq!(colour["measured"]["channelScale"], json!([1.5, 1.0, 0.8]));
+    assert!(
+        report["report"]["steps"][0].get("measured").is_none(),
+        "an operation whose parameters describe its result reports no measurement: {report}"
+    );
+}
+
+#[test]
 fn preview_refuses_an_encoding_it_does_not_know() {
     let dir = tempfile::tempdir().expect("temp dir");
     let master = write_master(dir.path(), "encoding.fits", 64, 64, 1);

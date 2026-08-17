@@ -7,7 +7,7 @@ use serde_json::json;
 use super::*;
 use crate::recipe::model::{OpContext, RecipeAuthor, RecipeStep};
 use crate::recipe::render::{StepOutcome, StepReport};
-use crate::recipe::testkit::{fixed_catalog, synthetic_star_field};
+use crate::recipe::testkit::{fixed_catalog, fixed_stars, synthetic_star_field, FixedCatalog};
 
 fn recipe_of(steps: Vec<RecipeStep>) -> Recipe {
     let mut recipe = Recipe::new("rec", "master-1", RecipeAuthor::User);
@@ -31,6 +31,7 @@ fn report(index: usize) -> Arc<Vec<StepReport>> {
                 op_id: "test_scale".to_string(),
                 op_version: 1,
                 outcome: StepOutcome::Applied,
+                measurement: None,
             })
             .collect(),
     )
@@ -104,6 +105,37 @@ fn attaching_a_catalog_is_a_different_key() {
             &OpContext::new().with_catalog(fixed_catalog()),
             0
         )
+    );
+}
+
+#[test]
+fn two_catalogs_holding_different_stars_are_different_keys() {
+    // The boundary after a colour calibration is the catalogue's answer made
+    // pixels. Keying on the star list is what stops the second render of a
+    // field whose photometry was refreshed being served the first one's
+    // colours — the engine's own guarantee, so no caller has to clear the cache.
+    let base = synthetic_star_field(8, 8, 1, 1);
+    let recipe = three_step_recipe();
+    let first = OpContext::new().with_catalog(fixed_catalog());
+    let mut revised = fixed_stars();
+    revised[1].v_mag += 0.25;
+    let refreshed = OpContext::new().with_catalog(Arc::new(FixedCatalog { stars: revised }));
+
+    assert_ne!(
+        CacheKey::for_prefix(&recipe, &base, &first, 0),
+        CacheKey::for_prefix(&recipe, &base, &refreshed, 0)
+    );
+    assert_eq!(
+        CacheKey::for_prefix(&recipe, &base, &first, 0),
+        CacheKey::for_prefix(
+            &recipe,
+            &base,
+            &OpContext::new().with_catalog(Arc::new(FixedCatalog {
+                stars: fixed_stars()
+            })),
+            0
+        ),
+        "the same stars behind a fresh handle must still hit the boundary they produced"
     );
 }
 

@@ -16,6 +16,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 // Exports hand off through revealExportedFile (share sheet on mobile, path
 // snackbar on desktop) rather than calling share_plus directly — shareXFiles is
 // unimplemented on Linux/Windows and threw an internal API name at the user.
+import '../../utils/darkroom_navigation.dart';
 import '../../utils/exported_file_reveal.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;

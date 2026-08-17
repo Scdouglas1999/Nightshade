@@ -37,9 +37,7 @@ use serde_json::{json, Value};
 
 use super::args::{CancelledRender, CatalogStarArgs};
 use super::catalog::SuppliedCatalog;
-use super::state::{
-    base_pyramid, note_catalog_identity, registry, render_cache, RenderCancelToken,
-};
+use super::state::{base_pyramid, registry, render_cache, RenderCancelToken};
 
 /// How a render's samples become 8-bit RGBA.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,6 +128,11 @@ pub(crate) fn resolve_level(
 
 /// The context a render runs under: the cancel flag, the level, the base's own
 /// astrometry, and the caller's photometry.
+///
+/// The star list needs no cache bookkeeping here: the engine's step-boundary key
+/// carries `SuppliedCatalog::identity`, so a request with different stars keys
+/// differently and the boundaries computed under the previous list stay
+/// reachable for the next request that supplies it.
 pub(crate) fn build_context(
     base: &OpImage,
     level: u32,
@@ -141,13 +144,9 @@ pub(crate) fn build_context(
         ctx = ctx.with_wcs(wcs);
     }
     let mut star_count = 0usize;
-    match SuppliedCatalog::new(catalog_stars) {
-        Some(catalog) => {
-            star_count = catalog.len();
-            note_catalog_identity(Some(catalog.identity()));
-            ctx = ctx.with_catalog(catalog.into_handle());
-        }
-        None => note_catalog_identity(None),
+    if let Some(catalog) = SuppliedCatalog::new(catalog_stars) {
+        star_count = catalog.len();
+        ctx = ctx.with_catalog(catalog.into_handle());
     }
     (ctx, star_count)
 }

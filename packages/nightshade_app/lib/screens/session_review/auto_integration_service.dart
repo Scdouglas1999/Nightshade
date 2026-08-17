@@ -60,6 +60,59 @@ class AutoIntegrationResult {
       AutoIntegrationResult(ran: false, message: 'Auto-integration disabled.');
 }
 
+/// What an operator-requested Darkroom pass did.
+///
+/// Distinct from [AutoIntegrationResult] because a manual pass integrates
+/// nothing: the masters already exist and this only re-interprets them.
+class ManualDarkroomRun {
+  /// The job's ending, or null when the pass could not be started at all.
+  final DawnJobOutcome? outcome;
+
+  /// Why the pass could not be started, or null when it ran. A job that ran
+  /// and failed reports through [outcome] — this is only for a pass that never
+  /// got a row.
+  final String? failure;
+
+  /// Whether finished runs also draft themselves. Carried so the surface can
+  /// say that this draft is a one-off, rather than leaving the operator to
+  /// assume the automatic pass they switched off has come back.
+  final bool autoDraftEnabled;
+
+  const ManualDarkroomRun({
+    required this.outcome,
+    required this.failure,
+    required this.autoDraftEnabled,
+  });
+
+  /// The sentence the surface shows when the pass returns.
+  String get message {
+    final started = failure;
+    if (started != null) return started;
+    final result = outcome;
+    if (result == null) {
+      return 'The Darkroom pass returned nothing to report.';
+    }
+    switch (result.state) {
+      case DarkroomJobState.done:
+        final drafts = result.report?.draftsRendered ?? 0;
+        return drafts > 0
+            ? 'Darkroom pass finished — $drafts draft'
+                  '${drafts == 1 ? '' : 's'} ready.'
+            : 'Darkroom pass finished without a draft; the night report says '
+                  'why.';
+      case DarkroomJobState.cancelled:
+        return result.failure ?? 'The Darkroom pass was stopped.';
+      case DarkroomJobState.queued:
+      case DarkroomJobState.running:
+      case DarkroomJobState.failed:
+        return result.failure ?? 'The Darkroom pass did not finish.';
+    }
+  }
+
+  /// True when the pass ran to the end.
+  bool get succeeded => outcome?.succeeded ?? false;
+}
+
 /// Host-authoritative setting used by both the local rig and remote clients.
 final autoIntegrationEnabledProvider =
     FutureProvider.autoDispose<bool>((ref) async {
@@ -349,6 +402,68 @@ class AutoIntegrationService {
             'The Darkroom pass could not be started, so the masters exist '
             'without a draft: $error',
       );
+    }
+  }
+
+  /// Run the Darkroom pass for [sessionId] because the operator asked — the
+  /// "process tonight now" action.
+  ///
+  /// Same conventions as [_runDarkroom]: it never throws, because the job row
+  /// records every ending and a draft that could not be made must not read as
+  /// an app failure. The job is `manual`, so it produces the same drafts, the
+  /// same report and the same delivery, and sends NO morning notification —
+  /// the operator is standing at the machine.
+  ///
+  /// The [kDarkroomAutoDraftSettingKey] opt-out is REPORTED, not enforced: it
+  /// governs whether a finished run drafts itself unattended, and a press is
+  /// the operator asking for exactly this one. Refusing here would leave the
+  /// only way to make a draft behind a settings toggle they turned off for a
+  /// different reason. [ManualDarkroomRun.autoDraftEnabled] carries the state
+  /// so the surface can say that nights are not drafting themselves.
+  Future<ManualDarkroomRun> runDarkroomNow(int sessionId) async {
+    final autoDraft = await isDarkroomAutoDraftEnabled();
+    try {
+      final outcome = await _ref
+          .read(dawnAutopilotServiceProvider)
+          .processSessionNow(sessionId);
+      return ManualDarkroomRun(
+        outcome: outcome,
+        failure: null,
+        autoDraftEnabled: autoDraft,
+      );
+    } catch (error) {
+      _ref.read(loggingServiceProvider).error(
+        'The requested Darkroom pass could not be started',
+        source: 'AutoIntegrationService',
+        fields: {'sessionId': sessionId, 'error': '$error'},
+      );
+      return ManualDarkroomRun(
+        outcome: null,
+        failure: 'The Darkroom pass could not be started: $error',
+        autoDraftEnabled: autoDraft,
+      );
+    }
+  }
+
+  /// Whether a finished run drafts itself.
+  ///
+  /// Absent means on — see [kDarkroomAutoDraftSettingKey]. Only the literal
+  /// string `false` turns it off, and a settings store that cannot be read at
+  /// all leaves the feature on for the same reason, with the storage failure
+  /// logged so the answer is never a quiet guess.
+  Future<bool> isDarkroomAutoDraftEnabled() async {
+    try {
+      final raw = await _ref
+          .read(settingsDaoProvider)
+          .getSetting(kDarkroomAutoDraftSettingKey);
+      return raw != 'false';
+    } catch (error) {
+      _ref.read(loggingServiceProvider).warning(
+        'The Darkroom auto-draft setting could not be read; reporting it as on',
+        source: 'AutoIntegrationService',
+        fields: {'key': kDarkroomAutoDraftSettingKey, 'error': '$error'},
+      );
+      return true;
     }
   }
 

@@ -335,6 +335,33 @@ fn the_context_identity_changes_with_level_catalog_and_wcs() {
 }
 
 #[test]
+fn the_context_identity_follows_what_a_catalog_holds_not_that_it_exists() {
+    use std::sync::Arc;
+
+    use crate::recipe::testkit::{fixed_catalog, fixed_stars, FixedCatalog};
+
+    let base = OpContext::new();
+    let first = base.clone().with_catalog(fixed_catalog());
+    let same_stars = base.clone().with_catalog(Arc::new(FixedCatalog {
+        stars: fixed_stars(),
+    }));
+    assert_eq!(
+        first.identity(),
+        same_stars.identity(),
+        "two handles over the same stars render the same pixels and must share a key"
+    );
+
+    let mut revised = fixed_stars();
+    revised[0].b_minus_v += 0.01;
+    let corrected = base.with_catalog(Arc::new(FixedCatalog { stars: revised }));
+    assert_ne!(
+        first.identity(),
+        corrected.identity(),
+        "a colour index the catalog revised reaches the colour fit, so it must reach the key"
+    );
+}
+
+#[test]
 fn the_byte_size_counts_four_bytes_per_sample() {
     let image = synthetic_star_field(8, 8, 3, 1);
     assert_eq!(image.len(), 8 * 8 * 3);

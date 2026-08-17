@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../diagnostics/diagnostics_screen/psf_field_map_view.dart';
 import '../sequencer/widgets/run_dashboard/frame_detail_dialog.dart';
 import '../../utils/confirm_dialog.dart';
+import '../../utils/darkroom_navigation.dart';
 import 'session_review_controller.dart';
 import 'widgets/ab_compare_panel.dart';
 import 'widgets/integration_settings_panel.dart';
@@ -264,6 +265,10 @@ class _RightColumn extends StatelessWidget {
           acceptedSubCount: state.acceptedCount,
           busy: state.busy,
           onOpen: (m) => _showMasterPreview(context, m),
+          // The master row IS the Darkroom's scope: the screen loads that
+          // master's newest recipe, or offers to compose one. No session lookup
+          // is needed here because the card already names the row.
+          onOpenInDarkroom: (m) => openDarkroomForMaster(context, m.id),
           onCreateAccumulating: () async {
             await controller.createAccumulatingMaster();
             await controller.loadSmartData();

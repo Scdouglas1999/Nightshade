@@ -133,4 +133,84 @@ void main() {
       expect(built.posts(), 0);
     },
   );
+
+  group('the deep link the tap follows', () {
+    DawnMasterReport master({
+      required int masterId,
+      int? recipeId,
+      String? draftRenderPath,
+    }) => DawnMasterReport(
+      master: DawnMaster(
+        masterId: masterId,
+        targetId: null,
+        name: 'M31 Ha',
+        filter: 'Ha',
+        masterFitsPath: '/masters/m31_ha.fits',
+        channels: 1,
+        width: 4000,
+        height: 3000,
+        frameCount: 30,
+        totalIntegrationSeconds: 9000,
+      ),
+      targetName: 'M31',
+      stats: DawnMasterStats.unrecorded,
+      draft: null,
+      recipeId: recipeId,
+      draftRenderPath: draftRenderPath,
+      failure: null,
+    );
+
+    DawnJobReport reportWith(List<DawnMasterReport> masters) => DawnJobReport(
+      jobId: 1,
+      kind: 'dawn',
+      sessionId: 7,
+      startedAt: DateTime.utc(2026, 8, 16, 4),
+      finishedAt: DateTime.utc(2026, 8, 16, 5),
+      state: 'done',
+      masters: masters,
+      withoutFile: const [],
+      delivery: null,
+      deliveryProblems: const [],
+      notification: null,
+      failure: null,
+    );
+
+    test('names the first master that saved a recipe AND rendered it', () {
+      expect(
+        draftDeepLinkFor(
+          reportWith([
+            master(masterId: 1, recipeId: 11, draftRenderPath: '/d/1.jpg'),
+            master(masterId: 2, recipeId: 12, draftRenderPath: '/d/2.jpg'),
+          ]),
+        ),
+        'darkroom_draft:11',
+      );
+    });
+
+    test('skips a recipe whose draft the engine refused to render', () {
+      expect(
+        draftDeepLinkFor(
+          reportWith([
+            master(masterId: 1, recipeId: 11, draftRenderPath: null),
+            master(masterId: 2, recipeId: 12, draftRenderPath: '/d/2.jpg'),
+          ]),
+        ),
+        'darkroom_draft:12',
+        reason: 'a recipe with no draft opens onto the same refusal',
+      );
+    });
+
+    test('a night with no draft carries no link at all', () {
+      expect(draftDeepLinkFor(reportWith(const [])), isNull);
+      expect(
+        draftDeepLinkFor(
+          reportWith([
+            master(masterId: 1, recipeId: null, draftRenderPath: '/d/1.jpg'),
+          ]),
+        ),
+        isNull,
+        reason: 'a draft with no saved recipe has nothing for the editor to open',
+      );
+    });
+  });
 }

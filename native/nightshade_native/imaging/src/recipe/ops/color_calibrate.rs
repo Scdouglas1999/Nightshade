@@ -33,13 +33,23 @@
 //! # Measuring once, replaying everywhere
 //!
 //! A step with no `channelScale` measures a balance from the image it is handed.
-//! A step that carries one applies exactly those scales and reads neither the
-//! catalogue nor the astrometry. [`solve`] measures, [`ColorSolve::to_params`]
-//! writes the answer into the step, and every later render — full resolution or
-//! preview — replays the same numbers. That is what a preview needs: a
-//! downsampled level carries fewer measurable stars than the fit requires, so a
-//! step that re-measured at every level would fail on the preview of a master it
-//! calibrates perfectly well at full resolution.
+//! A step that carries one is in *pinned mode*: it applies exactly those scales
+//! and reads neither the catalogue nor the astrometry. [`solve`] measures,
+//! [`ColorSolve::to_params`] writes the answer into the step, and every later
+//! render — full resolution or preview — replays the same numbers. That is what
+//! a preview needs: a downsampled level carries fewer measurable stars than the
+//! fit requires, so a step that re-measured at every level would fail on the
+//! preview of a master it calibrates perfectly well at full resolution.
+//!
+//! The two modes are the same arithmetic over the same scales, so pinning the
+//! scales a render reported reproduces that render's pixels bit for bit. Both
+//! are `color_calibrate@1`: an absent `channelScale` renders exactly what it
+//! always did, so every recipe already on disk replays unchanged.
+//!
+//! Every application reports what it applied — the scales, and for a solve the
+//! reference colour, the matched-star count and the fit residual — as the step's
+//! [`OpApplied::measurement`]. That read-back is how a draft learns the scales
+//! to pin without solving the field a second time.
 //!
 //! # Astrometry
 //!
@@ -63,7 +73,9 @@ use crate::color_calibration::{
     solve_color_calibration, ColorCalError, ColorStar, MIN_MATCHED_STARS,
 };
 use crate::recipe::ops::star_detect;
-use crate::recipe::{CatalogError, DarkroomOp, OpContext, OpError, OpImage, OpStage, Params};
+use crate::recipe::{
+    CatalogError, DarkroomOp, OpApplied, OpContext, OpError, OpImage, OpStage, Params,
+};
 use crate::robust_stats::median_in_place;
 use crate::wcs_sip::SipWcs;
 use crate::{DetectedStar, StarDetectionConfig};
@@ -135,13 +147,18 @@ const SCALE_MIN: f64 = 1e-6;
 /// Largest channel scale a payload may carry.
 const SCALE_MAX: f64 = 1e6;
 
+/// Report token for scales this render fitted from the catalogue.
+const SOURCE_SOLVED: &str = "solved";
+/// Report token for scales the step carried, applied without a fit.
+const SOURCE_PINNED: &str = "pinned";
+
 /// Applies a per-channel white balance solved from catalogue colours.
 pub struct ColorCalibrateV1;
 
 /// One step's validated parameters.
 struct Settings {
-    /// A white balance already carried by the recipe. `None` means the step
-    /// measures one from the image it is handed.
+    /// A white balance already carried by the recipe — pinned mode. `None`
+    /// means the step measures one from the image it is handed.
     channel_scale: Option<Vec<f64>>,
     /// Colour index rendered neutral by the solved scales.
     white_ref_bv: f64,
@@ -180,6 +197,33 @@ impl ColorSolve {
             "whiteRefBv": self.white_ref_bv,
         })
     }
+
+    /// The render report's detail for a step that solved this balance: the
+    /// scales it applied and the evidence behind them.
+    ///
+    /// `source` names how the scales were arrived at, so a reader never has to
+    /// infer it from which fields are present.
+    pub fn to_measurement(&self) -> Value {
+        json!({
+            "source": SOURCE_SOLVED,
+            "channelScale": self.channel_scale,
+            "whiteRefBv": self.white_ref_bv,
+            "matchedStars": self.matched,
+            "residual": self.residual,
+        })
+    }
+}
+
+/// The render report's detail for a step in pinned mode.
+///
+/// It carries no reference colour, no star count and no residual: pinned mode
+/// reads none of them, and reporting the payload's `whiteRefBv` here would
+/// present a number that took no part in the pixels.
+fn pinned_measurement(scales: &[f64]) -> Value {
+    json!({
+        "source": SOURCE_PINNED,
+        "channelScale": scales,
+    })
 }
 
 impl DarkroomOp for ColorCalibrateV1 {
@@ -200,11 +244,28 @@ impl DarkroomOp for ColorCalibrateV1 {
     }
 
     fn apply(&self, image: &OpImage, params: &Value, ctx: &OpContext) -> Result<OpImage, OpError> {
+        self.apply_measured(image, params, ctx)
+            .map(|applied| applied.image)
+    }
+
+    fn apply_measured(
+        &self,
+        image: &OpImage,
+        params: &Value,
+        ctx: &OpContext,
+    ) -> Result<OpApplied, OpError> {
         let settings = read_settings(params)?;
         require_three_channels(image)?;
-        let scales = match settings.channel_scale {
-            Some(scales) => scales,
-            None => solve(image, params, ctx)?.channel_scale,
+        let (scales, measurement) = match settings.channel_scale {
+            Some(scales) => {
+                let measurement = pinned_measurement(&scales);
+                (scales, measurement)
+            }
+            None => {
+                let solved = solve(image, params, ctx)?;
+                let measurement = solved.to_measurement();
+                (solved.channel_scale, measurement)
+            }
         };
         ctx.check_cancel()?;
 
@@ -233,7 +294,7 @@ impl DarkroomOp for ColorCalibrateV1 {
             });
         ctx.check_cancel()?;
 
-        image.with_data(out)
+        Ok(OpApplied::measured(image.with_data(out)?, measurement))
     }
 }
 

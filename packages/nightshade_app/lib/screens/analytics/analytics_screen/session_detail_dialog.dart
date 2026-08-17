@@ -86,6 +86,38 @@ class _SessionDetailDialog extends ConsumerWidget {
                                 ? 'Review on imaging host'
                                 : 'Review & Integrate',
                           ),
+                          // Open the night's linear master in the Darkroom.
+                          // Resolves the session's masters first so a session
+                          // that was never integrated says so instead of
+                          // opening an editor with nothing in it.
+                          IconButton(
+                            key: const ValueKey('session_detail_darkroom'),
+                            icon: const Icon(LucideIcons.sliders, size: 18),
+                            onPressed: () async {
+                              // Resolve BEFORE dismissing: a session with no
+                              // master must leave the dialog up to carry the
+                              // explanation, and only a resolved master earns
+                              // the pop.
+                              final target =
+                                  await resolveDarkroomTargetForSession(
+                                    ref,
+                                    session.id,
+                                  );
+                              if (!context.mounted) return;
+                              final masterId = target.masterId;
+                              if (masterId == null) {
+                                context.showInfoSnackBar(
+                                  target.unavailableReason!,
+                                );
+                                return;
+                              }
+                              Navigator.of(context).pop();
+                              openDarkroomForMaster(context, masterId);
+                            },
+                            tooltip: isRemote
+                                ? 'Refine on imaging host'
+                                : 'Refine in Darkroom',
+                          ),
                           // View the rich Feature-A session report.
                           IconButton(
                             icon:

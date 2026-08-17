@@ -857,6 +857,19 @@ pub trait PhotometryCatalog: Send + Sync {
         radius_deg: f64,
         mag_limit: f64,
     ) -> Result<Vec<CatalogStar>, CatalogError>;
+
+    /// A short, stable digest of the star data this catalogue answers from.
+    ///
+    /// [`OpContext::identity`] carries it into the render cache key verbatim, so
+    /// two catalogues whose answers differ key differently and neither can be
+    /// served a boundary the other produced. Two handles that would answer every
+    /// query alike return the same string; anything that can reach a pixel —
+    /// a star added, a magnitude corrected, a colour index revised — changes it.
+    ///
+    /// It is a digest rather than the data itself because the key is stored as a
+    /// string: an implementation over a million stars returns a fingerprint of
+    /// them, not the list.
+    fn identity(&self) -> String;
 }
 
 // ---------------------------------------------------------------------------
@@ -983,14 +996,18 @@ impl OpContext {
 
     /// The parts of the context that can reach a pixel value, as a stable
     /// string. The render cache carries it, so changing the plate solve, the
-    /// pyramid level, or whether a catalogue is attached invalidates the
-    /// boundaries that depended on it.
+    /// pyramid level, or the photometry invalidates the boundaries that
+    /// depended on it.
     ///
-    /// A catalogue contributes its presence only — a handle whose underlying
-    /// data changed is not distinguished, and a caller that reloads catalogue
-    /// data clears the cache.
+    /// A catalogue contributes [`PhotometryCatalog::identity`], not merely its
+    /// presence: a handle whose stars changed keys differently, so no caller has
+    /// to clear the cache to keep one star list's colours out of another's
+    /// render.
     pub fn identity(&self) -> String {
-        let mut out = format!("L{}|cat:{}", self.level, u8::from(self.catalog.is_some()));
+        let mut out = match &self.catalog {
+            None => format!("L{}|cat:0", self.level),
+            Some(catalog) => format!("L{}|cat:1:{}", self.level, catalog.identity()),
+        };
         match &self.wcs {
             None => out.push_str("|wcs:0"),
             Some(w) => {
@@ -1050,6 +1067,45 @@ impl OpStage {
     }
 }
 
+/// What one application of an operation produced: the image, and anything the
+/// operation solved on the way to it.
+///
+/// The measurement exists because some operations compute a number the caller
+/// must be able to read back — `color_calibrate@1` fits per-channel scales that
+/// a draft then pins into the step, so every later preview replays the balance
+/// instead of re-fitting at a level that holds too few stars. Without a slot for
+/// it the fit would have to be repeated outside the render to be seen.
+#[derive(Debug, Clone)]
+pub struct OpApplied {
+    /// The image the operation produced.
+    pub image: OpImage,
+    /// What the operation solved while it ran, as the step report's detail, or
+    /// `None` when its parameters already describe its result in full.
+    ///
+    /// It is derived from the same work that produced the pixels, so it obeys
+    /// the same determinism contract: a fixed `(version, params, image)` reports
+    /// the same measurement on every run.
+    pub measurement: Option<Value>,
+}
+
+impl OpApplied {
+    /// An application that measured nothing beyond its own parameters.
+    pub fn plain(image: OpImage) -> Self {
+        Self {
+            image,
+            measurement: None,
+        }
+    }
+
+    /// An application carrying `measurement` for the render report.
+    pub fn measured(image: OpImage, measurement: Value) -> Self {
+        Self {
+            image,
+            measurement: Some(measurement),
+        }
+    }
+}
+
 /// One interpretation operation.
 ///
 /// An implementation is pure: for a fixed `(version, params, image)` it produces
@@ -1079,6 +1135,23 @@ pub trait DarkroomOp: Send + Sync {
     /// given reason and passes the image through; every other error aborts the
     /// render.
     fn apply(&self, image: &OpImage, params: &Value, ctx: &OpContext) -> Result<OpImage, OpError>;
+
+    /// Apply the operation and report what it solved while doing so.
+    ///
+    /// This is what the engine calls, and its image is
+    /// [`DarkroomOp::apply`]'s image: an operation that measures something the
+    /// caller reads back implements this one and defines `apply` in terms of it,
+    /// so the solve runs once and the two entry points cannot drift. The default
+    /// measures nothing, which is the truthful answer for an operation whose
+    /// parameters already describe its result.
+    fn apply_measured(
+        &self,
+        image: &OpImage,
+        params: &Value,
+        ctx: &OpContext,
+    ) -> Result<OpApplied, OpError> {
+        Ok(OpApplied::plain(self.apply(image, params, ctx)?))
+    }
 
     /// The pixel domain this operation emits.
     fn stage(&self) -> OpStage;

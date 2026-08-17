@@ -359,22 +359,51 @@ class NotificationRouter {
     EventSeverity severity = EventSeverity.info,
     List<NotificationTransportKind>? explicitTransports,
   }) {
+    routeRendered(
+      category: NotificationCategory.custom,
+      title: title,
+      body: body,
+      severity: severity,
+      explicitTransports: explicitTransports,
+    );
+  }
+
+  /// Route copy that is ALREADY rendered, under [category]'s matrix row.
+  ///
+  /// [route] renders title and body from the category's templates; this entry
+  /// point exists for the producers that have composed their own message — a
+  /// `NotificationNode`'s script, the dawn autopilot's morning report — and
+  /// would lose it to a template. Everything else is identical: the same
+  /// enabled/severity/debounce/rate gates, on the row the operator can see and
+  /// edit in Settings.
+  ///
+  /// [deepLink] is the phone's `type[:arg]` tap payload. Only the systemPush
+  /// transport can act on it; the others ignore it, because an email has
+  /// nowhere to navigate to.
+  void routeRendered({
+    required NotificationCategory category,
+    required String title,
+    required String body,
+    EventSeverity severity = EventSeverity.info,
+    List<NotificationTransportKind>? explicitTransports,
+    String? deepLink,
+  }) {
     if (!_matrix.enabled) return;
-    final baseRule = _ruleFor(NotificationCategory.custom);
+    final baseRule = _ruleFor(category);
     if (!baseRule.enabled) return;
     if (severity.index < baseRule.minSeverity.index) return;
-    if (_isDebounced(NotificationCategory.custom, baseRule)) return;
-    if (_isRateLimited(NotificationCategory.custom, baseRule)) return;
+    if (_isDebounced(category, baseRule)) return;
+    if (_isRateLimited(category, baseRule)) return;
 
     final eligible = _eligibleTransports(
       explicitTransports ?? baseRule.transports,
     );
     if (eligible.isEmpty) return;
 
-    _lastFireTime[NotificationCategory.custom] = _now();
-    _recordRateHit(NotificationCategory.custom);
+    _lastFireTime[category] = _now();
+    _recordRateHit(category);
     for (final transport in eligible) {
-      _dispatch(transport, NotificationCategory.custom, title, body);
+      _dispatch(transport, category, title, body, deepLink: deepLink);
     }
   }
 
@@ -567,8 +596,9 @@ class NotificationRouter {
     NotificationTransport transport,
     NotificationCategory category,
     String title,
-    String body,
-  ) {
+    String body, {
+    String? deepLink,
+  }) {
     // Cross-producer de-duplication. Several converging inputs describe one
     // physical happening (see [_recentSignatures]); the operator must be told
     // once. The signature is per transport kind, so an external alert is never
@@ -580,11 +610,21 @@ class NotificationRouter {
     Future.microtask(() async {
       late NotificationResult result;
       try {
-        result = await transport.send(
-          category: category,
-          title: title,
-          body: body,
-        );
+        // Only the phone has a route table to act on a deep link; the base
+        // signature carries no such parameter, so the one transport that
+        // understands it is asked for it by type.
+        result = transport is SystemPushTransport
+            ? await transport.send(
+                category: category,
+                title: title,
+                body: body,
+                deepLink: deepLink,
+              )
+            : await transport.send(
+                category: category,
+                title: title,
+                body: body,
+              );
       } catch (error, stackTrace) {
         result = NotificationResult.fail(error.toString());
         developer.log(
@@ -716,6 +756,11 @@ class NotificationRouter {
         return 'Trigger fired';
       case NotificationCategory.transientDiscovered:
         return 'Possible new transient';
+      // The dawn autopilot always composes its own headline from the night it
+      // just processed and routes it through [routeRendered]; this default is
+      // what a matrix test-send shows, never what the morning message says.
+      case NotificationCategory.darkroomDraftReady:
+        return 'Your draft is ready';
       case NotificationCategory.custom:
         return 'Nightshade notification';
     }
@@ -787,6 +832,12 @@ class NotificationRouter {
       case NotificationCategory.transientDiscovered:
         return 'First Light caught something at \${transient.coords} '
             '(SNR \${transient.snr}). Chase it before it fades.';
+      // As with the title: the dawn autopilot supplies the real body, which
+      // names what was integrated, what the calibration matched and where the
+      // files went.
+      case NotificationCategory.darkroomDraftReady:
+        return 'The dawn Darkroom pass finished; open the draft to see what '
+            'it did.';
       case NotificationCategory.sequencePaused:
         return 'Sequence paused at \${time.clock}.';
       case NotificationCategory.sequenceResumed:

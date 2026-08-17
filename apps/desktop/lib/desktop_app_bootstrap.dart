@@ -18,6 +18,76 @@ import 'headless_api_server.dart';
 
 const String _logSource = 'DesktopBootstrap';
 
+/// Resume the Darkroom's durable background work at startup: the dawn jobs a
+/// crash left queued, then the delivery rows whose retry came due while the
+/// process was down.
+///
+/// Shared by the GUI bootstrap and the headless daemon because the two have the
+/// same obligation — the job rows and the journal rows outlive the process that
+/// wrote them, so whichever mode starts next owes them a pass.
+///
+/// **Fire-and-forget by construction.** Both passes are long and network-bound
+/// (an SFTP upload of a full linear master over a domestic uplink), and neither
+/// is a precondition for anything else in the bootstrap. Awaiting either here
+/// would hold the "running" banner behind an overnight retry to a host that is
+/// still asleep.
+///
+/// **Order is load-bearing.** A drained job hands its artifacts to delivery,
+/// which writes the journal rows the sweep then reads; sweeping first would
+/// leave anything the drain produced for the periodic sweeper's first tick.
+void resumeDarkroomWork({
+  required ProviderContainer container,
+  required LoggingService logger,
+  required String logSource,
+}) {
+  unawaited(_resumeDarkroomWork(container, logger, logSource));
+}
+
+Future<void> _resumeDarkroomWork(
+  ProviderContainer container,
+  LoggingService logger,
+  String logSource,
+) async {
+  try {
+    final outcomes = await container
+        .read(dawnAutopilotServiceProvider)
+        .drainQueue();
+    if (outcomes.isNotEmpty) {
+      logger.info(
+        'Resumed ${outcomes.length} queued Darkroom job(s) left by a previous '
+        'run',
+        source: logSource,
+        fields: {
+          'done': outcomes.where((o) => o.succeeded).length,
+          'jobs': outcomes.map((o) => o.jobId).join(','),
+        },
+      );
+    }
+  } catch (e, st) {
+    logger.error(
+      'The queued Darkroom jobs could not be drained at startup: $e\n$st',
+      source: logSource,
+    );
+  }
+
+  try {
+    final report = await container
+        .read(deliveryRetrySweeperProvider)
+        .sweepOnce();
+    if (report != null && report.destinations.isNotEmpty) {
+      logger.info(
+        'Darkroom delivery catch-up sweep: ${report.summary}',
+        source: logSource,
+      );
+    }
+  } catch (e, st) {
+    logger.error(
+      'The Darkroom delivery retry sweep could not run at startup: $e\n$st',
+      source: logSource,
+    );
+  }
+}
+
 /// Start background services for mobile/remote access.
 ///
 /// Why this delegates to [HeadlessApiServer]: the GUI and headless mode serve
@@ -122,6 +192,17 @@ Future<void> _runBackgroundServices(
     // with no UI surface, so it must be read at startup to run. It is a
     // no-op until the user enables discovery in Settings.
     container.read(homeAssistantDiscoveryProvider);
+
+    // Darkroom: pick up the dawn jobs and the delivery rows a previous run
+    // left behind. The GUI is the mode a force-quit is most likely to have
+    // interrupted, so without this the crash-recovery re-queue at DB open
+    // would sit unread until the next night's run-completion coordinator
+    // fired.
+    resumeDarkroomWork(
+      container: container,
+      logger: logger,
+      logSource: _logSource,
+    );
   } catch (e) {
     logger.error(
       'Background services failed to initialise',

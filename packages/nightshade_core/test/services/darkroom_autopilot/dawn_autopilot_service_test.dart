@@ -52,8 +52,21 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// Step indices the next preview reports as skipped, with the reason.
   Map<int, String> skipReasons = {};
 
+  /// Per-channel scales the preview reports as a step's own measurement, the
+  /// way `color_calibrate@1` reports the balance it fitted.
+  Map<int, List<double>> channelScales = {};
+
+  /// The auto stretch parameters a `screen`-encoded preview reports having
+  /// applied for display. The draft reads them as the measurement over the
+  /// prefix it just rendered.
+  Map<String, dynamic>? screenTransfer;
+
   /// When set, the next preview throws this instead of answering.
   Object? previewError;
+
+  /// When set, a `screen`-encoded preview throws this instead of answering, so
+  /// a test can fail the stretch re-measurement alone.
+  Object? screenPreviewError;
 
   /// When set, the next export throws this instead of writing.
   Object? exportError;
@@ -103,9 +116,14 @@ class _ScriptedDarkroom implements DarkroomSeam {
     await beforePreview?.call();
     previewContexts.add(context);
     previewRecipes.add(recipeJson);
-    final error = previewError;
+    final screen = context['encoding'] == 'screen';
+    final error = screen ? (screenPreviewError ?? previewError) : previewError;
     if (error != null) {
-      previewError = null;
+      if (identical(error, screenPreviewError)) {
+        screenPreviewError = null;
+      } else {
+        previewError = null;
+      }
       throw error;
     }
     final steps =
@@ -127,9 +145,22 @@ class _ScriptedDarkroom implements DarkroomSeam {
                 'opVersion': 1,
                 'outcome': skipReasons.containsKey(i) ? 'skipped' : 'applied',
                 if (skipReasons.containsKey(i)) 'reason': skipReasons[i],
+                if (!skipReasons.containsKey(i) && channelScales.containsKey(i))
+                  'measured': {
+                    'source': 'solved',
+                    'channelScale': channelScales[i],
+                  },
               },
           ],
         },
+        if (screen)
+          'encoding': {
+            'requested': 'screen',
+            'applied': 'screen',
+            'sourceDomain': 'linear',
+            'screenTransferAffectsRecipe': false,
+            'screenTransfer': screenTransfer,
+          },
       },
     );
   }
@@ -475,8 +506,121 @@ void main() {
         draft.notes.firstWhere((n) => n.opId == 'color_calibrate').outcome,
         'included',
       );
+      // This render reported no fitted scales, so nothing is pinned and the
+      // note says the step re-solves on every render rather than implying a
+      // preview will match this proof.
+      expect(
+        (draft.steps[1]['params'] as Map).containsKey('channelScale'),
+        isFalse,
+      );
+      expect(
+        draft.notes.firstWhere((n) => n.opId == 'color_calibrate').reason,
+        contains('no fitted channel scales'),
+      );
     },
   );
+
+  test('the draft pins the channel scales the proof render fitted', () async {
+    darkroom.draftSteps = [
+      {
+        'opId': 'background_extract',
+        'opVersion': 1,
+        'params': <String, dynamic>{},
+        'enabled': true,
+      },
+      {
+        'opId': 'color_calibrate',
+        'opVersion': 1,
+        'params': <String, dynamic>{},
+        'enabled': true,
+      },
+      {
+        'opId': 'stretch',
+        'opVersion': 1,
+        'params': {'blackPoint': 0.0, 'whitePoint': 1.0},
+        'enabled': true,
+      },
+    ];
+    darkroom.channelScales = {
+      1: [1.25, 1.0, 0.8125],
+    };
+    darkroom.screenTransfer = {
+      'blackPoint': 812.5,
+      'whitePoint': 4200.0,
+      'd': 2.75,
+      'b': 0.0,
+      'symmetryPoint': 0.0,
+    };
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId], channels: 3, solved: true);
+
+    final outcome = await buildService(
+      catalog: [
+        const Star(
+          id: 'a',
+          name: 'a',
+          coordinates: CelestialCoordinate(ra: 83.8 / 15.0, dec: -5.4),
+          magnitude: 9.0,
+          colorIndex: 0.6,
+        ),
+      ],
+    ).runDawnForSession(sessionId);
+
+    final draft = outcome.report!.masters.single.draft!;
+    expect((draft.steps[1]['params'] as Map)['channelScale'], [
+      1.25,
+      1.0,
+      0.8125,
+    ]);
+    expect(
+      draft.notes.firstWhere((n) => n.opId == 'color_calibrate').reason,
+      contains('1.2500'),
+    );
+
+    // The pinned scales are in the recipe that was persisted, not only in the
+    // report: the editor opens the row, and a preview at a coarse level replays
+    // the balance from there.
+    final recipes = await RecipesDao(db).listForMaster(masterPath);
+    final persisted = jsonDecode(recipes.single.stepsJson) as List;
+    expect(
+      ((persisted[1] as Map)['params'] as Map)['channelScale'],
+      [1.25, 1.0, 0.8125],
+    );
+
+    // Pinning changes the pixels under the stretch — the registry measured with
+    // the colour step skipping — so the stretch is measured again over the
+    // final stack, and the recipe carries that fit.
+    expect(darkroom.previewContexts, hasLength(2));
+    final remeasure = darkroom.previewContexts.last;
+    expect(remeasure['encoding'], 'screen');
+    expect(remeasure['stopAfter'], 1);
+    expect(remeasure['maxDimension'], kDraftMeasureMaxDimension);
+    expect(
+      jsonDecode(darkroom.previewRecipes.last),
+      containsPair(
+        'steps',
+        contains(
+          containsPair(
+            'params',
+            containsPair('channelScale', [1.25, 1.0, 0.8125]),
+          ),
+        ),
+      ),
+      reason: 're-measuring must render the prefix the draft actually carries',
+    );
+    expect((persisted[2] as Map)['params'], {
+      'blackPoint': 812.5,
+      'whitePoint': 4200.0,
+      'd': 2.75,
+      'b': 0.0,
+      'symmetryPoint': 0.0,
+    });
+    expect(
+      draft.notes.firstWhere((n) => n.opId == 'stretch').outcome,
+      'remeasured',
+    );
+  });
 
   test(
     'a colour step that skips at level 0 is dropped with its own reason',
@@ -517,6 +661,13 @@ void main() {
       expect(
         draft.notes.firstWhere((n) => n.opId == 'color_calibrate').reason,
         'no photometric catalogue is installed',
+      );
+      expect(
+        darkroom.previewContexts,
+        hasLength(1),
+        reason:
+            'the dropped step was already skipping when the registry measured '
+            'the stretch, so the prefix did not move and nothing is re-measured',
       );
     },
   );
@@ -588,9 +739,108 @@ void main() {
     );
     // The probe ran at the registry's own measurement dimension.
     expect(
-      darkroom.previewContexts.single['maxDimension'],
+      darkroom.previewContexts.first['maxDimension'],
       kDraftMeasureMaxDimension,
     );
+  });
+
+  test('a restored background fit has the stretch measured again over the '
+      'stack it ends up on', () async {
+    darkroom.draftSteps = [
+      {
+        'opId': 'stretch',
+        'opVersion': 1,
+        'params': {'blackPoint': 0.0, 'whitePoint': 1.0},
+        'enabled': true,
+      },
+    ];
+    darkroom.draftNotes = [
+      {
+        'opId': 'background_extract',
+        'outcome': 'omitted',
+        'reason': 'too few background samples survived the star mask',
+      },
+    ];
+    darkroom.screenTransfer = {
+      'blackPoint': 96.5,
+      'whitePoint': 1850.0,
+      'd': 3.5,
+      'b': 0.0,
+      'symmetryPoint': 0.0,
+    };
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+
+    final outcome = await buildService().runDawnForSession(sessionId);
+
+    // Two renders: the retry probe, then the measurement over the restored
+    // prefix. The second stops one step below the stretch and asks the engine
+    // for its own auto transfer over those pixels.
+    expect(darkroom.previewContexts, hasLength(2));
+    final remeasure = darkroom.previewContexts.last;
+    expect(remeasure['encoding'], 'screen');
+    expect(remeasure['stopAfter'], 0);
+    expect(remeasure['maxDimension'], kDraftMeasureMaxDimension);
+
+    final draft = outcome.report!.masters.single.draft!;
+    final stretch = draft.steps[draft.indexOfOp('stretch')];
+    expect(stretch['params'], {
+      'blackPoint': 96.5,
+      'whitePoint': 1850.0,
+      'd': 3.5,
+      'b': 0.0,
+      'symmetryPoint': 0.0,
+    });
+    final note = draft.notes.firstWhere((n) => n.opId == 'stretch');
+    expect(note.outcome, 'remeasured');
+    expect(note.reason, contains('denser lattice'));
+  });
+
+  test('a stretch re-measurement that fails keeps the measured parameters and '
+      'says they are a starting point', () async {
+    darkroom.draftSteps = [
+      {
+        'opId': 'stretch',
+        'opVersion': 1,
+        'params': {'blackPoint': 0.0, 'whitePoint': 1.0},
+        'enabled': true,
+      },
+    ];
+    darkroom.draftNotes = [
+      {
+        'opId': 'background_extract',
+        'outcome': 'omitted',
+        'reason': 'too few background samples survived the star mask',
+      },
+    ];
+    darkroom.screenPreviewError = const DarkroomSeamException(
+      'renderPreview',
+      'the master moved under the render',
+      'remeasure',
+    );
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+
+    final outcome = await buildService().runDawnForSession(sessionId);
+
+    expect(
+      outcome.succeeded,
+      isTrue,
+      reason: 'a measurement that could not be repeated is a note, not a '
+          'failed job',
+    );
+    final draft = outcome.report!.masters.single.draft!;
+    expect(draft.indexOfOp('background_extract'), 0);
+    expect(draft.steps[draft.indexOfOp('stretch')]['params'], {
+      'blackPoint': 0.0,
+      'whitePoint': 1.0,
+    });
+    final note = draft.notes.firstWhere((n) => n.opId == 'stretch');
+    expect(note.outcome, 'included');
+    expect(note.reason, contains('starting point'));
+    expect(note.reason, contains('the master moved under the render'));
   });
 
   test('a background retry that also fails leaves the step out and records '

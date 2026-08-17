@@ -14,11 +14,43 @@
 /// processing belongs to. When either is off the job records that the operator
 /// turned it off and names the flag — it does not reroute through an ungated
 /// event family to make the message arrive anyway.
+///
+/// **The tap opens the draft.** The message carries a deep-link payload naming
+/// the recipe the pass saved, so the phone's route table lands the operator in
+/// the Darkroom on the draft rather than on a dashboard they then have to
+/// navigate out of. A night that rendered no draft carries no payload: a link
+/// to a recipe that does not exist is worse than no link.
 library;
 
+import '../../models/notification/notification_categories.dart';
 import '../../providers/settings_provider.dart';
 import '../notification_service.dart';
 import 'dawn_job_report.dart';
+
+/// The payload prefix the phone routes a Darkroom draft tap by. Shared with
+/// the mobile route table's `darkroom_draft` arm, which is the only consumer.
+const String kDarkroomDraftPayloadType = 'darkroom_draft';
+
+/// The tap payload for [report]'s draft, or null when the night produced none.
+///
+/// Names the FIRST master that saved a recipe AND rendered a draft from it.
+/// "First" is the order the resolver produced the masters in, which is the same
+/// order the report's own headline counts them in — a multi-filter night opens
+/// on the filter the report leads with, and the Darkroom's own branch list
+/// carries the rest.
+///
+/// A recipe saved without a rendered draft is deliberately not linked: the
+/// engine refused those pixels, and the recipe would open onto the same
+/// refusal.
+String? draftDeepLinkFor(DawnJobReport report) {
+  for (final master in report.masters) {
+    final recipeId = master.recipeId;
+    if (recipeId != null && master.hasDraft) {
+      return '$kDarkroomDraftPayloadType:$recipeId';
+    }
+  }
+  return null;
+}
 
 /// Sends the morning message for a finished dawn job.
 abstract class DawnMorningNotifier {
@@ -72,6 +104,10 @@ class NotificationServiceDawnNotifier implements DawnMorningNotifier {
       event: NotificationEvent.sequenceComplete,
       title: report.headline,
       message: report.body,
+      // The routing row the operator sees and can retune is the Darkroom's
+      // own, not `custom` shared with every scripted notification node.
+      routeAs: NotificationCategory.darkroomDraftReady,
+      deepLink: draftDeepLinkFor(report),
     );
     return DawnNotificationDecision(
       sent: true,

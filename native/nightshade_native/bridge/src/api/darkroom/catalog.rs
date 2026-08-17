@@ -66,13 +66,17 @@ impl SuppliedCatalog {
     pub(crate) fn len(&self) -> usize {
         self.stars.len()
     }
+}
 
-    /// A digest of the stars this catalogue holds.
+impl PhotometryCatalog for SuppliedCatalog {
+    /// A digest of every star this catalogue would answer with, in the fixed
+    /// order [`SuppliedCatalog::new`] established.
     ///
-    /// The render cache records it, because the engine's own key carries only
-    /// whether a catalogue is attached: two different star lists would otherwise
-    /// share a cached boundary.
-    pub(crate) fn identity(&self) -> String {
+    /// The engine folds it into the render cache key, so a request that carries
+    /// a different star list cannot be served a boundary the previous one
+    /// produced — the mistake that would otherwise show the first render's
+    /// colours under the second render's photometry.
+    fn identity(&self) -> String {
         let mut text = String::with_capacity(self.stars.len() * 48);
         for star in &self.stars {
             text.push_str(&format!(
@@ -82,9 +86,7 @@ impl SuppliedCatalog {
         }
         fingerprint_hex(text.as_bytes())
     }
-}
 
-impl PhotometryCatalog for SuppliedCatalog {
     fn cone_search(
         &self,
         ra_deg: f64,

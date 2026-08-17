@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'auto_integration_service.dart';
 import 'narrative_view.dart';
 import 'session_review_controller.dart';
 import 'workbench_view.dart';
@@ -31,8 +32,46 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   String? _lastShownError;
   String? _lastShownShortfall;
 
+  /// True while an operator-requested Darkroom pass is running. The pass spans
+  /// minutes of native rendering, so the control latches rather than letting a
+  /// second press queue a second job over the same masters.
+  bool _darkroomRunning = false;
+
   SessionReviewController get _controller =>
       ref.read(sessionReviewControllerProvider(widget.scope).notifier);
+
+  /// Run the Darkroom pass for this session on request.
+  ///
+  /// Only offered for a session scope: the pass reads a session's frames to
+  /// find the masters they were folded into, and a target scope spans nights
+  /// that were each processed on their own.
+  Future<void> _processTonightNow(int sessionId) async {
+    if (_darkroomRunning) return;
+    setState(() => _darkroomRunning = true);
+    final ManualDarkroomRun run;
+    try {
+      run = await ref
+          .read(autoIntegrationServiceProvider)
+          .runDarkroomNow(sessionId);
+    } finally {
+      if (mounted) setState(() => _darkroomRunning = false);
+    }
+    if (!mounted) return;
+    // The masters are re-read because a finished pass has written recipes the
+    // library panel's Darkroom buttons now open.
+    await _controller.refresh();
+    if (!mounted) return;
+    NightshadeToastHelper.show(
+      context: context,
+      message: run.autoDraftEnabled
+          ? run.message
+          : '${run.message} Automatic drafts are switched off, so this one was '
+                'made because you asked.',
+      severity: run.succeeded
+          ? NightshadeAlertSeverity.success
+          : NightshadeAlertSeverity.warning,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +150,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
 
     final isNarrative = state.viewMode == SessionReviewViewMode.narrative;
     final progress = state.progress;
+    final sessionId = widget.scope.sessionId;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -124,12 +164,42 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                   ? 'Loading…'
                   : '${state.acceptedCount} accepted · ${state.rejectedCount} rejected',
               icon: NightshadeIcons.image,
-              trailing: NightshadeButton(
-                label: 'Refresh',
-                icon: NightshadeIcons.refresh,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () => _controller.refresh(),
+              trailing: Wrap(
+                spacing: NightshadeTokens.spaceSm,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  // The manual half of the dawn autopilot. Reaching it here is
+                  // deliberate: this is the screen an operator is already on
+                  // when they decide tonight is worth drafting now rather than
+                  // at dawn. The whole screen is host-only (the remote arm
+                  // above returns before this), so no further backend gate is
+                  // needed.
+                  Tooltip(
+                    message: sessionId != null
+                        ? 'Draft tonight\'s masters in the Darkroom now, '
+                              'without waiting for dawn'
+                        : 'This review spans a target rather than one night. '
+                              'Open a single session to process it.',
+                    child: NightshadeButton(
+                      key: const ValueKey('session_review_process_now'),
+                      label: 'Process now',
+                      icon: NightshadeIcons.sliders,
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      isLoading: _darkroomRunning,
+                      onPressed: (sessionId == null || _darkroomRunning)
+                          ? null
+                          : () => _processTonightNow(sessionId),
+                    ),
+                  ),
+                  NightshadeButton(
+                    label: 'Refresh',
+                    icon: NightshadeIcons.refresh,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: () => _controller.refresh(),
+                  ),
+                ],
               ),
             ),
             // Narrative ↔ workbench toggle: one tap, two renderings of one model.

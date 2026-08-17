@@ -256,6 +256,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     final priority = notification['priority'];
     final eventType = notification['eventType'];
     final category = notification['category'];
+    final deepLink = notification['deepLink'];
     final timestamp = notification['timestamp'];
     if (title is! String || body is! String) {
       _logWarning(
@@ -277,6 +278,12 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     final eventDeviceMap = <String, Object?>{};
     if (eventType is String) eventDeviceMap['eventType'] = eventType;
     if (category is String) eventDeviceMap['category'] = category;
+    // The tap payload, when the producer supplied one. Carried on the LAN/FCM
+    // copies as well as the WebSocket copy, so a push that arrives over the
+    // UDP path opens the same screen as the one that arrives over the socket.
+    if (deepLink is String && deepLink.isNotEmpty) {
+      eventDeviceMap['deepLink'] = deepLink;
+    }
     final ts = timestamp is int
         ? DateTime.fromMillisecondsSinceEpoch(timestamp)
         : DateTime.now();

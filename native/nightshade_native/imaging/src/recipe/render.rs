@@ -20,8 +20,12 @@
 
 use std::sync::Arc;
 
+use serde_json::Value;
+
 use super::cache::{CacheKey, RenderCache};
-use super::model::{OpContext, OpError, OpImage, OpStage, Recipe, RecipeError, CANCEL_POLL_PIXELS};
+use super::model::{
+    OpApplied, OpContext, OpError, OpImage, OpStage, Recipe, RecipeError, CANCEL_POLL_PIXELS,
+};
 use super::pyramid::ImagePyramid;
 use super::registry::OpRegistry;
 
@@ -53,7 +57,7 @@ impl StepOutcome {
 }
 
 /// One line of a render report.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StepReport {
     /// Index of the step in the recipe.
     pub index: usize,
@@ -63,10 +67,18 @@ pub struct StepReport {
     pub op_version: u32,
     /// What happened.
     pub outcome: StepOutcome,
+    /// What the operation solved while it ran (see [`OpApplied::measurement`]),
+    /// or `None` when it measured nothing and for every outcome but
+    /// [`StepOutcome::Applied`] — a step that did not run measured nothing.
+    ///
+    /// It travels into the boundary cache with the image, so a render served
+    /// from the cache reports the same measurement the render that computed it
+    /// did.
+    pub measurement: Option<Value>,
 }
 
 /// What a render did, step by step.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RenderReport {
     /// Pyramid level the render ran at; `0` is full resolution.
     pub level: u32,
@@ -280,6 +292,7 @@ pub fn render(
                 op_id: step.op_id.clone(),
                 op_version: step.op_version,
                 outcome: StepOutcome::Disabled,
+                measurement: None,
             });
             continue;
         }
@@ -291,14 +304,18 @@ pub fn render(
                     op_id: step.op_id.clone(),
                     op_version: step.op_version,
                 })?;
-        match op.apply(&image, &step.params, &ctx) {
-            Ok(next) => {
+        match op.apply_measured(&image, &step.params, &ctx) {
+            Ok(OpApplied {
+                image: next,
+                measurement,
+            }) => {
                 image = Arc::new(next);
                 reports.push(StepReport {
                     index,
                     op_id: step.op_id.clone(),
                     op_version: step.op_version,
                     outcome: StepOutcome::Applied,
+                    measurement,
                 });
             }
             Err(OpError::Unavailable { reason, .. }) => {
@@ -307,6 +324,7 @@ pub fn render(
                     op_id: step.op_id.clone(),
                     op_version: step.op_version,
                     outcome: StepOutcome::Skipped { reason },
+                    measurement: None,
                 });
             }
             Err(OpError::Cancelled) => return Err(RecipeError::Cancelled),
