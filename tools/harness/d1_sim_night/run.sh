@@ -47,6 +47,15 @@ reap_previous() {
 reap_previous
 rm -rf "$DBDIR" "$OUT" "$DROP" "$DATA"; mkdir -p "$DBDIR" "$OUT" "$DROP" "$DATA"
 
+# The night writes ~200MB of frames/masters and the watched-folder transport
+# preflights a 1GB headroom; a nearly-full scratch filesystem fails LATE with
+# an honest-but-confusing delivery refusal. Fail here instead, by name.
+FREE_MB=$(df -m --output=avail "$D1" | tail -1 | tr -d ' ')
+if [ "${FREE_MB:-0}" -lt 3072 ]; then
+  echo "[d1] ABORT: $D1 has ${FREE_MB}MB free; this harness needs >=3072MB (frames + masters + drop + delivery headroom)."
+  exit 2
+fi
+
 launch() {
   NIGHTSHADE_DATABASE_DIR=$DBDIR NIGHTSHADE_DATA_DIR=$DATA LIBGL_ALWAYS_SOFTWARE=1 \
     "$BUNDLE" --headless --auth-token=$T --port=$P >> "$LOG" 2>&1 &
