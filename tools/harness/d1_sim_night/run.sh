@@ -1,0 +1,174 @@
+#!/bin/bash
+# D1 sim-night end-to-end against the RELEASE bundle: fresh install -> sim
+# LRGB sequence -> natural completion -> masters -> dawn autopilot draft ->
+# watched-folder delivery, asserted at every stage. See
+# docs/plans/nightshade_7_0_d1_runbook.md for the seam evidence.
+#   D1_SCRATCH  scratch root (default /tmp/nightshade-d1-harness; wiped each run)
+#   D1_BUNDLE   bundle binary (default: this repo's release build)
+set -u
+HERE=$(cd "$(dirname "$0")" && pwd)
+D1="${D1_SCRATCH:-/tmp/nightshade-d1-harness}"
+mkdir -p "$D1"
+BUNDLE="${D1_BUNDLE:-$HERE/../../../apps/desktop/build/linux/x64/release/bundle/nightshade_desktop}"
+T=d1-secret-token
+P=8093
+B="http://127.0.0.1:$P"
+AH="Authorization: Bearer $T"
+DBDIR=$D1/db; OUT=$D1/captures; DROP=$D1/drop; DATA=$D1/data
+LOG=$D1/app.log
+PASS=0; FAIL=0
+say()  { echo "[d1] $*"; }
+ok()   { PASS=$((PASS+1)); echo "[d1]   PASS: $*"; }
+bad()  { FAIL=$((FAIL+1)); echo "[d1]   FAIL: $*"; }
+api()  { curl -sf -m 10 -H "$AH" "$@"; }
+
+pkill -f nightshade_desktop 2>/dev/null; sleep 1
+rm -rf "$DBDIR" "$OUT" "$DROP" "$DATA"; mkdir -p "$DBDIR" "$OUT" "$DROP" "$DATA"
+
+launch() {
+  NIGHTSHADE_DATABASE_DIR=$DBDIR NIGHTSHADE_DATA_DIR=$DATA LIBGL_ALWAYS_SOFTWARE=1 \
+    "$BUNDLE" --headless --auth-token=$T --port=$P >> "$LOG" 2>&1 &
+  APP=$!
+  for i in $(seq 1 40); do
+    sleep 1
+    curl -sf -m 2 "$B/api/info" >/dev/null 2>&1 && return 0
+    kill -0 $APP 2>/dev/null || { bad "app exited during launch (see log)"; return 1; }
+  done
+  bad "API never came up"; return 1
+}
+stopapp() { kill -TERM $APP 2>/dev/null; for i in $(seq 1 15); do kill -0 $APP 2>/dev/null || return 0; sleep 1; done; kill -9 $APP 2>/dev/null; }
+
+say "=== phase 1: schema-creation boot ==="
+launch || exit 1
+stopapp
+[ -f "$DBDIR/nightshade.db" ] && ok "database created" || { bad "no database file"; exit 1; }
+
+say "=== phase 2: seed delivery target + auto_draft (daemon stopped) ==="
+NOW=$(date +%s)
+sqlite3 "$DBDIR/nightshade.db" "INSERT INTO delivery_targets(name,kind,config_json,enabled,content_json,secret_ref,created_at,updated_at) VALUES('d1-drop','watched_folder','{\"path\":\"$DROP\"}',1,'[\"linear_masters\",\"draft_render\",\"night_report\"]',NULL,$NOW,$NOW);" \
+  && ok "delivery target seeded" || bad "delivery target seed failed"
+sqlite3 "$DBDIR/nightshade.db" "INSERT INTO app_settings(key,value,updated_at) VALUES('darkroom.auto_draft','true',$NOW*1000) ON CONFLICT(key) DO UPDATE SET value=excluded.value;" \
+  && ok "auto_draft on" || bad "auto_draft seed failed"
+
+say "=== phase 3: relaunch + configure ==="
+launch || exit 1
+api -X POST "$B/api/settings" -H 'Content-Type: application/json' \
+  -d "{\"settings\":{\"imageOutputPath\":\"$OUT\",\"notificationsEnabled\":true,\"notifyOnSequenceComplete\":true,\"latitude\":40.0,\"longitude\":-105.0}}" >/dev/null \
+  && ok "settings written" || bad "settings write"
+sleep 1
+api -X POST "$B/api/settings/location" -H 'Content-Type: application/json' \
+  -d '{"location":{"latitude":40.0,"longitude":-105.0,"elevation":1600.0}}' >/dev/null \
+  && ok "observer location set (canonical store)" || bad "location set"
+sleep 1
+api -X POST "$B/api/post-session/settings" -H 'Content-Type: application/json' -d '{"autoIntegrate":true}' >/dev/null \
+  && ok "autoIntegrate on" || bad "post-session settings"
+sleep 1
+PROF=$(api -X POST "$B/api/profiles" -H 'Content-Type: application/json' -d '{
+ "profile":{"id":"","name":"d1-sim-rig","cameraId":"sim_camera_1","mountId":"sim_mount_1",
+  "filterWheelId":"sim_filterwheel_1","focuserId":"sim_focuser_1","focalLength":1000.0,
+  "aperture":200.0,"defaultBinX":1,"defaultBinY":1,"filterNames":"[\"L\",\"R\",\"G\",\"B\"]"}}')
+PID=$(echo "$PROF" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))' 2>/dev/null)
+[ -n "$PID" ] && ok "profile created id=$PID" || { bad "profile create: $PROF"; }
+sleep 1
+api -X POST "$B/api/profiles/$PID/load" >/dev/null && ok "profile activated" || bad "profile load"
+sleep 1
+for d in camera:sim_camera_1 mount:sim_mount_1 filterWheel:sim_filterwheel_1 focuser:sim_focuser_1; do
+  api -X POST "$B/api/devices/connect" -H 'Content-Type: application/json' \
+    -d "{\"deviceId\":\"${d#*:}\",\"deviceType\":\"${d%%:*}\"}" >/dev/null \
+    && ok "connected ${d#*:}" || bad "connect ${d#*:}"
+  sleep 1
+done
+CONN=$(api "$B/api/devices/connected" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(len(d if isinstance(d,list) else d.get("devices",d.get("connected",[]))))' 2>/dev/null)
+[ "${CONN:-0}" -ge 4 ] 2>/dev/null && ok "connected count=$CONN" || bad "connected count=$CONN"
+
+say "=== phase 4: load + start sequence ==="
+python3 "$HERE/make_sequence.py" "$D1/sequence.json"
+api -X POST "$B/api/sequencer/save-path" -H 'Content-Type: application/json' -d "{\"path\":\"$OUT\"}" >/dev/null \
+  && ok "save-path set" || bad "save-path"
+sleep 1
+LOAD=$(curl -s -m 15 -H "$AH" -X POST "$B/api/sequencer/load" -H 'Content-Type: application/json' --data-binary @"$D1/sequence.json")
+echo "$LOAD" | grep -qi "error" && { bad "load: $LOAD"; stopapp; exit 1; } || ok "sequence loaded"
+sleep 1
+api -X POST "$B/api/sequencer/start" >/dev/null && ok "sequence started" || { bad "start"; stopapp; exit 1; }
+
+say "=== phase 5: poll to natural terminal ==="
+STATE=""; LAST=""
+for i in $(seq 1 300); do
+  sleep 2
+  S=$(api "$B/api/sequencer/status" 2>/dev/null)
+  STATE=$(echo "$S" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("state",""))' 2>/dev/null)
+  [ "$STATE" != "$LAST" ] && { say "  state -> $STATE ($((i*2))s)"; LAST=$STATE; }
+  case "$STATE" in completed|failed|cancelled) break;; esac
+done
+[ "$STATE" = "completed" ] && ok "terminal=completed" || { bad "terminal=$STATE"; }
+
+say "=== phase 6: wait for dawn job ==="
+JOBSTATE=""
+for i in $(seq 1 150); do
+  sleep 2
+  JOBSTATE=$(sqlite3 "$DBDIR/nightshade.db" "SELECT state FROM darkroom_jobs ORDER BY id DESC LIMIT 1;" 2>/dev/null)
+  case "$JOBSTATE" in done|failed|cancelled) break;; esac
+done
+[ "$JOBSTATE" = "done" ] && ok "darkroom job done" || bad "darkroom job state='$JOBSTATE'"
+
+say "=== phase 7: assertions ==="
+Q() { sqlite3 "$DBDIR/nightshade.db" "$1"; }
+NM=$(Q "SELECT count(*) FROM integrated_masters WHERE status IS NULL OR status NOT IN ('failed');")
+[ "${NM:-0}" -ge 4 ] && ok "masters count=$NM (>=4)" || bad "masters count=$NM"
+Q "SELECT id,filter,frame_count,total_integration_seconds,master_fits_path FROM integrated_masters;" | sed 's/^/[d1]   master: /'
+BADEXP=$(Q "SELECT count(*) FROM integrated_masters WHERE total_integration_seconds<=0;")
+[ "${BADEXP:-1}" -eq 0 ] && ok "no zero-integration masters" || bad "$BADEXP masters have <=0 integration seconds"
+NR=$(Q "SELECT count(*) FROM recipes WHERE created_by='autopilot';")
+[ "${NR:-0}" -ge 1 ] && ok "autopilot recipes=$NR" || bad "autopilot recipes=$NR"
+JOB=$(Q "SELECT id FROM darkroom_jobs ORDER BY id DESC LIMIT 1;")
+DRAFTS=$(ls "$OUT/darkroom/" 2>/dev/null | grep -c "_draft.jpg$")
+[ "${DRAFTS:-0}" -ge 1 ] && ok "draft JPEGs=$DRAFTS" || bad "no draft JPEGs in $OUT/darkroom"
+SIDE=$(ls "$OUT/darkroom/" 2>/dev/null | grep -c ".nsrecipe$")
+[ "${SIDE:-0}" -ge 1 ] && ok "nsrecipe sidecars=$SIDE" || bad "no sidecars"
+REPORT="$OUT/darkroom/job_${JOB}_report.json"
+[ -f "$REPORT" ] && ok "night report exists" || bad "night report missing ($REPORT)"
+if [ -f "$REPORT" ]; then
+  NSENT=$(python3 -c "import json;print(json.load(open('$REPORT')).get('notification',{}).get('sent'))" 2>/dev/null)
+  say "  notification.sent=$NSENT"
+fi
+DELIVERED=$(Q "SELECT count(*) FROM delivery_journal WHERE state='delivered';")
+JFAILED=$(Q "SELECT count(*) FROM delivery_journal WHERE state='failed';")
+[ "${DELIVERED:-0}" -ge 1 ] && ok "journal delivered=$DELIVERED failed=$JFAILED" || bad "journal delivered=$DELIVERED failed=$JFAILED"
+Q "SELECT file_path,state,attempts,last_error FROM delivery_journal;" | sed 's/^/[d1]   journal: /'
+MISS=0
+for f in $(Q "SELECT file_path FROM delivery_journal WHERE state='delivered';"); do
+  bn=$(basename "$f")
+  if [ -f "$DROP/$bn" ]; then
+    case "$bn" in
+      *_report.json)
+        # The report is written pre-delivery and updated post-delivery with the
+        # delivery outcome, so the delivered copy is the earlier version by
+        # design. Assert both parse and describe the same job instead.
+        SAME=$(python3 -c "import json;a=json.load(open('$f'));b=json.load(open('$DROP/$bn'));print('yes' if a.get('jobId',a.get('job_id'))==b.get('jobId',b.get('job_id')) else 'no')" 2>/dev/null)
+        [ "$SAME" = "yes" ] || { MISS=$((MISS+1)); say "  report job-id mismatch or unparseable: $bn"; }
+        ;;
+      *)
+        A=$(sha256sum "$f" | cut -d' ' -f1); Bc=$(sha256sum "$DROP/$bn" | cut -d' ' -f1)
+        [ "$A" = "$Bc" ] || { MISS=$((MISS+1)); say "  checksum mismatch: $bn"; }
+        ;;
+    esac
+  else MISS=$((MISS+1)); say "  missing in drop: $bn"; fi
+done
+[ "$MISS" -eq 0 ] && ok "all delivered files present + checksum-identical in drop" || bad "$MISS delivery mismatches"
+WCS=$(python3 - "$OUT" <<'EOF'
+import glob, sys
+fs = sorted(glob.glob(sys.argv[1] + "/**/*.fits", recursive=True))
+masters=[f for f in fs if "master" in f.lower()]
+if not masters: print("no-masters"); sys.exit()
+hdr=open(masters[0],'rb').read(2880*4).decode('ascii',errors='replace')
+print("HISTORY" if "HISTORY" in hdr else "no-history", "CALWARN" if "CALWARN" in hdr else "no-calwarn")
+EOF
+)
+say "  master header probe: $WCS"
+
+say "=== phase 8: teardown ==="
+stopapp
+pkill -f nightshade_desktop 2>/dev/null
+say "=== RESULT: PASS=$PASS FAIL=$FAIL ==="
+tail -5 "$LOG" | sed 's/^/[d1-log] /'
+[ "$FAIL" -eq 0 ]
