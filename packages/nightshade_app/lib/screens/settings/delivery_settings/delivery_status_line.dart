@@ -43,13 +43,11 @@ class DeliveryStatusLine {
 
   /// Read [view] and state what is true of it.
   ///
-  /// The journal outranks the configuration. A destination whose last run
-  /// failed for a reason the configuration does not name — no `ssh` binary, a
-  /// full disk, a conflicting file — used to have that verdict replaced by
-  /// whatever structural gap was checked first, which both hid the real
-  /// mechanism and pointed the operator at a fix (store a key) that could not
-  /// change the outcome. So the newest verdict leads and the structural note
-  /// rides behind it.
+  /// The journal outranks the configuration: the newest recorded verdict —
+  /// no `ssh` binary, a full disk, a conflicting file — leads the sentence,
+  /// and any structural gap (a missing key, an empty selection) rides behind
+  /// it. A configuration blocker stated first would hide the real mechanism
+  /// and point the operator at a fix that cannot change the outcome.
   static DeliveryStatusLine of(DeliveryDestinationView view) {
     final destination = view.destination;
     if (!destination.enabled) {
