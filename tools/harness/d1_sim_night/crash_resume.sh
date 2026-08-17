@@ -90,14 +90,17 @@ PRE_ATTEMPTS=$(Q "SELECT attempts FROM darkroom_jobs ORDER BY id DESC LIMIT 1;")
 say "=== relaunch: crash-recovery must re-queue the running row ==="
 launch || exit 1
 sleep 3
-ROW=$(Q "SELECT state||'|'||attempts FROM darkroom_jobs ORDER BY id DESC LIMIT 1;")
-STATE=${ROW%%|*}; ATT=${ROW##*|}
-if [ "$STATE" = "queued" ] && [ "$ATT" -gt "${PRE_ATTEMPTS:-0}" ]; then
-  ok "row re-queued with attempts=$ATT (was $PRE_ATTEMPTS)"
+# `attempts` counts execution STARTS (incremented at pickup, DarkroomJobsDao
+# takeQueued); open-time recovery re-queues without incrementing, and fails
+# the row instead once attempts >= kDarkroomJobMaxAttempts.
+ROW=$(Q "SELECT state||'|'||attempts||'|'||COALESCE(started_at,'NULL') FROM darkroom_jobs ORDER BY id DESC LIMIT 1;")
+STATE=$(echo "$ROW" | cut -d'|' -f1); ATT=$(echo "$ROW" | cut -d'|' -f2); STARTED=$(echo "$ROW" | cut -d'|' -f3)
+if [ "$STATE" = "queued" ] && [ "$ATT" = "${PRE_ATTEMPTS:-1}" ] && [ "$STARTED" = "NULL" ]; then
+  ok "row re-queued (attempts=$ATT unchanged, started_at cleared)"
 elif [ "$STATE" = "running" ] || [ "$STATE" = "done" ]; then
   ok "row state=$STATE attempts=$ATT — a drain path picked it up (Phase C wiring present)"
 else
-  bad "row state=$STATE attempts=$ATT after relaunch"
+  bad "row state=$STATE attempts=$ATT started_at=$STARTED after relaunch"
 fi
 
 if [ "${D1_EXPECT_DRAIN:-0}" = "1" ]; then
