@@ -280,14 +280,21 @@
   <div id="settings-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="settings-h">
     <div class="modal">
       <h2 id="settings-h" class="modal-title">Settings</h2>
-      <label class="toggle">
-        <input type="checkbox" id="opt-wake-lock" />
+      <!-- Both of these ride on browser APIs that only exist on a secure
+           origin, which the plain-HTTP LAN address a phone actually uses is
+           not. The notes below are filled in by applyCapabilitySupport() from
+           a real feature test, so a toggle that cannot work says so in place
+           of sitting there ticked. -->
+      <label class="toggle" id="opt-wake-lock-row">
+        <input type="checkbox" id="opt-wake-lock" aria-describedby="opt-wake-lock-note" />
         <span>Keep screen awake</span>
       </label>
-      <label class="toggle">
-        <input type="checkbox" id="opt-push" />
+      <p id="opt-wake-lock-note" class="opt-note hidden" role="note"></p>
+      <label class="toggle" id="opt-push-row">
+        <input type="checkbox" id="opt-push" aria-describedby="opt-push-note" />
         <span>Push notifications (critical events)</span>
       </label>
+      <p id="opt-push-note" class="opt-note hidden" role="note"></p>
       <div class="settings-actions">
         <button id="btn-checkpoint-resume" class="btn btn-block" type="button">Resume checkpoint</button>
         <button id="btn-checkpoint-discard" class="btn btn-block" type="button">Discard checkpoint</button>

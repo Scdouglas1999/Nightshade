@@ -26,6 +26,8 @@ const IDS = [
   'equipment-list', 'guide-state', 'guide-ra', 'guide-dec', 'guide-total',
   'guide-snr', 'weather-badge', 'weather-message', 'event-feed', 'toast-region',
   'pair-screen', 'main-screen', 'pair-status',
+  'opt-wake-lock', 'opt-wake-lock-row', 'opt-wake-lock-note',
+  'opt-push', 'opt-push-row', 'opt-push-note',
 ];
 
 /**
@@ -37,7 +39,13 @@ function loadRunWatch(overrides) {
   const doc = makeDocument(IDS);
   const timers = [];
   const sandbox = {
-    window: { addEventListener() {}, crypto: undefined },
+    // `window` and `navigator` carry the capability surface the settings sheet
+    // feature-tests, so a test can hand the page the origin it is pretending
+    // to be served from.
+    window: Object.assign(
+      { addEventListener() {}, crypto: undefined, isSecureContext: true },
+      (overrides && overrides.window) || {},
+    ),
     document: doc,
     localStorage: {
       _m: new Map(),
@@ -45,7 +53,8 @@ function loadRunWatch(overrides) {
       setItem(k, v) { this._m.set(k, String(v)); },
       removeItem(k) { this._m.delete(k); },
     },
-    navigator: { userAgent: 'node-test' },
+    navigator: Object.assign(
+      { userAgent: 'node-test' }, (overrides && overrides.navigator) || {}),
     fetchImpl: (overrides && overrides.fetch) || (() => {
       throw new Error('no fetch stub installed');
     }),
@@ -70,6 +79,13 @@ function loadRunWatch(overrides) {
   showPairScreen,
   sequencerAction,
   formatDurationSecs,
+  wakeLockSupport,
+  notificationSupport,
+  refreshCapabilityToggles,
+  applyWakeLockOption,
+  applyPushOption,
+  readOpts: loadOpts,
+  pokeOpts: saveOpts,
   peek: () => ({ lastSnapshotAt, linkFailure, rateLimitedUntil, lastKnownState }),
   poke: (o) => {
     if (o.lastSnapshotAt !== undefined) lastSnapshotAt = o.lastSnapshotAt;
@@ -585,4 +601,136 @@ test('a first-run pair screen accuses nothing', () => {
   assert.equal(doc.getElementById('pair-status').textContent, '',
     'a browser that never paired has had nothing rejected');
   assert.equal(doc.getElementById('pair-status').className, 'pair-status');
+});
+
+// ---------------------------------------------------------------------------
+// D4-02 — the settings sheet may not offer an ability this origin lacks
+//
+// Measured in the running bundle over the LAN address a phone actually uses,
+// http://192.168.1.20:8212/run-watch: isSecureContext false, 'wakeLock' in
+// navigator false, the service worker never registered, Notification.permission
+// already "denied". Both toggles were ticked, localStorage read
+// {"wakeLock":true,"push":true}, no toast fired, and the word HTTPS appeared
+// nowhere on the surface. The screen slept and no notification could ever be
+// delivered.
+// ---------------------------------------------------------------------------
+
+/** The page as served over plain HTTP to a phone on the observatory LAN. */
+function insecureOrigin(opts) {
+  const { doc, api } = loadRunWatch({
+    window: {
+      isSecureContext: false,
+      // Chrome exposes the interface on an insecure origin and pins the
+      // permission at "denied", which is exactly why testing for the
+      // interface alone was not enough.
+      Notification: { permission: 'denied', requestPermission: async () => 'denied' },
+    },
+    // Screen Wake Lock is [SecureContext], so the property is simply absent.
+    navigator: {},
+  });
+  if (opts) {
+    doc.getElementById('opt-wake-lock').checked = true;
+    doc.getElementById('opt-push').checked = true;
+  }
+  return { doc, api };
+}
+
+test('an insecure origin says why the wake lock cannot work', () => {
+  const { doc, api } = insecureOrigin();
+  api.refreshCapabilityToggles();
+
+  const input = doc.getElementById('opt-wake-lock');
+  const note = doc.getElementById('opt-wake-lock-note');
+  assert.equal(input.disabled, true, 'an inert control must not look usable');
+  assert.equal(input.checked, false);
+  assert.ok(!note.classList.contains('hidden'), 'the reason must be on screen');
+  assert.match(note.textContent, /HTTPS/,
+    'the operator has to be told what the requirement is');
+  assert.ok(doc.getElementById('opt-wake-lock-row').classList
+    .contains('unavailable'));
+});
+
+test('an insecure origin says why notifications cannot be delivered', () => {
+  const { doc, api } = insecureOrigin();
+  api.refreshCapabilityToggles();
+
+  const input = doc.getElementById('opt-push');
+  const note = doc.getElementById('opt-push-note');
+  assert.equal(input.disabled, true);
+  assert.equal(input.checked, false);
+  assert.ok(!note.classList.contains('hidden'));
+  assert.match(note.textContent, /HTTPS/);
+});
+
+test('a stored opt-in for a capability this origin lacks is dropped', () => {
+  const { api } = insecureOrigin();
+  // A device paired over a secure origin and later opened on the LAN address
+  // arrives carrying both opt-ins.
+  api.pokeOpts({ wakeLock: true, push: true });
+  api.refreshCapabilityToggles();
+  assert.deepEqual(api.readOpts(), { wakeLock: false, push: false },
+    'nothing on this device may go on claiming an ability it has lost');
+});
+
+test('a wake-lock request that cannot be made is refused out loud', async () => {
+  const { doc, api } = insecureOrigin();
+  api.pokeOpts({ wakeLock: true });
+  await api.applyWakeLockOption();
+  const toasts = doc.getElementById('toast-region').children
+    .map((c) => c.textContent);
+  assert.equal(toasts.length, 1, 'silence is what let the toggle stay ticked');
+  assert.match(toasts[0], /unavailable/);
+  assert.match(toasts[0], /HTTPS/);
+  assert.equal(api.readOpts().wakeLock, false);
+});
+
+test('a push opt-in that cannot be honoured is refused out loud', async () => {
+  const { doc, api } = insecureOrigin();
+  api.pokeOpts({ push: true });
+  await api.applyPushOption();
+  const toasts = doc.getElementById('toast-region').children
+    .map((c) => c.textContent);
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0], /unavailable/);
+  assert.equal(api.readOpts().push, false);
+});
+
+test('a secure origin leaves both toggles alone', () => {
+  const { doc, api } = loadRunWatch({
+    window: {
+      isSecureContext: true,
+      Notification: { permission: 'default', requestPermission: async () => 'granted' },
+    },
+    navigator: { wakeLock: { request: async () => ({ addEventListener() {} }) } },
+  });
+  // The shipped markup starts both notes hidden; the shim starts bare.
+  for (const id of ['opt-wake-lock-note', 'opt-push-note']) {
+    doc.getElementById(id).className = 'opt-note hidden';
+  }
+  api.refreshCapabilityToggles();
+  for (const id of ['opt-wake-lock', 'opt-push']) {
+    assert.notEqual(doc.getElementById(id).disabled, true,
+      id + ' works here and must stay offered');
+  }
+  for (const id of ['opt-wake-lock-note', 'opt-push-note']) {
+    assert.ok(doc.getElementById(id).classList.contains('hidden'),
+      id + ' must not warn about a capability that is present');
+  }
+});
+
+test('a browser that CLAIMS the capability but lacks the API is still refused', () => {
+  // A user-agent string is a claim about the browser; the presence of the
+  // interface is a fact about this origin. A UA that names a Chrome build
+  // which does ship Screen Wake Lock, served from an origin where the
+  // interface is absent, must be judged on the fact.
+  const { doc, api } = loadRunWatch({
+    window: { isSecureContext: false },
+    navigator: {
+      userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 '
+        + '(KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36',
+    },
+  });
+  api.refreshCapabilityToggles();
+  assert.equal(doc.getElementById('opt-wake-lock').disabled, true);
+  assert.match(doc.getElementById('opt-wake-lock-note').textContent, /HTTPS/);
 });

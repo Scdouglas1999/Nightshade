@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:csv/csv.dart';
@@ -257,6 +258,196 @@ void main() {
       ).exportSummary(sessionId);
 
       expect(summary, contains('Average HFR: 2.38 px'));
+    });
+
+    // Observed defect: a night the grader threw out entirely — 4 subs
+    // captured, 4 rejected, 0.00 h integrated — exported as "Exposures 4/4"
+    // and "Success Rate 100.0%", two sections above "No accepted frames
+    // recorded." The camera's counters answer "did the frame come back", and
+    // the document presented them as the night's verdict.
+    group('a night where every sub was rejected', () {
+      late int sessionId;
+      late Directory tempDir;
+      late SessionExportService service;
+
+      setUp(() async {
+        tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_session_export_rejected_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        sessionId = await sessionsDao.createSession(
+          ImagingSessionsCompanion.insert(
+            name: const Value('D3 all-rejected night'),
+            startTime: DateTime.utc(2026, 8, 17, 11, 22),
+            status: const Value('completed'),
+          ),
+        );
+        // The camera returned every frame it was asked for; the grader kept
+        // none of them.
+        await sessionsDao.updateSessionStats(
+          sessionId,
+          totalExposures: 4,
+          successfulExposures: 4,
+          failedExposures: 0,
+          totalIntegrationSecs: 0.0,
+        );
+        for (var i = 0; i < 4; i++) {
+          await imagesDao.createImage(
+            CapturedImagesCompanion.insert(
+              filePath: '/lights/reject$i.fits',
+              fileName: 'reject$i.fits',
+              sessionId: Value(sessionId),
+              exposureDuration: 2.0,
+              frameType: const Value('light'),
+              capturedAt: DateTime.utc(
+                2026,
+                8,
+                17,
+                11,
+                22,
+              ).add(Duration(minutes: i)),
+              isAccepted: const Value(false),
+              rejectionReason: const Value(
+                'star count 43 below minimum 100000',
+              ),
+            ),
+          );
+        }
+        await sessionsDao.endSession(sessionId);
+        service = SessionExportService(
+          sessionsDao: sessionsDao,
+          imagesDao: imagesDao,
+          documentsDirectoryProvider: () async => tempDir,
+        );
+      });
+
+      test(
+        'the HTML report states the grading verdict, not a 100% rate',
+        () async {
+          final report = await File(
+            await service.exportToHtml(sessionId),
+          ).readAsString();
+
+          expect(report, isNot(contains('Success Rate')));
+          expect(report, isNot(contains('100.0%')));
+          expect(report, contains('Frames Kept'));
+          expect(report, contains('<strong>0/4</strong>'));
+          expect(report, contains('0.0% kept, 4 rejected'));
+          // The camera's own count is still there, labelled for what it is.
+          expect(report, contains('returned by the camera'));
+          expect(report, contains('No accepted frames recorded.'));
+        },
+      );
+
+      test('the JSON export carries the accepted/rejected truth', () async {
+        final data =
+            jsonDecode(
+                  await File(
+                    await service.exportToJson(sessionId),
+                  ).readAsString(),
+                )
+                as Map<String, dynamic>;
+        final stats =
+            (data['session'] as Map<String, dynamic>)['statistics']
+                as Map<String, dynamic>;
+
+        expect(stats['successfulExposures'], 4);
+        expect(stats['lightFrames'], 4);
+        expect(stats['acceptedLights'], 0);
+        expect(stats['rejectedLights'], 4);
+      });
+
+      test('the text summary separates the camera from the grader', () async {
+        final summary = await service.exportSummary(sessionId);
+
+        expect(summary, isNot(contains('Success Rate')));
+        expect(summary, contains('Frames the camera returned: 4 of 4'));
+        expect(summary, contains('Light frames graded: 4'));
+        expect(summary, contains('Kept: 0'));
+        expect(summary, contains('Rejected: 4'));
+        expect(summary, contains('Kept Rate: 0.0%'));
+      });
+    });
+
+    test(
+      'a night with no light frame states that rather than a rate',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_session_export_nolights_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final sessionId = await sessionsDao.createSession(
+          ImagingSessionsCompanion.insert(
+            name: const Value('calibration only'),
+            startTime: DateTime.utc(2026, 8, 17, 11, 22),
+            status: const Value('completed'),
+          ),
+        );
+        final service = SessionExportService(
+          sessionsDao: sessionsDao,
+          imagesDao: imagesDao,
+          documentsDirectoryProvider: () async => tempDir,
+        );
+
+        final report = await File(
+          await service.exportToHtml(sessionId),
+        ).readAsString();
+        final summary = await service.exportSummary(sessionId);
+
+        expect(report, contains('no light frames recorded'));
+        expect(report, isNot(contains('100.0%')));
+        expect(report, isNot(contains('0.0% kept')));
+        expect(summary, contains('Kept Rate: no light frames recorded'));
+      },
+    );
+
+    // The verdict every document surface shares, so two of them cannot
+    // disagree about one night.
+    test('the grading verdict counts light frames only', () async {
+      final sessionId = await sessionsDao.createSession(
+        ImagingSessionsCompanion.insert(
+          name: const Value('mixed'),
+          startTime: DateTime.utc(2026, 8, 17),
+        ),
+      );
+      Future<void> frame(String type, bool accepted, int i) =>
+          imagesDao.createImage(
+            CapturedImagesCompanion.insert(
+              filePath: '/f/$type$i.fits',
+              fileName: '$type$i.fits',
+              sessionId: Value(sessionId),
+              exposureDuration: 1.0,
+              frameType: Value(type),
+              capturedAt: DateTime.utc(2026, 8, 17).add(Duration(minutes: i)),
+              isAccepted: Value(accepted),
+            ),
+          );
+      await frame('light', true, 0);
+      await frame('light', false, 1);
+      await frame('light', false, 2);
+      // Calibration frames are not the night's subject and are never graded
+      // against it; counting them would move the rate for a reason no
+      // operator would recognise.
+      await frame('dark', true, 3);
+      await frame('flat', false, 4);
+
+      final grading = SessionFrameGrading.of(
+        await imagesDao.getImagesForSession(sessionId),
+      );
+
+      expect(grading.lights, 3);
+      expect(grading.accepted, 1);
+      expect(grading.rejected, 2);
+      expect(grading.keptPercent, closeTo(33.33, 0.01));
+      // A rate over no frames is not 0% and not 100%; it does not exist.
+      expect(
+        const SessionFrameGrading(lights: 0, accepted: 0).keptPercent,
+        equals(null),
+      );
     });
   });
 }

@@ -80,6 +80,13 @@ class DarkroomState {
   final bool offerBusy;
 
   /// Why the last offer action produced no recipe. Null when none has failed.
+  ///
+  /// Named for the start offer because that is where it began, but `Import
+  /// .nsrecipe` writes it from BOTH entry points — the offer and the branch bar
+  /// over an open recipe — so every layout of this screen has to render it. A
+  /// refusal composed into a field the current layout does not read is a
+  /// refusal the operator never sees, which is the same thing as no refusal at
+  /// all.
   final String? offerError;
 
   /// `recipes.id` of the open recipe, null while none is open.

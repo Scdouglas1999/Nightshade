@@ -584,11 +584,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       return;
     } on DarkroomSeamException catch (error) {
       if (!mounted) return;
+      final nextStep = darkroomMasterFailureNextStep(
+        error.message,
+        offer.masterFitsPath,
+      );
       state = state.copyWith(
         offerBusy: false,
         offerError:
             'The registry could not measure a draft from this master, so no '
-            'recipe was created: ${error.message}',
+            'recipe was created: ${error.message}'
+            '${nextStep == null ? '' : '. $nextStep'}',
       );
       return;
     } on DarkroomRecipeFormatException catch (error) {
@@ -674,6 +679,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   // ---------------------------------------------------------------------
   // Importing a recipe written outside the database
   // ---------------------------------------------------------------------
+
+  /// Clear the standing import refusal.
+  ///
+  /// The refusal is durable rather than a toast — it names a file the operator
+  /// chose and what was wrong with it, which they may want to read twice — so
+  /// something has to be able to put it away. This is that something.
+  void dismissOfferError() {
+    if (state.offerError == null) return;
+    state = state.copyWith(clearOfferError: true);
+  }
 
   /// Read a `.nsrecipe` sidecar and open it as a new recipe over the master
   /// this editor is on.
@@ -1341,10 +1356,20 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // render's account is dropped rather than left on the cards. Keeping it
       // is what let a stack wear "Applied by the last render" across a render
       // that never applied anything.
+      //
+      // A failure about the base master is not a failure about a step, so it
+      // takes the sentence that names what to do about the FILE rather than the
+      // one that explains how the engine numbered a step.
+      final nextStep = darkroomMasterFailureNextStep(
+        error.message,
+        state.baseMasterPath,
+      );
       state = state.copyWith(
         rendering: false,
         cancelRequested: false,
-        renderError: _renderErrorFor(error.message, omitted.length),
+        renderError: nextStep == null
+            ? _renderErrorFor(error.message, omitted.length)
+            : '${error.message}. $nextStep',
         reports: const [],
         reportedSteps: const [],
       );

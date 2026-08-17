@@ -386,6 +386,30 @@ final isRemoteModeProvider = Provider<bool>((ref) {
   return backend is NetworkBackend;
 });
 
+/// True when this process was LAUNCHED as a thin client of a remote imaging
+/// host — the desktop's `--remote-host` flag — rather than as the machine that
+/// owns the hardware.
+///
+/// This is the ROLE, which is fixed at launch. [isRemoteModeProvider] answers a
+/// narrower question: whether a remote connection is open right now. The two
+/// disagree for the whole of a client's life before its first successful
+/// handshake, and again whenever the connection drops — and a surface that
+/// decides WHOSE database it is editing has to read the role, because a
+/// never-connected client owns none of the host's rows and a row it writes
+/// locally is a row no dawn job will ever read.
+///
+/// Defaults to false: a process that never overrides it owns its own hardware.
+/// The desktop entry point overrides it from the launch flags it already
+/// parses.
+final remoteClientLaunchProvider = Provider<bool>((ref) => false);
+
+/// True when this process must treat the imaging host's data as another
+/// machine's: it is connected to one now, or it was launched as one's client.
+final isRemoteClientProvider = Provider<bool>((ref) {
+  return ref.watch(remoteClientLaunchProvider) ||
+      ref.watch(isRemoteModeProvider);
+});
+
 // Role-specific providers
 // Each role provider exposes the active backend narrowed to the role
 // interface it owns. New consumers SHOULD depend on the smallest role they

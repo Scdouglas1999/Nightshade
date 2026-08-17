@@ -98,7 +98,19 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // truncated master sitting on disk looking finished. What the recovery
         // DID find is handed over, because a Darkroom job left running is what
         // separates a kill during the draft from a kill during the integrate.
-        await _reportInterruptedIntegration(interruptedDarkroomJobs);
+        final reportedSession = await _reportInterruptedIntegration(
+          interruptedDarkroomJobs,
+        );
+
+        // The report above is written once per interruption, from a marker the
+        // first report consumes — so a job that dies repeatedly keeps the
+        // record its FIRST death wrote, which promised a re-queue the cap has
+        // since cancelled. Correct those here, now that the recovery has said
+        // which jobs it ended for good.
+        await _supersedeRetryPromiseForCappedJobs(
+          interruptedDarkroomJobs,
+          reportedSessionId: reportedSession,
+        );
 
         // Rebuild session statistics that a dead process never got to write.
         //

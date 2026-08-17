@@ -1,5 +1,96 @@
 part of '../darkroom_screen.dart';
 
+/// Longest draft account the panel states without being asked.
+///
+/// The Recipe panel shares its column with the History stack, so its viewport
+/// is a couple of hundred pixels: an account longer than this runs past the
+/// fold, and the operator reads a sentence that stops in the middle of a clause
+/// with nothing to say the rest exists. Roughly three lines at this panel's
+/// width — short enough to sit above the fold with its own control beneath it.
+const int kDarkroomDraftNoteCollapsedChars = 160;
+
+/// The draft's own account of what it left out, which is the only surface that
+/// carries it — an omitted operation is not in the history stack at all.
+///
+/// Long accounts collapse at a WORD boundary and say so, rather than being
+/// sliced wherever the panel's scroll fold happens to fall. The cut is the
+/// widget's own and it is marked, so "…" plus a control that names the rest is
+/// the difference between text that was shortened and text that looks broken.
+class _DarkroomDraftNotesAlert extends StatefulWidget {
+  const _DarkroomDraftNotesAlert({required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  State<_DarkroomDraftNotesAlert> createState() =>
+      _DarkroomDraftNotesAlertState();
+}
+
+class _DarkroomDraftNotesAlertState extends State<_DarkroomDraftNotesAlert> {
+  bool _expanded = false;
+
+  /// A different account starts collapsed again.
+  ///
+  /// This widget keeps its position when the panel swaps branches, so without
+  /// this the next recipe's account would open expanded because the operator
+  /// opened the LAST one — and the panel it is in would be past its fold before
+  /// they had read a word of it.
+  @override
+  void didUpdateWidget(_DarkroomDraftNotesAlert oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.message != widget.message) _expanded = false;
+  }
+
+  /// [text] cut to at most [kDarkroomDraftNoteCollapsedChars] characters at a
+  /// word boundary, or null when the whole of it already fits.
+  ///
+  /// A cut that lands inside a word is the very thing this exists to avoid, so
+  /// the last space at or before the limit is where it falls. Text with no such
+  /// space — one long unbroken token — is left whole rather than chopped
+  /// mid-token.
+  static String? _collapsed(String text) {
+    if (text.length <= kDarkroomDraftNoteCollapsedChars) return null;
+    final boundary =
+        text.lastIndexOf(RegExp(r'\s'), kDarkroomDraftNoteCollapsedChars);
+    if (boundary <= 0) return null;
+    return '${text.substring(0, boundary)}…';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final collapsed = _collapsed(widget.message);
+    final showing =
+        (collapsed == null || _expanded) ? widget.message : collapsed;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NightshadeAlert(
+          severity: NightshadeAlertSeverity.info,
+          title: widget.title,
+          message: showing,
+          compact: true,
+        ),
+        if (collapsed != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: _expanded ? 'Show less' : 'Show the whole reason',
+              icon: _expanded
+                  ? NightshadeIcons.chevronUp
+                  : NightshadeIcons.chevronDown,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => setState(() => _expanded = !_expanded),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// What this recipe is, what the last render did with it, and the edits that
 /// act on the stack as a whole.
 ///
@@ -141,13 +232,11 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         const SizedBox(height: NightshadeTokens.spaceLg),
       ],
       if (notes.isNotEmpty) ...[
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.info,
+        _DarkroomDraftNotesAlert(
           title: _draftNotesTitle(notes),
           message: [
             for (final note in notes) darkroomDraftNoteSentence(note),
           ].join('\n\n'),
-          compact: true,
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
       ],

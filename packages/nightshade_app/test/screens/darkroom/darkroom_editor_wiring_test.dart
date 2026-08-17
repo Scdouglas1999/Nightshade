@@ -1001,4 +1001,82 @@ void main() {
     );
     await drain(tester);
   });
+
+  // -------------------------------------------------------------------
+  // The import refusal on the OTHER entry point
+  //
+  // Every test above imports from the start offer, which is the layout that
+  // renders `offerError`. `Import .nsrecipe` also sits in the branch bar over
+  // an open recipe, and that layout rendered nothing at all: the chooser
+  // closed, the recipe count did not move, and the sentence the controller had
+  // already composed went nowhere. These drive the branch-bar control.
+  // -------------------------------------------------------------------
+
+  testWidgets(
+      'a truncated sidecar imported from the branch bar is refused on '
+      'screen', (tester) async {
+    final masterId = await seedMaster(name: 'Master · B', path: _masterPath);
+    final recipeId = await seedRecipe(
+      [_step('denoise')],
+      name: 'Master · B draft',
+      masterId: masterId,
+    );
+    // The first 900 bytes of a real sidecar: the JSON ends mid-string.
+    sidecarAnswer = const DarkroomSidecarPick(
+      path: '/tmp/nightshade-test/truncated.nsrecipe',
+      text: '{"kind":"nsrecipe","schemaVersion":1,"masterPath":"/tmp/night',
+    );
+
+    await pump(tester, location: '/darkroom?recipe=$recipeId');
+    await settle(tester);
+    // The editor is open, so this is the branch bar's control, not the offer's.
+    expect(find.text('Master · B has no recipe yet'), findsNothing);
+    expect(find.text('Import .nsrecipe'), findsOneWidget);
+
+    await tester.tap(find.text('Import .nsrecipe'));
+    await settle(tester);
+
+    expect(sidecarCalls, 1);
+    expect(
+      await recipes.listForMaster(_masterPath),
+      hasLength(1),
+      reason: 'nothing was written, so the refusal is the whole outcome',
+    );
+    expect(find.textContaining('truncated.nsrecipe was not imported'),
+        findsOneWidget);
+    expect(find.textContaining('not JSON'), findsOneWidget);
+    await drain(tester);
+  });
+
+  testWidgets('the branch-bar import refusal can be dismissed', (tester) async {
+    final masterId = await seedMaster(name: 'Master · B', path: _masterPath);
+    final recipeId = await seedRecipe(
+      [_step('denoise')],
+      name: 'Master · B draft',
+      masterId: masterId,
+    );
+    sidecarAnswer = const DarkroomSidecarPick(
+      path: '/tmp/nightshade-test/empty.nsrecipe',
+      text: '{"kind":"nsrecipe","recipe":{"steps":[]}}',
+    );
+
+    await pump(tester, location: '/darkroom?recipe=$recipeId');
+    await settle(tester);
+    await tester.tap(find.text('Import .nsrecipe'));
+    await settle(tester);
+
+    final alert = find.byKey(const ValueKey('darkroom_import_refusal'));
+    expect(alert, findsOneWidget);
+    expect(
+      find.textContaining('carries a recipe with no steps'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(of: alert, matching: find.byType(IconButton)),
+    );
+    await settle(tester);
+    expect(alert, findsNothing);
+    await drain(tester);
+  });
 }

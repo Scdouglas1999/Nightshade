@@ -53,19 +53,30 @@ test('dashboard treats WebSocket heartbeat traffic as live activity', () => {
 });
 
 test('healthy quiet WebSocket does not mark stable panels stale', () => {
+  // The rule is unchanged and the mechanism that carries it is not: a
+  // `wsHealthy` early-return used to suppress every panel's stale line while
+  // the socket was alive, which also suppressed the one panel whose own REST
+  // route was failing. The verdict now has a single source — a panel is stale
+  // when its last refresh was REFUSED, or when contact is gone — so an idle
+  // server that has simply pushed nothing marks nothing.
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'js', 'app.js'),
     'utf8',
   );
-
+  const indicator = source.match(
+    /function renderStaleIndicator\(panelKey, view\) \{([\s\S]*?)\n  \}/,
+  );
+  assert.ok(indicator, 'renderStaleIndicator must exist');
+  assert.doesNotMatch(indicator[1], /lastWsMessageAt/,
+    'panel staleness must not be inferred from how quiet the socket is');
   assert.match(
     source,
-    /const wsHealthy = state\.lastWsMessageAt > 0 &&[\s\S]*?WS_FALLBACK_THRESHOLD_MS/,
+    /function isPanelDataStale\(panelKey\) \{[\s\S]*?failedAt > \(state\.panelLastUpdate\[panelKey\] \|\| 0\)/,
+    'a panel is stale when its own refresh was refused, not when it is old',
   );
-  assert.match(
-    source,
-    /if \(!last \|\| !api\.isConnected \|\| wsHealthy\) \{[\s\S]*?classList\.remove\('visible'\)/,
-  );
+  // What the operator actually sees on a quiet-but-healthy night, and on a
+  // night where one route is failing, is asserted in dashboard_honesty_test.js
+  // ('a quiet but healthy night marks nothing stale' and its siblings).
 });
 
 test('device inventory refresh clears ids that are no longer connected', () => {

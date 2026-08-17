@@ -306,6 +306,32 @@ List<RecipeDraftNote> darkroomComposedAccount(
 String darkroomDraftNoteSentence(RecipeDraftNote note) =>
     '${darkroomOpTitle(note.opId)} — ${note.outcome}: ${note.reason}';
 
+/// What the operator can do about a failure that is about the base master
+/// itself, or null when the failure is about something else.
+///
+/// Every base-master refusal the engine raises quotes the path it was handed —
+/// `cannot read`, `is not renderable`, `cannot build a preview pyramid for`,
+/// each of them naming the file in single quotes — so a message carrying the
+/// recipe's own base-master path in quotes is
+/// a failure about the FILE rather than about a step in the stack. That
+/// distinction is the whole test: it is read off the message the engine wrote
+/// and the path this recipe was opened over, never guessed from the wording of
+/// an OS error.
+///
+/// The two acts named are the only two that recover it, and both are outside
+/// this screen — which is why the failure card, whose one control re-runs the
+/// render that just failed, cannot carry the answer on its own.
+///
+/// Returns null for a step failure: re-integrating a night does not fix an
+/// operation that refused its parameters, and offering it as the next step
+/// would send the operator to rebuild a master that is perfectly fine.
+String? darkroomMasterFailureNextStep(String message, String masterPath) {
+  if (masterPath.isEmpty || !message.contains("'$masterPath'")) return null;
+  return 'The Darkroom only ever reads that file, so nothing here can put it '
+      'back: restore the master at that path, or re-integrate this night in '
+      'Session Review to write it again.';
+}
+
 /// A `.nsrecipe` file the operator chose, and what it holds.
 @immutable
 class DarkroomSidecarPick {

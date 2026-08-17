@@ -1009,44 +1009,160 @@ async function sequencerAction(path, label, body) {
 
 // ---------------------------------------------------------------------------
 // Settings sheet (wake lock, push, logout)
+//
+// Both toggles ride on APIs the browser only exposes to a SECURE context, and
+// the address a phone actually uses to reach an observatory rig — the plain
+// http:// LAN address of the desktop — is not one. Measured on that origin:
+// `'wakeLock' in navigator` is false, the service worker never registers, and
+// Notification.permission is pinned at "denied" before anything is asked. The
+// page's answer to all of that used to be a checkbox that stayed ticked: the
+// wake-lock branch had no `else`, and the push branch only acted on a
+// permission of "default", so at "denied" it returned having done nothing.
+// The feature worked in loopback testing and was dead in deployment, which is
+// exactly why it survived.
+//
+// The support verdicts below are FEATURE TESTS — what this origin can actually
+// do — never a guess from the user agent.
 // ---------------------------------------------------------------------------
+
+/// Whether this origin can hold a screen wake lock, and why not when it
+/// cannot. The reason is a sentence for the operator, not a diagnostic.
+function wakeLockSupport() {
+  if ('wakeLock' in navigator) return { available: true, reason: null };
+  if (!window.isSecureContext) {
+    return {
+      available: false,
+      reason: 'Your browser only allows this over HTTPS. This page is served '
+        + 'over plain HTTP, so the screen will sleep as usual.',
+    };
+  }
+  return {
+    available: false,
+    reason: 'This browser has no screen wake-lock support.',
+  };
+}
+
+/// Whether this origin can raise a notification, and why not when it cannot.
+///
+/// A blocked permission is reported separately from a missing API: on an
+/// insecure origin the permission is already "denied" and cannot be asked for,
+/// while on a secure one the operator can still change their mind.
+function notificationSupport() {
+  if (!('Notification' in window)) {
+    return {
+      available: false,
+      reason: 'This browser has no notification support.',
+    };
+  }
+  if (!window.isSecureContext) {
+    return {
+      available: false,
+      reason: 'Your browser only allows notifications over HTTPS. This page is '
+        + 'served over plain HTTP, so nothing can be delivered — watch this '
+        + 'screen instead.',
+    };
+  }
+  if (window.Notification.permission === 'denied') {
+    return {
+      available: false,
+      reason: 'Notifications are blocked for this site in your browser '
+        + 'settings.',
+    };
+  }
+  return { available: true, reason: null };
+}
+
+/// Paint one toggle from its support verdict: an unavailable capability is
+/// disabled, forced off, and told plainly why. Any stored opt-in for it is
+/// cleared, so nothing on this device goes on claiming an ability it lacks.
+function applyCapabilitySupport(inputId, rowId, noteId, support, opts, optKey) {
+  const input = $(inputId);
+  const note = $(noteId);
+  const label = $(rowId);
+  if (!input) return;
+  if (support.available) {
+    input.disabled = false;
+    if (label) label.classList.remove('unavailable');
+    if (note) { note.classList.add('hidden'); note.textContent = ''; }
+    return;
+  }
+  input.disabled = true;
+  input.checked = false;
+  if (label) label.classList.add('unavailable');
+  if (note) { note.textContent = support.reason; note.classList.remove('hidden'); }
+  if (opts[optKey]) {
+    opts[optKey] = false;
+    saveOpts(opts);
+  }
+}
+
+/// Bring the sheet's two toggles in line with what this origin can do. Called
+/// at boot and every time the sheet opens, because a permission can be revoked
+/// from browser settings between openings.
+function refreshCapabilityToggles() {
+  const opts = loadOpts();
+  applyCapabilitySupport(
+    'opt-wake-lock', 'opt-wake-lock-row', 'opt-wake-lock-note',
+    wakeLockSupport(), opts, 'wakeLock');
+  applyCapabilitySupport(
+    'opt-push', 'opt-push-row', 'opt-push-note',
+    notificationSupport(), opts, 'push');
+}
+
 let wakeLock = null;
 async function applyWakeLockOption() {
   const opts = loadOpts();
-  if (opts.wakeLock && 'wakeLock' in navigator) {
+  const support = wakeLockSupport();
+  if (!support.available) {
+    // Refuse out loud. Silence here is what let the toggle stay ticked over a
+    // screen that went on sleeping.
+    if (opts.wakeLock) {
+      opts.wakeLock = false;
+      saveOpts(opts);
+      toast('Keep screen awake is unavailable — ' + support.reason, 'warning');
+    }
+    refreshCapabilityToggles();
+    return;
+  }
+  if (opts.wakeLock) {
     try {
       wakeLock = await navigator.wakeLock.request('screen');
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     } catch (e) {
-      // User may have denied; silently disable.
+      // The API is here and the request was still refused — a background tab,
+      // a battery-saver policy, the operator's own denial. Report the
+      // browser's own reason and untick what did not take.
       opts.wakeLock = false;
       saveOpts(opts);
       $('opt-wake-lock').checked = false;
+      toast('Could not keep the screen awake: ' +
+        (e && e.message ? e.message : String(e)), 'warning');
     }
-  } else {
-    if (wakeLock) {
-      try { await wakeLock.release(); } catch { /* ignore */ }
-      wakeLock = null;
-    }
+  } else if (wakeLock) {
+    try { await wakeLock.release(); } catch { /* ignore */ }
+    wakeLock = null;
   }
 }
 
 async function applyPushOption() {
   const opts = loadOpts();
   if (!opts.push) return;
-  if (!('Notification' in window)) {
+  const support = notificationSupport();
+  if (!support.available) {
     opts.push = false;
     saveOpts(opts);
-    $('opt-push').checked = false;
-    toast('Browser does not support notifications', 'warning');
+    toast('Notifications are unavailable — ' + support.reason, 'warning');
+    refreshCapabilityToggles();
     return;
   }
-  if (Notification.permission === 'default') {
-    const perm = await Notification.requestPermission();
+  if (window.Notification.permission === 'default') {
+    const perm = await window.Notification.requestPermission();
     if (perm !== 'granted') {
       opts.push = false;
       saveOpts(opts);
       $('opt-push').checked = false;
+      toast('Notifications stay off — permission was not granted.', 'warning');
+      refreshCapabilityToggles();
     }
   }
 }
@@ -1111,6 +1227,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const opts = loadOpts();
     $('opt-wake-lock').checked = !!opts.wakeLock;
     $('opt-push').checked = !!opts.push;
+    // Re-tested on every opening, not cached at boot: a notification
+    // permission can be granted or revoked from browser settings while this
+    // page stays open.
+    refreshCapabilityToggles();
     $('settings-modal').classList.remove('hidden');
   });
   $('btn-settings-close').addEventListener('click', () => {
@@ -1145,6 +1265,11 @@ window.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('/run-watch/sw.js', { scope: '/run-watch/' })
       .catch(e => console.warn('SW register failed', e));
   }
+
+  // Settle what this origin can do before anything reads the stored opt-ins,
+  // so a device that was paired over HTTPS and is now on the LAN address does
+  // not carry a tick for a capability it has lost.
+  refreshCapabilityToggles();
 
   // Decide which screen to show.
   if (effectiveToken()) {

@@ -468,6 +468,184 @@ void main() {
     );
   });
 
+  group('the record is corrected when the retry cap ends the job', () {
+    /// A job still `running` with [attempts] starts used, and NO marker on
+    /// disk — the state the fourth open finds after three kills, because the
+    /// first recovery consumed the marker when it wrote its report.
+    Future<int> seedCappedRunningJob(
+      int sessionId, {
+      required int attempts,
+    }) async {
+      final db = open();
+      final dao = DarkroomJobsDao(db);
+      final jobId = await dao.enqueue(sessionId: sessionId);
+      await dao.markRunning(jobId);
+      await db.customStatement(
+        'UPDATE darkroom_jobs SET attempts = ? WHERE id = ?',
+        [attempts, jobId],
+      );
+      await db.close();
+      return jobId;
+    }
+
+    /// The record the FIRST recovery wrote, when the job still had starts left.
+    Future<void> seedRetryPromise(int sessionId) async {
+      final db = open();
+      const promise =
+          'Nightshade closed while Darkroom job #1 was drafting this session. '
+          'The job is re-queued, so the drafts, the night report and the '
+          'delivery it owes are still owed.';
+      await db.customUpdate(
+        'UPDATE imaging_sessions SET notes = ? WHERE id = ?',
+        variables: [
+          const Variable<String>(
+            'The Darkroom pass was interrupted before it finished. $promise',
+          ),
+          Variable<int>(sessionId),
+        ],
+        updateKind: UpdateKind.update,
+      );
+      await db.customInsert(
+        'INSERT INTO narrator_events('
+        'session_id, timestamp, event_type, category, severity, headline, '
+        'body, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        variables: [
+          Variable<int>(sessionId),
+          Variable<int>(
+            DateTime.utc(2026, 8, 17, 3, 30).millisecondsSinceEpoch ~/ 1000,
+          ),
+          const Variable<String>(kInterruptedPassEventType),
+          const Variable<String>('quality'),
+          const Variable<String>('warning'),
+          const Variable<String>(
+            'The Darkroom pass was interrupted before it finished.',
+          ),
+          const Variable<String>(promise),
+          const Variable<String>(
+            '$kInterruptedPassEventType:2026-08-17T03:30:00.000Z',
+          ),
+        ],
+      );
+      await db.close();
+    }
+
+    test('a job the cap fails revokes the re-queue it was promised', () async {
+      final sessionId = await seedSession();
+      // In this order because every open runs the recovery: the promise is
+      // what an earlier open wrote, and the job has to be left running by the
+      // LAST write before the open under test.
+      await seedRetryPromise(sessionId);
+      final jobId = await seedCappedRunningJob(
+        sessionId,
+        attempts: kDarkroomJobMaxAttempts,
+      );
+
+      final read = await reopenAndRead(sessionId);
+
+      // Two records now: the promise, and the correction that stands over it.
+      expect(read.events, hasLength(2));
+      final correction = read.events.firstWhere(
+        (e) => (e['headline'] as String).contains('retry limit'),
+      );
+      expect(
+        correction['headline'],
+        'The Darkroom pass for this night stopped at the retry limit.',
+      );
+      expect(correction['body'], contains('Darkroom job #$jobId'));
+      expect(correction['body'], contains('is not re-queued'));
+      expect(correction['body'], contains('that re-queue is over'));
+      expect(
+        correction['event_type'],
+        kInterruptedPassEventType,
+        reason: 'Session Review reads the newest record of this type',
+      );
+      expect(
+        correction['dedupe_key'],
+        '$kInterruptedPassEventType:job:$jobId:retry-limit',
+      );
+      // And the night's own notes carry it, under the sentence it corrects.
+      expect(read.notes, contains('are still owed'));
+      expect(read.notes, contains('stopped at the retry limit'));
+    });
+
+    test('a job with starts left is left under its promise', () async {
+      final sessionId = await seedSession();
+      await seedRetryPromise(sessionId);
+      await seedCappedRunningJob(sessionId, attempts: 1);
+
+      final read = await reopenAndRead(sessionId);
+
+      expect(
+        read.events,
+        hasLength(1),
+        reason: 'it really was re-queued, so the promise still stands',
+      );
+      expect(read.notes, isNot(contains('stopped at the retry limit')));
+    });
+
+    test('the correction is written once, not at every later open', () async {
+      final sessionId = await seedSession();
+      await seedRetryPromise(sessionId);
+      await seedCappedRunningJob(sessionId, attempts: kDarkroomJobMaxAttempts);
+
+      await reopenAndRead(sessionId);
+      final second = await reopenAndRead(sessionId);
+      final third = await reopenAndRead(sessionId);
+
+      expect(second.events, hasLength(2));
+      expect(third.events, hasLength(2));
+      expect('stopped at the retry limit'.allMatches(third.notes!).length, 1);
+    });
+
+    test('a marker still on disk reports once, not twice', () async {
+      final sessionId = await seedSession();
+      await seedCappedRunningJob(sessionId, attempts: kDarkroomJobMaxAttempts);
+      // The marker survived, so the interruption report itself runs and takes
+      // its own terminal branch. Repeating that verdict would put the same
+      // news on the feed twice in one open.
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: const [],
+        ),
+      );
+
+      final read = await reopenAndRead(sessionId);
+
+      expect(read.events, hasLength(1));
+      expect(read.notes, contains('marked failed rather than re-queued'));
+      expect(read.notes, isNot(contains('stopped at the retry limit')));
+    });
+
+    test(
+      'a capped job with no session writes no record and does not throw',
+      () async {
+        final db = open();
+        final dao = DarkroomJobsDao(db);
+        final jobId = await dao.enqueue();
+        await dao.markRunning(jobId);
+        await db.customStatement(
+          'UPDATE darkroom_jobs SET attempts = ? WHERE id = ?',
+          [kDarkroomJobMaxAttempts, jobId],
+        );
+        await db.close();
+
+        final reopened = open();
+        final events = await reopened
+            .customSelect('SELECT count(*) AS rows FROM narrator_events')
+            .getSingle();
+        final job = await DarkroomJobsDao(reopened).getById(jobId);
+        await reopened.close();
+
+        expect(events.read<int>('rows'), 0);
+        expect(job!.state, DarkroomJobState.failed);
+      },
+    );
+  });
+
   group('InterruptedIntegration', () {
     test('round-trips through its payload', () {
       final original = InterruptedIntegration(

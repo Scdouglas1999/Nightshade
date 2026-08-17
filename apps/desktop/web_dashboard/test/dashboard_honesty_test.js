@@ -246,22 +246,42 @@ test('the settings panel names no key the server does not send', () => {
 // D4-01 — a dead backend must flip the header, not stay green
 // ---------------------------------------------------------------------------
 
+/**
+ * Stand the page's whole data clock up — the tick, the header subscriber, the
+ * Run-panel subscriber and the per-panel stale lines — and hand back one
+ * `render()` that drives all of them from one sample, exactly as the running
+ * page does. Testing the header alone is what let the Run panel keep a second,
+ * disagreeing clock.
+ */
 function linkState({ unreachable, lastContactAt, lastWsMessageAt,
-  rateLimitRemainingSecs = 0, lastProbeAt = Date.now(), isConnected = true }) {
+  rateLimitRemainingSecs = 0, lastProbeAt = Date.now(), isConnected = true,
+  panelLastUpdate = {}, panelLastFailure = {} }) {
   const doc = makeDocument([
-    'link-banner', 'status-text', 'status-dot', 'seq-status',
+    'link-banner', 'status-text', 'status-dot', 'seq-status', 'seq-node',
+    'seq-message',
     'ops-seq-progress-text', 'seq-progress-text', 'seq-progress-bar',
     'seq-progress-bar-container', 'ops-seq-progress-bar',
-    'ops-seq-progress-bar-container', 'ops-seq-eta',
+    'ops-seq-progress-bar-container', 'ops-seq-eta', 'ops-seq-current-node',
+    'stale-devices', 'stale-mount', 'stale-camera', 'stale-sequencer',
+    'stale-guiding', 'stale-focuser', 'stale-filter-wheel', 'stale-rotator',
   ]);
   doc.getElementById('status-text').textContent = 'Connected';
   doc.getElementById('status-dot').className = 'status-dot connected';
   const calls = [];
   const repaints = [];
+  const zeroed = {
+    devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0,
+    focuser: 0, 'filter-wheel': 0, rotator: 0,
+  };
   // Mutable, so a test can move the clock and repaint through the SAME
-  // closure — the staleness flag the recovery edge turns on lives in there.
+  // closure — the flag the recovery edge turns off lives in there.
   const api = { lastContactAt, isConnected, rateLimitRemainingSecs };
-  const state = { serverUnreachable: unreachable, lastWsMessageAt };
+  const state = {
+    serverUnreachable: unreachable,
+    lastWsMessageAt,
+    panelLastUpdate: Object.assign({}, zeroed, panelLastUpdate),
+    panelLastFailure: Object.assign({}, zeroed, panelLastFailure),
+  };
   const render = build(
     ['document', 'api', 'state', 'lastReachabilityProbeAt',
       'setConnectionStatus', 'renderBadge', 'renderSequencerPanel'],
@@ -270,16 +290,32 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
       konst('SERVER_HEARTBEAT_MS'),
       konst('MISSED_HEARTBEATS_BEFORE_STALE'),
       konst('SERVER_CONTACT_STALE_MS'),
-      letDecl('linkStaleAsserted'),
+      konst('PANEL_KEYS'),
+      letDecl('runUnknownAsserted'),
       fn('lastServerContactAt'),
       fn('isServerContactStale'),
+      fn('isPanelDataStale'),
       fn('formatAgeSeconds'),
       // The real helper, not a stub: what the stale branch does to the
       // progress readouts is the thing under test.
       fn('markProgressUnknown'),
       fn('renderLinkState'),
+      fn('runDataIsStale'),
+      fn('paintRunUnknown'),
+      fn('renderRunDataState'),
+      fn('renderStaleIndicator'),
+      // The tick itself, and the wiring init() performs — both real, so a
+      // subscriber the page forgets to register fails here too.
+      'const dataClockSubscribers = [];',
+      fn('subscribeToDataClock'),
+      fn('repaintDataState'),
+      `subscribeToDataClock(renderLinkState);
+       subscribeToDataClock(renderRunDataState);
+       for (const panelKey of PANEL_KEYS) {
+         subscribeToDataClock((view) => renderStaleIndicator(panelKey, view));
+       }`,
     ],
-    'renderLinkState',
+    'repaintDataState',
   )(
     doc,
     api,
@@ -581,7 +617,7 @@ test('no progress bar declares aria-valuenow before it has a value', () => {
   assert.match(fn('markProgressUnknown'), /removeAttribute\('aria-valuenow'\)/,
     'the unknown render must clear the announced value');
   for (const name of ['renderSequencerPanel', 'renderOpsSequencerLoadPanel',
-    'renderLinkState']) {
+    'paintRunUnknown']) {
     const source = fn(name);
     assert.match(source, /markProgressUnknown\(/,
       name + ' must clear the value when the figure is unknown');
@@ -601,7 +637,7 @@ test('the sequencer badge asserts nothing before the first status', () => {
   const render = build(
     ['document', 'state', 'renderBadge', 'updateSequencerButtons',
       'getSequencerBadgeClass', 'sequencerProgressPercent',
-      'renderOpsSequencerLoadPanel'],
+      'renderOpsSequencerLoadPanel', 'runDataIsStale', 'paintRunUnknown'],
     [fn('markProgressUnknown'), fn('markProgressKnown'),
       fn('renderSequencerPanel')],
     'renderSequencerPanel',
@@ -613,6 +649,10 @@ test('the sequencer badge asserts nothing before the first status', () => {
     () => 'badge-idle',
     () => 0,
     () => {},
+    // A healthy link with a fresh sequencer route: this test is about the
+    // page before its FIRST answer, not about a stale one.
+    () => false,
+    () => { throw new Error('the unknown overlay must not fire on a fresh link'); },
   );
   render();
   assert.equal(doc.getElementById('seq-status').textContent, 'connecting',
@@ -772,4 +812,223 @@ test('a log row reads the keys a log frame carries', () => {
     'payload.category', 'payload.msg', 'payload.timestampMs']) {
     assert.ok(!code.includes(dead), dead + ' appears in no log frame');
   }
+});
+
+// ---------------------------------------------------------------------------
+// D4-01 (wave 6) — one failing route must not leave the Run panel painting a
+// frozen run as live
+//
+// Measured against the running bundle with /api/sequencer/status substituted
+// for a plain HTTP 500 and EVERY other request reaching the real daemon: 66
+// refused refreshes over 45 s, every 5 s sample identical —
+//   hdr='Connected' seq='running' node='Exposure L' pct='3%'
+//   msg='Exposure: Frame 2/20 (5.0s) (10%)' staleBadge=hidden
+// while the wire read state=running progress=0.1375 'Frame 11/20'. The page
+// asserted 3% for a rig at 13.75%, under a green header, with the per-panel
+// stale badge suppressed by its `wsHealthy` gate because the event socket was
+// perfectly healthy the whole time.
+// ---------------------------------------------------------------------------
+
+/** The page mid-run: everything fresh, the sequencer route just refused. */
+function runPanelWithFailingRoute(agoMs) {
+  const now = Date.now();
+  const fresh = now - 1000;
+  const h = linkState({
+    unreachable: false,
+    lastContactAt: now - 200,
+    lastWsMessageAt: now - 200,
+    panelLastUpdate: {
+      devices: fresh, mount: fresh, camera: fresh, sequencer: now - agoMs,
+      guiding: fresh, focuser: fresh, 'filter-wheel': fresh, rotator: fresh,
+    },
+  });
+  // A live run is on screen when the route starts failing.
+  h.doc.getElementById('seq-status').textContent = 'running';
+  h.doc.getElementById('seq-node').textContent = 'Exposure L';
+  h.doc.getElementById('seq-message').textContent =
+    'Exposure: Frame 2/20 (5.0s) (10%)';
+  h.doc.getElementById('seq-progress-text').textContent = '3%';
+  h.doc.getElementById('seq-progress-bar').style.width = '3%';
+  h.doc.getElementById('seq-progress-bar-container')
+    .setAttribute('aria-valuenow', '3');
+  h.doc.getElementById('ops-seq-eta').textContent = '31m';
+  return h;
+}
+
+test('a failing sequencer route stops the Run panel asserting a live run', () => {
+  const h = runPanelWithFailingRoute(45000);
+  // The link is fine: the server is answering everything else, and the header
+  // must go on saying so.
+  assert.equal(h.doc.getElementById('status-text').textContent, 'Connected');
+  assert.ok(h.doc.getElementById('link-banner').classList.contains('hidden'));
+  assert.equal(h.doc.getElementById('seq-status').textContent, 'running',
+    'a healthy route is not stale merely because 45 s have passed');
+
+  // Now the route refuses. Nothing else about the page changes.
+  h.state.panelLastFailure.sequencer = Date.now();
+  h.render();
+
+  assert.equal(h.doc.getElementById('seq-status').textContent, 'unknown',
+    'the badge must stop claiming a state its own source refused to confirm');
+  assert.equal(h.doc.getElementById('seq-progress-text').textContent, '--');
+  assert.equal(
+    h.doc.getElementById('seq-progress-bar-container')
+      .getAttribute('aria-valuenow'), null);
+  assert.equal(h.doc.getElementById('seq-node').textContent, '--');
+  assert.equal(h.doc.getElementById('seq-message').textContent, '');
+  assert.equal(h.doc.getElementById('ops-seq-eta').textContent, '--');
+});
+
+test('a failing route says on the panel how old its data is', () => {
+  const h = runPanelWithFailingRoute(45000);
+  h.state.panelLastFailure.sequencer = Date.now();
+  h.render();
+
+  const badge = h.doc.getElementById('stale-sequencer');
+  assert.ok(badge.classList.contains('visible'),
+    'a healthy event socket must not suppress the panel that is failing');
+  assert.match(badge.textContent, /Stale: 45s since last update/);
+  // Only the panel that failed. The rest of the rig is being reported fine.
+  for (const key of ['devices', 'mount', 'camera', 'guiding', 'focuser',
+    'filter-wheel', 'rotator']) {
+    assert.equal(h.doc.getElementById('stale-' + key).textContent, '',
+      key + ' is answering and must not be marked stale');
+  }
+});
+
+test('a quiet but healthy night marks nothing stale', () => {
+  // The whole reason the suppressing gate existed: an idle server pushes no
+  // events, so a panel's last refresh can be minutes old with nothing wrong.
+  const now = Date.now();
+  const h = linkState({
+    unreachable: false,
+    lastContactAt: now - 2000,
+    lastWsMessageAt: now - 2000,
+    panelLastUpdate: {
+      devices: now - 600000, mount: now - 600000, camera: now - 600000,
+      sequencer: now - 600000, guiding: now - 600000, focuser: now - 600000,
+      'filter-wheel': now - 600000, rotator: now - 600000,
+    },
+  });
+  for (const key of ['devices', 'mount', 'camera', 'sequencer', 'guiding',
+    'focuser', 'filter-wheel', 'rotator']) {
+    assert.equal(h.doc.getElementById('stale-' + key).textContent, '',
+      key + ' has nothing new to report, which is not the same as stale');
+  }
+  assert.equal(h.doc.getElementById('seq-status').textContent, '',
+    'the Run panel is left to its own renderer on a healthy night');
+});
+
+test('a route that answers again hands the Run panel back to its renderer', () => {
+  const h = runPanelWithFailingRoute(45000);
+  h.state.panelLastFailure.sequencer = Date.now();
+  h.render();
+  assert.equal(h.doc.getElementById('seq-status').textContent, 'unknown');
+  assert.deepEqual(h.repaints, [], 'nothing to restore while still stale');
+
+  // The next refresh succeeds.
+  h.state.panelLastUpdate.sequencer = Date.now();
+  h.render();
+  assert.deepEqual(h.repaints, ['sequencer'],
+    'the panel repaints from the data, not from the overlay');
+  assert.equal(h.doc.getElementById('stale-sequencer').textContent, '');
+
+  // A second healthy tick must not keep repainting: the edge fired once.
+  h.render();
+  assert.deepEqual(h.repaints, ['sequencer']);
+});
+
+test('the header and the panels age their data on one clock', () => {
+  // The header's verdict is a page-wide fact: when contact is gone, every
+  // panel is stale too, without each one needing its own failure recorded.
+  const now = Date.now();
+  const h = linkState({
+    unreachable: true,
+    lastContactAt: now - 70000,
+    lastWsMessageAt: now - 70000,
+    lastProbeAt: now - 1000,
+    panelLastUpdate: {
+      devices: now - 70000, mount: now - 70000, camera: now - 70000,
+      sequencer: now - 70000, guiding: now - 70000, focuser: now - 70000,
+      'filter-wheel': now - 70000, rotator: now - 70000,
+    },
+  });
+  assert.equal(h.doc.getElementById('status-text').textContent, 'No contact');
+  for (const key of ['devices', 'mount', 'camera', 'sequencer', 'guiding',
+    'focuser', 'filter-wheel', 'rotator']) {
+    assert.match(h.doc.getElementById('stale-' + key).textContent,
+      /Stale: 1m 10s since last update/,
+      key + ' must age from the same verdict the header reached');
+  }
+});
+
+// Observed on screen during the fix's own re-reproduction: the Run panel had
+// gone honest (UNKNOWN / -- / --) while the Sequences panel two columns away
+// still read "Current node: Autofocus (HFR Degradation) / Progress 5%". Both
+// quote the same cached status, and the ops panel is repainted by sibling
+// fetches — the analytics summary, a slew, the first paint — that go on
+// succeeding while the sequencer route refuses.
+test('the ops mirror cannot repaint a run the clock has already retired', () => {
+  const doc = makeDocument([
+    'seq-status', 'seq-node', 'seq-message', 'seq-progress-text',
+    'seq-progress-bar', 'seq-progress-bar-container',
+    'ops-seq-current-target', 'ops-seq-current-node', 'ops-seq-progress-text',
+    'ops-seq-progress-bar', 'ops-seq-progress-bar-container', 'ops-seq-eta',
+  ]);
+  const now = Date.now();
+  const state = {
+    // A live run, cached from the last answer that landed.
+    sequencerStatus: {
+      state: 'running',
+      currentNodeName: 'Autofocus (HFR Degradation)',
+      progress: 0.05,
+      message: 'Autofocus: step 0/9 (37%)',
+    },
+    serverUnreachable: false,
+    lastWsMessageAt: now - 200,
+    // ...and a sequencer route that refused after it.
+    panelLastUpdate: { sequencer: now - 45000 },
+    panelLastFailure: { sequencer: now - 1000 },
+    ops: { currentTargetName: 'D4 Live Watch', sessionSummary: null,
+      sequenceStartedAt: now - 60000 },
+  };
+  const render = build(
+    ['document', 'api', 'state', 'lastReachabilityProbeAt', 'renderBadge',
+      'sequencerProgressPercent', 'formatDurationSeconds'],
+    [
+      konst('REACHABILITY_PROBE_MS'),
+      konst('SERVER_HEARTBEAT_MS'),
+      konst('MISSED_HEARTBEATS_BEFORE_STALE'),
+      konst('SERVER_CONTACT_STALE_MS'),
+      fn('lastServerContactAt'),
+      fn('isServerContactStale'),
+      fn('isPanelDataStale'),
+      fn('runDataIsStale'),
+      fn('markProgressUnknown'),
+      fn('markProgressKnown'),
+      fn('paintRunUnknown'),
+      fn('renderOpsSequencerLoadPanel'),
+    ],
+    'renderOpsSequencerLoadPanel',
+  )(
+    doc,
+    { lastContactAt: now - 200, isConnected: true, rateLimitRemainingSecs: 0 },
+    state,
+    now - 1000,
+    (el, label, cls) => { el.textContent = label; el.className = cls; },
+    (raw) => raw * 100,
+    () => '3m',
+  );
+  render();
+
+  assert.equal(doc.getElementById('ops-seq-current-node').textContent, '--',
+    'the ops mirror must not name a node its source refused to confirm');
+  assert.equal(doc.getElementById('ops-seq-progress-text').textContent, '--');
+  assert.equal(doc.getElementById('ops-seq-eta').textContent, '--');
+  assert.equal(
+    doc.getElementById('ops-seq-progress-bar-container')
+      .getAttribute('aria-valuenow'), null);
+  // And it silences the Run panel with it, so the two can never disagree.
+  assert.equal(doc.getElementById('seq-status').textContent, 'unknown');
+  assert.equal(doc.getElementById('seq-node').textContent, '--');
 });

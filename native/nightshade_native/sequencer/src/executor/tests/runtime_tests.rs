@@ -1585,3 +1585,114 @@ fn the_sky_state_abstains_without_a_target_or_a_site() {
     assert!(target_sky_state(Some(60.0), Some(40.0), None, Some(-105.0), now).is_none());
     assert!(target_sky_state(Some(60.0), Some(40.0), Some(40.0), None, now).is_none());
 }
+
+/// A trigger-fired autofocus is not a node in the tree, so nothing emits the
+/// "Executing: <name>" entry message the progress callback reads display names
+/// out of, and its fallback published the literal word "Unknown" as the current
+/// node for the whole sweep. Measured against the running bundle: 60 s of
+/// "CURRENT NODE / Unknown" on the phone panel and `name=Unknown` in the run
+/// log, while the id beside it spelled out `trigger:hfr_degraded:autofocus` and
+/// the message line one row below named the autofocus.
+///
+/// The trigger knows what it fired, so the interlude announces itself.
+#[tokio::test]
+async fn a_trigger_fired_autofocus_names_itself_on_the_wire() {
+    let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "wait".to_string(),
+        name: "Wait".to_string(),
+        // Long enough that the run is still going when the trigger fires; the
+        // test stops it as soon as it has the announcement.
+        node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 120.0 }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("wait".to_string());
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    // The autofocus arm only runs for a rig that has both devices; without
+    // them the trigger takes the skip branch and there is no interlude at all.
+    executor.camera_id = Some("sim_camera_1".to_string());
+    executor.focuser_id = Some("sim_focuser_1".to_string());
+    {
+        let mut manager = executor.trigger_manager.write().await;
+        // Leave exactly one trigger armed so nothing else steers the run, and
+        // let a single degraded frame fire it: the production tolerance of
+        // three consecutive frames is about seeing spikes, not about what the
+        // interlude is called.
+        for id in [
+            "hfr_degraded",
+            "meridian_flip",
+            "guiding_failed",
+            "altitude_limit",
+            "weather_unsafe",
+            "temperature_shift",
+            "filter_change",
+            "dawn_approaching",
+            "autofocus_interval",
+            "dither_interval",
+        ] {
+            manager.remove_trigger(id);
+        }
+        manager.add_trigger(Trigger::new(
+            "hfr_degraded",
+            "HFR Degradation",
+            crate::TriggerType::HfrDegraded {
+                threshold_percent: 20.0,
+                absolute_threshold: 0.0,
+                consecutive_frames: 1,
+            },
+            crate::RecoveryAction::Autofocus,
+        ));
+    }
+    let mut events = executor.subscribe();
+    executor.load_sequence(sequence).expect("sequence loads");
+    executor.start().await.expect("run starts");
+
+    // Focus drifts: one good frame sets the baseline, then one well past the
+    // 20% threshold. The evaluator counts one sample per graded frame, so the
+    // two must land on different monitor ticks.
+    let trigger_state = {
+        let manager = executor.trigger_manager.read().await;
+        manager.state()
+    };
+    trigger_state.write().await.update_hfr(2.0);
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    trigger_state.write().await.update_hfr(4.0);
+
+    let announced = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        loop {
+            match events.recv().await {
+                Ok(ExecutorEvent::NodeStarted { id, name })
+                    if id.starts_with("trigger:") && id.ends_with(":autofocus") =>
+                {
+                    return (id, name);
+                }
+                Ok(_) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    panic!("the event stream closed before the interlude started")
+                }
+            }
+        }
+    })
+    .await
+    .expect("the trigger-fired autofocus announces itself");
+    executor.stop().await.ok();
+
+    let (id, name) = announced;
+    assert_eq!(id, "trigger:hfr_degraded:autofocus");
+    assert_ne!(
+        name, "Unknown",
+        "the id already says what this is; \"Unknown\" is for work nobody can name"
+    );
+    assert!(
+        name.contains("Autofocus"),
+        "the interlude must name the work it is doing, got {name:?}"
+    );
+    assert!(
+        name.contains("HFR Degradation"),
+        "the interlude must name the trigger that fired it, got {name:?}"
+    );
+}

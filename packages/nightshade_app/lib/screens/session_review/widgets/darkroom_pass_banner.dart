@@ -58,8 +58,7 @@ class DarkroomPassBanner extends StatelessWidget {
             ? recorded
             : '$recorded.');
     final note = pass.note?.trim();
-    final stage =
-        note != null && note.isNotEmpty ? ' It was $note when it stopped.' : '';
+    final stage = note == null || note.isEmpty ? '' : ' ${_noteSentence(note)}';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
@@ -72,4 +71,26 @@ class DarkroomPassBanner extends StatelessWidget {
       ),
     );
   }
+
+  /// The `darkroom_jobs.note` column as one grammatical sentence.
+  ///
+  /// Two writers share that column and they write two different shapes. A pass
+  /// that is on its way through leaves the STAGE it is in — `Drafting Master ·
+  /// B`, `Delivering the night` — a fragment that only reads as English inside
+  /// a frame. The open-time recovery that ends a job at the retry limit leaves
+  /// a finished sentence instead: `Stopped at the retry limit; this job is not
+  /// re-queued.` Wrapping the second in the first's frame produced `It was
+  /// Stopped at the retry limit; this job is not re-queued. when it stopped.`
+  /// — a full stop mid-clause and a dangling tail, on the banner an operator
+  /// reads when a night has gone wrong.
+  ///
+  /// Terminal punctuation is what separates them, and it separates them because
+  /// of what each writer is doing: a stage name is a noun phrase and never ends
+  /// a sentence, while a recovery writes a statement and ends it. So a note
+  /// that closes itself is passed through as the statement it is, and one that
+  /// does not is framed as the stage it names.
+  static String _noteSentence(String note) =>
+      '.!?'.contains(note[note.length - 1])
+          ? note
+          : 'It was $note when it stopped.';
 }

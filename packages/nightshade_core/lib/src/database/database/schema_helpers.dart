@@ -1375,13 +1375,19 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   ///
   /// The marker is deleted last, so a process that dies between reading it and
   /// writing the report finds it again at the next open.
-  Future<void> _reportInterruptedIntegration(
+  ///
+  /// Returns the session it reported on, or null when there was nothing to
+  /// report. [_supersedeRetryPromiseForCappedJobs] runs next and needs to know:
+  /// a session reported HERE already carries this open's verdict, terminal
+  /// branch included, and a second record of the same event would only repeat
+  /// it.
+  Future<int?> _reportInterruptedIntegration(
     List<_InterruptedDarkroomJob> interruptedJobs,
   ) async {
     final directory = await _databaseDirectory();
-    if (directory == null) return;
+    if (directory == null) return null;
     final interrupted = await readIntegrationMarker(directory);
-    if (interrupted == null) return;
+    if (interrupted == null) return null;
 
     _InterruptedDarkroomJob? darkroomPass;
     for (final job in interruptedJobs) {
@@ -1499,6 +1505,114 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     print('[nightshade_db] Session ${interrupted.sessionId}: $headline $body');
 
     await clearIntegrationMarker(directory);
+    return interrupted.sessionId;
+  }
+
+  /// Correct the durable interruption record of every job this open just ended
+  /// at the retry limit.
+  ///
+  /// **What was wrong.** The interruption record is written ONCE, by
+  /// [_reportInterruptedIntegration], from the marker the dead process left —
+  /// and the marker is consumed by that first report. A job that dies three
+  /// times therefore produces exactly one record, written after the FIRST
+  /// death, when the job still had starts left and the record could honestly
+  /// say "the job is re-queued, so the drafts, the night report and the
+  /// delivery it owes are still owed". By the third death the cap has moved the
+  /// row to `failed` and nothing is re-queued — but the record, which is what
+  /// Session Review's banner and the morning feed both read, still promises the
+  /// retry. The night was left waiting for drafts that were never coming.
+  ///
+  /// **What this writes.** For each job the cap just failed: a second
+  /// `warning` event of the same type, which is how a reader that takes the
+  /// NEWEST interruption record for a session sees the terminal truth instead
+  /// of the promise, plus the same sentence appended to the session's notes.
+  /// The earlier record is left standing rather than rewritten — it was true
+  /// when it was written, and the feed is a record of what happened in order —
+  /// so the correction names it and revokes it out loud.
+  ///
+  /// **Once per job, by construction.** Only rows found `running` reach here,
+  /// and the cap has already moved these to `failed`, so no later open can find
+  /// the same job again. A session [_reportInterruptedIntegration] just
+  /// reported is skipped: that report took the same terminal branch a moment
+  /// ago, and repeating it would put the identical verdict on the feed twice.
+  Future<void> _supersedeRetryPromiseForCappedJobs(
+    List<_InterruptedDarkroomJob> interruptedJobs, {
+    required int? reportedSessionId,
+  }) async {
+    for (final job in interruptedJobs) {
+      // A job with starts left was re-queued, so the promise it is under still
+      // stands and there is nothing to revoke.
+      if (job.willRetry) continue;
+      final sessionId = job.sessionId;
+      // A job queued outside a session has no night to carry a record.
+      if (sessionId == null) continue;
+      if (sessionId == reportedSessionId) continue;
+
+      final standing = await customSelect(
+        'SELECT count(*) AS rows FROM narrator_events '
+        'WHERE session_id = ? AND event_type = ?',
+        variables: [
+          Variable<int>(sessionId),
+          const Variable<String>(kInterruptedPassEventType),
+        ],
+        readsFrom: {narratorEvents},
+      ).getSingle();
+      final hadPromise = standing.read<int>('rows') > 0;
+
+      const headline =
+          'The Darkroom pass for this night stopped at the retry limit.';
+      // Each sentence stands on its own, because the middle one is conditional:
+      // a body whose last sentence leans on a clause the first shape does not
+      // print is the same broken-sentence defect the pass banner carried.
+      final body = <String>[
+        'Darkroom job #${job.jobId} has now been started ${job.attempts} '
+            'times, which is the limit of $kDarkroomJobMaxAttempts, so it is '
+            'marked failed and is not re-queued.',
+        if (hadPromise)
+          'The earlier notice on this night said the job was re-queued; that '
+              're-queue is over.',
+        'The drafts, the night report and the delivery this pass owes are not '
+            'coming without you starting it again yourself from Session '
+            'Review. The subs and any masters already integrated are '
+            'untouched.',
+      ].join(' ');
+
+      await customUpdate(
+        'UPDATE imaging_sessions SET notes = '
+        "CASE WHEN notes IS NULL OR notes = '' THEN ? "
+        "ELSE notes || char(10) || ? END WHERE id = ?",
+        variables: [
+          Variable<String>('$headline $body'),
+          Variable<String>('$headline $body'),
+          Variable<int>(sessionId),
+        ],
+        updates: {imagingSessions},
+        updateKind: UpdateKind.update,
+      );
+
+      await customInsert(
+        'INSERT INTO narrator_events('
+        'session_id, timestamp, event_type, category, severity, headline, '
+        'body, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        variables: [
+          Variable<int>(sessionId),
+          Variable<int>(DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000),
+          const Variable<String>(kInterruptedPassEventType),
+          const Variable<String>('quality'),
+          const Variable<String>('warning'),
+          const Variable<String>(headline),
+          Variable<String>(body),
+          // Keyed on the JOB rather than on an instant: one job reaches the cap
+          // once, and this is the record of that.
+          Variable<String>(
+            '$kInterruptedPassEventType:job:${job.jobId}:retry-limit',
+          ),
+        ],
+      );
+
+      // ignore: avoid_print
+      print('[nightshade_db] Session $sessionId: $headline $body');
+    }
   }
 
   /// Whether the master library already holds a row pointing at [path].

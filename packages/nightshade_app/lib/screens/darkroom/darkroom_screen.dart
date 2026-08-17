@@ -352,6 +352,29 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
           onImportRecipe: () => unawaited(_controller.importRecipe()),
           importBusy: state.offerBusy,
         ),
+        // The branch bar's `Import .nsrecipe` writes its refusals into
+        // `offerError`, the same field the start offer's copy of that control
+        // uses — and this layout has no offer, so until this alert existed
+        // every refusal on this path (a file that is not JSON, a sidecar with
+        // no steps, an unreadable path) was composed and then thrown away. A
+        // chooser that closed and did nothing is indistinguishable from a
+        // broken button, and the operator's recipe count silently did not move.
+        if (state.offerError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              NightshadeTokens.spaceMd,
+              0,
+              NightshadeTokens.spaceMd,
+              NightshadeTokens.spaceSm,
+            ),
+            child: NightshadeAlert(
+              key: const ValueKey('darkroom_import_refusal'),
+              severity: NightshadeAlertSeverity.error,
+              message: state.offerError!,
+              compact: true,
+              onDismiss: _controller.dismissOfferError,
+            ),
+          ),
         Expanded(child: _editorOrCompare(context, colors, state)),
       ],
     );

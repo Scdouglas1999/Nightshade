@@ -508,7 +508,7 @@ class DawnAutopilotService {
     _stage[jobId] = 'preparing the Darkroom output directory';
     final baseDirectory = await _darkroomDirectory();
 
-    final reports = <DawnMasterReport>[];
+    var reports = <DawnMasterReport>[];
 
     for (var index = 0; index < set.masters.length; index++) {
       _stopIfCancelled(jobId, 'master ${index + 1} of ${set.masters.length}');
@@ -531,15 +531,26 @@ class DawnAutopilotService {
       );
     }
 
-    // PER-MASTER ACCOUNTING. Only the masters whose pixels this pass actually
-    // read go to a destination; a truncated or vanished FITS is excluded here
-    // and named in the report, because copying it out would put a file the
-    // pipeline has just called unreadable in the operator's hands under the
-    // name of the night's result. The excluded master costs nobody else's
-    // draft: the rest of the set still delivers.
+    // PER-MASTER ACCOUNTING, IN TWO READINGS. Only the masters whose pixels
+    // this pass actually read go to a destination; a truncated or vanished FITS
+    // is excluded and named in the report, because copying it out would put a
+    // file the pipeline has just called unreadable in the operator's hands
+    // under the name of the night's result. The excluded master costs nobody
+    // else's draft: the rest of the set still delivers.
+    //
+    // `pixelsWereRead` is the reading taken while the draft was composed, which
+    // is minutes before anything is copied. `_stageForDelivery` takes the
+    // second reading, of the files as they are NOW, and withholds any master
+    // that is no longer the file this pass measured. It runs HERE, before the
+    // night report is written, because that report is itself one of the
+    // delivered artifacts and has to carry the exclusion it caused; the instant
+    // between this reading and the copy is covered by delivery's own stat and
+    // checksum of every source it takes.
+    reports = await _stageForDelivery(jobId, reports);
+
     final linearMasters = <String>[
       for (final master in reports)
-        if (master.pixelsWereRead) master.master.masterFitsPath,
+        if (master.deliverable) master.master.masterFitsPath,
     ];
     final draftRenders = <String>[
       for (final master in reports)
@@ -547,9 +558,9 @@ class DawnAutopilotService {
     ];
     final excluded = <String>[
       for (final master in reports)
-        if (!master.pixelsWereRead)
+        if (master.notDeliveredBecause != null)
           '${master.master.name} was not delivered: '
-              '${master.failure ?? 'its pixels could not be read'}.',
+              '${master.notDeliveredBecause}.',
     ];
 
     _stopIfCancelled(jobId, 'the night report');
@@ -707,8 +718,10 @@ class DawnAutopilotService {
   /// A master that cannot be drafted produces a report line naming the reason
   /// and the job continues: one unreadable master must not cost the operator
   /// the drafts of every other filter. Whether the master itself is delivered
-  /// is decided by the caller from [DawnMasterReport.pixelsWereRead], never
-  /// here — this method's business is the draft.
+  /// is decided by the caller from [DawnMasterReport.deliverable], never here —
+  /// this method's business is the draft. What it does contribute to that
+  /// decision is [DawnMasterReport.sourceAtRead]: the file as it stood at the
+  /// instant these pixels were read, which delivery staging compares against.
   Future<DawnMasterReport> _draftOneMaster({
     required int jobId,
     required int sessionId,
@@ -722,6 +735,11 @@ class DawnAutopilotService {
         : DawnMasterStats.parse(row.statsJson);
     final targetName = await _targetName(master.targetId);
 
+    // The file as it is at the moment the pass is about to read its pixels.
+    // Delivery stages the same path minutes later and compares the two; see
+    // `_stageForDelivery`.
+    final sourceAtRead = await DawnSourceStat.of(master.masterFitsPath);
+
     DawnMasterReport failed(String reason) => DawnMasterReport(
       master: master,
       targetName: targetName,
@@ -730,6 +748,7 @@ class DawnAutopilotService {
       recipeId: null,
       draftRenderPath: null,
       failure: reason,
+      sourceAtRead: sourceAtRead,
     );
 
     final photometry = row == null
@@ -775,6 +794,7 @@ class DawnAutopilotService {
         failure:
             'no operation in this build could be measured from these pixels, '
             'so the draft would have been an empty stack',
+        sourceAtRead: sourceAtRead,
       );
     }
 
@@ -821,6 +841,7 @@ class DawnAutopilotService {
         failure:
             'the recipe was saved but the draft image could not be rendered: '
             '${error.message}',
+        sourceAtRead: sourceAtRead,
       );
     }
 
@@ -832,6 +853,7 @@ class DawnAutopilotService {
       recipeId: recipeId,
       draftRenderPath: draftPath,
       failure: null,
+      sourceAtRead: sourceAtRead,
     );
   }
 
@@ -936,6 +958,84 @@ class DawnAutopilotService {
         reason: note.reason,
       ),
   ];
+
+  /// Take the second reading of every master this pass would deliver, and
+  /// withhold the ones that are no longer the file the pass measured.
+  ///
+  /// **Why a second reading exists at all.** The draft stage opens a master,
+  /// reads its pixels and composes from them; delivery copies the bytes that
+  /// are on disk when it runs, which is a separate instant. Between the two the
+  /// file can be truncated, replaced or removed — by a disk filling up, by an
+  /// operator tidying a captures folder, by a sync tool — and the pass's draft
+  /// verdict says nothing about that. Without this reading such a master rode
+  /// out under the night's name with a checksum of bytes nothing had measured,
+  /// and the report called the delivery clean.
+  ///
+  /// **What counts as changed.** Size or modification time, either one. Both
+  /// come from one `stat`, neither can be read as "probably still fine", and a
+  /// dawn pass has no legitimate writer of its own masters — so a difference is
+  /// the file having become a different file, and it is stated as exactly that.
+  /// A master that cannot be stat-ed at all in either reading is named for that
+  /// instead of being guessed at.
+  ///
+  /// Only masters the draft stage already cleared are read again: one that
+  /// failed there is out for its own reason and re-reading it would replace a
+  /// precise sentence with a vaguer one.
+  Future<List<DawnMasterReport>> _stageForDelivery(
+    int jobId,
+    List<DawnMasterReport> reports,
+  ) async {
+    final staged = <DawnMasterReport>[];
+    for (final report in reports) {
+      if (!report.pixelsWereRead) {
+        staged.add(report);
+        continue;
+      }
+      final path = report.master.masterFitsPath;
+      final atRead = report.sourceAtRead;
+      final now = await DawnSourceStat.of(path);
+      final String? refusal;
+      if (now == null) {
+        refusal =
+            'it is no longer on disk at $path, so the pass has nothing to '
+            'deliver under this name';
+      } else if (atRead == null) {
+        refusal =
+            'the pass could not measure $path when it read its pixels, so '
+            'there is nothing to check the ${now.bytes} bytes now on disk '
+            'against';
+      } else if (!atRead.matches(now)) {
+        refusal =
+            'the file changed after the pass read it ($path was '
+            '${atRead.bytes} bytes, modified '
+            '${atRead.modified.toUtc().toIso8601String()}, when its pixels '
+            'were read and is ${now.bytes} bytes, modified '
+            '${now.modified.toUtc().toIso8601String()}, now), so what is on '
+            'disk is not what this pass measured';
+      } else {
+        refusal = null;
+      }
+      if (refusal == null) {
+        staged.add(report);
+        continue;
+      }
+      _logger?.warning(
+        'A master changed between the draft that measured it and delivery, so '
+        'it is withheld from every destination',
+        source: 'DawnAutopilotService',
+        fields: {
+          'jobId': jobId,
+          'master': report.master.name,
+          'path': path,
+          'bytesAtRead': atRead?.bytes,
+          'bytesAtStaging': now?.bytes,
+          'reason': refusal,
+        },
+      );
+      staged.add(report.withheldAtStaging(refusal));
+    }
+    return staged;
+  }
 
   /// Hand the night's artifacts to delivery.
   ///
@@ -1098,7 +1198,7 @@ class DawnAutopilotService {
   /// what was held back, and where the first draft image is, because the row
   /// has no artifact column.
   static String _completionNote(DawnJobReport report) {
-    final withheld = report.masters.where((m) => !m.pixelsWereRead).length;
+    final withheld = report.masters.where((m) => !m.deliverable).length;
     final tail = withheld == 0
         ? ''
         : '; $withheld master(s) were not delivered — see the night report';

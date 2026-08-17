@@ -61,6 +61,13 @@
       devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0,
       focuser: 0, 'filter-wheel': 0, rotator: 0,
     },
+    // When each panel's data source last refused. Compared against
+    // `panelLastUpdate` — a failure newer than the last good answer is what
+    // makes a panel stale while the server itself is plainly still there.
+    panelLastFailure: {
+      devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0,
+      focuser: 0, 'filter-wheel': 0, rotator: 0,
+    },
     staleCheckInterval: null,
     debugMode: false,
     pendingImageFetchTimer: null,
@@ -181,10 +188,16 @@
   // heartbeat interval drops a healthy connection into REST fallback several
   // times a minute and cancels large raw-preview downloads mid-flight.
   const WS_FALLBACK_THRESHOLD_MS = 45000;
-  // Once the WebSocket itself is stale, surface a badge on any panel whose
-  // last successful REST/event update is older than this threshold. A quiet
-  // but healthy socket must not make stable equipment look stale.
-  const PANEL_STALE_THRESHOLD_MS = 10000;
+  // Every panel that keeps its own freshness clock. The stale line, the
+  // re-ask below, and the Run panel's right to assert a state all read this
+  // one list.
+  const PANEL_KEYS = ['devices', 'mount', 'camera', 'sequencer', 'guiding',
+                      'focuser', 'filter-wheel', 'rotator'];
+  // How often a panel whose route is failing is re-asked. Matches the WS
+  // fallback poll's cadence: the same load, already accepted, and only while
+  // something is actually failing.
+  const PANEL_REFRESH_RETRY_MS = 5000;
+  let lastPanelRefreshRetryAt = 0;
   // Image-fetch fallback if no exposure_complete event arrives.
   const IMAGE_FALLBACK_GRACE_MS = 30000;
   // Cap on base64-decoded image size for display.
@@ -197,6 +210,15 @@
   document.addEventListener('DOMContentLoaded', init);
 
   function init() {
+    // Everything that ages data subscribes to the one clock, here, once: the
+    // header's verdict, the Run panel's right to assert a state, and every
+    // panel's stale line. See repaintDataState().
+    subscribeToDataClock(renderLinkState);
+    subscribeToDataClock(renderRunDataState);
+    for (const panelKey of PANEL_KEYS) {
+      subscribeToDataClock((view) => renderStaleIndicator(panelKey, view));
+    }
+
     // Honour ?debug=1 in the URL to allow manual server URL entry. The page
     // CSP restricts the dashboard to its own origin; manual URL entry is a
     // power-user escape hatch and is hidden by default.
@@ -1152,7 +1174,7 @@
       );
     } finally {
       reachabilityProbeInFlight = false;
-      renderLinkState();
+      repaintDataState();
     }
   }
 
@@ -1163,13 +1185,26 @@
   }
 
   /// True when the dashboard cannot vouch for what it is showing.
-  function isServerContactStale() {
+  function isServerContactStale(now) {
     const last = lastServerContactAt();
     // A probe that failed with nothing succeeding since it started is
     // decisive — no need to wait out the staleness window.
     if (state.serverUnreachable && last <= lastReachabilityProbeAt) return true;
     if (last === 0) return false;
-    return Date.now() - last > SERVER_CONTACT_STALE_MS;
+    return now - last > SERVER_CONTACT_STALE_MS;
+  }
+
+  /// True when one panel's own data can no longer be vouched for, on exactly
+  /// the shape of rule the header uses: the last attempt to refresh it failed
+  /// and nothing has succeeded since. That is decisive, so it needs no window —
+  /// and it is silent on the quiet-but-healthy night, where nothing has changed
+  /// and nothing has failed.
+  ///
+  /// The panel that has never been asked for is not stale; it has no data to be
+  /// stale, and the renderer says so in its own words.
+  function isPanelDataStale(panelKey) {
+    const failedAt = state.panelLastFailure[panelKey] || 0;
+    return failedAt > (state.panelLastUpdate[panelKey] || 0);
   }
 
   function formatAgeSeconds(ms) {
@@ -1180,21 +1215,63 @@
     return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
   }
 
-  /// True while the panels are painted with the lost-contact overlay, so the
-  /// recovery edge can be told from a run of healthy ticks. Staleness is a
-  /// state of the link, not a mark burned into the badge: without this the
-  /// badge that went "unknown" on one missed exchange stayed "unknown" for the
-  /// rest of the session, over every subsequent healthy poll.
-  let linkStaleAsserted = false;
+  // =========================================================================
+  // The page's data clock
+  //
+  // Everything that ages data reads it here, on one tick, from one `now`.
+  //
+  // Before this there were two clocks and they disagreed. The header counted
+  // from the last completed exchange with the server; each panel counted from
+  // its own last successful refresh, behind a `wsHealthy` gate that hid the
+  // count entirely whenever the event socket was alive. So a single failing
+  // route — /api/sequencer/status answering 500 while the daemon stayed up and
+  // the socket stayed busy — left the Run panel painting a frozen run as live:
+  // measured at "running / Exposure L / 3% / Frame 2 of 20" under a green
+  // "Connected" header for 45 s while the rig was at 13.75% and frame 11, with
+  // no banner and the stale badge that would have said so suppressed.
+  //
+  // One clock, one verdict, and the panels subscribe to it.
+  // =========================================================================
+
+  const dataClockSubscribers = [];
+
+  /// Register a renderer that must repaint whenever the page re-judges how old
+  /// its data is. Called once each, at init.
+  function subscribeToDataClock(render) {
+    dataClockSubscribers.push(render);
+  }
+
+  /// Sample the clock once and hand the same verdict to every subscriber.
+  function repaintDataState() {
+    const now = Date.now();
+    const contactAt = lastServerContactAt();
+    const view = {
+      now,
+      contactStale: isServerContactStale(now),
+      contactAgeMs: contactAt > 0 ? now - contactAt : null,
+      /// How old this panel's data is, or null when none has ever arrived.
+      panelAgeMs(panelKey) {
+        const at = state.panelLastUpdate[panelKey] || 0;
+        return at > 0 ? now - at : null;
+      },
+      /// A panel is stale when the link is gone — nothing is arriving for
+      /// anything — or when its own route is failing while the server answers
+      /// everything else.
+      panelStale(panelKey) {
+        return this.contactStale || isPanelDataStale(panelKey);
+      },
+    };
+    for (const render of dataClockSubscribers) render(view);
+  }
 
   /// Repaint the banner + header status from the current link state. The
-  /// header must never read "Connected" while this returns stale.
-  function renderLinkState() {
+  /// header must never read "Connected" while the view says stale.
+  function renderLinkState(view) {
     const banner = document.getElementById('link-banner');
     const text = document.getElementById('status-text');
     const dot = document.getElementById('status-dot');
     const waiting = api.rateLimitRemainingSecs;
-    const stale = isServerContactStale();
+    const stale = view.contactStale;
 
     if (!stale) {
       if (banner) {
@@ -1213,19 +1290,10 @@
       if (api.isConnected && text && text.textContent === 'No contact') {
         setConnectionStatus('connected');
       }
-      // Contact is back: hand the panels the overlay took over back to the
-      // renderer that owns them, so they say what the last data says — the
-      // real state if a status has arrived, "connecting" if none ever has.
-      if (linkStaleAsserted) {
-        linkStaleAsserted = false;
-        renderSequencerPanel();
-      }
       return;
     }
-    linkStaleAsserted = true;
 
-    const last = lastServerContactAt();
-    const age = last > 0 ? Date.now() - last : null;
+    const age = view.contactAgeMs;
     if (text) text.textContent = 'No contact';
     if (dot) dot.className = 'status-dot error';
     if (banner) {
@@ -1239,6 +1307,31 @@
           : ' Last contact ' + formatAgeSeconds(age) +
             ' ago. Every value below is from then and may be wrong.');
     }
+  }
+
+  /// True while the Run panel is painted with the unknown overlay, so the
+  /// recovery edge can be told from a run of healthy ticks. Staleness is a
+  /// state of the data, not a mark burned into the badge: without this the
+  /// badge that went "unknown" on one missed exchange stayed "unknown" for the
+  /// rest of the session, over every subsequent healthy poll.
+  let runUnknownAsserted = false;
+
+  /// Whether the Run panel and its ops mirror may go on asserting what the
+  /// last sequencer status said. The clock's own rule, callable between ticks
+  /// — the two renderers below fire on their own events, and a repaint from
+  /// the cached status is how a cleared panel came straight back.
+  function runDataIsStale() {
+    return isServerContactStale(Date.now()) || isPanelDataStale('sequencer');
+  }
+
+  /// Stop asserting the run, on every surface that quotes it.
+  ///
+  /// The Run panel and the Sequences panel read the same `state.sequencerStatus`
+  /// and render different field sets from it, so they have to fall silent
+  /// together: clearing only the Run panel left "Current node: Autofocus (HFR
+  /// Degradation) / Progress 5%" sitting in the Sequences panel two columns
+  /// away, repainted from the cache by whichever sibling fetch answered next.
+  function paintRunUnknown() {
     // The sequencer badge is the single most misleading survivor of a dead
     // backend: a green "running" for a rig that may have been off for an hour.
     const seqStatus = document.getElementById('seq-status');
@@ -1259,6 +1352,33 @@
     // furthest-reaching claim on the page.
     const opsSeqEta = document.getElementById('ops-seq-eta');
     if (opsSeqEta) opsSeqEta.textContent = '--';
+    // The node and the message are the last two claims about a run whose
+    // source has stopped answering; they read as live text with nothing
+    // around them to say otherwise.
+    for (const id of ['seq-node', 'ops-seq-current-node']) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '--';
+    }
+    const seqMessage = document.getElementById('seq-message');
+    if (seqMessage) seqMessage.textContent = '';
+  }
+
+  /// The Run panel's own honesty. It subscribes to the same clock the header
+  /// does, and it stops asserting for either reason the clock can give: the
+  /// server is gone, or the server is there and THIS panel's route is failing.
+  function renderRunDataState(view) {
+    if (!view.panelStale('sequencer')) {
+      if (runUnknownAsserted) {
+        runUnknownAsserted = false;
+        // Hand the panel back to the renderer that owns it, so it says what
+        // the last data says — the real state if a status has arrived,
+        // "connecting" if none ever has.
+        renderSequencerPanel();
+      }
+      return;
+    }
+    runUnknownAsserted = true;
+    paintRunUnknown();
   }
 
   function checkStaleness() {
@@ -1276,7 +1396,19 @@
         now - lastReachabilityProbeAt > REACHABILITY_PROBE_MS) {
       probeServerReachable();
     }
-    renderLinkState();
+    repaintDataState();
+
+    // A panel whose route is failing is re-asked, on the same principle as the
+    // reachability probe above: the page answers "is this still true" by
+    // asking, not by waiting for something else to happen. Without this a
+    // single refused refresh on an otherwise idle rig would leave that panel
+    // reading "unknown" until the next event, which could be the whole night.
+    if (api.isConnected && !isServerContactStale(now) &&
+        now - lastPanelRefreshRetryAt > PANEL_REFRESH_RETRY_MS &&
+        PANEL_KEYS.some(isPanelDataStale)) {
+      lastPanelRefreshRetryAt = now;
+      fetchAllStatus();
+    }
 
     // Fallback polling: only when WS has been silent past the threshold.
     if (api.isConnected && wsSilentMs > WS_FALLBACK_THRESHOLD_MS) {
@@ -1295,42 +1427,42 @@
       addLogEntry('system', 'WebSocket recovered — REST fallback disabled');
     }
 
-    // Per-panel stale indicator: highlight old panel data only after the
-    // WebSocket watchdog has also determined that the transport is stale.
-    updateStaleIndicator('devices');
-    updateStaleIndicator('mount');
-    updateStaleIndicator('camera');
-    updateStaleIndicator('sequencer');
-    updateStaleIndicator('guiding');
-    updateStaleIndicator('focuser');
-    updateStaleIndicator('filter-wheel');
-    updateStaleIndicator('rotator');
   }
 
-  function updateStaleIndicator(panelKey) {
+  /// Paint one panel's stale line from the shared verdict.
+  ///
+  /// The `wsHealthy` early-return that used to live here is gone: it hid the
+  /// line whenever the event socket was alive, which is exactly the state a
+  /// single failing REST route leaves the page in.
+  function renderStaleIndicator(panelKey, view) {
     const el = document.getElementById('stale-' + panelKey);
     if (!el) return;
-    const last = state.panelLastUpdate[panelKey];
-    const now = Date.now();
-    const wsHealthy = state.lastWsMessageAt > 0 &&
-      now - state.lastWsMessageAt <= WS_FALLBACK_THRESHOLD_MS;
-    if (!last || !api.isConnected || wsHealthy) {
+    const ageMs = view.panelAgeMs(panelKey);
+    const routeFailing = isPanelDataStale(panelKey);
+    // A panel that never had data and never asked for any has nothing to
+    // report: a disconnected focuser is not stale, it is absent, and the
+    // panel's own body says so.
+    const hasSomethingToReport = ageMs != null || routeFailing;
+    if (!api.isConnected || !view.panelStale(panelKey) || !hasSomethingToReport) {
       el.classList.remove('visible');
       el.textContent = '';
       return;
     }
-    const ageMs = now - last;
-    if (ageMs > PANEL_STALE_THRESHOLD_MS) {
-      el.classList.add('visible');
-      el.textContent = 'Stale: ' + Math.round(ageMs / 1000) + 's since last update';
-    } else {
-      el.classList.remove('visible');
-      el.textContent = '';
-    }
+    el.classList.add('visible');
+    el.textContent = ageMs == null
+      ? 'No data has reached this panel yet'
+      : 'Stale: ' + formatAgeSeconds(ageMs) + ' since last update';
   }
 
   function markPanelFresh(panelKey) {
     state.panelLastUpdate[panelKey] = Date.now();
+  }
+
+  /// This panel's data source refused. Recorded so the page can say the panel
+  /// is stale while the server is plainly there answering everything else —
+  /// the failure used to reach nothing but a log line.
+  function markPanelUnconfirmed(panelKey) {
+    state.panelLastFailure[panelKey] = Date.now();
   }
 
   // =========================================================================
@@ -1357,7 +1489,7 @@
     // into a bucket we know is empty: each would be refused, and each refusal
     // used to print the limiter's JSON body into the operator's log.
     if (api.rateLimitRemainingSecs > 0) {
-      renderLinkState();
+      repaintDataState();
       return;
     }
     // Device IDs are prerequisites for every equipment-status request.
@@ -1443,9 +1575,8 @@
       maybeLoadCameraReadoutModes();
       maybeLoadFilterWheelPositions();
     } catch (e) {
-      // Surface fetch errors via the panel stale indicator instead of
-      // swallowing them: the stale check picks this up because
-      // panelLastUpdate.devices is not refreshed.
+      // Recorded, not only logged: the panel's stale line is drawn from this.
+      markPanelUnconfirmed('devices');
       addLogEntry('error', describeApiError(e, 'Devices fetch'));
     }
   }
@@ -1457,6 +1588,7 @@
       renderSequencerPanel();
       markPanelFresh('sequencer');
     } catch (e) {
+      markPanelUnconfirmed('sequencer');
       addLogEntry('error', describeApiError(e, 'Sequencer fetch'));
     }
   }
@@ -1468,6 +1600,7 @@
       renderGuidingPanel();
       markPanelFresh('guiding');
     } catch (e) {
+      markPanelUnconfirmed('guiding');
       addLogEntry('error', describeApiError(e, 'Guiding fetch'));
     }
   }
@@ -1480,6 +1613,7 @@
       renderMountPanel();
       markPanelFresh('mount');
     } catch (e) {
+      markPanelUnconfirmed('mount');
       addLogEntry('error', describeApiError(e, 'Mount status fetch'));
     }
   }
@@ -1496,6 +1630,7 @@
       syncCameraInputsFromStatus(status);
       markPanelFresh('camera');
     } catch (e) {
+      markPanelUnconfirmed('camera');
       addLogEntry('error', describeApiError(e, 'Camera status fetch'));
     }
   }
@@ -1508,6 +1643,7 @@
       renderFocuserPanel();
       markPanelFresh('focuser');
     } catch (e) {
+      markPanelUnconfirmed('focuser');
       addLogEntry('error', describeApiError(e, 'Focuser status fetch'));
     }
   }
@@ -1524,6 +1660,7 @@
       renderFilterWheelPanel();
       markPanelFresh('filter-wheel');
     } catch (e) {
+      markPanelUnconfirmed('filter-wheel');
       addLogEntry('error', describeApiError(e, 'Filter wheel status fetch'));
     }
   }
@@ -1536,6 +1673,7 @@
       renderRotatorPanel();
       markPanelFresh('rotator');
     } catch (e) {
+      markPanelUnconfirmed('rotator');
       addLogEntry('error', describeApiError(e, 'Rotator status fetch'));
     }
   }
@@ -3397,6 +3535,13 @@
   }
 
   function renderSequencerPanel() {
+    // Same gate as the ops mirror below: this fires on sequencer events and on
+    // the recovery edge, and a repaint from the cached status while the route
+    // is still refusing would put the frozen run back on screen.
+    if (runDataIsStale()) {
+      paintRunUnknown();
+      return;
+    }
     const statusEl = document.getElementById('seq-status');
     const nodeEl = document.getElementById('seq-node');
     const messageEl = document.getElementById('seq-message');
@@ -4004,6 +4149,14 @@
   // dropdown + buttons, and reading from the same `state.sequencerStatus`
   // lets WS-driven updates flow into both places.
   function renderOpsSequencerLoadPanel() {
+    // This panel quotes the same cached status the Run panel does, and it is
+    // repainted by sibling fetches (analytics, slew, first paint) that go on
+    // succeeding while the sequencer route fails. Without this gate those
+    // repaints put the frozen run straight back after the clock cleared it.
+    if (runDataIsStale()) {
+      paintRunUnknown();
+      return;
+    }
     const targetEl = document.getElementById('ops-seq-current-target');
     const nodeEl = document.getElementById('ops-seq-current-node');
     const progressTextEl = document.getElementById('ops-seq-progress-text');

@@ -84,7 +84,7 @@ class ObservationReportService {
             equipmentSummary: equipmentSummary,
           ),
           pw.SizedBox(height: 20),
-          _buildSessionSummarySection(session, acceptedImages),
+          _buildSessionSummarySection(session, SessionFrameGrading.of(images)),
           pw.SizedBox(height: 20),
           _buildImageQualitySection(session, acceptedImages),
           pw.SizedBox(height: 20),
@@ -300,11 +300,17 @@ class ObservationReportService {
     );
   }
 
+  /// The summary table, in the two accountings a night actually has.
+  ///
+  /// The top row is the CAMERA's: how many exposures the run asked for and how
+  /// many came back. The second half of it used to end in a "Success Rate"
+  /// computed from those two numbers alone, which on a night the grader threw
+  /// out entirely printed 100.0% — in a signed observation report, above a
+  /// filter breakdown listing no frames at all. [grading] is the culling's
+  /// verdict over the same night's light frames, and it is what "kept" means.
   pw.Widget _buildSessionSummarySection(
-      ImagingSession session, List<DbCapturedImage> acceptedImages) {
-    final successRate = session.totalExposures > 0
-        ? (session.successfulExposures / session.totalExposures * 100)
-        : 0.0;
+      ImagingSession session, SessionFrameGrading grading) {
+    final keptPercent = grading.keptPercent;
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -320,15 +326,25 @@ class ObservationReportService {
           children: [
             pw.TableRow(children: [
               _statCell('Total Exposures', '${session.totalExposures}'),
-              _statCell('Successful', '${session.successfulExposures}'),
-              _statCell('Failed', '${session.failedExposures}'),
-              _statCell('Success Rate', '${successRate.toStringAsFixed(1)}%'),
-            ]),
-            pw.TableRow(children: [
+              _statCell('Camera Returned', '${session.successfulExposures}'),
+              _statCell('Camera Failed', '${session.failedExposures}'),
               _statCell(
                 'Integration',
                 '${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)}h',
               ),
+            ]),
+            pw.TableRow(children: [
+              _statCell('Light Frames', '${grading.lights}'),
+              _statCell('Frames Kept', '${grading.accepted}'),
+              _statCell('Frames Rejected', '${grading.rejected}'),
+              _statCell(
+                'Kept Rate',
+                keptPercent == null
+                    ? 'no light frames'
+                    : '${keptPercent.toStringAsFixed(1)}%',
+              ),
+            ]),
+            pw.TableRow(children: [
               _statCell(
                 'Autofocus Runs',
                 '${session.autofocusCount}',
@@ -341,6 +357,12 @@ class ObservationReportService {
                 'Avg Guiding RMS',
                 session.avgGuidingRms != null
                     ? '${session.avgGuidingRms!.toStringAsFixed(2)}"'
+                    : '-',
+              ),
+              _statCell(
+                'Avg Seeing',
+                session.avgSeeing != null
+                    ? '${session.avgSeeing!.toStringAsFixed(2)}"'
                     : '-',
               ),
             ]),

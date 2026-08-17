@@ -31,6 +31,13 @@
 // driving a remote host would be editing its own rows, not the rig's, so the
 // page refuses to render the list and says where the destinations actually
 // live rather than showing plausible-looking rows for the wrong machine.
+//
+// That refusal is gated on the client ROLE, not on the connection. A desktop
+// launched with `--remote-host` that has not reached its rig yet is still that
+// rig's client: its own `delivery_targets` table is one no dawn job will ever
+// read, so a destination added there would sit forever in a database with no
+// captures behind it. Gating on `isRemoteModeProvider` alone offered exactly
+// that editor for the whole of the pre-handshake window and after every drop.
 
 import 'dart:async';
 import 'dart:convert';
@@ -66,7 +73,7 @@ class DeliverySettings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(isRemoteModeProvider)) {
+    if (ref.watch(isRemoteClientProvider)) {
       return _DeliveryRemoteModeNotice(isMobile: isMobile);
     }
 

@@ -8,6 +8,46 @@ import '../database/daos/sessions_dao.dart';
 import '../database/daos/images_dao.dart';
 import '../database/database.dart';
 
+/// What the culling decided about a night's light frames.
+///
+/// `imaging_sessions.successful_exposures` answers a different question — did
+/// the camera return the frame — and answers it about every frame the run
+/// asked for. On a night the grader threw out entirely, that column reads 4 of
+/// 4 and the session record's `failed_exposures` reads 0, so a document built
+/// from it alone announces a 100% success rate over a night with nothing worth
+/// stacking. The list and stats endpoints already publish this verdict beside
+/// the camera counts; this is the same verdict for the DOCUMENT, counted from
+/// the same rows (`captured_images`, light frames, by `is_accepted`) so the
+/// three cannot drift.
+class SessionFrameGrading {
+  /// Light frames on record for the session.
+  final int lights;
+
+  /// Light frames the grader kept.
+  final int accepted;
+
+  const SessionFrameGrading({required this.lights, required this.accepted});
+
+  /// The verdict over [images], counting light frames only.
+  factory SessionFrameGrading.of(List<CapturedImage> images) {
+    var lights = 0;
+    var accepted = 0;
+    for (final image in images) {
+      if (image.frameType != 'light') continue;
+      lights++;
+      if (image.isAccepted) accepted++;
+    }
+    return SessionFrameGrading(lights: lights, accepted: accepted);
+  }
+
+  /// Light frames the grader rejected.
+  int get rejected => lights - accepted;
+
+  /// Percentage kept, or null when there is no light frame to have an opinion
+  /// about — never 0.0 or 100.0 over an empty population.
+  double? get keptPercent => lights == 0 ? null : accepted / lights * 100.0;
+}
+
 /// Service for exporting session data to various formats
 class SessionExportService {
   final SessionsDao _sessionsDao;
@@ -123,6 +163,7 @@ class SessionExportService {
 
     final images = await _imagesDao.getImagesForSession(sessionId);
     final measuredFwhm = await _imagesDao.getFwhmForSession(sessionId);
+    final grading = SessionFrameGrading.of(images);
 
     // Build JSON structure
     final data = {
@@ -138,6 +179,12 @@ class SessionExportService {
           'totalExposures': session.totalExposures,
           'successfulExposures': session.successfulExposures,
           'failedExposures': session.failedExposures,
+          // What the culling decided, beside what the camera returned. A
+          // consumer that reads only the three counters above cannot tell a
+          // clean night from one whose every sub was thrown away.
+          'lightFrames': grading.lights,
+          'acceptedLights': grading.accepted,
+          'rejectedLights': grading.rejected,
           'totalIntegrationSecs': session.totalIntegrationSecs,
           'totalIntegrationHours': session.totalIntegrationSecs / 3600.0,
           'avgHfr': session.avgHfr,
@@ -294,6 +341,7 @@ class SessionExportService {
 
     final images = await _imagesDao.getImagesForSession(sessionId);
     final acceptedImages = images.where((img) => img.isAccepted).toList();
+    final grading = SessionFrameGrading.of(images);
 
     final buffer = StringBuffer();
     buffer.writeln('=' * 60);
@@ -308,14 +356,24 @@ class SessionExportService {
     buffer.writeln('-' * 60);
     buffer.writeln('Statistics');
     buffer.writeln('-' * 60);
-    buffer.writeln('Total Exposures: ${session.totalExposures}');
-    buffer.writeln('Successful: ${session.successfulExposures}');
-    buffer.writeln('Failed: ${session.failedExposures}');
-    final totalExposures = session.totalExposures;
-    final successRate = totalExposures > 0
-        ? (session.successfulExposures / totalExposures * 100)
-        : 0.0;
-    buffer.writeln('Success Rate: ${successRate.toStringAsFixed(1)}%');
+    // Two accountings, each labelled with the question it answers. The camera's
+    // is first because it is the run's own record; the grader's is what decides
+    // whether the night produced anything, and a summary that printed only the
+    // first called a night whose every sub was rejected a 100% success.
+    buffer.writeln(
+      'Frames the camera returned: '
+      '${session.successfulExposures} of ${session.totalExposures} '
+      '(${session.failedExposures} failed)',
+    );
+    buffer.writeln('Light frames graded: ${grading.lights}');
+    buffer.writeln('Kept: ${grading.accepted}');
+    buffer.writeln('Rejected: ${grading.rejected}');
+    final keptPercent = grading.keptPercent;
+    buffer.writeln(
+      keptPercent == null
+          ? 'Kept Rate: no light frames recorded'
+          : 'Kept Rate: ${keptPercent.toStringAsFixed(1)}%',
+    );
     buffer.writeln(
       'Total Integration: ${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)} hours',
     );
@@ -420,9 +478,8 @@ class SessionExportService {
     final images = await _imagesDao.getImagesForSession(sessionId);
     final acceptedImages = images.where((image) => image.isAccepted).toList();
     final totalIntegrationHours = session.totalIntegrationSecs / 3600.0;
-    final successRate = session.totalExposures > 0
-        ? (session.successfulExposures / session.totalExposures) * 100.0
-        : 0.0;
+    final grading = SessionFrameGrading.of(images);
+    final keptPercent = grading.keptPercent;
 
     final filterGroups = <String, List<CapturedImage>>{};
     for (final image in acceptedImages) {
@@ -511,8 +568,8 @@ class SessionExportService {
 
   <section class="grid">
     <div class="card"><div class="muted">Integration</div><strong>${totalIntegrationHours.toStringAsFixed(2)} h</strong></div>
-    <div class="card"><div class="muted">Exposures</div><strong>${session.successfulExposures}/${session.totalExposures}</strong></div>
-    <div class="card"><div class="muted">Success Rate</div><strong>${successRate.toStringAsFixed(1)}%</strong></div>
+    <div class="card"><div class="muted">Exposures</div><strong>${session.successfulExposures}/${session.totalExposures}</strong>${_source('returned by the camera')}</div>
+    <div class="card"><div class="muted">Frames Kept</div><strong>${grading.accepted}/${grading.lights}</strong>${_source(keptPercent == null ? 'no light frames recorded' : '${keptPercent.toStringAsFixed(1)}% kept, ${grading.rejected} rejected')}</div>
     <div class="card"><div class="muted">Autofocus Runs</div><strong>${session.autofocusCount}</strong></div>
   </section>
 

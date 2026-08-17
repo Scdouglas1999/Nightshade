@@ -1612,6 +1612,104 @@ void main() {
     );
   });
 
+  test('a master TRUNCATED after it is drafted is withheld from delivery and '
+      'the report says so', () async {
+    final delivered = <String>[];
+    await DeliveryTargetsDao(db).create(
+      name: 'office-pc',
+      kind: ArtifactDestinationKind.watchedFolder,
+      configJson: '{"path":"/mnt/office"}',
+      content: ArtifactContent.values.toSet(),
+    );
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    final keptPath = '${workspace.path}/M42_L_master.fits';
+    final shortPath = '${workspace.path}/M42_R_master.fits';
+    await insertMaster(imageIds: [imageId], filter: 'L', path: keptPath);
+    await insertMaster(imageIds: [imageId], filter: 'R', path: shortPath);
+    // The file is still THERE — a stat finds it, a checksum computes over it,
+    // and every stage before this one has already passed. It is simply half
+    // the file the pass read, which is what a disk that filled up mid-write or
+    // an interrupted sync leaves behind.
+    darkroom.afterExport = (args) async {
+      if (args['masterPath'] != shortPath) return;
+      final file = File(shortPath);
+      final whole = await file.readAsBytes();
+      await file.writeAsBytes(whole.sublist(0, whole.length ~/ 2));
+    };
+
+    final outcome = await buildService(
+      transportFactory: (destination, jobId) => _RecordingTransport(delivered),
+    ).runDawnForSession(sessionId);
+
+    expect(outcome.succeeded, isTrue);
+    final short = outcome.report!.masters.firstWhere(
+      (m) => m.master.masterFitsPath == shortPath,
+    );
+    // The draft stage is untouched: these pixels WERE read, and the draft it
+    // composed from them is real. Only delivery refuses.
+    expect(short.pixelsWereRead, isTrue);
+    expect(short.hasDraft, isTrue);
+    expect(short.deliverable, isFalse);
+    expect(short.withheldFromDelivery, contains('changed after the pass read'));
+
+    expect(
+      delivered,
+      isNot(contains(shortPath)),
+      reason: 'bytes nothing in this pass measured are not the night',
+    );
+    expect(delivered, contains(keptPath));
+    expect(
+      delivered.where((f) => f.endsWith('.jpg')),
+      hasLength(2),
+      reason: 'both drafts were rendered before the file was cut short',
+    );
+    expect(
+      outcome.report!.deliveryProblems.join('\n'),
+      contains('changed after the pass read it'),
+    );
+    expect(outcome.report!.body, contains('was not delivered'));
+    final job = await DarkroomJobsDao(db).getById(outcome.jobId);
+    expect(job!.note, contains('1 master(s) were not delivered'));
+    final journal = await DeliveryJournalDao(db).listForJob(outcome.jobId);
+    expect(journal.map((row) => row.filePath), isNot(contains(shortPath)));
+    // The delivery run's own counts agree: nothing claims 4 delivered.
+    expect(outcome.report!.delivery!.problems, isEmpty);
+    expect(delivered.where((f) => f.endsWith('.fits')), hasLength(1));
+  });
+
+  test(
+    'a master nothing touched between the draft and delivery still goes',
+    () async {
+      final delivered = <String>[];
+      await DeliveryTargetsDao(db).create(
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/office"}',
+        content: ArtifactContent.values.toSet(),
+      );
+      final sessionId = await insertSession();
+      final imageId = await insertSub(sessionId: sessionId);
+      final path = '${workspace.path}/M42_L_master.fits';
+      await insertMaster(imageIds: [imageId], filter: 'L', path: path);
+
+      final outcome = await buildService(
+        transportFactory: (destination, jobId) =>
+            _RecordingTransport(delivered),
+      ).runDawnForSession(sessionId);
+
+      expect(outcome.succeeded, isTrue);
+      final master = outcome.report!.masters.single;
+      expect(master.deliverable, isTrue);
+      expect(master.withheldFromDelivery, isNull);
+      expect(master.sourceAtRead, isNotNull);
+      expect(delivered, contains(path));
+      expect(outcome.report!.deliveryProblems, isEmpty);
+      final job = await DarkroomJobsDao(db).getById(outcome.jobId);
+      expect(job!.note, isNot(contains('not delivered')));
+    },
+  );
+
   test('a night that rendered no draft never announces "0 drafts"', () async {
     final sessionId = await insertSession();
     final imageId = await insertSub(sessionId: sessionId);

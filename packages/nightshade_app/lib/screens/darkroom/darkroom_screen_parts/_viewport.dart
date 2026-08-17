@@ -359,10 +359,23 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
           Positioned.fill(
             child: Align(
               alignment: Alignment.bottomCenter,
-              // Over the viewer, not in place of it: a pan or a zoom of the
-              // picture underneath still reaches the surface.
-              child: IgnorePointer(
-                child: Padding(
+              // Bounded and scrollable, because nothing bounds this sentence:
+              // the engine names the master by its absolute path, and a deep
+              // capture directory alone is enough to push the card past a phone
+              // segment's canvas — which paints the reason as a striped
+              // overflow bar with its last lines simply gone. Half the canvas
+              // is the ceiling, and a card shorter than that still lays out at
+              // its own height, so the common case is unchanged.
+              //
+              // The pass-through this replaces was worth less than the words:
+              // it let a drag over the card pan a picture the same card is
+              // explaining is stale, and the picture above the card is still
+              // pannable either way.
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: _viewportSize.height / 2,
+                ),
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
                   child: NightshadeAlert(
                     severity: NightshadeAlertSeverity.error,

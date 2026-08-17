@@ -1064,6 +1064,28 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                             // the terminal event names the node
                             // the sweep reported against.
                             let completed_node_id = progress_node_id.clone();
+                            // Name the interlude before it starts
+                            // reporting progress.
+                            //
+                            // A synthesised trigger node has no
+                            // entry in the tree, so nothing emits
+                            // the "Executing: <name>" lifecycle
+                            // message the progress callback reads
+                            // display names out of — and its
+                            // fallback published the literal word
+                            // "Unknown" as the current node for the
+                            // whole sweep, on every surface, while
+                            // the id beside it spelled out
+                            // `trigger:hfr_degraded:autofocus`. The
+                            // trigger knows exactly what this is, so
+                            // it says so, in the same shape a tree
+                            // node uses; "Unknown" stays reserved
+                            // for work nobody can name.
+                            progress_context.send_progress(ProgressUpdate::lifecycle(
+                                progress_node_id.clone(),
+                                NodeStatus::Running,
+                                format!("Executing: Autofocus ({trigger_name})"),
+                            ));
                             let total_steps =
                                 af_config.steps_out.saturating_mul(2).saturating_add(1);
                             let progress_fn = move |progress: f64, detail_str: String| {

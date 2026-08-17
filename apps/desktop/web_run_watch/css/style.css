@@ -829,4 +829,17 @@ body {
 
 .toggle input { width: 18px; height: 18px; }
 
+/* A toggle whose API this origin does not have. Dimmed and not clickable, so
+   the control looks as inert as it is. */
+.toggle.unavailable { color: var(--text-secondary); cursor: not-allowed; }
+.toggle.unavailable input { cursor: not-allowed; }
+
+/* The reason it cannot work, stated under the toggle it belongs to. */
+.opt-note {
+  margin: -4px 0 8px 28px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
 .muted { color: var(--text-secondary); font-size: 12px; }

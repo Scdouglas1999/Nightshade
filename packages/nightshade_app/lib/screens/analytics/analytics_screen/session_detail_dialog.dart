@@ -1,16 +1,91 @@
 part of '../analytics_screen.dart';
 
-class _SessionDetailDialog extends ConsumerWidget {
+/// The layout width one header action occupies.
+///
+/// Material gives every [IconButton] a 48-pixel tap target whatever its glyph
+/// measures, so this is what the header has to budget per control — not the
+/// 18-pixel icon inside it.
+const double _kSessionHeaderActionExtent = 48;
+
+/// The narrowest the session name and its date may be squeezed before the
+/// action cluster has to fold into a menu.
+///
+/// Below this the title ellipsizes to a word or two and the header stops
+/// naming the session it belongs to, which is the one thing a dialog header
+/// exists to do.
+const double _kSessionHeaderTitleMinWidth = 180;
+
+/// One session-dialog header action: what it is called, what it does, and the
+/// glyph that stands for it.
+///
+/// Modelled rather than built inline because the same actions have to paint
+/// EITHER as icons in the header OR as rows in an overflow menu, and a control
+/// that exists in only one of the two forms is a control the accessibility tree
+/// and the screen disagree about.
+class _SessionHeaderAction {
+  const _SessionHeaderAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.buttonKey,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  /// Identifies the inline icon button; the menu row carries no key because it
+  /// only exists while the menu is open.
+  final Key? buttonKey;
+}
+
+class _SessionDetailDialog extends ConsumerStatefulWidget {
   final ImagingSession session;
 
   const _SessionDetailDialog({required this.session});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SessionDetailDialog> createState() =>
+      _SessionDetailDialogState();
+}
+
+class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
+  ImagingSession get session => widget.session;
+
+  /// Why the action the operator just pressed could not do what it offered.
+  ///
+  /// It is held HERE, and painted inside the dialog, because the dialog is what
+  /// stays up to carry it. Posted to the page's `ScaffoldMessenger` instead,
+  /// the sentence renders under this modal route: at every window width narrow
+  /// enough for the dialog to cover the SnackBar the operator read a refusal
+  /// with its first half hidden — "…t. Integrate it in Session Review" — and at
+  /// phone width only the last two words survived.
+  String? _refusal;
+
+  void _refuse(String reason) {
+    if (!mounted) return;
+    setState(() => _refusal = reason);
+  }
+
+  /// Run [action], dropping whatever the LAST action had to say first.
+  ///
+  /// A refusal is about the press that produced it. Left standing over the next
+  /// press it becomes a sentence about a control the operator has moved on
+  /// from — the alert would still read "this session has no integrated master"
+  /// while a CSV export was busy underneath it.
+  void _invoke(_SessionHeaderAction action) {
+    if (_refusal != null) setState(() => _refusal = null);
+    action.onPressed();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final imagesAsyncValue = ref.watch(dbSessionImagesProvider(session.id));
     final isRemote = ref.watch(backendProvider) is NetworkBackend;
     final l10n = context.l10n;
+    final actions = _headerActions(isRemote: isRemote, l10n: l10n);
+    final refusal = _refusal;
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -30,139 +105,85 @@ class _SessionDetailDialog extends ConsumerWidget {
                 color: colors.surfaceAlt,
                 border: Border(bottom: BorderSide(color: colors.border)),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          session.name ?? l10n.text('analyticsUnnamedSession'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: NightshadeTypography.h4.copyWith(
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          DateFormat('MMM d, yyyy HH:mm')
-                              .format(session.startTime),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: colors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Action buttons scroll horizontally so they never overflow
-                  // the header on narrow (phone-width) dialogs.
-                  Flexible(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      reverse: true,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Open the Session Review / Morning Report (cull +
-                          // integrate).
-                          _headerAction(
-                            key: const ValueKey('session_detail_review'),
-                            icon: LucideIcons.sparkles,
-                            label: isRemote
-                                ? 'Review on imaging host'
-                                : 'Review & Integrate',
-                            onPressed: () {
-                              if (isRemote) {
-                                context.showInfoSnackBar(
-                                  'Session Review is available on the imaging host.',
-                                );
-                                return;
-                              }
-                              Navigator.of(context).pop();
-                              context.push(
-                                  '/session-review?session=${session.id}');
-                            },
-                          ),
-                          // Open the night's linear master in the Darkroom.
-                          // Resolves the session's masters first so a session
-                          // that was never integrated says so instead of
-                          // opening an editor with nothing in it.
-                          _headerAction(
-                            key: const ValueKey('session_detail_darkroom'),
-                            icon: LucideIcons.sliders,
-                            label: isRemote
-                                ? 'Refine on imaging host'
-                                : 'Refine in Darkroom',
-                            onPressed: () async {
-                              // Resolve BEFORE dismissing: a session with no
-                              // master must leave the dialog up to carry the
-                              // explanation, and only a resolved master earns
-                              // the pop.
-                              final target =
-                                  await resolveDarkroomTargetForSession(
-                                ref,
-                                session.id,
-                              );
-                              if (!context.mounted) return;
-                              final masterId = target.masterId;
-                              if (masterId == null) {
-                                context.showInfoSnackBar(
-                                  target.unavailableReason!,
-                                );
-                                return;
-                              }
-                              Navigator.of(context).pop();
-                              openDarkroomForMaster(context, masterId);
-                            },
-                          ),
-                          // View the rich Feature-A session report.
-                          _headerAction(
-                            icon: LucideIcons.fileBarChart,
-                            label: 'Session Report',
-                            onPressed: () =>
-                                SessionReportDialog.show(context, session.id),
-                          ),
-                          // Export buttons
-                          _headerAction(
-                            icon: LucideIcons.fileJson,
-                            label: l10n.text('analyticsExportJson'),
-                            onPressed: () => _exportJson(context, ref),
-                          ),
-                          _headerAction(
-                            icon: LucideIcons.fileSpreadsheet,
-                            label: l10n.text('analyticsExportCsv'),
-                            onPressed: () => _exportCsv(context, ref),
-                          ),
-                          _headerAction(
-                            icon: LucideIcons.fileText,
-                            label: l10n.text('analyticsExportHtml'),
-                            onPressed: () => _exportReport(context, ref),
-                          ),
-                          // Share only exists where the OS has a share sheet.
-                          // On desktop `shareXFiles()` is unimplemented, and
-                          // the CSV button beside it already writes the same
-                          // file and shows its path.
-                          if (Platform.isAndroid || Platform.isIOS)
-                            _headerAction(
-                              icon: LucideIcons.share,
-                              label: l10n.text('share'),
-                              onPressed: () => _exportAndShare(context, ref),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // A Row hands its children unbounded width, so a cluster of
+                  // icon buttons beside a title does not shrink — the ones that
+                  // run past the end are clipped away while the accessibility
+                  // tree still advertises every one of them, and a tap on the
+                  // space where one used to be lands on nothing. Below the
+                  // width where the whole cluster and a readable title both
+                  // fit, they fold into a single overflow menu, so what the
+                  // tree reports is what paints.
+                  //
+                  // Close is not in that menu: it is how this modal is
+                  // dismissed, not one of the things it does.
+                  final inlineExtent =
+                      (actions.length + 1) * _kSessionHeaderActionExtent;
+                  final inline = constraints.maxWidth - inlineExtent >=
+                      _kSessionHeaderTitleMinWidth;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              session.name ??
+                                  l10n.text('analyticsUnnamedSession'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: NightshadeTypography.h4.copyWith(
+                                color: colors.textPrimary,
+                              ),
                             ),
-                          _headerAction(
-                            icon: LucideIcons.x,
-                            label: l10n.text('commonClose'),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('MMM d, yyyy HH:mm')
+                                  .format(session.startTime),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize12,
+                                  color: colors.textSecondary),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                      if (inline)
+                        for (final action in actions)
+                          _headerAction(
+                            key: action.buttonKey,
+                            icon: action.icon,
+                            label: action.label,
+                            onPressed: () => _invoke(action),
+                          )
+                      else
+                        _headerOverflowMenu(colors, actions),
+                      _headerAction(
+                        key: const ValueKey('session_detail_close'),
+                        icon: LucideIcons.x,
+                        label: l10n.text('commonClose'),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
+
+            // The refusal an action just returned, inside the route that
+            // carries it rather than under it.
+            if (refusal != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: NightshadeAlert(
+                  key: const ValueKey('session_detail_refusal'),
+                  severity: NightshadeAlertSeverity.info,
+                  message: refusal,
+                  onDismiss: () => setState(() => _refusal = null),
+                ),
+              ),
 
             // Content
             Expanded(
@@ -193,6 +214,136 @@ class _SessionDetailDialog extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// Everything this dialog can do to the session, in header order.
+  ///
+  /// The closures reach for `State.context`, not a context handed in: the
+  /// Darkroom action resolves the night's masters before it decides, and only a
+  /// `mounted` check on this State guards the context it uses on the far side
+  /// of that await.
+  List<_SessionHeaderAction> _headerActions({
+    required bool isRemote,
+    required NightshadeLocalizations l10n,
+  }) {
+    return [
+      // Open the Session Review / Morning Report (cull + integrate).
+      _SessionHeaderAction(
+        buttonKey: const ValueKey('session_detail_review'),
+        icon: LucideIcons.sparkles,
+        label: isRemote ? 'Review on imaging host' : 'Review & Integrate',
+        onPressed: () {
+          if (isRemote) {
+            _refuse('Session Review is available on the imaging host.');
+            return;
+          }
+          Navigator.of(context).pop();
+          context.push('/session-review?session=${session.id}');
+        },
+      ),
+      // Open the night's linear master in the Darkroom. Resolves the session's
+      // masters first so a session that was never integrated says so instead of
+      // opening an editor with nothing in it.
+      _SessionHeaderAction(
+        buttonKey: const ValueKey('session_detail_darkroom'),
+        icon: LucideIcons.sliders,
+        label: isRemote ? 'Refine on imaging host' : 'Refine in Darkroom',
+        onPressed: () async {
+          // Resolve BEFORE dismissing: a session with no master must leave the
+          // dialog up to carry the explanation, and only a resolved master
+          // earns the pop.
+          final target = await resolveDarkroomTargetForSession(
+            ref,
+            session.id,
+          );
+          if (!mounted) return;
+          final masterId = target.masterId;
+          if (masterId == null) {
+            _refuse(target.unavailableReason!);
+            return;
+          }
+          Navigator.of(context).pop();
+          openDarkroomForMaster(context, masterId);
+        },
+      ),
+      // View the rich Feature-A session report.
+      _SessionHeaderAction(
+        icon: LucideIcons.fileBarChart,
+        label: 'Session Report',
+        onPressed: () => SessionReportDialog.show(context, session.id),
+      ),
+      // Export buttons
+      _SessionHeaderAction(
+        icon: LucideIcons.fileJson,
+        label: l10n.text('analyticsExportJson'),
+        onPressed: () => _exportJson(context, ref),
+      ),
+      _SessionHeaderAction(
+        icon: LucideIcons.fileSpreadsheet,
+        label: l10n.text('analyticsExportCsv'),
+        onPressed: () => _exportCsv(context, ref),
+      ),
+      _SessionHeaderAction(
+        icon: LucideIcons.fileText,
+        label: l10n.text('analyticsExportHtml'),
+        onPressed: () => _exportReport(context, ref),
+      ),
+      // Share only exists where the OS has a share sheet. On desktop
+      // `shareXFiles()` is unimplemented, and the CSV button beside it already
+      // writes the same file and shows its path.
+      if (Platform.isAndroid || Platform.isIOS)
+        _SessionHeaderAction(
+          icon: LucideIcons.share,
+          label: l10n.text('share'),
+          onPressed: () => _exportAndShare(context, ref),
+        ),
+    ];
+  }
+
+  /// The folded form of the action cluster.
+  ///
+  /// One button that names itself, and the same actions as named rows once it
+  /// is opened — so a control is either painted and in the tree, or in neither.
+  Widget _headerOverflowMenu(
+    NightshadeColors colors,
+    List<_SessionHeaderAction> actions,
+  ) {
+    return PopupMenuButton<_SessionHeaderAction>(
+      key: const ValueKey('session_detail_actions_menu'),
+      icon: const Icon(
+        LucideIcons.moreVertical,
+        size: 18,
+        semanticLabel: 'Session actions',
+      ),
+      tooltip: 'Session actions',
+      onSelected: _invoke,
+      itemBuilder: (context) => [
+        for (final action in actions)
+          PopupMenuItem<_SessionHeaderAction>(
+            value: action,
+            child: Row(
+              children: [
+                Icon(
+                  action.icon,
+                  size: NightshadeTokens.iconSm,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                // Flexible, not min-sized: a label that grows by a word must
+                // wrap inside the menu rather than overflow its row.
+                Flexible(
+                  child: Text(
+                    action.label,
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 

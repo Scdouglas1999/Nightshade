@@ -921,4 +921,106 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+      'a missing master names the next step; a step failure is left alone',
+      (tester) async {
+    final id = await seedRecipe([_step('background_extract')]);
+    final scope = DarkroomScope.recipe(id);
+    final handle = await pump(tester, scope, size: const Size(1280, 1400));
+
+    // The master moves off disk. Every base-master refusal the engine raises
+    // quotes the path, and that is the one failure the operator can act on —
+    // outside this screen, which is why the failure card's own "Render again"
+    // cannot be the whole answer.
+    darkroom.previewError = DarkroomSeamException(
+      'renderPreview',
+      "cannot read '$_masterPath': No such file or directory (os error 2)",
+      StateError('missing master'),
+    );
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Render again'));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    var state = handle.container.read(darkroomControllerProvider(scope));
+    expect(state.renderError, contains('No such file or directory'));
+    expect(state.renderError, contains('restore the master at that path'));
+    expect(state.renderError, contains('re-integrate this night in Session'));
+
+    // A step failure names no file, so it keeps the engine's sentence and is
+    // not sent off to rebuild a master that is perfectly fine.
+    darkroom.previewError = DarkroomSeamException(
+      'renderPreview',
+      'step 0: background_extract refused sampleSpacing=0',
+      StateError('bad parameter'),
+    );
+    // Through the controller: the failure card above the button has grown by a
+    // sentence, so the button it used to sit beside is now off the window.
+    await handle.container
+        .read(darkroomControllerProvider(scope).notifier)
+        .refreshRender();
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    state = handle.container.read(darkroomControllerProvider(scope));
+    expect(state.renderError, contains('refused sampleSpacing=0'));
+    expect(state.renderError, isNot(contains('re-integrate this night')));
+    await drain(tester);
+  });
+
+  testWidgets('a long draft account collapses at a word, with a way to open it',
+      (tester) async {
+    const reason =
+        'this master has 1 channel(s) and the colour fit needs three, so this '
+        'draft covers the one channel it was given; to calibrate colour, '
+        'combine the per-filter masters into a single three-channel master and '
+        'draft that composite';
+    final id = await RecipesDao(db).create(
+      baseMasterPath: _masterPath,
+      name: 'Draft',
+      stepsJson: jsonEncode([_step('background_extract')]),
+      createdBy: RecipeAuthor.autopilot,
+      draftNotes: const [
+        RecipeDraftNote(
+          opId: 'color_calibrate',
+          outcome: 'omitted',
+          reason: reason,
+        ),
+      ],
+    );
+    await pump(tester, DarkroomScope.recipe(id));
+
+    expect(find.text('The draft left one operation out'), findsOneWidget);
+    // Collapsed: whole words and an explicit mark, never a clause cut in half
+    // by wherever the panel's scroll fold happens to land.
+    final collapsed = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((text) => text.data)
+        .whereType<String>()
+        .firstWhere((data) => data.startsWith('Color calibrate — omitted:'));
+    expect(collapsed.endsWith('…'), isTrue, reason: collapsed);
+    expect(collapsed, isNot(contains('draft that composite')));
+    expect(collapsed.length, lessThan(reason.length));
+    expect(
+      RegExp(r'\S…$').hasMatch(collapsed) &&
+          !RegExp(r'\s…$').hasMatch(collapsed),
+      isTrue,
+      reason: 'the cut lands after a whole word: $collapsed',
+    );
+
+    final expand = find.widgetWithText(
+      NightshadeButton,
+      'Show the whole reason',
+    );
+    expect(expand, findsOneWidget);
+    await tester.ensureVisible(expand);
+    await tester.pump();
+    await tester.tap(expand);
+    await tester.pump();
+
+    expect(find.textContaining('draft that composite'), findsOneWidget);
+    expect(find.widgetWithText(NightshadeButton, 'Show less'), findsOneWidget);
+    await drain(tester);
+  });
 }

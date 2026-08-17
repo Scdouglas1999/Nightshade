@@ -14,6 +14,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 
 import '../darkroom_delivery/delivery_service.dart';
 import 'dawn_draft_builder.dart';
@@ -273,6 +274,43 @@ class DawnMasterStats {
   }
 }
 
+/// What a master's file looked like at one instant.
+///
+/// Taken when the pass opens the master to read its pixels, and taken again
+/// when delivery stages that same path. The two are compared because they are
+/// separated by everything the draft stage does: a file that is a different
+/// size or carries a different modification time at the second reading is not
+/// the file this pass measured, whatever its name still says.
+class DawnSourceStat {
+  /// Size in bytes.
+  final int bytes;
+
+  /// Last modification time as the filesystem reports it.
+  final DateTime modified;
+
+  const DawnSourceStat({required this.bytes, required this.modified});
+
+  /// Stat [path], or null when it cannot be stat-ed at all.
+  ///
+  /// A null is not "unchanged": callers state which reading is missing rather
+  /// than treating an unmeasurable file as a match.
+  static Future<DawnSourceStat?> of(String path) async {
+    final stat = await FileStat.stat(path);
+    if (stat.type == FileSystemEntityType.notFound) return null;
+    return DawnSourceStat(bytes: stat.size, modified: stat.modified);
+  }
+
+  /// True when [other] is the same file contents this reading saw.
+  bool matches(DawnSourceStat other) =>
+      bytes == other.bytes && modified.isAtSameMomentAs(other.modified);
+
+  /// The reading as report JSON.
+  Map<String, dynamic> toJson() => {
+    'bytes': bytes,
+    'modified': modified.toUtc().toIso8601String(),
+  };
+}
+
 /// One master's line in the morning report.
 class DawnMasterReport {
   /// The master itself.
@@ -296,6 +334,20 @@ class DawnMasterReport {
   /// Why this master has no draft, or null when it has one.
   final String? failure;
 
+  /// What the master's file was when this pass opened it to read its pixels,
+  /// or null when it could not be stat-ed then.
+  ///
+  /// Delivery re-reads the same file later and compares; see
+  /// [withheldFromDelivery].
+  final DawnSourceStat? sourceAtRead;
+
+  /// Why delivery staging refused this master's file, or null when it was
+  /// staged (or never a candidate).
+  ///
+  /// Written by the delivery stage, not the draft stage: the draft stage's
+  /// verdict is [failure].
+  final String? withheldFromDelivery;
+
   const DawnMasterReport({
     required this.master,
     required this.targetName,
@@ -304,7 +356,22 @@ class DawnMasterReport {
     required this.recipeId,
     required this.draftRenderPath,
     required this.failure,
+    this.sourceAtRead,
+    this.withheldFromDelivery,
   });
+
+  /// This line with the delivery stage's refusal recorded on it.
+  DawnMasterReport withheldAtStaging(String reason) => DawnMasterReport(
+    master: master,
+    targetName: targetName,
+    stats: stats,
+    draft: draft,
+    recipeId: recipeId,
+    draftRenderPath: draftRenderPath,
+    failure: failure,
+    sourceAtRead: sourceAtRead,
+    withheldFromDelivery: reason,
+  );
 
   /// True when a draft image exists for this master.
   bool get hasDraft => draftRenderPath != null;
@@ -317,9 +384,26 @@ class DawnMasterReport {
   /// vanished — while a non-null draft with a [failure] means the pixels were
   /// read and a later stage (the export, the step measurement) stopped.
   ///
-  /// Delivery keys on this: a master whose bytes could not be read must not be
-  /// copied to a destination as though it were the night's result.
+  /// This is the TIME OF CHECK. It says what was true when the draft was
+  /// composed, which is minutes before delivery copies anything, so it is only
+  /// half the gate — [deliverable] is the other half.
   bool get pixelsWereRead => draft != null;
+
+  /// True when this master's file goes to a destination.
+  ///
+  /// Both halves must hold: the pass read these pixels, AND the file delivery
+  /// staged is still the file the pass read. A master that satisfies only the
+  /// first was measured and then changed underneath the job, and copying it out
+  /// would put bytes the pipeline never measured in the operator's hands under
+  /// the name of the night's result.
+  bool get deliverable => pixelsWereRead && withheldFromDelivery == null;
+
+  /// Why this master reached no destination, or null when it did.
+  String? get notDeliveredBecause {
+    if (withheldFromDelivery != null) return withheldFromDelivery;
+    if (pixelsWereRead) return null;
+    return failure ?? 'its pixels could not be read';
+  }
 
   /// The master as report JSON.
   Map<String, dynamic> toJson() => {
@@ -343,6 +427,8 @@ class DawnMasterReport {
         ? const <Map<String, dynamic>>[]
         : [for (final note in draft!.notes) note.toJson()],
     'failure': failure,
+    'sourceAtRead': sourceAtRead?.toJson(),
+    'withheldFromDelivery': withheldFromDelivery,
   };
 }
 

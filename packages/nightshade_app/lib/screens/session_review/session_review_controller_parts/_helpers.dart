@@ -109,7 +109,17 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
         // Chosen by timestamp, not by position: the feed is pinned-first, so a
         // pinned discovery reorders it. A night interrupted twice states the
         // interruption that stands.
-        if (newest == null || event.timestamp.isAfter(newest.timestamp)) {
+        //
+        // Row id breaks a tie, because these timestamps are stored to the
+        // second and two records of one night CAN land inside one — the
+        // open-time recovery writes the interruption and, when the retry cap
+        // ends the same job, the correction that revokes it. The row written
+        // later is the record that stands, and its id is the only thing that
+        // says which one that was.
+        if (newest == null ||
+            event.timestamp.isAfter(newest.timestamp) ||
+            (event.timestamp.isAtSameMomentAs(newest.timestamp) &&
+                event.id > newest.id)) {
           newest = event;
         }
       }

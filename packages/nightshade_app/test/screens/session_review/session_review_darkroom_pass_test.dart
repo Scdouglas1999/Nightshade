@@ -142,6 +142,55 @@ void main() {
     expect(widget.message, contains('12 files are still owed'));
   });
 
+  testWidgets(
+      'a note that is already a sentence is not wrapped in the stage '
+      'frame', (tester) async {
+    // The open-time recovery writes a finished sentence into the same column
+    // the executor writes a stage name into. Framed as a stage this rendered
+    // "It was Stopped at the retry limit; this job is not re-queued. when it
+    // stopped." — a full stop mid-clause and a dangling tail.
+    when(() => jobs.listForSession(1)).thenAnswer(
+      (_) async => [
+        _job(
+          DarkroomJobState.failed,
+          errorText: 'Interrupted by a process exit on attempt 3; the limit '
+              'is 3 starts, so it is not retried.',
+          note: 'Stopped at the retry limit; this job is not re-queued.',
+        ),
+      ],
+    );
+
+    await pumpNarrative(tester);
+
+    final message = tester.widget<NightshadeInlineBanner>(banner).message;
+    expect(message, isNot(contains('It was Stopped')));
+    expect(message, isNot(contains('re-queued. when it stopped')));
+    expect(
+      message,
+      contains(
+        'so it is not retried. Stopped at the retry limit; this job is not '
+        're-queued. The subs',
+      ),
+    );
+  });
+
+  testWidgets('a stage fragment still reads as one clause', (tester) async {
+    when(() => jobs.listForSession(1)).thenAnswer(
+      (_) async => [
+        _job(
+          DarkroomJobState.failed,
+          errorText: 'the render engine stopped answering',
+          note: 'Drafting Master · B',
+        ),
+      ],
+    );
+
+    await pumpNarrative(tester);
+
+    final message = tester.widget<NightshadeInlineBanner>(banner).message;
+    expect(message, contains('It was Drafting Master · B when it stopped.'));
+  });
+
   testWidgets('a pass that ran to the end adds nothing', (tester) async {
     when(() => jobs.listForSession(1))
         .thenAnswer((_) async => [_job(DarkroomJobState.done)]);

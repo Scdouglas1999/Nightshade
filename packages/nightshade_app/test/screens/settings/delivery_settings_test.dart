@@ -932,6 +932,70 @@ void main() {
   );
 
   testWidgets(
+    'a client launched against a host it has not reached yet is still a client',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'local-only',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/local"}',
+        content: {ArtifactContent.linearMasters},
+      );
+
+      await pumpAppScreen(
+        tester,
+        const DeliverySettings(),
+        database: database,
+        size: const Size(1280, 1000),
+        extraOverrides: [
+          ..._overrides(),
+          // The launch flags said `--remote-host`; the handshake has not landed
+          // (or has dropped), so the connection-shaped gate reads false. A
+          // destination added here would go into a database no dawn job reads.
+          remoteClientLaunchProvider.overrideWithValue(true),
+          isRemoteModeProvider.overrideWithValue(false),
+        ],
+      );
+
+      expect(
+        find.text('Delivery destinations live on the imaging host'),
+        findsOneWidget,
+      );
+      expect(find.text('Add watched folder'), findsNothing);
+      expect(find.text('local-only'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a host launch keeps its own destination editor',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+
+      await pumpAppScreen(
+        tester,
+        const DeliverySettings(),
+        database: database,
+        size: const Size(1280, 1000),
+        extraOverrides: [
+          ..._overrides(),
+          remoteClientLaunchProvider.overrideWithValue(false),
+          isRemoteModeProvider.overrideWithValue(false),
+        ],
+      );
+
+      expect(
+        find.text('Delivery destinations live on the imaging host'),
+        findsNothing,
+      );
+      expect(find.text('Add watched folder'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'undecodable_row_is_its_own_failure: the page still lists the '
     'destinations that decode, and names the one that does not',
     (tester) async {

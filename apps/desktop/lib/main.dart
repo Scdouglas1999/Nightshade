@@ -165,6 +165,13 @@ void main(List<String> args) async {
 
   final container = ProviderContainer(
     overrides: [
+      // The role this launch established, published for the surfaces that must
+      // decide whose data they are editing. It is NOT the same fact as "a
+      // remote connection is open": between launch and the first successful
+      // handshake — and after any drop — a `--remote-host` client is not
+      // connected, and a screen that reads the connection instead of the role
+      // offers it the imaging host's editor over its own empty database.
+      remoteClientLaunchProvider.overrideWithValue(remoteTarget != null),
       // Initialize backendProvider for the desktop GUI. Default: the local
       // FfiBackend (this machine owns the hardware). With --remote-host, run as
       // a thin client against a remote headless rig via NetworkBackend instead,
