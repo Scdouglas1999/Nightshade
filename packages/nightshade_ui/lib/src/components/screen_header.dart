@@ -50,6 +50,8 @@ class ScreenHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: NightshadeTypography.h3.copyWith(
                     color: colors.textPrimary,
                   ),
@@ -58,6 +60,8 @@ class ScreenHeader extends StatelessWidget {
                   const SizedBox(height: NightshadeTokens.spaceXs),
                   Text(
                     subtitle!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: NightshadeTypography.bodySm.copyWith(
                       color: colors.textSecondary,
                     ),
@@ -66,7 +70,16 @@ class ScreenHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) trailing!,
+          // A Row hands non-flexed children unbounded width, so a Wrap of
+          // actions placed here can never wrap — it overflows. Flexible
+          // bounds the slot; a wide action cluster reflows onto extra rows.
+          if (trailing != null)
+            Flexible(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: trailing!,
+              ),
+            ),
         ],
       ),
     );
