@@ -1142,9 +1142,25 @@ impl SequenceExecutor {
                         // Report and the persisted `errorMessages` all showed
                         // the placeholder. Prefer the structural reason, then
                         // the last instruction that actually reported one.
-                        let error = unreachable_failure_reason
-                            .or_else(|| last_instruction_failure(&mut instruction_failure_rx))
-                            .unwrap_or_else(|| "Sequence failed".to_string());
+                        let reason = unreachable_failure_reason
+                            .or_else(|| last_instruction_failure(&mut instruction_failure_rx));
+                        // The LAST progress message the node tree emits is the
+                        // root container's "Failed: <root name>"
+                        // (`node/runtime.rs`) — it names the container the
+                        // operator never configured and gives no reason at all,
+                        // and it is verbatim what `GET /api/sequencer/status`
+                        // returns as `message`. A night that died on an
+                        // unevaluable target trigger therefore answered
+                        // "Failed: Night root" to every remote client and
+                        // morning operator while the real refusal sat in the
+                        // Rust log. When the run HAS a reason, that reason is
+                        // the honest terminal message. When it has none, the
+                        // node name is left in place rather than replaced with
+                        // a second placeholder.
+                        if let Some(reason) = reason.as_deref() {
+                            progress.write().message = Some(reason.to_string());
+                        }
+                        let error = reason.unwrap_or_else(|| "Sequence failed".to_string());
                         let _ = event_tx.send(ExecutorEvent::SequenceFailed {
                             error: error.clone(),
                         });

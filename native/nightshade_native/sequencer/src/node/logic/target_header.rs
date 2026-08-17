@@ -526,11 +526,31 @@ async fn wait_for_trigger(
     // rig were on the equator.
     if trigger.references_altitude() && (context.latitude.is_none() || context.longitude.is_none())
     {
-        tracing::error!(
-            "Target {} has altitude-bearing start_when ({}) but observer location is unset; cannot evaluate",
-            config.display_name(),
+        let target_label = config.display_name();
+        let reason = format!(
+            "This target waits for {} before it starts, but no observer location is set, so \
+             the sequencer cannot work out whether the target is up. Set the observer \
+             latitude and longitude in Settings, then start the sequence again.",
             trigger.label()
         );
+        tracing::error!("Target {}: {}", target_label, reason);
+        // The refusal has to leave the log. `InstructionFailed` is the one
+        // channel the run's terminal handler drains for
+        // `SequenceFailed { error }` (`executor::preflight::last_instruction_failure`),
+        // and the bridge already re-publishes it as a mid-run
+        // `SequencerEvent::Error`. Publishing here is therefore what puts the
+        // reason on `/api/sequencer/status`, in the run's
+        // `statsJson.errorMessages` and in the Session Report — instead of the
+        // "Sequence failed" placeholder the terminal handler falls back to when
+        // no node reported a reason. A container node rather than an
+        // instruction is still the node that failed, and the drain formats the
+        // pair as "<node>: <reason>", which is what the operator needs to read.
+        if let Some(event_tx) = context.event_tx.as_ref() {
+            let _ = event_tx.send(crate::executor::ExecutorEvent::InstructionFailed {
+                node_name: target_label,
+                message: reason,
+            });
+        }
         return NodeStatus::Failure;
     }
 
@@ -1342,7 +1362,9 @@ mod tests {
     }
 
     /// altitude-bearing `start_when` without an observer fails
-    /// closed instead of silently behaving like we're at lat=0/lon=0.
+    /// closed instead of silently behaving like we're at lat=0/lon=0 — AND
+    /// publishes the reason, so the run's terminal event can quote it instead
+    /// of falling back to "Sequence failed".
     #[tokio::test]
     async fn altitude_start_when_without_observer_fails() {
         let clock = MockClock::at("2026-01-15T22:00:00Z");
@@ -1363,6 +1385,8 @@ mod tests {
         let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
         let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock);
         // No latitude / longitude → fail closed.
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
+        ctx.event_tx = Some(event_tx);
 
         let config = match &node.definition.node_type {
             NodeType::TargetHeader(c) => c.clone(),
@@ -1370,5 +1394,34 @@ mod tests {
         };
         let status = execute_target_header(&mut node, config, &mut ctx).await;
         assert_eq!(status, NodeStatus::Failure);
+
+        // The executor drains exactly this variant to fill
+        // `SequenceFailed { error }`; without it the operator reads only the
+        // placeholder while the reason stays in the Rust log.
+        let mut published = None;
+        while let Ok(event) = event_rx.try_recv() {
+            if let crate::executor::ExecutorEvent::InstructionFailed { node_name, message } = event
+            {
+                published = Some((node_name, message));
+            }
+        }
+        let (node_name, reason) =
+            published.expect("the refusal published an InstructionFailed reason");
+        assert_eq!(
+            node_name, "M31",
+            "the reason must be attributed to the target that refused"
+        );
+        assert!(
+            reason.contains("altitude ≥ 35.0°"),
+            "the reason must quote the condition that could not be evaluated, got: {reason}"
+        );
+        assert!(
+            reason.contains("no observer location is set"),
+            "the reason must say WHY it could not be evaluated, got: {reason}"
+        );
+        assert!(
+            reason.contains("latitude and longitude in Settings"),
+            "the reason must tell the operator how to fix it, got: {reason}"
+        );
     }
 }

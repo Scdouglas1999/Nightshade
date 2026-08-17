@@ -489,6 +489,83 @@ async fn a_failed_run_reports_the_reason_the_instruction_gave() {
     );
 }
 
+/// A night that dies on a target trigger it cannot evaluate must say so on the
+/// surfaces an operator can reach.
+///
+/// The last progress message the tree emits is the ROOT container's
+/// "Failed: <root name>", and that string is verbatim what
+/// `GET /api/sequencer/status` returns as `message`. A run refused for a
+/// missing observer location therefore answered "Failed: Night root" — the
+/// container the operator never configured — while the real refusal sat in the
+/// Rust log only. Both halves are asserted here: the terminal event carries the
+/// reason (that is what reaches `stats_json.errorMessages` and the Session
+/// Report) and the run's own progress message carries it too (that is what
+/// reaches `/api/sequencer/status`).
+#[tokio::test]
+async fn an_unevaluable_target_trigger_states_its_reason_on_the_run() {
+    let mut sequence = SequenceDefinition::new("No observer".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "root".to_string(),
+        name: "Night root".to_string(),
+        node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig {
+            target_name: "D3 Field".to_string(),
+            ra_hours: 20.9629,
+            dec_degrees: 40.0,
+            start_when: Some(crate::scheduling::TargetTrigger::AltitudeAbove(35.0)),
+            ..Default::default()
+        }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("root".to_string());
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    // No observer location is set on the executor — the condition under test.
+    executor.load_sequence(sequence).expect("sequence loads");
+    let mut events = executor.subscribe();
+
+    executor.start().await.expect("run starts");
+
+    for _ in 0..200 {
+        if matches!(
+            executor.get_state().await,
+            ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+        ) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    assert_eq!(
+        executor.get_state().await,
+        ExecutorState::Failed,
+        "a target trigger that cannot be evaluated must fail the run closed"
+    );
+
+    let mut failure_reason = None;
+    while let Ok(event) = events.try_recv() {
+        if let ExecutorEvent::SequenceFailed { error } = event {
+            failure_reason = Some(error);
+        }
+    }
+    let reason = failure_reason.expect("a failed run must publish a terminal failure reason");
+    assert!(
+        reason.contains("D3 Field") && reason.contains("no observer location is set"),
+        "the terminal event must name the target and the reason, not the \
+         \"Sequence failed\" placeholder; got: {reason}"
+    );
+
+    let message = executor
+        .get_progress()
+        .message
+        .expect("a terminal run publishes a progress message");
+    assert_eq!(
+        message, reason,
+        "GET /api/sequencer/status returns this string; it must be the reason, \
+         not the root container's \"Failed: Night root\""
+    );
+}
+
 #[test]
 fn last_instruction_failure_prefers_the_most_recent_reason() {
     let (tx, mut rx) = broadcast::channel(16);
