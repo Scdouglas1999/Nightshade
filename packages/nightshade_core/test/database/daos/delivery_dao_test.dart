@@ -244,13 +244,14 @@ void main() {
         createdAt: DateTime.utc(2026, 8, 16, 6),
       );
 
-      expect((await targets.listAll()).map((d) => d.id).toList(), <int>[
-        on,
-        off,
-      ]);
-      expect((await targets.listEnabled()).map((d) => d.id).toList(), <int>[
-        on,
-      ]);
+      expect(
+        (await targets.readAll()).destinations.map((d) => d.id).toList(),
+        <int>[on, off],
+      );
+      expect(
+        (await targets.readEnabled()).destinations.map((d) => d.id).toList(),
+        <int>[on],
+      );
     });
   });
 

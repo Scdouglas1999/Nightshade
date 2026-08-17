@@ -282,6 +282,30 @@ void main() {
     expect(stateFor(root).branches.single.stepCount, isNull);
   });
 
+  test('a lineage over a deleted recipe names the way back', () async {
+    final root = await dao.create(
+      baseMasterPath: _masterPath,
+      name: 'Draft',
+      stepsJson: _steps(2),
+      createdBy: RecipeAuthor.autopilot,
+    );
+    final controller = controllerFor(root);
+    await controller.refresh();
+    expect(stateFor(root).lineageError, isNull);
+
+    // The row goes while the editor is still open on it — the shape a delete
+    // from another surface takes.
+    await dao.deleteRecipe(root);
+    await controller.refresh();
+
+    final error = stateFor(root).lineageError!;
+    // The DAO's own sentence, kept verbatim…
+    expect(error, contains('Recipe $root does not exist'));
+    // …and the next step it does not carry, which every other failure on this
+    // screen states.
+    expect(error, contains('Press Reload'));
+  });
+
   test('a recipe with no master path explains why it has no family', () async {
     final controller = container.read(
       darkroomBranchControllerProvider(

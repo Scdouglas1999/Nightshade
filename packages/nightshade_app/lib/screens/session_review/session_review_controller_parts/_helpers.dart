@@ -15,6 +15,7 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
       // Scope the reviewed master to THIS review's subs (see
       // [SessionReviewState.reviewedMaster]); `masters` stays the library list.
       final reviewed = await _resolveReviewedMaster(masters, subs);
+      final darkroomJob = await _loadDarkroomJob();
 
       if (!mounted) return;
       state = state.copyWith(
@@ -26,6 +27,8 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
         masters: masters,
         reviewedMaster: reviewed,
         clearReviewedMaster: reviewed == null,
+        darkroomJob: darkroomJob,
+        clearDarkroomJob: darkroomJob == null,
         loading: false,
         clearError: true,
       );
@@ -44,6 +47,37 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(loading: false, error: 'Failed to load: $e');
+    }
+  }
+
+  /// The newest Darkroom pass queued for this session, or null.
+  ///
+  /// Session scope only: a target review spans nights that were each processed
+  /// by their own job, so there is no one pass to report. The newest row wins
+  /// because a re-run is the operator's answer to the run before it, and the
+  /// answer is the state that stands — `listForSession` already orders newest
+  /// first, so that is its first row.
+  ///
+  /// Its own failure is caught: this row is a report, and a database that
+  /// cannot answer for it must not take the sub list, the masters and the
+  /// verdict down with it. The screen then simply has no pass to state, which
+  /// is what it had before this read existed.
+  Future<DarkroomJob?> _loadDarkroomJob() async {
+    final sessionId = _scope.sessionId;
+    if (sessionId == null) return null;
+    try {
+      final jobs = await _ref.read(darkroomJobsDaoProvider).listForSession(
+            sessionId,
+          );
+      return jobs.isEmpty ? null : jobs.first;
+    } catch (e) {
+      _ref.read(loggingServiceProvider).warning(
+        'The Darkroom pass for this session could not be read, so Session '
+        'Review cannot state how it ended',
+        source: 'SessionReviewController',
+        fields: {'sessionId': sessionId, 'error': '$e'},
+      );
+      return null;
     }
   }
 

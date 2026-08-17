@@ -23,16 +23,16 @@ enum _DarkroomCompareMode {
 ///
 /// **One transform, two viewers.** Both panes are handed the SAME
 /// [TransformationController], so a drag-pan or a pinch in either moves both.
-/// [AstroImageViewer.onTransformChanged] is not used for this: it fires only
-/// from the wheel-zoom handler, so a sync built on it would come apart the
-/// moment the operator dragged. The controller is owned here and disposed here;
-/// the viewer never disposes one it did not create.
+/// A per-pane controller kept in step by a callback would come apart the moment
+/// the operator dragged, because a drag reaches no callback. The controller is
+/// owned here and disposed here; the surface never disposes one it did not
+/// create.
 ///
-/// **Each pane mounts once.** Blink shows one side at a time by building only
-/// that side, and side-by-side builds two independent subtrees. Nothing in
-/// either path carries a `GlobalKey`: two panes are the same widget type over
-/// the same data, and a shared static key is how the second one silently fails
-/// to mount in a release build.
+/// **Each pane mounts once.** Both modes build both panes — side by side paints
+/// them together, blink paints one at a time — so neither swap tears a pane's
+/// decoded frame down. Nothing in either path carries a `GlobalKey`: two panes
+/// are the same widget type over the same data, and a shared static key is how
+/// the second one silently fails to mount in a release build.
 ///
 /// **Both sides render the same master at the same preview budget**, so they
 /// answer at the same pyramid level and one transform describes both. What
@@ -246,13 +246,27 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
     );
   }
 
-  /// Blink mode builds ONE pane. Building both and hiding one would keep two
-  /// decoded images alive for a full-resolution master and would mount the same
-  /// subtree twice for no gain.
+  /// Blink keeps BOTH panes mounted and paints one of them.
+  ///
+  /// Building only the showing side tore the other one down on every tick, so
+  /// each swap re-mounted a pane with no decoded frame and the comparator
+  /// showed a blank for roughly half of each 700 ms cycle — destroying the
+  /// afterimage that is the entire reason to blink rather than look side by
+  /// side. Two mounted panes hold their own decoded frames, so the swap is a
+  /// buffer change with nothing in between.
+  ///
+  /// [IndexedStack] rather than opacity or offstage: it lays both out, paints
+  /// only the indexed one, and walks only that one for semantics, so the hidden
+  /// recipe is not announced as being on screen.
   Widget _blinkPane(NightshadeColors colors, DarkroomState bState) {
-    return _showA
-        ? _pane(colors, widget.aLabel, 'A', widget.aState)
-        : _pane(colors, widget.bLabel, 'B', bState);
+    return IndexedStack(
+      index: _showA ? 0 : 1,
+      sizing: StackFit.expand,
+      children: [
+        _pane(colors, widget.aLabel, 'A', widget.aState),
+        _pane(colors, widget.bLabel, 'B', bState),
+      ],
+    );
   }
 
   Widget _pane(
@@ -285,14 +299,11 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
             color: colors.background,
             child: preview == null
                 ? _paneEmpty(state)
-                : AstroImageViewer(
-                    imageData: preview.rgba,
-                    width: preview.width,
-                    height: preview.height,
-                    isColor: preview.isColor,
+                : _DarkroomImageSurface(
+                    preview: preview,
+                    transform: _transform,
                     minScale: kDarkroomMinViewerScale,
                     maxScale: kDarkroomMaxViewerScale,
-                    transformationController: _transform,
                   ),
           ),
         ),

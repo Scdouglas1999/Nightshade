@@ -54,6 +54,9 @@
     pingInterval: null,
     wsFallbackPollInterval: null,
     lastWsMessageAt: 0,
+    // Link health — see renderLinkState(). Set only by a failed reachability
+    // probe; an HTTP error means the server answered and is not unreachable.
+    serverUnreachable: false,
     panelLastUpdate: {
       devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0,
       focuser: 0, 'filter-wheel': 0, rotator: 0,
@@ -697,11 +700,12 @@
         msg = 'Pairing code expired. Click Pair again to request a new one.';
       } else if (msg.includes('pairing_code_already_used')) {
         msg = 'That code has already been claimed. Click Pair to start over.';
-      } else if (msg.includes('429') || msg.includes('temporarily locked')) {
+      } else if (e.kind === 'rate_limited' || msg.includes('429') ||
+                 msg.includes('temporarily locked')) {
         msg = 'Too many failed attempts. Wait a moment before trying again.';
       }
       setPairModalStatus(msg, 'error');
-      addLogEntry('error', 'Pairing failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Pairing'));
     }
   }
 
@@ -1043,6 +1047,9 @@
 
     api.on('ws:disconnected', () => {
       addLogEntry('system', 'WebSocket disconnected, reconnecting...');
+      // A closed socket is the first hint the server may be gone. Probe now
+      // rather than waiting for the next 2 s watchdog tick to notice.
+      probeServerReachable();
     });
 
     api.on('ws:activity', () => {
@@ -1095,9 +1102,136 @@
     }
   }
 
+  // =========================================================================
+  // Link health
+  //
+  // `api.isConnected` is set once at connect and never cleared, so a dead
+  // backend left the header on a green "Connected" and the sequencer badge on
+  // "running" indefinitely — measured at 65 s after SIGKILL with no change.
+  // The block below is the dashboard's answer to "is what I am looking at
+  // real": one reachability probe, one banner, one status flip.
+  // =========================================================================
+
+  // How long the dashboard may go without a completed exchange before it must
+  // stop presenting its cache as live. The WS heartbeat is 30 s, so this is
+  // one heartbeat plus a probe's worth of slack.
+  const SERVER_CONTACT_STALE_MS = 12000;
+  // Cadence of the reachability probe while the socket is down. Well inside
+  // the read budget (60/s) and cheap: /api/info is a static answer.
+  const REACHABILITY_PROBE_MS = 5000;
+
+  let lastReachabilityProbeAt = 0;
+  let reachabilityProbeInFlight = false;
+
+  /// Ask the server whether it is there. Records the outcome on `state` and
+  /// repaints; never throws.
+  async function probeServerReachable() {
+    if (reachabilityProbeInFlight) return;
+    if (!api.baseUrl) return;
+    reachabilityProbeInFlight = true;
+    lastReachabilityProbeAt = Date.now();
+    try {
+      await api.getInfo();
+      state.serverUnreachable = false;
+    } catch (e) {
+      // Only a transport failure proves absence. A 401/500/429 is the server
+      // answering, which means it is alive and something else is wrong.
+      state.serverUnreachable = Boolean(
+        e && (e.kind === 'unreachable' || e.kind === 'timeout'),
+      );
+    } finally {
+      reachabilityProbeInFlight = false;
+      renderLinkState();
+    }
+  }
+
+  /// Most recent proof the server exists: any completed HTTP exchange (the API
+  /// client stamps every one, whatever the status) or any WebSocket frame.
+  function lastServerContactAt() {
+    return Math.max(api.lastContactAt || 0, state.lastWsMessageAt || 0);
+  }
+
+  /// True when the dashboard cannot vouch for what it is showing.
+  function isServerContactStale() {
+    const last = lastServerContactAt();
+    // A probe that failed with nothing succeeding since it started is
+    // decisive — no need to wait out the staleness window.
+    if (state.serverUnreachable && last <= lastReachabilityProbeAt) return true;
+    if (last === 0) return false;
+    return Date.now() - last > SERVER_CONTACT_STALE_MS;
+  }
+
+  function formatAgeSeconds(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 60) return s + 's';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ' + (s % 60) + 's';
+    return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+  }
+
+  /// Repaint the banner + header status from the current link state. The
+  /// header must never read "Connected" while this returns stale.
+  function renderLinkState() {
+    const banner = document.getElementById('link-banner');
+    const text = document.getElementById('status-text');
+    const dot = document.getElementById('status-dot');
+    const waiting = api.rateLimitRemainingSecs;
+    const stale = isServerContactStale();
+
+    if (!stale) {
+      if (banner) {
+        if (waiting > 0) {
+          banner.classList.remove('hidden');
+          banner.textContent =
+            'Server is rate-limiting this session — polling paused for ' +
+            waiting + 's.';
+        } else {
+          banner.classList.add('hidden');
+          banner.textContent = '';
+        }
+      }
+      // Restore the header only if the connect path still believes it holds a
+      // session; setConnectionStatus owns the connected/connecting wording.
+      if (api.isConnected && text && text.textContent === 'No contact') {
+        setConnectionStatus('connected');
+      }
+      return;
+    }
+
+    const last = lastServerContactAt();
+    const age = last > 0 ? Date.now() - last : null;
+    if (text) text.textContent = 'No contact';
+    if (dot) dot.className = 'status-dot error';
+    if (banner) {
+      banner.classList.remove('hidden');
+      banner.textContent =
+        (state.serverUnreachable
+          ? 'Cannot reach the Nightshade server.'
+          : 'No answer from the Nightshade server.') +
+        (age == null
+          ? ' Nothing has been received yet.'
+          : ' Last contact ' + formatAgeSeconds(age) +
+            ' ago. Every value below is from then and may be wrong.');
+    }
+    // The sequencer badge is the single most misleading survivor of a dead
+    // backend: a green "running" for a rig that may have been off for an hour.
+    const seqStatus = document.getElementById('seq-status');
+    if (seqStatus) renderBadge(seqStatus, 'unknown', 'badge-error');
+    const opsSeqProgressText = document.getElementById('ops-seq-progress-text');
+    if (opsSeqProgressText) opsSeqProgressText.textContent = '--';
+  }
+
   function checkStaleness() {
     const now = Date.now();
     const wsSilentMs = state.lastWsMessageAt > 0 ? now - state.lastWsMessageAt : Infinity;
+
+    // Reachability: while the socket is down, ask the server directly rather
+    // than inferring health from a silence the socket cannot explain.
+    if (api.isConnected && !api.isWsConnected &&
+        now - lastReachabilityProbeAt > REACHABILITY_PROBE_MS) {
+      probeServerReachable();
+    }
+    renderLinkState();
 
     // Fallback polling: only when WS has been silent past the threshold.
     if (api.isConnected && wsSilentMs > WS_FALLBACK_THRESHOLD_MS) {
@@ -1158,7 +1292,29 @@
   // Data fetching
   // =========================================================================
 
+  /// One place that turns a REST failure into something an operator can act
+  /// on. A rate-limit refusal is a cadence fact, not a stack trace, and its
+  /// JSON body must never reach the log panel; an unreachable server is
+  /// already stated by the link banner.
+  function describeApiError(e, what) {
+    if (e && e.kind === 'rate_limited') {
+      return what + ' skipped: server is rate-limiting this session (retry in ' +
+        (e.retryAfterSecs || 1) + 's)';
+    }
+    if (e && (e.kind === 'unreachable' || e.kind === 'timeout')) {
+      return what + ' failed: no answer from the server';
+    }
+    return what + ' failed: ' + (e && e.message ? e.message : String(e));
+  }
+
   async function fetchAllStatus() {
+    // Honour the server's own retry window instead of firing a dozen requests
+    // into a bucket we know is empty: each would be refused, and each refusal
+    // used to print the limiter's JSON body into the operator's log.
+    if (api.rateLimitRemainingSecs > 0) {
+      renderLinkState();
+      return;
+    }
     // Device IDs are prerequisites for every equipment-status request.
     // Running discovery in the same Promise.all caused a cold dashboard to
     // skip camera/mount/filter-wheel status whenever those tasks won the race
@@ -1245,7 +1401,7 @@
       // Surface fetch errors via the panel stale indicator instead of
       // swallowing them: the stale check picks this up because
       // panelLastUpdate.devices is not refreshed.
-      addLogEntry('error', 'Devices fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Devices fetch'));
     }
   }
 
@@ -1256,7 +1412,7 @@
       renderSequencerPanel();
       markPanelFresh('sequencer');
     } catch (e) {
-      addLogEntry('error', 'Sequencer fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Sequencer fetch'));
     }
   }
 
@@ -1267,7 +1423,7 @@
       renderGuidingPanel();
       markPanelFresh('guiding');
     } catch (e) {
-      addLogEntry('error', 'Guiding fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Guiding fetch'));
     }
   }
 
@@ -1279,7 +1435,7 @@
       renderMountPanel();
       markPanelFresh('mount');
     } catch (e) {
-      addLogEntry('error', 'Mount status fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Mount status fetch'));
     }
   }
 
@@ -1295,7 +1451,7 @@
       syncCameraInputsFromStatus(status);
       markPanelFresh('camera');
     } catch (e) {
-      addLogEntry('error', 'Camera status fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Camera status fetch'));
     }
   }
 
@@ -1307,7 +1463,7 @@
       renderFocuserPanel();
       markPanelFresh('focuser');
     } catch (e) {
-      addLogEntry('error', 'Focuser status fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Focuser status fetch'));
     }
   }
 
@@ -1323,7 +1479,7 @@
       renderFilterWheelPanel();
       markPanelFresh('filter-wheel');
     } catch (e) {
-      addLogEntry('error', 'Filter wheel status fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Filter wheel status fetch'));
     }
   }
 
@@ -1335,7 +1491,7 @@
       renderRotatorPanel();
       markPanelFresh('rotator');
     } catch (e) {
-      addLogEntry('error', 'Rotator status fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Rotator status fetch'));
     }
   }
 
@@ -1347,7 +1503,7 @@
       state.readoutModes = (result && result.readoutModes) || [];
       renderReadoutModeOptions();
     } catch (e) {
-      addLogEntry('error', 'Readout modes load failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Readout modes load'));
     }
   }
 
@@ -1367,7 +1523,7 @@
       state.filterWheelPositionsDeviceId = requestedDeviceId;
       renderFilterWheelPanel();
     } catch (e) {
-      addLogEntry('error', 'Filter wheel positions load failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Filter wheel positions load'));
     } finally {
       state.filterWheelPositionsLoading = false;
     }
@@ -1575,7 +1731,7 @@
       scheduleImageFetchFallback(exposureTime);
     } catch (e) {
       showToast('Expose failed: ' + e.message, 'error');
-      addLogEntry('error', 'Expose failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Expose'));
     }
   }
 
@@ -2686,7 +2842,7 @@
     } catch (e) {
       // Surface but don't toast — autocomplete failures should not nag the
       // user mid-type. Log so debugging is possible.
-      addLogEntry('error', 'Target search failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Target search'));
       hideTargetSuggestions();
     }
   }
@@ -2897,7 +3053,7 @@
           bitmap.close();
           container.appendChild(canvas);
         } catch (e) {
-          addLogEntry('error', 'Image decode failed: ' + e.message);
+          addLogEntry('error', describeApiError(e, 'Image decode'));
           container.appendChild(createImagePlaceholder('Failed to decode image'));
         }
       }
@@ -3165,11 +3321,14 @@
     const progressText = document.getElementById('seq-progress-text');
 
     if (!state.sequencerStatus) {
+      // No status has arrived. The bar is indeterminate, so it carries no
+      // aria-valuenow — announcing "0 percent" would state a progress figure
+      // the server never sent.
       if (statusEl) renderBadge(statusEl, 'idle', 'badge-idle');
       if (nodeEl) nodeEl.textContent = '--';
       if (messageEl) messageEl.textContent = '';
       if (progressBar) progressBar.style.width = '0%';
-      if (progressBarContainer) progressBarContainer.setAttribute('aria-valuenow', '0');
+      if (progressBarContainer) progressBarContainer.removeAttribute('aria-valuenow');
       if (progressText) progressText.textContent = '';
       updateSequencerButtons('idle');
       return;
@@ -3241,10 +3400,21 @@
     }
     updateGuidingButtons(g.state || g.appState || 'unknown');
 
-    // RMS values
-    if (g.rmsRA !== undefined && raRmsEl) raRmsEl.textContent = g.rmsRA.toFixed(2) + '"';
-    if (g.rmsDec !== undefined && decRmsEl) decRmsEl.textContent = g.rmsDec.toFixed(2) + '"';
-    if (g.rmsTotal !== undefined && totalRmsEl) totalRmsEl.textContent = g.rmsTotal.toFixed(2) + '"';
+    // RMS values. Two corrections live here:
+    //
+    //  * The key is `rmsRa`, not `rmsRA` (GET /api/phd2/status). The capitalised
+    //    spelling matched nothing, so the RA row never left "--" even while
+    //    guiding.
+    //  * A disconnected PHD2 reports 0.0 for all three. Rendering that gave a
+    //    dead guider a flawless 0.00" RMS — the most reassuring possible
+    //    reading of no data at all. Only a connected guider's numbers show.
+    const connected = g.connected === true;
+    const rms = (v) => (connected && typeof v === 'number' && isFinite(v))
+      ? v.toFixed(2) + '"'
+      : '--';
+    if (raRmsEl) raRmsEl.textContent = rms(g.rmsRa);
+    if (decRmsEl) decRmsEl.textContent = rms(g.rmsDec);
+    if (totalRmsEl) totalRmsEl.textContent = rms(g.rmsTotal);
   }
 
   /// Same state-gating contract as updateSequencerButtons: only offer the
@@ -3681,7 +3851,7 @@
       state.ops.sequences = (result && result.sequences) || [];
       renderOpsSequencesDropdown();
     } catch (e) {
-      addLogEntry('error', 'Sequence list fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Sequence list fetch'));
     }
   }
 
@@ -3737,7 +3907,7 @@
       addLogEntry('sequencer', 'Sequence aborted from ops panel');
       showToast('Sequence aborted');
     } catch (e) {
-      addLogEntry('error', 'Sequence abort failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Sequence abort'));
       showToast('Abort failed: ' + e.message, 'error');
     }
   }
@@ -3761,8 +3931,10 @@
       if (progressTextEl) progressTextEl.textContent = '--';
       if (etaEl) etaEl.textContent = '--';
       if (progressBar) progressBar.style.width = '0%';
+      // Same rule as renderSequencerPanel: unknown progress carries no
+      // aria-valuenow at all.
       if (progressBarContainer) {
-        progressBarContainer.setAttribute('aria-valuenow', '0');
+        progressBarContainer.removeAttribute('aria-valuenow');
       }
       return;
     }
@@ -3840,7 +4012,7 @@
       state.ops.catalogResults = (result && result.targets) || [];
       renderOpsTargetResults();
     } catch (e) {
-      addLogEntry('error', 'Catalog search failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Catalog search'));
       clearElement(list);
       list.appendChild(createEmptyState('Search failed: ' + e.message));
     }
@@ -3940,7 +4112,7 @@
       showToast('Slewing to ' + (target.name || target.id));
       renderOpsSequencerLoadPanel();
     } catch (e) {
-      addLogEntry('error', 'Slew failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Slew'));
       showToast('Slew failed: ' + e.message, 'error');
     }
   }
@@ -3959,7 +4131,7 @@
       state.ops.safety = safety;
       renderOpsWeatherPanel();
     } catch (e) {
-      addLogEntry('error', 'Weather/safety fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Weather/safety fetch'));
     }
   }
 
@@ -3979,18 +4151,43 @@
     const monCountEl = document.getElementById('ops-safety-monitor-count');
     const monListEl = document.getElementById('ops-safety-monitor-list');
 
+    // Whether anything is measuring the sky at all. `dataSource: 'unavailable'`
+    // means no weather hardware, no safety monitor and no API source; the
+    // server still fills in `safeToImage: true` / `alertLevel: 'clear'`, and
+    // rendering those verbatim gave an appliance with no sensors a green
+    // "yes / clear / safe" — an affirmative safety verdict drawn from nothing.
+    // Answer the sensor question before showing any verdict.
+    const sourced = w != null && w.dataSource != null &&
+      w.dataSource !== 'unavailable';
+    const monitored = s != null && (
+      (typeof s.monitorsConnected === 'number' && s.monitorsConnected > 0) ||
+      (s.dataSource != null && s.dataSource !== 'unavailable'));
+
     if (safeEl) {
       if (w == null) {
         safeEl.textContent = '--';
         safeEl.className = 'status-value';
+      } else if (!sourced) {
+        safeEl.textContent = 'no sensor';
+        safeEl.className = 'status-value warn';
       } else {
         safeEl.textContent = w.safeToImage ? 'yes' : 'no';
         safeEl.className = 'status-value '
           + (w.safeToImage ? 'good' : 'error');
       }
     }
-    if (alertEl) alertEl.textContent = w ? (w.alertLevel || 'none') : '--';
-    if (msgEl) msgEl.textContent = w && w.message ? w.message : '--';
+    if (alertEl) {
+      alertEl.textContent = w == null
+        ? '--'
+        : (sourced ? (w.alertLevel || 'none') : 'not measured');
+    }
+    if (msgEl) {
+      msgEl.textContent = w == null
+        ? '--'
+        : (sourced
+            ? (w.message || '--')
+            : (w.message || 'No weather source configured.'));
+    }
 
     // Telemetry from /api/weather/current — null when no hardware device.
     setOpsTelemetry(tempEl, w && w.temperature, (v) => v.toFixed(1) + ' °C');
@@ -4003,6 +4200,13 @@
       if (s == null) {
         badgeEl.textContent = '--';
         badgeEl.className = 'badge badge-idle';
+      } else if (!monitored && !sourced) {
+        // `isSafe: true` with zero monitors and dataSource 'unavailable' is
+        // the fail-honest case: nothing has looked at the sky. The server
+        // already says so in `failModeWarning`; the badge must not overrule it
+        // with a green "safe".
+        badgeEl.textContent = 'no source';
+        badgeEl.className = 'badge badge-paused';
       } else if (s.isSafe) {
         badgeEl.textContent = 'safe';
         badgeEl.className = 'badge badge-running';
@@ -4078,7 +4282,7 @@
       state.ops.domeStatus = await api.domeGetStatus(state.ops.domeDeviceId);
       renderOpsDomePanel();
     } catch (e) {
-      addLogEntry('error', 'Dome status fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Dome status fetch'));
     }
   }
 
@@ -4137,7 +4341,7 @@
       showToast('Opening shutter');
     } catch (e) {
       showToast('Dome open failed: ' + e.message, 'error');
-      addLogEntry('error', 'Dome open failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Dome open'));
     }
   }
 
@@ -4152,7 +4356,7 @@
       showToast('Closing shutter');
     } catch (e) {
       showToast('Dome close failed: ' + e.message, 'error');
-      addLogEntry('error', 'Dome close failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Dome close'));
     }
   }
 
@@ -4167,7 +4371,7 @@
       showToast('Parking dome');
     } catch (e) {
       showToast('Dome park failed: ' + e.message, 'error');
-      addLogEntry('error', 'Dome park failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Dome park'));
     }
   }
 
@@ -4188,7 +4392,7 @@
       showToast('Slewing dome to ' + az.toFixed(1) + '°');
     } catch (e) {
       showToast('Dome slew failed: ' + e.message, 'error');
-      addLogEntry('error', 'Dome slew failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Dome slew'));
     }
   }
 
@@ -4204,7 +4408,7 @@
       showToast('Dome slaving ' + (enabled ? 'enabled' : 'disabled'));
     } catch (e) {
       showToast('Dome sync failed: ' + e.message, 'error');
-      addLogEntry('error', 'Dome sync failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Dome sync'));
     }
   }
 
@@ -4218,7 +4422,7 @@
       state.ops.checkpoints = (result && result.checkpoints) || [];
       renderOpsCheckpointPanel();
     } catch (e) {
-      addLogEntry('error', 'Checkpoint fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Checkpoint fetch'));
     }
   }
 
@@ -4297,7 +4501,7 @@
       fetchOpsCheckpoints();
       fetchSequencerStatus();
     } catch (e) {
-      addLogEntry('error', 'Checkpoint resume failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Checkpoint resume'));
       showToast('Resume failed: ' + e.message, 'error');
     }
   }
@@ -4309,7 +4513,7 @@
       showToast('Checkpoint discarded');
       fetchOpsCheckpoints();
     } catch (e) {
-      addLogEntry('error', 'Checkpoint discard failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Checkpoint discard'));
       showToast('Discard failed: ' + e.message, 'error');
     }
   }
@@ -4328,7 +4532,7 @@
       state.ops.activeProfile = active && active.profile ? active.profile : null;
       renderOpsProfilePanel();
     } catch (e) {
-      addLogEntry('error', 'Profile fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Profile fetch'));
     }
   }
 
@@ -4379,7 +4583,7 @@
       fetchOpsProfiles();
       fetchDevices();
     } catch (e) {
-      addLogEntry('error', 'Profile activate failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Profile activate'));
       showToast('Activate failed: ' + e.message, 'error');
     }
   }
@@ -4391,7 +4595,7 @@
       showToast('Profile reloaded');
       fetchOpsProfiles();
     } catch (e) {
-      addLogEntry('error', 'Profile reload failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Profile reload'));
       showToast('Reload failed: ' + e.message, 'error');
     }
   }
@@ -4413,7 +4617,7 @@
       renderOpsAnalyticsPanel();
       renderOpsSequencerLoadPanel();
     } catch (e) {
-      addLogEntry('error', 'Analytics fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Analytics fetch'));
     }
   }
 
@@ -4796,7 +5000,7 @@
       }
     } catch (e) {
       if (resultEl) resultEl.textContent = 'Solve failed: ' + e.message;
-      addLogEntry('error', 'Plate-solve failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Plate-solve'));
       showToast('Plate-solve failed: ' + e.message, 'error');
     }
   }
@@ -4893,7 +5097,7 @@
       showToast('Polar alignment started');
     } catch (e) {
       setWizardError('polar-align-modal', e.message);
-      addLogEntry('error', 'Polar alignment start failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Polar alignment start'));
     }
   }
 
@@ -5055,7 +5259,7 @@
       document.getElementById('btn-flat-wizard-build').disabled = ok === 0;
     } catch (e) {
       setWizardError('flat-wizard-modal', e.message);
-      addLogEntry('error', 'Flat calibration failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Flat calibration'));
     } finally {
       state.flatWizard.running = false;
       document.getElementById('btn-flat-wizard-calibrate').disabled = false;
@@ -5112,7 +5316,7 @@
       }
     } catch (e) {
       setWizardError('flat-wizard-modal', e.message);
-      addLogEntry('error', 'Flat sequence build failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Flat sequence build'));
     }
   }
 
@@ -5331,7 +5535,7 @@
       closeWizardModal('mosaic-modal');
     } catch (e) {
       setWizardError('mosaic-modal', 'Build failed: ' + e.message);
-      addLogEntry('error', 'Mosaic build failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Mosaic build'));
     }
   }
 
@@ -5387,7 +5591,7 @@
       const result = await api.targetsSearch(query);
       renderFramingSuggestions((result && result.targets) || []);
     } catch (e) {
-      addLogEntry('error', 'Framing target search failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Framing target search'));
       hideFramingSuggestions();
     }
   }
@@ -5618,7 +5822,7 @@
       }
     } catch (e) {
       setWizardError('framing-modal', e.message);
-      addLogEntry('error', 'Centering failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Centering'));
     }
   }
 
@@ -5662,7 +5866,7 @@
       showToast('Framing saved');
     } catch (e) {
       setWizardError('framing-modal', e.message);
-      addLogEntry('error', 'Save framing failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Save framing'));
     }
   }
 
@@ -5794,26 +5998,31 @@
       ]);
       const settings = settingsResp && settingsResp.settings;
       const loc = locResp && locResp.location;
-      setEl('settings-observatory-name',
-        settings && settings.observatoryName ? settings.observatoryName : '--');
+      // Key names come from what GET /api/settings and GET
+      // /api/settings/location actually emit. The previous four —
+      // observatoryName, defaultSavePath, plateSolveSolver, elevationMeters —
+      // exist in no server response, so those rows read "--" on a fully
+      // configured host and the panel silently lied about being empty.
+      setEl('settings-observer-name',
+        settings && settings.observerName ? settings.observerName : '--');
       setEl('settings-save-path',
-        settings && settings.defaultSavePath ? settings.defaultSavePath : '--');
+        settings && settings.imageOutputPath ? settings.imageOutputPath : '--');
       setEl('settings-plate-solver',
-        settings && settings.plateSolveSolver ? settings.plateSolveSolver : '--');
+        settings && settings.plateSolver ? settings.plateSolver : '--');
       if (loc) {
         setEl('settings-latitude',
           loc.latitude != null ? loc.latitude.toFixed(4) + '°' : '--');
         setEl('settings-longitude',
           loc.longitude != null ? loc.longitude.toFixed(4) + '°' : '--');
         setEl('settings-elevation',
-          loc.elevationMeters != null ? loc.elevationMeters.toFixed(0) + ' m' : '--');
+          loc.elevation != null ? loc.elevation.toFixed(0) + ' m' : '--');
       } else {
         setEl('settings-latitude', '--');
         setEl('settings-longitude', '--');
         setEl('settings-elevation', '--');
       }
     } catch (e) {
-      addLogEntry('error', 'Settings fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Settings fetch'));
     }
   }
 
@@ -5999,7 +6208,7 @@
       if (badge) badge.classList.add('hidden-inline');
     } catch (e) {
       if (status) status.textContent = 'Gallery fetch failed: ' + e.message;
-      addLogEntry('error', 'Gallery fetch failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Gallery fetch'));
     } finally {
       gallery.loading = false;
     }
@@ -6187,7 +6396,7 @@
       setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (e) {
       showToast('Download failed: ' + e.message, 'error');
-      addLogEntry('error', 'Image download failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Image download'));
     } finally {
       gallery.downloadInFlight = false;
       control.removeAttribute('aria-disabled');
@@ -6274,7 +6483,7 @@
       );
       logTail.eventSource.onopen = () => setLogStreamState('live');
     } catch (e) {
-      addLogEntry('error', 'Log tail subscribe failed: ' + e.message);
+      addLogEntry('error', describeApiError(e, 'Log tail subscribe'));
       setLogStreamState('error');
     }
   }

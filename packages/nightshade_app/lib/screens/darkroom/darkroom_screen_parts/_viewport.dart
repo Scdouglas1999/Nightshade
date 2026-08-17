@@ -40,7 +40,7 @@ class _DarkroomViewport extends ConsumerStatefulWidget {
 }
 
 class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
-  /// Owned here, not by [AstroImageViewer], because the fit / 1:1 / zoom
+  /// Owned here, not by [_DarkroomImageSurface], because the fit / 1:1 / zoom
   /// controls drive it — and because a new render must not throw away the zoom
   /// and pan the operator set on the previous one.
   final TransformationController _transform = TransformationController();
@@ -62,12 +62,12 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
   }
 
   /// Repaint the readout. The transform changes on wheel zoom, on drag-pan and
-  /// on pinch; [AstroImageViewer.onTransformChanged] fires only for the first
-  /// of those, so the readout listens to the controller instead.
+  /// on pinch, and only some of those pass through this widget, so the readout
+  /// listens to the controller itself.
   ///
-  /// One of those changes arrives from INSIDE the layout phase: the viewer
-  /// measures its container in a layout callback and writes the initial fit
-  /// straight to this controller. Marking this widget dirty then asks for a
+  /// One of those changes arrives from the frame after a layout: the surface
+  /// measures its container in a layout callback and writes the initial fit to
+  /// this controller. Marking this widget dirty from inside layout asks for a
   /// build during a layout that is already running — the request lands against
   /// a render object whose layout is in flight, is dropped when that layout
   /// finishes, and takes the enclosing panel layout's build scope down with it:
@@ -311,14 +311,11 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         Positioned.fill(
           child: ColoredBox(
             color: colors.background,
-            child: AstroImageViewer(
-              imageData: preview.rgba,
-              width: preview.width,
-              height: preview.height,
-              isColor: preview.isColor,
+            child: _DarkroomImageSurface(
+              preview: preview,
+              transform: _transform,
               minScale: kDarkroomMinViewerScale,
               maxScale: kDarkroomMaxViewerScale,
-              transformationController: _transform,
             ),
           ),
         ),

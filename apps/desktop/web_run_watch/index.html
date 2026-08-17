@@ -98,6 +98,12 @@
       </div>
     </header>
 
+    <!-- Link banner — the one place that says plainly whether what follows is
+         live. Raised when a snapshot poll fails or the last successful one
+         ages past a poll interval, and when the server is rate-limiting this
+         device. Hidden while the link is healthy. -->
+    <div id="link-banner" class="link-banner hidden" role="alert" aria-live="assertive"></div>
+
     <!-- Recovery / critical banner — populated when /api/run-watch/snapshot
          returns a non-null recovery context. Hidden by default. -->
     <div id="recovery-banner" class="recovery-banner hidden" role="alert"></div>
@@ -159,19 +165,23 @@
       <section class="card" aria-labelledby="progress-h">
         <div class="card-header">
           <h2 id="progress-h" class="card-title">Progress</h2>
-          <span id="progress-pct" class="card-meta">0%</span>
+          <span id="progress-pct" class="card-meta">--</span>
         </div>
-        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-aria">
+        <!-- No aria-valuenow until a snapshot supplies one: an assistive
+             reader must not be told "0 percent" about a run whose progress
+             this page has not yet heard. applySnapshot adds and removes the
+             attribute as the value becomes known and unknown again. -->
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progress-bar-aria">
           <div id="progress-bar" class="bar-fill"></div>
         </div>
         <div class="kv-grid kv-grid-compact">
           <div class="kv">
             <span class="kv-label">Frames</span>
-            <span class="kv-value mono" id="progress-frames">0 / 0</span>
+            <span class="kv-value mono" id="progress-frames">--</span>
           </div>
           <div class="kv">
             <span class="kv-label">Integration</span>
-            <span class="kv-value mono" id="progress-integration">0s / 0s</span>
+            <span class="kv-value mono" id="progress-integration">--</span>
           </div>
           <div class="kv">
             <span class="kv-label">Current node</span>

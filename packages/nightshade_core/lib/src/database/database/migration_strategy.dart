@@ -4,26 +4,46 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
   MigrationStrategy _buildMigrationStrategy() {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
-        await m.createAll();
-        await _createFrameForensicsTable();
-        await _ensureCapturedImagesProducingNodeColumns();
-        await _createStackedResultsTable();
-        await _createProjectsTables();
-        await _createPostSessionTables();
-        await _ensureIntegratedMastersOverlayColumns();
-        await _createNightReportsTable();
-        await _ensureIntegratedMastersV42Columns();
-        await _createCampaignsTable();
-        await _ensureIntegratedMastersV44Columns();
-        await _createNarrowbandCompositesTable();
-        await _createMosaicTables();
-        await _createCalibrationTagsTable();
-        // After the post-session tables: `recipes` references
-        // `integrated_masters`, and `delivery_journal` references both
-        // `delivery_targets` and `darkroom_jobs`.
-        await _createDarkroomTables();
-        await _createCustomIndexes();
-        await _ensureDefaultSettings();
+        // ONE transaction for the whole fresh-install schema, with the schema
+        // version stamped inside it.
+        //
+        // Drift runs `onCreate` in auto-commit and writes `user_version` only
+        // after the callback returns (`DelegatedDatabase._runMigrations`), so
+        // a process killed part-way through a first boot leaves committed
+        // tables under version 0. Version 0 reads as "brand new database" on
+        // the next open, drift re-enters this callback, and the first
+        // duplicate `CREATE INDEX` aborts startup — permanently, because
+        // every later launch repeats it. Measured on the release bundle: a
+        // kill anywhere between ~0.4 s and ~0.75 s of the very first boot
+        // bricked the install.
+        //
+        // Committing the tables and the version together leaves the file
+        // either empty or complete. A kill before the COMMIT rolls back
+        // through the journal on the next open, and drift creates the schema
+        // again from scratch.
+        await customStatement('BEGIN');
+        try {
+          await _createSchema(m);
+          // Inside the transaction on purpose. Drift writes the same value
+          // again once this callback returns; that repeat is a no-op.
+          await customStatement('PRAGMA user_version = $schemaVersion');
+          await customStatement('COMMIT');
+        } catch (error, stackTrace) {
+          try {
+            await customStatement('ROLLBACK');
+          } catch (rollbackError) {
+            // The original failure is the one the operator has to see, so it
+            // is what propagates. A rollback that ITSELF fails means a
+            // partial schema may survive on disk, which the next launch's
+            // pre-flight then moves aside — say so rather than lose it.
+            // ignore: avoid_print
+            print(
+              '[nightshade_db] WARNING: rolling back an interrupted schema '
+              'creation failed: $rollbackError',
+            );
+          }
+          Error.throwWithStackTrace(error, stackTrace);
+        }
       },
       beforeOpen: (details) async {
         // Enable foreign key enforcement
@@ -181,5 +201,32 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _createCustomIndexes();
       },
     );
+  }
+
+  /// Every statement a fresh install's schema is made of, in dependency order.
+  ///
+  /// Split out of `onCreate` so the whole set runs inside that callback's one
+  /// transaction and the reader can see where the atomic boundary is.
+  Future<void> _createSchema(Migrator m) async {
+    await m.createAll();
+    await _createFrameForensicsTable();
+    await _ensureCapturedImagesProducingNodeColumns();
+    await _createStackedResultsTable();
+    await _createProjectsTables();
+    await _createPostSessionTables();
+    await _ensureIntegratedMastersOverlayColumns();
+    await _createNightReportsTable();
+    await _ensureIntegratedMastersV42Columns();
+    await _createCampaignsTable();
+    await _ensureIntegratedMastersV44Columns();
+    await _createNarrowbandCompositesTable();
+    await _createMosaicTables();
+    await _createCalibrationTagsTable();
+    // After the post-session tables: `recipes` references
+    // `integrated_masters`, and `delivery_journal` references both
+    // `delivery_targets` and `darkroom_jobs`.
+    await _createDarkroomTables();
+    await _createCustomIndexes();
+    await _ensureDefaultSettings();
   }
 }

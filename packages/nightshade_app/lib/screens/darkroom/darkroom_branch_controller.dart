@@ -323,7 +323,16 @@ class DarkroomBranchController extends StateNotifier<DarkroomBranchState> {
       state = state.copyWith(lineage: ordered, clearLineageError: true);
     } on RecipeMissingException catch (error) {
       if (!mounted) return;
-      state = state.copyWith(lineage: const [], lineageError: '$error');
+      // The DAO's sentence names the row and stops there. On this bar it is
+      // read by an operator looking at an editor that is still showing that
+      // recipe's steps, so it says what to do about that as well — every other
+      // failure on this screen names a next step and this one did not.
+      state = state.copyWith(
+        lineage: const [],
+        lineageError: '$error, so its ancestry could not be walked. Press '
+            'Reload to re-read this master: a recipe deleted while it was open '
+            'leaves the editor showing a stack that is no longer stored.',
+      );
     } on RecipeGraphCycleException catch (error) {
       if (!mounted) return;
       state = state.copyWith(lineage: const [], lineageError: '$error');

@@ -310,13 +310,29 @@ class RunWatchHandlers {
     'currentFilter': p.currentFilter,
     'totalExposures': p.totalExposures,
     'completedExposures': p.completedExposures,
-    'totalIntegrationSecs': p.totalIntegrationSecs,
+    'totalIntegrationSecs': _knownIntegrationDenominator(p),
     'completedIntegrationSecs': p.completedIntegrationSecs,
     'elapsedSecs': p.elapsedSecs,
     'estimatedRemainingSecs': p.estimatedRemainingSecs,
     'message': p.message,
     'progressPercent': p.progressPercent,
   };
+
+  /// The planned integration total, or null when this run has none to report.
+  ///
+  /// `SequenceProgress.totalIntegrationSecs` defaults to 0.0 and only the
+  /// editor-driven start path fills it in (`SequenceExecutor` passes
+  /// `sequence.totalIntegrationSecs` to `setTotals`). A headless run loads the
+  /// wire JSON straight into the native executor, so the denominator arrives
+  /// here as 0.0 while `totalExposures` counts a real dozen frames — and the
+  /// phone renders "24s / 0s", a total the run has already passed. A frame
+  /// takes positive time, so a run with frames planned and a zero total means
+  /// the total is unknown, not zero. Say so with null.
+  double? _knownIntegrationDenominator(SequenceProgress p) {
+    if (p.totalIntegrationSecs > 0) return p.totalIntegrationSecs;
+    if (p.totalExposures > 0) return null;
+    return p.totalIntegrationSecs;
+  }
 
   /// Progress block for a failed read. Every measured field is null, not
   /// zero: the server does not know how far the run has got, and a zeroed
@@ -342,9 +358,35 @@ class RunWatchHandlers {
   /// sequence is loaded.
   Map<String, Object?> _unavailableTargetJson(Object error) => {
     'unavailable': true,
+    'coordinatesKnown': false,
     'message': 'Target unavailable: $error',
     'id': null,
     'name': null,
+    'raHours': null,
+    'decDegrees': null,
+    'altitudeDeg': null,
+    'azimuthDeg': null,
+    'horizonDeg': null,
+    'timeToSetSecs': null,
+    'timeToTransitSecs': null,
+  };
+
+  /// Target block for a run whose name the server knows and whose pointing it
+  /// does not.
+  ///
+  /// `POST /api/sequencer/load` hands the wire JSON straight to the native
+  /// executor and never populates `currentSequenceProvider` (see
+  /// `_handleSequencerLoad` — it keeps only a `_WireSequenceSummary` for the
+  /// session row). So on a headless appliance the editor-derived block below
+  /// is always null, and the phone's whole Active-target card renders `--`
+  /// during a live run whose target the same snapshot names in
+  /// `sequencer.progress.currentTarget`. Report the name the server has and
+  /// mark the sky stats as unknown rather than reporting nothing at all.
+  Map<String, Object?> _nameOnlyTargetJson(String name) => {
+    'coordinatesKnown': false,
+    'message': 'Coordinates unavailable: the native executor holds this run',
+    'id': null,
+    'name': name,
     'raHours': null,
     'decDegrees': null,
     'altitudeDeg': null,
@@ -359,7 +401,9 @@ class RunWatchHandlers {
   /// time-to-set / time-to-transit so the phone can display the same
   /// header as the desktop run dashboard.
   ///
-  /// Returns null when no sequence is loaded.
+  /// Falls back to [_nameOnlyTargetJson] when the run is native-side and the
+  /// only thing the host knows is the live target name. Returns null when
+  /// nothing at all is running.
   Map<String, Object?>? _activeTargetBlock() {
     Sequence? sequence;
     try {
@@ -374,7 +418,6 @@ class RunWatchHandlers {
       _logWarning('snapshot: sequence provider read failed: $e');
       sequence = null;
     }
-    if (sequence == null) return null;
 
     final SequenceProgress progress;
     try {
@@ -387,9 +430,15 @@ class RunWatchHandlers {
       return null;
     }
 
-    TargetHeaderNode? target;
     final liveName = progress.currentTarget;
-    if (liveName != null && liveName.isNotEmpty) {
+    final hasLiveName = liveName != null && liveName.isNotEmpty;
+
+    if (sequence == null) {
+      return hasLiveName ? _nameOnlyTargetJson(liveName) : null;
+    }
+
+    TargetHeaderNode? target;
+    if (hasLiveName) {
       for (final t in sequence.targetHeaders) {
         if (t.targetName == liveName) {
           target = t;
@@ -400,7 +449,9 @@ class RunWatchHandlers {
     target ??= sequence.targetHeaders.isNotEmpty
         ? sequence.targetHeaders.first
         : null;
-    if (target == null) return null;
+    if (target == null) {
+      return hasLiveName ? _nameOnlyTargetJson(liveName) : null;
+    }
 
     double? altitude;
     double? azimuth;
@@ -450,6 +501,7 @@ class RunWatchHandlers {
     }
 
     return {
+      'coordinatesKnown': true,
       'id': target.id,
       'name': target.targetName,
       'raHours': target.raHours,

@@ -109,6 +109,12 @@
       <a id="nav-run-watch" class="cap-nav-btn cap-nav-link" href="/run-watch/">Run-Watch</a>
     </nav>
 
+  <!-- Link banner — raised when the dashboard has lost contact with the
+       server, or when the server is rate-limiting this session. The header dot
+       alone was not enough: it stayed green for as long as the tab was open
+       after the backend died. Populated by renderLinkState(). -->
+  <div id="link-banner" class="link-banner hidden" role="alert" aria-live="assertive"></div>
+
   <div id="parity-banner" class="parity-banner hidden" role="note">
     For full GPU planetarium rendering, install the Nightshade desktop or mobile client.
     This web dashboard covers remote control via the headless API.
@@ -535,7 +541,7 @@
             <span class="status-value info" id="seq-progress-text"></span>
           </div>
           <div class="sequence-progress">
-            <div class="progress-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="seq-progress-bar-container">
+            <div class="progress-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="seq-progress-bar-container">
               <div class="progress-bar" id="seq-progress-bar"></div>
             </div>
           </div>
@@ -673,8 +679,8 @@
         <div class="panel-body">
           <p class="panel-hint">Read-only host settings. Edit on the desktop app.</p>
           <div class="status-row">
-            <span class="status-label">Observatory</span>
-            <span class="status-value" id="settings-observatory-name">--</span>
+            <span class="status-label">Observer</span>
+            <span class="status-value" id="settings-observer-name">--</span>
           </div>
           <div class="status-row">
             <span class="status-label">Save path</span>
@@ -763,7 +769,7 @@
             <span class="status-value" id="ops-seq-eta">--</span>
           </div>
           <div class="sequence-progress">
-            <div class="progress-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ops-seq-progress-bar-container">
+            <div class="progress-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="ops-seq-progress-bar-container">
               <div class="progress-bar" id="ops-seq-progress-bar"></div>
             </div>
           </div>

@@ -118,7 +118,8 @@ void _expectNoNamedHuePainted(
 Color _redNight(Color named) =>
     NightshadeChartColors.forTheme(named, NightshadeColors.redNight);
 
-PsfFieldTileRow _psfTile(int row, int col, {required double fwhm, int stars = 40}) =>
+PsfFieldTileRow _psfTile(int row, int col,
+        {required double fwhm, int stars = 40}) =>
     PsfFieldTileRow(
       id: row * 10 + col,
       tileRow: row,
@@ -190,11 +191,14 @@ void main() {
       final canvas = _RecordingCanvas();
       painter(NightshadeColors.redNight).paint(canvas, _canvasSize);
       _expectEveryHueIsRed(canvas, 'the PSF heatmap');
-      _expectNoNamedHuePainted(canvas, {
-        'tight': namedPsfTight,
-        'bloated': namedPsfBloated,
-        'no-stars': namedPsfNoStars,
-      }, 'the PSF heatmap');
+      _expectNoNamedHuePainted(
+          canvas,
+          {
+            'tight': namedPsfTight,
+            'bloated': namedPsfBloated,
+            'no-stars': namedPsfNoStars,
+          },
+          'the PSF heatmap');
     });
 
     test('dark keeps the named ramp exactly', () {
@@ -228,10 +232,13 @@ void main() {
       final canvas = _RecordingCanvas();
       painter(NightshadeColors.redNight).paint(canvas, _canvasSize);
       _expectEveryHueIsRed(canvas, 'the uniformity map');
-      _expectNoNamedHuePainted(canvas, {
-        'flat': namedUniformityFlat,
-        'strong': namedUniformityStrong,
-      }, 'the uniformity map');
+      _expectNoNamedHuePainted(
+          canvas,
+          {
+            'flat': namedUniformityFlat,
+            'strong': namedUniformityStrong,
+          },
+          'the uniformity map');
     });
 
     test('dark keeps the named ramp exactly', () {
@@ -265,10 +272,13 @@ void main() {
       final canvas = _RecordingCanvas();
       painter(NightshadeColors.redNight).paint(canvas, _canvasSize);
       _expectEveryHueIsRed(canvas, 'the clip map');
-      _expectNoNamedHuePainted(canvas, {
-        'low-clip': namedClipLow,
-        'high-clip': namedClipHigh,
-      }, 'the clip map');
+      _expectNoNamedHuePainted(
+          canvas,
+          {
+            'low-clip': namedClipLow,
+            'high-clip': namedClipHigh,
+          },
+          'the clip map');
     });
 
     test('dark keeps the named ramp exactly', () {
@@ -309,10 +319,13 @@ void main() {
       final canvas = _RecordingCanvas();
       painter(NightshadeColors.redNight).paint(canvas, _canvasSize);
       _expectEveryHueIsRed(canvas, 'the residual field');
-      _expectNoNamedHuePainted(canvas, {
-        'shaft': namedResidualShaft,
-        'head': namedResidualHead,
-      }, 'the residual field');
+      _expectNoNamedHuePainted(
+          canvas,
+          {
+            'shaft': namedResidualShaft,
+            'head': namedResidualHead,
+          },
+          'the residual field');
     });
 
     test('dark keeps the named hues exactly', () {
@@ -351,10 +364,13 @@ void main() {
       final canvas = _RecordingCanvas();
       painter(NightshadeColors.redNight).paint(canvas, _canvasSize);
       _expectEveryHueIsRed(canvas, 'the moving-track overlay');
-      _expectNoNamedHuePainted(canvas, {
-        'low-confidence': namedTrackLowConfidence,
-        'high-confidence': namedTrackHighConfidence,
-      }, 'the moving-track overlay');
+      _expectNoNamedHuePainted(
+          canvas,
+          {
+            'low-confidence': namedTrackLowConfidence,
+            'high-confidence': namedTrackHighConfidence,
+          },
+          'the moving-track overlay');
     });
 
     test('dark keeps the named ramp exactly', () {
@@ -379,10 +395,13 @@ void main() {
       final canvas = _RecordingCanvas();
       painter(NightshadeColors.redNight).paint(canvas, _canvasSize);
       _expectEveryHueIsRed(canvas, 'the compass rose');
-      _expectNoNamedHuePainted(canvas, {
-        'north': namedCompassNorth,
-        'east': namedCompassEast,
-      }, 'the compass rose');
+      _expectNoNamedHuePainted(
+          canvas,
+          {
+            'north': namedCompassNorth,
+            'east': namedCompassEast,
+          },
+          'the compass rose');
     });
 
     test('dark keeps the named axis hues exactly', () {

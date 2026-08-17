@@ -1320,9 +1320,12 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   ///  - a `warning` Night Narrator event on that session, which is what the
   ///    morning feed reads.
   ///
-  /// The half-written master files are named in both. A FITS truncated by a
-  /// kill is present and non-empty and looks finished, so an operator told
-  /// only "the integration was interrupted" would open one and trust it.
+  /// The intended master files are named in both, EACH WITH WHAT IT ACTUALLY
+  /// IS. A FITS truncated by a kill is present and non-empty and looks
+  /// finished, so an operator told only "the integration was interrupted"
+  /// would open one and trust it — and an operator told every present file is
+  /// truncated would delete the ones that are whole. Each file is opened and
+  /// measured against its own header before it is described.
   ///
   /// Re-running the integration is deliberately NOT automatic: the subs are
   /// still on disk and still graded, so nothing is lost by waiting, whereas a
@@ -1338,12 +1341,42 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     final interrupted = await readIntegrationMarker(directory);
     if (interrupted == null) return;
 
-    final orphans = await interrupted.orphanedMasterFiles();
-    final orphanText = orphans.isEmpty
-        ? 'No master file had been written yet, so nothing on disk is '
-              'half-finished.'
-        : 'These master files were being written and are truncated — delete '
-              'them before re-running: ${orphans.join(', ')}.';
+    // Each intended file is MEASURED before anything is said about it. The
+    // pass writes its masters one after another, so an interruption leaves
+    // some of them whole; calling every present file "truncated — delete it"
+    // told the operator to throw away finished data, and the one that really
+    // was half-written was buried in the same sentence as the ones that were
+    // not.
+    final present = await interrupted.presentMasterFiles();
+    final incomplete = present.where((file) => !file.complete).toList();
+    final whole = present.where((file) => file.complete).toList();
+    final sentences = <String>[];
+    if (present.isEmpty) {
+      sentences.add(
+        'No master file had been written yet, so nothing on disk is '
+        'half-finished.',
+      );
+    }
+    if (incomplete.isNotEmpty) {
+      sentences.add(
+        'These master files are incomplete — delete them before re-running: '
+        '${incomplete.map((f) => '${f.path} (${f.detail})').join('; ')}.',
+      );
+    }
+    for (final file in whole) {
+      final registered = await _masterIsRegistered(file.path);
+      sentences.add(
+        registered
+            ? '${file.path} is a complete FITS (${file.detail}) and the master '
+                  'library already holds a row for it, so that one arrived '
+                  'intact.'
+            : '${file.path} is a complete FITS (${file.detail}) but no master '
+                  'row records it, so it is finished on disk and missing from '
+                  'the library. Re-running the integration writes it again; '
+                  'nothing here says it is damaged.',
+      );
+    }
+    final orphanText = sentences.join(' ');
     final startedAt = interrupted.startedAtUtc.toIso8601String();
     const headline =
         'The post-session integration was interrupted before it '
@@ -1392,6 +1425,21 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
 
     await clearIntegrationMarker(directory);
+  }
+
+  /// Whether the master library already holds a row pointing at [path].
+  ///
+  /// The difference between "this file is finished" and "this file is finished
+  /// AND the app knows about it": the integration writes the FITS and then
+  /// records it, so a kill between the two leaves a whole master nothing
+  /// references. That is a real thing to tell the operator, and it is not the
+  /// same thing as a damaged file.
+  Future<bool> _masterIsRegistered(String path) async {
+    final rows = await customSelect(
+      'SELECT 1 FROM integrated_masters WHERE master_fits_path = ? LIMIT 1',
+      variables: [Variable<String>(path)],
+    ).get();
+    return rows.isNotEmpty;
   }
 
   Future<bool> _columnExists(String table, String column) async {

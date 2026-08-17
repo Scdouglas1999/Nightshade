@@ -1,4 +1,7 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/nightshade_bottom_navigation.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -60,6 +63,74 @@ void main() {
     expect(await _selectedLabels(tester, '/settings'), isEmpty);
     expect(await _selectedLabels(tester, '/settings/plate-solving'), isEmpty);
     expect(await _selectedLabels(tester, '/flat-wizard'), isEmpty);
+  });
+
+  // The bar is the rail's phone-width replacement, so it owes assistive tech
+  // the same three answers the rail's NavItem gives: this is a button, this is
+  // the one you are standing in, and it is live. Measured on the running app at
+  // 420x900 before the fix, all seven destinations came back from AT-SPI as
+  // `panel` with states [focusable, showing, visible] — no role, no selected,
+  // no enabled.
+  testWidgets('every destination publishes role, selection and enabled', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: Scaffold(
+          bottomNavigationBar: NightshadeBottomNavigation(
+            currentRoute: '/imaging',
+            onRouteSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final labels = tester
+        .widgetList<Text>(find.descendant(
+          of: find.byType(NightshadeBottomNavigation),
+          matching: find.byType(Text),
+        ))
+        .map((t) => t.data)
+        .whereType<String>()
+        .toList();
+    expect(labels, isNotEmpty);
+
+    var selectedCount = 0;
+    for (final label in labels) {
+      final data = tester.getSemantics(find.text(label)).getSemanticsData();
+      final flags = data.flagsCollection;
+      expect(
+        flags.isButton,
+        isTrue,
+        reason: '"$label" publishes no button role',
+      );
+      expect(
+        flags.isEnabled,
+        Tristate.isTrue,
+        reason: '"$label" does not announce itself as enabled',
+      );
+      expect(
+        flags.isSelected,
+        isNot(Tristate.none),
+        reason: '"$label" publishes no selected state',
+      );
+      expect(
+        data.hasAction(SemanticsAction.tap),
+        isTrue,
+        reason: '"$label" is not tappable through semantics',
+      );
+      if (flags.isSelected == Tristate.isTrue) selectedCount += 1;
+    }
+
+    // Exactly the Imaging slot is selected: a bar that marks none leaves a
+    // screen-reader operator with no answer to "where am I", and one that
+    // marks several is worse than none.
+    expect(selectedCount, 1);
+
+    handle.dispose();
   });
 
   testWidgets('bottom nav items meet minimum touch target', (tester) async {

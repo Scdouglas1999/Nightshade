@@ -50,6 +50,18 @@ class SessionReviewState {
   /// A user-facing error from the last failed action, or null.
   final String? error;
 
+  /// The newest `darkroom_jobs` row for the session under review, or null when
+  /// the scope is a target (whose nights were each processed by their own job)
+  /// or no pass has ever been queued for it.
+  ///
+  /// Read so this screen can state a pass that FAILED or was STOPPED. A dawn
+  /// job that failed overnight leaves its state and its sentence on that row
+  /// and nowhere else the operator looks: the toast that reports a pass belongs
+  /// to the button that started it, so a pass nobody was standing at was
+  /// invisible here — this screen showed the night's verdict with no sign that
+  /// the drafting, the report and the delivery for it had not happened.
+  final DarkroomJob? darkroomJob;
+
   // Smart morning report (Pillar 5) data backbone
 
   /// The Night Doctor's verdict for this scope (score + headline + findings),
@@ -134,6 +146,7 @@ class SessionReviewState {
     this.integrationProgress,
     this.lastOutcome,
     this.error,
+    this.darkroomJob,
     this.nightReport,
     this.improvementCurve,
     this.improvementCurvePopulation = const [],
@@ -212,6 +225,8 @@ class SessionReviewState {
     PostSessionIntegrationOutcome? lastOutcome,
     String? error,
     bool clearError = false,
+    DarkroomJob? darkroomJob,
+    bool clearDarkroomJob = false,
     NightReport? nightReport,
     bool clearNightReport = false,
     IntegrationCurve? improvementCurve,
@@ -251,6 +266,7 @@ class SessionReviewState {
           : (integrationProgress ?? this.integrationProgress),
       lastOutcome: lastOutcome ?? this.lastOutcome,
       error: clearError ? null : (error ?? this.error),
+      darkroomJob: clearDarkroomJob ? null : (darkroomJob ?? this.darkroomJob),
       nightReport: clearNightReport ? null : (nightReport ?? this.nightReport),
       improvementCurve: clearImprovementCurve
           ? null

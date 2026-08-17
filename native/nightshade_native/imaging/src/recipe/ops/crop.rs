@@ -78,11 +78,19 @@ impl DarkroomOp for CropV1 {
             return Err(OpError::Failed {
                 op_id: self.id(),
                 op_version: self.version(),
+                // The compared origin is the SCALED one, so that is what the
+                // message quotes against the level's dimensions. Printing the
+                // recipe's full-resolution origin against a downsampled size
+                // read as a 20x overshoot at level 3 where the real one is
+                // 2.6x — and a zoomed-out preview is exactly where an operator
+                // meets this string. The recipe's own numbers follow, labelled
+                // as the other space they live in.
                 reason: format!(
-                    "crop origin ({}, {}) lies outside the {width}x{height} image at render level {}",
+                    "crop origin ({x0}, {y0}) lies outside the {width}x{height} image at render \
+                     level {}: the recipe's full-resolution origin ({}, {}) scaled by {scale}",
+                    ctx.level(),
                     settings.x,
-                    settings.y,
-                    ctx.level()
+                    settings.y
                 ),
             });
         }
@@ -93,13 +101,19 @@ impl DarkroomOp for CropV1 {
             return Err(OpError::Failed {
                 op_id: self.id(),
                 op_version: self.version(),
+                // Same rule as the origin above: the emptiness is a fact about
+                // the SCALED rectangle, so the message reports the scaled size
+                // and names the recipe's rectangle as the source it came from.
                 reason: format!(
-                    "crop rect {}x{} at ({}, {}) is empty at render level {}",
+                    "crop rect scales to {}x{} at render level {}, which covers no pixels of the \
+                     {width}x{height} image: the recipe's full-resolution rect is {}x{} at ({}, {})",
+                    x1.saturating_sub(x0),
+                    y1.saturating_sub(y0),
+                    ctx.level(),
                     settings.width,
                     settings.height,
                     settings.x,
-                    settings.y,
-                    ctx.level()
+                    settings.y
                 ),
             });
         }

@@ -40,10 +40,12 @@ class InterruptedIntegration {
 
   /// The master files the pass was going to write.
   ///
-  /// Named in the report because these are the files that are now suspect: a
-  /// process killed mid-write leaves a FITS that is present, non-empty, and
-  /// truncated. An operator told only "the integration was interrupted" would
-  /// reasonably open one and trust it.
+  /// Named in the report because these are the files that are now in question:
+  /// a process killed mid-write leaves a FITS that is present, non-empty, and
+  /// truncated, and an operator told only "the integration was interrupted"
+  /// would reasonably open one and trust it. Which of them is actually
+  /// half-written is measured — see [presentMasterFiles] — never assumed from
+  /// the fact that the pass was interrupted.
   final List<String> intendedMasterPaths;
 
   const InterruptedIntegration({
@@ -53,13 +55,22 @@ class InterruptedIntegration {
     required this.intendedMasterPaths,
   });
 
-  /// The intended master files that are actually on disk right now — the
-  /// orphans. Distinguished from [intendedMasterPaths] so the report can say
-  /// "delete these two" rather than listing paths that were never created.
-  Future<List<String>> orphanedMasterFiles() async {
-    final present = <String>[];
+  /// What each intended master file actually turned out to be, for the ones
+  /// that are on disk right now.
+  ///
+  /// Paths that were never created are left out, so the report can say "delete
+  /// these two" without listing files that do not exist. The ones that ARE
+  /// there are opened and measured rather than assumed: the process died
+  /// somewhere in a run that writes each master start to finish, so some of
+  /// its intended files are half-written and some are whole. Telling an
+  /// operator that a whole master is "truncated — delete it" is telling them
+  /// to delete a night's finished data.
+  Future<List<IntendedMasterFile>> presentMasterFiles() async {
+    final present = <IntendedMasterFile>[];
     for (final path in intendedMasterPaths) {
-      if (await File(path).exists()) present.add(path);
+      final file = File(path);
+      if (!await file.exists()) continue;
+      present.add(await IntendedMasterFile.measure(file));
     }
     return present;
   }
@@ -97,6 +108,203 @@ class InterruptedIntegration {
       intendedMasterPaths: paths is List
           ? paths.whereType<String>().toList(growable: false)
           : const [],
+    );
+  }
+}
+
+/// One intended master file as it is on disk, measured rather than assumed.
+class IntendedMasterFile {
+  /// Where the file is.
+  final String path;
+
+  /// True when the file holds a whole FITS: its length is a whole number of
+  /// 2880-byte blocks and it carries at least the bytes its own primary header
+  /// declares.
+  final bool complete;
+
+  /// What the measurement found, in the words the report prints. Names the
+  /// shortfall for an incomplete file and the size for a whole one.
+  final String detail;
+
+  const IntendedMasterFile({
+    required this.path,
+    required this.complete,
+    required this.detail,
+  });
+
+  /// FITS block size in bytes, per the standard. Everything in a FITS file —
+  /// header and data alike — is padded to a multiple of this.
+  static const int _blockSize = 2880;
+
+  /// Cards per block, and card size, per the standard.
+  static const int _cardSize = 80;
+
+  /// Stop looking for `END` after this many header blocks. 36 blocks is ~1296
+  /// cards, far beyond any header this project writes or reads; a file that
+  /// has not ended its header by then is not one whose data extent can be
+  /// computed, which is itself the answer.
+  static const int _maxHeaderBlocks = 36;
+
+  /// Open [file] and decide whether it is a whole FITS.
+  ///
+  /// The whole point is that this runs BEFORE the operator is told anything:
+  /// "present and non-empty" is exactly what a file truncated by a kill looks
+  /// like AND what a finished master looks like, so the two are separated by
+  /// the only thing that tells them apart — the primary header's own
+  /// declaration of how many bytes should follow it.
+  static Future<IntendedMasterFile> measure(File file) async {
+    final int length;
+    try {
+      length = await file.length();
+    } on FileSystemException catch (error) {
+      return IntendedMasterFile(
+        path: file.path,
+        complete: false,
+        detail:
+            'its size could not be read '
+            '(${error.osError?.message ?? error.message})',
+      );
+    }
+    if (length == 0) {
+      return IntendedMasterFile(
+        path: file.path,
+        complete: false,
+        detail: 'it is empty',
+      );
+    }
+    if (length % _blockSize != 0) {
+      return IntendedMasterFile(
+        path: file.path,
+        complete: false,
+        detail:
+            'it is $length bytes, which is not a whole number of '
+            '$_blockSize-byte FITS blocks',
+      );
+    }
+
+    final RandomAccessFile handle;
+    try {
+      handle = await file.open();
+    } on FileSystemException catch (error) {
+      return IntendedMasterFile(
+        path: file.path,
+        complete: false,
+        detail:
+            'it could not be opened '
+            '(${error.osError?.message ?? error.message})',
+      );
+    }
+    try {
+      final header = await _readPrimaryHeader(handle);
+      final refusal = header.refusal;
+      if (refusal != null) {
+        return IntendedMasterFile(
+          path: file.path,
+          complete: false,
+          detail: refusal,
+        );
+      }
+      final needed = header.headerBytes + header.dataBytes;
+      if (length < needed) {
+        return IntendedMasterFile(
+          path: file.path,
+          complete: false,
+          detail:
+              'it is $length bytes but its own header declares '
+              '${header.dataBytes} bytes of data after a '
+              '${header.headerBytes}-byte header, so it stops '
+              '${needed - length} bytes short',
+        );
+      }
+      return IntendedMasterFile(
+        path: file.path,
+        complete: true,
+        detail:
+            'it is $length bytes and carries all '
+            '${header.dataBytes} bytes its header declares',
+      );
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /// Read the primary header's extent and declared data size.
+  static Future<({int headerBytes, int dataBytes, String? refusal})>
+  _readPrimaryHeader(RandomAccessFile handle) async {
+    var bitpix = 0;
+    var naxis = -1;
+    final axes = <int, int>{};
+    for (var block = 0; block < _maxHeaderBlocks; block++) {
+      final bytes = await handle.read(_blockSize);
+      if (bytes.length < _blockSize) {
+        final read = block * _blockSize + bytes.length;
+        return (
+          headerBytes: 0,
+          dataBytes: 0,
+          refusal: 'its header stops after $read bytes, before the END card',
+        );
+      }
+      for (var offset = 0; offset < _blockSize; offset += _cardSize) {
+        final card = String.fromCharCodes(bytes, offset, offset + _cardSize);
+        final keyword = card.substring(0, 8).trim();
+        if (block == 0 && offset == 0 && keyword != 'SIMPLE') {
+          return (
+            headerBytes: 0,
+            dataBytes: 0,
+            refusal:
+                'its first card is "$keyword", not SIMPLE, so it is not '
+                'a FITS file',
+          );
+        }
+        if (keyword == 'END') {
+          final headerBytes = (block + 1) * _blockSize;
+          if (naxis < 0 || bitpix == 0) {
+            return (
+              headerBytes: headerBytes,
+              dataBytes: 0,
+              refusal:
+                  'its header names no BITPIX/NAXIS, so how much data '
+                  'should follow it cannot be read',
+            );
+          }
+          var pixels = naxis == 0 ? 0 : 1;
+          for (var axis = 1; axis <= naxis; axis++) {
+            final extent = axes[axis];
+            if (extent == null) {
+              return (
+                headerBytes: headerBytes,
+                dataBytes: 0,
+                refusal:
+                    'its header declares NAXIS = $naxis but carries no '
+                    'NAXIS$axis, so how much data should follow it cannot be '
+                    'read',
+              );
+            }
+            pixels *= extent;
+          }
+          final rawData = pixels * (bitpix.abs() ~/ 8);
+          final padded = rawData == 0
+              ? 0
+              : ((rawData + _blockSize - 1) ~/ _blockSize) * _blockSize;
+          return (headerBytes: headerBytes, dataBytes: padded, refusal: null);
+        }
+        if (card.length < 10 || card[8] != '=') continue;
+        final value = int.tryParse(card.substring(10).split('/').first.trim());
+        if (value == null) continue;
+        if (keyword == 'BITPIX') bitpix = value;
+        if (keyword == 'NAXIS') naxis = value;
+        if (keyword.startsWith('NAXIS') && keyword.length > 5) {
+          final axis = int.tryParse(keyword.substring(5));
+          if (axis != null) axes[axis] = value;
+        }
+      }
+    }
+    return (
+      headerBytes: 0,
+      dataBytes: 0,
+      refusal:
+          'its header has no END card in the first '
+          '${_maxHeaderBlocks * _blockSize} bytes',
     );
   }
 }

@@ -128,7 +128,7 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      final created = await targets.listAll();
+      final created = (await targets.readAll()).destinations;
       expect(created, hasLength(1));
       expect(created.single.name, 'nas');
       expect(created.single.kind, ArtifactDestinationKind.watchedFolder);
@@ -166,7 +166,7 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      final renamed = await targets.listAll();
+      final renamed = (await targets.readAll()).destinations;
       expect(renamed.single.name, 'office-nas');
       expect(
         decodeDestinationConfig(renamed.single.configJson)['path'],
@@ -182,7 +182,7 @@ void main() {
       await tester.tap(find.widgetWithText(NightshadeButton, 'Delete').last);
       await tester.pumpAndSettle();
 
-      expect(await targets.listAll(), isEmpty);
+      expect((await targets.readAll()).destinations, isEmpty);
       expect(find.text('No delivery destination'), findsOneWidget);
     },
   );
@@ -207,7 +207,7 @@ void main() {
       await tester.tap(find.byType(NightshadeSwitch).first);
       await tester.pumpAndSettle();
 
-      final stored = await targets.listAll();
+      final stored = (await targets.readAll()).destinations;
       expect(stored.single.enabled, isFalse);
       expect(
           find.textContaining('Off — nothing is sent here.'), findsOneWidget);
@@ -620,7 +620,7 @@ void main() {
 
       expect(
         decodeDestinationConfig(
-          (await targets.listAll()).single.configJson,
+          (await targets.readAll()).destinations.single.configJson,
         )['path'],
         '/mnt/right',
       );
@@ -746,7 +746,7 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      final stored = await targets.listAll();
+      final stored = (await targets.readAll()).destinations;
       expect(stored, hasLength(1));
       final secretRef = stored.single.secretRef;
       expect(secretRef, isNotNull);
@@ -769,7 +769,7 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      final cleared = await targets.listAll();
+      final cleared = (await targets.readAll()).destinations;
       expect(cleared.single.secretRef, isNull);
       expect(await secrets.has(secretRef), isFalse);
       expect(find.textContaining('No key in the keyring'), findsOneWidget);
@@ -837,6 +837,79 @@ void main() {
         reason: 'This device\'s own rows are not the host\'s and must not be '
             'presented as them.',
       );
+    },
+  );
+
+  testWidgets(
+    'undecodable_row_is_its_own_failure: the page still lists the '
+    'destinations that decode, and names the one that does not',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      await DeliveryTargetsDao(database).create(
+        name: 'good-nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.linearMasters},
+      );
+      // An artifact class this build does not know, exactly as a newer build
+      // or a hand edit leaves it. `content_json` carries no CHECK, so SQLite
+      // stores it as written.
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+      await database.customStatement(
+        'INSERT INTO delivery_targets('
+        'name, kind, config_json, enabled, content_json, created_at, '
+        'updated_at) VALUES (?, ?, ?, 1, ?, ?, ?)',
+        ['bad-row', 'watched_folder', '{}', '["hdr_composite"]', now, now],
+      );
+
+      await _pumpDelivery(tester, database);
+
+      // The page renders — it does not fall back to its error state.
+      expect(find.text('Failed to load settings'), findsNothing);
+      expect(find.text('good-nas'), findsOneWidget);
+      expect(find.text('Add watched folder'), findsOneWidget);
+
+      // And the row that will not decode is on the page as itself.
+      expect(find.text('bad-row'), findsOneWidget);
+      expect(
+        find.textContaining('hdr_composite'),
+        findsOneWidget,
+        reason: 'the operator has to be told WHICH value stopped the row',
+      );
+      // `content_json` is not CHECK-constrained; claiming it is points at a
+      // database rule that never ran.
+      expect(find.textContaining('CHECK-constrained'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'undecodable_row_can_be_deleted: the one action a row nothing can read '
+    'still needs',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+      await database.customStatement(
+        'INSERT INTO delivery_targets('
+        'name, kind, config_json, enabled, content_json, created_at, '
+        'updated_at) VALUES (?, ?, ?, 1, ?, ?, ?)',
+        ['bad-row', 'watched_folder', '{}', '["hdr_composite"]', now, now],
+      );
+
+      await _pumpDelivery(tester, database);
+
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Delete').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Delete').last);
+      await tester.pumpAndSettle();
+
+      final rows =
+          await database.customSelect('SELECT id FROM delivery_targets').get();
+      expect(rows, isEmpty);
+      expect(find.text('No delivery destination'), findsOneWidget);
     },
   );
 }

@@ -91,8 +91,10 @@ void main() {
     }
 
     for (final c in painted) {
-      expect(c.g, lessThanOrEqualTo(c.r), reason: '$c emits more green than red');
-      expect(c.b, lessThanOrEqualTo(c.r), reason: '$c emits more blue than red');
+      expect(c.g, lessThanOrEqualTo(c.r),
+          reason: '$c emits more green than red');
+      expect(c.b, lessThanOrEqualTo(c.r),
+          reason: '$c emits more blue than red');
       expect(_redShare(c), greaterThan(0.5),
           reason: '$c does not keep red dominant');
     }

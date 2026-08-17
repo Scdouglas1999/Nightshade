@@ -571,6 +571,10 @@ class DawnJobReport {
             'delivered': delivery!.delivered,
             'awaitingPull': delivery!.awaitingPull,
             'retrying': delivery!.retrying,
+            // Apart from `retrying`, which is files an attempt was spent on.
+            // These are files a stop reached first; both are owed, and only
+            // this one says the pass was cut short.
+            'stoppedPending': delivery!.stoppedPending,
             'failed': delivery!.failed,
             'problems': deliveryProblems,
           },

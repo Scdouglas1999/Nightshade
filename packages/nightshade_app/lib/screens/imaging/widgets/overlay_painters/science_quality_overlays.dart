@@ -304,8 +304,8 @@ class ScienceUniformityOverlayPainter extends CustomPainter {
           ? 0.0
           : ((tile.value - low) / (high - low)).clamp(0.0, 1.0);
       final fill = Paint()
-        ..color = Color.lerp(flatColor, strongColor, norm)!
-            .withValues(alpha: opacity)
+        ..color =
+            Color.lerp(flatColor, strongColor, norm)!.withValues(alpha: opacity)
         ..style = PaintingStyle.fill;
 
       final left = (tile.tileCol * tileW) * zoomLevel + imageOffset.dx;

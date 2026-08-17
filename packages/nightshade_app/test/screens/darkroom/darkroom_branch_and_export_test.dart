@@ -5,8 +5,10 @@
 //  * the branch bar names who wrote each branch and refuses a parent delete out
 //    loud, with the branches that blocked it on screen;
 //  * an A/B compare hands BOTH viewers the same TransformationController, which
-//    is what keeps a drag-pan in sync — `onTransformChanged` fires only on
-//    wheel zoom, so a sync built on it would come apart on the first drag;
+//    is what keeps a drag-pan in sync — a callback-based sync would come apart
+//    on the first drag, because a drag reaches no callback;
+//  * blink keeps both panes mounted, so a swap is a buffer change and not a
+//    remount with a blank frame in the middle of it;
 //  * the export sheet shows the engine's raster refusal as readable text, not
 //    just a greyed chip, and one switch turns it into a choice;
 //  * a FITS export names its `.nsrecipe` sidecar on the wire rather than hoping
@@ -25,7 +27,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_controller.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_screen.dart';
-import 'package:nightshade_app/widgets/astro_image_viewer.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -203,12 +204,17 @@ void main() {
   late List<Map<String, Object?>> pickerCalls;
   String? pickerAnswer;
 
+  /// Held open to keep the save chooser up, the way a real one stays up until
+  /// the operator answers it.
+  Completer<String?>? pickerHold;
+
   setUp(() {
     darkroom = _ScriptedDarkroom();
     db = mockDatabase();
     recipes = RecipesDao(db);
     pickerCalls = [];
     pickerAnswer = '/tmp/nightshade-test/out.fits';
+    pickerHold = null;
   });
 
   tearDown(() async {
@@ -238,6 +244,11 @@ void main() {
     WidgetTester tester,
     int recipeId, {
     Size size = const Size(1400, 900),
+
+    /// Where the router starts, when the test needs the master-scoped entry
+    /// point rather than `?recipe=`. Every in-app route into the Darkroom uses
+    /// `?master=`, and that is the route the delete fallback lands back on.
+    String? location,
   }) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = size;
@@ -267,6 +278,11 @@ void main() {
             'allowedExtensions': allowedExtensions,
             'confirmButtonText': confirmButtonText,
           });
+          final hold = pickerHold;
+          if (hold != null) {
+            pickerHold = null;
+            return hold.future;
+          }
           return pickerAnswer;
         }),
       ],
@@ -274,17 +290,25 @@ void main() {
     addTearDown(container.dispose);
 
     final router = GoRouter(
-      initialLocation: '/darkroom?recipe=$recipeId',
+      initialLocation: location ?? '/darkroom?recipe=$recipeId',
       routes: [
         GoRoute(
           path: '/darkroom',
           builder: (context, state) {
-            final raw = state.uri.queryParameters['recipe'];
-            final id = raw == null ? null : int.tryParse(raw);
+            // Both query parameters, exactly as `app_router.dart` reads them:
+            // the delete fallback goes to `?master=`, and a route that could
+            // not express that would make this test pass on a shape the app
+            // never takes.
+            final rawRecipe = state.uri.queryParameters['recipe'];
+            final rawMaster = state.uri.queryParameters['master'];
+            final recipeId = rawRecipe == null ? null : int.tryParse(rawRecipe);
+            final masterId = rawMaster == null ? null : int.tryParse(rawMaster);
             return DarkroomScreen(
-              scope: id == null
-                  ? const DarkroomScope.empty()
-                  : DarkroomScope.recipe(id),
+              scope: recipeId != null
+                  ? DarkroomScope.recipe(recipeId)
+                  : (masterId != null
+                      ? DarkroomScope.master(masterId)
+                      : const DarkroomScope.empty()),
             );
           },
         ),
@@ -327,6 +351,95 @@ void main() {
   // ---------------------------------------------------------------------
   // Branch bar
   // ---------------------------------------------------------------------
+
+  testWidgets(
+      'deleting a master\'s only branch leaves the offer, not the deleted '
+      'recipe', (tester) async {
+    final masterId = await IntegratedMastersDao(db).insertMaster(
+      targetId: null,
+      name: 'M31 B',
+      masterFitsPath: _masterPath,
+      status: IntegratedMasterStatus.finalized,
+      accumulationMode: AccumulationMode.batch,
+      channels: 1,
+      width: 1024,
+      height: 1024,
+      frameCount: 8,
+      totalIntegrationSeconds: 2400,
+      settingsJson: '{}',
+      statsJson: '{}',
+    );
+    final only = await recipes.create(
+      masterId: masterId,
+      baseMasterPath: _masterPath,
+      name: 'Only',
+      stepsJson: jsonEncode([_step('background_extract')]),
+      createdBy: RecipeAuthor.autopilot,
+    );
+
+    // The master-scoped route, which is what every in-app entry point opens.
+    await pump(tester, only, location: '/darkroom?master=$masterId');
+    expect(find.text('Only'), findsWidgets);
+
+    await tester.tap(find.text('Delete branch'));
+    await settle(tester);
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Delete'));
+    await settle(tester);
+
+    // The delete's fallback is the location the screen is ALREADY on, so
+    // nothing about the route changes and the same scope hands back the same
+    // controller. Without an explicit invalidate the editor kept rendering the
+    // deleted recipe with every action live.
+    expect(await recipes.listForMaster(_masterPath), isEmpty);
+    expect(find.text('M31 B has no recipe yet'), findsOneWidget);
+    expect(find.text('Draft for me'), findsOneWidget);
+    expect(find.text('Delete branch'), findsNothing);
+    expect(find.text('Export…'), findsNothing);
+    // And the header does not name the recipe that no longer exists.
+    expect(find.text('Only'), findsNothing);
+    await drain(tester);
+  });
+
+  testWidgets('every branch chip publishes exactly one named node', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+
+    final handle = tester.ensureSemantics();
+    // The tappable chip carries its own complete node — label, button role,
+    // enabled flag, selected state. A second annotation over it published a
+    // nameless node with NO enabled flag wrapping the real one, which the
+    // AT-SPI bridge reported as a disabled, unnamed button.
+    expect(find.bySemanticsLabel('Warmer'), findsOneWidget);
+    // The open recipe's chip has no tap to offer, so it says what it is.
+    expect(
+      find.bySemanticsLabel('Draft — the recipe this editor is showing'),
+      findsOneWidget,
+    );
+
+    final nameless = <int>[];
+    void walk(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      if (data.hasFlag(SemanticsFlag.isButton) && data.label.isEmpty) {
+        nameless.add(node.id);
+      }
+      node.visitChildren((child) {
+        walk(child);
+        return true;
+      });
+    }
+
+    walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    expect(nameless, isEmpty, reason: 'a button with no name names nothing');
+    handle.dispose();
+    await drain(tester);
+  });
 
   testWidgets('the bar names every branch and who wrote it', (tester) async {
     final root = await seedRecipe([_step('background_extract')]);
@@ -431,6 +544,19 @@ void main() {
     }
   }
 
+  /// Let the panes' pixel decodes finish.
+  ///
+  /// `decodeImageFromPixels` answers from the engine, which the fake clock
+  /// inside `testWidgets` never reaches — so without real time the surfaces
+  /// stay on their first-frame spinner and never build the viewer that carries
+  /// the transform.
+  Future<void> decodeFrames(WidgetTester tester) async {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+  }
+
   testWidgets('both compare panes share ONE transform controller', (
     tester,
   ) async {
@@ -442,16 +568,17 @@ void main() {
     );
     await pump(tester, root);
     await enterCompare(tester);
+    await decodeFrames(tester);
 
     final viewers = tester
-        .widgetList<AstroImageViewer>(find.byType(AstroImageViewer))
+        .widgetList<InteractiveViewer>(find.byType(InteractiveViewer))
         .toList();
     expect(viewers, hasLength(2));
     final shared = viewers.first.transformationController;
     expect(shared, isNotNull);
     // Identity, not equality: the sync IS the shared controller. A drag-pan or
-    // a pinch never reaches `onTransformChanged`, so two controllers kept in
-    // step by that callback would diverge on the first drag.
+    // a pinch reaches no callback, so two controllers kept in step by one would
+    // diverge on the first drag.
     expect(identical(viewers[1].transformationController, shared), isTrue);
 
     // Driving it from outside moves both panes, because both read it.
@@ -459,15 +586,17 @@ void main() {
     shared.value = Matrix4.identity()..scaleByDouble(2.0, 2.0, 1.0, 1.0);
     await tester.pump();
     expect(shared.value, isNot(before));
-    for (final viewer in tester.widgetList<AstroImageViewer>(
-      find.byType(AstroImageViewer),
+    for (final viewer in tester.widgetList<InteractiveViewer>(
+      find.byType(InteractiveViewer),
     )) {
       expect(identical(viewer.transformationController, shared), isTrue);
     }
     await drain(tester);
   });
 
-  testWidgets('blink mounts one pane at a time', (tester) async {
+  testWidgets('blink swaps between two mounted panes, never remounting one', (
+    tester,
+  ) async {
     final root = await seedRecipe([_step('background_extract')]);
     await recipes.branchFrom(
       parentRecipeId: root,
@@ -481,14 +610,37 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 40));
 
-    // Exactly one viewer: hiding the other instead of not building it would
-    // mount the same subtree twice and keep two decoded images alive.
-    expect(find.byType(AstroImageViewer), findsOneWidget);
+    // BOTH panes stay mounted and one is painted. Building only the showing
+    // side tore the other down on every tick, so each swap re-mounted a pane
+    // with no decoded frame and the comparator showed a blank between the two
+    // frames the mode exists to compare.
+    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 0);
     expect(find.text('Showing A'), findsOneWidget);
+    // `skipOffstage: false` on purpose: the pane that is not showing is
+    // deliberately not painted, and this is the assertion that it is
+    // nevertheless still there.
+    final before = find
+        .byKey(kDarkroomPreviewSurfaceKey, skipOffstage: false)
+        .evaluate()
+        .toList();
+    expect(before, hasLength(2));
+    // Exactly one of them is on screen.
+    expect(find.byKey(kDarkroomPreviewSurfaceKey), findsOneWidget);
 
     await tester.pump(kDarkroomBlinkInterval);
     expect(find.text('Showing B'), findsOneWidget);
-    expect(find.byType(AstroImageViewer), findsOneWidget);
+    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 1);
+
+    // Element identity, not widget count: the same two elements survive the
+    // swap, so neither pane's decoded frame is thrown away and re-decoded —
+    // which is what put a blank frame between every A and B.
+    final after = find
+        .byKey(kDarkroomPreviewSurfaceKey, skipOffstage: false)
+        .evaluate()
+        .toList();
+    expect(after, hasLength(2));
+    expect(identical(after[0], before[0]), isTrue);
+    expect(identical(after[1], before[1]), isTrue);
 
     // Pausing stops the alternation rather than merely hiding the label.
     await tester.tap(find.text('Pause blink'));
@@ -540,7 +692,7 @@ void main() {
     await pump(tester, root, size: const Size(390, 844));
     await enterCompare(tester);
 
-    final viewers = find.byType(AstroImageViewer);
+    final viewers = find.byKey(kDarkroomPreviewSurfaceKey);
     expect(viewers, findsNWidgets(2));
     final first = tester.getRect(viewers.at(0));
     final second = tester.getRect(viewers.at(1));
@@ -809,6 +961,61 @@ void main() {
     await drain(tester);
   });
 
+  testWidgets('the export sheet names the phase it is actually in', (
+    tester,
+  ) async {
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    // The save chooser is up and nothing has been sent to the engine.
+    final chooser = Completer<String?>();
+    pickerHold = chooser;
+    final held = Completer<void>();
+    darkroom.holdExport = held;
+    await tester.tap(find.text('Export'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(darkroom.exportArgs, isEmpty);
+    expect(
+      find.textContaining('Waiting for the save chooser'),
+      findsOneWidget,
+    );
+    // None of the render's vocabulary, because there is no render.
+    expect(find.textContaining('Rendering the'), findsNothing);
+    expect(find.text('Stop'), findsNothing);
+
+    // Escape is answered with the truth about the chooser, not about a render.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.text('The save chooser is still open'), findsOneWidget);
+    expect(
+      find.textContaining('nothing has been sent to the engine yet'),
+      findsWidgets,
+    );
+
+    // The operator names a file: now — and only now — the render is inside the
+    // engine, and the sheet says so.
+    chooser.complete('/tmp/nightshade-test/out.fits');
+    await tester.pump();
+    await tester.pump();
+    expect(darkroom.exportArgs, hasLength(1));
+    expect(
+      find.textContaining('Rendering the final stack at full resolution'),
+      findsOneWidget,
+    );
+    expect(find.text('Stop'), findsOneWidget);
+    expect(find.textContaining('Waiting for the save chooser'), findsNothing);
+
+    held.complete();
+    await settle(tester);
+    await drain(tester);
+  });
+
   testWidgets('Escape mid-export keeps the sheet up and says why', (
     tester,
   ) async {
@@ -966,7 +1173,7 @@ void main() {
 
     // Both renders are already on screen, so pinning B changes nothing — and a
     // control that publishes an on/off state while changing nothing is a lie.
-    expect(find.byType(AstroImageViewer), findsNWidgets(2));
+    expect(find.byKey(kDarkroomPreviewSurfaceKey), findsNWidgets(2));
     expect(find.text('Hold to see Warmer'), findsNothing);
     await drain(tester);
   });

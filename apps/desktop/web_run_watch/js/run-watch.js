@@ -66,22 +66,105 @@ function saveOpts(opts) {
 
 // ---------------------------------------------------------------------------
 // Fetch helpers — all requests carry the bearer token automatically.
+//
+// Two cross-cutting concerns live here rather than in each caller:
+//
+//  * Rate limiting. The server budgets 60 reads/s per token
+//    (`defaultTokenBucketConfigs`) and answers a denial with 429 +
+//    `retryAfterSecs` + a `retry-after` header. This page shares that budget
+//    with every other tab the operator has open, so a 429 is a normal thing to
+//    meet, not a bug. Every request goes through one gate that honours the
+//    server's own retry window; nothing here retries inside it, and the raw
+//    429 body never reaches the screen.
+//
+//  * Link health. Whether the last exchange with the server succeeded is the
+//    one fact the rest of the page cannot render honestly without, so it is
+//    recorded on every call rather than at each call site.
 // ---------------------------------------------------------------------------
+
+/// Epoch ms before which no request may be sent, set from the server's own
+/// `retryAfterSecs`. Zero means the budget is not exhausted.
+let rateLimitedUntil = 0;
+
+/// Typed refusals raised by [apiFetch]. Callers switch on `error.kind` rather
+/// than on message text.
+class ApiError extends Error {
+  constructor(kind, message, detail) {
+    super(message);
+    this.kind = kind;
+    this.detail = detail || {};
+  }
+}
+
+function rateLimitRemainingSecs() {
+  const ms = rateLimitedUntil - Date.now();
+  return ms > 0 ? Math.ceil(ms / 1000) : 0;
+}
+
+/// Read the server's retry window off a 429. Prefers the JSON body's
+/// `retryAfterSecs` (rate_limit_middleware `_denyRateLimited`), falls back to
+/// the `retry-after` header, and finally to one second — the smallest window
+/// the server ever asks for.
+async function retryAfterSecsFrom(res) {
+  let secs = null;
+  try {
+    const body = await res.clone().json();
+    const raw = body && (body.retryAfterSecs ?? body.retryAfterSeconds);
+    if (typeof raw === 'number' && isFinite(raw) && raw > 0) secs = raw;
+  } catch { /* body is not the JSON shape we know — fall through */ }
+  if (secs == null) {
+    const header = Number(res.headers.get('retry-after'));
+    if (isFinite(header) && header > 0) secs = header;
+  }
+  return secs == null ? 1 : Math.min(Math.ceil(secs), 300);
+}
+
 async function apiFetch(path, opts) {
   opts = opts || {};
+  const waiting = rateLimitRemainingSecs();
+  if (waiting > 0) {
+    throw new ApiError(
+      'rate_limited',
+      'Server is rate-limiting this device',
+      { retryAfterSecs: waiting },
+    );
+  }
   const headers = new Headers(opts.headers || {});
   const token = effectiveToken();
   if (token) headers.set('Authorization', 'Bearer ' + token);
   if (opts.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  let res;
+  try {
+    res = await fetch(path, Object.assign({}, opts, { headers }));
+  } catch (e) {
+    // A transport failure is the signal that the server is gone. It is the
+    // only evidence this page ever gets that a run it is painting as
+    // "running" may have stopped minutes ago.
+    noteLinkFailure('unreachable', e && e.message ? e.message : String(e));
+    throw new ApiError('unreachable', 'Cannot reach the server', {
+      cause: e,
+    });
+  }
   if (res.status === 401 || res.status === 403) {
     // Tokens can be revoked desktop-side; force re-pair.
     setToken(null);
     showPairScreen();
-    throw new Error('auth_required');
+    throw new ApiError('auth_required', 'Pairing is no longer accepted');
   }
+  if (res.status === 429) {
+    const secs = await retryAfterSecsFrom(res);
+    rateLimitedUntil = Date.now() + secs * 1000;
+    noteLinkFailure('rate_limited', 'retry in ' + secs + 's');
+    throw new ApiError(
+      'rate_limited',
+      'Server is rate-limiting this device',
+      { retryAfterSecs: secs },
+    );
+  }
+  // Any answer at all — including a 4xx/5xx — proves the server is there.
+  rateLimitedUntil = 0;
   return res;
 }
 
@@ -90,11 +173,19 @@ async function apiJson(path, opts) {
   if (!res.ok) {
     let body;
     try { body = await res.json(); } catch { body = await res.text(); }
-    throw new Error(typeof body === 'string'
+    throw new ApiError('http_error', typeof body === 'string'
       ? `${path} ${res.status}: ${body}`
-      : `${path} ${res.status}: ${body.error || JSON.stringify(body)}`);
+      : `${path} ${res.status}: ${body.error || JSON.stringify(body)}`,
+      { status: res.status });
   }
   return res.json();
+}
+
+/// Response body of a control POST, or null when the server sent none. A
+/// control button must report the server's own answer, and that answer is in
+/// the body, not in the status code.
+async function apiJsonOrNull(res) {
+  try { return await res.json(); } catch { return null; }
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +221,130 @@ function setConnectionState(state) {
   } else {
     dot.classList.add('conn-disconnected');
     dot.title = 'Disconnected';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Link health
+//
+// A phone left on the nightstand shows whatever the last successful snapshot
+// said. Before this block that picture kept its green "running" badge for as
+// long as the tab stayed open, however long ago the server had died — the only
+// tell was an 8px dot's hover title, which a phone has no way to show. The
+// state below is what lets the page say plainly that it has lost contact, and
+// how stale what it is showing has become.
+// ---------------------------------------------------------------------------
+
+// Poll cadences. Declared here because the staleness threshold is derived
+// from the snapshot interval and both are read by the watchdog below.
+const SNAPSHOT_INTERVAL_MS = 15000;
+const FRAME_FALLBACK_MS = 10000;
+
+/// Epoch ms of the last snapshot the server actually answered. 0 = never.
+let lastSnapshotAt = 0;
+/// Epoch ms this session started polling, so "nothing yet" can be told apart
+/// from "nothing for longer than a poll interval".
+let sessionStartedAt = 0;
+/// Non-null while the link is known bad: `{kind, detail}`.
+let linkFailure = null;
+/// The sequencer state the last good snapshot reported, kept so the banner can
+/// name what is going stale without the badge continuing to assert it.
+let lastKnownState = null;
+let staleWatchdogTimer = null;
+
+// One snapshot interval plus a poll's worth of slack. Past this the page has
+// missed a scheduled exchange and must stop presenting its cache as live.
+const SNAPSHOT_STALE_MS = SNAPSHOT_INTERVAL_MS + 5000;
+const STALE_WATCHDOG_MS = 2000;
+
+function noteLinkOk() {
+  lastSnapshotAt = Date.now();
+  linkFailure = null;
+}
+
+function noteLinkFailure(kind, detail) {
+  linkFailure = { kind, detail: detail || '' };
+}
+
+/// True when this page cannot vouch for what it is showing: either the last
+/// exchange failed outright, or no exchange has succeeded within a poll
+/// interval.
+function isLinkStale() {
+  if (linkFailure && linkFailure.kind === 'unreachable') return true;
+  // Nothing answered yet: the first exchange gets one poll interval to land
+  // before "still loading" becomes "no contact". A failed first fetch does not
+  // wait — it is already caught above.
+  if (lastSnapshotAt === 0) {
+    return sessionStartedAt > 0 && Date.now() - sessionStartedAt > SNAPSHOT_STALE_MS;
+  }
+  return Date.now() - lastSnapshotAt > SNAPSHOT_STALE_MS;
+}
+
+function formatAge(ms) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + 'm ' + (s % 60) + 's';
+  return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+}
+
+/// Repaint the banner + badge + dot from the current link state. Called on
+/// every snapshot outcome and on the watchdog tick, so the page can never sit
+/// green past a missed poll.
+function renderLinkState() {
+  const banner = $('link-banner');
+  const badge = $('state-badge');
+  const stale = isLinkStale();
+  const waiting = rateLimitRemainingSecs();
+
+  if (!stale) {
+    if (banner) {
+      if (waiting > 0) {
+        // The link is alive; the server is only asking us to slow down. Say
+        // that instead of the raw 429 body.
+        banner.classList.remove('hidden');
+        banner.textContent =
+          'Server is rate-limiting this device — next update in ' +
+          waiting + 's.';
+      } else {
+        banner.classList.add('hidden');
+        banner.textContent = '';
+      }
+    }
+    return;
+  }
+
+  // Stale: the badge must stop asserting a state nobody has confirmed.
+  if (badge) {
+    badge.textContent = 'unknown';
+    badge.className = 'badge badge-error';
+  }
+  setConnectionState('disconnected');
+
+  const age = lastSnapshotAt === 0 ? null : Date.now() - lastSnapshotAt;
+  const lead = linkFailure && linkFailure.kind === 'unreachable'
+    ? 'Cannot reach the observatory server.'
+    : 'No answer from the observatory server.';
+  const since = age == null
+    ? ' No update has arrived since this page opened.'
+    : ' Last update ' + formatAge(age) + ' ago' +
+      (lastKnownState ? ' (state was "' + lastKnownState + '")' : '') +
+      '. The values below are from then and may be wrong.';
+  if (banner) {
+    banner.classList.remove('hidden');
+    banner.textContent = lead + since;
+  }
+}
+
+function startStaleWatchdog() {
+  stopStaleWatchdog();
+  staleWatchdogTimer = setInterval(renderLinkState, STALE_WATCHDOG_MS);
+}
+
+function stopStaleWatchdog() {
+  if (staleWatchdogTimer) {
+    clearInterval(staleWatchdogTimer);
+    staleWatchdogTimer = null;
   }
 }
 
@@ -230,9 +445,6 @@ function deviceLabel() {
 // ---------------------------------------------------------------------------
 // Main session: snapshot polling + SSE + frame refresh
 // ---------------------------------------------------------------------------
-const SNAPSHOT_INTERVAL_MS = 15000;
-const FRAME_FALLBACK_MS = 10000;
-
 let snapshotTimer = null;
 let frameTimer = null;
 let sse = null;
@@ -241,9 +453,14 @@ let frameBusy = false;
 
 function bootSession() {
   setConnectionState('reconnecting');
+  lastSnapshotAt = 0;
+  sessionStartedAt = Date.now();
+  linkFailure = null;
+  lastKnownState = null;
   fetchSnapshot();
   openSSE();
   startPolling();
+  startStaleWatchdog();
   refreshFrame();
 }
 
@@ -256,16 +473,25 @@ function startPolling() {
 function stopPolling() {
   if (snapshotTimer) { clearInterval(snapshotTimer); snapshotTimer = null; }
   if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
+  stopStaleWatchdog();
 }
 
 async function fetchSnapshot() {
   try {
     const data = await apiJson('/api/run-watch/snapshot');
+    noteLinkOk();
     setConnectionState('connected');
     applySnapshot(data);
   } catch (e) {
-    if (e.message === 'auth_required') return;
-    setConnectionState('reconnecting');
+    if (e.kind === 'auth_required') return;
+    // 'unreachable' already recorded the failure inside apiFetch; a
+    // rate-limited or HTTP-error answer still proves the server is alive, so
+    // only the staleness clock decides those.
+    if (e.kind !== 'unreachable' && e.kind !== 'rate_limited') {
+      setConnectionState('reconnecting');
+    }
+  } finally {
+    renderLinkState();
   }
 }
 
@@ -286,6 +512,7 @@ function applySnapshot(data) {
   else if (state === 'error' || state === 'failed') badge.classList.add('badge-error');
   else if (unknown) badge.classList.add('badge-error');
   else badge.classList.add('badge-idle');
+  lastKnownState = state;
 
   // state 'unknown' means the server's read failed. Never fall back to
   // 'Idle' there — the run may well still be going.
@@ -293,12 +520,17 @@ function applySnapshot(data) {
     progress.currentTarget || sequencer.currentNodeName ||
     (unknown ? (progress.message || 'Status unavailable') : 'Idle');
 
-  // Active target
+  // Active target. `coordinatesKnown: false` is the headless case — the native
+  // executor holds the sequence, so the host can name the target but cannot
+  // place it on the sky. Show the name it does have and label the rest.
   const target = data.activeTarget;
   if (target) {
+    const placed = target.coordinatesKnown !== false;
     $('target-state').textContent = target.unavailable
       ? (target.message || 'Target unavailable')
-      : (progress.currentFilter ? ('filter: ' + progress.currentFilter) : '');
+      : (!placed
+          ? (target.message || 'Coordinates unavailable')
+          : (progress.currentFilter ? ('filter: ' + progress.currentFilter) : ''));
     $('target-name').textContent = target.name || '--';
     $('target-coords').textContent = formatRaDec(target.raHours, target.decDegrees);
     $('target-alt').textContent = formatDeg(target.altitudeDeg);
@@ -316,16 +548,27 @@ function applySnapshot(data) {
   }
 
   // Progress
-  const pct = (progress.progressPercent != null ? Math.round(progress.progressPercent * 100) : 0);
-  $('progress-pct').textContent = progress.progressPercent != null ? pct + '%' : '--';
+  const pctKnown = progress.progressPercent != null;
+  const pct = pctKnown ? Math.round(progress.progressPercent * 100) : 0;
+  $('progress-pct').textContent = pctKnown ? pct + '%' : '--';
   $('progress-bar').style.width = pct + '%';
   const ariaBar = $('progress-bar-aria');
-  if (ariaBar) ariaBar.setAttribute('aria-valuenow', String(pct));
+  if (ariaBar) {
+    // A progressbar with no aria-valuenow is announced as indeterminate,
+    // which is the truth when the server did not report a percentage.
+    // aria-valuenow="0" would announce "0 percent" — a number nobody sent.
+    if (pctKnown) ariaBar.setAttribute('aria-valuenow', String(pct));
+    else ariaBar.removeAttribute('aria-valuenow');
+  }
   const framesKnown =
     progress.completedExposures != null && progress.totalExposures != null;
   $('progress-frames').textContent = framesKnown
     ? progress.completedExposures + ' / ' + progress.totalExposures
     : '--';
+  // The denominator is null whenever the host does not know the run's planned
+  // integration (every native/headless start — see _knownIntegrationDenominator
+  // in run_watch_handlers.dart). "24s / 0s" claimed a total the run had already
+  // passed; "24s / --" says what is actually known.
   $('progress-integration').textContent =
     formatDurationSecs(progress.completedIntegrationSecs) + ' / ' +
     formatDurationSecs(progress.totalIntegrationSecs);
@@ -357,28 +600,43 @@ function applySnapshot(data) {
     });
   }
 
-  // Guiding
+  // Guiding. PHD2 reports 0.0 for every RMS while disconnected, which is a
+  // placeholder, not a measurement — a disconnected guider has no error to
+  // report at all. Only a connected guider's numbers are shown.
   const guiding = data.guiding || {};
-  $('guide-state').textContent = guiding.connected
+  const guideConnected = guiding.connected === true;
+  $('guide-state').textContent = guideConnected
     ? (guiding.state || 'connected')
     : 'disconnected';
-  $('guide-ra').textContent = formatRms(guiding.rmsRa);
-  $('guide-dec').textContent = formatRms(guiding.rmsDec);
-  $('guide-total').textContent = formatRms(guiding.rmsTotal);
-  $('guide-snr').textContent = guiding.snr != null
+  $('guide-ra').textContent = guideConnected ? formatRms(guiding.rmsRa) : '--';
+  $('guide-dec').textContent = guideConnected ? formatRms(guiding.rmsDec) : '--';
+  $('guide-total').textContent = guideConnected ? formatRms(guiding.rmsTotal) : '--';
+  $('guide-snr').textContent = guideConnected && guiding.snr != null
     ? guiding.snr.toFixed(1)
     : '--';
 
-  // Weather
+  // Weather. `dataSource: 'unavailable'` means no weather hardware, no safety
+  // monitor and no API source — nothing has looked at the sky. A run of green
+  // "clear"/"safe" out of that is the fail-honest rule's exact prohibition, so
+  // the sensor question is answered before the verdict is drawn.
   const weather = data.weather || {};
   const wbadge = $('weather-badge');
-  wbadge.textContent = weather.alertLevel || 'unknown';
+  const weatherSourced =
+    weather.dataSource != null && weather.dataSource !== 'unavailable';
   wbadge.className = 'badge';
-  if (weather.safeToImage) wbadge.classList.add('badge-running');
-  else if (weather.alertLevel === 'warning') wbadge.classList.add('badge-paused');
-  else if (weather.alertLevel === 'unsafe' || weather.alertLevel === 'critical') wbadge.classList.add('badge-error');
-  else wbadge.classList.add('badge-idle');
-  $('weather-message').textContent = weather.message || '--';
+  if (!weatherSourced) {
+    wbadge.textContent = 'no sensor';
+    wbadge.classList.add('badge-idle');
+  } else {
+    wbadge.textContent = weather.alertLevel || 'unknown';
+    if (weather.safeToImage) wbadge.classList.add('badge-running');
+    else if (weather.alertLevel === 'warning') wbadge.classList.add('badge-paused');
+    else if (weather.alertLevel === 'unsafe' || weather.alertLevel === 'critical') wbadge.classList.add('badge-error');
+    else wbadge.classList.add('badge-idle');
+  }
+  $('weather-message').textContent = weatherSourced
+    ? (weather.message || '--')
+    : (weather.message || 'No weather source configured.');
 
   // Recovery banner
   const banner = $('recovery-banner');
@@ -511,7 +769,13 @@ function openSSE() {
   }
 
   sse.onopen = () => setConnectionState('connected');
-  sse.onerror = () => setConnectionState('reconnecting');
+  sse.onerror = () => {
+    // EventSource retries forever and fires onerror on each attempt. Calling
+    // it "reconnecting" is only honest while the snapshot poll still believes
+    // the link is alive; once the link is known stale the dot must agree with
+    // the banner rather than keep suggesting a recovery is under way.
+    setConnectionState(isLinkStale() ? 'disconnected' : 'reconnecting');
+  };
   sse.onmessage = (evt) => handleSseMessage(evt);
 
   // Frame-triggering events — when one arrives, refresh the thumbnail
@@ -617,8 +881,12 @@ async function refreshFrame() {
     if (hfr) meta.push('HFR ' + Number(hfr).toFixed(2));
     $('frame-meta').textContent = meta.join(' · ');
   } catch (e) {
-    if (e.message === 'auth_required') return;
-    // fall through — placeholder remains.
+    if (e.kind === 'auth_required') return;
+    // A rate-limited or unreachable server is already stated by the link
+    // banner; the placeholder simply remains.
+    if (e.kind === 'rate_limited' || e.kind === 'unreachable') {
+      renderLinkState();
+    }
   } finally {
     setFrameLoading(false);
     frameBusy = false;
@@ -628,6 +896,13 @@ async function refreshFrame() {
 // ---------------------------------------------------------------------------
 // Playback controls
 // ---------------------------------------------------------------------------
+/// POST a control and report what the server actually answered.
+///
+/// A 200 is not consent. `POST /api/sequencer/stop` answers 200 with
+/// `wasRunning: false` and "No sequence was running; nothing to stop." when
+/// there is nothing to stop, and this surface used to reply "Stop sent" to
+/// that — a green toast for a command the server declined. The body carries
+/// the verdict; read it.
 async function sequencerAction(path, label, body) {
   try {
     const opts = { method: 'POST' };
@@ -636,19 +911,40 @@ async function sequencerAction(path, label, body) {
       opts.body = JSON.stringify(body);
     }
     const res = await apiFetch(path, opts);
+    const payload = await apiJsonOrNull(res);
     if (!res.ok) {
-      let msg;
-      try { msg = (await res.json()).error || res.statusText; }
-      catch { msg = res.statusText; }
+      const msg = (payload && (payload.message || payload.error)) || res.statusText;
       toast(`${label} failed: ${msg}`, 'error');
+      return;
+    }
+    const refused = payload != null &&
+      (payload.wasRunning === false || payload.accepted === false);
+    if (refused) {
+      toast(
+        (payload.message || `${label} had no effect`),
+        'warning',
+      );
     } else {
-      toast(label + ' sent', 'success');
-      fetchSnapshot();
+      toast(`${label} accepted`, 'success');
     }
+    fetchSnapshot();
   } catch (e) {
-    if (e.message !== 'auth_required') {
-      toast(`${label} failed: ${e.message}`, 'error');
+    if (e.kind === 'auth_required') return;
+    if (e.kind === 'rate_limited') {
+      toast(
+        `${label} not sent — server is rate-limiting this device. ` +
+        `Try again in ${e.detail.retryAfterSecs}s.`,
+        'warning',
+      );
+      renderLinkState();
+      return;
     }
+    if (e.kind === 'unreachable') {
+      toast(`${label} not sent — cannot reach the server`, 'error');
+      renderLinkState();
+      return;
+    }
+    toast(`${label} failed: ${e.message}`, 'error');
   }
 }
 

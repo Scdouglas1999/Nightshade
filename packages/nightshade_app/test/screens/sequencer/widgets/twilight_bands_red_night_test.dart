@@ -135,8 +135,8 @@ void main() {
       'nautical': namedNauticalTwilightBand,
       'astro': namedAstroTwilightBand,
     }.entries) {
-      final resolved =
-          NightshadeChartColors.forTheme(entry.value, NightshadeColors.redNight);
+      final resolved = NightshadeChartColors.forTheme(
+          entry.value, NightshadeColors.redNight);
       expect(
         painted,
         contains(resolved),

@@ -25,6 +25,13 @@ class _DarkroomBranchBar extends ConsumerStatefulWidget {
   /// The family this bar draws, and the recipe inside it that is open.
   final DarkroomBranchScope scope;
 
+  /// The key the EDITOR's controller is registered under.
+  ///
+  /// Deleting the open recipe leaves that controller holding a stack that is no
+  /// longer stored, and the bar is the only thing that knows it happened. A
+  /// route change cannot be relied on to replace it — see [_promptDelete].
+  final DarkroomScope editorScope;
+
   /// The open recipe's row id.
   final int recipeId;
 
@@ -52,6 +59,7 @@ class _DarkroomBranchBar extends ConsumerStatefulWidget {
 
   const _DarkroomBranchBar({
     required this.scope,
+    required this.editorScope,
     required this.recipeId,
     required this.masterId,
     required this.compareRecipeId,
@@ -173,23 +181,35 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         ? 'a root recipe'
         : 'diverges from recipe ${branch.parentRecipeId} after step '
             '${branch.divergenceIndex}';
+    final label = comparing ? '${branch.label} (B)' : branch.label;
+    final chip = NightshadeChip(
+      label: label,
+      icon: branch.author == RecipeAuthor.autopilot
+          ? NightshadeIcons.sparkle
+          : NightshadeIcons.user,
+      selected: current,
+      onTap:
+          current ? null : () => context.go(darkroomRecipeLocation(branch.id)),
+    );
     return Tooltip(
       message: '${branch.label} — $author, $steps, $diverged.'
           '${comparing ? ' Shown as B in the compare pane.' : ''}',
-      child: Semantics(
-        button: true,
-        selected: current,
-        child: NightshadeChip(
-          label: comparing ? '${branch.label} (B)' : branch.label,
-          icon: branch.author == RecipeAuthor.autopilot
-              ? NightshadeIcons.sparkle
-              : NightshadeIcons.user,
-          selected: current,
-          onTap: current
-              ? null
-              : () => context.go(darkroomRecipeLocation(branch.id)),
-        ),
-      ),
+      // A tappable chip publishes its OWN node, carrying the label, the button
+      // role, the enabled flag and the selected state. Wrapping that in a
+      // second annotation is what put a nameless node with no enabled state
+      // above every branch button — assistive tech read a disabled, unnamed
+      // button wrapping the real one. The open recipe's chip has no tap and so
+      // publishes no node of its own; it gets one node here that says what it
+      // is rather than offering an action it cannot perform.
+      child: current
+          ? Semantics(
+              container: true,
+              selected: true,
+              label: '$label — the recipe this editor is showing',
+              excludeSemantics: true,
+              child: chip,
+            )
+          : chip,
     );
   }
 
@@ -440,8 +460,21 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     final parentId = before.branchFor(widget.recipeId)?.parentRecipeId;
     final deleted = await _branches.deleteBranch(widget.recipeId);
     if (!deleted || !mounted || !context.mounted) return;
-    // The open recipe is gone, so the screen cannot stay on it: go to the
-    // branch it came from, or to the master, which offers a fresh start.
+
+    // The row is gone, so the editor's controller is holding a recipe that no
+    // longer exists. It is retired HERE rather than left to the navigation
+    // below, because the fallback can be the location the screen is already on:
+    // every in-app entry point opens the Darkroom as `/darkroom?master=<id>`,
+    // and going to a location that is already current changes no route, so the
+    // same scope hands back the same notifier and the deleted recipe stays on
+    // screen with every action still live. Invalidating the family member is
+    // what makes the screen re-read the master and offer a fresh start; when
+    // the fallback IS a different location, this retires a controller that
+    // autoDispose was about to drop anyway.
+    ref.invalidate(darkroomControllerProvider(widget.editorScope));
+
+    // Where the screen goes next: the branch this one came from, or the master,
+    // which offers a fresh start.
     final after = ref.read(darkroomBranchControllerProvider(widget.scope));
     final fallback = parentId ?? _firstBranchId(after);
     if (fallback != null) {
@@ -459,6 +492,10 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   Future<void> _deleteLine(DarkroomBranchDeleteRefusal refusal) async {
     final deleted = await _branches.deleteBranchLine(refusal.recipeId);
     if (deleted == null || !mounted || !context.mounted) return;
+    // The line can include the open recipe, and there may be no branch left to
+    // go to at all — so the editor's controller is retired for the same reason
+    // it is in [_promptDelete].
+    ref.invalidate(darkroomControllerProvider(widget.editorScope));
     NightshadeToastHelper.show(
       context: context,
       message: '$deleted recipe${deleted == 1 ? '' : 's'} deleted. The linear '

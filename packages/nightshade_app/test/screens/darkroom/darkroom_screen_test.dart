@@ -10,14 +10,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'dart:ui' show Tristate;
+import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_controller.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_screen.dart';
-import 'package:nightshade_app/widgets/astro_image_viewer.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -205,11 +204,12 @@ Map<String, dynamic> _step(
   String opId, {
   bool enabled = true,
   int opVersion = 1,
+  Map<String, dynamic> params = const <String, dynamic>{},
 }) =>
     {
       'opId': opId,
       'opVersion': opVersion,
-      'params': <String, dynamic>{},
+      'params': params,
       'enabled': enabled,
     };
 
@@ -300,7 +300,7 @@ void main() {
       find.text('Open the Darkroom on the imaging host'),
       findsOneWidget,
     );
-    expect(find.byType(AstroImageViewer), findsNothing);
+    expect(find.byKey(kDarkroomPreviewSurfaceKey), findsNothing);
   });
 
   testWidgets('a link that names nothing explains itself and offers a way out',
@@ -336,7 +336,7 @@ void main() {
 
     expect(find.text('Background extract'), findsOneWidget);
     expect(find.text('Color calibrate'), findsOneWidget);
-    expect(find.byType(AstroImageViewer), findsOneWidget);
+    expect(find.byKey(kDarkroomPreviewSurfaceKey), findsOneWidget);
     expect(find.text('Applied by the last render'), findsNWidgets(2));
     // The zoom readout is about the master, never about the pyramid level.
     expect(find.textContaining('% of master'), findsOneWidget);
@@ -603,7 +603,7 @@ void main() {
     expect(find.text('Image'), findsOneWidget);
     expect(find.text('Recipe'), findsWidgets);
     expect(find.text('History'), findsWidgets);
-    expect(find.byType(AstroImageViewer), findsOneWidget);
+    expect(find.byKey(kDarkroomPreviewSurfaceKey), findsOneWidget);
   });
 
   testWidgets('a parameter slider follows the whole drag, not just its start',
@@ -695,6 +695,88 @@ void main() {
     // no expander to name — and still has its own remove control.
     expect(find.bySemanticsLabel('Color calibrate parameters'), findsNothing);
     semantics.dispose();
+  });
+
+  testWidgets('a parameter slider says its name and its value', (tester) async {
+    final id = await seedRecipe([
+      _step('background_extract', params: {'sampleSpacing': 100.0}),
+    ]);
+    await pump(tester, DarkroomScope.recipe(id), size: const Size(1280, 1400));
+    await tester.tap(find.text('Parameters'));
+    await tester.pump();
+
+    final semantics = tester.ensureSemantics();
+    // The slider used to publish an empty name, no value and no value
+    // interface: a screen-reader walk of a card with three of them heard
+    // "slider" three times and learned nothing. The label and the readout were
+    // sighted-only.
+    final node = tester.getSemantics(find.byType(NightshadeSlider));
+    expect(node.label, contains('sampleSpacing'));
+    expect(node.label, contains('100'));
+    expect(node.value, '100');
+    // Assistive tech can move it, and is told where each step lands.
+    expect(node.increasedValue, isNotEmpty);
+    expect(node.decreasedValue, isNotEmpty);
+    final data = node.getSemanticsData();
+    expect(data.hasAction(SemanticsAction.increase), isTrue);
+    expect(data.hasAction(SemanticsAction.decrease), isTrue);
+    semantics.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('"Use default" names the parameter it resets', (tester) async {
+    final id = await seedRecipe([
+      _step('background_extract', params: {'sampleSpacing': 100.0}),
+    ]);
+    await pump(tester, DarkroomScope.recipe(id), size: const Size(1280, 1400));
+    await tester.tap(find.text('Parameters'));
+    await tester.pump();
+
+    final semantics = tester.ensureSemantics();
+    // Unqualified, this is three words repeated once per parameter, and only
+    // reading order says which one each belongs to — the defect this file's
+    // Remove and Parameters controls were already fixed for.
+    expect(
+      find.bySemanticsLabel('Use default for sampleSpacing'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Use default'), findsNothing);
+    semantics.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('a re-render keeps the previous frame instead of a spinner', (
+    tester,
+  ) async {
+    final id = await seedRecipe([_step('background_extract')]);
+    final scope = DarkroomScope.recipe(id);
+    final handle = await pump(tester, scope);
+
+    // The first frame has to be decoded before "kept" means anything.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+
+    // A second render lands with a buffer the surface has not decoded yet.
+    await handle.container
+        .read(darkroomControllerProvider(scope).notifier)
+        .refreshRender();
+    await tester.pump();
+
+    // The picture is still on screen, with a tag saying a newer frame is on its
+    // way — rather than the canvas dropping to a spinner, which is what made a
+    // parameter drag strobe.
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    expect(find.text('New frame…'), findsOneWidget);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    expect(find.text('New frame…'), findsNothing);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    await drain(tester);
   });
 
   testWidgets('an unregistered step keeps its controls as separate nodes', (

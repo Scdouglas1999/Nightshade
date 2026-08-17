@@ -112,6 +112,10 @@ extension _SequencerLifecycle on SequencerHandlers {
     // that never happened. Cleared once `sequencerStart()` returns, because
     // from then on the run owns the row and finalization closes it.
     var openedSessionForThisStart = false;
+    // The `sequence_runs.id` this start opened, cleared once the native
+    // executor has accepted the run. Same contract as the session row above:
+    // a refused start must not leave a run in the history that never began.
+    int? openedRunForThisStart;
     try {
       if (hasInEditorSequence) {
         final executor = container.read(sequenceExecutorProvider);
@@ -162,21 +166,29 @@ extension _SequencerLifecycle on SequencerHandlers {
         // frame event arrives, or that frame is stamped with a null
         // `session_id`. See [_openSessionRowForNativeRun].
         openedSessionForThisStart = await _openSessionRowForNativeRun(backend);
+        openedRunForThisStart = await _openRunRowForNativeRun();
         await _attachHostListenersForNativeRun();
         nativeStartAttempted = true;
         await backend.sequencerStart();
-        // The run owns the row from here; nothing below may close it.
+        // The run owns the rows from here; nothing below may close them.
         openedSessionForThisStart = false;
+        openedRunForThisStart = null;
       }
     } on SequenceValidationException catch (e) {
-      await _closeSessionOpenedForRefusedStart(openedSessionForThisStart);
+      await _closeRecordsOpenedForRefusedStart(
+        openedSessionForThisStart,
+        openedRunForThisStart,
+      );
       _logInfo(
         '[API] POST /api/sequencer/start rejected: '
         '${e.result.errorCount} validation errors',
       );
       return jsonBadRequest(e.toJsonBody());
     } catch (error) {
-      await _closeSessionOpenedForRefusedStart(openedSessionForThisStart);
+      await _closeRecordsOpenedForRefusedStart(
+        openedSessionForThisStart,
+        openedRunForThisStart,
+      );
       // Pressing Start with nothing loaded is an ordinary operator mistake, not
       // a server fault. Every other sequencer verb (pause/resume/stop/skip)
       // already answers cleanly when idle; this one surfaced a 500.

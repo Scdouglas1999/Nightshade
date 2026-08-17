@@ -24,8 +24,6 @@
 /// delivered when one machine collected everything.
 library;
 
-import 'dart:convert';
-
 import '../../models/darkroom/delivery.dart';
 import 'artifact_transport.dart';
 import 'delivery_artifact.dart';
@@ -85,14 +83,8 @@ class PeerPublicationTransport implements ArtifactTransport {
   /// when the config is not an object or names no peer — a manifest served to
   /// an unnamed peer would be served to every peer.
   static String readPeerId(ArtifactDestination destination) {
-    final decoded = jsonDecode(destination.configJson);
-    if (decoded is! Map) {
-      throw const DeliveryFailure(
-        DeliveryFailureKind.configurationInvalid,
-        'This peer destination\'s configuration is not a JSON object',
-      );
-    }
-    final peerId = decoded['peerId'];
+    final config = decodeDeliveryConfig(destination, what: 'peer destination');
+    final peerId = config['peerId'];
     if (peerId is! String || peerId.trim().isEmpty) {
       throw const DeliveryFailure(
         DeliveryFailureKind.configurationInvalid,

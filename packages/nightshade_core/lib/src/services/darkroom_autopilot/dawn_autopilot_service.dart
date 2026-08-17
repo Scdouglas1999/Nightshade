@@ -580,6 +580,56 @@ class DawnAutopilotService {
       reportPath: reportPath,
     );
 
+    // A stop that landed WHILE delivery was running ends the job here, as the
+    // stop it is. `_stopIfCancelled` above only covers the instant before the
+    // pass starts; a stop that arrived while the files were being copied used
+    // to fall straight through to `done`, so the row, the report and the
+    // morning notification all announced a finished night over a delivery the
+    // operator had halted part-way. The report is still written — with the
+    // delivery counts, so what is outstanding is on the record — and the row
+    // is marked cancelled rather than done. Nothing is lost: the files the
+    // pass did not reach are owed in the journal and the retry sweep takes
+    // them.
+    if (_cancelRequested.contains(jobId)) {
+      final pending = delivered.report?.stoppedPending ?? 0;
+      final stoppedBecause = pending == 0
+          ? 'Stopped on request during delivery.'
+          : 'Stopped on request during delivery; $pending file'
+                '${pending == 1 ? '' : 's'} are still owed and the retry '
+                'sweep resumes them.';
+      final stoppedReport = DawnJobReport(
+        jobId: jobId,
+        kind: kind.wire,
+        sessionId: sessionId,
+        startedAt: startedAt,
+        finishedAt: _clock(),
+        state: DarkroomJobState.cancelled.wire,
+        masters: reports,
+        withoutFile: set.withoutFile,
+        delivery: delivered.report,
+        deliveryProblems: [...excluded, ...delivered.problems],
+        notification: null,
+        failure: stoppedBecause,
+      );
+      final stoppedPath = await _writeReport(
+        baseDirectory,
+        jobId,
+        stoppedReport,
+      );
+      final cancelled = await _jobs.markCancelled(
+        jobId,
+        reason: stoppedBecause,
+        now: _clock(),
+      );
+      return DawnJobOutcome(
+        jobId: jobId,
+        state: cancelled.state,
+        report: stoppedReport,
+        reportPath: stoppedPath,
+        failure: cancelled.errorText,
+      );
+    }
+
     report = DawnJobReport(
       jobId: jobId,
       kind: kind.wire,

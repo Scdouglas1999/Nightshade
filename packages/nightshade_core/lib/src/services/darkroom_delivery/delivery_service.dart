@@ -63,6 +63,16 @@ class DeliveryDestinationReport {
   /// Files that did not land and are due another attempt.
   final int retrying;
 
+  /// Files nothing was tried for because the pass was stopped before it
+  /// reached them.
+  ///
+  /// Kept apart from [retrying]: those are files an attempt was spent on, and
+  /// these are files the operator's stop reached first. Their journal rows are
+  /// left owed with their attempt counts untouched, so the sweep resumes them
+  /// — which is what makes this number a statement of work outstanding rather
+  /// than of work lost.
+  final int stoppedPending;
+
   /// Files whose attempts are spent, or whose failure no retry can change.
   final int failed;
 
@@ -89,13 +99,19 @@ class DeliveryDestinationReport {
     required this.retrying,
     required this.failed,
     required this.problems,
+    this.stoppedPending = 0,
     this.unjournalled = 0,
     this.nothingToSend,
   });
 
   /// Total files this destination was asked to take on this pass.
   int get attempted =>
-      delivered + awaitingPull + retrying + failed + unjournalled;
+      delivered +
+      awaitingPull +
+      retrying +
+      stoppedPending +
+      failed +
+      unjournalled;
 
   /// The morning report's line for this destination.
   String get summary {
@@ -106,6 +122,9 @@ class DeliveryDestinationReport {
       if (delivered > 0) '$delivered delivered',
       if (awaitingPull > 0) '$awaitingPull awaiting pull',
       if (retrying > 0) '$retrying retrying',
+      if (stoppedPending > 0)
+        'stopped during delivery, $stoppedPending file'
+            '${stoppedPending == 1 ? '' : 's'} pending',
       if (failed > 0) '$failed failed',
       if (unjournalled > 0) '$unjournalled not journalled',
     ];
@@ -121,10 +140,11 @@ class DeliveryRunReport {
   /// One entry per destination the pass touched.
   final List<DeliveryDestinationReport> destinations;
 
-  /// Problems that belong to the pass rather than to any one destination —
-  /// the destination list itself being unreadable is the only one so far.
-  /// They are what stops an empty [destinations] from being read as "nothing
-  /// is configured".
+  /// Problems that belong to the pass rather than to a destination it could
+  /// visit: the destination list being unreadable, and each individual row
+  /// that would not decode into a destination. They are what stops an empty
+  /// [destinations] from being read as "nothing is configured", and what
+  /// keeps an undecodable row visible when the readable ones delivered fine.
   final List<String> problems;
 
   const DeliveryRunReport({
@@ -143,6 +163,13 @@ class DeliveryRunReport {
   /// Files due another attempt.
   int get retrying => destinations.fold<int>(0, (sum, d) => sum + d.retrying);
 
+  /// Files the stop reached before delivery did, still owed in the journal.
+  int get stoppedPending =>
+      destinations.fold<int>(0, (sum, d) => sum + d.stoppedPending);
+
+  /// True when a stop ended this pass before it had sent everything.
+  bool get wasStopped => stoppedPending > 0;
+
   /// Files that will not be attempted again.
   int get failed => destinations.fold<int>(0, (sum, d) => sum + d.failed);
 
@@ -152,7 +179,11 @@ class DeliveryRunReport {
 
   /// True when every file this pass touched reached a destination.
   bool get everythingLanded =>
-      problems.isEmpty && retrying == 0 && failed == 0 && unjournalled == 0;
+      problems.isEmpty &&
+      retrying == 0 &&
+      stoppedPending == 0 &&
+      failed == 0 &&
+      unjournalled == 0;
 
   /// The morning report's paragraph.
   ///
@@ -213,9 +244,9 @@ class DeliveryService {
     DeliveryArtifactSet set, {
     DeliveryCancellation? isCancelled,
   }) async {
-    final List<ArtifactDestination> destinations;
+    final DeliveryTargetsRead read;
     try {
-      destinations = await _targets.listEnabled();
+      read = await _targets.readEnabled();
     } catch (error, stack) {
       // The destination list is unreadable, so nothing can be delivered and
       // nothing can be journalled. The pipeline still finishes: this is
@@ -236,8 +267,9 @@ class DeliveryService {
       );
     }
 
+    final problems = _undecodableProblems(read.undecodable);
     final reports = <DeliveryDestinationReport>[];
-    for (final destination in destinations) {
+    for (final destination in read.destinations) {
       final selected = set.selectedFor(destination);
       if (selected.isEmpty) {
         reports.add(_nothingToSend(destination));
@@ -252,7 +284,32 @@ class DeliveryService {
         ),
       );
     }
-    return DeliveryRunReport(jobId: set.jobId, destinations: reports);
+    return DeliveryRunReport(
+      jobId: set.jobId,
+      destinations: reports,
+      problems: problems,
+    );
+  }
+
+  /// One sentence per row that would not decode into a destination.
+  ///
+  /// Logged as well as reported: the row is a database fact the operator will
+  /// have to repair, and the morning report is read once while the log keeps.
+  List<String> _undecodableProblems(List<UndecodableDeliveryTarget> rows) {
+    final problems = <String>[];
+    for (final row in rows) {
+      final sentence =
+          '${row.label} was skipped because ${row.reason}. Nothing was sent '
+          'there and nothing was journalled for it; every other destination '
+          'ran normally. Open Settings > Delivery to correct or remove it';
+      _logger?.error(
+        'A delivery destination row could not be decoded and was skipped: '
+        '$sentence',
+        source: 'DeliveryService',
+      );
+      problems.add(sentence);
+    }
+    return problems;
   }
 
   /// Re-attempt every journal row that is due, across every job.
@@ -283,8 +340,29 @@ class DeliveryService {
     }
 
     final reports = <DeliveryDestinationReport>[];
+    final problems = <String>[];
     for (final targetId in byTarget.keys) {
-      final destination = await _targets.getById(targetId);
+      final ArtifactDestination? destination;
+      try {
+        destination = await _targets.getById(targetId);
+      } on Object catch (error, stack) {
+        // The row is there but does not decode. Its own files stay in the
+        // journal exactly as they are — a later build that understands the row
+        // resumes them — and the destinations either side of it are still
+        // swept.
+        _logger?.error(
+          'The delivery retry sweep skipped destination $targetId: its row '
+          'could not be decoded ($error)',
+          source: 'DeliveryService',
+          fields: {'stack': stack.toString()},
+        );
+        problems.add(
+          'Delivery destination #$targetId was skipped by the retry sweep '
+          'because its row could not be read ($error); its '
+          '${byTarget[targetId]!.length} pending file(s) were left owed',
+        );
+        continue;
+      }
       if (destination == null) continue;
       final rows = byTarget[targetId]!;
       reports.add(
@@ -296,7 +374,11 @@ class DeliveryService {
         ),
       );
     }
-    return DeliveryRunReport(jobId: null, destinations: reports);
+    return DeliveryRunReport(
+      jobId: null,
+      destinations: reports,
+      problems: problems,
+    );
   }
 
   /// The report entry for a destination this job handed no files to.
@@ -372,15 +454,11 @@ class DeliveryService {
 
     for (final file in files) {
       if (_stopRequested(isCancelled)) {
-        await _recordOutcome(
+        await _recordStillOwed(
           targetId: targetId,
           jobId: jobId,
           filePath: file.sourcePath,
           bytes: file.bytes,
-          failure: const DeliveryFailure(
-            DeliveryFailureKind.cancelled,
-            'Delivery stopped before this file was sent',
-          ),
           tally: tally,
         );
         continue;
@@ -472,7 +550,10 @@ class DeliveryService {
 
     for (final file in files) {
       if (_stopRequested(isCancelled)) {
-        tally.retrying++;
+        // The row is already `retrying` in the journal — this file came off
+        // `listPendingRetry` — so its true state needs no write and its
+        // attempt count stays where the schedule left it.
+        tally.stoppedPending++;
         continue;
       }
       await _deliverOne(
@@ -567,6 +648,45 @@ class DeliveryService {
         detail:
             'The file DID reach ${outcome.destinationDescription}, but no row '
             'records that',
+        error: error,
+        stack: stack,
+        tally: tally,
+      );
+    }
+  }
+
+  /// Leave one file owed because the pass was stopped before it was sent.
+  ///
+  /// No attempt is counted and no terminal state is written: the operator
+  /// stopping a pass is not the file failing. The row goes in `retrying` with
+  /// `attempts` untouched, which is what puts the file on the next sweep's
+  /// work list — including the sweep the next boot runs.
+  Future<void> _recordStillOwed({
+    required int targetId,
+    required int jobId,
+    required String filePath,
+    required int bytes,
+    required _Tally tally,
+  }) async {
+    try {
+      await _journalWrite(
+        () => _journal.recordStillOwed(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: filePath,
+          bytes: bytes,
+          reason:
+              'Delivery was stopped before this file was sent; it is '
+              'still owed and the next retry sweep takes it',
+          now: _clock(),
+        ),
+      );
+      tally.stoppedPending++;
+    } catch (error, stack) {
+      _journalWriteRefused(
+        what: 'the still-owed row for ${p.basename(filePath)}',
+        filePath: filePath,
+        detail: 'Delivery was stopped before this file was sent',
         error: error,
         stack: stack,
         tally: tally,
@@ -774,6 +894,7 @@ class _Tally {
   int delivered = 0;
   int awaitingPull = 0;
   int retrying = 0;
+  int stoppedPending = 0;
   int failed = 0;
   int unjournalled = 0;
   final List<String> problems = [];
@@ -787,6 +908,7 @@ class _Tally {
     delivered: delivered,
     awaitingPull: awaitingPull,
     retrying: retrying,
+    stoppedPending: stoppedPending,
     failed: failed,
     unjournalled: unjournalled,
     problems: List<String>.unmodifiable(problems),

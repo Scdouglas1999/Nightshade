@@ -92,7 +92,7 @@ class _UnreadableTargets extends DeliveryTargetsDao {
   _UnreadableTargets(super.db);
 
   @override
-  Future<List<ArtifactDestination>> listEnabled() async {
+  Future<DeliveryTargetsRead> readEnabled() async {
     throw StateError('database disk image is malformed');
   }
 }

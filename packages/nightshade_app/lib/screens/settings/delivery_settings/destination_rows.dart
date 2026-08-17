@@ -238,6 +238,146 @@ class _DestinationRow extends ConsumerWidget {
   }
 }
 
+/// One `delivery_targets` row this build cannot decode.
+///
+/// Rendered as a row of its own rather than as the page's error state: the row
+/// sends nothing, and the operator needs to see WHICH destination that is and
+/// what is wrong with it while the destinations that do work are still on
+/// screen. Only Delete is offered — every editing path reads the row through
+/// the same decode that just refused it, so an editor opened here would have
+/// nothing to render.
+class _UnreadableDestinationRow extends ConsumerStatefulWidget {
+  const _UnreadableDestinationRow({
+    super.key,
+    required this.row,
+    required this.isMobile,
+  });
+
+  final UndecodableDeliveryTarget row;
+  final bool isMobile;
+
+  @override
+  ConsumerState<_UnreadableDestinationRow> createState() =>
+      _UnreadableDestinationRowState();
+}
+
+class _UnreadableDestinationRowState
+    extends ConsumerState<_UnreadableDestinationRow> {
+  bool _deleting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final row = widget.row;
+    final id = row.id;
+    return MergeSemantics(
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.isMobile ? 12.0 : NightshadeTokens.spaceLg,
+          vertical: widget.isMobile ? 12.0 : 14.0,
+        ),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: widget.isMobile ? 32.0 : 36.0,
+              height: widget.isMobile ? 32.0 : 36.0,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: NightshadeTokens.borderRadiusMd,
+              ),
+              child: Icon(
+                LucideIcons.fileWarning,
+                size: widget.isMobile ? 14.0 : NightshadeTokens.iconSm,
+                color: colors.error,
+              ),
+            ),
+            SizedBox(width: widget.isMobile ? 10 : 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    row.label,
+                    style: (widget.isMobile
+                            ? NightshadeTypography.labelSm
+                            : NightshadeTypography.label)
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  _StatusLine(
+                    status: DeliveryStatusLine(
+                      DeliveryStatusKind.failed,
+                      'This row cannot be read, so nothing is sent here: '
+                      '${row.reason}.',
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Every other destination delivers normally. Deleting this '
+                    'row removes it and its delivery journal; files already '
+                    'delivered are left alone.',
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (id != null)
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: NightshadeButton(
+                    label: 'Delete',
+                    icon: LucideIcons.trash2,
+                    variant: ButtonVariant.destructive,
+                    size: ButtonSize.small,
+                    isLoading: _deleting,
+                    onPressed: _deleting ? null : () => _delete(id),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _delete(int id) async {
+    final confirmed = await ConfirmDialog.show(
+      context: context,
+      title: 'Delete ${widget.row.label}?',
+      message: 'This destination cannot be read, so it delivers nothing. '
+          'Deleting removes the row and its delivery journal. Files already '
+          'delivered there are left alone — delivery copies, it never moves.',
+      confirmLabel: 'Delete',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await ref.read(deliverySettingsStoreProvider).deleteDestination(id);
+    } catch (error) {
+      if (mounted) {
+        context.showErrorSnackBar(
+          'Could not delete this destination: ${userFacingError(error)}',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _deleting = false);
+        ref.invalidate(deliveryDestinationsProvider);
+      }
+    }
+  }
+}
+
 /// Re-queues the spent rows of a destination's newest job and runs a sweep.
 ///
 /// Shown only beside a `failed` status line, because that is the only state

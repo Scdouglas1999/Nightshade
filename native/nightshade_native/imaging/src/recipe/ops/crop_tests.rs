@@ -228,6 +228,34 @@ fn an_origin_outside_the_frame_is_reported_rather_than_clamped() {
 }
 
 #[test]
+fn an_out_of_bounds_report_stays_in_one_coordinate_space() {
+    // The rectangle is scaled to the render level before it is applied, but the
+    // refusal used to print the recipe's full-resolution origin against the
+    // level's dimensions: at level 3 that read as a 5000 px offset checked
+    // against a 240 px frame — a 20x overshoot where the real one is 2.6x.
+    // The level-3 image the renderer hands the op: the 1920x1080 master
+    // downsampled by 8.
+    let base = synthetic_star_field(240, 135, 1, 51);
+    let params = json!({ "x": 5000, "y": 5000, "width": 100, "height": 100 });
+
+    let reason = match CropV1.apply(&base, &params, &OpContext::new().at_level(3)) {
+        Err(OpError::Failed { reason, .. }) => reason,
+        other => panic!("an origin off the frame must be refused: {other:?}"),
+    };
+
+    // 5000 * 0.125 = 625, against the level-3 image, which is 240x135.
+    assert!(
+        reason.contains("crop origin (625, 625)") && reason.contains("240x135"),
+        "the compared origin and the image must be in the same space: {reason}"
+    );
+    // The recipe's own numbers stay in the message, labelled as the other space.
+    assert!(
+        reason.contains("full-resolution origin (5000, 5000)"),
+        "the operator's own parameters must still be named: {reason}"
+    );
+}
+
+#[test]
 fn a_raised_cancel_flag_aborts_the_operation() {
     let base = synthetic_star_field(64, 48, 1, 47);
     let ctx = OpContext::new();

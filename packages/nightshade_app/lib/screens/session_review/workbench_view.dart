@@ -12,6 +12,7 @@ import '../../utils/confirm_dialog.dart';
 import '../../utils/darkroom_navigation.dart';
 import 'session_review_controller.dart';
 import 'widgets/ab_compare_panel.dart';
+import 'widgets/darkroom_pass_banner.dart';
 import 'widgets/integration_settings_panel.dart';
 import 'widgets/master_library_panel.dart';
 import 'widgets/master_overlay_view.dart';
@@ -94,12 +95,18 @@ class WorkbenchView extends ConsumerWidget {
           controller: controller,
         );
 
+        // Above both columns in either layout: a pass that failed or was
+        // stopped is the reason the drafts and the delivery the panels below
+        // would otherwise be read as reporting are not there.
+        final passBanner = DarkroomPassBanner(job: state.darkroomJob);
+
         if (!wide) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                passBanner,
                 left,
                 const SizedBox(height: NightshadeTokens.spaceLg),
                 right,
@@ -111,17 +118,25 @@ class WorkbenchView extends ConsumerWidget {
         // Two dense columns side by side on desktop widths.
         return Padding(
           padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              passBanner,
               Expanded(
-                flex: 5,
-                child: SingleChildScrollView(child: left),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceLg),
-              Expanded(
-                flex: 6,
-                child: SingleChildScrollView(child: right),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(child: left),
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceLg),
+                    Expanded(
+                      flex: 6,
+                      child: SingleChildScrollView(child: right),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -85,6 +85,12 @@ const String _corruptBackupPrefix = 'nightshade-corrupt-';
 /// to the user as "the database we quarantined".
 const String _replacedBackupPrefix = 'nightshade-replaced-';
 
+/// Filename prefix for a database whose very first schema creation was
+/// interrupted. Deliberately NOT [_corruptBackupPrefix]: the file is not
+/// corrupt and holds nothing anyone could want back, so it must never be
+/// offered to the user as a restorable quarantined database.
+const String _incompleteBackupPrefix = 'nightshade-incomplete-';
+
 /// Filename prefix for the one-time UI marker that signals "we just recovered
 /// from corruption — please tell the user." The marker is consumed +
 /// unlinked by the UI layer on the next launch.
@@ -202,6 +208,88 @@ Future<IntegrityRecoveryReport> runIntegrityCheckAndRecover(File dbFile) async {
   return _quarantine(dbFile, failureReason);
 }
 
+/// Outcome of [discardInterruptedFirstCreate].
+class InterruptedCreateReport {
+  /// True iff a half-created database was found and moved aside.
+  final bool discarded;
+
+  /// Absolute path the half-created file was renamed to. Null unless
+  /// [discarded] is true.
+  final String? backupPath;
+
+  /// How many tables the half-created file carried. Reported so the log line
+  /// says how far the interrupted creation had got.
+  final int tableCount;
+
+  const InterruptedCreateReport({
+    required this.discarded,
+    this.backupPath,
+    this.tableCount = 0,
+  });
+
+  static const InterruptedCreateReport none = InterruptedCreateReport(
+    discarded: false,
+  );
+}
+
+/// Move aside a database whose FIRST schema creation was interrupted, so the
+/// next open creates a fresh one instead of dying forever.
+///
+/// THE GUARD, and the only state this touches: `user_version == 0` while
+/// `sqlite_master` already holds tables. Drift stamps the schema version only
+/// after `onCreate` returns (`DelegatedDatabase._runMigrations`), so a file in
+/// that state is one a process died inside during its very first boot. It has
+/// never presented a complete schema to the app, no session has ever written
+/// to it, and it therefore cannot hold user data. Anything with a stamped
+/// version — every real database — is left alone, as is an empty file (0
+/// tables), which is simply a fresh install about to be populated.
+///
+/// Without this, such a file is a permanent brick: version 0 reads as "brand
+/// new" on the next open, drift re-enters `onCreate`, and the first duplicate
+/// `CREATE INDEX` aborts startup. Every subsequent launch repeats it.
+///
+/// New databases are created atomically (see the migration strategy's
+/// `onCreate`), so this repairs installs bricked by earlier builds and stands
+/// as the backstop for any future path that can commit tables without a
+/// version.
+///
+/// Rename, never delete: the file is worthless to the user but is evidence for
+/// support, and moving it is what makes the repair reversible.
+Future<InterruptedCreateReport> discardInterruptedFirstCreate(
+  File dbFile,
+) async {
+  if (!await dbFile.exists()) return InterruptedCreateReport.none;
+
+  final int version;
+  final int tables;
+  final db = sqlite3.open(dbFile.path, mode: OpenMode.readOnly);
+  try {
+    applySqliteBusyTimeout(db);
+    version = db.select('PRAGMA user_version;').first.values.first as int;
+    tables =
+        db
+                .select(
+                  "SELECT COUNT(*) AS n FROM sqlite_master "
+                  "WHERE type = 'table' AND name NOT LIKE 'sqlite_%';",
+                )
+                .first
+                .values
+                .first
+            as int;
+  } finally {
+    db.close();
+  }
+
+  if (version != 0 || tables == 0) return InterruptedCreateReport.none;
+
+  final backupPath = await _rotateAside(dbFile, _incompleteBackupPrefix);
+  return InterruptedCreateReport(
+    discarded: true,
+    backupPath: backupPath,
+    tableCount: tables,
+  );
+}
+
 /// Runs `PRAGMA integrity_check` against [path]. Returns an empty string when
 /// the database is healthy, or the joined failure rows when it is not.
 /// Propagates [SqliteException] to the caller for classification.
@@ -256,11 +344,17 @@ Future<IntegrityRecoveryReport> _quarantine(
 ///
 /// Why rename, not copy: copying followed by delete races with WAL-mode write
 /// recovery, so a rename (atomic on POSIX, near-atomic on NTFS) is safer.
-Future<String> _rotateCorruptFile(File dbFile) async {
+Future<String> _rotateCorruptFile(File dbFile) =>
+    _rotateAside(dbFile, _corruptBackupPrefix);
+
+/// The rename half of a rotation, with the caller choosing the prefix that
+/// says WHY the file was moved. The prefix is load-bearing: only
+/// [_corruptBackupPrefix] files are offered back to the user as restorable.
+Future<String> _rotateAside(File dbFile, String prefix) async {
   final ts = DateTime.now().toUtc().millisecondsSinceEpoch;
   final dir = dbFile.parent;
   final baseName = p.basename(dbFile.path);
-  final backupName = '$_corruptBackupPrefix$ts-$baseName';
+  final backupName = '$prefix$ts-$baseName';
   final backupPath = p.join(dir.path, backupName);
 
   await dbFile.rename(backupPath);

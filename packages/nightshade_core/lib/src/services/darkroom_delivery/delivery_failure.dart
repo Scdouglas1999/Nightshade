@@ -11,6 +11,10 @@
 /// what decides between `retrying` and `failed` in the journal.
 library;
 
+import 'dart:convert';
+
+import '../../models/darkroom/delivery.dart';
+
 /// The mechanism that stopped a delivery.
 enum DeliveryFailureKind {
   /// The source artifact is gone from the rig — a deleted master, a renamed
@@ -66,10 +70,7 @@ enum DeliveryFailureKind {
 
   /// The transport failed in a way that another attempt may survive — a
   /// dropped connection, a timeout, a non-zero exit with no clearer cause.
-  transportFailure,
-
-  /// The job was cancelled while this file was in flight.
-  cancelled;
+  transportFailure;
 
   /// Whether another attempt can plausibly succeed.
   ///
@@ -91,7 +92,6 @@ enum DeliveryFailureKind {
       case DeliveryFailureKind.transportToolMissing:
       case DeliveryFailureKind.authMethodUnavailable:
       case DeliveryFailureKind.configurationInvalid:
-      case DeliveryFailureKind.cancelled:
         return false;
     }
   }
@@ -120,4 +120,46 @@ class DeliveryFailure implements Exception {
 
   @override
   String toString() => 'DeliveryFailure(${kind.name}): $message';
+}
+
+/// [destination]'s `config_json` as the map its transport reads.
+///
+/// Every transport decodes the same column, and the two ways it can refuse to
+/// decode are the same configuration error: text that is not JSON at all, and
+/// JSON that is not an object. Both are
+/// [DeliveryFailureKind.configurationInvalid] — TERMINAL. A bare `jsonDecode`
+/// raised `FormatException` here instead, which [DeliveryService] can only
+/// read as an unclassified transport failure: RETRYABLE. A destination whose
+/// configuration cannot be parsed was then re-attempted on the whole backoff
+/// schedule, spending the night's budget on a row whose text is identical
+/// every time, and the operator's sentence was the parser's
+/// (`FormatException: Unexpected character (at character 1)`) rather than one
+/// naming the column and the row.
+///
+/// [what] names the destination kind in the operator's words ("watched-folder
+/// destination"), so the sentence says which row to open.
+Map<String, Object?> decodeDeliveryConfig(
+  ArtifactDestination destination, {
+  required String what,
+}) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(destination.configJson);
+  } on FormatException catch (error) {
+    throw DeliveryFailure(
+      DeliveryFailureKind.configurationInvalid,
+      'This $what stores configuration that is not JSON (${error.message}), '
+      'so there is nothing to deliver to. Open it in Settings > Delivery and '
+      'save it again',
+      cause: error,
+    );
+  }
+  if (decoded is! Map) {
+    throw DeliveryFailure(
+      DeliveryFailureKind.configurationInvalid,
+      'This $what stores configuration that is JSON but not an object, so it '
+      'names no place to write',
+    );
+  }
+  return decoded.cast<String, Object?>();
 }

@@ -156,7 +156,11 @@ class _ScriptedDarkroom implements DarkroomSeam {
       width: 4,
       height: 4,
       isColor: false,
-      rgba: Uint8List(4 * 4 * 4),
+      // Byte 0 carries how many steps THIS render was asked about, so a test
+      // can tell one reply's pixels from another's. Without it a superseded
+      // render and the one that replaces it answer with identical buffers and
+      // "were the stale pixels painted?" has no observable answer.
+      rgba: Uint8List(4 * 4 * 4)..[0] = steps.length,
       report: {
         // The engine's own shape (bridge render.rs `description`): an object,
         // never a sentence.
@@ -1176,5 +1180,145 @@ void main() {
     final reopened = await settle(scope);
     expect(reopened.hasRecipe, isFalse);
     expect(reopened.loadError, contains('Recipe $id does not exist'));
+  });
+
+  test(
+      'a render the operator has edited past never reaches the viewport, even '
+      'inside the debounce', () async {
+    final id = await seedRecipe(
+      steps: [_step('crop'), _step('background_extract'), _step('stretch')],
+    );
+    final scope = DarkroomScope.recipe(id);
+    final first = await settle(scope);
+    expect(first.preview!.rgba[0], 3, reason: 'the first render is the stack');
+
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+
+    // One edit, and the render it schedules is held inside the engine.
+    final held = Completer<void>();
+    darkroom.holdPreview = held;
+    controller.removeStep(0);
+    await pumpDebounces();
+    expect(darkroom.previewCount, 2, reason: 'the two-step render is running');
+
+    // A second edit while that render is still in the engine. The reply lands
+    // BEFORE the new debounce fires — the window in which the generation used
+    // not to have moved yet, so the superseded pixels were painted.
+    controller.removeStep(0);
+    held.complete();
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    final duringDebounce = container.read(darkroomControllerProvider(scope));
+    expect(duringDebounce.steps, hasLength(1));
+    expect(
+      duringDebounce.preview!.rgba[0],
+      3,
+      reason: 'the two-step reply describes a recipe that is already gone, so '
+          'the last picture the operator can trust stays up',
+    );
+
+    // The stack the operator ended on is what finally renders.
+    await pumpDebounces();
+    final settled = container.read(darkroomControllerProvider(scope));
+    expect(settled.preview!.rgba[0], 1);
+  });
+
+  test('a refused reorder numbers its steps over the stack on screen',
+      () async {
+    final id = await seedRecipe(
+      steps: [
+        _step('crop'),
+        _step('background_extract'),
+        _step('denoise'),
+        _step('stretch'),
+      ],
+    );
+    final scope = DarkroomScope.recipe(id);
+    await settle(scope);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+
+    // The engine's own sentence, indexing the order it was HANDED from 0:
+    // moving stretch above denoise makes [crop, background_extract, stretch,
+    // denoise], in which denoise is 3 and stretch is 2.
+    darkroom.validateOk = false;
+    darkroom.validateError =
+        'step 3 (denoise@1) is a linear-stage operation but step 2 (stretch) '
+        'already left the linear stage';
+
+    final moved = await controller.reorderStep(3, 2);
+    expect(moved, isFalse);
+    expect(controller.state.steps.map((s) => s.opId), [
+      'crop',
+      'background_extract',
+      'denoise',
+      'stretch',
+    ]);
+
+    final refusal = controller.state.reorderRefusal!;
+    // On screen denoise is the 3rd card and stretch the 4th, counting from 1 —
+    // the base the export sheet's own step list uses.
+    expect(refusal, contains('step 3 (denoise@1)'));
+    expect(refusal, contains('step 4 (stretch)'));
+    expect(refusal, isNot(contains('step 2 (stretch)')));
+    expect(refusal, contains('count the stack as it stands on screen, from 1'));
+  });
+
+  test('a master whose only recipe is deleted offers a start naming no recipe',
+      () async {
+    final masters = IntegratedMastersDao(db);
+    final masterId = await masters.insertMaster(
+      targetId: null,
+      name: 'M31 B',
+      masterFitsPath: _masterPath,
+      status: IntegratedMasterStatus.finalized,
+      accumulationMode: AccumulationMode.batch,
+      channels: 1,
+      width: 1024,
+      height: 1024,
+      frameCount: 8,
+      totalIntegrationSeconds: 2400,
+      settingsJson: '{}',
+      statsJson: '{}',
+    );
+    final recipeId = await recipes.create(
+      masterId: masterId,
+      baseMasterPath: _masterPath,
+      name: 'M31 B draft',
+      stepsJson: jsonEncode([_step('crop'), _step('stretch')]),
+      createdBy: RecipeAuthor.autopilot,
+    );
+    final scope = DarkroomScope.master(masterId);
+    final opened = await settle(scope);
+    expect(opened.recipeName, 'M31 B draft');
+    expect(opened.steps, hasLength(2));
+
+    await recipes.deleteRecipe(recipeId);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+    await controller.refresh();
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    final offered = container.read(darkroomControllerProvider(scope));
+    expect(offered.offer, isNotNull);
+    expect(offered.offer!.masterName, 'M31 B');
+    // Nothing of the deleted recipe survives: the header reads its NAME off
+    // this state, and it printed "M31 B draft" over the subtitle "No recipe
+    // yet" for as long as copyWith carried these fields through.
+    expect(offered.hasRecipe, isFalse);
+    expect(offered.recipeId, isNull);
+    expect(offered.recipeName, isEmpty);
+    expect(offered.steps, isEmpty);
+    expect(offered.reports, isEmpty);
+    expect(offered.preview, isNull);
+    // The catalogue is about this build's registry, not about any recipe.
+    expect(offered.catalog, isNotNull);
   });
 }

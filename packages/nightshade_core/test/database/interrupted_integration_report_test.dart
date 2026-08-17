@@ -208,6 +208,119 @@ void main() {
     },
   );
 
+  group('the warning verifies each file before it accuses it', () {
+    /// A whole FITS: a 2880-byte primary header declaring an 8-bit 100x100
+    /// image, followed by that data padded to the next block.
+    Future<File> wholeFits(String path) async {
+      final header = StringBuffer()
+        ..write('SIMPLE  =                    T'.padRight(80))
+        ..write('BITPIX  =                    8'.padRight(80))
+        ..write('NAXIS   =                    2'.padRight(80))
+        ..write('NAXIS1  =                  100'.padRight(80))
+        ..write('NAXIS2  =                  100'.padRight(80))
+        ..write('END'.padRight(80));
+      final bytes = <int>[
+        ...header.toString().padRight(2880).codeUnits,
+        ...List<int>.filled(((10000 + 2879) ~/ 2880) * 2880, 42),
+      ];
+      final file = File(path);
+      await file.writeAsBytes(bytes);
+      return file;
+    }
+
+    test(
+      'a byte-complete master is complete-but-unregistered, not truncated',
+      () async {
+        final sessionId = await seedSession();
+        final whole = await wholeFits('${tempDir.path}/M31_L_master_1.fits');
+        final half = File('${tempDir.path}/M31_R_master_1.fits');
+        await half.writeAsString('half a FITS');
+
+        await markIntegrationStarted(
+          tempDir,
+          InterruptedIntegration(
+            sessionId: sessionId,
+            targetName: 'M31',
+            startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+            intendedMasterPaths: [whole.path, half.path],
+          ),
+        );
+
+        final read = await reopenAndRead(sessionId);
+        final notes = read.notes!;
+
+        // The whole file is not accused, and is not on the delete list.
+        expect(notes, contains('${whole.path} is a complete FITS'));
+        expect(notes, contains('no master row records it'));
+        final deleteSentence = notes
+            .split('. ')
+            .firstWhere((s) => s.contains('delete them before re-running'));
+        expect(deleteSentence, contains(half.path));
+        expect(deleteSentence, isNot(contains(whole.path)));
+      },
+    );
+
+    test('a byte-complete master the library knows about says so', () async {
+      final sessionId = await seedSession();
+      final whole = await wholeFits('${tempDir.path}/M31_L_master_2.fits');
+
+      final db = open();
+      await db.customInsert(
+        'INSERT INTO integrated_masters(name, master_fits_path, status, '
+        'accumulation_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        variables: [
+          const Variable<String>('M31 L'),
+          Variable<String>(whole.path),
+          const Variable<String>('ready'),
+          const Variable<String>('oneShot'),
+          Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+          Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+        ],
+      );
+      await db.close();
+
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: [whole.path],
+        ),
+      );
+
+      final notes = (await reopenAndRead(sessionId)).notes!;
+      expect(notes, contains('the master library already holds a row for it'));
+      expect(notes, isNot(contains('delete them before re-running')));
+    });
+
+    test(
+      'a file that stops short of its own header is named as short',
+      () async {
+        final sessionId = await seedSession();
+        final whole = await wholeFits('${tempDir.path}/M31_L_master_3.fits');
+        // Chop the last block: still a whole number of FITS blocks, so only the
+        // header's own declaration catches it.
+        final bytes = await whole.readAsBytes();
+        await whole.writeAsBytes(bytes.sublist(0, bytes.length - 2880));
+
+        await markIntegrationStarted(
+          tempDir,
+          InterruptedIntegration(
+            sessionId: sessionId,
+            targetName: 'M31',
+            startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+            intendedMasterPaths: [whole.path],
+          ),
+        );
+
+        final notes = (await reopenAndRead(sessionId)).notes!;
+        expect(notes, contains('delete them before re-running'));
+        expect(notes, contains('stops 2880 bytes short'));
+      },
+    );
+  });
+
   group('InterruptedIntegration', () {
     test('round-trips through its payload', () {
       final original = InterruptedIntegration(

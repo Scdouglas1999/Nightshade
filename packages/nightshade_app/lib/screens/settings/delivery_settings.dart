@@ -81,26 +81,28 @@ class DeliverySettings extends ConsumerWidget {
         error: error,
         onRetry: () => ref.invalidate(deliveryDestinationsProvider),
       ),
-      data: (views) => _DeliveryPageBody(isMobile: isMobile, views: views),
+      data: (read) => _DeliveryPageBody(isMobile: isMobile, read: read),
     );
   }
 }
 
 /// The page once the destinations have been read.
 class _DeliveryPageBody extends ConsumerWidget {
-  const _DeliveryPageBody({required this.isMobile, required this.views});
+  const _DeliveryPageBody({required this.isMobile, required this.read});
 
   final bool isMobile;
-  final List<DeliveryDestinationView> views;
+  final DeliveryDestinations read;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final views = read.views;
     final pushed = views
         .where((view) => view.destination.kind != ArtifactDestinationKind.peer)
         .toList(growable: false);
     final peers = views
         .where((view) => view.destination.kind == ArtifactDestinationKind.peer)
         .toList(growable: false);
+    final unreadable = read.unreadable;
 
     return SettingsPage(
       title: 'Delivery',
@@ -113,9 +115,9 @@ class _DeliveryPageBody extends ConsumerWidget {
           title: 'Delivery destinations',
           isMobile: isMobile,
           children: [
-            if (pushed.isEmpty)
+            if (pushed.isEmpty && unreadable.isEmpty)
               const _NoDestinationsRow()
-            else
+            else ...[
               for (final view in pushed)
                 _DestinationRow(
                   view: view,
@@ -123,6 +125,15 @@ class _DeliveryPageBody extends ConsumerWidget {
                   isLast: false,
                   key: ValueKey<int?>(view.destination.id),
                 ),
+              // Below the destinations that work, because these send nothing
+              // and the operator's first question is about the ones that do.
+              for (final row in unreadable)
+                _UnreadableDestinationRow(
+                  row: row,
+                  isMobile: isMobile,
+                  key: ValueKey<String>('unreadable-${row.id}-${row.name}'),
+                ),
+            ],
             _AddDestinationRow(isMobile: isMobile),
           ],
         ),

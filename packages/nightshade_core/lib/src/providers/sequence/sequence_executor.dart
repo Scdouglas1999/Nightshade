@@ -793,6 +793,72 @@ class SequenceExecutor {
     return runId;
   }
 
+  /// Open the same durable run records for a native launch that does NOT come
+  /// through [start] / [resumeFromCheckpoint]: the headless
+  /// `POST /api/sequencer/load` -> `POST /api/sequencer/start` path.
+  ///
+  /// That path re-implements a subset of [start] against the already-loaded
+  /// native tree, and the `sequence_runs` row was the piece it never opened. A
+  /// full successful night therefore left `sequence_runs` EMPTY — the durable
+  /// run history `GET /api/sequence-runs` serves, and the record the D1 runbook
+  /// points an operator at, showed nothing for a run that had just written
+  /// twelve frames and four masters. The same omission also silenced
+  /// finalization: `_finalizeRun` needs the run id and the live stats this
+  /// opens, so pause/resume status, the run's stats JSON and its end status had
+  /// nowhere to land either.
+  ///
+  /// No `sequenceSnapshotJson`: the snapshot column holds the Dart editor's
+  /// sequence map, and the wire JSON the native executor was loaded with is a
+  /// different shape. A null snapshot means "no run diff for this run", which
+  /// is true; writing the wire JSON there would make the diff view compare
+  /// incomparable documents.
+  ///
+  /// Refuses to open a second row over a live one — a run id already set means
+  /// a run is under way, and stamping a new one would orphan it mid-flight in
+  /// the `running` state. Returns the run id now in force.
+  Future<int> openRunRecordsForNativeStart({
+    required String sequenceName,
+    int? sequenceDatabaseId,
+  }) async {
+    final existing = _ref.read(currentRunIdProvider);
+    if (existing != null) {
+      _logger.warning(
+        'A native start asked for a run row while run $existing is still '
+        'live; keeping the live run',
+        source: 'SequenceExecutor',
+      );
+      return existing;
+    }
+    return _openRunRecords(
+      sequenceName: sequenceName,
+      sequenceDatabaseId: sequenceDatabaseId,
+    );
+  }
+
+  /// Close out the records [openRunRecordsForNativeStart] opened for a start
+  /// the native executor then refused, so a run that never began does not sit
+  /// in the run history as `running` until the next launch reconciles it.
+  ///
+  /// `failed` rather than a delete: the attempt happened and the operator asked
+  /// for it. Errors are logged, not raised — the caller is already returning
+  /// the refusal that actually explains why the run did not start.
+  Future<void> discardRunRecordsForRefusedNativeStart(int runId) async {
+    try {
+      final stats = _ref.read(liveSequenceStatsProvider) ?? SequenceRunStats();
+      stats.endTime = DateTime.now();
+      await _ref
+          .read(sequenceRunsDaoProvider)
+          .finishRun(runId, 'failed', stats.toJson());
+    } catch (e) {
+      _logger.warning(
+        'The start was refused and run row $runId could not be closed: $e',
+        source: 'SequenceExecutor',
+      );
+    }
+    _ref.read(currentRunIdProvider.notifier).state = null;
+    _ref.read(liveSequenceStatsProvider.notifier).state = null;
+  }
+
   /// Start the periodic work a run owns: the 1 s elapsed/ETA ticker, the
   /// checkpoint saver and the disk-space watchdog.
   ///

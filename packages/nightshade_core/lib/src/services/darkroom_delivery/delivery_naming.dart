@@ -45,7 +45,6 @@
 /// lost or overwritten one.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import '../../models/darkroom/delivery.dart';
@@ -90,15 +89,12 @@ class DeliveryNaming {
   /// For the callers that hold the row rather than the decoded map — the peer
   /// manifest, which names files it never writes itself.
   static DeliveryNaming forDestination(ArtifactDestination destination) {
-    final decoded = jsonDecode(destination.configJson);
-    if (decoded is! Map) {
-      throw const DeliveryFailure(
-        DeliveryFailureKind.configurationInvalid,
-        'This destination\'s configuration is not a JSON object, so it cannot '
-        'say which rig its files come from',
-      );
-    }
-    return of(decoded.cast<String, Object?>());
+    return of(
+      decodeDeliveryConfig(
+        destination,
+        what: '${destination.kind.wire} destination',
+      ),
+    );
   }
 
   /// The name [sourceFileName] is written under on this destination.

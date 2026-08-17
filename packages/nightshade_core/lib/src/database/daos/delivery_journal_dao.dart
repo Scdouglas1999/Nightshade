@@ -95,6 +95,61 @@ class DeliveryJournalDao {
     return _require(targetId, jobId, filePath);
   }
 
+  /// Record that this file is still owed a delivery WITHOUT spending an
+  /// attempt, and return the entry as it now stands.
+  ///
+  /// The stop case: the operator asked the pass to end while it was still
+  /// working through the files, so nothing was tried for this one. Writing it
+  /// as `failed` is what abandoned it — the sweep reads only `retrying` rows,
+  /// so a terminal row is a file nothing on the rig ever looks at again — and
+  /// counting an attempt would charge the retry budget for an attempt that was
+  /// never made. The row is created if it is not there yet, because the sweep
+  /// works entirely from this table: a file with no row is a file no later
+  /// pass can find.
+  ///
+  /// `attempts` is left EXACTLY where it was on a row that already exists (and
+  /// starts at zero on a new one), so the backoff and the budget stay the
+  /// schedule the interrupted pass was on.
+  Future<DeliveryJournalEntry> recordStillOwed({
+    required int targetId,
+    required int jobId,
+    required String filePath,
+    required String reason,
+    int? bytes,
+    DateTime? now,
+  }) async {
+    if (bytes != null && bytes < 0) {
+      throw ArgumentError.value(
+        bytes,
+        'bytes',
+        'a file size cannot be negative',
+      );
+    }
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    await _db.customStatement(
+      'INSERT INTO delivery_journal('
+      'target_id, job_id, file_path, bytes, state, attempts, last_error, '
+      'created_at, updated_at'
+      ') VALUES (?, ?, ?, COALESCE(?, 0), ?, 0, ?, ?, ?) '
+      'ON CONFLICT(target_id, job_id, file_path) DO UPDATE SET '
+      'state = excluded.state, '
+      'last_error = excluded.last_error, '
+      'bytes = CASE WHEN excluded.bytes > 0 THEN excluded.bytes ELSE bytes END, '
+      'updated_at = excluded.updated_at',
+      [
+        targetId,
+        jobId,
+        filePath,
+        bytes,
+        DeliveryAttemptState.retrying.wire,
+        reason,
+        at,
+        at,
+      ],
+    );
+    return _require(targetId, jobId, filePath);
+  }
+
   /// Record that the file arrived and verified, with the [checksum] of the
   /// delivered bytes. Returns the entry as it now stands.
   Future<DeliveryJournalEntry> markDelivered({

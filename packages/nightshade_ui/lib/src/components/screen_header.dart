@@ -75,10 +75,7 @@ class ScreenHeader extends StatelessWidget {
           // bounds the slot; a wide action cluster reflows onto extra rows.
           if (trailing != null)
             Flexible(
-              child: Align(
-                alignment: Alignment.topRight,
-                child: trailing!,
-              ),
+              child: Align(alignment: Alignment.topRight, child: trailing!),
             ),
         ],
       ),

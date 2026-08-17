@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/darkroom/delivery.dart';
+import '../../models/darkroom/recipe.dart' show DarkroomWireFormatException;
 import '../../providers/database_provider.dart';
 import '../database.dart';
 
@@ -13,6 +14,62 @@ class ArtifactDestinationMissingException implements Exception {
 
   @override
   String toString() => 'Delivery target $destinationId does not exist';
+}
+
+/// A `delivery_targets` row this build cannot turn into an
+/// [ArtifactDestination].
+///
+/// Carried out of the read instead of thrown, because one such row used to
+/// take the whole table with it: [ArtifactDestination] is built per row, so
+/// the first undecodable row aborted the list, delivery reported its
+/// destination list as unreadable and sent NOTHING — to any destination — and
+/// the settings page rendered its error state instead of the destinations
+/// that decode. The row is its own failure: it is named, its reason is
+/// stated, and the destinations either side of it are untouched.
+class UndecodableDeliveryTarget {
+  /// The row's `id`, or null when that column itself did not read as an int.
+  final int? id;
+
+  /// The row's `name`, or null when that column did not read as a string.
+  final String? name;
+
+  /// One sentence naming the column, the stored value, and what rejected it.
+  final String reason;
+
+  const UndecodableDeliveryTarget({
+    required this.id,
+    required this.name,
+    required this.reason,
+  });
+
+  /// How this row is addressed on screen and in the morning report.
+  ///
+  /// The stored name when there is one, because that is what the operator
+  /// configured it as; otherwise the row id, which is what they can still find
+  /// it by. Never a made-up name.
+  String get label {
+    final named = name;
+    if (named != null && named.trim().isNotEmpty) return named.trim();
+    final row = id;
+    return row == null
+        ? 'A delivery destination row'
+        : 'Delivery destination #$row';
+  }
+}
+
+/// The destination rows, split into the ones this build can read and the ones
+/// it cannot.
+class DeliveryTargetsRead {
+  /// The rows that decoded, in the query's order.
+  final List<ArtifactDestination> destinations;
+
+  /// The rows that did not, each naming itself and why.
+  final List<UndecodableDeliveryTarget> undecodable;
+
+  const DeliveryTargetsRead({
+    required this.destinations,
+    required this.undecodable,
+  });
 }
 
 /// Data-access object for the v58 `delivery_targets` table — the configured
@@ -98,27 +155,28 @@ class DeliveryTargetsDao {
     return _map(rows.first);
   }
 
-  /// All destinations, in configuration order (oldest first).
-  Future<List<ArtifactDestination>> listAll() async {
+  /// All destinations, in configuration order (oldest first), with the rows
+  /// this build cannot decode named separately rather than raised.
+  Future<DeliveryTargetsRead> readAll() async {
     final rows = await _db
         .customSelect(
           'SELECT $_columns FROM delivery_targets '
           'ORDER BY created_at ASC, id ASC',
         )
         .get();
-    return rows.map(_map).toList();
+    return _read(rows);
   }
 
   /// The destinations delivery should actually visit tonight, in configuration
-  /// order.
-  Future<List<ArtifactDestination>> listEnabled() async {
+  /// order, with the undecodable rows named separately rather than raised.
+  Future<DeliveryTargetsRead> readEnabled() async {
     final rows = await _db
         .customSelect(
           'SELECT $_columns FROM delivery_targets WHERE enabled = 1 '
           'ORDER BY created_at ASC, id ASC',
         )
         .get();
-    return rows.map(_map).toList();
+    return _read(rows);
   }
 
   /// Update the fields a caller passes and leave the rest alone, bumping
@@ -179,6 +237,23 @@ class DeliveryTargetsDao {
     return _require(id);
   }
 
+  /// The keyring entry this row names, or null when it names none.
+  ///
+  /// Reads that one column instead of the whole destination, so the keyring
+  /// entry of a row that will not decode can still be found and removed with
+  /// it — otherwise deleting an unreadable destination would leave its private
+  /// key in the keyring under a name nothing points at any more.
+  Future<String?> secretRefOf(int id) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT secret_ref FROM delivery_targets WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
+    if (rows.isEmpty) return null;
+    return rows.first.readNullable<String>('secret_ref');
+  }
+
   /// Delete a destination by id. Its `delivery_journal` rows cascade. Returns
   /// the number of rows changed.
   Future<int> deleteTarget(int id) {
@@ -193,6 +268,77 @@ class DeliveryTargetsDao {
     final destination = await getById(id);
     if (destination == null) throw ArtifactDestinationMissingException(id);
     return destination;
+  }
+
+  /// Decode each row on its own, so an undecodable one costs only itself.
+  DeliveryTargetsRead _read(List<QueryRow> rows) {
+    final destinations = <ArtifactDestination>[];
+    final undecodable = <UndecodableDeliveryTarget>[];
+    for (final row in rows) {
+      try {
+        destinations.add(_map(row));
+      } on Object catch (error) {
+        // The id and the name are read straight off the row map rather than
+        // through `_map`, which is the thing that just refused: whichever
+        // column is unreadable, the two that name the row for the operator are
+        // usually still there.
+        final id = row.data['id'];
+        final name = row.data['name'];
+        undecodable.add(
+          UndecodableDeliveryTarget(
+            id: id is int ? id : null,
+            name: name is String ? name : null,
+            reason: _decodeRefusal(error),
+          ),
+        );
+      }
+    }
+    return DeliveryTargetsRead(
+      destinations: destinations,
+      undecodable: undecodable,
+    );
+  }
+
+  /// Why one row would not decode, in the words of the constraint that
+  /// actually rejected the value.
+  ///
+  /// `kind` and `enabled` carry SQLite `CHECK` constraints on this table;
+  /// `content_json` does NOT — it is free text the DAO writes from
+  /// [ArtifactContent] and reads back through it (see
+  /// `_createDarkroomTables`). [DarkroomWireFormatException] says "the column
+  /// is CHECK-constrained, so this row is corrupt" about every darkroom
+  /// column it is raised for, which for a `content_json` value points the
+  /// operator at a database constraint that never ran and calls a row corrupt
+  /// that SQLite accepted exactly as written. Each column is answered here
+  /// with its own constraint.
+  static String _decodeRefusal(Object error) {
+    if (error is DarkroomWireFormatException) {
+      final value = error.value == null ? '<null>' : '"${error.value}"';
+      switch (error.column) {
+        case 'delivery_targets.kind':
+          final kinds = ArtifactDestinationKind.values
+              .map((kind) => kind.wire)
+              .join(', ');
+          return 'its transport is $value, which is not one this build '
+              'delivers over ($kinds) and which the column\'s CHECK '
+              'constraint does not allow';
+        case 'delivery_targets.content_json':
+          final classes = ArtifactContent.values
+              .map((content) => content.wire)
+              .join(', ');
+          return 'the artifact classes it receives include $value, which is '
+              'not one this build produces ($classes). The column holds free '
+              'text — no database constraint rejected it — so the row was '
+              'written by a build that knows a class this one does not, or '
+              'edited by hand';
+      }
+      return '$error';
+    }
+    if (error is FormatException) {
+      return 'the artifact classes it receives are not a JSON array: '
+          '${error.message}';
+    }
+    return '$error';
   }
 
   ArtifactDestination _map(QueryRow row) {

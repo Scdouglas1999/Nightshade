@@ -166,9 +166,9 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
   /// `isDismissible: false` is fixed when the route is pushed, and an export can
   /// start at any moment after that — so the barrier is closed for the whole
   /// life of the sheet rather than opened and hoped about. Escape is handled
-  /// inside [_DarkroomExportSheetState.build] instead, where the live
-  /// `_exporting` flag can answer it: it pops when nothing is running, and says
-  /// why it will not when a render is inside the engine.
+  /// inside [_DarkroomExportSheetState.build] instead, where the live phase can
+  /// answer it: it pops when nothing is running, and otherwise says which of
+  /// the two — the save chooser or the engine — it is waiting on.
   static Future<void> show(
     BuildContext context, {
     required int recipeId,
@@ -203,6 +203,19 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
       _DarkroomExportSheetState();
 }
 
+/// What an export in progress is waiting on.
+///
+/// Two different things, and the sheet says which: the operator answering the
+/// save chooser, and the engine replaying the stack. Only the second one is a
+/// render, and only the second one can be stopped.
+enum _DarkroomExportPhase {
+  /// The save chooser is up. Nothing has been sent to the engine.
+  choosingFile,
+
+  /// The export is inside the engine, cancellable under [_renderId].
+  rendering,
+}
+
 class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   _DarkroomExportStageKind _stageKind = _DarkroomExportStageKind.finalStack;
 
@@ -216,10 +229,16 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// display rendering rather than the data.
   bool _screenTransfer = false;
 
-  /// True while an export is inside the engine.
-  bool _exporting = false;
+  /// What the sheet is waiting on, or null when nothing is running.
+  _DarkroomExportPhase? _phase;
 
-  /// The id the running export is cancellable under.
+  /// True while an export is under way, in either phase — the state that
+  /// disables the pickers and the Export button.
+  bool get _exporting => _phase != null;
+
+  /// The id the running export is cancellable under. Written when the request
+  /// goes to the engine, so it is null for exactly as long as there is nothing
+  /// to cancel.
   String? _renderId;
 
   /// True once a stop has been asked for and before the export answers.
@@ -243,19 +262,27 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// rather than swallowed: a key that does nothing and says nothing reads as a
   /// broken window.
   void _handleEscape() {
-    if (_exporting) {
-      setState(
-        () => _dismissRefused = _cancelRequested
-            ? 'The export has been asked to stop and has not answered yet. '
-                'This sheet stays up until it does — it is the only thing left '
-                'to report the outcome to.'
-            : 'An export is inside the engine. Stop it first, or wait for it '
-                'to finish: closing now would leave the render running with '
-                'nothing left to report its outcome to.',
-      );
-      return;
+    switch (_phase) {
+      case null:
+        Navigator.of(context).pop();
+      case _DarkroomExportPhase.choosingFile:
+        setState(
+          () => _dismissRefused =
+              'The save chooser is open and nothing has been sent to the '
+                  'engine yet. Answer it, or cancel it — cancelling the chooser '
+                  'cancels the export and leaves this sheet exactly as it is.',
+        );
+      case _DarkroomExportPhase.rendering:
+        setState(
+          () => _dismissRefused = _cancelRequested
+              ? 'The export has been asked to stop and has not answered yet. '
+                  'This sheet stays up until it does — it is the only thing '
+                  'left to report the outcome to.'
+              : 'An export is inside the engine. Stop it first, or wait for it '
+                  'to finish: closing now would leave the render running with '
+                  'nothing left to report its outcome to.',
+        );
     }
-    Navigator.of(context).pop();
   }
 
   @override
@@ -295,7 +322,10 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       icon: NightshadeIcons.download,
       closeEnabled: !_exporting,
       actions: [
-        if (_exporting)
+        // A Stop only while there is a render to stop. Offering it while the
+        // save chooser is up published a live control for a render id nothing
+        // was running under.
+        if (_phase == _DarkroomExportPhase.rendering)
           NightshadeButton(
             label: _cancelRequested ? 'Stopping…' : 'Stop',
             icon: NightshadeIcons.stop,
@@ -308,7 +338,9 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             label: 'Close',
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: () => Navigator.of(context).pop(),
+            // The chooser is a modal window of its own: a Close that reads live
+            // underneath it cannot be pressed, so it says it cannot.
+            onPressed: _exporting ? null : () => Navigator.of(context).pop(),
           ),
         NightshadeButton(
           label: 'Export',
@@ -331,7 +363,9 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             const SizedBox(height: NightshadeTokens.spaceMd),
             NightshadeAlert(
               severity: NightshadeAlertSeverity.warning,
-              title: 'This sheet stays up while the export runs',
+              title: _phase == _DarkroomExportPhase.choosingFile
+                  ? 'The save chooser is still open'
+                  : 'This sheet stays up while the export runs',
               message: _dismissRefused!,
               compact: true,
             ),
@@ -353,7 +387,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
               compact: true,
             ),
           ],
-          if (_exporting) ...[
+          if (_phase case final phase?) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             NightshadeProgressBar(
               // The engine reports no fraction for an export, so the bar is
@@ -362,9 +396,17 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
               indeterminate: true,
               style: NightshadeProgressStyle.standard,
               state: NightshadeProgressState.normal,
-              label: _cancelRequested
-                  ? 'Stopping at the next step boundary…'
-                  : 'Rendering the ${_stageLabel()} at full resolution…',
+              // The phase the sheet is actually in. This line read "Rendering
+              // the final stack at full resolution…" while the save chooser was
+              // still up and the engine had been asked for nothing at all.
+              label: switch (phase) {
+                _DarkroomExportPhase.choosingFile =>
+                  'Waiting for the save chooser — nothing has been sent to the '
+                      'engine yet.',
+                _DarkroomExportPhase.rendering => _cancelRequested
+                    ? 'Stopping at the next step boundary…'
+                    : 'Rendering the ${_stageLabel()} at full resolution…',
+              },
             ),
           ],
         ],
@@ -867,16 +909,19 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     final picker = ref.read(darkroomSavePickerProvider);
     final darkroom = ref.read(darkroomSeamProvider);
 
+    // The save chooser answers first and the engine is asked nothing until it
+    // does, so the sheet enters the CHOOSING phase here. Entering the rendering
+    // phase at this point is what had the sheet announce a full-resolution
+    // render, publish a Stop for a render id that named nothing, and refuse an
+    // Escape by naming an engine that was idle — all while the only thing
+    // happening was a file dialog waiting for a name.
     setState(() {
-      _exporting = true;
+      _phase = _DarkroomExportPhase.choosingFile;
       _cancelRequested = false;
       _result = null;
       _stopped = null;
       _dismissRefused = null;
     });
-    final renderId = 'darkroom-export-${widget.recipeId}-'
-        '${DateTime.now().microsecondsSinceEpoch}';
-    _renderId = renderId;
 
     try {
       final outputPath = await picker(
@@ -885,6 +930,13 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
         confirmButtonText: 'Export ${_format.label}',
       );
       if (outputPath == null || !mounted) return;
+
+      final renderId = 'darkroom-export-${widget.recipeId}-'
+          '${DateTime.now().microsecondsSinceEpoch}';
+      setState(() {
+        _phase = _DarkroomExportPhase.rendering;
+        _renderId = renderId;
+      });
 
       final reply = await darkroom.renderExport(
         recipeJson: encodeDarkroomRecipe(
@@ -946,7 +998,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       _renderId = null;
       if (mounted) {
         setState(() {
-          _exporting = false;
+          _phase = null;
           _cancelRequested = false;
           // The refusal named a render that is no longer running; leaving it on
           // screen would state something untrue about the sheet.

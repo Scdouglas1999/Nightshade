@@ -644,14 +644,7 @@ class _SftpConfig {
   String get quotedRemoteDir => _quote(remoteDir);
 
   static _SftpConfig parse(ArtifactDestination destination) {
-    final decoded = jsonDecode(destination.configJson);
-    if (decoded is! Map) {
-      throw const DeliveryFailure(
-        DeliveryFailureKind.configurationInvalid,
-        'This SFTP destination\'s configuration is not a JSON object',
-      );
-    }
-    final config = decoded.cast<String, Object?>();
+    final config = decodeDeliveryConfig(destination, what: 'SFTP destination');
 
     final authMethod = config['authMethod'];
     if (authMethod is String && authMethod.trim().toLowerCase() == 'password') {

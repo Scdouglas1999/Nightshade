@@ -179,8 +179,29 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     textPrimary: Color(0xFFFFB3B3),
     textSecondary: Color(0xFFF59191),
     textMuted: Color(0xFFE86A6A),
-    success: Color(0xFFB91C1C),
-    warning: Color(0xFFDC2626),
+    // The status semantics are read as TEXT, so the same floor binds them. The
+    // old pair could not clear it: #B91C1C measured 2.93:1 on surfaceAlt and
+    // 2.79:1 on its own 15%-alpha chip (the System Health pill, sampled off the
+    // running app), #DC2626 3.93:1.
+    //
+    // Two rules bracket the repair. Red night is a WAVELENGTH constraint, so
+    // the hue stays on the red axis (G == B) and red keeps over half the
+    // emitted energy — `success` also reaches the scrubber's selected frame bar
+    // through [NightshadeChartColors.selectedFrame], where the red-dominance
+    // rule is enforced. And the floor is 4.5:1 on every surface. Between those
+    // two the legible red band is narrow, so colour cannot also encode severity
+    // ORDER here; the icon and the word carry that, and these three are simply
+    // the furthest-apart legal triple (mutual ΔE 14-27 in CIELAB, against 5.9
+    // between the palette's existing textMuted and info).
+    //
+    // success #FF7373 is the soft end: 6.35 worst case (7.18 surfaceAlt, 7.45
+    // surface) and 4.94-6.58 on its chip, red 52.6%. warning #FF4040 is the
+    // pure end: 4.84 worst case (5.47 / 5.67), red 66.6%. On the chip warning
+    // behaves exactly as error always has — 4.87 and 4.61 on surface and
+    // surfaceAlt, 4.00 on surfaceOverlay against error's 4.80 / 4.54 / 3.93 —
+    // so what limits it there is the 15% fill, not the token.
+    success: Color(0xFFFF7373),
+    warning: Color(0xFFFF4040),
     error: Color(0xFFEF5350),
     info: Color(0xFFE57373),
     useDarkOnPrimary: true,

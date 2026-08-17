@@ -16,7 +16,8 @@ pub(crate) fn load_optional_master(
 }
 
 /// Expand the caller's `exposuresSec` into exactly one exposure per light,
-/// refusing any list that is neither empty nor as long as the frame list.
+/// refusing any list that is neither empty nor as long as the frame list, and
+/// any entry that is not a real, non-negative number of seconds.
 ///
 /// An omitted / empty list is the documented "no exposure metadata" shape and
 /// reports every frame as 0 s. A list that is *present but the wrong length* is
@@ -25,6 +26,16 @@ pub(crate) fn load_optional_master(
 /// become the master's FITS `EXPTIME` card. The HTTP surfaces
 /// (`POST /api/post-session/integrate`, `.../master-accumulate`) forward request
 /// bodies to the bridge unvalidated, so the refusal has to live here.
+///
+/// The same argument applies to the VALUES, which went unchecked: three lights
+/// at -100 s produced a succeeded job reporting `totalIntegrationSec: -300.0`
+/// and an 8 MB master on disk, while the accumulating path folded the same
+/// input into a master whose header read `NFRAMES = 2, EXPTIME = 0.0` — two
+/// wrong answers for one impossible input, neither refused. No exposure can run
+/// backwards or last a NaN, and the project's own D1 harness treats a master
+/// with `<= 0` integration seconds as a defect signal.
+///
+/// Zero is allowed: it is what an omitted list already means per frame.
 pub(crate) fn exposures_per_light(
     exposures_sec: &[f64],
     lights: usize,
@@ -38,6 +49,22 @@ pub(crate) fn exposures_per_light(
              supply one exposure per light, or omit exposuresSec entirely",
             exposures_sec.len()
         ));
+    }
+    // Name the index AND the value: the caller sent a list, and "one of them is
+    // bad" leaves them to bisect it themselves.
+    for (index, seconds) in exposures_sec.iter().enumerate() {
+        if !seconds.is_finite() {
+            return Err(format!(
+                "exposuresSec[{index}] is {seconds}, which is not a number of \
+                 seconds; every entry must be a finite value >= 0"
+            ));
+        }
+        if *seconds < 0.0 {
+            return Err(format!(
+                "exposuresSec[{index}] is {seconds}, a negative exposure; every \
+                 entry must be a finite value >= 0"
+            ));
+        }
     }
     Ok(exposures_sec.to_vec())
 }

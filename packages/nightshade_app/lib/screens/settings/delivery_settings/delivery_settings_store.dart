@@ -60,6 +60,24 @@ class DeliveryDestinationView {
   DeliveryStatusLine get status => DeliveryStatusLine.of(this);
 }
 
+/// What the page reads: every destination it can render, and every row it
+/// cannot.
+///
+/// Two lists rather than one throw. A single `delivery_targets` row this build
+/// cannot decode used to abort the whole read, so the page rendered its error
+/// state — no destination list, no Add buttons, no way to reach the row that
+/// caused it — while the destinations either side of it were perfectly
+/// readable. The unreadable row belongs on the page as itself.
+class DeliveryDestinations {
+  /// The destinations, in configuration order.
+  final List<DeliveryDestinationView> views;
+
+  /// The rows that would not decode, each naming itself and why.
+  final List<UndecodableDeliveryTarget> unreadable;
+
+  const DeliveryDestinations({required this.views, required this.unreadable});
+}
+
 /// The write probe's verdict on a watched folder.
 class WatchedFolderProbe {
   /// True only when a file was actually created and removed under the path.
@@ -79,8 +97,8 @@ class WatchedFolderProbe {
 /// turned into a reportable state instead of an exception mid-build.
 abstract class DeliverySettingsStore {
   /// Every configured destination in configuration order, each with its last
-  /// run and keyring state resolved.
-  Future<List<DeliveryDestinationView>> listDestinations();
+  /// run and keyring state resolved, alongside the rows that would not decode.
+  Future<DeliveryDestinations> listDestinations();
 
   /// Insert a destination and return its new row id.
   Future<int> createDestination({
@@ -143,10 +161,10 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
         _secrets = secrets;
 
   @override
-  Future<List<DeliveryDestinationView>> listDestinations() async {
-    final destinations = await _targets.listAll();
+  Future<DeliveryDestinations> listDestinations() async {
+    final read = await _targets.readAll();
     final views = <DeliveryDestinationView>[];
-    for (final destination in destinations) {
+    for (final destination in read.destinations) {
       final id = destination.id;
       final entries = id == null
           ? const <DeliveryJournalEntry>[]
@@ -161,7 +179,7 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
         ),
       );
     }
-    return views;
+    return DeliveryDestinations(views: views, unreadable: read.undecodable);
   }
 
   /// What the keyring says about one destination's key, and — when it refused
@@ -260,8 +278,12 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
     // The keyring entry goes first. If it cannot be removed the row survives,
     // so the operator still has the destination the orphaned key belongs to
     // rather than a key in the keyring nothing names.
-    final destination = await _targets.getById(id);
-    final ref = destination?.secretRef;
+    //
+    // The column is read on its own rather than through the decoded
+    // destination, because deleting is the one action a row that will not
+    // decode still needs — and reading it as a destination is exactly what
+    // fails on such a row.
+    final ref = await _targets.secretRefOf(id);
     if (ref != null && ref.trim().isNotEmpty) {
       await _secrets.delete(ref);
     }
@@ -398,12 +420,13 @@ final deliverySettingsStoreProvider = Provider<DeliverySettingsStore>((ref) {
   );
 });
 
-/// Every configured destination with its last run and keyring state.
+/// Every configured destination with its last run and keyring state, plus the
+/// rows that would not decode.
 ///
 /// Invalidated by every mutation on this page, which is what re-reads the
 /// journal — the status line is a report, never a prediction.
 final deliveryDestinationsProvider =
-    FutureProvider.autoDispose<List<DeliveryDestinationView>>((ref) {
+    FutureProvider.autoDispose<DeliveryDestinations>((ref) {
   return ref.watch(deliverySettingsStoreProvider).listDestinations();
 });
 

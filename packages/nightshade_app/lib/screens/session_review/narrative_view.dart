@@ -5,6 +5,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../sequencer/widgets/run_dashboard/frame_detail_dialog.dart';
 import 'session_review_controller.dart';
+import 'widgets/darkroom_pass_banner.dart';
 import 'widgets/growth_curve_panel.dart';
 import 'widgets/improvement_curve_panel.dart';
 import 'widgets/master_overlay_view.dart';
@@ -42,6 +43,11 @@ class NarrativeView extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── A Darkroom pass that failed or was stopped. ──────────────────
+          // Above the hero: it is the reason the drafts and the delivery this
+          // page would otherwise be read as reporting are not there.
+          DarkroomPassBanner(job: state.darkroomJob),
+
           // ── Hero: the finished master with toggleable overlays. ──────────
           _HeroSection(state: state, controller: controller),
           const SizedBox(height: NightshadeTokens.spaceLg),

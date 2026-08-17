@@ -140,6 +140,29 @@ persisted panel-collapse (`nightshade_panel_collapsed`), and the
 WS-firehose update model (≤ 3 resilience `setInterval` timers; REST
 fallback gated on WS silence). Exit 0 = pass, 1 = a check failed.
 
+## Honesty contract (`node --test`)
+
+```sh
+cd apps/desktop/web_dashboard && node --test "test/*_test.js"
+```
+
+`test/dom_shim.js` supplies just enough DOM to **execute** each render path,
+so these are assertions about what the operator sees rather than about how
+the source is spelled. `test/dashboard_honesty_test.js` and
+`test/run_watch_honesty_test.js` cover both static surfaces and pin the
+rules that a remote monitoring page cannot bend:
+
+| Rule | Why it is a rule |
+|------|------------------|
+| A dead or silent server flips the header to **No contact** and raises `#link-banner`; the sequencer badge stops asserting a state | `api.isConnected` is set once at connect. Before the watchdog, a `SIGKILL`ed backend left a green "Connected" + "running" on screen indefinitely (measured at 65 s). |
+| A 429 becomes a typed `rate_limited` error carrying the server's `retryAfterSecs`; no request leaves the page inside that window and the limiter's body never reaches the DOM | The read budget is 60/s per token and `fetchAllStatus` fires a dozen requests per tick. The refusal JSON used to be printed straight into the log panel. |
+| The Settings panel reads only keys `GET /api/settings` and `GET /api/settings/location` emit | `observatoryName`, `defaultSavePath`, `plateSolveSolver` and `elevationMeters` exist in no response, so four rows read `--` on a fully configured host. |
+| A disconnected PHD2 shows no RMS at all | It reports `0.0` for every RMS while disconnected, and the panel read `rmsRA` — a key nothing sends. The result was a flawless `0.00"` guide for a dead guider. |
+| `dataSource: 'unavailable'` yields no affirmative safety verdict | With no weather hardware the server still answers `safeToImage: true` / `alertLevel: 'clear'` / `isSafe: true`; rendering those verbatim gave an unwatched rig a green "safe". |
+| A progressbar carries no `aria-valuenow` until a value is reported | `aria-valuenow="0"` announces "0 percent" — a figure nobody sent. |
+| A control button reports the server's own answer | `POST /api/sequencer/stop` answers 200 with `wasRunning: false` when there is nothing to stop. |
+| An unknown integration denominator renders `--` | `SequenceProgress.totalIntegrationSecs` is only filled in by the editor-driven start path, so a headless run's snapshot carries no total; the phone used to print `24s / 0s`. |
+
 ## Reference screenshots
 
 Captured headless via Chromium (`--screenshot`, 1440-wide) against the

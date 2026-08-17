@@ -138,15 +138,61 @@ extension _SequencerStartPreflight on SequencerHandlers {
     }
   }
 
-  /// Close the row [_openSessionRowForNativeRun] opened for a start the native
-  /// executor then refused, so a run that never began does not appear in
-  /// `GET /api/sessions` as a night that happened.
+  /// Open the `sequence_runs` row for a headless `load -> start`, the durable
+  /// half of the same omission [_openSessionRowForNativeRun] covers.
+  ///
+  /// `imaging_sessions` records the NIGHT; `sequence_runs` records the RUN —
+  /// its status, its stats JSON, its pause/resume transitions, and the id every
+  /// replay decision row points at. Nothing on this path opened one, so a
+  /// completed headless night left `GET /api/sequence-runs` answering
+  /// `{"items":[],"total":0}` — the record `docs/plans/nightshade_7_0_d1_runbook.md`
+  /// tells an operator to read — and the executor's finalization had no run id
+  /// to write an outcome onto.
+  ///
+  /// Returns the run id, or null when there was nothing to label a run with or
+  /// the write failed. Non-fatal for the same reason as the session row: a
+  /// night that captures frames is worth more than a night refused over a
+  /// bookkeeping row.
+  Future<int?> _openRunRowForNativeRun() async {
+    final summary = _lastLoadedWire;
+    if (summary == null) {
+      _logInfo(
+        '[API] POST /api/sequencer/start: no loaded-wire summary; skipping the '
+        'run row (this run will not appear in the run history)',
+      );
+      return null;
+    }
+    try {
+      return await container
+          .read(sequenceExecutorProvider)
+          .openRunRecordsForNativeStart(sequenceName: summary.name);
+    } catch (error) {
+      _logWarning(
+        '[API] POST /api/sequencer/start: could not open the run row '
+        '($error); the run will not appear in the run history',
+      );
+      return null;
+    }
+  }
+
+  /// Close the rows [_openSessionRowForNativeRun] and [_openRunRowForNativeRun]
+  /// opened for a start the native executor then refused, so a run that never
+  /// began does not appear in `GET /api/sessions` as a night that happened or
+  /// in `GET /api/sequence-runs` as one still running.
   ///
   /// Failure here is logged, not raised: the caller is already returning a
   /// refusal, and replacing an accurate refusal with a bookkeeping error would
   /// tell the operator the wrong thing about why their run did not start.
-  Future<void> _closeSessionOpenedForRefusedStart(bool opened) async {
-    if (!opened) return;
+  Future<void> _closeRecordsOpenedForRefusedStart(
+    bool openedSession,
+    int? openedRunId,
+  ) async {
+    if (openedRunId != null) {
+      await container
+          .read(sequenceExecutorProvider)
+          .discardRunRecordsForRefusedNativeStart(openedRunId);
+    }
+    if (!openedSession) return;
     try {
       await container
           .read(sessionStateProvider.notifier)

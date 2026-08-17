@@ -20,7 +20,6 @@
 /// the boot drive with gigabytes of masters.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -192,16 +191,8 @@ class WatchedFolderTransport implements ArtifactTransport {
     _naming = null;
   }
 
-  Map<String, Object?> _decodeConfig() {
-    final decoded = jsonDecode(destination.configJson);
-    if (decoded is! Map) {
-      throw const DeliveryFailure(
-        DeliveryFailureKind.configurationInvalid,
-        'This destination\'s configuration is not a JSON object',
-      );
-    }
-    return decoded.cast<String, Object?>();
-  }
+  Map<String, Object?> _decodeConfig() =>
+      decodeDeliveryConfig(destination, what: 'watched-folder destination');
 
   int _headroomBytes(Map<String, Object?> config) {
     final configured = config['minFreeBytes'];

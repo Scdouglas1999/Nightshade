@@ -13,6 +13,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
 import 'package:flutter/material.dart';
@@ -26,12 +27,12 @@ import 'package:path/path.dart' as p;
 
 import '../../utils/darkroom_navigation.dart';
 import '../../utils/exported_file_reveal.dart';
-import '../../widgets/astro_image_viewer.dart';
 import '../stack_result/stack_and_share_dialog.dart'
     show describeStackShareFailure;
 import 'darkroom_branch_controller.dart';
 import 'darkroom_controller.dart';
 
+part 'darkroom_screen_parts/_image_surface.dart';
 part 'darkroom_screen_parts/_viewport.dart';
 part 'darkroom_screen_parts/_history_panel.dart';
 part 'darkroom_screen_parts/_recipe_panel.dart';
@@ -250,6 +251,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
             masterPath: state.baseMasterPath,
             recipeId: state.recipeId,
           ),
+          editorScope: widget.scope,
           recipeId: state.recipeId!,
           masterId: state.masterId,
           compareRecipeId: _compareRecipeId,

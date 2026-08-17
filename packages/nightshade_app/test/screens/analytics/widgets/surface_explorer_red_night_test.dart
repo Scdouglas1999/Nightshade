@@ -83,7 +83,8 @@ List<ScienceTileMetricRow> _tiles() => [
 Future<void> _pump(WidgetTester tester, NightshadeColors colors) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: colors.isRedNight ? NightshadeTheme.redNight : NightshadeTheme.dark,
+      theme:
+          colors.isRedNight ? NightshadeTheme.redNight : NightshadeTheme.dark,
       home: Scaffold(
         body: SingleChildScrollView(
           child: ScienceSurfaceExplorer(colors: colors, tiles: _tiles()),
@@ -97,7 +98,8 @@ Future<void> _pump(WidgetTester tester, NightshadeColors colors) async {
 /// Replay every painter under the explorer onto a recording canvas.
 List<Color> _surfaceMarks(WidgetTester tester) {
   final canvas = _RecordingCanvas();
-  for (final paint in tester.widgetList<CustomPaint>(find.byType(CustomPaint))) {
+  for (final paint
+      in tester.widgetList<CustomPaint>(find.byType(CustomPaint))) {
     paint.painter?.paint(canvas, const Size(480, 320));
   }
   return canvas.painted;

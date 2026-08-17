@@ -74,6 +74,27 @@ LazyDatabase _openConnection() {
     // SQLITE_CORRUPT/SQLITE_NOTADB or that fails `PRAGMA integrity_check`.
     await integrity.runIntegrityCheckAndRecover(file);
 
+    // A first boot that was killed part-way through schema creation leaves a
+    // structurally VALID file — `integrity_check` passes it — carrying tables
+    // under schema version 0. Drift reads that as a brand-new database, runs
+    // `onCreate` again, and dies on the first duplicate `CREATE`, so the
+    // install never boots again. The check is here, next to the corruption
+    // pre-flight, for the same reason: the file has to be moved before drift
+    // opens it. See [integrity.discardInterruptedFirstCreate] for the guard
+    // that keeps this off any database holding data.
+    final interruptedCreate = await integrity.discardInterruptedFirstCreate(
+      file,
+    );
+    if (interruptedCreate.discarded) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] A previous first launch was interrupted while '
+        'creating the database (${interruptedCreate.tableCount} tables under '
+        'schema version 0, no data). Moved it to '
+        '${interruptedCreate.backupPath} and creating a fresh one.',
+      );
+    }
+
     // `beforeOpen` WRITES — it closes out interrupted runs and Darkroom jobs
     // and rebuilds session statistics — so without a lock-wait budget the
     // daemon exits at startup whenever anything else holds a read transaction

@@ -94,6 +94,90 @@ void main() {
       expect(progress['progressPercent'], isNull);
     });
 
+    // A headless run loads its wire JSON straight into the native executor,
+    // so nothing ever populates `currentSequenceProvider` and nothing ever
+    // calls `setTotals` with an integration total: the live progress arrives
+    // here with a real frame count and `totalIntegrationSecs == 0.0`. The
+    // snapshot used to publish that zero as a known denominator, and the phone
+    // rendered "24s / 0s" — a total the run had already passed.
+    test('an unknown integration total is null, never zero', () async {
+      final progress = container.read(sequenceProgressProvider.notifier);
+      progress.setTotals(12);
+      progress.recordCompletedFrameIntegration(
+        eventKey: 'frame-1',
+        durationSecs: 2.0,
+      );
+
+      final response = await translateHandlerErrors(
+        handlers.handleSnapshot(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
+        ),
+      );
+
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final wire =
+          (body['sequencer'] as Map)['progress'] as Map<String, Object?>;
+      expect(wire['totalExposures'], 12);
+      expect(wire['completedIntegrationSecs'], 2.0);
+      expect(wire['totalIntegrationSecs'], isNull);
+    });
+
+    test('a real integration total is published as measured', () async {
+      final progress = container.read(sequenceProgressProvider.notifier);
+      progress.setTotals(12, 24.0);
+
+      final response = await translateHandlerErrors(
+        handlers.handleSnapshot(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
+        ),
+      );
+
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final wire =
+          (body['sequencer'] as Map)['progress'] as Map<String, Object?>;
+      expect(wire['totalIntegrationSecs'], 24.0);
+    });
+
+    // Same root cause on the target header: with no editor sequence the whole
+    // Active-target card rendered `--` during a live run whose target this very
+    // snapshot names in `sequencer.progress.currentTarget`.
+    test(
+      'a native run reports its target name with the sky marked unknown',
+      () async {
+        container
+            .read(sequenceProgressProvider.notifier)
+            .updateProgress(currentTarget: 'D1 Simulated Field');
+
+        final response = await translateHandlerErrors(
+          handlers.handleSnapshot(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/run-watch/snapshot'),
+            ),
+          ),
+        );
+
+        final body = jsonDecode(await response.readAsString()) as Map;
+        final target = body['activeTarget'] as Map<String, Object?>;
+        expect(target['name'], 'D1 Simulated Field');
+        expect(target['coordinatesKnown'], isFalse);
+        expect(target['raHours'], isNull);
+        expect(target['altitudeDeg'], isNull);
+        expect(target['message'], contains('Coordinates unavailable'));
+      },
+    );
+
+    test('no run and no target reports no active target at all', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleSnapshot(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
+        ),
+      );
+
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['activeTarget'], isNull);
+    });
+
     test(
       'frame-thumbnail returns no_camera when no devices are connected',
       () async {

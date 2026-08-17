@@ -17,6 +17,10 @@
 ///    render is cancelled by that id and its pixels — which describe a recipe
 ///    the operator has already changed — are dropped rather than painted.
 ///
+/// The generation moves at the EDIT, ahead of the debounce, because the reply
+/// that has to be dropped is the one from a render that is already inside the
+/// engine when the edit happens.
+///
 /// Because the generation is part of the render id, a cancellation flag left
 /// armed by a render that finished before it was polled cannot reach into the
 /// next render: that one asks under a different id.
@@ -66,10 +70,23 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   Timer? _renderDebounce;
   Timer? _saveDebounce;
 
-  /// Bumped once per requested render. A render whose generation is no longer
-  /// the newest is superseded: its pixels describe a recipe the operator has
-  /// already edited.
+  /// Bumped the moment the stack stops being the one a running render
+  /// describes. A render whose generation is no longer the newest is
+  /// superseded: its pixels describe a recipe the operator has already edited.
+  ///
+  /// Bumped at the EDIT, not when the next render starts. Bumping it at the
+  /// start meant that for the whole render debounce the in-flight render was
+  /// still the newest generation, so a render that landed inside that window
+  /// passed the check and painted pixels the operator had already edited away.
   int _renderGeneration = 0;
+
+  /// True when a refresh was asked for while a render was inside the engine, so
+  /// the newest stack renders as soon as that one lets go.
+  ///
+  /// A flag rather than a generation comparison: the generation now moves on
+  /// every edit, and restarting on that would render once per drag frame
+  /// instead of once per debounce.
+  bool _renderQueued = false;
 
   /// Bumped once per requested validation, for the same reason.
   int _validateGeneration = 0;
@@ -190,8 +207,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         await _openRecipe(existing.first);
         return;
       }
-      state = state.copyWith(
-        loading: false,
+      state = _noRecipe(
         offer: DarkroomStartOffer(
           masterId: masterId,
           targetId: master.targetId,
@@ -209,7 +225,36 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   }
 
   void _fail(String message) {
-    state = state.copyWith(loading: false, loadError: message);
+    state = _noRecipe(loadError: message);
+  }
+
+  /// The state with NO recipe open, carrying forward only what does not
+  /// describe one.
+  ///
+  /// Both states that reach this are states in which nothing is open: a load
+  /// that failed, and a master whose recipes have all been deleted. [copyWith]
+  /// cannot null a field out, so building the state whole is the only way to
+  /// drop the previous recipe — and carrying it forward is what printed a
+  /// deleted recipe's name in the header above the subtitle "No recipe yet",
+  /// left [DarkroomState.hasRecipe] true over a screen with no recipe on it,
+  /// and kept the deleted stack's steps in [DarkroomState.steps].
+  ///
+  /// The operation catalogue survives because it describes this build's
+  /// registry rather than any one recipe.
+  DarkroomState _noRecipe({String? loadError, DarkroomStartOffer? offer}) {
+    _undoJournal.clear();
+    _redoJournal.clear();
+    _unrenderable.clear();
+    _catalogStars = const [];
+    _lastEditKey = null;
+    _lastEditAt = null;
+    return DarkroomState(
+      loading: false,
+      loadError: loadError,
+      offer: offer,
+      catalog: state.catalog,
+      catalogError: state.catalogError,
+    );
   }
 
   Future<void> _loadCatalog() async {
@@ -270,6 +315,9 @@ class DarkroomController extends StateNotifier<DarkroomState> {
 
     _lastEditKey = null;
     _lastEditAt = null;
+    // A render still inside the engine is rendering the recipe this one
+    // replaces, so its pixels must not land in the new recipe's viewport.
+    _supersedeRunningRender();
     await _resolvePhotometry(recipe.masterId);
     if (!mounted) return;
     unawaited(_refreshNow());
@@ -550,10 +598,13 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     if (!verdict.ok) {
       // The verdict's per-step entries index the REJECTED order, so adopting
       // them here would attach each message to the wrong card. Only the
-      // whole-recipe sentence describes an order that is not on screen.
+      // whole-recipe sentence is shown, and its own step numbers are re-counted
+      // over the stack the panel is showing — see [_recountedRefusal].
+      final error = verdict.error;
       state = state.copyWith(
-        reorderRefusal: verdict.error ??
-            'The engine refused that order without naming a reason.',
+        reorderRefusal: error == null
+            ? 'The engine refused that order without naming a reason.'
+            : _recountedRefusal(error, candidate, steps),
       );
       return false;
     }
@@ -640,6 +691,50 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   static List<Object> _identitiesOf(List<DarkroomStep> steps) =>
       List.unmodifiable([for (final step in steps) step.identity]);
 
+  /// Every `step <n>` the engine wrote, re-pointed at the card the operator can
+  /// count to.
+  ///
+  /// The engine numbers steps from 0 over the recipe it was HANDED — here the
+  /// order the move would have produced. That order is never on screen: a
+  /// refused move is not committed, so the panel still shows [onScreen]. Left
+  /// verbatim the sentence therefore names cards that are not the ones it is
+  /// about, in a base no other surface in this app counts in (the export
+  /// sheet's step list is 1-based).
+  ///
+  /// Each number is looked up in [candidate] by position, and the step found
+  /// there is located in [onScreen] by IDENTITY — never by position, which is
+  /// the very thing the move changed. A number that names no step in either
+  /// list is left exactly as the engine wrote it, and the trailing sentence is
+  /// added only when at least one number was actually re-counted, so nothing
+  /// here claims a translation it did not make.
+  static String _recountedRefusal(
+    String message,
+    List<DarkroomStep> candidate,
+    List<DarkroomStep> onScreen,
+  ) {
+    var recounted = false;
+    final rewritten = message.replaceAllMapped(
+      RegExp(r'\bstep (\d+)\b'),
+      (match) {
+        final whole = match.group(0)!;
+        final at = int.tryParse(match.group(1)!);
+        if (at == null || at < 0 || at >= candidate.length) return whole;
+        final identity = candidate[at].identity;
+        for (var i = 0; i < onScreen.length; i++) {
+          if (identical(onScreen[i].identity, identity)) {
+            recounted = true;
+            return 'step ${i + 1}';
+          }
+        }
+        return whole;
+      },
+    );
+    if (!recounted) return rewritten;
+    return '$rewritten. Those step numbers count the stack as it stands on '
+        'screen, from 1; the move was refused, so the order the engine was '
+        'asked about is not the one the panel is showing.';
+  }
+
   /// Record which of [steps] the engine's refusal names, from [verdict]'s own
   /// per-step diagnosis.
   ///
@@ -722,6 +817,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// first costs nothing and means the inline verdicts and the picture describe
   /// the same step list.
   void _scheduleRefresh() {
+    _supersedeRunningRender();
     _renderDebounce?.cancel();
     _renderDebounce = Timer(kDarkroomRenderDebounce, () {
       unawaited(_refreshNow());
@@ -731,8 +827,18 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// Re-check and re-render now, superseding whatever is in flight.
   Future<void> refreshRender() async {
     _renderDebounce?.cancel();
+    _supersedeRunningRender();
     await _refreshNow();
   }
+
+  /// Retire the generation any running render answers under.
+  ///
+  /// Called the moment the stack stops being the one that render describes —
+  /// the edit itself, not the debounce that follows it. [_runRender] compares
+  /// the generation it was started with against this counter BEFORE the reply
+  /// reaches [state], so a render that lands after this drops its pixels
+  /// instead of painting a recipe the operator has already changed.
+  void _supersedeRunningRender() => _renderGeneration++;
 
   Future<void> _refreshNow() async {
     await _revalidate();
@@ -743,15 +849,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   Future<void> _startRender() async {
     if (!mounted) return;
     if (state.recipeId == null || state.baseMasterPath.isEmpty) return;
-    final generation = ++_renderGeneration;
     if (_renderInFlight) {
       // The engine renders one recipe at a time, so the running render is asked
       // to stop by its own id; its completion starts the newest generation.
       // This is not the operator's stop, so nothing announces "Stopping…".
+      _renderQueued = true;
       await _requestCancel(_inFlightRenderId, announce: false);
       return;
     }
-    await _runRender(generation);
+    _renderQueued = false;
+    await _runRender(_renderGeneration);
   }
 
   Future<void> _runRender(int generation) async {
@@ -859,7 +966,8 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     } finally {
       _renderInFlight = false;
       _inFlightRenderId = null;
-      if (mounted && generation != _renderGeneration) {
+      if (mounted && _renderQueued) {
+        _renderQueued = false;
         unawaited(_runRender(_renderGeneration));
       }
     }

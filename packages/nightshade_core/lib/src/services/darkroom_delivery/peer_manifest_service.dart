@@ -200,7 +200,10 @@ class PeerManifestService {
     final wanted = peerId.trim();
     if (wanted.isEmpty) throw UnknownDeliveryPeerException(peerId);
     final matched = <int, ArtifactDestination>{};
-    for (final destination in await _targets.listEnabled()) {
+    // The undecodable rows are deliberately not consulted: a row this build
+    // cannot read cannot be shown to answer to a peer id, and the delivery
+    // pass has already named it as skipped.
+    for (final destination in (await _targets.readEnabled()).destinations) {
       if (destination.kind != ArtifactDestinationKind.peer) continue;
       final id = destination.id;
       if (id == null) continue;

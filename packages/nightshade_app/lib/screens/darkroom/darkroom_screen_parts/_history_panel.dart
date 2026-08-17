@@ -544,8 +544,16 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               )
             else if (spec.defaultValue != null)
               Semantics(
+                container: true,
                 button: true,
                 enabled: true,
+                // Qualified for the same reason "Remove" is: a card with four
+                // parameters publishes four sibling nodes, and "Use default"
+                // said three words that name none of them. Reading order is
+                // not a name.
+                label: 'Use default for ${spec.name}',
+                excludeSemantics: true,
+                onTap: () => widget.onParamChanged(index, spec.name, null),
                 child: NightshadeButton(
                   label: 'Use default',
                   variant: ButtonVariant.ghost,
@@ -597,18 +605,60 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     if (spec.isSliderRanged && value != null && min != null && max != null) {
       final clamped = value.clamp(min, max);
       final span = max - min;
+      final divisions = isInteger && span <= 64 ? span.round() : null;
+      void write(double raw) => widget.onParamChanged(
+            index,
+            spec.name,
+            isInteger ? raw.round() : raw,
+          );
+      // What one assistive-tech increment moves: one division when the range is
+      // divided, a tenth of the span otherwise — the same unit the framework's
+      // own slider semantics use.
+      final step =
+          divisions != null && divisions > 0 ? span / divisions : span / 10;
+      final reading = _formatNumber(clamped, isInteger);
       return Row(
         children: [
           Expanded(
-            child: NightshadeSlider(
-              value: clamped,
-              min: min,
-              max: max,
-              divisions: isInteger && span <= 64 ? span.round() : null,
-              onChanged: (raw) => widget.onParamChanged(
-                index,
-                spec.name,
-                isInteger ? raw.round() : raw,
+            // The slider is this screen's primary editing control and it
+            // published NOTHING useful: three sibling sliders inside one card
+            // came back with an empty name and a percentage for a value, so a
+            // screen-reader walk heard "slider" three times and could not tell
+            // which parameter it was on or what it was set to. The name and the
+            // value are on screen — a label above the track, a readout beside
+            // it — and both were sighted-only.
+            //
+            // MERGED, not excluded and not a second node. The framework's
+            // slider is its own semantics boundary: an annotation over it
+            // publishes a second node, and excluding it publishes no node at
+            // all — measured, both of them, on this build. Merging keeps the
+            // slider's own node — its role, its increase and decrease actions,
+            // its focusability — and lends it the name and the reading it was
+            // missing.
+            //
+            // The value rides in the LABEL as well as in `value:` because the
+            // Linux AT-SPI bridge publishes a node's name and description and
+            // nothing else; the structured fields are for the bridges that
+            // carry them.
+            child: MergeSemantics(
+              child: Semantics(
+                label: '${_rangeLabel(spec)} — $reading',
+                value: reading,
+                increasedValue: _formatNumber(
+                  (clamped + step).clamp(min, max),
+                  isInteger,
+                ),
+                decreasedValue: _formatNumber(
+                  (clamped - step).clamp(min, max),
+                  isInteger,
+                ),
+                child: NightshadeSlider(
+                  value: clamped,
+                  min: min,
+                  max: max,
+                  divisions: divisions,
+                  onChanged: write,
+                ),
               ),
             ),
           ),

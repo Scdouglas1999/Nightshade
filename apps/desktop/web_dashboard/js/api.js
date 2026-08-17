@@ -4,6 +4,33 @@
  * Wraps all REST and WebSocket endpoints exposed by the headless server.
  * Handles authentication, request retries, and event streaming.
  */
+
+/**
+ * Typed failure from a REST call. Callers switch on `kind` instead of
+ * pattern-matching message text:
+ *
+ *   'unreachable'   the fetch never completed — the server is gone, not slow.
+ *                   This is the only proof the dashboard gets that the rig it
+ *                   is painting green may have been off for an hour.
+ *   'timeout'       the request was aborted at _requestTimeoutMs.
+ *   'rate_limited'  429. `retryAfterSecs` is the server's own window
+ *                   (rate_limit_middleware `_denyRateLimited`).
+ *   'http_error'    any other non-2xx.
+ *   'bad_json'      2xx whose body would not parse.
+ */
+class NightshadeApiError extends Error {
+  constructor(kind, message, detail) {
+    super(message);
+    this.name = 'NightshadeApiError';
+    this.kind = kind;
+    this.detail = detail || {};
+    if (this.detail.retryAfterSecs != null) {
+      this.retryAfterSecs = this.detail.retryAfterSecs;
+    }
+    if (this.detail.status != null) this.status = this.detail.status;
+  }
+}
+
 class NightshadeApi {
   constructor() {
     this._baseUrl = '';
@@ -34,6 +61,43 @@ class NightshadeApi {
     // Toggled on after a successful POST /api/auth/cookie OR when the
     // server confirms a pre-existing session via GET /api/auth/csrf.
     this._useSessionCookie = false;
+    // Rate-limit gate. The server budgets 60 reads/s and 20 writes/s per token
+    // (`defaultTokenBucketConfigs`); `fetchAllStatus` alone fires a dozen
+    // requests in one tick, so a burst can meet the ceiling. Requests are held
+    // until the server's own retry window elapses rather than hammering the
+    // limiter and printing its refusal body on screen.
+    this._rateLimitedUntil = 0;
+    // Epoch ms of the last completed exchange with the server, whatever the
+    // status code. A response — even a 500 — proves it is there.
+    this._lastContactAt = 0;
+  }
+
+  /** Epoch ms of the last completed HTTP exchange, or 0 if there has been none. */
+  get lastContactAt() { return this._lastContactAt; }
+
+  /** Whole seconds left on the server's rate-limit window; 0 when clear. */
+  get rateLimitRemainingSecs() {
+    const ms = this._rateLimitedUntil - Date.now();
+    return ms > 0 ? Math.ceil(ms / 1000) : 0;
+  }
+
+  /**
+   * Read the retry window off a 429 response: the JSON body's
+   * `retryAfterSecs` first, then the `retry-after` header, then one second.
+   * Clamped so a hostile or buggy value cannot park the dashboard for hours.
+   */
+  static _retryAfterSecsFrom(res, text) {
+    let secs = null;
+    try {
+      const body = JSON.parse(text);
+      const raw = body && (body.retryAfterSecs ?? body.retryAfterSeconds);
+      if (typeof raw === 'number' && isFinite(raw) && raw > 0) secs = raw;
+    } catch (_) { /* not the JSON shape we know */ }
+    if (secs == null) {
+      const header = Number(res.headers.get('retry-after'));
+      if (isFinite(header) && header > 0) secs = header;
+    }
+    return secs == null ? 1 : Math.min(Math.ceil(secs), 300);
   }
 
   /**
@@ -117,6 +181,15 @@ class NightshadeApi {
   }
 
   async _request(method, path, body, timeoutMs) {
+    const waiting = this.rateLimitRemainingSecs;
+    if (waiting > 0) {
+      throw new NightshadeApiError(
+        'rate_limited',
+        'Server is rate-limiting this session',
+        { retryAfterSecs: waiting, method, path },
+      );
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -142,22 +215,52 @@ class NightshadeApi {
       });
     } catch (e) {
       if (e && e.name === 'AbortError') {
-        throw new Error(method + ' ' + path + ' timed out');
+        throw new NightshadeApiError(
+          'timeout',
+          method + ' ' + path + ' timed out',
+          { method, path },
+        );
       }
-      throw e;
+      throw new NightshadeApiError(
+        'unreachable',
+        method + ' ' + path + ' could not reach the server',
+        { method, path, cause: e },
+      );
     } finally {
       clearTimeout(timeout);
     }
 
+    this._lastContactAt = Date.now();
     const text = await resp.text();
+    if (resp.status === 429) {
+      const secs = NightshadeApi._retryAfterSecsFrom(resp, text);
+      this._rateLimitedUntil = Date.now() + secs * 1000;
+      // The body is deliberately not carried into the message: a rate-limit
+      // refusal is a cadence problem, and pasting its JSON into the operator's
+      // log panel taught nobody anything.
+      throw new NightshadeApiError(
+        'rate_limited',
+        'Server is rate-limiting this session',
+        { retryAfterSecs: secs, method, path },
+      );
+    }
+    this._rateLimitedUntil = 0;
     if (!resp.ok) {
-      throw new Error(method + ' ' + path + ' failed (' + resp.status + '): ' + text);
+      throw new NightshadeApiError(
+        'http_error',
+        method + ' ' + path + ' failed (' + resp.status + '): ' + text,
+        { status: resp.status, method, path, body: text },
+      );
     }
     if (!text) return {};
     try {
       return JSON.parse(text);
     } catch (_) {
-      throw new Error(method + ' ' + path + ' returned invalid JSON');
+      throw new NightshadeApiError(
+        'bad_json',
+        method + ' ' + path + ' returned invalid JSON',
+        { method, path },
+      );
     }
   }
 
@@ -181,16 +284,35 @@ class NightshadeApi {
       });
     } catch (e) {
       if (e && e.name === 'AbortError') {
-        throw new Error('GET ' + path + ' timed out');
+        throw new NightshadeApiError('timeout', 'GET ' + path + ' timed out', {
+          path,
+        });
       }
-      throw e;
+      throw new NightshadeApiError(
+        'unreachable',
+        'GET ' + path + ' could not reach the server',
+        { path, cause: e },
+      );
     } finally {
       clearTimeout(timeout);
     }
+    this._lastContactAt = Date.now();
+    if (resp.status === 429) {
+      const secs = NightshadeApi._retryAfterSecsFrom(resp, await resp.text());
+      this._rateLimitedUntil = Date.now() + secs * 1000;
+      throw new NightshadeApiError(
+        'rate_limited',
+        'Server is rate-limiting this session',
+        { retryAfterSecs: secs, path },
+      );
+    }
+    this._rateLimitedUntil = 0;
     if (!resp.ok) {
       const text = await resp.text();
-      throw new Error(
+      throw new NightshadeApiError(
+        'http_error',
         'GET ' + path + ' failed (' + resp.status + '): ' + text,
+        { status: resp.status, path, body: text },
       );
     }
     return {

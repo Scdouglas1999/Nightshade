@@ -304,6 +304,35 @@ class _FlakyJobsDao extends DarkroomJobsDao {
 
 /// A transport that refuses every destination, so delivery reports a problem
 /// while the job keeps its drafts.
+/// Accepts the first file and raises the operator's stop while doing it, so
+/// the cancellation lands INSIDE the delivery loop rather than before it.
+class _StopAfterFirstFileTransport implements ArtifactTransport {
+  _StopAfterFirstFileTransport({required this.onFirstFile});
+
+  final Future<void> Function() onFirstFile;
+  final List<String> delivered = [];
+
+  @override
+  ArtifactDestinationKind get kind => ArtifactDestinationKind.watchedFolder;
+
+  @override
+  Future<void> open(List<DeliveryFile> artifacts) async {}
+
+  @override
+  Future<TransportDeliveryOutcome> deliver(DeliveryFile artifact) async {
+    delivered.add(artifact.fileName);
+    if (delivered.length == 1) await onFirstFile();
+    return TransportDeliveryOutcome(
+      disposition: DeliveryDisposition.delivered,
+      checksum: artifact.checksum,
+      destinationDescription: 'test://${artifact.fileName}',
+    );
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
 class _RefusingTransport implements ArtifactTransport {
   @override
   ArtifactDestinationKind get kind => ArtifactDestinationKind.watchedFolder;
@@ -1139,6 +1168,58 @@ void main() {
       expect(outcome.report!.delivery, isNotNull);
       expect(outcome.report!.deliveryProblems, isNotEmpty);
       expect(outcome.report!.body, contains('office-pc'));
+    },
+  );
+
+  test(
+    'a stop that lands during delivery ends the job as stopped, not done',
+    () async {
+      await DeliveryTargetsDao(db).create(
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/office"}',
+        content: ArtifactContent.values.toSet(),
+      );
+      final sessionId = await insertSession();
+      final imageId = await insertSub(sessionId: sessionId);
+      await insertMaster(imageIds: [imageId]);
+
+      final jobId = await DarkroomJobsDao(db).enqueue(sessionId: sessionId);
+      late final DawnAutopilotService service;
+      // The stop arrives after the first file has been handed over, which is
+      // the case the operator actually creates by pressing Stop while the
+      // copy is running.
+      final transport = _StopAfterFirstFileTransport(
+        onFirstFile: () => service.requestCancel(jobId),
+      );
+      service = buildService(transportFactory: (destination, id) => transport);
+
+      final outcome = await service.runJob(jobId);
+
+      expect(outcome.state, DarkroomJobState.cancelled);
+      expect(outcome.succeeded, isFalse);
+      final job = await DarkroomJobsDao(db).getById(jobId);
+      expect(job!.state, DarkroomJobState.cancelled);
+      expect(job.errorText, contains('Stopped on request during delivery'));
+      expect(job.errorText, contains('still owed'));
+
+      // The report on disk says the same thing the row does.
+      expect(outcome.report!.state, DarkroomJobState.cancelled.wire);
+      final delivery = outcome.report!.delivery!;
+      expect(delivery.delivered, 1);
+      expect(delivery.stoppedPending, greaterThan(0));
+      expect(delivery.failed, 0);
+      expect(delivery.everythingLanded, isFalse);
+      expect(delivery.summary, contains('stopped during delivery'));
+
+      // Nothing was announced as a finished night.
+      expect(outcome.report!.notification, isNull);
+      expect(notifier.announced, isEmpty);
+
+      // And the files the pass never reached are still on the sweep's list.
+      final owed = await DeliveryJournalDao(db).listPendingRetry();
+      expect(owed, isNotEmpty);
+      expect(owed.every((row) => row.attempts == 0), isTrue);
     },
   );
 

@@ -1583,3 +1583,37 @@ fn finalize_without_a_calibration_log_states_the_gap() {
     );
     assert_eq!(header.get("CALWARN").and_then(|v| v.as_bool()), Some(true));
 }
+
+/// `exposuresSec` is the source of both `totalIntegrationSec` and the
+/// accumulating master's FITS `EXPTIME`, and it was value-unchecked: three
+/// lights at -100 s produced a succeeded job reporting -300.0 seconds of
+/// integration. Every entry has to be a real, non-negative number of seconds,
+/// and the refusal has to say WHICH entry and WHAT it was.
+#[test]
+fn exposures_per_light_refuses_impossible_seconds() {
+    let negative = exposures_per_light(&[100.0, -100.0, 100.0], 3).unwrap_err();
+    assert!(
+        negative.contains("exposuresSec[1]") && negative.contains("-100"),
+        "the refusal must name the index and the value: {negative}"
+    );
+
+    let nan = exposures_per_light(&[f64::NAN], 1).unwrap_err();
+    assert!(
+        nan.contains("exposuresSec[0]") && nan.contains("NaN"),
+        "the refusal must name the index and the value: {nan}"
+    );
+
+    let infinite = exposures_per_light(&[300.0, f64::INFINITY], 2).unwrap_err();
+    assert!(
+        infinite.contains("exposuresSec[1]") && infinite.contains("inf"),
+        "the refusal must name the index and the value: {infinite}"
+    );
+
+    // Still accepted: real seconds, zero (what an omitted list means per
+    // frame), and an omitted list itself.
+    assert_eq!(
+        exposures_per_light(&[300.0, 0.0], 2).unwrap(),
+        vec![300.0, 0.0]
+    );
+    assert_eq!(exposures_per_light(&[], 3).unwrap(), vec![0.0, 0.0, 0.0]);
+}

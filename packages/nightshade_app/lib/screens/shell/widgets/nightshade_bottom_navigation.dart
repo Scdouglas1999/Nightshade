@@ -176,65 +176,83 @@ class _BottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(BottomNavMetrics.itemBorderRadius),
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            minHeight: NightshadeTokens.minTouchTarget,
+    // Same annotation the rail's NavItem carries, because the bar is the rail's
+    // phone-width replacement and has to answer the same three questions. A
+    // bare InkWell contributes a tap action and nothing else: measured on the
+    // running app at 420x900, all seven destinations came back as `panel` with
+    // states [focusable, showing, visible] — no role, no `selected` on the one
+    // the operator is standing in, and no `enabled`, which reads to assistive
+    // tech as a disabled control. `enabled` is published only when the field is
+    // given, so it is given.
+    return Semantics(
+      enabled: true,
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(
+            BottomNavMetrics.itemBorderRadius,
           ),
-          child: AnimatedContainer(
-            duration: BottomNavMetrics.itemSelectionAnimationDuration,
-            // Horizontal 4 (not itemPadding's 10): seven slots on a 430dp
-            // phone leave ~50dp per item, and 20dp of internal padding
-            // ellipsized even the short labels ("Ho…", "Guid…").
-            padding: compact
-                ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4)
-                : const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            decoration: isSelected
-                ? NightshadeDecorations.navSelected(
-                    colors,
-                    borderRadius: BorderRadius.circular(
-                      BottomNavMetrics.itemBorderRadius,
-                    ),
-                  )
-                : null,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: BottomNavMetrics.itemIconSize,
-                  color: isSelected ? colors.primary : colors.textSecondary,
-                ),
-                SizedBox(
-                    height: compact
-                        ? BottomNavMetrics.itemIconLabelGap - 3
-                        : BottomNavMetrics.itemIconLabelGap),
-                // FittedBox: a label a shade too wide for its slot
-                // ("Sequence", Spanish "Secuencia") scales down a few
-                // percent instead of ellipsizing — an ellipsis in a 7-slot
-                // bar reads as broken, a 5% smaller glyph is invisible.
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    // itemLabelFontSize (10px), not captionSm: the metrics
-                    // already define the bar's label size; captionSm's larger
-                    // glyphs were the other half of the ellipsis problem.
-                    style: NightshadeTypography.captionSm.copyWith(
-                      fontSize: BottomNavMetrics.itemLabelFontSize,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color: isSelected ? colors.primary : colors.textSecondary,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: NightshadeTokens.minTouchTarget,
+            ),
+            child: AnimatedContainer(
+              duration: BottomNavMetrics.itemSelectionAnimationDuration,
+              // Horizontal 4 (not itemPadding's 10): seven slots on a 430dp
+              // phone leave ~50dp per item, and 20dp of internal padding
+              // ellipsized even the short labels ("Ho…", "Guid…").
+              padding: compact
+                  ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4)
+                  : const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: isSelected
+                  ? NightshadeDecorations.navSelected(
+                      colors,
+                      borderRadius: BorderRadius.circular(
+                        BottomNavMetrics.itemBorderRadius,
+                      ),
+                    )
+                  : null,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: BottomNavMetrics.itemIconSize,
+                    color: isSelected ? colors.primary : colors.textSecondary,
+                  ),
+                  SizedBox(
+                      height: compact
+                          ? BottomNavMetrics.itemIconLabelGap - 3
+                          : BottomNavMetrics.itemIconLabelGap),
+                  // FittedBox: a label a shade too wide for its slot
+                  // ("Sequence", Spanish "Secuencia") scales down a few
+                  // percent instead of ellipsizing — an ellipsis in a 7-slot
+                  // bar reads as broken, a 5% smaller glyph is invisible.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      // itemLabelFontSize (10px), not captionSm: the metrics
+                      // already define the bar's label size; captionSm's
+                      // larger glyphs were the other half of the ellipsis
+                      // problem.
+                      style: NightshadeTypography.captionSm.copyWith(
+                        fontSize: BottomNavMetrics.itemLabelFontSize,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color:
+                            isSelected ? colors.primary : colors.textSecondary,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
