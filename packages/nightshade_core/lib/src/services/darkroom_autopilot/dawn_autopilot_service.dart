@@ -783,6 +783,7 @@ class DawnAutopilotService {
       master: master,
       name: _draftName(targetName: targetName, master: master),
       stepsJson: draft.encodeStepsJson(),
+      draftNotes: draft.notes,
     );
 
     final draftPath = p.join(
@@ -869,15 +870,23 @@ class DawnAutopilotService {
   /// happened. Those get a fresh row, which is the honest record of a second
   /// draft existing.
   ///
-  /// The write is two statements — the steps, then the name — because the DAO
-  /// exposes them separately and neither is worth a transaction the DAO does
-  /// not offer: the steps are what the draft IS, and a name that lags them by a
-  /// statement is cosmetic.
+  /// The write is three statements — the steps, the name, then the draft's own
+  /// account — because the DAO exposes them separately and none is worth a
+  /// transaction the DAO does not offer: the steps are what the draft IS, and a
+  /// name or an account that lags them by a statement is describing the same
+  /// pass a moment later.
+  ///
+  /// [draftNotes] rides with the row rather than only into the night report.
+  /// The report is a file on disk that the editor never opens, so until this
+  /// was persisted the dawn draft arrived in the Darkroom with every reason it
+  /// had recorded — including why a mono master got no colour calibration —
+  /// stripped off.
   Future<int> _persistDraftRecipe({
     required int sessionId,
     required DawnMaster master,
     required String name,
     required String stepsJson,
+    required List<DawnDraftNote> draftNotes,
   }) async {
     final now = _clock();
     for (final existing in await _recipes.listForMaster(
@@ -896,6 +905,7 @@ class DawnAutopilotService {
         now: now,
       );
       await _recipes.rename(id, name, now: now);
+      await _recipes.setDraftNotes(id, _recipeNotes(draftNotes), now: now);
       return id;
     }
     return _recipes.create(
@@ -906,10 +916,26 @@ class DawnAutopilotService {
       name: name,
       stepsJson: stepsJson,
       createdBy: RecipeAuthor.autopilot,
+      draftNotes: _recipeNotes(draftNotes),
       schemaVersion: kRecipeSchemaVersion,
       createdAt: now,
     );
   }
+
+  /// The draft's account in the shape the recipe row stores.
+  ///
+  /// Every note is carried, `included` ones as well: the account is the record
+  /// of what the composing pass DECIDED, and a row that carries one is a row
+  /// the registry composed — which is how the editor can say a stack was
+  /// drafted rather than written by hand, however many operations it left out.
+  static List<RecipeDraftNote> _recipeNotes(List<DawnDraftNote> notes) => [
+    for (final note in notes)
+      RecipeDraftNote(
+        opId: note.opId,
+        outcome: note.outcome,
+        reason: note.reason,
+      ),
+  ];
 
   /// Hand the night's artifacts to delivery.
   ///

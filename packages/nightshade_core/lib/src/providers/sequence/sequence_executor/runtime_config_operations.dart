@@ -160,7 +160,11 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // visits the Settings UI would run on the Rust defaults. Failures are
     // surfaced, not swallowed — a bad seed means aborting start rather than
     // running with the wrong cadence.
-    await _seedRuntimeConfigFromSettings(backend);
+    //
+    // Through the public entry point, not the extension method: it is the ONE
+    // seed site the headless `load -> start` path shares with this one (see
+    // [SequenceExecutor.seedRuntimeConfigForNativeStart]).
+    await seedRuntimeConfigForNativeStart();
 
     // Consult the session-handoff decision for every
     // TargetHeader with an `integrationBudget` configured. The operator's
@@ -232,15 +236,30 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
 
   /// Push every user-controlled RuntimeConfig field into the loaded executor.
   ///
-  /// Why one method instead of inline: keeps the start path readable and
-  /// makes the same seed sequence reusable from the headless start path
-  /// (`DeviceService.sequencerStart`) once it grows past the simple wrapper.
-  /// Each push is independent — a failure on one field still attempts the
-  /// next, but the first failure is rethrown after the batch so the caller
-  /// learns about the misconfiguration before sequencerStart() runs.
+  /// Reached through [SequenceExecutor.seedRuntimeConfigForNativeStart], the
+  /// public entry point every native launch shares — the editor start, the
+  /// checkpoint resume and the headless `load -> start` path. Each push is
+  /// independent — a failure on one field still attempts the next, but the
+  /// first failure is rethrown after the batch so the caller learns about the
+  /// misconfiguration before sequencerStart() runs.
   Future<void> _seedRuntimeConfigFromSettings(NightshadeBackend backend) async {
     Object? firstError;
     StackTrace? firstStack;
+
+    // Six of the pushes below read `appSettingsProvider.valueOrNull` and do
+    // NOTHING when it is null. Awaiting the load here is what keeps that
+    // branch out of reach: a start racing a cold settings load would otherwise
+    // push no grading thresholds, no reject folder and no adaptive-exposure
+    // config, and say so nowhere. Failure propagates — with the operator's
+    // settings unknown there is nothing honest to seed.
+    await _ref.read(appSettingsProvider.future);
+
+    // The meridian-flip push below serializes this provider. `ensureLoaded`
+    // waits for the DB/remote-host snapshot, so a start that never visited the
+    // Settings UI — every headless night — cannot bake factory defaults into
+    // the run while the operator's real values are still loading. Idempotent:
+    // the editor start already awaits it before serializing the tree.
+    await _ref.read(globalMeridianFlipSettingsProvider.notifier).ensureLoaded();
 
     // Autofocus cadence: persisted in sequencer_autofocus_interval_frames; the
     // Rust default of 25 is wrong for both very-short and very-long subs.

@@ -79,6 +79,53 @@ extension _SequencerStartPreflight on SequencerHandlers {
     }
   }
 
+  /// Seed the native executor's RuntimeConfig from the operator's settings,
+  /// the third piece of `SequenceExecutor.start()` this branch never mirrored
+  /// (the session row and the run row were the first two).
+  ///
+  /// The bare `load -> start` path hand-copied the simulation mode, the safety
+  /// fail mode, the device ids and the save path, and stopped there. The
+  /// runtime-config push — image grading thresholds, the reject folder, the
+  /// autofocus cadence and the autofocus tuning, the dither config, the
+  /// sequencer's own observer location, the filter focus offsets, the observer
+  /// profile the FITS headers carry — never happened, so every headless night
+  /// ran on the Rust defaults. Grading was the loudest: measured on the
+  /// appliance with `image_grading_enabled=true` and
+  /// `image_grading_star_count_min=100000` persisted AND read back through
+  /// `GET /api/settings`, a 43-star simulated frame graded `pass`, twelve of
+  /// twelve frames were accepted, `Reject/` stayed empty and the run log held
+  /// no `Updating sequencer default_quality_check` line at all. Every master
+  /// the Darkroom then drafted was stacked from ungraded subs.
+  ///
+  /// Unlike the two bookkeeping rows, a failure here REFUSES the start rather
+  /// than proceeding. Those are recoverable after the fact — frames on disk
+  /// can be imported, a run row can be reconstructed. This is not: a night
+  /// that ran with the operator's grading, cadence and reject folder silently
+  /// replaced by library defaults produces subs nothing downstream can tell
+  /// apart from graded ones. Returns null when the run may proceed.
+  Future<Response?> _seedNativeRuntimeConfig() async {
+    try {
+      await container
+          .read(sequenceExecutorProvider)
+          .seedRuntimeConfigForNativeStart();
+      return null;
+    } catch (error) {
+      _logWarning(
+        '[API] POST /api/sequencer/start refused: the run configuration could '
+        'not be pushed to the executor ($error)',
+      );
+      return jsonInternalServerError({
+        'error': 'runtime_config_seed_failed',
+        'message':
+            'This run was not started because your sequencer settings could '
+            'not be applied to the executor: $error. Starting anyway would '
+            'have run the night on library defaults — image grading, the '
+            'reject folder, the autofocus cadence and the dither settings all '
+            'ignored — with nothing on the run record to say so.',
+      });
+    }
+  }
+
   /// Returns true when a row was opened, so the caller can close it again if
   /// the native executor then refuses the start.
   Future<bool> _openSessionRowForNativeRun(SequencerBackend backend) async {

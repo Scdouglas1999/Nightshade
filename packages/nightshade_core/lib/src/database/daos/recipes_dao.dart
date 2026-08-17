@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -55,6 +57,67 @@ class RecipeGraphCycleException implements Exception {
       'the recipe graph is cyclic.';
 }
 
+/// One line of a draft's own account of how it was composed: what the operation
+/// registry decided about one operation, and why.
+///
+/// The same three fields the dawn pass writes into its night report, stored in
+/// `recipes.draft_notes_json` so the account survives the pass that made it.
+/// The reasons an operation was left OUT are the part of a draft the step list
+/// cannot carry — there is no card for a step that is not there — and they are
+/// what turns "this mono master got no colour calibration" into a sentence.
+class RecipeDraftNote {
+  /// The operation the note is about, as the registry names it (`stretch`).
+  final String opId;
+
+  /// What the composition did with it: `included`, `retried`, `remeasured`, or
+  /// `omitted`. Stored as written rather than parsed into an enum: the
+  /// vocabulary belongs to the composing pass, and a word this build does not
+  /// model is still a word the operator can read.
+  final String outcome;
+
+  /// Why, in the words the report and the editor both print.
+  final String reason;
+
+  const RecipeDraftNote({
+    required this.opId,
+    required this.outcome,
+    required this.reason,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'opId': opId,
+    'outcome': outcome,
+    'reason': reason,
+  };
+
+  /// Read one stored note.
+  ///
+  /// Throws [DarkroomWireFormatException] rather than filling a missing field
+  /// in: a note whose operation or reason is gone explains nothing, and an
+  /// invented one would attribute a decision the composing pass never recorded.
+  static RecipeDraftNote fromJson(Object? raw) {
+    if (raw is! Map) {
+      throw DarkroomWireFormatException(
+        'recipes.draft_notes_json',
+        raw?.toString(),
+      );
+    }
+    final opId = raw['opId'];
+    final outcome = raw['outcome'];
+    final reason = raw['reason'];
+    if (opId is! String || outcome is! String || reason is! String) {
+      throw DarkroomWireFormatException(
+        'recipes.draft_notes_json',
+        raw.toString(),
+      );
+    }
+    return RecipeDraftNote(opId: opId, outcome: outcome, reason: reason);
+  }
+
+  @override
+  String toString() => '$opId: $outcome — $reason';
+}
+
 /// Data-access object for the v58 `recipes` table — the non-destructive
 /// operation stack replayed over a linear master, and the branch graph over it.
 ///
@@ -83,6 +146,13 @@ class RecipesDao {
 
   final NightshadeDatabase _db;
 
+  /// The columns a [DarkroomRecipe] is built from.
+  ///
+  /// `draft_notes_json` is deliberately absent: it is provenance about the pass
+  /// that composed the stack, not part of the recipe every branch walk and
+  /// sibling listing carries, and reading it on every row would decode a JSON
+  /// array per recipe for the one screen that shows it. [draftNotesOf] reads it
+  /// on its own.
   static const String _columns =
       'id, target_id, session_id, master_id, base_master_path, name, '
       'steps_json, created_by, parent_recipe_id, divergence_index, '
@@ -93,6 +163,8 @@ class RecipesDao {
   /// [parentRecipeId] and [divergenceIndex] are both null for a root recipe and
   /// both set for a branch; either alone throws [RecipeBranchException].
   /// [createdAt]/[updatedAt] default to "now" (UTC seconds) when omitted.
+  /// [draftNotes] is the composing pass's account (see [RecipeDraftNote]);
+  /// empty for a recipe a human is writing step by step.
   Future<int> create({
     int? targetId,
     int? sessionId,
@@ -101,6 +173,7 @@ class RecipesDao {
     String name = '',
     String stepsJson = '[]',
     RecipeAuthor createdBy = RecipeAuthor.autopilot,
+    List<RecipeDraftNote> draftNotes = const [],
     int? parentRecipeId,
     int? divergenceIndex,
     int schemaVersion = 1,
@@ -128,9 +201,9 @@ class RecipesDao {
     return _db.customInsert(
       'INSERT INTO recipes('
       'target_id, session_id, master_id, base_master_path, name, steps_json, '
-      'created_by, parent_recipe_id, divergence_index, schema_version, '
-      'created_at, updated_at'
-      ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'created_by, draft_notes_json, parent_recipe_id, divergence_index, '
+      'schema_version, created_at, updated_at'
+      ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       variables: [
         Variable<int>(targetId),
         Variable<int>(sessionId),
@@ -139,6 +212,7 @@ class RecipesDao {
         Variable<String>(name),
         Variable<String>(stepsJson),
         Variable<String>(createdBy.wire),
+        Variable<String>(_encodeDraftNotes(draftNotes)),
         Variable<int>(parentRecipeId),
         Variable<int>(divergenceIndex),
         Variable<int>(schemaVersion),
@@ -323,6 +397,51 @@ class RecipesDao {
     );
   }
 
+  /// The composing pass's account of this recipe, in the order it was written.
+  ///
+  /// Empty for a recipe nobody drafted, and for every row written before v59 —
+  /// the column defaults to `'[]'`, so "no account" and "an account of nothing"
+  /// are the same answer, which is the truth in both cases.
+  ///
+  /// Throws [RecipeMissingException] when [id] has no row: an editor that
+  /// silently read an absent recipe's notes as "none" would show a draft with
+  /// its reasons stripped and no sign that anything was missing.
+  /// [DarkroomWireFormatException] when the stored text is not an array of
+  /// notes — this app is the only writer, so unreadable text is corruption.
+  Future<List<RecipeDraftNote>> draftNotesOf(int id) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT draft_notes_json FROM recipes WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
+    if (rows.isEmpty) throw RecipeMissingException(id);
+    return _decodeDraftNotes(rows.first.read<String>('draft_notes_json'));
+  }
+
+  /// Replace a recipe's draft account, bumping `updated_at`. Returns the number
+  /// of rows changed.
+  ///
+  /// Replace, never append: the account describes ONE composing pass, and a
+  /// second pass over the same master supersedes the first rather than adding
+  /// to it — the same rule the dawn autopilot applies to the steps.
+  Future<int> setDraftNotes(
+    int id,
+    List<RecipeDraftNote> notes, {
+    DateTime? now,
+  }) {
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    return _db.customUpdate(
+      'UPDATE recipes SET draft_notes_json = ?, updated_at = ? WHERE id = ?',
+      variables: [
+        Variable<String>(_encodeDraftNotes(notes)),
+        Variable<int>(at),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+  }
+
   /// Rename a recipe (the branch label), bumping `updated_at`. Returns the
   /// number of rows changed.
   Future<int> rename(int id, String name, {DateTime? now}) {
@@ -374,6 +493,27 @@ class RecipesDao {
       updateKind: UpdateKind.delete,
     );
     return deleted;
+  }
+
+  static String _encodeDraftNotes(List<RecipeDraftNote> notes) =>
+      jsonEncode([for (final note in notes) note.toJson()]);
+
+  static List<RecipeDraftNote> _decodeDraftNotes(String raw) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException catch (error) {
+      throw DarkroomWireFormatException(
+        'recipes.draft_notes_json',
+        '${error.message}: $raw',
+      );
+    }
+    if (decoded is! List) {
+      throw DarkroomWireFormatException('recipes.draft_notes_json', raw);
+    }
+    return List.unmodifiable([
+      for (final entry in decoded) RecipeDraftNote.fromJson(entry),
+    ]);
   }
 
   static void _assertBranchCoherent(int? parentRecipeId, int? divergenceIndex) {

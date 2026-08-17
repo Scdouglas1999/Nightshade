@@ -10,6 +10,7 @@ import 'widgets/growth_curve_panel.dart';
 import 'widgets/improvement_curve_panel.dart';
 import 'widgets/master_overlay_view.dart';
 import 'widgets/night_report_panel.dart';
+import 'widgets/session_interruption_banner.dart';
 
 /// The *narrative* rendering of the one [SessionReviewController] state: a
 /// top-to-bottom story of the night, read like a morning report.
@@ -43,6 +44,12 @@ class NarrativeView extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── A pass a process exit cut off. ───────────────────────────────
+          // First, because it outranks every ending below it: the row that
+          // banner reads has been re-queued since, so it no longer says the
+          // machine died mid-run.
+          SessionInterruptionBanner(notice: state.interruptedPassNotice),
+
           // ── A Darkroom pass that failed or was stopped. ──────────────────
           // Above the hero: it is the reason the drafts and the delivery this
           // page would otherwise be read as reporting are not there.

@@ -25,6 +25,7 @@ const IDS = [
   'progress-integration', 'progress-node', 'progress-filter',
   'equipment-list', 'guide-state', 'guide-ra', 'guide-dec', 'guide-total',
   'guide-snr', 'weather-badge', 'weather-message', 'event-feed', 'toast-region',
+  'pair-screen', 'main-screen', 'pair-status',
 ];
 
 /**
@@ -65,6 +66,8 @@ function loadRunWatch(overrides) {
   noteLinkFailure,
   retryAfterSecsFrom,
   apiFetch,
+  setToken,
+  showPairScreen,
   sequencerAction,
   formatDurationSecs,
   peek: () => ({ lastSnapshotAt, linkFailure, rateLimitedUntil, lastKnownState }),
@@ -508,4 +511,78 @@ test('the shipped markup asserts no rig state before the first snapshot', () => 
   const name = html.match(/<span id="seq-name"[^>]*>([^<]*)</);
   assert.ok(name, 'the sequence-name slot must exist in the markup');
   assert.match(name[1].trim(), /^Connecting/);
+});
+
+// D4W-03. `progressPercent: null` is the server's own degraded payload
+// (`_unavailableProgressJson` in run_watch_handlers.dart — every measured field
+// null, `state: 'unknown'`, a message naming the failed read). The text and the
+// aria attribute were already honest about it. The BAR was not: it painted
+// `width: 0%`, which is byte-identical to a fresh boot that has genuinely done
+// nothing — verified side by side on the running bundle, same computed width,
+// same classes, same background.
+test('an unknown progress percentage does not draw as a real zero', () => {
+  const { doc, api } = loadRunWatch();
+  const bar = doc.getElementById('progress-bar-aria');
+
+  const snap = runningSnapshot();
+  snap.sequencer.progress.progressPercent = null;
+  api.applySnapshot(snap);
+  assert.equal(doc.getElementById('progress-pct').textContent, '--');
+  assert.equal(bar.getAttribute('aria-valuenow'), null);
+  assert.ok(bar.classList.contains('unknown'),
+    'the graphic must say what the text says');
+
+  // A genuine 0% — a run that has started and completed nothing — keeps the
+  // ordinary empty track, because that IS a figure the server sent.
+  const zero = runningSnapshot();
+  zero.sequencer.progress.progressPercent = 0;
+  api.applySnapshot(zero);
+  assert.equal(doc.getElementById('progress-pct').textContent, '0%');
+  assert.equal(bar.getAttribute('aria-valuenow'), '0');
+  assert.ok(!bar.classList.contains('unknown'));
+});
+
+test('the unknown track has a rendering of its own', () => {
+  const css = fs.readFileSync(path.join(RUN_WATCH, 'css', 'style.css'), 'utf8');
+  assert.match(css, /\.bar\.unknown\s*\{[\s\S]*?background-image/,
+    'without a paint rule the class distinguishes nothing');
+});
+
+// D4W-04. A token the desktop revoked dropped this page back to the first-run
+// pair screen with nothing said: `#pair-status` empty, no toast, and a screen
+// byte-identical to the one a browser that had never paired gets (the two
+// screenshots hashed the same). The thrown 'Pairing is no longer accepted'
+// reached no caller that renders it.
+test('a rejected pairing says what happened and what to do next', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: false, status: 403, statusText: 'Forbidden',
+      headers: new Headers(),
+      json: async () => ({ error: 'forbidden' }),
+      text: async () => 'forbidden',
+    }),
+  });
+  api.setToken('a-token-the-desktop-revoked');
+
+  await assert.rejects(
+    () => api.apiFetch('/api/run-watch/snapshot'),
+    (e) => e.kind === 'auth_required',
+  );
+
+  const status = doc.getElementById('pair-status');
+  assert.match(status.textContent, /no longer accepted/);
+  assert.match(status.textContent, /Pair again/,
+    'a dead end is not an explanation — say the next move');
+  assert.ok(status.className.includes('error'));
+  assert.ok(!doc.getElementById('pair-screen').classList.contains('hidden'));
+  assert.ok(doc.getElementById('main-screen').classList.contains('hidden'));
+});
+
+test('a first-run pair screen accuses nothing', () => {
+  const { doc, api } = loadRunWatch();
+  doc.getElementById('pair-status').textContent = 'stale text';
+  api.showPairScreen();
+  assert.equal(doc.getElementById('pair-status').textContent, '',
+    'a browser that never paired has had nothing rejected');
+  assert.equal(doc.getElementById('pair-status').className, 'pair-status');
 });

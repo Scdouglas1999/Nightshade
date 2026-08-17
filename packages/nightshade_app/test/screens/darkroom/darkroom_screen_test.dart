@@ -36,6 +36,10 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// and `renderPreview` refuses before it touches a pixel.
   Set<String> unregisteredOps = {};
 
+  /// When set, the next preview throws this instead of answering — the shape a
+  /// master that moved off disk takes at the seam.
+  Object? previewError;
+
   final List<Map<String, dynamic>> cancelArgs = [];
 
   static String _opKey(Map<String, dynamic> step) =>
@@ -91,6 +95,11 @@ class _ScriptedDarkroom implements DarkroomSeam {
     if (hold != null) {
       holdPreview = null;
       await hold.future;
+    }
+    final failure = previewError;
+    if (failure != null) {
+      previewError = null;
+      throw failure;
     }
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
@@ -607,6 +616,86 @@ void main() {
     expect(find.text('Recipe'), findsWidgets);
     expect(find.text('History'), findsWidgets);
     expect(find.byKey(kDarkroomPreviewSurfaceKey), findsOneWidget);
+  });
+
+  testWidgets('a failed render labels the picture it left up, on the picture',
+      (tester) async {
+    final id =
+        await seedRecipe([_step('background_extract'), _step('stretch')]);
+    final scope = DarkroomScope.recipe(id);
+    // Tall enough that the Recipe panel's own "Render again" is on screen: a
+    // tap aimed at a control below the fold hits nothing at all.
+    final handle = await pump(tester, scope, size: const Size(1280, 1400));
+
+    // A render landed, so there are pixels on screen.
+    expect(find.byKey(kDarkroomPreviewSurfaceKey), findsOneWidget);
+    expect(find.textContaining('The render did not finish'), findsNothing);
+
+    // The master moves off disk and the next render fails. The preview is NOT
+    // dropped — an editor that blanks on a failure loses the last picture the
+    // operator could trust — so the picture that stays up has to say what it
+    // is.
+    darkroom.previewError = DarkroomSeamException(
+      'renderPreview',
+      "cannot read '$_masterPath': No such file or directory (os error 2)",
+      StateError('missing master'),
+    );
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Render again'));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    final state = handle.container.read(darkroomControllerProvider(scope));
+    expect(state.preview, isNotNull, reason: 'the previous frame stays up');
+    expect(state.renderError, isNotNull);
+
+    // On the viewport itself, not only in the Recipe panel: the tag, the
+    // engine's own sentence, and a strip that stops describing the stale frame
+    // as the current stack's.
+    expect(find.text('Stale — the render did not finish'), findsOneWidget);
+    expect(
+      find.textContaining('No such file or directory'),
+      findsWidgets,
+    );
+    expect(
+      find.textContaining('Display transfer of the last render that finished'),
+      findsOneWidget,
+    );
+    await drain(tester);
+  });
+
+  testWidgets('at phone width the failure is in the Image segment too',
+      (tester) async {
+    final id =
+        await seedRecipe([_step('background_extract'), _step('stretch')]);
+    final scope = DarkroomScope.recipe(id);
+    await pump(tester, scope, size: const Size(430, 900));
+
+    // Fail a render from the Recipe segment, then go back to the picture. At
+    // this width the Recipe panel is a segment the operator is not looking at,
+    // so a failure stated only there leaves the Image segment showing a stale
+    // picture with nothing to say it is one.
+    await tester.tap(find.text('Recipe').last);
+    await tester.pump();
+    darkroom.previewError = DarkroomSeamException(
+      'renderPreview',
+      "cannot read '$_masterPath': No such file or directory (os error 2)",
+      StateError('missing master'),
+    );
+    final rerender = find.widgetWithText(NightshadeButton, 'Render again');
+    await tester.ensureVisible(rerender);
+    await tester.pump();
+    await tester.tap(rerender);
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    await tester.tap(find.text('Image'));
+    await tester.pump();
+    expect(find.byKey(kDarkroomPreviewSurfaceKey), findsOneWidget);
+    expect(find.text('Stale — the render did not finish'), findsOneWidget);
+    expect(find.textContaining('No such file or directory'), findsWidgets);
+    await drain(tester);
   });
 
   testWidgets('a parameter slider follows the whole drag, not just its start',

@@ -21,6 +21,7 @@ import 'widgets/calibration_library_settings.dart';
 import 'widgets/calibration_settings.dart';
 import 'widgets/connection_settings.dart';
 import 'widgets/dark_library_settings.dart';
+import 'widgets/darkroom_autopilot_settings.dart';
 import 'widgets/general_settings.dart';
 import 'widgets/help_tutorials_settings.dart';
 import 'widgets/image_grading_settings.dart';
@@ -480,6 +481,28 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
           ],
           build: (isMobile) => AdaptiveConditionsSettings(isMobile: isMobile),
         ),
+        // What happens to the night after its masters exist. Beside Delivery
+        // because they are two links of one chain — this one composes the
+        // drafts and the report, Delivery carries them off the rig — and the
+        // pair reads as nonsense apart.
+        SettingsSectionDef(
+          key: 'darkroom',
+          label: 'Darkroom autopilot',
+          icon: LucideIcons.sparkles,
+          keywords: const [
+            'darkroom',
+            'autopilot',
+            'auto draft',
+            'draft',
+            'dawn',
+            'recipe',
+            'morning',
+            'post-session',
+            'night report',
+            'unattended',
+          ],
+          build: (isMobile) => DarkroomAutopilotSettings(isMobile: isMobile),
+        ),
         // Where the night's masters, draft render and report leave the rig —
         // the tail of the unattended night, so it sits with the rest of it
         // rather than under Advanced between the Log Viewer and Replay Debug.
@@ -828,6 +851,7 @@ const List<List<String>> _structuralGroups = [
     'preflight',
     'weather-safety',
     'adaptive-conditions',
+    'darkroom',
     'delivery',
   ],
   ['science', 'observation-log', 'observing-lists'],

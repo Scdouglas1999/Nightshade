@@ -67,6 +67,14 @@ void main() {
     }
   }
 
+  /// The version a complete creation stamps: the database's own, never a
+  /// literal. A schema bump is a one-line change in `database.dart`, and a test
+  /// that spells the number out fails on the bump rather than on the behaviour
+  /// it is about.
+  final currentSchemaVersion = NightshadeDatabase.forTesting(
+    NativeDatabase.memory(),
+  ).schemaVersion;
+
   /// Open the real database at [file] and force the migration to run.
   Future<void> openAndMigrate(File file) async {
     final db = NightshadeDatabase.forTesting(NativeDatabase(file));
@@ -126,7 +134,7 @@ void main() {
       await openAndMigrate(dbFile);
 
       final after = inspect(dbFile);
-      expect(after.version, 58);
+      expect(after.version, currentSchemaVersion);
       expect(after.tables, greaterThan(1));
     });
   });
@@ -156,7 +164,7 @@ void main() {
       // The launch after the repair comes up on a complete, stamped schema.
       await openAndMigrate(dbFile);
       final repaired = inspect(dbFile);
-      expect(repaired.version, 58);
+      expect(repaired.version, currentSchemaVersion);
       expect(repaired.tables, greaterThan(1));
     });
 

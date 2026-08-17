@@ -155,6 +155,12 @@ extension _SequencerLifecycle on SequencerHandlers {
         // `GET /api/devices/connected` lists the camera the whole time.
         await _wireConnectedDevicesIntoNativeExecutor(backend);
         await _restoreNativeSavePath(backend);
+        // Seed the executor's RuntimeConfig from the operator's settings —
+        // the piece of `SequenceExecutor.start()` this branch never mirrored,
+        // and the third member of the same family as the session row and the
+        // run row above. See [_seedNativeRuntimeConfig].
+        final seedRefusal = await _seedNativeRuntimeConfig();
+        if (seedRefusal != null) return seedRefusal;
         // Refuse, before anything is opened, a run that needs a guider, dome
         // or cover calibrator this rig does not have. See
         // [_refuseUnassignableRoles] — the native pre-flight cannot see these

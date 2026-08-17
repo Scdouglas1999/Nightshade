@@ -565,8 +565,59 @@ void main() {
         draft.notes.firstWhere((n) => n.opId == 'color_calibrate').reason,
         contains('needs three'),
       );
+
+      // And the row carries the same account, not only the report on disk.
+      // The editor never opens the report, so a draft whose reasons lived
+      // there alone arrived in the Darkroom with them stripped off.
+      final recipes = RecipesDao(db);
+      final row = (await recipes.listForMaster(masterPath)).single;
+      final stored = await recipes.draftNotesOf(row.id!);
+      expect(
+        stored.firstWhere((n) => n.opId == 'color_calibrate').reason,
+        contains('needs three'),
+      );
+      expect(
+        stored.map((n) => n.opId),
+        containsAll(draft.notes.map((n) => n.opId)),
+        reason: 'the row records every decision the pass made',
+      );
     },
   );
+
+  test('a superseding re-run replaces the account it wrote last time', () async {
+    darkroom.draftNotes = [
+      {
+        'opId': 'color_calibrate',
+        'outcome': 'omitted',
+        'reason': 'this master has 1 channel(s); the colour fit needs three',
+      },
+    ];
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    final recipes = RecipesDao(db);
+
+    await buildService().runDawnForSession(sessionId);
+    final first = (await recipes.listForMaster(masterPath)).single;
+    expect(
+      (await recipes.draftNotesOf(first.id!)).map((n) => n.opId),
+      contains('color_calibrate'),
+    );
+
+    // The resumed attempt measures a draft that leaves nothing out. The row is
+    // rewritten, so its account has to be this pass's — a stale omission would
+    // explain a step the stack no longer misses.
+    darkroom.draftNotes = [];
+    await buildService().runDawnForSession(sessionId);
+    final rows = await recipes.listForMaster(masterPath);
+    expect(rows, hasLength(1));
+    expect(
+      (await recipes.draftNotesOf(
+        rows.single.id!,
+      )).where((n) => n.outcome == 'omitted'),
+      isEmpty,
+    );
+  });
 
   test(
     'an RGB master keeps the colour step once it applies at level 0',

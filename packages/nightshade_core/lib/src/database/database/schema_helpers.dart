@@ -1106,6 +1106,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       "name TEXT NOT NULL DEFAULT '',"
       "steps_json TEXT NOT NULL DEFAULT '[]',"
       "created_by TEXT NOT NULL DEFAULT 'autopilot',"
+      "draft_notes_json TEXT NOT NULL DEFAULT '[]',"
       'parent_recipe_id INTEGER REFERENCES recipes(id) ON DELETE RESTRICT,'
       'divergence_index INTEGER,'
       'schema_version INTEGER NOT NULL DEFAULT 1,'
@@ -1247,16 +1248,43 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   /// dead attempt left — the step it was on, or the re-queue line a previous
   /// recovery wrote — describes work that is over and would read on a failed
   /// row as though it were still going.
-  Future<void> _recoverInterruptedDarkroomJobs() async {
+  ///
+  /// The retry-limit sentence is built from the ROW: the attempt number comes
+  /// out of `attempts`, in SQL, so one statement still covers every residual
+  /// row. It used to be a constant reading "on attempt 3 of 3" while its own
+  /// `WHERE` selects `attempts >= 3`, so a row that had been started five times
+  /// was told it died on its third — a number nothing in the row supports.
+  ///
+  /// Returns what was found BEFORE either write, because those rows are the
+  /// evidence of WHICH STAGE of the night the process died in:
+  /// [_reportInterruptedIntegration] runs next over a marker that covers the
+  /// integrate AND the Darkroom pass, and a session with a Darkroom job left
+  /// running is a session whose integration had already finished.
+  Future<List<_InterruptedDarkroomJob>>
+  _recoverInterruptedDarkroomJobs() async {
+    final residue = await customSelect(
+      'SELECT id, session_id, progress, attempts FROM darkroom_jobs '
+      'WHERE state = ?',
+      variables: [const Variable<String>('running')],
+    ).get();
+    final interrupted = [
+      for (final row in residue)
+        _InterruptedDarkroomJob(
+          jobId: row.data['id'] as int,
+          sessionId: row.data['session_id'] as int?,
+          progress: (row.data['progress'] as num).toDouble(),
+          attempts: row.data['attempts'] as int,
+        ),
+    ];
+
     final failed = await customUpdate(
       "UPDATE darkroom_jobs SET state = 'failed', finished_at = ?, "
-      'error_text = ?, note = ? WHERE state = ? AND attempts >= ?',
+      "error_text = 'Interrupted by a process exit on attempt ' || attempts || "
+      "'; the limit is ' || ? || ' starts, so it is not retried.', "
+      'note = ? WHERE state = ? AND attempts >= ?',
       variables: [
         Variable<int>(DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000),
-        const Variable<String>(
-          'Interrupted by a process exit on attempt '
-          '$kDarkroomJobMaxAttempts of $kDarkroomJobMaxAttempts; not retried.',
-        ),
+        const Variable<int>(kDarkroomJobMaxAttempts),
         const Variable<String>(
           'Stopped at the retry limit; this job is not re-queued.',
         ),
@@ -1283,6 +1311,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
         're-queued $requeued, failed $failed at the attempt limit.',
       );
     }
+    return interrupted;
   }
 
   /// The directory holding this connection's database file, or null when the
@@ -1307,11 +1336,11 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     return null;
   }
 
-  /// Report a post-session integration that a previous process died in the
-  /// middle of, then clear its marker.
+  /// Report a post-session pass that a previous process died in the middle of,
+  /// then clear its marker.
   ///
-  /// The pass leaves no `darkroom_jobs` row to recover — it enqueues the
-  /// Darkroom job only after the masters exist — so the marker file written by
+  /// The integrate leaves no `darkroom_jobs` row to recover — the Darkroom job
+  /// is enqueued only after the masters exist — so the marker file written by
   /// `markIntegrationStarted` is the whole record that the night was
   /// interrupted. It is turned into two durable, operator-visible things:
   ///
@@ -1333,13 +1362,34 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   /// takes the app down repeatedly. The report says the night needs a re-run;
   /// the operator asks for it.
   ///
+  /// WHICH STAGE the kill landed in is read off [interruptedJobs] — the
+  /// `darkroom_jobs` rows `_recoverInterruptedDarkroomJobs` found still
+  /// `running`, captured before it re-queued them. The marker's window covers
+  /// the integrate AND the Darkroom pass that follows it (one `finally` clears
+  /// it after both), so its mere presence does not say which was in flight. A
+  /// Darkroom job for the marker's session that was still running is proof the
+  /// integrate had already finished: the pass enqueues that job only once the
+  /// masters exist. Reported as an integration crash, that night told the
+  /// operator to re-run an integration that was complete and said nothing
+  /// about the draft, the night report and the delivery that had not happened.
+  ///
   /// The marker is deleted last, so a process that dies between reading it and
   /// writing the report finds it again at the next open.
-  Future<void> _reportInterruptedIntegration() async {
+  Future<void> _reportInterruptedIntegration(
+    List<_InterruptedDarkroomJob> interruptedJobs,
+  ) async {
     final directory = await _databaseDirectory();
     if (directory == null) return;
     final interrupted = await readIntegrationMarker(directory);
     if (interrupted == null) return;
+
+    _InterruptedDarkroomJob? darkroomPass;
+    for (final job in interruptedJobs) {
+      if (job.sessionId == interrupted.sessionId) {
+        darkroomPass = job;
+        break;
+      }
+    }
 
     // Each intended file is MEASURED before anything is said about it. The
     // pass writes its masters one after another, so an interruption leaves
@@ -1351,7 +1401,12 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     final incomplete = present.where((file) => !file.complete).toList();
     final whole = present.where((file) => file.complete).toList();
     final sentences = <String>[];
-    if (present.isEmpty) {
+    if (present.isEmpty && darkroomPass == null) {
+      // Only the integrate can leave a master half-written, and only then is
+      // "nothing on disk is half-finished" news. A kill during the DRAFT hit a
+      // stage that writes no master at all, so saying it there would answer a
+      // question the operator did not ask about a file that was never in
+      // danger.
       sentences.add(
         'No master file had been written yet, so nothing on disk is '
         'half-finished.',
@@ -1378,13 +1433,35 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     }
     final orphanText = sentences.join(' ');
     final startedAt = interrupted.startedAtUtc.toIso8601String();
-    const headline =
-        'The post-session integration was interrupted before it '
-        'finished.';
-    final body =
+    final headline = darkroomPass == null
+        ? 'The post-session integration was interrupted before it finished.'
+        : 'The Darkroom pass was interrupted before it finished.';
+    final body = <String>[
+      if (darkroomPass == null)
         'Nightshade closed while integrating this session (started '
-        '$startedAt UTC). $orphanText The subs are all still on disk and '
-        'still graded, so run the integration again when you are ready.';
+            '$startedAt UTC).'
+      else
+        'Nightshade closed while Darkroom job #${darkroomPass.jobId} was '
+            'drafting this session, '
+            '${(darkroomPass.progress * 100).round()}% of the way through (the '
+            'pass started at $startedAt UTC). The integration itself had '
+            'already finished — the Darkroom job is queued only once the '
+            'masters exist.',
+      if (orphanText.isNotEmpty) orphanText,
+      if (darkroomPass == null)
+        'The subs are all still on disk and still graded, so run the '
+            'integration again when you are ready.'
+      else if (darkroomPass.willRetry)
+        'The job is re-queued, so the drafts, the night report and the '
+            'delivery it owes are still owed; re-running the integration is '
+            'not what this night needs.'
+      else
+        'That was start ${darkroomPass.attempts} of at most '
+            '$kDarkroomJobMaxAttempts, so the job is marked failed rather than '
+            're-queued: the drafts, the night report and the delivery are not '
+            'coming without you starting the pass yourself. The masters are '
+            'untouched.',
+    ].join(' ');
 
     await customUpdate(
       'UPDATE imaging_sessions SET notes = '
@@ -1406,23 +1483,20 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       variables: [
         Variable<int>(interrupted.sessionId),
         Variable<int>(DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000),
-        const Variable<String>('quality.integration_interrupted'),
+        const Variable<String>(kInterruptedPassEventType),
         const Variable<String>('quality'),
         const Variable<String>('warning'),
-        const Variable<String>(headline),
+        Variable<String>(headline),
         Variable<String>(body),
         // Session-scoped and stamped with the start instant, so re-reporting
         // the same interruption cannot duplicate the event while two separate
         // interrupted nights each keep their own.
-        Variable<String>('quality.integration_interrupted:$startedAt'),
+        Variable<String>('$kInterruptedPassEventType:$startedAt'),
       ],
     );
 
     // ignore: avoid_print
-    print(
-      '[nightshade_db] Session ${interrupted.sessionId}: the post-session '
-      'integration started at $startedAt UTC never finished. $orphanText',
-    );
+    print('[nightshade_db] Session ${interrupted.sessionId}: $headline $body');
 
     await clearIntegrationMarker(directory);
   }
@@ -1453,4 +1527,38 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     ).get();
     return result.isNotEmpty;
   }
+}
+
+/// A `darkroom_jobs` row a dead process left `running`, read at open BEFORE the
+/// recovery rewrites it.
+///
+/// It is the evidence of which STAGE of the post-session pass the kill landed
+/// in: the integrate enqueues the Darkroom job only after the masters exist, so
+/// a row here means the integration for that session had finished and the
+/// DRAFT is what stopped.
+class _InterruptedDarkroomJob {
+  /// `darkroom_jobs.id`, named in the report so the operator can find the row.
+  final int jobId;
+
+  /// The session the job was processing, or null for a job queued outside one
+  /// — which no session-scoped marker can match.
+  final int? sessionId;
+
+  /// Fraction complete `0.0 .. 1.0` as the dead attempt last reported it. Left
+  /// where it was by the recovery precisely so this can be stated.
+  final double progress;
+
+  /// How many times the job had been started, including the attempt that died.
+  final int attempts;
+
+  const _InterruptedDarkroomJob({
+    required this.jobId,
+    required this.sessionId,
+    required this.progress,
+    required this.attempts,
+  });
+
+  /// Whether the recovery re-queued this job rather than failing it, by the
+  /// same rule the recovery's own `WHERE` clause applies.
+  bool get willRetry => attempts < kDarkroomJobMaxAttempts;
 }

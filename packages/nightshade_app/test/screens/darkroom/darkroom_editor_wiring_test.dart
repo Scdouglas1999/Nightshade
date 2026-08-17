@@ -403,10 +403,39 @@ void main() {
       },
     });
     expect(notes, hasLength(2));
-    expect(notes.first, contains('color_calibrate'));
-    expect(notes.first, contains('1 channel(s)'));
+    expect(notes.first.opId, 'color_calibrate');
+    expect(notes.first.outcome, 'omitted');
+    expect(notes.first.reason, contains('1 channel(s)'));
     // A note with no reason says the registry stated none, never invents one.
-    expect(notes.last, contains('the operation registry stated no reason'));
+    expect(notes.last.reason, 'the operation registry stated no reason');
+    // Printed, the operation is named the way its step card names it.
+    expect(
+      darkroomDraftNoteSentence(notes.first),
+      startsWith('Color calibrate — omitted:'),
+    );
+  });
+
+  test(
+      'the composed account completes the registry\'s notes with the steps '
+      'it did carry', () {
+    final account = darkroomComposedAccount(
+      [
+        DarkroomStep.fromJson(_step('crop'), index: 0),
+        DarkroomStep.fromJson(_step('stretch'), index: 1),
+      ],
+      const [
+        RecipeDraftNote(
+          opId: 'color_calibrate',
+          outcome: 'omitted',
+          reason: 'this master has 1 channel(s)',
+        ),
+      ],
+    );
+    // The omission keeps its own words, and every carried step is recorded as
+    // included — which is what makes a note-carrying row a DRAFTED row even
+    // when the draft left nothing out.
+    expect(account.map((n) => n.opId), ['color_calibrate', 'crop', 'stretch']);
+    expect(account.map((n) => n.outcome), ['omitted', 'included', 'included']);
   });
 
   testWidgets(
@@ -446,6 +475,20 @@ void main() {
     expect(
       find.textContaining('the colour fit needs three'),
       findsOneWidget,
+    );
+    // Named the way the step cards name operations, not as the wire id.
+    expect(find.textContaining('Color calibrate — omitted:'), findsOneWidget);
+    expect(find.textContaining('color_calibrate —'), findsNothing);
+    // The registry composed these steps, so the tag says drafted rather than
+    // crediting the operator with a stack they did not choose.
+    expect(find.text('Drafted at your request'), findsOneWidget);
+    expect(find.text('Written by you'), findsNothing);
+
+    // The account rode into the row, so re-opening the recipe still carries it.
+    final written = (await recipes.listForMaster(_masterPath)).single;
+    expect(
+      (await recipes.draftNotesOf(written.id!)).map((n) => n.opId),
+      containsAll(<String>['color_calibrate', 'crop', 'denoise', 'stretch']),
     );
     await drain(tester);
   });
@@ -691,7 +734,13 @@ void main() {
     // The bar counts the night, not just this master's branches.
     expect(
         find.textContaining('This night produced 3 masters'), findsOneWidget);
-    expect(find.textContaining('Master · L · Master · L draft'), findsWidgets);
+    // The chip says the master once. The autopilot names a draft after the
+    // master it drafted, so joining the two printed it twice on one chip.
+    expect(find.textContaining('Master · L draft'), findsWidgets);
+    expect(
+      find.textContaining('Master · L · Master · L draft'),
+      findsNothing,
+    );
     // The master with no recipe is named too, and says so rather than being
     // dropped from a list the operator would then read as complete.
     expect(

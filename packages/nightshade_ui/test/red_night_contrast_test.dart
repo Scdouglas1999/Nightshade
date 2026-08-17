@@ -164,6 +164,62 @@ void main() {
     }
   });
 
+  group('red night component outlines', () {
+    /// The floor above is about TEXT. WCAG 1.4.11 sets a second one, 3:1, for
+    /// the visual boundary of a UI COMPONENT — and this palette failed that one
+    /// harder than it ever failed the text floor: `border` measures 1.03:1 on
+    /// `surfaceElevated`, which is the surface a dialog draws on, and an
+    /// unchecked [NightshadeCheckbox] in the delivery destination editor was
+    /// therefore a label with nothing beside it. Nothing said so, because a
+    /// prose floor cannot fail a build and this file only measured text.
+    ///
+    /// `border` itself is NOT widened to clear 3:1. It is the divider weight —
+    /// card edges, table rules, the bar under this very screen — and a 3:1
+    /// divider on a near-black surface is a cage. The repair is per component:
+    /// a control that carries its state in a line draws that line in a token the
+    /// palette already holds to a text floor. This asserts the rule from the
+    /// other end: the divider stays quiet, and the components that must not are
+    /// listed with what they use instead.
+    const nonTextFloor = 3.0;
+
+    test('the divider token is quiet, and that is why it is not an outline', () {
+      final ratio = contrast(colors.border, surfaces['surfaceElevated']!);
+      expect(
+        ratio,
+        lessThan(nonTextFloor),
+        reason:
+            'border measures ${ratio.toStringAsFixed(2)}:1 on surfaceElevated. '
+            'If it has been widened to clear the component floor, this test is '
+            'the wrong shape now — but every control that reached for it must '
+            'still be checked, because a token that is legal for one is not '
+            'automatically legal for the other',
+      );
+    });
+
+    /// The outline tokens a control is allowed to reach for, and the control
+    /// that reaches for each. `nightshade_checkbox.dart` `_uncheckedOutline`.
+    final outlineRoles = <String, Color>{
+      'textSecondary (unchecked checkbox)': colors.textSecondary,
+      'primary (checked / focused checkbox)': colors.primary,
+    };
+
+    for (final role in outlineRoles.entries) {
+      test('${role.key} clears 3:1 on every surface level', () {
+        for (final surface in surfaces.entries) {
+          final ratio = contrast(role.value, surface.value);
+          expect(
+            ratio,
+            greaterThanOrEqualTo(nonTextFloor),
+            reason:
+                '${role.key} on ${surface.key} measures '
+                '${ratio.toStringAsFixed(2)}:1, under the 3:1 floor WCAG '
+                '1.4.11 sets for a component boundary',
+          );
+        }
+      });
+    }
+  });
+
   group('red night fills', () {
     /// [NightshadeColors.onPrimary] is the ink this palette declares for a
     /// filled control, and `useDarkOnPrimary` makes that the background rather

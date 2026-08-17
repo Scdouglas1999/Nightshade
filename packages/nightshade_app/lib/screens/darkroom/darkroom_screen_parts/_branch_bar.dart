@@ -8,6 +8,38 @@ const String _kCompareNeedsSibling =
     'A compare needs a second recipe over these same pixels. Duplicate this '
     'one as a variant to make one.';
 
+/// The strip of branch chips over this master.
+const Key kDarkroomBranchStripKey = Key('darkroom-branch-strip');
+
+/// The strip of links to the night's OTHER masters.
+const Key kDarkroomSiblingStripKey = Key('darkroom-sibling-strip');
+
+/// Who composed a sibling's recipe, in the words its tooltip uses.
+///
+/// The same three-way distinction the Recipe panel's identity tag makes, so a
+/// chip and the panel it leads to cannot disagree about who drafted a stack.
+String darkroomSiblingAuthorPhrase(DarkroomSiblingDraft sibling) {
+  if (sibling.author == RecipeAuthor.autopilot) {
+    return 'drafted by the autopilot';
+  }
+  return sibling.composedByRegistry
+      ? 'drafted at your request'
+      : 'written by you';
+}
+
+/// The glyph on a sibling chip.
+///
+/// A master with NO recipe gets the neutral frame rather than the person: the
+/// person icon is what a chip wears to say a human wrote the stack, and a
+/// master nobody has interpreted yet would otherwise wear it too.
+IconData darkroomSiblingIcon(DarkroomSiblingDraft sibling) {
+  if (sibling.recipeId == null) return NightshadeIcons.frame;
+  if (sibling.author == RecipeAuthor.autopilot || sibling.composedByRegistry) {
+    return NightshadeIcons.sparkle;
+  }
+  return NightshadeIcons.user;
+}
+
 /// The branch switcher: every recipe written over this master, which one is
 /// open, and the actions that change the set.
 ///
@@ -156,7 +188,8 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   /// One chip per recipe over this master.
   ///
   /// Horizontally scrollable rather than wrapped: a long family would otherwise
-  /// push the viewport down the screen a row at a time.
+  /// push the viewport down the screen a row at a time. [_ChipStrip] is what
+  /// makes that choice survivable — see its own note.
   Widget _chips(NightshadeColors colors, DarkroomBranchState state) {
     if (state.loading) {
       return Text(
@@ -174,16 +207,15 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         ),
       );
     }
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final branch in state.branches) ...[
-            _branchChip(colors, branch),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-          ],
+    return _ChipStrip(
+      key: kDarkroomBranchStripKey,
+      semanticsLabel: 'Branches over this master',
+      children: [
+        for (final branch in state.branches) ...[
+          _branchChip(colors, branch),
+          const SizedBox(width: NightshadeTokens.spaceXs),
         ],
-      ),
+      ],
     );
   }
 
@@ -271,35 +303,31 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
       ),
       const SizedBox(height: NightshadeTokens.spaceXs),
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final sibling in siblings) ...[
-              Tooltip(
-                message: sibling.recipeId == null
-                    ? '${sibling.masterName} has no recipe yet. Opening it '
-                        'offers a draft or an empty stack.'
-                    : '${sibling.masterName} — '
-                        '"${sibling.recipeName ?? 'Recipe '
-                            '${sibling.recipeId}'}", '
-                        '${sibling.author == RecipeAuthor.autopilot ? 'drafted '
-                            'by the autopilot' : 'written by you'}.',
-                child: NightshadeChip(
-                  label: sibling.recipeId == null
-                      ? '${sibling.label} — no recipe yet'
-                      : sibling.label,
-                  icon: sibling.author == RecipeAuthor.autopilot
-                      ? NightshadeIcons.sparkle
-                      : NightshadeIcons.user,
-                  onTap: () =>
-                      context.go(darkroomMasterLocation(sibling.masterId)),
-                ),
+      _ChipStrip(
+        key: kDarkroomSiblingStripKey,
+        semanticsLabel: 'The night\'s other masters',
+        children: [
+          for (final sibling in siblings) ...[
+            Tooltip(
+              message: sibling.recipeId == null
+                  ? '${sibling.masterName} has no recipe yet. Opening it '
+                      'offers a draft or an empty stack.'
+                  : '${sibling.masterName} — '
+                      '"${sibling.recipeName ?? 'Recipe '
+                          '${sibling.recipeId}'}", '
+                      '${darkroomSiblingAuthorPhrase(sibling)}.',
+              child: NightshadeChip(
+                label: sibling.recipeId == null
+                    ? '${sibling.label} — no recipe yet'
+                    : sibling.label,
+                icon: darkroomSiblingIcon(sibling),
+                onTap: () =>
+                    context.go(darkroomMasterLocation(sibling.masterId)),
               ),
-              const SizedBox(width: NightshadeTokens.spaceXs),
-            ],
+            ),
+            const SizedBox(width: NightshadeTokens.spaceXs),
           ],
-        ),
+        ],
       ),
     ];
   }
@@ -812,6 +840,126 @@ class _DarkroomNameDialogState extends State<_DarkroomNameDialog> {
                 : null,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A horizontal row of chips that stays REACHABLE when it runs off the edge.
+///
+/// Both chip rows on this bar — the branches over this master and the links to
+/// the night's other masters — are horizontal scrollers rather than `Wrap`s, on
+/// purpose: a night with eight masters would otherwise push the image down the
+/// screen a row at a time, and this bar sits above the viewport. That choice is
+/// only defensible if the chips behind the edge can actually be got at, and in
+/// the plain form it shipped as, they could not. Measured at 430x900 with five
+/// branches: the last chip laid out at x=494 in a 430-wide window, no scrollbar
+/// was drawn, a mouse wheel over the row moved it 0px (Flutter sends wheel
+/// deltas along the scrollable's own axis, and a mouse produces vertical ones),
+/// and a click-drag was refused outright because `ScrollBehavior.dragDevices`
+/// excludes the mouse on every platform. The chips were in the semantics tree
+/// and out of reach of the pointer — announced but unusable.
+///
+/// So one shape, used by both rows, with three ways in:
+///
+///  * a scrollbar, always visible while there IS an overflow, which is the only
+///    thing on screen that says more chips exist and is itself draggable;
+///  * a vertical wheel translated onto the horizontal axis, which is what a
+///    desktop hand reaches for first — the same translation
+///    [AdaptiveTabBar] does for the same reason;
+///  * drag with any pointer, mouse included, the way a finger already worked.
+///
+/// Not a `Wrap` — the offer view uses one for its own copy of this list, and it
+/// can afford to: it is a full-width empty state with no viewport under it to
+/// push down.
+class _ChipStrip extends StatefulWidget {
+  const _ChipStrip({
+    super.key,
+    required this.children,
+    required this.semanticsLabel,
+  });
+
+  final List<Widget> children;
+
+  /// Names the scrollable region for assistive tech, which otherwise announces
+  /// an unnamed scroll area between the chips and their heading.
+  final String semanticsLabel;
+
+  @override
+  State<_ChipStrip> createState() => _ChipStripState();
+}
+
+class _ChipStripState extends State<_ChipStrip> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Turn a vertical wheel into horizontal movement.
+  ///
+  /// Horizontal deltas are left alone: the [Scrollable] already consumes those,
+  /// and handling them here would scroll twice per notch.
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (event.scrollDelta.dx != 0 || event.scrollDelta.dy == 0) return;
+    if (!_controller.hasClients) return;
+    final position = _controller.position;
+    if (position.maxScrollExtent <= 0) return;
+    final target = (position.pixels + event.scrollDelta.dy).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target == position.pixels) return;
+    _controller.jumpTo(target);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: widget.semanticsLabel,
+      child: Listener(
+        onPointerSignal: _handlePointerSignal,
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(
+            dragDevices: const {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+              PointerDeviceKind.stylus,
+              PointerDeviceKind.invertedStylus,
+              PointerDeviceKind.unknown,
+            },
+            // The strip draws its own scrollbar below; the behaviour's would be
+            // a second one over the same viewport.
+            scrollbars: false,
+          ),
+          child: Scrollbar(
+            controller: _controller,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              // Room under the chips for the thumb, which is painted inside the
+              // viewport and would otherwise sit across their bottom edge. The
+              // gap is reserved whether or not a thumb appears — Flutter paints
+              // one only when there is something to scroll, and a bar that grew
+              // 8px the moment a branch was added would shove the viewport down
+              // for a reason nobody could see.
+              padding: const EdgeInsets.only(
+                bottom: NightshadeTokens.spaceSm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: widget.children,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

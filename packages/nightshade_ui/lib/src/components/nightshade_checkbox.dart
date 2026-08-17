@@ -17,6 +17,33 @@ class NightshadeCheckbox extends StatefulWidget {
 class _NightshadeCheckboxState extends State<NightshadeCheckbox> {
   bool _isFocused = false;
 
+  /// The outline of an UNCHECKED box, which is the whole of that state.
+  ///
+  /// NOT `colors.border`. That token is the palette's DIVIDER weight, chosen to
+  /// sit just off its surface, and measured against the surfaces a checkbox
+  /// lands on it runs 1.21:1 in red night (1.03:1 on `surfaceElevated`, the
+  /// delivery destination editor's dialog, where an unchecked box rendered as a
+  /// label with nothing beside it), 1.25:1 in light and 1.58:1 in dark — all far
+  /// under the 3:1 WCAG 1.4.11 sets for the boundary of a control. A checked box
+  /// has a fill and a tick to be seen by; an unchecked one has this line and
+  /// nothing else, so when it disappears the option disappears with it.
+  ///
+  /// `textSecondary` is the answer the palettes already carry: every one of them
+  /// holds its text ladder to a contrast floor, so the worst case here is 4.74:1
+  /// (light on white) and red night's is 7.46:1 — and it stays inside the
+  /// wavelength rule that palette exists for, which a hand-picked grey would
+  /// not. It is also what Material draws an unselected checkbox with
+  /// (`onSurfaceVariant`), so the weight is familiar rather than novel.
+  ///
+  /// Disabled keeps the quieter `textMuted` (2.78:1 worst case). WCAG exempts an
+  /// inactive control from the floor, but exempt is not invisible: the operator
+  /// still has to see that the option exists and is off before they can work out
+  /// why it will not move.
+  Color _uncheckedOutline(
+    NightshadeColors colors, {
+    required bool isDisabled,
+  }) => isDisabled ? colors.textMuted : colors.textSecondary;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
@@ -65,7 +92,7 @@ class _NightshadeCheckboxState extends State<NightshadeCheckbox> {
                     ? colors.primary
                     : widget.value
                     ? (isDisabled ? colors.border : colors.primary)
-                    : colors.border,
+                    : _uncheckedOutline(colors, isDisabled: isDisabled),
                 width: 2,
               ),
             ),

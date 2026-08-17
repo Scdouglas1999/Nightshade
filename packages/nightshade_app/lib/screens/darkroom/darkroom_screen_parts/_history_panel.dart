@@ -47,79 +47,59 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     final state = widget.state;
     final steps = state.steps;
 
+    // The alerts ride INSIDE the scrolling region rather than above it. They
+    // carry sentences the engine wrote, so their height is not this screen's to
+    // predict: a long refusal in a short panel used to push the Column past its
+    // own box, and Flutter renders that as a striped overflow bar over text
+    // nobody can scroll to.
+    final alerts = _alerts(state);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
-          title: 'History stack',
-          subtitle: steps.isEmpty
-              ? 'No steps — this renders the linear master'
-              : 'Applied top to bottom',
+        // Inset to the same gutter the step cards and the alerts below use.
+        // SectionHeader pads vertically only, and on the phone's segmented
+        // layout this panel IS the screen — nothing outside it supplies a
+        // margin, so without this the heading and its subtitle start at the
+        // window edge while every card under them is indented.
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceMd,
+          ),
+          child: SectionHeader(
+            title: 'History stack',
+            subtitle: steps.isEmpty
+                ? 'No steps — this renders the linear master'
+                : 'Applied top to bottom',
+          ),
         ),
-        // The engine's whole-stack refusal, and only while it is about a step
-        // the render will actually replay: a refusal naming a step the operator
-        // has already switched off describes a recipe that is not the one being
-        // rendered. The switched-off step keeps its own warning on its own card.
-        if (state.blockingRecipeError != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              NightshadeTokens.spaceMd,
-              NightshadeTokens.spaceSm,
-              NightshadeTokens.spaceMd,
-              0,
-            ),
-            child: NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              title: 'This stack does not validate',
-              message: state.blockingRecipeError!,
-              compact: true,
-            ),
-          ),
-        if (state.catalogError != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              NightshadeTokens.spaceMd,
-              NightshadeTokens.spaceSm,
-              NightshadeTokens.spaceMd,
-              0,
-            ),
-            child: NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
-              message: state.catalogError!,
-              compact: true,
-            ),
-          ),
-        // A refused move snaps the card back to where it started, which on its
-        // own looks like a dropped gesture. The engine's own sentence stays on
-        // the panel — beside the stack it is about — until the next edit
-        // clears it, rather than only flashing past in a toast.
-        if (state.reorderRefusal != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              NightshadeTokens.spaceMd,
-              NightshadeTokens.spaceSm,
-              NightshadeTokens.spaceMd,
-              0,
-            ),
-            child: NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
-              title: 'That move was refused',
-              message: state.reorderRefusal!,
-              compact: true,
-            ),
-          ),
         Expanded(
           child: steps.isEmpty
-              ? const EmptyState.compact(
-                  icon: NightshadeIcons.layers,
-                  title: 'Nothing interpreted yet',
-                  body: 'This recipe carries no operations, so the viewport is '
-                      'the linear master itself.',
+              ? SingleChildScrollView(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...alerts,
+                      const EmptyState.compact(
+                        icon: NightshadeIcons.layers,
+                        title: 'Nothing interpreted yet',
+                        body: 'This recipe carries no operations, so the '
+                            'viewport is the linear master itself.',
+                      ),
+                    ],
+                  ),
                 )
               : ReorderableListView.builder(
                   padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
                   itemCount: steps.length,
                   buildDefaultDragHandles: false,
+                  header: alerts.isEmpty
+                      ? null
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: alerts,
+                        ),
                   // The move is not committed until the engine has accepted the
                   // resulting order, so the list snaps back for the frame the
                   // check takes and then rebuilds in the new order. A move the
@@ -143,6 +123,54 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
         ),
       ],
     );
+  }
+
+  /// What the engine said about the stack as a whole, above the cards.
+  ///
+  /// No gutter of their own: every caller places them inside a region that
+  /// already carries the step cards' padding, so an alert lines up with the
+  /// cards it is about.
+  List<Widget> _alerts(DarkroomState state) {
+    Widget wrap(Widget alert) => Padding(
+          padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+          child: alert,
+        );
+    return [
+      // The engine's whole-stack refusal, and only while it is about a step the
+      // render will actually replay: a refusal naming a step the operator has
+      // already switched off describes a recipe that is not the one being
+      // rendered. The switched-off step keeps its own warning on its own card.
+      if (state.blockingRecipeError != null)
+        wrap(
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.error,
+            title: 'This stack does not validate',
+            message: state.blockingRecipeError!,
+            compact: true,
+          ),
+        ),
+      if (state.catalogError != null)
+        wrap(
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.warning,
+            message: state.catalogError!,
+            compact: true,
+          ),
+        ),
+      // A refused move snaps the card back to where it started, which on its
+      // own looks like a dropped gesture. The engine's own sentence stays on
+      // the panel — beside the stack it is about — until the next edit clears
+      // it, rather than only flashing past in a toast.
+      if (state.reorderRefusal != null)
+        wrap(
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.warning,
+            title: 'That move was refused',
+            message: state.reorderRefusal!,
+            compact: true,
+          ),
+        ),
+    ];
   }
 
   Widget _card(

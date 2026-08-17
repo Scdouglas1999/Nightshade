@@ -188,4 +188,27 @@ void main() {
 
     expect(line.kind, DeliveryStatusKind.off);
   });
+
+  test('a partial failure counts once and names the unit once', () {
+    // "1 file of 3 files failed" — the count was rendered with its unit on
+    // both sides of the "of", so the sentence said "file" twice for one pair.
+    final line = DeliveryStatusLine.of(
+      DeliveryDestinationView(
+        destination: sftp(content: const {ArtifactContent.linearMasters}),
+        lastRun: [
+          entry(
+            state: DeliveryAttemptState.failed,
+            lastError: 'destinationConflict: that name is taken',
+          ),
+          entry(state: DeliveryAttemptState.delivered),
+          entry(state: DeliveryAttemptState.delivered),
+        ],
+        secret: StoredSecretState.present,
+      ),
+    );
+
+    expect(line.kind, DeliveryStatusKind.failed);
+    expect(line.sentence, startsWith('1 of 3 files failed'));
+    expect(line.sentence, isNot(contains('1 file of')));
+  });
 }

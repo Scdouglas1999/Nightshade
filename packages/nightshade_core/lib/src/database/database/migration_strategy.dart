@@ -90,13 +90,15 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // Close out Darkroom jobs a previous process left mid-flight, for the
         // same reason and by the same rule as the sequence runs above: a
         // 'running' row at open belongs to a process that is gone.
-        await _recoverInterruptedDarkroomJobs();
+        final interruptedDarkroomJobs = await _recoverInterruptedDarkroomJobs();
 
-        // Report a post-session integration a previous process died inside.
-        // That pass runs BEFORE any Darkroom job row exists, so the recovery
+        // Report a post-session pass a previous process died inside. The
+        // integrate runs BEFORE any Darkroom job row exists, so the recovery
         // above cannot see it and the night would otherwise go silent with a
-        // truncated master sitting on disk looking finished.
-        await _reportInterruptedIntegration();
+        // truncated master sitting on disk looking finished. What the recovery
+        // DID find is handed over, because a Darkroom job left running is what
+        // separates a kill during the draft from a kill during the integrate.
+        await _reportInterruptedIntegration(interruptedDarkroomJobs);
 
         // Rebuild session statistics that a dead process never got to write.
         //
@@ -196,6 +198,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _upgradeSchemaV56(m, from);
         await _upgradeSchemaV57(m, from);
         await _upgradeSchemaV58(m, from);
+        await _upgradeSchemaV59(m, from);
 
         await _ensureDefaultSettings();
         await _createCustomIndexes();

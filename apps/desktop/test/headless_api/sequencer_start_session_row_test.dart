@@ -21,6 +21,37 @@ class _MockSequencerBackend extends Mock implements SequencerBackend {}
 
 class _MockDeviceBackend extends Mock implements DeviceBackend {}
 
+/// The same appliance the role providers above stand for, seen whole.
+///
+/// `sequencerBackendProvider` and `deviceBackendProvider` are both narrowings
+/// of `backendProvider`, so a container that overrides only the narrow ones
+/// leaves the wide one pointing at the real FFI backend — a host that answers
+/// the handler and throws at the executor, which no appliance does. The start
+/// path reaches the wide provider through `sequenceExecutorProvider` for the
+/// run row and for the runtime-config seed, so the fake host has to exist
+/// there too. Unstubbed members answer with a completed `Future<void>`, the
+/// shape every push on that path has.
+class _MockHostBackend extends Mock implements NightshadeBackend {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation) ?? Future<void>.value();
+}
+
+class _TestBackendNotifier extends BackendNotifier {
+  _TestBackendNotifier(super.ref, NightshadeBackend backend) {
+    state = backend;
+  }
+}
+
+/// One wired host per container: the event stream the executor subscribes to
+/// has to be a real Stream, not the permissive `Future<void>` fallback.
+_MockHostBackend _wiredHost() {
+  final host = _MockHostBackend();
+  when(() => host.eventStream).thenAnswer((_) => const Stream.empty());
+  when(() => host.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+  return host;
+}
+
 SequencerStatus _status(String state) =>
     SequencerStatus(state: state, progress: 0.0);
 
@@ -145,6 +176,9 @@ void main() {
 
       container = createHeadlessTestContainer(
         overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, _wiredHost()),
+          ),
           sequencerBackendProvider.overrideWithValue(sequencer),
           deviceBackendProvider.overrideWithValue(devices),
         ],
@@ -392,6 +426,9 @@ void main() {
 
       container = createHeadlessTestContainer(
         overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, _wiredHost()),
+          ),
           sequencerBackendProvider.overrideWithValue(sequencer),
           deviceBackendProvider.overrideWithValue(devices),
         ],
@@ -539,6 +576,9 @@ void main() {
 
       container = createHeadlessTestContainer(
         overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, _wiredHost()),
+          ),
           sequencerBackendProvider.overrideWithValue(sequencer),
           deviceBackendProvider.overrideWithValue(devices),
         ],
@@ -678,6 +718,9 @@ void main() {
 
       container = createHeadlessTestContainer(
         overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, _wiredHost()),
+          ),
           sequencerBackendProvider.overrideWithValue(sequencer),
           deviceBackendProvider.overrideWithValue(devices),
         ],

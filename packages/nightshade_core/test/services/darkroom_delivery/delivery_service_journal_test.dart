@@ -70,6 +70,34 @@ class _ScriptedTransport implements ArtifactTransport {
   }
 }
 
+/// Records the job id the transport serving each file was built with — which
+/// is the id the staged file name carries.
+class _JobIdRecordingTransport implements ArtifactTransport {
+  _JobIdRecordingTransport({required this.jobId, required this.seen});
+
+  final int jobId;
+  final Map<String, int> seen;
+
+  @override
+  ArtifactDestinationKind get kind => ArtifactDestinationKind.watchedFolder;
+
+  @override
+  Future<void> open(List<DeliveryFile> artifacts) async {}
+
+  @override
+  Future<TransportDeliveryOutcome> deliver(DeliveryFile artifact) async {
+    seen[artifact.sourcePath] = jobId;
+    return TransportDeliveryOutcome(
+      disposition: DeliveryDisposition.delivered,
+      checksum: artifact.checksum,
+      destinationDescription: 'test://${artifact.fileName}',
+    );
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
 void main() {
   late Directory tempDir;
   late File dbFile;
@@ -422,6 +450,63 @@ void main() {
         expect(row.state, DeliveryAttemptState.failed);
         expect(row.attempts, 3);
         expect(row.lastError, contains('after 3 attempts'));
+      },
+    );
+
+    // A transport is built with a job id, and the atomic write derives its
+    // staged name from it (`.<name>.<jobId>.nsdelivery-part`). One transport
+    // opened on the FIRST due row therefore staged every other night's files
+    // under that night's job: two nights whose masters share a delivered name
+    // collided on one staged path, and the litter a kill leaves behind named a
+    // job that never touched the file.
+    test(
+      'a sweep spanning two nights sends each row under its own job id',
+      () async {
+        final db = open();
+        addTearDown(db.close);
+        final firstJob = await enqueueJob(db);
+        final secondJob = await enqueueJob(db);
+        await createWatchedFolder(db);
+        var now = DateTime.utc(2026, 8, 16, 5);
+        final jobIdPerFile = <String, int>{};
+        final service = DeliveryService(
+          targets: DeliveryTargetsDao(db),
+          journal: DeliveryJournalDao(db),
+          transportFactory: (_, jobId) =>
+              _JobIdRecordingTransport(jobId: jobId, seen: jobIdPerFile),
+          clock: () => now,
+        );
+
+        // Both nights fail their first attempt, so both owe a retry.
+        for (final (jobId, name) in [
+          (firstJob, 'night-one.fits'),
+          (secondJob, 'night-two.fits'),
+        ]) {
+          await DeliveryJournalDao(db).recordAttempt(
+            targetId: 1,
+            jobId: jobId,
+            filePath: (await artifactSet(
+              jobId: jobId,
+              names: [name],
+            )).artifacts.single.sourcePath,
+            bytes: 10,
+            now: now,
+          );
+          await DeliveryJournalDao(db).markRetrying(
+            targetId: 1,
+            jobId: jobId,
+            filePath: p.join(source.path, name),
+            error: 'the share is not mounted',
+            now: now,
+          );
+        }
+
+        now = now.add(const Duration(hours: 3));
+        final report = await service.sweepDueRetries();
+
+        expect(report.delivered, 2);
+        expect(jobIdPerFile[p.join(source.path, 'night-one.fits')], firstJob);
+        expect(jobIdPerFile[p.join(source.path, 'night-two.fits')], secondJob);
       },
     );
 

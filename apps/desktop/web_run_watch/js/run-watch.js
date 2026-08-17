@@ -148,9 +148,19 @@ async function apiFetch(path, opts) {
     });
   }
   if (res.status === 401 || res.status === 403) {
-    // Tokens can be revoked desktop-side; force re-pair.
+    // Tokens can be revoked desktop-side; force re-pair. The reason goes ON
+    // THE SCREEN, not only into the thrown error — nothing catches
+    // 'auth_required' to render it, which is how this landed as a silent
+    // logout.
     setToken(null);
-    showPairScreen();
+    showPairScreen(
+      token
+        ? 'This device\'s pairing is no longer accepted — the desktop ' +
+          'rejected it, which happens when the pairing was revoked there or ' +
+          'the profile it belonged to was replaced. Pair again with a fresh ' +
+          'code from the desktop\'s Remote Access screen.'
+        : null,
+    );
     throw new ApiError('auth_required', 'Pairing is no longer accepted');
   }
   if (res.status === 429) {
@@ -348,9 +358,29 @@ function stopStaleWatchdog() {
   }
 }
 
-function showPairScreen() {
+/// Show the pair screen, saying WHY when this device has just lost a pairing
+/// it had.
+///
+/// A device whose token the desktop revoked was dropped here silently: the
+/// screen it landed on was byte-for-byte the one a browser that had never
+/// paired gets (verified — the two screenshots hashed identically), with
+/// `#pair-status` empty and the thrown 'Pairing is no longer accepted' reaching
+/// nothing. From bed that reads as "the app forgot me", and the next move —
+/// walk to the desktop for a fresh code — is the one thing it did not say.
+///
+/// [reason] is that sentence, and [tone] is `'error'` for something that
+/// happened TO this device and `'info'` for something the operator did. Absent
+/// (first run) the line is cleared rather than left holding the last one.
+function showPairScreen(reason, tone) {
   $('pair-screen').classList.remove('hidden');
   $('main-screen').classList.add('hidden');
+  const statusEl = $('pair-status');
+  if (statusEl) {
+    statusEl.textContent = reason || '';
+    statusEl.className = reason
+      ? 'pair-status ' + (tone || 'error')
+      : 'pair-status';
+  }
   closeSSE();
   stopPolling();
 }
@@ -582,6 +612,12 @@ function applySnapshot(data) {
     // aria-valuenow="0" would announce "0 percent" — a number nobody sent.
     if (pctKnown) ariaBar.setAttribute('aria-valuenow', String(pct));
     else ariaBar.removeAttribute('aria-valuenow');
+    // The GRAPHIC has to say the same thing the text and the announcement do.
+    // With `progressPercent: null` the readouts all read "--" while the bar
+    // painted `width: 0%` — pixel-identical to a fresh boot that genuinely has
+    // done nothing, verified side by side on the same page. The unknown track
+    // is hatched so the two states cannot be confused at a glance.
+    ariaBar.classList.toggle('unknown', !pctKnown);
   }
   const framesKnown =
     progress.completedExposures != null && progress.totalExposures != null;
@@ -1094,7 +1130,13 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   $('btn-logout').addEventListener('click', () => {
     setToken(null);
-    showPairScreen();
+    // Named too, so the same screen never appears without an account of how
+    // this device got back to it.
+    showPairScreen(
+      'Signed out on this device. Pair again with a code from the desktop\'s '
+      + 'Remote Access screen when you want it back.',
+      'info',
+    );
   });
 
   // Service-worker registration. Failures are non-fatal — the app

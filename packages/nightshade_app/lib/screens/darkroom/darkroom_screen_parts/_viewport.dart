@@ -306,6 +306,9 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
       );
     }
 
+    // Why the pixels on screen are not the current stack's, when they are not.
+    final failure = state.renderError;
+
     return Stack(
       children: [
         Positioned.fill(
@@ -333,6 +336,46 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
                   'lands.',
             ),
           ),
+        // A render that FAILED leaves the same superseded picture up, so it
+        // gets the same treatment: the staleness is marked here, on the pixels
+        // it is about, and the engine's own reason is stated beside it. The
+        // Recipe panel says it too, but at phone width that panel is a segment
+        // the operator is not looking at — a picture is not labelled by a
+        // sentence in a view that is not on screen.
+        if (!state.rendering && failure != null) ...[
+          Positioned(
+            top: NightshadeTokens.spaceSm,
+            right: NightshadeTokens.spaceSm,
+            child: _DarkroomTag(
+              label: 'Stale — the render did not finish',
+              tooltip:
+                  'The picture below is the last render that finished, not the '
+                  'stack as it stands now: $failure',
+            ),
+          ),
+          // Positioned.fill, so the alert is laid out inside the canvas rather
+          // than growing past its top edge and painting over the zoom controls
+          // on a short viewport.
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              // Over the viewer, not in place of it: a pan or a zoom of the
+              // picture underneath still reaches the surface.
+              child: IgnorePointer(
+                child: Padding(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                  child: NightshadeAlert(
+                    severity: NightshadeAlertSeverity.error,
+                    title: 'The render did not finish',
+                    message: '$failure\n\nThis picture is the last render that '
+                        'finished, so it does not show the stack as it stands.',
+                    compact: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -358,7 +401,14 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text(
-            'Display transfer: ${encoding.sentence}',
+            // The strip describes the render whose pixels are on screen. When
+            // a later render failed, those pixels are the previous render's,
+            // and saying so here keeps the strip from reading as an account of
+            // the stack the operator is now editing.
+            state.renderError == null || state.rendering
+                ? 'Display transfer: ${encoding.sentence}'
+                : 'Display transfer of the last render that finished: '
+                    '${encoding.sentence}',
             style: NightshadeTypography.captionSm.copyWith(
               color: colors.textSecondary,
             ),

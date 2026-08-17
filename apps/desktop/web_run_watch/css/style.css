@@ -201,6 +201,9 @@ body {
 
 .pair-status.error { color: var(--accent-red); }
 .pair-status.success { color: var(--accent-green); }
+/* Something the operator did (signing out), not something that happened to
+   them — stated in the reading colour rather than the alarm one. */
+.pair-status.info { color: var(--text-secondary); }
 
 .pair-advanced {
   margin-top: 16px;
@@ -512,6 +515,21 @@ body {
   width: 0%;
   background: var(--color-primary);
   transition: width 0.3s ease;
+}
+
+/* The server sent no percentage. An empty track is a claim of its own — "0%,
+   nothing has happened yet" — and that is a different, checkable state, so
+   unknown gets its own hatch rather than borrowing the zero render. Drawn in
+   --text-muted: a 10px track hatched in the divider colour is a texture nobody
+   sees, and this one carries state, so it is held to the 3:1 non-text floor. */
+.bar.unknown {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--bg-input) 0,
+    var(--bg-input) 4px,
+    var(--text-muted) 4px,
+    var(--text-muted) 8px
+  );
 }
 
 .equipment-list {

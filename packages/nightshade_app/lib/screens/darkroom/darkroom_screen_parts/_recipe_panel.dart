@@ -47,7 +47,15 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader(title: 'Recipe'),
+        // Inset to the same gutter the panel's own content uses. SectionHeader
+        // pads vertically only, and on the phone's segmented layout this panel
+        // IS the screen — nothing outside it supplies a margin, so without this
+        // the heading starts at the window edge while every card under it is
+        // indented.
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceMd),
+          child: SectionHeader(title: 'Recipe'),
+        ),
         Expanded(
           child: Scrollbar(
             controller: _scroll,
@@ -106,26 +114,39 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
     );
   }
 
-  /// What this recipe is, beyond its steps: what the registry left out of the
-  /// draft, and what file an import read it from.
+  /// What this recipe is, beyond its steps: what the registry decided about and
+  /// did not carry, and what file an import read it from.
   ///
-  /// The draft notes were the registry's own account of every operation it
-  /// decided ABOUT and did not carry, and until they were rendered here they
-  /// existed only in the night report on disk. "Color where there is color to
+  /// The draft notes are the composing pass's own account, now read off the
+  /// recipe row — so the dawn autopilot's draft opens carrying them and a
+  /// Reload keeps them, where before they lived only in the night report on
+  /// disk and in one session's memory. "Color where there is color to
   /// calibrate" is a promise the offer makes; a mono master's four-step stack
   /// is what arrives; the sentence in between is this.
   List<Widget> _provenance() {
-    final notes = state.draftNotes;
+    final notes = state.statedDraftNotes;
+    final notesError = state.draftNotesError;
     final importNote = state.importNote;
-    if (notes.isEmpty && importNote == null) return const [];
+    if (notes.isEmpty && notesError == null && importNote == null) {
+      return const [];
+    }
     return [
+      if (notesError != null) ...[
+        NightshadeAlert(
+          severity: NightshadeAlertSeverity.warning,
+          title: 'The draft account could not be read',
+          message: notesError,
+          compact: true,
+        ),
+        const SizedBox(height: NightshadeTokens.spaceLg),
+      ],
       if (notes.isNotEmpty) ...[
         NightshadeAlert(
           severity: NightshadeAlertSeverity.info,
-          title: notes.length == 1
-              ? 'The draft left one operation out'
-              : 'The draft left ${notes.length} operations out',
-          message: notes.join('\n\n'),
+          title: _draftNotesTitle(notes),
+          message: [
+            for (final note in notes) darkroomDraftNoteSentence(note),
+          ].join('\n\n'),
           compact: true,
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
@@ -142,6 +163,30 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
     ];
   }
 
+  /// Which of the three ways this stack came to be.
+  String _authorLabel() {
+    if (state.author == RecipeAuthor.autopilot) {
+      return 'Drafted by the autopilot';
+    }
+    return state.composedByRegistry
+        ? 'Drafted at your request'
+        : 'Written by you';
+  }
+
+  /// The heading over a block of draft notes.
+  ///
+  /// An omission is the operation the draft LEFT OUT; the other outcomes are
+  /// about operations it carried and had to work for. The heading counts what
+  /// is under it and says which of the two it is counting, rather than calling
+  /// a re-measured step an omitted one.
+  static String _draftNotesTitle(List<RecipeDraftNote> notes) {
+    final omitted = notes.where((note) => note.outcome == 'omitted').length;
+    if (omitted != notes.length) return 'How this draft was composed';
+    return omitted == 1
+        ? 'The draft left one operation out'
+        : 'The draft left $omitted operations out';
+  }
+
   Widget _identity(NightshadeColors colors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -150,13 +195,20 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
           spacing: NightshadeTokens.spaceXs,
           runSpacing: NightshadeTokens.spaceXs,
           children: [
+            // The tag says who COMPOSED the step list. A stack the operation
+            // registry measured is a first interpretation whether the dawn pass
+            // asked for it or the operator pressed "Draft for me" — and calling
+            // the second one "Written by you" credited the operator with steps
+            // they never chose, stripping exactly the caveat the tag exists to
+            // carry.
             _DarkroomTag(
-              label: state.author == RecipeAuthor.autopilot
-                  ? 'Drafted by the autopilot'
-                  : 'Written by you',
+              label: _authorLabel(),
               tooltip:
-                  'Who authored the step list as it stands. An autopilot draft '
-                  'is a first interpretation, not a finished decision.',
+                  'Who composed the step list as it stands. A drafted stack is '
+                  'the operation registry\'s first interpretation of these '
+                  'pixels — measured, not decided — and every step in it is '
+                  'yours to change. "Written by you" means every step in the '
+                  'stack was your own choice.',
             ),
             if (state.isLinear)
               const _DarkroomTag(

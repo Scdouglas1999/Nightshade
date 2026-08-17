@@ -27,6 +27,10 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// Steps the registry's draft carries.
   List<Map<String, dynamic>> draftSteps = [];
 
+  /// The notes the registry recorded while composing that draft — the
+  /// operations it decided about and did not carry.
+  List<Map<String, dynamic>> draftNotes = [];
+
   /// Whether `validate` answers ok.
   bool validateOk = true;
 
@@ -273,7 +277,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
           'createdBy': 'autopilot',
           'steps': draftSteps,
         },
-        'notes': const <dynamic>[],
+        'notes': draftNotes,
         'autoParams': const <String, dynamic>{},
       };
     }
@@ -1231,7 +1235,7 @@ void main() {
     expect(settled.preview!.rgba[0], 1);
   });
 
-  test('a refused reorder numbers its steps over the stack on screen',
+  test('a refused reorder numbers its steps over the order it was refused for',
       () async {
     final id = await seedRecipe(
       steps: [
@@ -1265,12 +1269,124 @@ void main() {
     ]);
 
     final refusal = controller.state.reorderRefusal!;
-    // On screen denoise is the 3rd card and stretch the 4th, counting from 1 —
-    // the base the export sheet's own step list uses.
-    expect(refusal, contains('step 3 (denoise@1)'));
-    expect(refusal, contains('step 4 (stretch)'));
-    expect(refusal, isNot(contains('step 2 (stretch)')));
-    expect(refusal, contains('count the stack as it stands on screen, from 1'));
+    // Counted from 1 in the order the move was ASKING for: there stretch is
+    // 3rd and denoise 4th, which is the arrangement the rule refuses. Re-
+    // pointing the numbers at the cards on screen instead kept both names and
+    // inverted the relation — "step 3 (denoise) ... but step 4 (stretch)"
+    // describes the order the operator is looking at, and that one is LEGAL.
+    expect(refusal, contains('step 4 (denoise@1)'));
+    expect(refusal, contains('step 3 (stretch)'));
+    expect(refusal, isNot(contains('step 4 (stretch)')));
+    expect(
+      refusal,
+      contains('count the order the move would have produced, from 1'),
+    );
+    expect(refusal, contains('which is unchanged'));
+    // And it names what to do next, rather than only stating the rule.
+    expect(refusal, contains('Try a different destination for that step'));
+  });
+
+  test(
+      'a drafted recipe opens carrying the account of the pass that composed '
+      'it, and a Reload keeps it', () async {
+    // The shape the dawn autopilot writes: its own draft, with the reasons it
+    // recorded while composing. They used to reach the night report on disk and
+    // nothing else, so this row's editor opened with none of them.
+    final id = await recipes.create(
+      masterId: null,
+      baseMasterPath: _masterPath,
+      name: 'Master · B draft',
+      stepsJson: jsonEncode([_step('crop'), _step('stretch')]),
+      createdBy: RecipeAuthor.autopilot,
+      draftNotes: const [
+        RecipeDraftNote(
+          opId: 'color_calibrate',
+          outcome: 'omitted',
+          reason: 'this master has 1 channel(s) and the colour fit needs three',
+        ),
+        RecipeDraftNote(
+          opId: 'crop',
+          outcome: 'included',
+          reason: 'measured from this master by the operation registry',
+        ),
+      ],
+    );
+    final scope = DarkroomScope.recipe(id);
+    final opened = await settle(scope);
+
+    expect(opened.draftNotes, hasLength(2));
+    expect(opened.composedByRegistry, isTrue);
+    // Only the decisions the stack cannot speak for itself are stated: the
+    // `included` line repeats what its own step card already says.
+    expect(opened.statedDraftNotes.single.opId, 'color_calibrate');
+    expect(opened.draftNotesError, isNull);
+
+    // Reload re-reads the row, which is where the account now lives.
+    await container.read(darkroomControllerProvider(scope).notifier).refresh();
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    final reloaded = container.read(darkroomControllerProvider(scope));
+    expect(reloaded.statedDraftNotes.single.opId, 'color_calibrate');
+    expect(reloaded.composedByRegistry, isTrue);
+  });
+
+  test('a recipe nobody drafted carries no account and claims none', () async {
+    final id = await seedRecipe(steps: [_step('denoise')]);
+    final state = await settle(DarkroomScope.recipe(id));
+    expect(state.draftNotes, isEmpty);
+    expect(state.composedByRegistry, isFalse);
+    expect(state.draftNotesError, isNull);
+  });
+
+  test('a "Draft for me" recipe records that the registry composed it',
+      () async {
+    final masters = IntegratedMastersDao(db);
+    final masterId = await masters.insertMaster(
+      targetId: null,
+      name: 'M31 B',
+      masterFitsPath: _masterPath,
+      status: IntegratedMasterStatus.finalized,
+      accumulationMode: AccumulationMode.batch,
+      channels: 1,
+      width: 1024,
+      height: 1024,
+      frameCount: 8,
+      totalIntegrationSeconds: 2400,
+      settingsJson: '{}',
+    );
+    darkroom.draftSteps = [_step('crop'), _step('stretch')];
+    darkroom.draftNotes = [
+      {
+        'opId': 'color_calibrate',
+        'outcome': 'omitted',
+        'reason': 'this master has 1 channel(s)',
+      },
+    ];
+
+    final scope = DarkroomScope.master(masterId);
+    await settle(scope);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+    await controller.draftForMe();
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    final created = (await recipes.listForMaster(_masterPath)).single;
+    // The operator asked for it, so the row records them as its creator; what
+    // COMPOSED the steps is the account beside it.
+    expect(created.createdBy, RecipeAuthor.user);
+    final stored = await recipes.draftNotesOf(created.id!);
+    expect(stored.map((n) => n.opId), [
+      'color_calibrate',
+      'crop',
+      'stretch',
+    ]);
+    final state = container.read(darkroomControllerProvider(scope));
+    expect(state.composedByRegistry, isTrue);
+    expect(state.statedDraftNotes.single.opId, 'color_calibrate');
   });
 
   test('a master whose only recipe is deleted offers a start naming no recipe',

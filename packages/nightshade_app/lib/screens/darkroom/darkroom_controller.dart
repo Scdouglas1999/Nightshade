@@ -328,8 +328,10 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       clearSaveError: true,
       // The notes and the import receipt describe how the recipe being
       // REPLACED came to be. Carrying either across would attribute one
-      // recipe's provenance to another.
+      // recipe's provenance to another; [_loadDraftNotes] reads THIS recipe's
+      // account off its own row.
       draftNotes: const [],
+      clearDraftNotesError: true,
       clearImportNote: true,
     );
 
@@ -338,10 +340,35 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     // A render still inside the engine is rendering the recipe this one
     // replaces, so its pixels must not land in the new recipe's viewport.
     _supersedeRunningRender();
+    unawaited(_loadDraftNotes(recipe));
     unawaited(_loadSiblings(recipe.masterId));
     await _resolvePhotometry(recipe.masterId);
     if (!mounted) return;
     unawaited(_refreshNow());
+  }
+
+  /// Read the account of the pass that composed [recipe], from the row itself.
+  ///
+  /// Off the open path rather than inside it: the notes are provenance, and a
+  /// recipe whose reasons are one frame late still opens. A read that fails
+  /// leaves the notes empty and says so on the panel rather than presenting a
+  /// draft as a stack nobody drafted.
+  Future<void> _loadDraftNotes(DarkroomRecipe recipe) async {
+    final id = recipe.id;
+    if (id == null) return;
+    try {
+      final notes = await _recipes.draftNotesOf(id);
+      if (!mounted || state.recipeId != id) return;
+      state = state.copyWith(draftNotes: notes);
+    } catch (error) {
+      if (!mounted || state.recipeId != id) return;
+      state = state.copyWith(
+        draftNotes: const [],
+        draftNotesError:
+            'The account of how this recipe was drafted could not be read, so '
+            'any operation the draft left out is unexplained here: $error',
+      );
+    }
   }
 
   /// List the other masters the same night produced, with the newest recipe
@@ -393,8 +420,14 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         // listForMaster orders newest first, so this is the recipe a link to
         // the master would open.
         final newest = overThem.isEmpty ? null : overThem.first;
+        final newestId = newest?.id;
+        final composed = newestId == null
+            ? false
+            : (await _recipes.draftNotesOf(newestId)).isNotEmpty;
+        if (!mounted) return;
         siblings.add(
           DarkroomSiblingDraft(
+            composedByRegistry: composed,
             masterId: master.masterId,
             masterName: master.name,
             filter: master.filter,
@@ -524,7 +557,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     state = state.copyWith(offerBusy: true, clearOfferError: true);
 
     final List<DarkroomStep> steps;
-    final List<String> notes;
+    final List<RecipeDraftNote> notes;
     try {
       final reply = await _darkroom.registry({
         'masterPath': offer.masterFitsPath,
@@ -537,8 +570,9 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // notes reached the night report on disk and nothing else: the offer
       // promises "color where there is color to calibrate" and then a mono
       // master got a four-step stack that never said the colour step was
-      // omitted, let alone why.
-      notes = decodeDarkroomDraftNotes(reply);
+      // omitted, let alone why. The account is completed with the operations it
+      // DID carry, so the row records that the registry composed this stack.
+      notes = darkroomComposedAccount(steps, decodeDarkroomDraftNotes(reply));
     } on DarkroomCancelledOutcome catch (cancelled) {
       if (!mounted) return;
       state = state.copyWith(
@@ -586,7 +620,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     required String masterFitsPath,
     required List<DarkroomStep> steps,
     required String name,
-    List<String> draftNotes = const [],
+    List<RecipeDraftNote> draftNotes = const [],
     String? importNote,
   }) async {
     try {
@@ -596,7 +630,11 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         baseMasterPath: masterFitsPath,
         name: name,
         stepsJson: jsonEncode([for (final step in steps) step.toJson()]),
+        // The operator asked for this recipe, so the row records them as the
+        // one who created it. What COMPOSED its steps is a separate fact, and
+        // the draft account beside it is what carries that one.
         createdBy: RecipeAuthor.user,
+        draftNotes: draftNotes,
         schemaVersion: kDarkroomRecipeSchemaVersion,
       );
       if (!mounted) return;
@@ -612,15 +650,18 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         return;
       }
       state = state.copyWith(offerBusy: false);
-      // AFTER the open: [_openRecipe] rebuilds the provenance fields empty so a
-      // previous recipe's notes cannot follow the editor onto this one, so the
-      // notes about THIS recipe are attached once it is the one open.
+      // The draft account is NOT re-attached in memory here: it went to the row
+      // above, and [_openRecipe] reads it back from there. One source means the
+      // editor shows the same reasons on the first open, on the next Reload,
+      // and on a launch tomorrow — which is the whole point of storing it.
+      //
+      // The import receipt is about the file this call read, which no row
+      // records, so it is attached AFTER the open: [_openRecipe] rebuilds the
+      // provenance fields empty so a previous recipe's receipt cannot follow
+      // the editor onto this one.
       await _openRecipe(created);
       if (!mounted) return;
-      state = state.copyWith(
-        draftNotes: List.unmodifiable(draftNotes),
-        importNote: importNote,
-      );
+      state = state.copyWith(importNote: importNote);
     } catch (error) {
       if (!mounted) return;
       state = state.copyWith(
@@ -937,13 +978,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     if (!verdict.ok) {
       // The verdict's per-step entries index the REJECTED order, so adopting
       // them here would attach each message to the wrong card. Only the
-      // whole-recipe sentence is shown, and its own step numbers are re-counted
-      // over the stack the panel is showing — see [_recountedRefusal].
+      // whole-recipe sentence is shown, counted in the order the move would
+      // have produced — see [_refusalOverCandidate].
       final error = verdict.error;
       state = state.copyWith(
         reorderRefusal: error == null
-            ? 'The engine refused that order without naming a reason.'
-            : _recountedRefusal(error, candidate, steps),
+            ? 'The engine refused that order without naming a reason. The move '
+                'was not made, so the stack on screen is unchanged. Try a '
+                'different destination for that step, or switch it off if it '
+                'should not run at all.'
+            : _refusalOverCandidate(error, candidate),
       );
       return false;
     }
@@ -1030,48 +1074,50 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   static List<Object> _identitiesOf(List<DarkroomStep> steps) =>
       List.unmodifiable([for (final step in steps) step.identity]);
 
-  /// Every `step <n>` the engine wrote, re-pointed at the card the operator can
-  /// count to.
+  /// The engine's refusal, counted from 1 in the order the move was asking for.
   ///
-  /// The engine numbers steps from 0 over the recipe it was HANDED — here the
-  /// order the move would have produced. That order is never on screen: a
-  /// refused move is not committed, so the panel still shows [onScreen]. Left
-  /// verbatim the sentence therefore names cards that are not the ones it is
-  /// about, in a base no other surface in this app counts in (the export
-  /// sheet's step list is 1-based).
+  /// The engine numbers steps from 0 over the recipe it was HANDED — the
+  /// [candidate] order — and every other step list in this app counts from 1
+  /// (the export sheet's does). So each number is re-based, and nothing else
+  /// about it moves.
   ///
-  /// Each number is looked up in [candidate] by position, and the step found
-  /// there is located in [onScreen] by IDENTITY — never by position, which is
-  /// the very thing the move changed. A number that names no step in either
-  /// list is left exactly as the engine wrote it, and the trailing sentence is
-  /// added only when at least one number was actually re-counted, so nothing
-  /// here claims a translation it did not make.
-  static String _recountedRefusal(
+  /// **Why not re-point them at the cards on screen.** A refused move is not
+  /// committed, so the panel still shows the order from BEFORE it, and mapping
+  /// the numbers onto that order preserves each operation's name while
+  /// inverting the relation the sentence asserts: a stage-rule refusal about
+  /// the attempted `crop, background extract, stretch, denoise` came out as
+  /// "step 3 (denoise) is a linear-stage operation but step 4 (stretch) already
+  /// left the linear stage" — which describes the arrangement the operator is
+  /// looking at, and that one is LEGAL. The sentence is about the order that
+  /// was refused, so it counts in that order and says which order that is.
+  ///
+  /// A number outside the candidate list is left exactly as the engine wrote
+  /// it, and the sentence about counting is added only when at least one number
+  /// was re-based, so nothing here claims a translation it did not make.
+  static String _refusalOverCandidate(
     String message,
     List<DarkroomStep> candidate,
-    List<DarkroomStep> onScreen,
   ) {
-    var recounted = false;
+    var rebased = false;
     final rewritten = message.replaceAllMapped(
       RegExp(r'\bstep (\d+)\b'),
       (match) {
         final whole = match.group(0)!;
         final at = int.tryParse(match.group(1)!);
         if (at == null || at < 0 || at >= candidate.length) return whole;
-        final identity = candidate[at].identity;
-        for (var i = 0; i < onScreen.length; i++) {
-          if (identical(onScreen[i].identity, identity)) {
-            recounted = true;
-            return 'step ${i + 1}';
-          }
-        }
-        return whole;
+        rebased = true;
+        return 'step ${at + 1}';
       },
     );
-    if (!recounted) return rewritten;
-    return '$rewritten. Those step numbers count the stack as it stands on '
-        'screen, from 1; the move was refused, so the order the engine was '
-        'asked about is not the one the panel is showing.';
+    const nextStep = 'Try a different destination for that step, or switch a '
+        'step off if it should not run at all.';
+    if (!rebased) {
+      return '$rewritten. The move was refused, so the stack on screen is '
+          'unchanged. $nextStep';
+    }
+    return '$rewritten. Those step numbers count the order the move would have '
+        'produced, from 1 — not the stack on screen, which is unchanged '
+        'because the move was refused. $nextStep';
   }
 
   /// Record which of [steps] the engine's refusal names, from [verdict]'s own

@@ -506,8 +506,52 @@ class DeliveryService {
     tally.retrying += rows.length - due.length;
     if (due.isEmpty) return tally.build();
 
-    final files = <DeliveryFile>[];
+    // One transport per JOB, not one per destination. A transport is built
+    // with a job id and the atomic write derives its staged name from it
+    // (`.<name>.<jobId>.nsdelivery-part`), so a sweep spanning two nights that
+    // opened a single transport on the first due row staged the second night's
+    // masters under the first night's job. Two nights whose masters share a
+    // delivered name then collided on one staged path, and the litter a kill
+    // leaves behind named a job that never touched the file. Each row now goes
+    // out under its own job id, which is also the id its journal row carries.
+    final byJob = <int, List<DeliveryJournalEntry>>{};
     for (final row in due) {
+      byJob.putIfAbsent(row.jobId, () => []).add(row);
+    }
+    for (final entry in byJob.entries) {
+      await _sweepJob(
+        destination: destination,
+        targetId: targetId,
+        jobId: entry.key,
+        rows: entry.value,
+        isCancelled: isCancelled,
+        tally: tally,
+      );
+    }
+    return tally.build();
+  }
+
+  /// Re-attempt one job's due rows on one destination, over a transport built
+  /// for that job.
+  Future<void> _sweepJob({
+    required ArtifactDestination destination,
+    required int targetId,
+    required int jobId,
+    required List<DeliveryJournalEntry> rows,
+    required DeliveryCancellation? isCancelled,
+    required _Tally tally,
+  }) async {
+    if (_stopRequested(isCancelled)) {
+      // Every row here is already `retrying` in the journal — they came off
+      // `listPendingRetry` — so their true state needs no write and their
+      // attempt counts stay where the schedule left them. No transport is
+      // opened for a job the stop already reached.
+      tally.stoppedPending += rows.length;
+      return;
+    }
+
+    final files = <DeliveryFile>[];
+    for (final row in rows) {
       try {
         files.add(await DeliveryFile.describe(row.filePath));
       } catch (error, stack) {
@@ -523,12 +567,9 @@ class DeliveryService {
         );
       }
     }
-    if (files.isEmpty) return tally.build();
+    if (files.isEmpty) return;
 
-    final jobIdByPath = <String, int>{
-      for (final row in due) row.filePath: row.jobId,
-    };
-    final transport = _transportFactory(destination, due.first.jobId);
+    final transport = _transportFactory(destination, jobId);
     try {
       await transport.open(files);
     } catch (error, stack) {
@@ -537,7 +578,7 @@ class DeliveryService {
       for (final file in files) {
         await _recordOutcome(
           targetId: targetId,
-          jobId: jobIdByPath[file.sourcePath]!,
+          jobId: jobId,
           filePath: file.sourcePath,
           bytes: file.bytes,
           failure: failure,
@@ -545,21 +586,18 @@ class DeliveryService {
         );
       }
       await _closeQuietly(transport, tally);
-      return tally.build();
+      return;
     }
 
     for (final file in files) {
       if (_stopRequested(isCancelled)) {
-        // The row is already `retrying` in the journal — this file came off
-        // `listPendingRetry` — so its true state needs no write and its
-        // attempt count stays where the schedule left it.
         tally.stoppedPending++;
         continue;
       }
       await _deliverOne(
         transport: transport,
         targetId: targetId,
-        jobId: jobIdByPath[file.sourcePath]!,
+        jobId: jobId,
         file: file,
         destination: destination,
         tally: tally,
@@ -567,7 +605,6 @@ class DeliveryService {
     }
 
     await _closeQuietly(transport, tally);
-    return tally.build();
   }
 
   Future<void> _deliverOne({

@@ -18,6 +18,7 @@ import 'dart:io' show Directory;
 import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -626,9 +627,7 @@ class _DarkroomStartOfferView extends StatelessWidget {
               label: sibling.recipeId == null
                   ? '${sibling.label} — no recipe yet'
                   : sibling.label,
-              icon: sibling.author == RecipeAuthor.autopilot
-                  ? NightshadeIcons.sparkle
-                  : NightshadeIcons.user,
+              icon: darkroomSiblingIcon(sibling),
               onTap: () => context.go(darkroomMasterLocation(sibling.masterId)),
             ),
         ],

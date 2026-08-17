@@ -136,6 +136,22 @@ done
 
 say "=== phase 7: assertions ==="
 Q() { sqlite3 "$DBDIR/nightshade.db" "$1"; }
+# Every registered frame carries the grader's measurements and its verdict. A
+# null here means the frame reached the library ungraded, and everything that
+# reads quality afterwards — the reject folder, the Darkroom's sub selection,
+# the session report's HFR trend — is reading a hole.
+#
+# This says the grader RAN and its numbers were recorded. It says nothing
+# about whose thresholds it ran against, because the native grader measures
+# and stamps a verdict on its own defaults whether or not the start path ever
+# pushed the operator's settings — which is exactly how a headless night could
+# look fully graded while `Enable image grading` was inert. Phase 7b is the
+# assertion for that half.
+NF=$(Q "SELECT count(*) FROM captured_images;")
+UNGRADED=$(Q "SELECT count(*) FROM captured_images WHERE hfr IS NULL OR star_count IS NULL OR quality_score IS NULL OR runtime_grade IS NULL;")
+[ "${NF:-0}" -ge 1 ] && [ "${UNGRADED:-1}" -eq 0 ] \
+  && ok "all $NF frames carry hfr/star_count/quality_score/runtime_grade" \
+  || bad "$UNGRADED of $NF frames are missing grading fields"
 NM=$(Q "SELECT count(*) FROM integrated_masters WHERE status IS NULL OR status NOT IN ('failed');")
 [ "${NM:-0}" -ge 4 ] && ok "masters count=$NM (>=4)" || bad "masters count=$NM"
 Q "SELECT id,filter,frame_count,total_integration_seconds,master_fits_path FROM integrated_masters;" | sed 's/^/[d1]   master: /'
@@ -192,6 +208,75 @@ print("HISTORY" if "HISTORY" in hdr else "no-history", "CALWARN" if "CALWARN" in
 EOF
 )
 say "  master header probe: $WCS"
+
+say "=== phase 7b: the operator's grading thresholds reach the executor ==="
+# The guard for the whole runtime-config seed, expressed as behaviour rather
+# than as a log line.
+#
+# Phase 7's "every frame is graded" assertion passes whether or not the start
+# path ever pushed the operator's settings: the native grader measures and
+# stamps a verdict using ITS OWN defaults regardless. So it cannot catch the
+# defect this phase exists for — a headless `load -> start` that skipped the
+# runtime-config seed, leaving `Enable image grading` and every threshold under
+# it inert for the whole night while the app read them back happily over
+# `GET /api/settings`. Measured before the fix: star floor 100000 in settings,
+# 43-star frames, twelve of twelve accepted, `Reject/` empty.
+#
+# One impossible threshold, one two-frame sequence through the SAME load->start
+# path, and the frames must be REJECTED. Runs last so the session it opens
+# cannot disturb the masters, drafts or delivery asserted above.
+FRAMES_BEFORE=$(Q "SELECT ifnull(max(id),0) FROM captured_images;")
+api -X POST "$B/api/settings" -H 'Content-Type: application/json' \
+  -d '{"settings":{"enableImageGrading":true,"imageGradingStarCountMin":100000,"imageGradingMaxConsecutiveRejects":9999}}' >/dev/null \
+  && ok "raised the star floor above anything the simulator can produce" \
+  || bad "grading settings write"
+sleep 1
+python3 - "$D1/reject_sequence.json" <<'EOF'
+import json, sys, time
+# One target, one filter, two subs — the smallest sequence that can be graded.
+lat, lon = 40.0, -105.0
+jd = time.time() / 86400.0 + 2440587.5
+d = jd - 2451545.0
+lst = ((18.697374558 + 24.06570982441908 * d) % 24.0 + lon / 15.0) % 24.0
+ra = round((lst + 1.5) % 24.0, 4)
+nodes = [
+    {"id": "root", "name": "Reject root", "enabled": True, "children": ["target_r"],
+     "node_type": {"type": "Loop", "iterations": 1, "condition": "Count", "condition_value": None}},
+    {"id": "target_r", "name": "D1 Grading Probe", "enabled": True, "children": ["exp_r"],
+     "node_type": {"type": "TargetHeader", "target_name": "D1 Grading Probe",
+                   "ra_hours": ra, "dec_degrees": lat, "rotation": None, "priority": 0}},
+    {"id": "exp_r", "name": "Exposure L", "enabled": True, "children": [],
+     "node_type": {"type": "TakeExposure", "duration_secs": 2.0, "count": 2,
+                   "frame_type": "Light", "filter": "L", "filter_index": 0,
+                   "gain": 100, "offset": 10, "binning": "One"}},
+]
+definition = {"id": "d1-grading-probe", "name": "D1 grading probe",
+              "description": "phase 7b", "root_node_id": "root",
+              "nodes": nodes, "metadata": {}}
+json.dump({"json": json.dumps(definition)}, open(sys.argv[1], "w"))
+EOF
+RLOAD=$(curl -s -m 15 -H "$AH" -X POST "$B/api/sequencer/load" -H 'Content-Type: application/json' --data-binary @"$D1/reject_sequence.json")
+echo "$RLOAD" | grep -qi "error" && bad "grading-probe load: $RLOAD" || ok "grading probe loaded"
+sleep 1
+api -X POST "$B/api/sequencer/start" >/dev/null && ok "grading probe started" || bad "grading probe start"
+RSTATE=""
+for i in $(seq 1 90); do
+  sleep 2
+  RSTATE=$(api "$B/api/sequencer/status" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("state",""))' 2>/dev/null)
+  case "$RSTATE" in completed|failed|cancelled) break;; esac
+done
+say "  grading probe terminal=$RSTATE"
+NEWF=$(Q "SELECT count(*) FROM captured_images WHERE id>$FRAMES_BEFORE;")
+ACCEPTED=$(Q "SELECT count(*) FROM captured_images WHERE id>$FRAMES_BEFORE AND is_accepted=1;")
+REASONED=$(Q "SELECT count(*) FROM captured_images WHERE id>$FRAMES_BEFORE AND rejection_reason LIKE '%star count%';")
+Q "SELECT file_name,star_count,runtime_grade,is_accepted,ifnull(rejection_reason,'<null>') FROM captured_images WHERE id>$FRAMES_BEFORE;" | sed 's/^/[d1]   probe frame: /'
+if [ "${NEWF:-0}" -ge 1 ] && [ "${ACCEPTED:-1}" -eq 0 ] && [ "${REASONED:-0}" -eq "${NEWF:-0}" ]; then
+  ok "all $NEWF probe frames rejected against the settings star floor"
+else
+  bad "grading is inert on the load->start path: $NEWF frames, $ACCEPTED accepted, $REASONED naming the star floor"
+fi
+RJ=$(find "$OUT" -type d -name 'Reject' -exec sh -c 'ls "$1" | wc -l' _ {} \; 2>/dev/null | head -1)
+[ "${RJ:-0}" -ge 1 ] && ok "rejected frames filed under Reject/ ($RJ)" || bad "no rejected frames under Reject/"
 
 say "=== phase 8: teardown ==="
 stopapp

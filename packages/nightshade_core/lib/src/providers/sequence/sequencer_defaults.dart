@@ -373,6 +373,15 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
         (await settingsDao.getSetting('livestacking_disable_everywhere')) ==
         'true';
 
+    // Twenty-odd awaited DAO reads happened above; the provider that started
+    // them can be gone by now — a container torn down while the first read of
+    // this notifier is still in flight, which is what a run start does when it
+    // instantiates the defaults on its way to seeding the executor. Writing
+    // `state` on a disposed StateNotifier raises a Bad state that belongs to
+    // nobody: the launch has already returned, so it surfaces as an unhandled
+    // async error against whatever runs next. Nothing is being hidden — with
+    // the container gone there is no reader left for the value.
+    if (!mounted) return;
     state = SequencerDefaults(
       autofocusStepSize: stepSize,
       autofocusStepsOut: stepsOut,

@@ -95,10 +95,31 @@ class WatchedFolderTransport implements ArtifactTransport {
     }
 
     final root = Directory(path.trim());
-    if (!await root.exists()) {
+    // What is at that path, not merely whether a DIRECTORY is. `exists()` is
+    // false for a path holding a file, so a destination pointed at a file —
+    // the share's mountpoint replaced by a stub, a path typed one component
+    // short — reported "not on the filesystem right now" about something that
+    // plainly is, and retried it every sweep until the budget ran out. A file
+    // does not become a directory by being waited for, so it is stated as what
+    // it is and is terminal.
+    //
+    // `type` follows links, so a link to a live share reads as the directory
+    // it points at and a dangling one reads as absent — both the answers the
+    // operator means.
+    final onDisk = await FileSystemEntity.type(root.path);
+    if (onDisk == FileSystemEntityType.notFound) {
       throw DeliveryFailure(
         DeliveryFailureKind.destinationUnreachable,
         '${root.path} is not on the filesystem right now',
+      );
+    }
+    if (onDisk != FileSystemEntityType.directory) {
+      throw DeliveryFailure(
+        DeliveryFailureKind.configurationInvalid,
+        '${root.path} is on the filesystem but it is a '
+        '${_entityWord(onDisk)}, not a folder, so nothing can be delivered '
+        'into it. Point this destination at a directory in '
+        'Settings > Delivery',
       );
     }
 
@@ -206,4 +227,17 @@ class WatchedFolderTransport implements ArtifactTransport {
   }
 
   static String _mb(int bytes) => '${(bytes / (1024 * 1024)).round()} MB';
+
+  /// What sits at a path, in the operator's words.
+  ///
+  /// Only the non-directory answers are named here — a directory is the case
+  /// that never reaches this — and the `notFound` arm exists because
+  /// [FileSystemEntityType] carries it, not because the caller can arrive with
+  /// it.
+  static String _entityWord(FileSystemEntityType type) {
+    if (type == FileSystemEntityType.file) return 'file';
+    if (type == FileSystemEntityType.link) return 'link';
+    if (type == FileSystemEntityType.notFound) return 'absent path';
+    return 'device node';
+  }
 }

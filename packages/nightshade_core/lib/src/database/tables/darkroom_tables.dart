@@ -34,6 +34,7 @@
 ///   name              TEXT NOT NULL DEFAULT ''   (branch label)
 ///   steps_json        TEXT NOT NULL DEFAULT '[]' (ordered op stack)
 ///   created_by        TEXT NOT NULL DEFAULT 'autopilot'  ('autopilot'|'user')
+///   draft_notes_json  TEXT NOT NULL DEFAULT '[]'  (v59; composition account)
 ///   parent_recipe_id  INTEGER  (FK recipes.id, ON DELETE RESTRICT)
 ///   divergence_index  INTEGER  (index into the PARENT's steps; null for roots)
 ///   schema_version    INTEGER NOT NULL DEFAULT 1  (steps_json envelope format)
@@ -47,6 +48,14 @@
 ///
 /// Indexes: target_id, session_id, master_id, parent_recipe_id,
 /// base_master_path, created_at.
+///
+/// `draft_notes_json` (v59) is the composing pass's own account: a JSON array
+/// of `{opId, outcome, reason}` objects, one per operation the registry decided
+/// about, in the order it decided. It is the record the step list cannot carry
+/// — an operation that was left OUT has no card to say why — and it persists so
+/// that reopening a draft, or reloading it, shows the same reasons the night
+/// report holds. A recipe a human wrote step by step carries `'[]'`.
+/// [RecipesDao.draftNotesOf] / [RecipesDao.setDraftNotes] own the encoding.
 ///
 /// The identity columns are the ones the post-session flow already uses:
 /// `target_id` is what `integrated_masters.target_id` carries, and `session_id`

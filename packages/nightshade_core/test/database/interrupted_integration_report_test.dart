@@ -16,9 +16,11 @@ import 'dart:io';
 import 'package:drift/drift.dart' show UpdateKind, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/src/database/daos/darkroom_jobs_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/database/integration_stage_marker.dart';
 import 'package:nightshade_core/src/database/sqlite_busy.dart';
+import 'package:nightshade_core/src/models/darkroom/darkroom_job.dart';
 
 void main() {
   late Directory tempDir;
@@ -317,6 +319,151 @@ void main() {
         final notes = (await reopenAndRead(sessionId)).notes!;
         expect(notes, contains('delete them before re-running'));
         expect(notes, contains('stops 2880 bytes short'));
+      },
+    );
+  });
+
+  // The marker's window covers the integrate AND the Darkroom pass that
+  // follows it: `AutoIntegrationService` clears it in one `finally` wrapping
+  // both. Its presence therefore does not say which was in flight, and every
+  // interruption was reported as "Nightshade closed while integrating this
+  // session" — telling an operator whose masters were finished and registered
+  // to re-run the integration, and saying nothing about the draft, the night
+  // report and the delivery that had actually been cut off.
+  group('which stage the kill landed in', () {
+    /// The state a crash DURING THE DRAFT leaves: the pass enqueues its
+    /// Darkroom job only once the masters exist, so a row still `running` at
+    /// open is proof the integrate had already finished.
+    Future<int> seedRunningDarkroomJob(
+      int sessionId, {
+      int attempts = 1,
+    }) async {
+      final db = open();
+      final dao = DarkroomJobsDao(db);
+      final jobId = await dao.enqueue(sessionId: sessionId);
+      await dao.markRunning(jobId);
+      await dao.updateProgress(jobId, 0.4, note: 'rendering the draft');
+      if (attempts != 1) {
+        await db.customStatement(
+          'UPDATE darkroom_jobs SET attempts = ? WHERE id = ?',
+          [attempts, jobId],
+        );
+      }
+      await db.close();
+      return jobId;
+    }
+
+    test('a kill during the DRAFT is reported as the Darkroom pass', () async {
+      final sessionId = await seedSession();
+      final jobId = await seedRunningDarkroomJob(sessionId);
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: const [],
+        ),
+      );
+
+      final read = await reopenAndRead(sessionId);
+      final notes = read.notes!;
+
+      expect(notes, contains('The Darkroom pass was interrupted'));
+      expect(notes, contains('Darkroom job #$jobId'));
+      expect(
+        notes,
+        contains('40% of the way through'),
+        reason: 'the progress the recovery preserves is what says how far',
+      );
+      expect(
+        notes,
+        isNot(contains('Nightshade closed while integrating this session')),
+        reason: 'the integration had finished before the job was queued',
+      );
+      expect(
+        notes,
+        isNot(contains('run the integration again')),
+        reason: 're-running finished work is not what this night needs',
+      );
+      expect(
+        notes,
+        isNot(contains('No master file had been written yet')),
+        reason: 'the draft stage writes no master, so none was in danger',
+      );
+      expect(read.events.single['headline'], contains('The Darkroom pass'));
+    });
+
+    test('a kill during the INTEGRATE still blames the integrate', () async {
+      final sessionId = await seedSession();
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: const [],
+        ),
+      );
+
+      final notes = (await reopenAndRead(sessionId)).notes!;
+      expect(notes, contains('The post-session integration was interrupted'));
+      expect(notes, contains('run the integration again'));
+    });
+
+    test(
+      'a draft job that has spent its attempts says it is not coming back',
+      () async {
+        final sessionId = await seedSession();
+        await seedRunningDarkroomJob(
+          sessionId,
+          attempts: kDarkroomJobMaxAttempts,
+        );
+        await markIntegrationStarted(
+          tempDir,
+          InterruptedIntegration(
+            sessionId: sessionId,
+            targetName: 'M31',
+            startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+            intendedMasterPaths: const [],
+          ),
+        );
+
+        final notes = (await reopenAndRead(sessionId)).notes!;
+        expect(
+          notes,
+          contains(
+            'start $kDarkroomJobMaxAttempts of at most '
+            '$kDarkroomJobMaxAttempts',
+          ),
+        );
+        expect(notes, contains('marked failed rather than re-queued'));
+        expect(
+          notes,
+          isNot(contains('The job is re-queued')),
+          reason: 'the row it describes was failed, not re-queued',
+        );
+      },
+    );
+
+    test(
+      'a job left running for ANOTHER session does not claim this one',
+      () async {
+        final interruptedSession = await seedSession();
+        final otherSession = await seedSession();
+        await seedRunningDarkroomJob(otherSession);
+        await markIntegrationStarted(
+          tempDir,
+          InterruptedIntegration(
+            sessionId: interruptedSession,
+            targetName: 'M31',
+            startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+            intendedMasterPaths: const [],
+          ),
+        );
+
+        final notes = (await reopenAndRead(interruptedSession)).notes!;
+        expect(notes, contains('The post-session integration was interrupted'));
       },
     );
   });

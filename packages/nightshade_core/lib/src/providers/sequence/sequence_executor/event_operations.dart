@@ -383,10 +383,24 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'TriggerFired':
+        final triggerId = event.data['trigger_id'] as String? ?? '';
         final triggerName =
             event.data['trigger_name'] as String? ?? 'Unknown trigger';
         final action = event.data['action'] as String? ?? '';
         _incrementRunStat((stats) => stats.recordTriggerFire());
+        // A target dropped by its own end_when is the one trigger fire that
+        // costs the operator a whole target, so it goes on the run record
+        // rather than only into the trigger feed — see
+        // [targetEndWhenSkipWarning]. `recordWarning` collapses an exact
+        // repeat of the previous entry, so a loop re-entering the same
+        // already-closed target does not fill the list with copies.
+        if (isTargetEndWhenSkip(triggerId)) {
+          final warning = targetEndWhenSkipWarning(triggerName);
+          _logger.warning(warning, source: 'SequenceExecutor');
+          _incrementRunStat((stats) => stats.recordWarning(warning));
+          progressNotifier.updateProgress(message: warning);
+          break;
+        }
         _logger.info(
           'Trigger fired: $triggerName -> $action',
           source: 'SequenceExecutor',

@@ -305,6 +305,40 @@ void main() {
       await transport.close();
     });
 
+    test('a path that holds a FILE says so, and is not retried', () async {
+      // A share whose mountpoint was replaced by a stub, or a path typed one
+      // component short. `Directory.exists()` is false for it, so it read as
+      // "not on the filesystem right now" — about something that plainly is —
+      // and was re-attempted every sweep until the budget ran out.
+      final asFile = File(p.join(tempDir.path, 'nas-is-a-file'));
+      await asFile.writeAsString('not the share');
+      final artifact = await writeMaster('M31_Ha_master.fits');
+
+      await expectLater(
+        transportFor(path: asFile.path).open([artifact]),
+        throwsA(
+          isA<DeliveryFailure>()
+              .having(
+                (f) => f.kind,
+                'kind',
+                DeliveryFailureKind.configurationInvalid,
+              )
+              .having((f) => f.retryable, 'retryable', isFalse)
+              .having((f) => f.message, 'message', contains('is a file'))
+              .having(
+                (f) => f.message,
+                'message',
+                isNot(contains('is not on the filesystem')),
+              ),
+        ),
+      );
+      expect(
+        await asFile.readAsString(),
+        'not the share',
+        reason: 'delivery never rewrites what it found in its way',
+      );
+    });
+
     test('a destination with no path is a configuration failure, not a '
         'silent skip', () async {
       final artifact = await writeMaster('M31_Ha_master.fits');
@@ -442,6 +476,70 @@ void main() {
       expect(
         await File(p.join(destinationDir.path, 'M31_Ha_master.fits')).exists(),
         isFalse,
+      );
+    });
+
+    // One vanish, one type. A share that drops between the open and the copy
+    // is the same event `open` calls `destinationUnreachable` and the same
+    // event `destinationReadFailure` calls `destinationUnreachable` for a file
+    // it was reading back — but the copy fell through to `transportFailure`,
+    // which names no mechanism, so one unmounted NAS reached the journal under
+    // two unrelated-looking names depending on which file was where.
+    test('a share that drops mid-transfer is unreachable, not an '
+        'unclassified transport failure', () async {
+      final artifact = await writeMaster('M31_Ha_master.fits');
+      final transport = transportFor();
+      await transport.open([artifact]);
+      await destinationDir.delete(recursive: true);
+
+      await expectLater(
+        transport.deliver(artifact),
+        throwsA(
+          isA<DeliveryFailure>()
+              .having(
+                (f) => f.kind,
+                'kind',
+                DeliveryFailureKind.destinationUnreachable,
+              )
+              .having((f) => f.retryable, 'retryable', isTrue)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('no longer on the filesystem'),
+              ),
+        ),
+      );
+      expect(
+        await File(artifact.sourcePath).exists(),
+        isTrue,
+        reason: 'the artifact never moved; the destination did',
+      );
+    });
+
+    test('a rename onto a vanished share is unreachable too', () async {
+      final artifact = await writeMaster('M31_Ha_master.fits');
+      final staged = await AtomicFileWrite.stage(
+        artifact: artifact,
+        deliveredName: artifact.fileName,
+        directory: destinationDir,
+        jobId: 42,
+      );
+      // The share drops in the instant between staging and committing — the
+      // last thing a vanish can break, and the same vanish the sibling files
+      // in this transfer are reporting.
+      await destinationDir.delete(recursive: true);
+
+      await expectLater(
+        staged.commit(),
+        throwsA(
+          isA<DeliveryFailure>()
+              .having(
+                (f) => f.kind,
+                'kind',
+                DeliveryFailureKind.destinationUnreachable,
+              )
+              .having((f) => f.retryable, 'retryable', isTrue),
+        ),
       );
     });
   });

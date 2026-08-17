@@ -19,6 +19,28 @@ class _MockSequencerBackend extends Mock implements SequencerBackend {}
 
 class _MockDeviceBackend extends Mock implements DeviceBackend {}
 
+/// The same appliance the role providers above stand for, seen whole.
+///
+/// `sequencerBackendProvider` and `deviceBackendProvider` are both narrowings
+/// of `backendProvider`, so a container that overrides only the narrow ones
+/// leaves the wide one pointing at the real FFI backend — a host that answers
+/// the handler and throws at the executor, which no appliance does. The start
+/// path reaches the wide provider through `sequenceExecutorProvider` to seed
+/// the run's runtime config, so the fake host has to exist there too.
+/// Unstubbed members answer with a completed `Future<void>`, the shape every
+/// push on that path has.
+class _MockHostBackend extends Mock implements NightshadeBackend {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation) ?? Future<void>.value();
+}
+
+class _TestBackendNotifier extends BackendNotifier {
+  _TestBackendNotifier(super.ref, NightshadeBackend backend) {
+    state = backend;
+  }
+}
+
 DeviceInfo _device(String id, DeviceType type) => DeviceInfo(
   id: id,
   name: id,
@@ -32,12 +54,18 @@ void main() {
   group('headless load->start device wiring', () {
     late _MockSequencerBackend sequencer;
     late _MockDeviceBackend devices;
+    late _MockHostBackend host;
     late ProviderContainer container;
     late SequencerHandlers handlers;
 
     setUp(() {
       sequencer = _MockSequencerBackend();
       devices = _MockDeviceBackend();
+      host = _MockHostBackend();
+      when(() => host.eventStream).thenAnswer((_) => const Stream.empty());
+      when(
+        () => host.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
 
       when(
         () => sequencer.sequencerSetSimulationMode(any()),
@@ -60,6 +88,9 @@ void main() {
 
       container = createHeadlessTestContainer(
         overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, host),
+          ),
           sequencerBackendProvider.overrideWithValue(sequencer),
           deviceBackendProvider.overrideWithValue(devices),
         ],

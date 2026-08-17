@@ -128,11 +128,7 @@ async fn run_target_body(
     if let Some(end) = &end_when {
         if let Some(trig_ctx) = build_trigger_ctx(config, context) {
             if end.is_satisfied(&trig_ctx) {
-                tracing::warn!(
-                    "Target {} end_when already satisfied at entry ({}); skipping",
-                    display_name,
-                    end.label()
-                );
+                emit_end_when_skipped_at_entry(context, node.id(), &display_name, end);
                 return NodeStatus::Skipped;
             }
         }
@@ -595,6 +591,112 @@ async fn wait_for_trigger(
         }
 
         tokio::time::sleep(poll).await;
+    }
+}
+
+/// Trigger id every `end_when`-at-entry skip is published under.
+///
+/// The Dart run-stats layer keys on this id to turn the fire into a run
+/// WARNING (`packages/nightshade_core/lib/src/providers/sequence/target_end_when_notice.dart`);
+/// it is a machine identifier and must stay byte-identical on both sides.
+pub const TARGET_END_WHEN_TRIGGER_ID: &str = "target_end_when";
+
+/// The trigger fired before the target imaged anything: its `end_when` was
+/// already true at entry, so the whole target is skipped.
+///
+/// Until this existed the skip left NO trace outside the Rust process log — a
+/// run that dropped an entire target answered `state: "completed"`,
+/// `warningMessages: []`, and a `statsJson.targetBreakdown` the target was
+/// absent from, so no surface an operator reads could say a target had been
+/// dropped, let alone why. Reproduced on the appliance: a two-target sequence
+/// whose first target carried `end_when = TimeAfter(now - 1h)` finished
+/// `completed / progress 1.0` with 2 frames and an empty warning list, and the
+/// only record anywhere was one `WARN` line in the log file.
+///
+/// It rides `TriggerFired` rather than the `InstructionFailed` channel the
+/// unevaluable-`start_when` refusal uses, because nothing failed: a target
+/// trigger fired and the executor did what the operator configured it to do.
+/// `InstructionFailed` reaches Dart as a sequencer `Error`, which paints the
+/// node red, pushes a running sequence into `recovering` and sends the phone a
+/// "Sequence failed" notification — three claims that would all be untrue.
+/// `TriggerFired` is Info severity end to end and is already the channel the
+/// trigger feed renders.
+///
+/// The three fields carry exactly what they are named for: `trigger_id` is the
+/// classification key, `trigger_name` is the operator-readable name of the
+/// trigger that fired (which target it guards and what it tests), and `action`
+/// is what the executor did about it. The consequence sentence is composed on
+/// the Dart side from those, the same division of labour the meridian-flip
+/// outcome uses.
+fn emit_end_when_skipped_at_entry(
+    context: &ExecutionContext,
+    node_id: &crate::NodeId,
+    display_name: &str,
+    end_when: &TargetTrigger,
+) {
+    let trigger_name = format!(
+        "The end condition on \"{}\" ({})",
+        display_name,
+        operator_trigger_label(end_when)
+    );
+    tracing::warn!(
+        "{} was already satisfied at entry; skipping the target without imaging",
+        trigger_name
+    );
+    if let Some(event_tx) = context.event_tx.as_ref() {
+        let _ = event_tx.send(crate::executor::ExecutorEvent::TriggerFired {
+            trigger_id: TARGET_END_WHEN_TRIGGER_ID.to_string(),
+            trigger_name: trigger_name.clone(),
+            action: "SkipTarget".to_string(),
+        });
+    }
+    // Paint the reason onto the target node itself as well, so the tree shows
+    // WHY it went grey — the same lifecycle channel [`emit_end_when_met`] uses
+    // for the mid-target case, which was the only one of the two that ever
+    // said anything.
+    context.send_progress(ProgressUpdate::lifecycle(
+        node_id.clone(),
+        NodeStatus::Skipped,
+        format!("{} was already met; skipped without imaging", trigger_name),
+    ));
+}
+
+/// [`TargetTrigger::label`], with the time-bearing leaves rendered as a UTC
+/// instant instead of a raw Unix timestamp.
+///
+/// `label()` is the engine's own vocabulary and prints `time ≥ 1786970284`,
+/// which is exact and unreadable. Every consumer that only logs it keeps that
+/// form; the operator-facing copy composed here does not, because "the end
+/// condition was already met" is useless without knowing WHEN it was met.
+fn operator_trigger_label(trigger: &TargetTrigger) -> String {
+    fn instant(ts: i64) -> String {
+        match chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0) {
+            Some(dt) => dt.format("%Y-%m-%d %H:%M UTC").to_string(),
+            // The timestamp is outside the representable range; the raw value
+            // is the only true thing left to say about it.
+            None => ts.to_string(),
+        }
+    }
+    match trigger {
+        TargetTrigger::TimeAfter(ts) => format!("time ≥ {}", instant(*ts)),
+        TargetTrigger::TimeBefore(ts) => format!("time < {}", instant(*ts)),
+        TargetTrigger::And(terms) => format!(
+            "({})",
+            terms
+                .iter()
+                .map(operator_trigger_label)
+                .collect::<Vec<_>>()
+                .join(" AND ")
+        ),
+        TargetTrigger::Or(terms) => format!(
+            "({})",
+            terms
+                .iter()
+                .map(operator_trigger_label)
+                .collect::<Vec<_>>()
+                .join(" OR ")
+        ),
+        other => other.label(),
     }
 }
 
@@ -1422,6 +1524,109 @@ mod tests {
         assert!(
             reason.contains("latitude and longitude in Settings"),
             "the reason must tell the operator how to fix it, got: {reason}"
+        );
+    }
+
+    /// A target whose `end_when` has already passed is skipped without
+    /// imaging, and states its reason on a channel that leaves the process.
+    ///
+    /// Before this, the skip published nothing: the run answered `completed`,
+    /// `warningMessages: []`, and a `targetBreakdown` the target was missing
+    /// from, so no operator surface could tell a night that dropped a whole
+    /// target from one that imaged everything.
+    #[tokio::test]
+    async fn end_when_already_past_publishes_its_reason() {
+        // 22:00 UTC on the night; the target's window shut at 21:00.
+        let clock = MockClock::at("2026-01-15T22:00:00Z");
+        let closed_at = chrono::DateTime::parse_from_rfc3339("2026-01-15T21:00:00Z")
+            .unwrap()
+            .timestamp();
+
+        let header_def = NodeDefinition {
+            id: "tgt".into(),
+            name: "Dusk Field".into(),
+            node_type: NodeType::TargetHeader(TargetHeaderConfig {
+                target_name: "Dusk Field".into(),
+                ra_hours: 0.7,
+                dec_degrees: 41.27,
+                end_when: Some(TargetTrigger::TimeAfter(closed_at)),
+                ..TargetHeaderConfig::default()
+            }),
+            enabled: true,
+            children: vec![],
+        };
+        let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock);
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
+        ctx.event_tx = Some(event_tx);
+
+        let config = match &node.definition.node_type {
+            NodeType::TargetHeader(c) => c.clone(),
+            _ => unreachable!(),
+        };
+        let status = execute_target_header(&mut node, config, &mut ctx).await;
+        assert_eq!(status, NodeStatus::Skipped);
+
+        let mut published = None;
+        let mut failures = 0;
+        while let Ok(event) = event_rx.try_recv() {
+            match event {
+                crate::executor::ExecutorEvent::TriggerFired {
+                    trigger_id,
+                    trigger_name,
+                    action,
+                } => published = Some((trigger_id, trigger_name, action)),
+                // Nothing failed. A failure event here would paint the node
+                // red, push a running sequence into recovery and send the
+                // operator a "Sequence failed" notification.
+                crate::executor::ExecutorEvent::InstructionFailed { .. }
+                | crate::executor::ExecutorEvent::Error { .. } => failures += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(failures, 0, "a configured skip is not a failure");
+        let (trigger_id, trigger_name, action) =
+            published.expect("the skip published a TriggerFired reason");
+        assert_eq!(
+            trigger_id, TARGET_END_WHEN_TRIGGER_ID,
+            "the Dart run-stats layer keys on this id"
+        );
+        assert_eq!(action, "SkipTarget");
+        assert!(
+            trigger_name.contains("Dusk Field"),
+            "the reason must name the target that was dropped, got: {trigger_name}"
+        );
+        assert!(
+            trigger_name.contains("2026-01-15 21:00 UTC"),
+            "the reason must say WHEN the window closed, not print a raw Unix \
+             timestamp, got: {trigger_name}"
+        );
+    }
+
+    /// The operator-facing rendering keeps the engine's vocabulary for
+    /// everything except the time leaves, which `label()` prints as raw epoch
+    /// seconds.
+    #[test]
+    fn operator_trigger_label_renders_instants() {
+        let ts = chrono::DateTime::parse_from_rfc3339("2026-01-15T21:00:00Z")
+            .unwrap()
+            .timestamp();
+        assert_eq!(
+            operator_trigger_label(&TargetTrigger::TimeAfter(ts)),
+            "time ≥ 2026-01-15 21:00 UTC"
+        );
+        assert_eq!(
+            operator_trigger_label(&TargetTrigger::AltitudeAbove(35.0)),
+            TargetTrigger::AltitudeAbove(35.0).label(),
+            "non-time leaves keep the engine's own label"
+        );
+        assert_eq!(
+            operator_trigger_label(&TargetTrigger::And(vec![
+                TargetTrigger::TimeAfter(ts),
+                TargetTrigger::AltitudeBelow(20.0),
+            ])),
+            "(time ≥ 2026-01-15 21:00 UTC AND altitude ≤ 20.0°)",
+            "a compound renders its time leaves too"
         );
     }
 }

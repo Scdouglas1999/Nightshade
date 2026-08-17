@@ -245,28 +245,66 @@ List<DarkroomStep> decodeDarkroomDraft(Map<String, dynamic> reply) {
   ];
 }
 
-/// The notes the registry recorded while composing a draft, as one sentence per
-/// operation it decided about. Empty when the reply carried none.
-List<String> decodeDarkroomDraftNotes(Map<String, dynamic> reply) {
+/// The notes the registry recorded while composing a draft — the operations it
+/// decided about and did not carry. Empty when the reply carried none.
+List<RecipeDraftNote> decodeDarkroomDraftNotes(Map<String, dynamic> reply) {
   final draft = reply['draft'];
   if (draft is! Map<String, dynamic>) return const [];
   final notes = draft['notes'];
   if (notes is! List) return const [];
-  final out = <String>[];
+  final out = <RecipeDraftNote>[];
   for (final entry in notes) {
     if (entry is! Map<String, dynamic>) continue;
     final opId = entry['opId'];
     final reason = entry['reason'];
     final outcome = entry['outcome'];
     if (opId is! String) continue;
-    final verdict = outcome is String ? outcome : 'omitted';
-    final why = reason is String && reason.isNotEmpty
-        ? reason
-        : 'the operation registry stated no reason';
-    out.add('$opId — $verdict: $why');
+    out.add(
+      RecipeDraftNote(
+        opId: opId,
+        outcome: outcome is String ? outcome : 'omitted',
+        reason: reason is String && reason.isNotEmpty
+            ? reason
+            : 'the operation registry stated no reason',
+      ),
+    );
   }
   return List.unmodifiable(out);
 }
+
+/// The whole composition account for a draft: the registry's own [notes], plus
+/// one `included` line for every step it DID carry that no note already covers.
+///
+/// The same account the dawn pass records for its own drafts, built here so the
+/// two paths store one shape. It is what makes "this stack was drafted" a fact
+/// the row carries rather than a guess: a colour master's draft can leave
+/// nothing out, and without the included lines its account would be empty and
+/// indistinguishable from a recipe written by hand.
+List<RecipeDraftNote> darkroomComposedAccount(
+  List<DarkroomStep> steps,
+  List<RecipeDraftNote> notes,
+) {
+  final account = <RecipeDraftNote>[...notes];
+  for (final step in steps) {
+    if (account.any((note) => note.opId == step.opId)) continue;
+    account.add(
+      RecipeDraftNote(
+        opId: step.opId,
+        outcome: 'included',
+        reason: 'measured from this master by the operation registry',
+      ),
+    );
+  }
+  return List.unmodifiable(account);
+}
+
+/// One draft note as the editor prints it.
+///
+/// The operation is named the way every step card names it — "Background
+/// extract", not `background_extract` — so a note and the stack it is about do
+/// not read as two different vocabularies.
+String darkroomDraftNoteSentence(RecipeDraftNote note) =>
+    '${darkroomOpTitle(note.opId)} — ${note.outcome}: ${note.reason}';
 
 /// A `.nsrecipe` file the operator chose, and what it holds.
 @immutable

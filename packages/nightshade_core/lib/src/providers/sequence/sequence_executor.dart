@@ -77,6 +77,7 @@ import 'exposure_progress_vocabulary.dart';
 import 'node_exposure_tally.dart';
 import 'structured_progress_json.dart';
 import 'run_stop_classification.dart';
+import 'target_end_when_notice.dart';
 import 'sequence_validation.dart' as validation;
 import 'sequencer_defaults.dart';
 import 'sequence_executor/frame_attribution.dart';
@@ -857,6 +858,32 @@ class SequenceExecutor {
     }
     _ref.read(currentRunIdProvider.notifier).state = null;
     _ref.read(liveSequenceStatsProvider.notifier).state = null;
+  }
+
+  /// Push every user-controlled RuntimeConfig field into the already-loaded
+  /// native executor, for a launch that does NOT come through [start] /
+  /// [resumeFromCheckpoint]: the headless `POST /api/sequencer/load` ->
+  /// `POST /api/sequencer/start` path.
+  ///
+  /// The ONE seed site both launch paths share. [_startNativeExecution] calls
+  /// this same method rather than the extension directly, so the seed cannot
+  /// be extended for the editor path and silently skipped for the headless
+  /// one — which is exactly what happened: the bare path hand-mirrored the
+  /// simulation mode, the safety fail mode, the device ids and the save path
+  /// and never gained the runtime-config push, so image grading, the reject
+  /// folder, the autofocus cadence and the autofocus tuning all ran on the
+  /// Rust defaults. Proven on the appliance: `image_grading_enabled=true` with
+  /// `image_grading_star_count_min=100000` persisted and read back through
+  /// `GET /api/settings`, and a 43-star simulated frame still graded `pass` —
+  /// twelve of twelve accepted, nothing in `Reject/`, and no
+  /// `Updating sequencer default_quality_check` line anywhere in the run.
+  ///
+  /// Throws on a failed push for the same reason [start] does: a night that
+  /// runs with grading the operator switched on silently inert is worse than a
+  /// start that refuses and says why.
+  Future<void> seedRuntimeConfigForNativeStart() async {
+    _ensureBackendAuthority();
+    await _seedRuntimeConfigFromSettings(_backend);
   }
 
   /// Start the periodic work a run owns: the 1 s elapsed/ETA ticker, the
@@ -2109,7 +2136,7 @@ class SequenceExecutor {
     // The same ordered launch push the start path makes, with the two
     // resume-specific differences expressed inside it (see [_pushLaunchConfig]).
     await _pushLaunchConfig(backend, settings, isResume: true);
-    await _seedRuntimeConfigFromSettings(backend);
+    await seedRuntimeConfigForNativeStart();
 
     // Recover the sequence TREE from the interrupted run's stored snapshot,
     // BEFORE the running-state flip below. The editor refuses edits once the

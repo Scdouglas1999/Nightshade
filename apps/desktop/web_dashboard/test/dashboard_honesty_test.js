@@ -250,7 +250,9 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
   rateLimitRemainingSecs = 0, lastProbeAt = Date.now(), isConnected = true }) {
   const doc = makeDocument([
     'link-banner', 'status-text', 'status-dot', 'seq-status',
-    'ops-seq-progress-text',
+    'ops-seq-progress-text', 'seq-progress-text', 'seq-progress-bar',
+    'seq-progress-bar-container', 'ops-seq-progress-bar',
+    'ops-seq-progress-bar-container', 'ops-seq-eta',
   ]);
   doc.getElementById('status-text').textContent = 'Connected';
   doc.getElementById('status-dot').className = 'status-dot connected';
@@ -272,6 +274,9 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
       fn('lastServerContactAt'),
       fn('isServerContactStale'),
       fn('formatAgeSeconds'),
+      // The real helper, not a stub: what the stale branch does to the
+      // progress readouts is the thing under test.
+      fn('markProgressUnknown'),
       fn('renderLinkState'),
     ],
     'renderLinkState',
@@ -313,6 +318,68 @@ test('an unreachable server flips the header and raises a banner', () => {
   assert.match(banner.textContent, /may be wrong/);
   assert.equal(doc.getElementById('seq-status').textContent, 'unknown',
     'the sequencer badge must stop claiming a state');
+});
+
+// D4W-02. The badge was fixed and the figure was not. Measured against the
+// running bundle: SIGKILL at wire progress 0.250 left the badge "unknown" and
+// the banner up while "25%" stayed on screen, the bar stayed 94.75px wide and
+// the container kept announcing aria-valuenow="25" — for the whole 47 s the
+// probe watched. The sibling ops readout was correctly "--" the entire time,
+// so the page contradicted itself as well as the world.
+test('a lost link stops asserting a progress figure', () => {
+  const now = Date.now();
+  const seed = (doc) => {
+    doc.getElementById('seq-progress-text').textContent = '25%';
+    doc.getElementById('seq-progress-bar').style.width = '25%';
+    doc.getElementById('seq-progress-bar-container')
+      .setAttribute('aria-valuenow', '25');
+    doc.getElementById('ops-seq-progress-text').textContent = '25%';
+    doc.getElementById('ops-seq-progress-bar').style.width = '25%';
+    doc.getElementById('ops-seq-progress-bar-container')
+      .setAttribute('aria-valuenow', '25');
+    doc.getElementById('ops-seq-eta').textContent = '12m';
+  };
+  // Render once healthy so the seeded values are what a live run left behind,
+  // then lose the server through the same closure.
+  const h = linkState({
+    unreachable: false,
+    lastContactAt: now - 500,
+    lastWsMessageAt: now - 500,
+  });
+  seed(h.doc);
+  h.state.serverUnreachable = true;
+  h.api.lastContactAt = now - 47000;
+  h.state.lastWsMessageAt = now - 47000;
+  h.render();
+
+  const doc = h.doc;
+  assert.equal(doc.getElementById('seq-status').textContent, 'unknown');
+  for (const id of ['seq-progress-text', 'ops-seq-progress-text']) {
+    assert.equal(doc.getElementById(id).textContent, '--',
+      id + ' must stop naming a percentage');
+  }
+  for (const id of ['seq-progress-bar', 'ops-seq-progress-bar']) {
+    assert.equal(doc.getElementById(id).style.width, '0%');
+    assert.ok(doc.getElementById(id).classList.contains('unknown'),
+      id + ' must not draw as a run that has done nothing');
+  }
+  for (const id of ['seq-progress-bar-container',
+    'ops-seq-progress-bar-container']) {
+    assert.equal(doc.getElementById(id).getAttribute('aria-valuenow'), null,
+      id + ' must stop announcing a figure');
+    assert.ok(doc.getElementById(id).classList.contains('unknown'));
+  }
+  // The ETA is extrapolated from that percentage; it cannot outlive it.
+  assert.equal(doc.getElementById('ops-seq-eta').textContent, '--');
+});
+
+test('an unknown bar is visually distinct from a genuine zero', () => {
+  // The two states share `width: 0%`, so the distinction has to be carried by
+  // something else, and something else has to actually paint it.
+  const css = fs.readFileSync(
+    path.join(ROOT, 'css', 'dashboard.css'), 'utf8');
+  assert.match(css, /\.progress-bar-container\.unknown\s*\{[\s\S]*?background-image/,
+    'the unknown track must have its own rendering');
 });
 
 test('silence past the contact window is stale even without a failed probe', () => {
@@ -509,10 +576,15 @@ test('no progress bar declares aria-valuenow before it has a value', () => {
     assert.doesNotMatch(bar, /aria-valuenow/,
       'markup must not announce a percentage nothing has reported');
   }
-  for (const name of ['renderSequencerPanel', 'renderOpsSequencerLoadPanel']) {
+  // Both panels reach the clearing through the one helper now, so the helper is
+  // where the rule lives — and the callers must be the ones using it.
+  assert.match(fn('markProgressUnknown'), /removeAttribute\('aria-valuenow'\)/,
+    'the unknown render must clear the announced value');
+  for (const name of ['renderSequencerPanel', 'renderOpsSequencerLoadPanel',
+    'renderLinkState']) {
     const source = fn(name);
-    assert.match(source, /removeAttribute\('aria-valuenow'\)/,
-      name + ' must clear the value when status is unknown');
+    assert.match(source, /markProgressUnknown\(/,
+      name + ' must clear the value when the figure is unknown');
     assert.doesNotMatch(source, /setAttribute\('aria-valuenow', '0'\)/);
   }
 });
@@ -530,7 +602,8 @@ test('the sequencer badge asserts nothing before the first status', () => {
     ['document', 'state', 'renderBadge', 'updateSequencerButtons',
       'getSequencerBadgeClass', 'sequencerProgressPercent',
       'renderOpsSequencerLoadPanel'],
-    [fn('renderSequencerPanel')],
+    [fn('markProgressUnknown'), fn('markProgressKnown'),
+      fn('renderSequencerPanel')],
     'renderSequencerPanel',
   )(
     doc,
@@ -545,10 +618,158 @@ test('the sequencer badge asserts nothing before the first status', () => {
   assert.equal(doc.getElementById('seq-status').textContent, 'connecting',
     'a rig this page has never heard from is not "idle"');
   assert.equal(doc.getElementById('seq-progress-text').textContent, '');
+  assert.equal(
+    doc.getElementById('seq-progress-bar-container')
+      .getAttribute('aria-valuenow'),
+    null,
+  );
+  assert.ok(doc.getElementById('seq-progress-bar').classList
+    .contains('unknown'),
+  'a bar that has heard nothing must not draw as a real zero');
 
   // The shipped markup is what the operator sees for the first few hundred ms,
   // before any JS has run — it must make the same claim, which is none.
   const badge = HTML.match(/<span id="seq-status">[\s\S]*?<\/span>\s*<\/span>/);
   assert.ok(badge, 'the sequencer status badge must exist in the markup');
   assert.match(badge[0], />connecting</);
+});
+
+// ---------------------------------------------------------------------------
+// D4W-01 — the server log tail
+// ---------------------------------------------------------------------------
+
+/// An EventSource good enough to prove which listener kind a client used.
+class FakeEventSource {
+  constructor(url) {
+    this.url = url;
+    this.listeners = new Map();
+    this.onmessage = null;
+    this.onerror = null;
+    this.onopen = null;
+    FakeEventSource.last = this;
+  }
+  addEventListener(name, fn) {
+    if (!this.listeners.has(name)) this.listeners.set(name, []);
+    this.listeners.get(name).push(fn);
+  }
+  close() { this.closed = true; }
+
+  /// Deliver a frame the way the server writes it: `event: <name>` + data.
+  /// A named frame does NOT reach `onmessage` — that is the whole defect.
+  emit(name, data) {
+    const event = { data: JSON.stringify(data) };
+    for (const fn of this.listeners.get(name) || []) fn(event);
+    if (name === 'message' && this.onmessage) this.onmessage(event);
+  }
+}
+
+function apiWithEventSource() {
+  const context = vm.createContext({
+    fetch: async () => { throw new Error('no fetch in this test'); },
+    Headers: globalThis.Headers,
+    AbortController: globalThis.AbortController,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    Date: globalThis.Date,
+    isFinite: globalThis.isFinite,
+    Number: globalThis.Number,
+    JSON: globalThis.JSON,
+    EventSource: FakeEventSource,
+    encodeURIComponent: globalThis.encodeURIComponent,
+    console,
+  });
+  vm.runInContext(API + '\n;globalThis.__api = new NightshadeApi();', context);
+  const api = context.__api;
+  // The bearer rides in the query string: EventSource has no header API.
+  api._authToken = 'tok-1';
+  return api;
+}
+
+// Measured against the running bundle: the panel sat on "Waiting for log
+// entries…" behind a badge reading "live" while a second EventSource attached
+// to the IDENTICAL url counted 174 frames on `addEventListener('log', …)` and
+// 0 on `onmessage`, over the same 12 s. `log_handlers.dart` names every frame
+// (`event: log`), and EventSource.onmessage fires only for unnamed ones.
+test('the log tail listens for the frames the server actually names', () => {
+  const api = apiWithEventSource();
+  const seen = [];
+  let replayDone = 0;
+  api.subscribeLogTail('info', (e) => seen.push(e), null, () => { replayDone++; });
+  const source = FakeEventSource.last;
+
+  source.emit('log', {
+    timestamp: '2026-08-17T13:36:11.111819Z',
+    severity: 'warning',
+    source: 'HeadlessMain',
+    message: 'SECURITY: TLS IS OFF',
+  });
+  source.emit('replay-done', {});
+
+  assert.equal(seen.length, 1, 'a named "log" frame is an entry');
+  assert.equal(seen[0].source, 'HeadlessMain');
+  assert.equal(replayDone, 1, 'the end of the replay is the server\'s own event');
+  assert.equal(source.onmessage, null,
+    'nothing may hang off onmessage: this endpoint sends no unnamed frames');
+});
+
+// The tail reads `severity` — an allow-LIST of exact level names. `minSeverity`
+// is /api/logs/recent's parameter and is ignored here, so the panel's selector
+// filtered nothing at all: a debug firehose arrived on a stream asked for
+// "info". Verified on the wire — `minSeverity=info` returned 2 debug entries in
+// the same window where `severity=info,warning,error,critical` returned none.
+test('the log tail asks for the severities with the parameter that filters', () => {
+  const api = apiWithEventSource();
+  api.subscribeLogTail('warning', () => {}, null);
+  const url = FakeEventSource.last.url;
+  assert.match(url, /severity=warning%2Cerror%2Ccritical/);
+  assert.doesNotMatch(url, /minSeverity/,
+    'minSeverity is silently ignored by /api/logs/tail');
+
+  // The names are the server's own LogLevel values; "trace" and "warn" parse
+  // as nothing on the other side.
+  // Spread back into this realm: the vm sandbox's Array is a different class.
+  const ctor = api.constructor;
+  assert.deepEqual([...ctor.logLevels],
+    ['debug', 'info', 'warning', 'error', 'critical']);
+  assert.deepEqual([...ctor.logSeveritiesAtOrAbove('trace')], [],
+    'an unknown name filters nothing rather than narrowing silently');
+});
+
+test('the severity selector offers only levels the server knows', () => {
+  const select = HTML.match(
+    /<select id="logs-min-severity"[\s\S]*?<\/select>/);
+  assert.ok(select, 'the severity selector must exist');
+  const values = [...select[0].matchAll(/value="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(values, ['debug', 'info', 'warning', 'error', 'critical']);
+});
+
+test('a log row reads the keys a log frame carries', () => {
+  const doc = makeDocument(['logs-container']);
+  const append = build(
+    ['document', 'logTail'],
+    [fn('appendLogRow')],
+    'appendLogRow',
+  )(doc, { maxEntries: 500 });
+  append({
+    timestamp: '2026-08-17T13:36:11.111819Z',
+    severity: 'warning',
+    source: 'DeliveryRetrySweeper',
+    message: 'Started the Darkroom delivery retry sweep (every 900s).',
+  });
+  const row = doc.getElementById('logs-container').children[0];
+  const text = row.children.map((c) => c.textContent);
+  assert.ok(text.includes('WARNING'), 'the severity comes from `severity`');
+  assert.ok(text.includes('DeliveryRetrySweeper'),
+    'the source column comes from `source` — `target` is a key no frame has');
+  assert.ok(row.className.includes('log-warning'));
+
+  // The keys that were being read and are not in `LogEntry.toJson`.
+  const code = fn('appendLogRow')
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('//'))
+    .join('\n');
+  for (const dead of ['payload.level', 'payload.target', 'payload.module',
+    'payload.category', 'payload.msg', 'payload.timestampMs']) {
+    assert.ok(!code.includes(dead), dead + ' appears in no log frame');
+  }
 });

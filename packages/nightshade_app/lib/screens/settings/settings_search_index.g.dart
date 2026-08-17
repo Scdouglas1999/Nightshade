@@ -244,6 +244,19 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Maximum temperature difference for dark matching',
     'Temperature tolerance',
   ],
+  'darkroom': [
+    'At the end of a run',
+    'Auto-integrate has to be on for any of this to run',
+    'Darkroom autopilot',
+    'Delivery destinations decide what leaves the rig',
+    'Draft, deliver and report at dawn',
+    'One notification goes out when the pass finishes, through',
+    'The dawn pass starts from the masters the post-session integration',
+    'The morning message rides the sequence-complete alerts',
+    'The pass hands its masters, drafts and report to Delivery.',
+    'What can silence it',
+    'When on, each master the night produced gets a first-draft',
+  ],
   'delivery': [
     'Delivery',
     'Delivery destinations',
@@ -255,6 +268,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Port',
     'Private key',
     'Remote directory',
+    'Rig name in delivered files',
     'User',
   ],
   'equipment-profiles': [

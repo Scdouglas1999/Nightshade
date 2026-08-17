@@ -16,6 +16,7 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
       // [SessionReviewState.reviewedMaster]); `masters` stays the library list.
       final reviewed = await _resolveReviewedMaster(masters, subs);
       final darkroomJob = await _loadDarkroomJob();
+      final interruptedPass = await _loadInterruptedPassNotice();
 
       if (!mounted) return;
       state = state.copyWith(
@@ -29,6 +30,8 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
         clearReviewedMaster: reviewed == null,
         darkroomJob: darkroomJob,
         clearDarkroomJob: darkroomJob == null,
+        interruptedPassNotice: interruptedPass,
+        clearInterruptedPassNotice: interruptedPass == null,
         loading: false,
         clearError: true,
       );
@@ -74,6 +77,55 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
       _ref.read(loggingServiceProvider).warning(
         'The Darkroom pass for this session could not be read, so Session '
         'Review cannot state how it ended',
+        source: 'SessionReviewController',
+        fields: {'sessionId': sessionId, 'error': '$e'},
+      );
+      return null;
+    }
+  }
+
+  /// What the open-time recovery said about a post-session pass a process exit
+  /// cut off on this session, or null when it said nothing.
+  ///
+  /// Same shape and the same reasons as [_loadDarkroomJob], for the ending that
+  /// leaves no terminal row: a pass the machine died inside is discovered in
+  /// `beforeOpen` and written to a `warning` Night Narrator event, which is the
+  /// only typed, session-scoped record of it. Session scope only — an
+  /// interruption belongs to the one night it cut short.
+  ///
+  /// Its own failure is caught: this is a report, and a database that cannot
+  /// answer for it must not take the sub list, the masters and the verdict down
+  /// with it.
+  Future<String?> _loadInterruptedPassNotice() async {
+    final sessionId = _scope.sessionId;
+    if (sessionId == null) return null;
+    try {
+      final events = await _ref
+          .read(narratorEventsDaoProvider)
+          .getFeedForSession(sessionId);
+      NarratorEventRow? newest;
+      for (final event in events) {
+        if (event.eventType != kInterruptedPassEventType) continue;
+        // Chosen by timestamp, not by position: the feed is pinned-first, so a
+        // pinned discovery reorders it. A night interrupted twice states the
+        // interruption that stands.
+        if (newest == null || event.timestamp.isAfter(newest.timestamp)) {
+          newest = event;
+        }
+      }
+      if (newest == null) return null;
+      // The detector's own two sentences — which stage was cut off, how far it
+      // got, and what is still owed. Nothing is re-worded here: a screen that
+      // paraphrased them could only disagree with the morning feed about one
+      // night.
+      final body = newest.body?.trim();
+      return body == null || body.isEmpty
+          ? newest.headline
+          : '${newest.headline} $body';
+    } catch (e) {
+      _ref.read(loggingServiceProvider).warning(
+        'The interruption record for this session could not be read, so '
+        'Session Review cannot state a pass a process exit cut off',
         source: 'SessionReviewController',
         fields: {'sessionId': sessionId, 'error': '$e'},
       );

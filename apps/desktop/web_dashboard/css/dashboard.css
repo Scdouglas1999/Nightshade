@@ -977,6 +977,24 @@ body {
   background: var(--accent-green);
 }
 
+/* No figure exists for this bar — the server never sent one, or the link that
+   used to carry it is gone. An empty track reads as "0%", which is a real and
+   different state, so the unknown track is hatched instead of blank. Painted on
+   the CONTAINER: the fill is zero-width here and has nothing to draw with. */
+.progress-bar-container.unknown {
+  /* --text-muted, not --border-color: the track is 6px tall, and a hatch drawn
+     in the divider colour measures 1.38:1 against it — a texture nobody would
+     see. This one is a state indicator, so it is held to the 3:1 floor for
+     non-text content. */
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--bg-tertiary) 0,
+    var(--bg-tertiary) 3px,
+    var(--text-muted) 3px,
+    var(--text-muted) 6px
+  );
+}
+
 /* ====== Guide Graph ====== */
 .guide-graph-container {
   position: relative;

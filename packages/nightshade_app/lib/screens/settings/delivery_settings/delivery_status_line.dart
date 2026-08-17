@@ -168,8 +168,9 @@ class DeliveryStatusLine {
       final reason = _newestError(failed);
       return DeliveryStatusLine(
         DeliveryStatusKind.failed,
-        '${_files(failed.length)} of ${_files(entries.length)} failed — '
-        '$reason',
+        // The unit belongs to the pair, not to each half: counting both sides
+        // separately printed "1 file of 3 files failed".
+        '${failed.length} of ${_files(entries.length)} failed — $reason',
       );
     }
     if (retrying.isNotEmpty) {

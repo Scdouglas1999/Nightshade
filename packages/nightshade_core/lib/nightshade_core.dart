@@ -205,6 +205,8 @@ export 'src/providers/sequence/remote_sequence_editor_sync.dart';
 export 'src/providers/sequence_stats_provider.dart';
 // The one predicate every surface asks before calling a run's end an error.
 export 'src/providers/sequence/run_stop_classification.dart';
+// The one wording for a target dropped by its own end_when.
+export 'src/providers/sequence/target_end_when_notice.dart';
 // The one vocabulary for an exposure node's per-frame progress line.
 export 'src/providers/sequence/exposure_progress_vocabulary.dart';
 // Whether a finished run's report interrupts the operator or waits for them.

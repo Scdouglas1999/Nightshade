@@ -1024,12 +1024,16 @@
         <div class="panel-body panel-body-compact">
           <div class="control-row">
             <label for="logs-min-severity">Min severity</label>
+            <!-- The server's own LogLevel names (logging_service.dart):
+                 debug, info, warning, error, critical. "Trace" and "Warn" were
+                 offered here and exist in no level table on the other side —
+                 `LoggingService.parseLogLevel` matches by exact name. -->
             <select id="logs-min-severity" aria-label="Minimum severity to display">
-              <option value="trace">Trace</option>
               <option value="debug">Debug</option>
               <option value="info" selected>Info</option>
-              <option value="warn">Warn</option>
+              <option value="warning">Warning</option>
               <option value="error">Error</option>
+              <option value="critical">Critical</option>
             </select>
           </div>
           <div class="log-container" id="logs-container" role="log" aria-live="polite" aria-relevant="additions">

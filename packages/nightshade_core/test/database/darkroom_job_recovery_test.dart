@@ -125,6 +125,48 @@ void main() {
     },
   );
 
+  test(
+    'the retry-limit sentence names the attempt the row actually reached',
+    () async {
+      // The recovery's own WHERE clause is `attempts >= kDarkroomJobMaxAttempts`
+      // — greater-or-equal — while its sentence was the constant "on attempt 3
+      // of 3". A row started five times was therefore told it died on its
+      // third, which is a number nothing in the row supports.
+      final first = open();
+      late int jobId;
+      try {
+        final dao = DarkroomJobsDao(first);
+        jobId = await dao.enqueue();
+        await dao.markRunning(jobId);
+        await first.customStatement(
+          'UPDATE darkroom_jobs SET attempts = ? WHERE id = ?',
+          [kDarkroomJobMaxAttempts + 2, jobId],
+        );
+      } finally {
+        await first.close();
+      }
+
+      final second = open();
+      try {
+        final job = await DarkroomJobsDao(second).getById(jobId);
+        expect(job!.state, DarkroomJobState.failed);
+        expect(job.attempts, kDarkroomJobMaxAttempts + 2);
+        expect(
+          job.errorText,
+          contains('on attempt ${kDarkroomJobMaxAttempts + 2}'),
+          reason: 'the sentence counts the starts the row counted',
+        );
+        expect(
+          job.errorText,
+          contains('the limit is $kDarkroomJobMaxAttempts starts'),
+        );
+        expect(job.errorText, contains('not retried'));
+      } finally {
+        await second.close();
+      }
+    },
+  );
+
   test('recovery leaves terminal and queued jobs alone', () async {
     final first = open();
     late int doneId;

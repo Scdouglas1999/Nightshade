@@ -1243,8 +1243,22 @@
     // backend: a green "running" for a rig that may have been off for an hour.
     const seqStatus = document.getElementById('seq-status');
     if (seqStatus) renderBadge(seqStatus, 'unknown', 'badge-error');
-    const opsSeqProgressText = document.getElementById('ops-seq-progress-text');
-    if (opsSeqProgressText) opsSeqProgressText.textContent = '--';
+    // The percentage is the same assertion in another shape, and it outlived
+    // the badge: measured after a SIGKILL at wire progress 0.250, the badge
+    // went "unknown" and the banner said every value might be wrong while
+    // "25%" stayed on screen, the bar stayed 94.75px wide and the bar's
+    // aria-valuenow kept announcing 25 for the next 47 s. A figure whose
+    // source is gone is not a smaller truth than a state whose source is gone.
+    markProgressUnknown(
+      'seq-progress-bar', 'seq-progress-bar-container', 'seq-progress-text');
+    markProgressUnknown(
+      'ops-seq-progress-bar', 'ops-seq-progress-bar-container',
+      'ops-seq-progress-text');
+    // The ETA is extrapolated from that same percentage, so it cannot outlive
+    // it: "finishes in 12m" computed from a rig nobody can reach is the
+    // furthest-reaching claim on the page.
+    const opsSeqEta = document.getElementById('ops-seq-eta');
+    if (opsSeqEta) opsSeqEta.textContent = '--';
   }
 
   function checkStaleness() {
@@ -3343,6 +3357,45 @@
     return Math.min(100, Math.max(0, n * 100));
   }
 
+  // Paint a progress readout as UNKNOWN — no figure, no announcement, and a
+  // bar that does not look like a run that has done nothing yet.
+  //
+  // An empty bar is a claim: it says "0% complete". That claim is true on a
+  // rig that has just started and false on one whose backend died at 25%, and
+  // both used to render identically down to the pixel. The `unknown` class
+  // gives the track its own hatched fill, so an operator can tell "nothing has
+  // happened" from "we have no idea" without reading the number.
+  //
+  // aria-valuenow is REMOVED rather than zeroed: a progressbar with no value is
+  // announced as indeterminate, which is the truth, while aria-valuenow="0"
+  // announces "0 percent" — a figure nobody sent.
+  function markProgressUnknown(barId, containerId, textId) {
+    const bar = document.getElementById(barId);
+    if (bar) {
+      bar.style.width = '0%';
+      bar.classList.remove('completed');
+      bar.classList.add('unknown');
+    }
+    const container = document.getElementById(containerId);
+    if (container) {
+      container.classList.add('unknown');
+      container.removeAttribute('aria-valuenow');
+    }
+    if (textId) {
+      const text = document.getElementById(textId);
+      if (text) text.textContent = '--';
+    }
+  }
+
+  // The other half of [markProgressUnknown]: a bar that has a real figure again
+  // must stop wearing the unknown treatment.
+  function markProgressKnown(barId, containerId) {
+    const bar = document.getElementById(barId);
+    if (bar) bar.classList.remove('unknown');
+    const container = document.getElementById(containerId);
+    if (container) container.classList.remove('unknown');
+  }
+
   function renderSequencerPanel() {
     const statusEl = document.getElementById('seq-status');
     const nodeEl = document.getElementById('seq-node');
@@ -3361,8 +3414,7 @@
       if (statusEl) renderBadge(statusEl, 'connecting', 'badge-idle');
       if (nodeEl) nodeEl.textContent = '--';
       if (messageEl) messageEl.textContent = '';
-      if (progressBar) progressBar.style.width = '0%';
-      if (progressBarContainer) progressBarContainer.removeAttribute('aria-valuenow');
+      markProgressUnknown('seq-progress-bar', 'seq-progress-bar-container');
       if (progressText) progressText.textContent = '';
       updateSequencerButtons('idle');
       return;
@@ -3380,6 +3432,7 @@
     if (messageEl) messageEl.textContent = s.message || '';
 
     const progress = sequencerProgressPercent(s.progress);
+    markProgressKnown('seq-progress-bar', 'seq-progress-bar-container');
     if (progressBar) {
       progressBar.style.width = progress + '%';
       if (progress >= 100) progressBar.classList.add('completed');
@@ -3962,14 +4015,14 @@
     if (!state.sequencerStatus) {
       if (targetEl) targetEl.textContent = '--';
       if (nodeEl) nodeEl.textContent = '--';
-      if (progressTextEl) progressTextEl.textContent = '--';
       if (etaEl) etaEl.textContent = '--';
-      if (progressBar) progressBar.style.width = '0%';
       // Same rule as renderSequencerPanel: unknown progress carries no
-      // aria-valuenow at all.
-      if (progressBarContainer) {
-        progressBarContainer.removeAttribute('aria-valuenow');
-      }
+      // aria-valuenow at all, and does not draw as an empty bar.
+      markProgressUnknown(
+        'ops-seq-progress-bar',
+        'ops-seq-progress-bar-container',
+        'ops-seq-progress-text',
+      );
       return;
     }
     const s = state.sequencerStatus;
@@ -3986,6 +4039,7 @@
     if (nodeEl) nodeEl.textContent = s.currentNodeName || '--';
 
     const progress = sequencerProgressPercent(s.progress);
+    markProgressKnown('ops-seq-progress-bar', 'ops-seq-progress-bar-container');
     if (progressBar) {
       progressBar.style.width = progress + '%';
       if (progress >= 100) progressBar.classList.add('completed');
@@ -6514,8 +6568,13 @@
           setLogStreamState('error');
           stopLogTail();
         },
+        // "live" is claimed when the server says its replay is finished, not
+        // when the socket opens. An open socket only proves the connection
+        // exists — it is exactly what the badge read while the panel received
+        // nothing at all — whereas `replay-done` is the server's own statement
+        // that everything after it is happening now.
+        () => setLogStreamState('live'),
       );
-      logTail.eventSource.onopen = () => setLogStreamState('live');
     } catch (e) {
       addLogEntry('error', describeApiError(e, 'Log tail subscribe'));
       setLogStreamState('error');
@@ -6556,13 +6615,16 @@
     const empty = container.querySelector('.empty-state');
     if (empty) empty.remove();
     const row = document.createElement('div');
-    const severity = String(payload.level || payload.severity || 'info').toLowerCase();
+    // `LogEntry.toJson` (logging_service.dart) emits exactly timestamp /
+    // severity / source / message / fields. `level`, `target`, `module`,
+    // `category` and `msg` are keys no frame carries — the severity fell back
+    // to "info" for every row and the source column was blank on all of them.
+    const severity = String(payload.severity || 'info').toLowerCase();
     row.className = 'log-entry log-' + severity;
-    const ts = payload.timestamp || payload.timestampMs || payload.time;
-    const tsLabel = ts ? new Date(typeof ts === 'number' ? ts : String(ts))
-        .toLocaleTimeString() : '';
-    const target = payload.target || payload.module || payload.category || '';
-    const message = payload.message || payload.msg || JSON.stringify(payload);
+    const ts = payload.timestamp;
+    const tsLabel = ts ? new Date(String(ts)).toLocaleTimeString() : '';
+    const target = payload.source || '';
+    const message = payload.message || JSON.stringify(payload);
     row.innerHTML = '';
     const tsEl = document.createElement('span');
     tsEl.className = 'log-time';

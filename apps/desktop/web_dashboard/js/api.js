@@ -1134,38 +1134,78 @@ class NightshadeApi {
   }
 
   /// Subscribe to /api/logs/tail (SSE). Returns the [EventSource] so
-  /// the caller can `.close()` it on teardown. `minSeverity` is one of
-  /// trace|debug|info|warn|error. The callback fires with the parsed
-  /// JSON payload per `data:` line; non-JSON `data:` lines (server
-  /// heartbeat comments) are dropped.
+  /// the caller can `.close()` it on teardown.
+  ///
+  /// TWO things about this endpoint are not the SSE defaults, and getting
+  /// either wrong produces a stream that opens cleanly and tells you nothing.
+  ///
+  /// 1. Its frames are NAMED. `log_handlers.dart` writes
+  ///    `id: …\nevent: log\ndata: {…}` per entry and `event: replay-done`
+  ///    once the ring-buffer replay is finished — and says why in its own
+  ///    comment ("A custom event name is used so default `message` listeners
+  ///    don't see it"). `EventSource.onmessage` fires only for frames with NO
+  ///    event name, so a client wired to onmessage receives nothing at all: the
+  ///    logs panel sat on "Waiting for log entries…" behind a "live" badge
+  ///    while 174 named frames arrived in 12 s on the same socket. Listen per
+  ///    name.
+  /// 2. The severity parameter is `severity`, and it is an allow-LIST of exact
+  ///    level names — not the `minSeverity` floor that /api/logs/recent reads.
+  ///    Sending `minSeverity` here is not an error, it is silently ignored, so
+  ///    the panel's "Min severity" selector filtered nothing and a debug-level
+  ///    firehose arrived no matter what it said. [minSeverity] is expanded to
+  ///    the levels at or above it, which is what the control promises.
   ///
   /// Why we send the bearer via ?access_token: EventSource has no
   /// header API, so the server's SSE handler accepts the token as a
   /// query parameter for this endpoint specifically (same convention
   /// as run-watch SSE).
-  subscribeLogTail(minSeverity, onEntry, onError) {
+  subscribeLogTail(minSeverity, onEntry, onError, onReplayDone) {
     const q = [];
-    if (minSeverity) {
-      q.push('minSeverity=' + encodeURIComponent(minSeverity));
+    const severities = NightshadeApi.logSeveritiesAtOrAbove(minSeverity);
+    if (severities.length) {
+      q.push('severity=' + encodeURIComponent(severities.join(',')));
     }
     if (this._authToken) {
       q.push('access_token=' + encodeURIComponent(this._authToken));
     }
     const path = '/api/logs/tail' + (q.length ? '?' + q.join('&') : '');
     const source = new EventSource(this._baseUrl + path);
-    source.onmessage = (msg) => {
+    source.addEventListener('log', (msg) => {
       if (!msg || !msg.data) return;
       try {
         const payload = JSON.parse(msg.data);
         onEntry(payload);
       } catch (_) {
-        // Non-JSON SSE comments (heartbeats) are intentionally ignored.
+        // A frame whose data will not parse is not an entry we can render.
       }
-    };
+    });
+    if (typeof onReplayDone === 'function') {
+      source.addEventListener('replay-done', () => onReplayDone());
+    }
     if (typeof onError === 'function') {
       source.onerror = (err) => onError(err);
     }
     return source;
+  }
+
+  /// `LogLevel` as the server declares it (logging_service.dart), in order.
+  ///
+  /// `trace` and `warn` are NOT members: `LoggingService.parseLogLevel` matches
+  /// `LogLevel.values` by exact name, so those two were rejected outright by
+  /// any endpoint that reads them. The dashboard's own selector offered both.
+  static get logLevels() {
+    return ['debug', 'info', 'warning', 'error', 'critical'];
+  }
+
+  /// The allow-list the tail wants for a "minimum severity" of [minSeverity].
+  ///
+  /// An unknown name yields the empty list, which sends no filter at all —
+  /// every entry, rather than a silently narrowed stream the operator did not
+  /// ask for.
+  static logSeveritiesAtOrAbove(minSeverity) {
+    const levels = NightshadeApi.logLevels;
+    const at = levels.indexOf(String(minSeverity || '').toLowerCase());
+    return at < 0 ? [] : levels.slice(at);
   }
 
   // Save the camera's last in-memory capture to disk as FITS so the plate

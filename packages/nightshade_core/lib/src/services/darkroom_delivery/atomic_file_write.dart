@@ -169,6 +169,19 @@ class AtomicFileWrite {
         cause: error,
       );
     } on FileSystemException catch (error) {
+      // Same question the copy asks, for the same event: the rename is the
+      // last thing a vanishing share breaks, and it is the same vanish the
+      // sibling files in this transfer already reported.
+      final directory = p.dirname(finalPath);
+      if (!await Directory(directory).exists()) {
+        throw DeliveryFailure(
+          DeliveryFailureKind.destinationUnreachable,
+          'Renaming ${p.basename(stagedPath)} onto ${p.basename(finalPath)} '
+          'failed (${fileSystemReason(error)}) and $directory is no longer on '
+          'the filesystem, so the destination went away',
+          cause: error,
+        );
+      }
       throw DeliveryFailure(
         DeliveryFailureKind.transportFailure,
         'Renaming ${p.basename(stagedPath)} onto ${p.basename(finalPath)} '
@@ -191,6 +204,16 @@ class AtomicFileWrite {
   /// vanished between the describe pass and this copy is terminal — no later
   /// attempt finds it — while everything else belongs to the destination and
   /// is worth another attempt.
+  ///
+  /// The DESTINATION directory is stat-ed here too. A share that unmounts
+  /// mid-pass is one event, and it reached the journal under two names: the
+  /// files whose destination copy was being read back were typed
+  /// [DeliveryFailureKind.destinationUnreachable] by [destinationReadFailure],
+  /// while the files still waiting to be copied fell through to
+  /// [DeliveryFailureKind.transportFailure] — which names no mechanism — for
+  /// the same vanished mount that `open` itself calls unreachable. One vanish
+  /// now has one type, so a morning report reading the journal says the NAS
+  /// went away rather than listing two unrelated-looking faults.
   static Future<DeliveryFailure> _copyFailure({
     required DeliveryFile artifact,
     required String deliveredName,
@@ -230,6 +253,15 @@ class AtomicFileWrite {
         'Copying $deliveredName to ${directory.path} is not permitted '
         '($reason); ${artifact.sourcePath} is still on the '
         'rig$trailer',
+        cause: error,
+      );
+    }
+    if (!await directory.exists()) {
+      return DeliveryFailure(
+        DeliveryFailureKind.destinationUnreachable,
+        'Copying $deliveredName to ${directory.path} failed ($reason) and '
+        '${directory.path} is no longer on the filesystem, so the destination '
+        'went away, not the artifact$trailer',
         cause: error,
       );
     }

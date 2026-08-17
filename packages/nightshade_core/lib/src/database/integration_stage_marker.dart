@@ -26,6 +26,16 @@ import 'package:path/path.dart' as p;
 /// consumes theirs.
 const String kIntegrationMarkerName = '.integration-in-flight.json';
 
+/// `narrator_events.event_type` the open-time report writes when it finds a
+/// marker a dead process left behind.
+///
+/// Shared so the writer (the `beforeOpen` reporter) and the readers (the
+/// morning feed, and Session Review's own banner) cannot drift onto two
+/// spellings of one event — a session whose interruption is recorded but
+/// matches nothing on screen is the silence this whole mechanism exists to
+/// end.
+const String kInterruptedPassEventType = 'quality.integration_interrupted';
+
 /// What a previous process was integrating when it died.
 class InterruptedIntegration {
   /// The imaging session whose subs were being integrated.

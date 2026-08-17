@@ -27,6 +27,11 @@ class DarkroomSiblingDraft {
   /// Who wrote that recipe, or null when there is none.
   final RecipeAuthor? author;
 
+  /// True when the operation registry composed that recipe's steps — the same
+  /// fact [DarkroomState.composedByRegistry] states for the open one, so a chip
+  /// and the panel it leads to cannot disagree about who drafted a stack.
+  final bool composedByRegistry;
+
   const DarkroomSiblingDraft({
     required this.masterId,
     required this.masterName,
@@ -34,13 +39,21 @@ class DarkroomSiblingDraft {
     required this.recipeId,
     required this.recipeName,
     required this.author,
+    this.composedByRegistry = false,
   });
 
   /// The words the branch bar prints on the link.
+  ///
+  /// The master name is not repeated when the recipe's own name already opens
+  /// with it: the dawn autopilot names every draft after the master it was
+  /// drafted over, so joining the two printed "Master · G · Master · G draft"
+  /// on one chip — the same words twice, and wide enough to push the row off a
+  /// phone.
   String get label {
-    final name = recipeName;
-    if (name == null || name.trim().isEmpty) return masterName;
-    return '$masterName · ${name.trim()}';
+    final name = recipeName?.trim();
+    if (name == null || name.isEmpty) return masterName;
+    if (name == masterName || name.startsWith('$masterName ')) return name;
+    return '$masterName · $name';
   }
 }
 
@@ -172,16 +185,23 @@ class DarkroomState {
   /// Why the last write to the recipe row failed. Null when the row is current.
   final String? saveError;
 
-  /// What the operation registry decided NOT to put in this recipe's draft, one
-  /// sentence per operation it left out, with the reason it gave.
+  /// The composing pass's own account of this recipe: one note per operation
+  /// the operation registry decided about, with the reason it gave.
   ///
-  /// The registry records these while composing a draft, and until they reached
-  /// here they existed only in the night report on disk: the operator was
+  /// Read from `recipes.draft_notes_json` when the recipe opens, so the reasons
+  /// survive the pass that recorded them. They used to be attached in memory by
+  /// the in-session "Draft for me" alone: the dawn autopilot's own draft opened
+  /// with none of them, and one Reload erased the rest. The operator was
   /// promised "color where there is color to calibrate" and then handed a
   /// four-step stack that said nothing about the colour step it did not carry.
-  /// Empty when the draft omitted nothing, and when the open recipe was not
-  /// drafted in this session.
-  final List<String> draftNotes;
+  ///
+  /// Empty for a recipe nobody drafted — which is what [composedByRegistry]
+  /// reads to tell a drafted stack from a hand-written one.
+  final List<RecipeDraftNote> draftNotes;
+
+  /// Why the draft account could not be read off the recipe row. Null when it
+  /// was read — including when it was read and there was nothing in it.
+  final String? draftNotesError;
 
   /// The other masters of the same night, with the newest recipe over each.
   ///
@@ -230,6 +250,7 @@ class DarkroomState {
     this.savePending = false,
     this.saveError,
     this.draftNotes = const [],
+    this.draftNotesError,
     this.siblings = const [],
     this.siblingsError,
     this.importNote,
@@ -241,6 +262,26 @@ class DarkroomState {
   /// True when every step is disabled — the state "Reset to linear" leaves
   /// behind, with every step and its parameters intact.
   bool get isLinear => steps.isNotEmpty && steps.every((s) => !s.enabled);
+
+  /// True when the operation registry composed this stack rather than a hand
+  /// building it step by step.
+  ///
+  /// The draft account is written by the composing pass and by nothing else —
+  /// one note per operation it decided about, `included` ones as well — so a
+  /// recipe that carries one is a recipe something drafted. That is what lets
+  /// the identity tag say "drafted" for a stack the operator asked the registry
+  /// for, instead of crediting them with steps they did not choose.
+  bool get composedByRegistry => draftNotes.isNotEmpty;
+
+  /// The draft notes worth printing: every one about an operation the stack
+  /// does NOT carry as the registry measured it.
+  ///
+  /// An `included` note repeats what its own step card already says, in the
+  /// panel's most prominent slot; the decisions with nothing on screen to speak
+  /// for them are the ones that have to be read.
+  List<RecipeDraftNote> get statedDraftNotes => List.unmodifiable(
+        draftNotes.where((note) => note.outcome != 'included'),
+      );
 
   /// True when the stack carries a color calibration.
   ///
@@ -355,7 +396,9 @@ class DarkroomState {
     bool? savePending,
     String? saveError,
     bool clearSaveError = false,
-    List<String>? draftNotes,
+    List<RecipeDraftNote>? draftNotes,
+    String? draftNotesError,
+    bool clearDraftNotesError = false,
     List<DarkroomSiblingDraft>? siblings,
     String? siblingsError,
     bool clearSiblingsError = false,
@@ -397,6 +440,9 @@ class DarkroomState {
       savePending: savePending ?? this.savePending,
       saveError: clearSaveError ? null : (saveError ?? this.saveError),
       draftNotes: draftNotes ?? this.draftNotes,
+      draftNotesError: clearDraftNotesError
+          ? null
+          : (draftNotesError ?? this.draftNotesError),
       siblings: siblings ?? this.siblings,
       siblingsError:
           clearSiblingsError ? null : (siblingsError ?? this.siblingsError),

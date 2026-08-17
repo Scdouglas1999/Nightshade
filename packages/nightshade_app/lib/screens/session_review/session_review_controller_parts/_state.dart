@@ -62,6 +62,18 @@ class SessionReviewState {
   /// the drafting, the report and the delivery for it had not happened.
   final DarkroomJob? darkroomJob;
 
+  /// The sentence the open-time recovery wrote about a post-session pass a
+  /// PROCESS EXIT cut off on this session, or null when none did.
+  ///
+  /// The sibling of [darkroomJob], for the ending that row cannot hold. A pass
+  /// the machine died inside reaches no ending at all — its row is simply
+  /// still `running` when the process stops existing — so the recovery in
+  /// `beforeOpen` is what discovers it, and what it wrote went to the session's
+  /// notes and a `warning` Night Narrator event. This screen renders neither,
+  /// so the night showed its masters and its score with nothing saying the
+  /// drafting, the night report and the delivery had been cut off mid-run.
+  final String? interruptedPassNotice;
+
   // Smart morning report (Pillar 5) data backbone
 
   /// The Night Doctor's verdict for this scope (score + headline + findings),
@@ -147,6 +159,7 @@ class SessionReviewState {
     this.lastOutcome,
     this.error,
     this.darkroomJob,
+    this.interruptedPassNotice,
     this.nightReport,
     this.improvementCurve,
     this.improvementCurvePopulation = const [],
@@ -227,6 +240,8 @@ class SessionReviewState {
     bool clearError = false,
     DarkroomJob? darkroomJob,
     bool clearDarkroomJob = false,
+    String? interruptedPassNotice,
+    bool clearInterruptedPassNotice = false,
     NightReport? nightReport,
     bool clearNightReport = false,
     IntegrationCurve? improvementCurve,
@@ -267,6 +282,9 @@ class SessionReviewState {
       lastOutcome: lastOutcome ?? this.lastOutcome,
       error: clearError ? null : (error ?? this.error),
       darkroomJob: clearDarkroomJob ? null : (darkroomJob ?? this.darkroomJob),
+      interruptedPassNotice: clearInterruptedPassNotice
+          ? null
+          : (interruptedPassNotice ?? this.interruptedPassNotice),
       nightReport: clearNightReport ? null : (nightReport ?? this.nightReport),
       improvementCurve: clearImprovementCurve
           ? null

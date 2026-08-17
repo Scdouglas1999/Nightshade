@@ -18,6 +18,7 @@ import 'widgets/master_library_panel.dart';
 import 'widgets/master_overlay_view.dart';
 import 'widgets/master_preview_view.dart';
 import 'widgets/narrowband_mixer_panel.dart' as nb;
+import 'widgets/session_interruption_banner.dart';
 import 'widgets/sub_cull_rail.dart';
 
 /// Keeps the PSF field-map selection attached to the same captured image when
@@ -95,10 +96,18 @@ class WorkbenchView extends ConsumerWidget {
           controller: controller,
         );
 
-        // Above both columns in either layout: a pass that failed or was
-        // stopped is the reason the drafts and the delivery the panels below
-        // would otherwise be read as reporting are not there.
-        final passBanner = DarkroomPassBanner(job: state.darkroomJob);
+        // Above both columns in either layout: a pass that was cut off by a
+        // process exit, then one that failed or was stopped. Both are the
+        // reason the drafts and the delivery the panels below would otherwise
+        // be read as reporting are not there.
+        final passBanner = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SessionInterruptionBanner(notice: state.interruptedPassNotice),
+            DarkroomPassBanner(job: state.darkroomJob),
+          ],
+        );
 
         if (!wide) {
           return SingleChildScrollView(

@@ -20,6 +20,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -471,6 +472,75 @@ void main() {
     expect(
       find.textContaining('Lineage: Draft → Warmer (from step 1)'),
       findsOneWidget,
+    );
+    await drain(tester);
+  });
+
+  testWidgets('a chip strip a phone clips can still be reached', (
+    tester,
+  ) async {
+    // 430x900 is the phone reflow the UX pass measured. At that width the
+    // branch row runs past the viewport and the chips behind the edge were
+    // unreachable: the row is a bare horizontal SingleChildScrollView, so it
+    // showed no scrollbar, a vertical wheel over it did nothing (Flutter sends
+    // wheel deltas along the scrollable's own axis), and a mouse drag was
+    // refused because `dragDevices` excludes the mouse on every platform. The
+    // chips were in the semantics tree and out of reach — the worst of both.
+    final root = await seedRecipe([_step('background_extract')]);
+    for (final name in ['Warmer', 'Cooler', 'Sharper', 'Softer']) {
+      await recipes.branchFrom(
+        parentRecipeId: root,
+        divergenceIndex: 1,
+        name: name,
+      );
+    }
+    await pump(tester, root, size: const Size(430, 900));
+
+    // The precondition: the strip really does overflow at this width.
+    final last = find.widgetWithText(NightshadeChip, 'Softer');
+    expect(last, findsOneWidget);
+    expect(
+      tester.getRect(last).right,
+      greaterThan(430.0),
+      reason: 'the case only exists while the last chip is off-screen',
+    );
+
+    final strip = find.byKey(kDarkroomBranchStripKey);
+    expect(strip, findsOneWidget);
+
+    // A scrollbar: something on screen that says there is more, and a thumb a
+    // mouse can drag.
+    expect(
+      find.descendant(of: strip, matching: find.byType(Scrollbar)),
+      findsOneWidget,
+    );
+
+    // A mouse drag over the chips scrolls them, the way a finger does.
+    final scrollable = find.descendant(
+      of: strip,
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(
+      ScrollConfiguration.of(
+        tester.element(scrollable),
+      ).dragDevices.contains(PointerDeviceKind.mouse),
+      isTrue,
+      reason: 'a desktop pointer must be able to drag the strip',
+    );
+
+    // And the wheel, which is what a desktop hand reaches for first.
+    final before = tester.getRect(last).left;
+    final position = tester.getCenter(strip);
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    tester.binding.handlePointerEvent(pointer.hover(position));
+    tester.binding.handlePointerEvent(
+      pointer.scroll(const Offset(0, 120)),
+    );
+    await tester.pump();
+    expect(
+      tester.getRect(last).left,
+      lessThan(before - 50),
+      reason: 'a vertical wheel over a horizontal strip must move it',
     );
     await drain(tester);
   });
