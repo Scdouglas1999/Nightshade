@@ -7,7 +7,7 @@ part of '../darkroom_screen.dart';
 /// region whose only cue is a line sliced in half at the fold reads as a bug
 /// rather than as an invitation. Its scrollbar is therefore always drawn, and
 /// the one thing on the panel that reports something NOT happening — the
-/// colour calibration having no catalogue stars — is placed above the fold
+/// color calibration having no catalogue stars — is placed above the fold
 /// instead of a scroll away.
 class _DarkroomRecipePanel extends StatefulWidget {
   final DarkroomState state;
@@ -72,11 +72,16 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
                   _editActions(colors),
                   const SizedBox(height: NightshadeTokens.spaceLg),
                   _renderStatus(colors),
-                  if (state.photometryStarCount > 0) ...[
+                  // Both halves of the photometry account — the stars there
+                  // are, and the reason there are none — belong to one step. A
+                  // stack that does not carry that step is not waiting on a
+                  // catalogue for anything, so neither half is stated.
+                  if (state.hasColorCalibrateStep &&
+                      state.photometryStarCount > 0) ...[
                     const SizedBox(height: NightshadeTokens.spaceMd),
                     Text(
                       '${state.photometryStarCount} catalogue stars are lent '
-                      'to the colour calibration on every render. It solves '
+                      'to the color calibration on every render. It solves '
                       'the balance from them each time rather than storing '
                       'fitted channel scales, so a coarse preview level can '
                       'detect too few stars and record the step as skipped.',
@@ -263,14 +268,20 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
       // Before the button, not after it: this is part of the account of what
       // the last render did, and every row it sits below is a row that can
       // push it past the fold of a fixed-height panel.
+      //
+      // It is stated only when the stack carries the step it is about. The
+      // catalogue is lent to `color_calibrate` and to nothing else, so on a
+      // stack without that step — an autopilot draft of a mono master, a recipe
+      // with no steps at all — this alert reports the absence of something no
+      // step was going to use, in the panel's most prominent slot.
       final photometryNote = state.photometryNote;
-      if (photometryNote != null) {
+      if (photometryNote != null && state.hasColorCalibrateStep) {
         children
           ..add(const SizedBox(height: NightshadeTokens.spaceSm))
           ..add(
             NightshadeAlert(
               severity: NightshadeAlertSeverity.info,
-              title: 'Colour calibration has no catalogue stars',
+              title: 'Color calibration has no catalogue stars',
               message: photometryNote,
               compact: true,
             ),

@@ -74,6 +74,13 @@ LazyDatabase _openConnection() {
     // SQLITE_CORRUPT/SQLITE_NOTADB or that fails `PRAGMA integrity_check`.
     await integrity.runIntegrityCheckAndRecover(file);
 
-    return NativeDatabase.createInBackground(file);
+    // `beforeOpen` WRITES — it closes out interrupted runs and Darkroom jobs
+    // and rebuilds session statistics — so without a lock-wait budget the
+    // daemon exits at startup whenever anything else holds a read transaction
+    // over the file. See [kSqliteBusyTimeout] for why five seconds.
+    return NativeDatabase.createInBackground(
+      file,
+      setup: applySqliteBusyTimeout,
+    );
   });
 }

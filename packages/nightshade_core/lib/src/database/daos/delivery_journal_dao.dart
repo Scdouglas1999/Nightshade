@@ -161,6 +161,43 @@ class DeliveryJournalDao {
     now: now,
   );
 
+  /// Put a spent row back in the retry queue with a fresh attempt budget, and
+  /// return the entry as it now stands.
+  ///
+  /// This is the operator saying "try again" after fixing what the failure
+  /// named — mounting the share, freeing space, moving the file that was in
+  /// the way. `attempts` is RESET TO ZERO rather than left where it was: the
+  /// delivery retry policy reads `attempts` for both the backoff and the
+  /// budget, so a row re-queued at its spent count would wait the maximum
+  /// backoff and then be terminal again on its first attempt — a retry in
+  /// name only.
+  ///
+  /// `last_error` is KEPT. Until another attempt is made, why the file did not
+  /// arrive is still the most recent true thing about it, and the status line
+  /// goes on saying so while it waits.
+  Future<DeliveryJournalEntry> requeueForRetry({
+    required int targetId,
+    required int jobId,
+    required String filePath,
+    DateTime? now,
+  }) async {
+    await _require(targetId, jobId, filePath);
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    await _db.customUpdate(
+      'UPDATE delivery_journal SET state = ?, attempts = 0, updated_at = ? '
+      'WHERE target_id = ? AND job_id = ? AND file_path = ?',
+      variables: [
+        Variable<String>(DeliveryAttemptState.retrying.wire),
+        Variable<int>(at),
+        Variable<int>(targetId),
+        Variable<int>(jobId),
+        Variable<String>(filePath),
+      ],
+      updateKind: UpdateKind.update,
+    );
+    return _require(targetId, jobId, filePath);
+  }
+
   /// The journal entry for one (destination, job, file), or null when nothing
   /// has been attempted for it.
   Future<DeliveryJournalEntry?> getEntry({

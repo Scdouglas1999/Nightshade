@@ -396,12 +396,28 @@ class AnalyticsHandlers {
     int biasCount = 0;
     double totalHfr = 0;
     int hfrCount = 0;
+    // The grading verdict, counted over LIGHTS only.
+    //
+    // Distinct from successful/failed exposures above, which count what the
+    // camera returned: a frame can expose perfectly and still be rejected for
+    // trailing or cloud. Without these two on the wire a remote client can
+    // only report "10 successful", which is the opposite of what the operator
+    // sees after culling three of them — and every accepted/rejected surface
+    // off the rig had to guess. Calibration frames are not graded, so folding
+    // them in would inflate `accepted` with darks and flats.
+    int acceptedLights = 0;
+    int rejectedLights = 0;
     final filterCounts = <String, int>{};
 
     for (final img in images) {
       switch (img.frameType) {
         case 'light':
           lightCount++;
+          if (img.isAccepted) {
+            acceptedLights++;
+          } else {
+            rejectedLights++;
+          }
           break;
         case 'dark':
           darkCount++;
@@ -430,6 +446,8 @@ class AnalyticsHandlers {
         "successfulExposures": session.successfulExposures,
         "failedExposures": session.failedExposures,
         "totalIntegrationSecs": session.totalIntegrationSecs,
+        "acceptedLights": acceptedLights,
+        "rejectedLights": rejectedLights,
         "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : session.avgHfr,
         "avgGuidingRms": session.avgGuidingRms,
         "autofocusCount": session.autofocusCount,

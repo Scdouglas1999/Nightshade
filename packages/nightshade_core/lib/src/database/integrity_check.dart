@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
+import 'sqlite_busy.dart';
+
 /// Outcome of [runIntegrityCheckAndRecover].
 ///
 /// Why a structured result instead of a bool: the UI needs to surface a
@@ -206,6 +208,13 @@ Future<IntegrityRecoveryReport> runIntegrityCheckAndRecover(File dbFile) async {
 String _checkIntegrity(String path, {required OpenMode mode}) {
   final db = sqlite3.open(path, mode: mode);
   try {
+    // The same lock-wait budget the live connection gets, from the same
+    // definition. A read-only probe still needs it: an external writer holding
+    // an EXCLUSIVE lock makes `integrity_check` report SQLITE_BUSY, and this
+    // function's contract is that anything other than corruption propagates —
+    // so without the timeout a passing backup turns a healthy database into a
+    // startup failure.
+    applySqliteBusyTimeout(db);
     final result = db.select('PRAGMA integrity_check;');
     // PRAGMA integrity_check returns either a single row {integrity_check:
     // 'ok'} on a healthy database, or one or more rows describing the

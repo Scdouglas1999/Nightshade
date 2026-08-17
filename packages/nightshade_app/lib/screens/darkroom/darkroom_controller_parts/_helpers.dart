@@ -37,6 +37,12 @@ const int kDarkroomPreviewMaxDimension = 1600;
 /// and white points. See [DarkroomParamSpec.isSliderRanged].
 const double kDarkroomSliderMaxSpan = 10000.0;
 
+/// Registry id of the color calibration.
+///
+/// The one operation the editor lends catalogue photometry to, so it is the one
+/// step whose presence decides whether a missing catalogue is worth reporting.
+const String kDarkroomColorCalibrateOpId = 'color_calibrate';
+
 /// Wire schema version of the recipe envelope this build writes. It matches the
 /// recipe engine's `RECIPE_SCHEMA_VERSION`; an envelope at any other version is
 /// refused by the engine rather than reinterpreted.
@@ -78,14 +84,31 @@ List<DarkroomStep> decodeDarkroomSteps(String stepsJson) {
   }
   if (decoded is! List) {
     throw DarkroomRecipeFormatException(
-      'the stored step list is a ${decoded.runtimeType}, and a recipe stores a '
-      'JSON array of steps',
+      'the stored step list is ${darkroomJsonKind(decoded)}, and a recipe '
+      'stores a JSON array of steps',
     );
   }
   return [
     for (var i = 0; i < decoded.length; i++)
       DarkroomStep.fromJson(decoded[i], index: i),
   ];
+}
+
+/// Name a decoded JSON value the way JSON names it.
+///
+/// The refusals below tell the operator what the row holds instead of a step
+/// list, and `jsonDecode` answers with Dart's own private implementation
+/// classes — `_Map<String, dynamic>`, `_GrowableList` — whose spelling means
+/// nothing to anyone reading the screen. This says "a JSON object" instead,
+/// which is the same fact in the vocabulary of the file being read.
+String darkroomJsonKind(Object? value) {
+  if (value == null) return 'null';
+  if (value is Map) return 'a JSON object';
+  if (value is List) return 'a JSON array';
+  if (value is String) return 'a JSON string';
+  if (value is num) return 'a JSON number';
+  if (value is bool) return 'a JSON boolean';
+  return 'not a value JSON can carry';
 }
 
 /// Read a JSON number as a double, or null when the value is not a finite

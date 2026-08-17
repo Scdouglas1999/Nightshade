@@ -65,6 +65,23 @@ fn a_stack_with_a_skipped_step_renders_identically() {
 }
 
 #[test]
+fn a_stack_carrying_a_disabled_step_this_build_cannot_run_renders_identically() {
+    let base = Arc::new(synthetic_star_field(64, 48, 1, 23));
+    let registry = test_registry();
+    let ctx = OpContext::new().with_catalog(fixed_catalog());
+    let mut carrying = full_stack();
+    carrying
+        .steps
+        .insert(2, RecipeStep::new("no_such_op", 4).with_enabled(false));
+
+    let carried = assert_deterministic(&carrying, &base, &registry, &ctx, RenderOptions::full())
+        .expect("a step this build cannot run is disabled, so the stack still renders");
+    let plain = assert_deterministic(&full_stack(), &base, &registry, &ctx, RenderOptions::full())
+        .expect("the same stack without it renders");
+    assert_pixels_identical(&carried.image, &plain.image, "disabled unregistered step");
+}
+
+#[test]
 fn every_geometry_and_channel_count_renders_identically() {
     let registry = test_registry();
     let ctx = OpContext::new().with_catalog(fixed_catalog());

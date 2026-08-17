@@ -121,6 +121,46 @@ fn the_stage_rule_reads_disabled_steps_too() {
 }
 
 #[test]
+fn a_disabled_step_this_build_cannot_run_blocks_nothing_until_it_is_enabled() {
+    let mut recipe = recipe_of(vec![
+        scale_step(2.0),
+        RecipeStep::new("no_such_op", 4).with_enabled(false),
+    ]);
+    assert_eq!(
+        validate(&recipe, &test_registry()),
+        Ok(()),
+        "a step that will not run needs no operation to run it"
+    );
+
+    recipe.steps[1].enabled = true;
+    assert_eq!(
+        validate(&recipe, &test_registry()),
+        Err(RecipeError::UnknownOp {
+            index: 1,
+            op_id: "no_such_op".to_string(),
+            op_version: 4,
+        }),
+        "enabling it puts the operation this build lacks back on the render path"
+    );
+}
+
+#[test]
+fn the_stage_rule_reads_past_a_disabled_step_this_build_cannot_place() {
+    let recipe = recipe_of(vec![
+        RecipeStep::new("test_stretch", 1),
+        RecipeStep::new("no_such_op", 4).with_enabled(false),
+        scale_step(3.0),
+    ]);
+    assert!(
+        matches!(
+            validate(&recipe, &test_registry()),
+            Err(RecipeError::StageOrder { index: 2, .. })
+        ),
+        "a step with no stage in this build hides neither the stretch below it nor the linear step above it"
+    );
+}
+
+#[test]
 fn a_recipe_that_parents_itself_is_rejected() {
     let mut recipe = recipe_of(vec![scale_step(2.0)]);
     recipe.parent = Some(RecipeParent {
@@ -230,6 +270,29 @@ fn a_disabled_step_passes_the_image_through_and_is_reported() {
     assert_eq!(out.image.data()[0], base.data()[0] * 2.0);
     assert_eq!(out.report.steps[1].outcome, StepOutcome::Disabled);
     assert_eq!(out.report.steps.len(), 2);
+}
+
+#[test]
+fn a_disabled_step_this_build_cannot_run_renders_as_disabled() {
+    let base = base_image();
+    let recipe = recipe_of(vec![
+        scale_step(2.0),
+        RecipeStep::new("no_such_op", 4).with_enabled(false),
+        scale_step(3.0),
+    ]);
+    let mut cache = RenderCache::unbounded();
+    let out = render_full(
+        &recipe,
+        &base,
+        &test_registry(),
+        &mut cache,
+        &OpContext::new(),
+    )
+    .expect("the enabled steps render over a step this build cannot run");
+    assert_eq!(out.image.data()[0], base.data()[0] * 6.0);
+    assert_eq!(out.report.steps.len(), 3);
+    assert_eq!(out.report.steps[1].op_id, "no_such_op");
+    assert_eq!(out.report.steps[1].outcome, StepOutcome::Disabled);
 }
 
 #[test]

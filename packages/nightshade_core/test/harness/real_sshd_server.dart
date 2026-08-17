@@ -131,15 +131,17 @@ class RealSshdServer {
     await _generateKey(p.join(root.path, 'host_key'));
     await _generateKey(p.join(root.path, 'user_key'));
     await _generateKey(p.join(root.path, 'unauthorized_key'));
-    await File(
-      p.join(root.path, 'authorized_keys'),
-    ).writeAsString(await File(p.join(root.path, 'user_key.pub')).readAsString());
+    await File(p.join(root.path, 'authorized_keys')).writeAsString(
+      await File(p.join(root.path, 'user_key.pub')).readAsString(),
+    );
 
     final port = await _firstFreePort();
     final config = await _writeConfig(root: root, port: port, banner: banner);
     final process = await _launch(root: root, config: config, port: port);
 
-    final hostKey = await File(p.join(root.path, 'host_key.pub')).readAsString();
+    final hostKey = await File(
+      p.join(root.path, 'host_key.pub'),
+    ).readAsString();
     return RealSshdServer._(
       root: root,
       port: port,
@@ -266,11 +268,10 @@ class RealSshdServer {
       } on SocketException {
         // Not up yet. If it died on the way up, say why rather than waiting
         // out the deadline.
-        final exited = await process.exitCode
-            .timeout(
-              const Duration(milliseconds: 50),
-              onTimeout: () => _stillRunningSentinel,
-            );
+        final exited = await process.exitCode.timeout(
+          const Duration(milliseconds: 50),
+          onTimeout: () => _stillRunningSentinel,
+        );
         if (exited != _stillRunningSentinel) {
           final log = File(p.join(root.path, 'sshd.log'));
           throw StateError(

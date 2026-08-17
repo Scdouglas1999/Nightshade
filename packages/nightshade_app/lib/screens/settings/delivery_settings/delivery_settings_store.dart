@@ -38,7 +38,7 @@ class DeliveryDestinationView {
   /// The `delivery_targets` row.
   final ArtifactDestination destination;
 
-  /// Journal rows for the most recent job that touched this destination,
+  /// Journal rows for the NEWEST JOB that delivered to this destination,
   /// newest update first. Empty when nothing has ever been attempted here.
   final List<DeliveryJournalEntry> lastRun;
 
@@ -103,6 +103,21 @@ abstract class DeliverySettingsStore {
   /// Delete a destination, including its keyring entry.
   Future<void> deleteDestination(int id);
 
+  /// Put the newest job's spent rows on [destinationId] back in the retry
+  /// queue, and answer how many were re-queued.
+  ///
+  /// A `failed` row is the end of the line: the sweep reads only `retrying`
+  /// rows, so nothing on the rig ever looks at that file again. The operator
+  /// who mounts the share, frees the space or moves the conflicting file has
+  /// no way to say so — which is what this is. Attempts are reset to zero, so
+  /// the file gets the whole budget again rather than one attempt at the
+  /// maximum backoff.
+  ///
+  /// Only the newest job's rows: older nights' failures were already reported
+  /// and closed, and re-queueing a fortnight of them would spend the night's
+  /// bandwidth on files the operator did not ask about.
+  Future<int> requeueTerminalRows(int destinationId);
+
   /// Write [value] into the keyring and point the row's `secret_ref` at it.
   Future<void> storeSecret(int destinationId, String value);
 
@@ -140,7 +155,7 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
       views.add(
         DeliveryDestinationView(
           destination: destination,
-          lastRun: _mostRecentRun(entries),
+          lastRun: _newestJobRows(entries),
           secret: secret.state,
           secretError: secret.error,
         ),
@@ -172,20 +187,37 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
     }
   }
 
-  /// The journal rows belonging to the newest job that touched this
-  /// destination. `listForTarget` returns newest-updated first, so the first
-  /// row names the job; everything else from that job joins it.
+  /// The journal rows belonging to the NEWEST JOB that delivered to this
+  /// destination, in `listForTarget`'s newest-updated-first order.
   ///
-  /// Joining on the job id rather than taking the first N rows is deliberate:
-  /// a retry sweep updates rows from an older job, so a positional slice would
-  /// mix two nights into one sentence.
-  static List<DeliveryJournalEntry> _mostRecentRun(
+  /// The newest job, not the newest-touched row. Those are different rows the
+  /// moment the overnight sweep re-attempts an older night: the sweep writes
+  /// `updated_at` on a row from two nights ago, which lifts that row to the top
+  /// of `listForTarget` and made this page report THAT job. An operator whose
+  /// latest night failed and whose previous night was finally delivered at
+  /// 06:20 therefore read a green "Delivered 06:20" and no sign of the failure
+  /// — the one sentence the page exists to get right.
+  ///
+  /// A job is dated by the newest row it created, because that is when its
+  /// delivery started; the higher `darkroom_jobs.id` breaks a tie, since the
+  /// column is an autoincrement and the later job always holds the larger one.
+  static List<DeliveryJournalEntry> _newestJobRows(
     List<DeliveryJournalEntry> entries,
   ) {
     if (entries.isEmpty) return const <DeliveryJournalEntry>[];
-    final jobId = entries.first.jobId;
+    var newestJobId = entries.first.jobId;
+    var newestStartedAt = entries.first.createdAt;
+    for (final entry in entries.skip(1)) {
+      final startedAt = entry.createdAt;
+      final isNewer = startedAt.isAfter(newestStartedAt) ||
+          (!startedAt.isBefore(newestStartedAt) && entry.jobId > newestJobId);
+      if (isNewer) {
+        newestJobId = entry.jobId;
+        newestStartedAt = entry.createdAt;
+      }
+    }
     return entries
-        .where((entry) => entry.jobId == jobId)
+        .where((entry) => entry.jobId == newestJobId)
         .toList(growable: false);
   }
 
@@ -234,6 +266,22 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
       await _secrets.delete(ref);
     }
     await _targets.deleteTarget(id);
+  }
+
+  @override
+  Future<int> requeueTerminalRows(int destinationId) async {
+    final rows = _newestJobRows(await _journal.listForTarget(destinationId));
+    var requeued = 0;
+    for (final row in rows) {
+      if (row.state != DeliveryAttemptState.failed) continue;
+      await _journal.requeueForRetry(
+        targetId: row.targetId,
+        jobId: row.jobId,
+        filePath: row.filePath,
+      );
+      requeued++;
+    }
+    return requeued;
   }
 
   @override
@@ -358,6 +406,20 @@ final deliveryDestinationsProvider =
     FutureProvider.autoDispose<List<DeliveryDestinationView>>((ref) {
   return ref.watch(deliverySettingsStoreProvider).listDestinations();
 });
+
+/// Runs one delivery retry pass and answers what it did, or null when a pass
+/// was already in flight and this one was folded into it.
+typedef DeliverySweepRequest = Future<DeliveryRunReport?> Function();
+
+/// Runs the retry sweep the operator's "Retry now" asks for.
+///
+/// A seam over [deliveryRetrySweeperProvider] so a widget test can drive the
+/// action without the real transports reaching for a filesystem or an SSH
+/// host. Production reads the same sweeper the overnight timer arms, which is
+/// what keeps one pass at a time over one journal.
+final deliverySweepRequestProvider = Provider<DeliverySweepRequest>(
+  (ref) => ref.watch(deliveryRetrySweeperProvider).sweepOnce,
+);
 
 /// Reads the devices currently paired with this install.
 typedef PairedDesktopReader = Future<List<PairedDevice>> Function();

@@ -36,6 +36,29 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// Per-step verdicts the next validate answers with, by index.
   Map<int, String> stepErrors = {};
 
+  /// `opId@opVersion` keys this scripted build does not register.
+  ///
+  /// Keyed on the operation rather than on a position, because that is what the
+  /// engine's registry is keyed on — and because a test that filtered steps out
+  /// of the render request would otherwise have to renumber its own fixture.
+  /// Both entry points behave the way the engine does: `validate` diagnoses
+  /// every step and refuses the recipe as a whole, and `renderPreview` refuses
+  /// before it touches a pixel — a step being switched off does not excuse it,
+  /// which is exactly why the editor may not send it.
+  Set<String> unregisteredOps = {};
+
+  static String _opKey(Map<String, dynamic> step) =>
+      '${step['opId']}@${step['opVersion']}';
+
+  /// The first step of [steps] this build does not register, or null.
+  int? _firstUnregistered(List<dynamic> steps) {
+    for (var i = 0; i < steps.length; i++) {
+      final step = steps[i] as Map<String, dynamic>;
+      if (unregisteredOps.contains(_opKey(step))) return i;
+    }
+    return null;
+  }
+
   /// Step indices the next preview reports as skipped, with the reason.
   Map<int, String> skipReasons = {};
 
@@ -71,9 +94,13 @@ class _ScriptedDarkroom implements DarkroomSeam {
     }
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
+    final unknown = _firstUnregistered(steps);
     return {
-      'ok': validateOk,
-      'error': validateOk ? null : validateError,
+      'ok': validateOk && unknown == null,
+      'error': unknown != null
+          ? 'step $unknown: no operation registered as '
+              '${_opKey(steps[unknown] as Map<String, dynamic>)}'
+          : (validateOk ? null : validateError),
       'steps': [
         for (var i = 0; i < steps.length; i++)
           {
@@ -81,9 +108,17 @@ class _ScriptedDarkroom implements DarkroomSeam {
             'opId': (steps[i] as Map<String, dynamic>)['opId'],
             'opVersion': (steps[i] as Map<String, dynamic>)['opVersion'],
             'enabled': (steps[i] as Map<String, dynamic>)['enabled'],
-            'registered': true,
-            'valid': !stepErrors.containsKey(i),
-            if (stepErrors.containsKey(i)) 'error': stepErrors[i],
+            'registered': !unregisteredOps
+                .contains(_opKey(steps[i] as Map<String, dynamic>)),
+            'valid': !stepErrors.containsKey(i) &&
+                !unregisteredOps
+                    .contains(_opKey(steps[i] as Map<String, dynamic>)),
+            if (unregisteredOps
+                .contains(_opKey(steps[i] as Map<String, dynamic>)))
+              'error': 'no operation registered as '
+                  '${_opKey(steps[i] as Map<String, dynamic>)}'
+            else if (stepErrors.containsKey(i))
+              'error': stepErrors[i],
           },
       ],
     };
@@ -108,6 +143,15 @@ class _ScriptedDarkroom implements DarkroomSeam {
     }
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
+    final unknown = _firstUnregistered(steps);
+    if (unknown != null) {
+      throw DarkroomSeamException(
+        'renderPreview',
+        'step $unknown: no operation registered as '
+            '${_opKey(steps[unknown] as Map<String, dynamic>)}',
+        StateError('unregistered op'),
+      );
+    }
     return DarkroomRenderedPreview(
       width: 4,
       height: 4,
@@ -257,14 +301,25 @@ const String _masterPath = '/tmp/nightshade-test/m31_L.fits';
 Map<String, dynamic> _step(
   String opId, {
   bool enabled = true,
+  int opVersion = 1,
   Map<String, dynamic> params = const {},
 }) {
   return {
     'opId': opId,
-    'opVersion': 1,
+    'opVersion': opVersion,
     'params': params,
     'enabled': enabled,
   };
+}
+
+/// The `(opId, opVersion)` pairs one render request carried, in order.
+List<String> _askedOps(String recipeJson) {
+  final steps = (jsonDecode(recipeJson) as Map<String, dynamic>)['steps']
+      as List<dynamic>;
+  return [
+    for (final step in steps)
+      '${(step as Map<String, dynamic>)['opId']}@${step['opVersion']}',
+  ];
 }
 
 void main() {
@@ -302,10 +357,36 @@ void main() {
     );
   }
 
+  /// Hold one scope's controller open for the length of the test.
+  ///
+  /// The provider is autoDispose — a controller that outlives the screen that
+  /// made it is what served a stale recipe row — so a bare `container.read`
+  /// builds a controller and tears it down again before its load settles. This
+  /// subscription is what a mounted screen's `ref.watch` does; the container's
+  /// own teardown closes it.
+  void open(DarkroomScope scope) {
+    container.listen<DarkroomState>(
+      darkroomControllerProvider(scope),
+      (_, __) {},
+      fireImmediately: true,
+    );
+  }
+
+  /// Let the edit debounce elapse and the validate/render pair that follows it
+  /// run to completion.
+  Future<void> pumpDebounces() async {
+    await Future<void>.delayed(
+      kDarkroomSaveDebounce + const Duration(milliseconds: 80),
+    );
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
   /// Read the state after the load, the catalogue fetch and the first render
   /// have all settled.
   Future<DarkroomState> settle(DarkroomScope scope) async {
-    container.read(darkroomControllerProvider(scope).notifier);
+    open(scope);
     for (var i = 0; i < 12; i++) {
       await Future<void>.delayed(Duration.zero);
     }
@@ -812,5 +893,288 @@ void main() {
     final state = await settle(DarkroomScope.recipe(id));
     expect(state.loadError, contains('JSON array of steps'));
     expect(state.hasRecipe, isFalse);
+    // The operator is told what the row holds in the vocabulary of the file
+    // being read, not in Dart's private class names.
+    expect(state.loadError, contains('a JSON object'));
+    expect(state.loadError, isNot(contains('_Map')));
+    expect(state.loadError, isNot(contains('dynamic')));
+  });
+
+  test('a step this build cannot run blocks the render while it is on',
+      () async {
+    darkroom.unregisteredOps = {'stretch@99'};
+    final id = await seedRecipe(
+      steps: [
+        _step('background_extract'),
+        _step('stretch', opVersion: 99),
+      ],
+    );
+    final state = await settle(DarkroomScope.recipe(id));
+
+    expect(
+        state.renderError, contains('no operation registered as stretch@99'));
+    expect(state.blockingRecipeError,
+        contains('no operation registered as stretch@99'));
+    expect(state.issueFor(1)!.registered, isFalse);
+    // The render was asked about it, because it is switched on: leaving an
+    // enabled step out would render a recipe the operator did not write.
+    expect(_askedOps(darkroom.previewRecipes.last), [
+      'background_extract@1',
+      'stretch@99',
+    ]);
+  });
+
+  test('switching that step off renders the rest and states the omission',
+      () async {
+    darkroom.unregisteredOps = {'stretch@99'};
+    final id = await seedRecipe(
+      steps: [
+        _step('background_extract'),
+        _step('stretch', opVersion: 99),
+      ],
+    );
+    final scope = DarkroomScope.recipe(id);
+    await settle(scope);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+
+    controller.toggleStep(1);
+    await pumpDebounces();
+
+    // The render replays enabled steps only, so a step that is off cannot be
+    // what stops it — and now does not.
+    expect(_askedOps(darkroom.previewRecipes.last), ['background_extract@1']);
+    expect(controller.state.renderError, isNull);
+    expect(controller.state.preview, isNotNull);
+    expect(controller.state.blockingRecipeError, isNull);
+    // The step still says, on its own card, what this build cannot do with it.
+    expect(controller.state.issueFor(1)!.registered, isFalse);
+    expect(controller.state.isOmittedFromRender(1), isTrue);
+    expect(controller.state.isOmittedFromRender(0), isFalse);
+  });
+
+  test('a refusal over a filtered request says what its step number counts',
+      () async {
+    darkroom.unregisteredOps = {'denoise@99', 'chrono_warp@1'};
+    final id = await seedRecipe(
+      steps: [
+        _step('background_extract'),
+        _step('denoise', opVersion: 99, enabled: false),
+        _step('chrono_warp'),
+        _step('stretch'),
+      ],
+    );
+    final state = await settle(DarkroomScope.recipe(id));
+
+    // The disabled step is left out, so the engine numbers chrono_warp 1 while
+    // the operator counts it third in the panel.
+    expect(state.renderError, contains('chrono_warp@1'));
+    expect(state.renderError, contains('step 1'));
+    expect(
+      state.renderError,
+      contains('asked without 1 switched-off step this build cannot run'),
+    );
+  });
+
+  test('a disabled step this build DOES register stays in the render',
+      () async {
+    final id = await seedRecipe(
+      steps: [_step('background_extract'), _step('stretch', enabled: false)],
+    );
+    final state = await settle(DarkroomScope.recipe(id));
+
+    // The engine is the one that reports a step as disabled, and it can only do
+    // that for a step it was given.
+    expect(_askedOps(darkroom.previewRecipes.last), [
+      'background_extract@1',
+      'stretch@1',
+    ]);
+    expect(state.isOmittedFromRender(1), isFalse);
+    expect(state.reportFor(1)!.outcome, DarkroomStepOutcome.disabled);
+  });
+
+  test('removing a step takes it out of the recipe, and undo puts it back',
+      () async {
+    darkroom.unregisteredOps = {'stretch@99'};
+    final id = await seedRecipe(
+      steps: [
+        _step('background_extract'),
+        _step('stretch', opVersion: 99, params: {'blackPoint': 12.0}),
+      ],
+    );
+    final scope = DarkroomScope.recipe(id);
+    await settle(scope);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+
+    controller.removeStep(1);
+    await pumpDebounces();
+
+    expect(controller.state.steps.map((s) => s.opId), ['background_extract']);
+    expect(controller.state.renderError, isNull);
+    expect(controller.state.canUndo, isTrue);
+    final stored = await recipes.getById(id);
+    expect(jsonDecode(stored!.stepsJson), hasLength(1));
+
+    controller.undo();
+    await pumpDebounces();
+
+    expect(controller.state.steps.map((s) => s.opId), [
+      'background_extract',
+      'stretch',
+    ]);
+    // The parameters come back with it — an undo restores the step, not a
+    // freshly defaulted one.
+    expect(controller.state.steps[1].params['blackPoint'], 12.0);
+  });
+
+  test('an outcome follows its own step when the stack shifts under it',
+      () async {
+    final id = await seedRecipe(
+      steps: [_step('background_extract'), _step('stretch')],
+    );
+    final scope = DarkroomScope.recipe(id);
+    final first = await settle(scope);
+    expect(first.reportFor(0)!.opId, 'background_extract');
+    expect(first.reportFor(1)!.opId, 'stretch');
+
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+    // Hold the next render inside the engine, so the stack is read in the gap
+    // between the edit and the outcomes that will describe it — the state the
+    // operator sees for the length of the debounce.
+    darkroom.holdPreview = Completer<void>();
+    controller.removeStep(0);
+    await pumpDebounces();
+
+    expect(controller.state.steps.map((s) => s.opId), ['stretch']);
+    // Index 0 is now the stretch. The line the engine wrote for index 0 was
+    // about the background extraction, which is no longer in the recipe at all;
+    // reading it onto this card is how a step wears an outcome nothing produced
+    // for it.
+    expect(controller.state.reportFor(0)!.opId, 'stretch');
+  });
+
+  test('a reload onto a changed row badges nothing from the render before it',
+      () async {
+    final id = await seedRecipe(
+      steps: [_step('background_extract'), _step('stretch')],
+    );
+    final scope = DarkroomScope.recipe(id);
+    final first = await settle(scope);
+    expect(first.reportFor(0)!.outcome, DarkroomStepOutcome.applied);
+
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+    // The row changes behind the editor's back and the operator presses Reload;
+    // the render then refuses on the step this build cannot run.
+    darkroom.unregisteredOps = {'denoise@99'};
+    await recipes.updateSteps(
+      id,
+      jsonEncode([
+        _step('background_extract'),
+        _step('denoise', opVersion: 99),
+        _step('stretch'),
+      ]),
+    );
+    await controller.refresh();
+    await pumpDebounces();
+
+    expect(controller.state.renderError,
+        contains('no operation registered as denoise@99'));
+    expect(controller.state.reports, isEmpty);
+    for (var i = 0; i < controller.state.steps.length; i++) {
+      expect(controller.state.reportFor(i), isNull);
+    }
+  });
+
+  test('a render that does not finish leaves no outcomes behind', () async {
+    final id = await seedRecipe(
+      steps: [_step('background_extract'), _step('stretch')],
+    );
+    final scope = DarkroomScope.recipe(id);
+    final first = await settle(scope);
+    expect(first.reportFor(0)!.outcome, DarkroomStepOutcome.applied);
+
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+    darkroom.previewError = const DarkroomSeamException(
+      'renderPreview',
+      "cannot read '/tmp/nightshade-test/m31_L.fits': No such file or directory",
+      'io',
+    );
+    await controller.refreshRender();
+    await pumpDebounces();
+
+    expect(controller.state.renderError, contains('No such file or directory'));
+    // Nothing was applied by the render that just failed, so no step may say it
+    // was.
+    expect(controller.state.reports, isEmpty);
+    expect(controller.state.reportFor(0), isNull);
+    expect(controller.state.reportFor(1), isNull);
+  });
+
+  test('re-opening a scope re-reads the row rather than serving what it held',
+      () async {
+    final id = await seedRecipe(
+      steps: [_step('background_extract'), _step('stretch')],
+    );
+    final scope = DarkroomScope.recipe(id);
+    final subscription = container.listen<DarkroomState>(
+      darkroomControllerProvider(scope),
+      (_, __) {},
+      fireImmediately: true,
+    );
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(
+        container.read(darkroomControllerProvider(scope)).steps, hasLength(2));
+
+    // The screen goes away, and the row changes behind the editor's back — the
+    // second entry point over the same master, another device, a repair.
+    subscription.close();
+    await Future<void>.delayed(Duration.zero);
+    await recipes.updateSteps(
+      id,
+      jsonEncode(
+          [_step('background_extract'), _step('denoise'), _step('stretch')]),
+    );
+
+    final reopened = await settle(scope);
+    expect(reopened.steps.map((s) => s.opId), [
+      'background_extract',
+      'denoise',
+      'stretch',
+    ]);
+  });
+
+  test(
+      'a scope whose row is gone re-opens as the sentinel, not as the row it '
+      'last held', () async {
+    final id = await seedRecipe(steps: [_step('background_extract')]);
+    final scope = DarkroomScope.recipe(id);
+    final subscription = container.listen<DarkroomState>(
+      darkroomControllerProvider(scope),
+      (_, __) {},
+      fireImmediately: true,
+    );
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(container.read(darkroomControllerProvider(scope)).hasRecipe, isTrue);
+
+    subscription.close();
+    await Future<void>.delayed(Duration.zero);
+    await recipes.deleteRecipe(id);
+
+    final reopened = await settle(scope);
+    expect(reopened.hasRecipe, isFalse);
+    expect(reopened.loadError, contains('Recipe $id does not exist'));
   });
 }

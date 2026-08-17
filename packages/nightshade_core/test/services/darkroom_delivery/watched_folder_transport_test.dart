@@ -12,6 +12,7 @@ import 'package:nightshade_core/src/services/darkroom_delivery/artifact_transpor
 import 'package:nightshade_core/src/services/darkroom_delivery/atomic_file_write.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_artifact.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_failure.dart';
+import 'package:nightshade_core/src/services/darkroom_delivery/delivery_naming.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/watched_folder_transport.dart';
 import 'package:path/path.dart' as p;
 
@@ -28,9 +29,16 @@ ArtifactDestination _destination({
   required String path,
   int? minFreeBytes,
   Set<ArtifactContent> content = const {ArtifactContent.linearMasters},
+  // Delivered names carry a rig-identity component, and the default is this
+  // machine's host name. These tests pin it to "" — deliver under the rig's
+  // own file names — so every existing assertion still describes the bytes and
+  // not the machine the suite happens to run on. The component itself is
+  // exercised in delivery_naming_test.dart and in the collision test below.
+  String rigId = '',
 }) {
   final config = <String, Object?>{
     'path': path,
+    kDeliveryRigIdKey: rigId,
     if (minFreeBytes != null) 'minFreeBytes': minFreeBytes,
   };
   return ArtifactDestination(
@@ -76,11 +84,13 @@ void main() {
     String? path,
     int freeBytes = 1 << 40,
     int? minFreeBytes,
+    String rigId = '',
   }) {
     return WatchedFolderTransport(
       destination: _destination(
         path: path ?? destinationDir.path,
         minFreeBytes: minFreeBytes,
+        rigId: rigId,
       ),
       jobId: 42,
       freeSpace: _FixedFreeSpace(freeBytes),
@@ -162,6 +172,75 @@ void main() {
       expect(failure.message, contains('M31_Ha_master.fits'));
       expect(failure.message, contains(artifact.checksum));
       expect(await squatter.readAsString(), 'SOMEBODY-ELSES-MASTER');
+    });
+
+    test('two rigs delivering the same file name into one folder both land, '
+        'because the delivered name says which rig wrote it', () async {
+      // The shape that cost a night: each rig's job counter starts at 1, so
+      // both write `job_1_report.json`, and delivery never overwrites. Before
+      // the delivered name carried a rig identity the second rig's file was
+      // refused as a `destinationConflict` — terminal, so no later attempt
+      // changed it, and the second rig's night simply never arrived.
+      final shed = await writeMaster(
+        'job_1_report.json',
+        contents: 'THE SHED RIG NIGHT',
+      );
+      final shedTransport = transportFor(rigId: 'shed-rig');
+      await shedTransport.open([shed]);
+      final shedOutcome = await shedTransport.deliver(shed);
+      await shedTransport.close();
+
+      // The second rig writes a file of the SAME name with different bytes.
+      final roofSource = await Directory(
+        p.join(tempDir.path, 'roof-source'),
+      ).create();
+      final roofFile = File(p.join(roofSource.path, 'job_1_report.json'));
+      await roofFile.writeAsString('THE ROOF RIG NIGHT');
+      final roof = await DeliveryArtifact.describeArtifact(
+        content: ArtifactContent.linearMasters,
+        path: roofFile.path,
+      );
+      final roofTransport = transportFor(rigId: 'roof-rig');
+      await roofTransport.open([roof]);
+      final roofOutcome = await roofTransport.deliver(roof);
+      await roofTransport.close();
+
+      expect(shedOutcome.disposition, DeliveryDisposition.delivered);
+      expect(roofOutcome.disposition, DeliveryDisposition.delivered);
+      final shedLanded = File(
+        p.join(destinationDir.path, 'shed-rig-job_1_report.json'),
+      );
+      final roofLanded = File(
+        p.join(destinationDir.path, 'roof-rig-job_1_report.json'),
+      );
+      expect(await shedLanded.readAsString(), 'THE SHED RIG NIGHT');
+      expect(
+        await roofLanded.readAsString(),
+        'THE ROOF RIG NIGHT',
+        reason: 'the second rig\'s night is on the share, not refused',
+      );
+      expect(
+        File(p.join(destinationDir.path, 'job_1_report.json')).existsSync(),
+        isFalse,
+        reason: 'nothing lands under the bare, colliding name',
+      );
+    });
+
+    test('a folder already holding this rig\'s own delivery is still '
+        'idempotent under the namespaced name', () async {
+      final artifact = await writeMaster('M31_Ha_master.fits');
+      final transport = transportFor(rigId: 'shed-rig');
+      await transport.open([artifact]);
+      final first = await transport.deliver(artifact);
+      final second = await transport.deliver(artifact);
+      await transport.close();
+
+      expect(first.disposition, DeliveryDisposition.delivered);
+      expect(second.disposition, DeliveryDisposition.delivered);
+      expect(
+        second.destinationDescription,
+        p.join(destinationDir.path, 'shed-rig-M31_Ha_master.fits'),
+      );
     });
   });
 
@@ -277,6 +356,7 @@ void main() {
       // the AtomicFileWrite here is exactly what a kill at that instant does.
       final staged = await AtomicFileWrite.stage(
         artifact: artifact,
+        deliveredName: artifact.fileName,
         directory: destinationDir,
         jobId: 42,
       );
@@ -303,6 +383,7 @@ void main() {
       await expectLater(
         AtomicFileWrite.stage(
           artifact: lying,
+          deliveredName: lying.fileName,
           directory: destinationDir,
           jobId: 42,
         ),
@@ -327,11 +408,13 @@ void main() {
 
       final first = await AtomicFileWrite.stage(
         artifact: artifact,
+        deliveredName: artifact.fileName,
         directory: destinationDir,
         jobId: 42,
       );
       final second = await AtomicFileWrite.stage(
         artifact: artifact,
+        deliveredName: artifact.fileName,
         directory: destinationDir,
         jobId: 42,
       );

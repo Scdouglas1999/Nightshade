@@ -72,6 +72,12 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // 'running' row at open belongs to a process that is gone.
         await _recoverInterruptedDarkroomJobs();
 
+        // Report a post-session integration a previous process died inside.
+        // That pass runs BEFORE any Darkroom job row exists, so the recovery
+        // above cannot see it and the night would otherwise go silent with a
+        // truncated master sitting on disk looking finished.
+        await _reportInterruptedIntegration();
+
         // Rebuild session statistics that a dead process never got to write.
         //
         // `imaging_sessions.total_exposures` / `total_integration_secs` are

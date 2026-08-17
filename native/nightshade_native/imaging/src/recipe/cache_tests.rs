@@ -84,6 +84,26 @@ fn disabling_a_step_returns_to_the_key_below_it() {
 }
 
 #[test]
+fn a_disabled_step_this_build_cannot_run_is_absent_from_the_key() {
+    let base = synthetic_star_field(8, 8, 1, 1);
+    let ctx = OpContext::new();
+    let plain = three_step_recipe();
+    let mut carrying = three_step_recipe();
+    carrying
+        .steps
+        .insert(1, RecipeStep::new("no_such_op", 4).with_enabled(false));
+    assert_eq!(
+        CacheKey::for_prefix(&plain, &base, &ctx, 0),
+        CacheKey::for_prefix(&carrying, &base, &ctx, 1),
+        "the key names the enabled prefix, and an operation this build lacks contributes no text to it"
+    );
+    assert_eq!(
+        CacheKey::for_prefix(&plain, &base, &ctx, 2),
+        CacheKey::for_prefix(&carrying, &base, &ctx, 3)
+    );
+}
+
+#[test]
 fn a_different_pyramid_level_is_a_different_key() {
     let base = synthetic_star_field(8, 8, 1, 1);
     let recipe = three_step_recipe();

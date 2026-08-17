@@ -142,6 +142,11 @@ class _DestinationRow extends ConsumerWidget {
                   ),
                   const SizedBox(height: NightshadeTokens.spaceXs),
                   _StatusLine(status: status),
+                  // The one state an operator can act on from here: every
+                  // attempt is spent, so nothing on the rig will look at those
+                  // files again until somebody says to.
+                  if (status.kind == DeliveryStatusKind.failed && id != null)
+                    _RetryNowButton(destination: destination, id: id),
                   if (destination.kind == ArtifactDestinationKind.peer) ...[
                     const SizedBox(height: 2),
                     _PeerPairingLine(destination: destination),
@@ -230,6 +235,121 @@ class _DestinationRow extends ConsumerWidget {
       }
     }
     ref.invalidate(deliveryDestinationsProvider);
+  }
+}
+
+/// Re-queues the spent rows of a destination's newest job and runs a sweep.
+///
+/// Shown only beside a `failed` status line, because that is the only state
+/// where nothing else is going to happen: `retrying` rows are already on the
+/// sweep's list and a second push at them would only reset a backoff that is
+/// doing its job.
+class _RetryNowButton extends ConsumerStatefulWidget {
+  const _RetryNowButton({required this.destination, required this.id});
+
+  final ArtifactDestination destination;
+  final int id;
+
+  @override
+  ConsumerState<_RetryNowButton> createState() => _RetryNowButtonState();
+}
+
+class _RetryNowButtonState extends ConsumerState<_RetryNowButton> {
+  bool _running = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceXs),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Semantics(
+          label: 'Retry delivery to ${widget.destination.name}',
+          child: NightshadeButton(
+            label: 'Retry now',
+            icon: LucideIcons.refreshCw,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            isLoading: _running,
+            onPressed: _running ? null : _retry,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _retry() async {
+    setState(() => _running = true);
+    final name = widget.destination.name;
+    try {
+      final store = ref.read(deliverySettingsStoreProvider);
+      final requeued = await store.requeueTerminalRows(widget.id);
+      if (requeued == 0) {
+        // The journal moved under the page — a sweep or a fresh run already
+        // took these rows. Saying "re-queued 0 files" would be a report of
+        // work that did not need doing, not of work that failed.
+        if (mounted) {
+          context.showInfoSnackBar(
+            'Nothing on $name is waiting to be retried any more; the list is '
+            'reloading.',
+          );
+        }
+        return;
+      }
+      final report = await ref.read(deliverySweepRequestProvider)();
+      if (!mounted) return;
+      context.showInfoSnackBar(_outcomeSentence(name, requeued, report));
+    } catch (error) {
+      if (mounted) {
+        context.showErrorSnackBar(
+          'Could not retry delivery to $name: ${userFacingError(error)}',
+        );
+      }
+    } finally {
+      // Both calls need a live element: `ref` on a disposed ConsumerState
+      // throws. A page the operator left behind re-reads the journal when it
+      // is opened again, because the destinations provider is autoDispose.
+      if (mounted) {
+        setState(() => _running = false);
+        ref.invalidate(deliveryDestinationsProvider);
+      }
+    }
+  }
+
+  /// What the sweep actually did with the re-queued files.
+  ///
+  /// A null [report] is a sweep that was already running when this one asked:
+  /// that pass read its work list before these rows went back on it, so the
+  /// files wait for the next tick. Saying they are being delivered right now
+  /// would be the claim this page exists to avoid.
+  String _outcomeSentence(
+      String name, int requeued, DeliveryRunReport? report) {
+    final files = requeued == 1 ? '1 file' : '$requeued files';
+    if (report == null) {
+      return 'Re-queued $files for $name with a fresh attempt budget. A '
+          'delivery sweep was already running, so the next one takes them.';
+    }
+    for (final swept in report.destinations) {
+      if (swept.targetId == widget.id) {
+        return 'Re-queued $files for $name, then the sweep reported '
+            '${_sweptCounts(swept)}.';
+      }
+    }
+    return 'Re-queued $files for $name with a fresh attempt budget. The sweep '
+        'that ran did not reach this destination, so the next one takes them.';
+  }
+
+  /// The sweep's own counts for this destination, so the sentence states what
+  /// happened to the files rather than that something happened.
+  static String _sweptCounts(DeliveryDestinationReport swept) {
+    final parts = <String>[
+      if (swept.delivered > 0) '${swept.delivered} delivered',
+      if (swept.awaitingPull > 0) '${swept.awaitingPull} awaiting a pull',
+      if (swept.retrying > 0) '${swept.retrying} owed another attempt',
+      if (swept.failed > 0) '${swept.failed} failed again',
+      if (swept.unjournalled > 0) '${swept.unjournalled} not journalled',
+    ];
+    return parts.isEmpty ? 'nothing was attempted' : parts.join(', ');
   }
 }
 

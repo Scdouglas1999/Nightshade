@@ -60,7 +60,7 @@ impl std::fmt::Debug for OpRegistry {
 
 impl OpRegistry {
     /// An empty registry. Renders against it succeed only for recipes with no
-    /// steps; every other recipe reports
+    /// enabled steps; every enabled step reports
     /// [`RecipeError::UnknownOp`](super::model::RecipeError::UnknownOp).
     pub fn new() -> Self {
         Self { ops: OpMap::new() }
@@ -145,8 +145,10 @@ impl OpRegistry {
 /// A line is added here and never removed: a recipe referencing an operation
 /// this list no longer carries stops rendering the image it was written for.
 /// Operations the v1 vocabulary names but that this list does not yet carry are
-/// reported as [`RecipeError::UnknownOp`](super::model::RecipeError::UnknownOp),
-/// which is the honest result for a build without them.
+/// reported as [`RecipeError::UnknownOp`](super::model::RecipeError::UnknownOp)
+/// wherever a recipe asks this build to run them, which is the honest result for
+/// a build without them. A step naming one while disabled runs nowhere, so it is
+/// listed as unregistered rather than refused.
 pub fn builtin_ops() -> Vec<Arc<dyn DarkroomOp>> {
     vec![
         Arc::new(ops::background_extract::BackgroundExtractV1),

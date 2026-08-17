@@ -86,10 +86,16 @@ class AtomicFileWrite {
     required this.stagedChecksum,
   });
 
-  /// Copy [artifact] into [directory] under a staged name and verify the
-  /// bytes that landed hash to [DeliveryFile.checksum].
+  /// Copy [artifact] into [directory] as [deliveredName] under a staged name,
+  /// and verify the bytes that landed hash to [DeliveryFile.checksum].
   ///
-  /// The staged name is derived from [jobId] and the file name, so a retry of
+  /// [deliveredName] is the name the destination sees, which is the rig's own
+  /// name carrying that destination's rig-identity component — see
+  /// `DeliveryNaming`. It is passed in rather than read off [artifact] because
+  /// one artifact is delivered to several destinations, and each of them may
+  /// namespace it differently.
+  ///
+  /// The staged name is derived from [jobId] and [deliveredName], so a retry of
   /// the same delivery reuses it instead of accumulating one staged file per
   /// attempt.
   ///
@@ -97,13 +103,14 @@ class AtomicFileWrite {
   /// is never left where a later attempt could mistake it for progress.
   static Future<AtomicFileWrite> stage({
     required DeliveryFile artifact,
+    required String deliveredName,
     required Directory directory,
     required int jobId,
   }) async {
-    final finalPath = p.join(directory.path, artifact.fileName);
+    final finalPath = p.join(directory.path, deliveredName);
     final stagedPath = p.join(
       directory.path,
-      '.${artifact.fileName}.$jobId$kStagedDeliverySuffix',
+      '.$deliveredName.$jobId$kStagedDeliverySuffix',
     );
     final staged = File(stagedPath);
 
@@ -112,6 +119,7 @@ class AtomicFileWrite {
     } on FileSystemException catch (error) {
       throw await _copyFailure(
         artifact: artifact,
+        deliveredName: deliveredName,
         directory: directory,
         staged: staged,
         error: error,
@@ -135,7 +143,7 @@ class AtomicFileWrite {
     if (landed != artifact.checksum) {
       throw DeliveryFailure(
         DeliveryFailureKind.checksumMismatch,
-        'The copy of ${artifact.fileName} in ${directory.path} hashes to '
+        'The copy of $deliveredName in ${directory.path} hashes to '
         '$landed, not ${artifact.checksum}${await _remove(staged)}',
       );
     }
@@ -185,6 +193,7 @@ class AtomicFileWrite {
   /// is worth another attempt.
   static Future<DeliveryFailure> _copyFailure({
     required DeliveryFile artifact,
+    required String deliveredName,
     required Directory directory,
     required File staged,
     required FileSystemException error,
@@ -196,7 +205,7 @@ class AtomicFileWrite {
     if (error.osError?.errorCode == 28) {
       return DeliveryFailure(
         DeliveryFailureKind.insufficientSpace,
-        'Copying ${artifact.fileName} to ${directory.path} failed: '
+        'Copying $deliveredName to ${directory.path} failed: '
         '${error.message}$trailer',
         cause: error,
       );
@@ -204,7 +213,7 @@ class AtomicFileWrite {
     if (!await File(artifact.sourcePath).exists()) {
       return DeliveryFailure(
         DeliveryFailureKind.sourceMissing,
-        'Copying ${artifact.fileName} to ${directory.path} failed '
+        'Copying $deliveredName to ${directory.path} failed '
         '(${error.message}) and ${artifact.sourcePath} is no longer on the '
         'rig$trailer',
         cause: error,
@@ -213,7 +222,7 @@ class AtomicFileWrite {
     if (error is PathAccessException) {
       return DeliveryFailure(
         DeliveryFailureKind.permissionDenied,
-        'Copying ${artifact.fileName} to ${directory.path} is not permitted '
+        'Copying $deliveredName to ${directory.path} is not permitted '
         '(${error.message}); ${artifact.sourcePath} is still on the '
         'rig$trailer',
         cause: error,

@@ -47,7 +47,8 @@ class DarkroomScope {
 ///
 /// The field names are the recipe engine's own wire keys (`opId`, `opVersion`,
 /// `params`, `enabled`); the engine decodes with `deny_unknown_fields`, so a key
-/// this class invents would be refused rather than ignored.
+/// this class invents would be refused rather than ignored — which is why
+/// [identity] is an app-side field that [toJson] never writes.
 @immutable
 class DarkroomStep {
   /// Registry id of the operation (`background_extract`, `stretch`, …).
@@ -66,12 +67,28 @@ class DarkroomStep {
   /// parameters survive — the non-destructive disable.
   final bool enabled;
 
-  const DarkroomStep({
+  /// This step's identity for the lifetime of the editor session.
+  ///
+  /// Every edit rebuilds the step as a new immutable value, so the OBJECT is
+  /// not a usable identity and the POSITION is not one either — a step moves,
+  /// and steps in front of it come and go. Two things join on this token
+  /// instead of on list order: the widget key of the step card, so a parameter
+  /// change re-renders the card rather than tearing it down mid-gesture, and
+  /// the per-step verdicts and render outcomes, so a report can never be read
+  /// onto a step the engine never had.
+  ///
+  /// Fresh for a step decoded from the row or built by a draft; carried
+  /// unchanged through [copyWith] and [withParam], which produce the SAME step
+  /// with something adjusted.
+  final Object identity;
+
+  DarkroomStep({
     required this.opId,
     required this.opVersion,
     required this.params,
     required this.enabled,
-  });
+    Object? identity,
+  }) : identity = identity ?? Object();
 
   /// Decode one entry of a stored `steps_json` array.
   ///
@@ -81,7 +98,8 @@ class DarkroomStep {
   factory DarkroomStep.fromJson(Object? raw, {required int index}) {
     if (raw is! Map<String, dynamic>) {
       throw DarkroomRecipeFormatException(
-        'step $index is a ${raw.runtimeType}, and every step is a JSON object',
+        'step $index is ${darkroomJsonKind(raw)}, and every step is a JSON '
+        'object',
       );
     }
     final opId = raw['opId'];
@@ -134,6 +152,7 @@ class DarkroomStep {
       opVersion: opVersion,
       params: params ?? this.params,
       enabled: enabled ?? this.enabled,
+      identity: identity,
     );
   }
 
@@ -600,6 +619,6 @@ class DarkroomStartOffer {
     required this.height,
   });
 
-  /// True when the master has the three channels the colour calibration fits.
+  /// True when the master has the three channels the color calibration fits.
   bool get isColor => channels == 3;
 }

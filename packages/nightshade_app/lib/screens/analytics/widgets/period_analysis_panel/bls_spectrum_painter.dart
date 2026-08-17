@@ -32,8 +32,10 @@ class _BlsSpectrumPainter extends StatelessWidget {
         trialPeriods: trialPeriods,
         srSpectrum: srSpectrum,
         bestPeriod: bestPeriod,
-        plotColor: NightshadeChartColors.seriesGreen,
-        peakColor: NightshadeChartColors.seriesAmber,
+        plotColor: NightshadeChartColors.forTheme(
+            NightshadeChartColors.seriesGreen, colors),
+        peakColor: NightshadeChartColors.forTheme(
+            NightshadeChartColors.seriesAmber, colors),
         borderColor: colors.border,
         textColor: colors.textSecondary,
         gridColor: colors.border.withValues(alpha: 0.3),

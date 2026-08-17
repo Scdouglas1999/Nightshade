@@ -52,12 +52,20 @@ void _swallowKnownOverflows() {
 List<Override> _overrides({
   SecretsStore? secrets,
   List<PairedDevice> pairedDevices = const <PairedDevice>[],
+  DeliverySweepRequest? sweep,
 }) {
   return [
     secretsStoreProvider.overrideWithValue(
       secrets ?? SecretsStore(InMemorySecureKeyValueStore()),
     ),
     pairedDesktopReaderProvider.overrideWithValue(() async => pairedDevices),
+    // The real seam builds the transports, which would reach for a filesystem
+    // and an SSH host from inside a widget test. What is under test here is
+    // the journal the action writes, so the sweep it then asks for is a
+    // double that records the ask.
+    deliverySweepRequestProvider.overrideWithValue(
+      sweep ?? () async => null,
+    ),
   ];
 }
 
@@ -66,13 +74,18 @@ Future<HarnessHandle> _pumpDelivery(
   NightshadeDatabase database, {
   SecretsStore? secrets,
   List<PairedDevice> pairedDevices = const <PairedDevice>[],
+  DeliverySweepRequest? sweep,
 }) {
   return pumpAppScreen(
     tester,
     const DeliverySettings(),
     database: database,
     size: const Size(1280, 1400),
-    extraOverrides: _overrides(secrets: secrets, pairedDevices: pairedDevices),
+    extraOverrides: _overrides(
+      secrets: secrets,
+      pairedDevices: pairedDevices,
+      sweep: sweep,
+    ),
   );
 }
 
@@ -388,6 +401,241 @@ void main() {
   );
 
   testWidgets(
+    'newest_job_outranks_newest_touched_row: a failing latest night is not '
+    'hidden by an older night the sweep finally delivered',
+    (tester) async {
+      // The shape that hid a lost night. `listForTarget` orders by
+      // `updated_at`, and the overnight sweep writes `updated_at` on rows from
+      // OLDER jobs — so the row at the top of that list belonged to the night
+      // before last, and this page reported ITS verdict. An operator whose
+      // latest night failed and whose previous night was finally delivered at
+      // 06:20 read a green "Delivered 06:20" and no sign of the failure.
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final journal = DeliveryJournalDao(database);
+      final jobs = DarkroomJobsDao(database);
+
+      final nightBeforeLast = DateTime.utc(2026, 8, 14, 6, 10);
+      final lastNight = DateTime.utc(2026, 8, 15, 6, 5);
+      final thisMorning = DateTime.utc(2026, 8, 16, 6, 20);
+
+      final target = await targets.create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.linearMasters},
+      );
+      final olderJob = await jobs.enqueue();
+      final newerJob = await jobs.enqueue();
+
+      await journal.recordAttempt(
+        targetId: target,
+        jobId: olderJob,
+        filePath: '/out/night14_L.fits',
+        bytes: 1024,
+        now: nightBeforeLast,
+      );
+      await journal.markRetrying(
+        targetId: target,
+        jobId: olderJob,
+        filePath: '/out/night14_L.fits',
+        error: 'destinationUnreachable: the share was not mounted',
+        now: nightBeforeLast,
+      );
+      await journal.recordAttempt(
+        targetId: target,
+        jobId: newerJob,
+        filePath: '/out/night15_L.fits',
+        bytes: 2048,
+        now: lastNight,
+      );
+      await journal.markFailed(
+        targetId: target,
+        jobId: newerJob,
+        filePath: '/out/night15_L.fits',
+        error: 'destinationConflict: that name is already there',
+        now: lastNight,
+      );
+      // The sweep gets the older night onto the NAS this morning, which makes
+      // its row the newest-TOUCHED row on this destination.
+      await journal.markDelivered(
+        targetId: target,
+        jobId: olderJob,
+        filePath: '/out/night14_L.fits',
+        checksum: 'abc',
+        now: thisMorning,
+      );
+
+      final rows = await journal.listForTarget(target);
+      expect(
+        rows.first.jobId,
+        olderJob,
+        reason: 'the premise: the newest-touched row belongs to the OLDER job',
+      );
+
+      await _pumpDelivery(tester, database);
+
+      expect(
+        find.textContaining('destinationConflict'),
+        findsOneWidget,
+        reason: 'the latest night failed, and that is what the row must say',
+      );
+      expect(
+        find.textContaining('Delivered '),
+        findsNothing,
+        reason: 'an older night delivered at 06:20 is not this destination\'s '
+            'current verdict, and painting it green hides a lost night',
+      );
+    },
+  );
+
+  testWidgets(
+    'retry_now_requeues_the_newest_job_terminal_rows_and_asks_for_a_sweep',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final journal = DeliveryJournalDao(database);
+      final jobs = DarkroomJobsDao(database);
+
+      final target = await targets.create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.linearMasters},
+      );
+      final oldJob = await jobs.enqueue();
+      final newJob = await jobs.enqueue();
+      // An older night's failure, already reported and closed.
+      await journal.recordAttempt(
+        targetId: target,
+        jobId: oldJob,
+        filePath: '/out/old.fits',
+        now: DateTime.utc(2026, 8, 14, 6),
+      );
+      await journal.markFailed(
+        targetId: target,
+        jobId: oldJob,
+        filePath: '/out/old.fits',
+        error: 'destinationUnreachable: gone',
+        now: DateTime.utc(2026, 8, 14, 6),
+      );
+      for (final file in const ['/out/L.fits', '/out/R.fits']) {
+        await journal.recordAttempt(
+          targetId: target,
+          jobId: newJob,
+          filePath: file,
+          now: DateTime.utc(2026, 8, 16, 6),
+        );
+        await journal.markFailed(
+          targetId: target,
+          jobId: newJob,
+          filePath: file,
+          error: 'destinationConflict: that name is already there',
+          now: DateTime.utc(2026, 8, 16, 6),
+        );
+      }
+
+      var sweeps = 0;
+      await _pumpDelivery(
+        tester,
+        database,
+        sweep: () async {
+          sweeps++;
+          return null;
+        },
+      );
+
+      expect(
+        find.text('Retry now'),
+        findsOneWidget,
+        reason: 'a spent row is the end of the line until somebody says '
+            'otherwise, so the page has to offer that somewhere',
+      );
+
+      await tester.tap(find.text('Retry now'));
+      await tester.pumpAndSettle();
+
+      final requeued = await journal.listForTarget(target);
+      final newest = requeued.where((e) => e.jobId == newJob).toList();
+      expect(newest, hasLength(2));
+      for (final entry in newest) {
+        expect(entry.state, DeliveryAttemptState.retrying);
+        expect(
+          entry.attempts,
+          0,
+          reason: 'the budget is reset, or the row is terminal again on its '
+              'first attempt',
+        );
+      }
+      expect(
+        requeued.singleWhere((e) => e.jobId == oldJob).state,
+        DeliveryAttemptState.failed,
+        reason: 'older nights were already reported and closed; re-queueing '
+            'them would spend the night on files nobody asked about',
+      );
+      expect(sweeps, 1, reason: '"Retry now" asks for a pass, not just a row');
+      expect(find.textContaining('Re-queued 2 files'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'editing_a_destination_requeues_what_the_edit_was_for',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final journal = DeliveryJournalDao(database);
+      final jobs = DarkroomJobsDao(database);
+
+      final target = await targets.create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/wrong"}',
+        content: {ArtifactContent.linearMasters},
+      );
+      final job = await jobs.enqueue();
+      await journal.recordAttempt(
+        targetId: target,
+        jobId: job,
+        filePath: '/out/L.fits',
+      );
+      await journal.markFailed(
+        targetId: target,
+        jobId: job,
+        filePath: '/out/L.fits',
+        error: 'destinationUnreachable: /mnt/wrong is not on the filesystem',
+      );
+
+      await _pumpDelivery(tester, database);
+      await tester.tap(find.byTooltip('Edit nas'));
+      await tester.pumpAndSettle();
+      await tester.enterText(_dialogTextFields().at(1), '/mnt/right');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(
+        decodeDestinationConfig(
+          (await targets.listAll()).single.configJson,
+        )['path'],
+        '/mnt/right',
+      );
+      final entry = (await journal.listForTarget(target)).single;
+      expect(
+        entry.state,
+        DeliveryAttemptState.retrying,
+        reason: 'fixing the folder is the operator answering the failure; a '
+            'row left spent means the fix delivers nothing',
+      );
+      expect(entry.attempts, 0);
+    },
+  );
+
+  testWidgets(
     'peer_without_pairing_says_nothing_can_pull',
     (tester) async {
       _swallowKnownOverflows();
@@ -480,6 +728,12 @@ void main() {
       await _pumpDelivery(tester, database, secrets: secrets);
       await tester.tap(find.text('Add SFTP destination'));
       await tester.pumpAndSettle();
+
+      // The transport's name is spelled once, in `deliveryKindLabel`, and every
+      // surface inherits that spelling. This header lowercased it and read
+      // "Add sftp" under the button that opened it.
+      expect(find.text('Add SFTP'), findsOneWidget);
+      expect(find.text('Add sftp'), findsNothing);
 
       // Name, Host, Port, User, Remote directory, Private key.
       await tester.enterText(_dialogTextFields().at(0), 'office-pc');

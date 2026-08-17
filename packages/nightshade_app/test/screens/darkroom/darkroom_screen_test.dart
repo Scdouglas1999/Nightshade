@@ -31,7 +31,24 @@ class _ScriptedDarkroom implements DarkroomSeam {
   Map<int, String> skipReasons = {};
   Completer<void>? holdPreview;
 
+  /// `opId@opVersion` keys this scripted build does not register, keyed on the
+  /// operation the way the engine's registry is. Both entry points then behave
+  /// as the engine does: `validate` diagnoses every step and refuses the recipe,
+  /// and `renderPreview` refuses before it touches a pixel.
+  Set<String> unregisteredOps = {};
+
   final List<Map<String, dynamic>> cancelArgs = [];
+
+  static String _opKey(Map<String, dynamic> step) =>
+      '${step['opId']}@${step['opVersion']}';
+
+  int? _firstUnregistered(List<dynamic> steps) {
+    for (var i = 0; i < steps.length; i++) {
+      final step = steps[i] as Map<String, dynamic>;
+      if (unregisteredOps.contains(_opKey(step))) return i;
+    }
+    return null;
+  }
 
   @override
   Future<Map<String, dynamic>> validate({
@@ -40,16 +57,27 @@ class _ScriptedDarkroom implements DarkroomSeam {
   }) async {
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
+    final unknown = _firstUnregistered(steps);
     return {
-      'ok': validateOk,
-      'error': validateOk ? null : validateError,
+      'ok': validateOk && unknown == null,
+      'error': unknown != null
+          ? 'step $unknown: no operation registered as '
+              '${_opKey(steps[unknown] as Map<String, dynamic>)}'
+          : (validateOk ? null : validateError),
       'steps': [
         for (var i = 0; i < steps.length; i++)
           {
             'index': i,
             'opId': (steps[i] as Map<String, dynamic>)['opId'],
-            'registered': true,
-            'valid': true,
+            'opVersion': (steps[i] as Map<String, dynamic>)['opVersion'],
+            'registered': !unregisteredOps
+                .contains(_opKey(steps[i] as Map<String, dynamic>)),
+            'valid': !unregisteredOps
+                .contains(_opKey(steps[i] as Map<String, dynamic>)),
+            if (unregisteredOps
+                .contains(_opKey(steps[i] as Map<String, dynamic>)))
+              'error': 'no operation registered as '
+                  '${_opKey(steps[i] as Map<String, dynamic>)}',
           },
       ],
     };
@@ -67,6 +95,15 @@ class _ScriptedDarkroom implements DarkroomSeam {
     }
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
+    final unknown = _firstUnregistered(steps);
+    if (unknown != null) {
+      throw DarkroomSeamException(
+        'renderPreview',
+        'step $unknown: no operation registered as '
+            '${_opKey(steps[unknown] as Map<String, dynamic>)}',
+        StateError('unregistered op'),
+      );
+    }
     return DarkroomRenderedPreview(
       width: 2,
       height: 2,
@@ -164,9 +201,14 @@ DawnPhotometryResolver _emptyPhotometry() {
 
 const String _masterPath = '/tmp/nightshade-test/m31_L.fits';
 
-Map<String, dynamic> _step(String opId, {bool enabled = true}) => {
+Map<String, dynamic> _step(
+  String opId, {
+  bool enabled = true,
+  int opVersion = 1,
+}) =>
+    {
       'opId': opId,
-      'opVersion': 1,
+      'opVersion': opVersion,
       'params': <String, dynamic>{},
       'enabled': enabled,
     };
@@ -437,7 +479,7 @@ void main() {
       ),
       findsWidgets,
     );
-    final alert = find.text('Colour calibration has no catalogue stars');
+    final alert = find.text('Color calibration has no catalogue stars');
     expect(alert, findsOneWidget);
     // Above the recipe's own identity block, which is the reference material
     // that pushed the reason past the fold at desktop width.
@@ -562,5 +604,147 @@ void main() {
     expect(find.text('Recipe'), findsWidgets);
     expect(find.text('History'), findsWidgets);
     expect(find.byType(AstroImageViewer), findsOneWidget);
+  });
+
+  testWidgets('a parameter slider follows the whole drag, not just its start',
+      (tester) async {
+    final id = await seedRecipe([_step('background_extract')]);
+    final scope = DarkroomScope.recipe(id);
+    // Tall enough that the expanded control is on screen: a gesture aimed
+    // outside the window hits nothing at all.
+    final handle = await pump(tester, scope, size: const Size(1280, 1400));
+
+    await tester.tap(find.text('Parameters'));
+    await tester.pump();
+    final slider = find.byType(NightshadeSlider);
+    expect(slider, findsOneWidget);
+
+    // Press on the middle of the track and sweep right in held steps, the way
+    // a finger or a mouse does. Every update in the gesture has to land: the
+    // card used to be re-keyed by the first one, which tore its subtree down
+    // and took the drag recognizer with it — the slider then took the value
+    // under the pointer at press and ignored the rest of the sweep.
+    num storedValue() => handle.container
+        .read(darkroomControllerProvider(scope))
+        .steps[0]
+        .params['sampleSpacing'] as num;
+
+    final box = tester.getRect(slider);
+    final gesture = await tester.startGesture(
+      Offset(box.left + 32, box.center.dy),
+    );
+    // The first move has to clear the drag slop before the slider hears
+    // anything at all; everything after it is the rest of the gesture.
+    await gesture.moveBy(const Offset(30, 0));
+    await tester.pump();
+    final afterFirstUpdate = storedValue();
+
+    for (var i = 0; i < 4; i++) {
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+    }
+    await gesture.up();
+    await tester.pump();
+
+    // Under the defect these two are equal: the first update re-keyed the card,
+    // the subtree was rebuilt, and the recognizer that would have delivered the
+    // rest of the sweep went with it.
+    expect(storedValue(), greaterThan(afterFirstUpdate));
+    await drain(tester);
+  });
+
+  testWidgets('the catalogue note is absent from a stack with no colour step',
+      (tester) async {
+    // The resolver is bound to an empty catalogue, so the photometry note is
+    // set on every recipe. It is about `color_calibrate` and nothing else.
+    final id = await seedRecipe([_step('background_extract')]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    expect(find.text('Color calibration has no catalogue stars'), findsNothing);
+    expect(find.textContaining('no catalogue star'), findsNothing);
+  });
+
+  testWidgets('a zero-step recipe reports no missing catalogue either', (
+    tester,
+  ) async {
+    final id = await seedRecipe(const []);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    expect(find.text('Nothing interpreted yet'), findsOneWidget);
+    expect(find.text('Color calibration has no catalogue stars'), findsNothing);
+  });
+
+  testWidgets('every step card names its own controls to a screen reader', (
+    tester,
+  ) async {
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('color_calibrate'),
+    ]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    final semantics = tester.ensureSemantics();
+    // Four sibling nodes all reading "Parameters, button" name no operation.
+    expect(
+      find.bySemanticsLabel('Background extract parameters'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Remove Background extract'), findsOneWidget);
+    expect(find.bySemanticsLabel('Remove Color calibrate'), findsOneWidget);
+    // color_calibrate publishes no parameters in this registry, so its card has
+    // no expander to name — and still has its own remove control.
+    expect(find.bySemanticsLabel('Color calibrate parameters'), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('an unregistered step keeps its controls as separate nodes', (
+    tester,
+  ) async {
+    darkroom.unregisteredOps = {'stretch@99'};
+    final id = await seedRecipe([_step('stretch', opVersion: 99)]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    final semantics = tester.ensureSemantics();
+    // The error case is exactly where the card used to collapse into one
+    // ~200-character toggle: with no registered spec it had a single focusable
+    // descendant and the whole card merged into it.
+    expect(find.bySemanticsLabel('Stretch enabled'), findsOneWidget);
+    expect(find.bySemanticsLabel('Remove Stretch'), findsOneWidget);
+    // The card's own node opens with the reorder label, exactly as a
+    // well-formed card's does, rather than the whole card being one control.
+    expect(find.bySemanticsLabel(RegExp('^Reorder Stretch')), findsOneWidget);
+    semantics.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('a step switched off stops blocking the stack', (tester) async {
+    darkroom.unregisteredOps = {'stretch@99'};
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch', opVersion: 99),
+    ]);
+    final scope = DarkroomScope.recipe(id);
+    final handle = await pump(tester, scope);
+
+    expect(find.text('This stack does not validate'), findsOneWidget);
+
+    handle.container
+        .read(darkroomControllerProvider(scope).notifier)
+        .toggleStep(1);
+    await drain(tester);
+
+    // The render replays enabled steps only, so a step that is off cannot make
+    // the stack unrenderable — and the panel stops saying it does.
+    expect(find.text('This stack does not validate'), findsNothing);
+    expect(find.text('The render did not finish'), findsNothing);
+    // The step itself still says what this build cannot do with it.
+    expect(
+      find.textContaining('This build registers no stretch@99'),
+      findsWidgets,
+    );
+    expect(
+      find.textContaining('left out of the render'),
+      findsOneWidget,
+    );
   });
 }

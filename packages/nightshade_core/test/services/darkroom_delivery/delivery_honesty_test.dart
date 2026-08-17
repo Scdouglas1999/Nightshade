@@ -137,6 +137,7 @@ void main() {
       await expectLater(
         AtomicFileWrite.stage(
           artifact: artifact,
+          deliveredName: artifact.fileName,
           directory: destination,
           jobId: 7,
         ),
@@ -170,6 +171,7 @@ void main() {
       await expectLater(
         AtomicFileWrite.stage(
           artifact: artifact,
+          deliveredName: artifact.fileName,
           directory: destination,
           jobId: 7,
         ),
@@ -197,6 +199,7 @@ void main() {
       await expectLater(
         AtomicFileWrite.stage(
           artifact: artifact,
+          deliveredName: artifact.fileName,
           directory: destination,
           jobId: 7,
         ),

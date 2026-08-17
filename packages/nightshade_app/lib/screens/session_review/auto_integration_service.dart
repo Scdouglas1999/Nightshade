@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -113,6 +114,31 @@ class ManualDarkroomRun {
   bool get succeeded => outcome?.succeeded ?? false;
 }
 
+/// Where the "an integration is in flight" marker is written — the directory
+/// that holds the database, so the marker travels with the profile it
+/// describes and is found by the same connection that opens it.
+///
+/// Resolves to null when there is no such path: a platform with no documents
+/// directory and no `NIGHTSHADE_DATABASE_DIR`. The integration still runs.
+/// Refusing to integrate a finished night because a warning file could not be
+/// placed would trade a real master for a diagnostic — but the cost is stated
+/// in the log rather than left to be discovered at the next crash.
+final integrationMarkerDirectoryProvider = FutureProvider<Directory?>((
+  ref,
+) async {
+  try {
+    return (await resolveDefaultDatabaseFile()).parent;
+  } catch (error) {
+    ref.read(loggingServiceProvider).warning(
+      'The integration crash marker has nowhere to live; an interrupted '
+      'integration will not be reported at the next launch',
+      source: 'AutoIntegrationService',
+      fields: {'error': '$error'},
+    );
+    return null;
+  }
+});
+
 /// Host-authoritative setting used by both the local rig and remote clients.
 final autoIntegrationEnabledProvider =
     FutureProvider.autoDispose<bool>((ref) async {
@@ -219,6 +245,27 @@ class AutoIntegrationService {
       );
     }
 
+    // Resolved only now that there is real work to guard: a night with the
+    // setting off or nothing to integrate has no window to crash in, and
+    // asking for the path anyway would log its failure at the end of every
+    // run instead of the ones it applies to.
+    final markerDir = await _markerDirectory();
+    try {
+      return await _integrate(sessionId, accepted, markerDir);
+    } finally {
+      // Cleared on EVERY ending the integration can reach — the success, the
+      // early returns, and the caught failures it reports as a result. Only a
+      // process that never gets here leaves the marker behind, which is
+      // exactly the interruption it exists to record.
+      if (markerDir != null) await clearIntegrationMarker(markerDir);
+    }
+  }
+
+  Future<AutoIntegrationResult> _integrate(
+    int sessionId,
+    List<DbCapturedImage> accepted,
+    Directory? markerDir,
+  ) async {
     final settings = await _loadDefaultSettings();
     final targetId = accepted
         .map((i) => i.targetId)
@@ -242,6 +289,23 @@ class AutoIntegrationService {
     var accumulatedRejected = 0;
     var accumulatedSeconds = 0.0;
     final accumulatedInto = <String>[];
+
+    // The window opens here, at the first fold, not at the batch integrate
+    // below: a kill during `addNight` strands the night just as completely.
+    // No paths yet — a fold writes into a master that already exists, so
+    // there is no half-created file to warn about until the batch phase
+    // rewrites this marker with the paths it is about to create.
+    if (markerDir != null) {
+      await markIntegrationStarted(
+        markerDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: targetName,
+          startedAtUtc: DateTime.now().toUtc(),
+          intendedMasterPaths: const [],
+        ),
+      );
+    }
 
     try {
       for (final bucket in byFilter.entries) {
@@ -291,6 +355,38 @@ class AutoIntegrationService {
     if (batchSubs.isNotEmpty) {
       try {
         final outDir = await _outputDir();
+        // One stamp for the whole run, so every master of one night shares it
+        // AND every path is known before the first byte is written. The
+        // marker below names those paths; a per-bucket `DateTime.now()` inside
+        // the builder would make them unknowable until after the write that
+        // the marker exists to warn about.
+        final stamp = DateTime.now().millisecondsSinceEpoch;
+        // The integrate service buckets `batchSubs` by the same rule this
+        // service used to build `byFilter` (trim, empty and null together), so
+        // the buckets it will produce are exactly these.
+        final intendedPaths = batchSubs
+            .map((sub) => _filterBucketOf(sub.filter))
+            .toSet()
+            .map(
+              (bucket) => _masterPath(
+                outDir: outDir,
+                targetName: targetName,
+                stamp: stamp,
+                filterBucket: bucket,
+              ),
+            )
+            .toList(growable: false);
+        if (markerDir != null) {
+          await markIntegrationStarted(
+            markerDir,
+            InterruptedIntegration(
+              sessionId: sessionId,
+              targetName: targetName,
+              startedAtUtc: DateTime.now().toUtc(),
+              intendedMasterPaths: intendedPaths,
+            ),
+          );
+        }
         final outcomes =
             await _ref.read(postSessionIntegrationServiceProvider).integrate(
                   subs: batchSubs,
@@ -298,15 +394,12 @@ class AutoIntegrationService {
                   targetId: targetId,
                   targetName: targetName,
                   runId: integrationRunIdFor(sessionId),
-                  outputFitsPathBuilder: (filterBucket) {
-                    final stamp = DateTime.now().millisecondsSinceEpoch;
-                    final base = _safeName(targetName ?? 'session');
-                    final tag = filterBucket ==
-                            PostSessionIntegrationService.noFilterBucket
-                        ? ''
-                        : '_${_safeName(filterBucket)}';
-                    return p.join(outDir, '$base${tag}_master_$stamp.fits');
-                  },
+                  outputFitsPathBuilder: (filterBucket) => _masterPath(
+                    outDir: outDir,
+                    targetName: targetName,
+                    stamp: stamp,
+                    filterBucket: filterBucket,
+                  ),
                 );
         batchSubsIntegrated =
             outcomes.fold<int>(0, (a, o) => a + o.result.framesIntegrated);
@@ -669,6 +762,39 @@ class AutoIntegrationService {
       return p.join(configured.trim(), 'masters');
     }
     return p.join('.', 'masters');
+  }
+
+  Future<Directory?> _markerDirectory() =>
+      _ref.read(integrationMarkerDirectoryProvider.future);
+
+  /// The bucket name [PostSessionIntegrationService] will file a sub under.
+  ///
+  /// Kept identical to that service's own rule (null and blank both collapse
+  /// to the no-filter bucket, everything else trims) so the master paths
+  /// predicted for the crash marker are the paths it actually writes.
+  static String _filterBucketOf(String? filter) {
+    final trimmed = (filter ?? '').trim();
+    return trimmed.isEmpty
+        ? PostSessionIntegrationService.noFilterBucket
+        : trimmed;
+  }
+
+  /// The master FITS path for one filter bucket of one integration run.
+  ///
+  /// The single source of both the predicted paths written to the crash marker
+  /// and the paths handed to the integrate service, so the two cannot drift
+  /// apart and name a file that was never written.
+  static String _masterPath({
+    required String outDir,
+    required String? targetName,
+    required int stamp,
+    required String filterBucket,
+  }) {
+    final base = _safeName(targetName ?? 'session');
+    final tag = filterBucket == PostSessionIntegrationService.noFilterBucket
+        ? ''
+        : '_${_safeName(filterBucket)}';
+    return p.join(outDir, '$base${tag}_master_$stamp.fits');
   }
 
   static String _safeName(String raw) {

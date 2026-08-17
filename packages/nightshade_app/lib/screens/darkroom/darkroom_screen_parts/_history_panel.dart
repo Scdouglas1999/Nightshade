@@ -18,6 +18,9 @@ class _DarkroomHistoryPanel extends StatefulWidget {
   final void Function(int index) onToggle;
   final void Function(int index, String name, Object? value) onParamChanged;
 
+  /// Takes the step out of the recipe. Journalled, so Undo restores it.
+  final void Function(int index) onRemove;
+
   /// Asks the engine whether the candidate order is legal and, when it is,
   /// commits it. Answers false when the move was refused.
   final Future<bool> Function(int oldIndex, int newIndex) onReorder;
@@ -26,6 +29,7 @@ class _DarkroomHistoryPanel extends StatefulWidget {
     required this.state,
     required this.onToggle,
     required this.onParamChanged,
+    required this.onRemove,
     required this.onReorder,
   });
 
@@ -52,7 +56,11 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               ? 'No steps — this renders the linear master'
               : 'Applied top to bottom',
         ),
-        if (state.recipeError != null)
+        // The engine's whole-stack refusal, and only while it is about a step
+        // the render will actually replay: a refusal naming a step the operator
+        // has already switched off describes a recipe that is not the one being
+        // rendered. The switched-off step keeps its own warning on its own card.
+        if (state.blockingRecipeError != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               NightshadeTokens.spaceMd,
@@ -63,7 +71,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             child: NightshadeAlert(
               severity: NightshadeAlertSeverity.error,
               title: 'This stack does not validate',
-              message: state.recipeError!,
+              message: state.blockingRecipeError!,
               compact: true,
             ),
           ),
@@ -147,12 +155,19 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     final spec = state.catalog?.specFor(step);
     final report = state.reportFor(index);
     final issue = state.issueFor(index);
+    final omitted = state.isOmittedFromRender(index);
     final expanded = _expanded.contains(index);
+    final title = darkroomOpTitle(step.opId);
 
     return Padding(
-      // Keyed on the step object, which survives a reorder unchanged, so the
-      // list animates the card that moved rather than re-keying every row.
-      key: ObjectKey(step),
+      // Keyed on the step's IDENTITY, which moves with it on a reorder and
+      // survives every edit to it. Keying on the step value instead re-keyed the
+      // card on every parameter change — each change builds a new immutable
+      // step — which tore the card's element down and disposed the drag
+      // recognizer of whichever slider was being held: a slider took the value
+      // under the pointer when it went down and then ignored the rest of the
+      // gesture.
+      key: ObjectKey(step.identity),
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       child: NightshadeCard(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
@@ -165,7 +180,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                 ReorderableDragStartListener(
                   index: index,
                   child: Semantics(
-                    label: 'Reorder ${darkroomOpTitle(step.opId)}',
+                    label: 'Reorder $title',
                     child: Padding(
                       padding: const EdgeInsets.only(
                         right: NightshadeTokens.spaceSm,
@@ -183,7 +198,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        darkroomOpTitle(step.opId),
+                        title,
                         style: NightshadeTypography.labelStrong.copyWith(
                           color: step.enabled
                               ? colors.textPrimary
@@ -213,8 +228,17 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                     ],
                   ),
                 ),
+                // container, not a bare annotation: without a node of its own
+                // the switch's toggle state and tap action are absorbed by the
+                // card's own node, and the whole card — the reorder label, the
+                // title, the version, the outcome line, the paragraph
+                // explaining the unregistered operation — becomes ONE
+                // ~200-character togglable control with no distinct switch.
+                // That happened exactly on the cards that had no second
+                // control to force a split, which is to say on the error case.
                 Semantics(
-                  label: '${darkroomOpTitle(step.opId)} enabled',
+                  container: true,
+                  label: '$title enabled',
                   child: NightshadeSwitch(
                     value: step.enabled,
                     compact: true,
@@ -224,7 +248,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               ],
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
-            _outcomeLine(colors, step, report),
+            _outcomeLine(colors, state, step, report, omitted),
             if (report?.reason != null) ...[
               const SizedBox(height: NightshadeTokens.spaceXs),
               Text(
@@ -242,20 +266,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                 compact: true,
               ),
             ],
-            if (spec != null && spec.params.isNotEmpty) ...[
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              _expandToggle(colors, step, expanded, index),
-              if (expanded) ...[
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                for (final param in spec.params)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: NightshadeTokens.spaceMd,
-                    ),
-                    child: _paramControl(colors, index, step, param),
-                  ),
-              ],
-            ] else if (spec == null && state.catalog != null) ...[
+            if (spec == null && state.catalog != null) ...[
               const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
                 'This build registers no ${step.opId}@${step.opVersion}, so '
@@ -266,9 +277,67 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                 ),
               ),
             ],
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            _cardActions(title, spec, expanded, index),
+            if (expanded && spec != null) ...[
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              for (final param in spec.params)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    bottom: NightshadeTokens.spaceMd,
+                  ),
+                  child: _paramControl(colors, index, step, param),
+                ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  /// The row of controls every card carries.
+  ///
+  /// "Remove" is on every card, not only on the ones this build cannot run: a
+  /// step is data the operator owns, and an editor that can add and disable but
+  /// never delete leaves a stack no route back to the one it started as. On a
+  /// card whose operation is unregistered it is the only control that acts on
+  /// what that card says — switching such a step off keeps it out of the render,
+  /// but the recipe still names an operation nothing here can replay.
+  Widget _cardActions(
+    String title,
+    DarkroomOpSpec? spec,
+    bool expanded,
+    int index,
+  ) {
+    final hasParams = spec != null && spec.params.isNotEmpty;
+    // Wrap, not Row: the panel is resizable down to 280 logical pixels and the
+    // two labels grow with the operation name, so on a narrow panel they stack
+    // instead of overflowing. spaceBetween keeps the destructive one away from
+    // the expander whenever both fit on one line.
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      spacing: NightshadeTokens.spaceSm,
+      runSpacing: NightshadeTokens.spaceXs,
+      children: [
+        if (hasParams) _expandToggle(title, expanded, index),
+        Semantics(
+          container: true,
+          button: true,
+          enabled: true,
+          // Qualified, because a screen reader reads this card's controls in a
+          // list of identical ones: four bare "Remove" buttons name no step.
+          label: 'Remove $title',
+          excludeSemantics: true,
+          onTap: () => widget.onRemove(index),
+          child: NightshadeButton(
+            label: 'Remove',
+            icon: NightshadeIcons.delete,
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: () => widget.onRemove(index),
+          ),
+        ),
+      ],
     );
   }
 
@@ -301,10 +370,21 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     return 'The engine refused this step without naming a reason.';
   }
 
+  /// What the last render DID with this step, and nothing else.
+  ///
+  /// Every one of these labels comes from a line the engine wrote about this
+  /// exact step, or says that no such line exists. Nothing here infers an
+  /// outcome from the step itself: a stack whose render failed, or which was
+  /// edited since the last one, has no outcomes to show, and saying so is the
+  /// only honest thing left — a badge that carried the previous render's verdict
+  /// forward is how a step this build cannot even run came to read "Applied by
+  /// the last render".
   Widget _outcomeLine(
     NightshadeColors colors,
+    DarkroomState state,
     DarkroomStep step,
     DarkroomStepReport? report,
+    bool omitted,
   ) {
     final IconData icon;
     final Color tint;
@@ -327,10 +407,26 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
         tint = colors.textMuted;
         label = 'The last render reported nothing for this step';
       case null:
-        icon = NightshadeIcons.help;
-        tint = colors.textMuted;
-        label =
-            step.enabled ? 'Not rendered yet' : 'Off — nothing has rendered it';
+        if (omitted) {
+          icon = NightshadeIcons.hidden;
+          tint = colors.textMuted;
+          label = 'Off, and left out of the render — this build cannot run it';
+        } else if (state.renderError != null) {
+          icon = NightshadeIcons.help;
+          tint = colors.textMuted;
+          label = 'The last render did not finish, so nothing is reported for '
+              'this step';
+        } else if (state.rendering) {
+          icon = NightshadeIcons.help;
+          tint = colors.textMuted;
+          label = 'Rendering — no outcome for this step yet';
+        } else {
+          icon = NightshadeIcons.help;
+          tint = colors.textMuted;
+          label = step.enabled
+              ? 'Not rendered yet'
+              : 'Off — nothing has rendered it';
+        }
     }
     // Icon AND words, never colour alone: under the red-night palette success,
     // warning and error are all reds, so a badge that carried its meaning in
@@ -350,27 +446,35 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     );
   }
 
-  Widget _expandToggle(
-    NightshadeColors colors,
-    DarkroomStep step,
-    bool expanded,
-    int index,
-  ) {
-    return Align(
-      alignment: Alignment.centerLeft,
+  /// The parameters expander.
+  ///
+  /// The button READS "Parameters" — inside the Crop card, in a column of Crop's
+  /// own controls, the operation's name on the button would be noise. Its
+  /// ACCESSIBLE name is qualified, because a screen-reader walk of the stack has
+  /// no column to read it in: four sibling nodes all announcing "Parameters,
+  /// button" say nothing about which operation each one opens.
+  Widget _expandToggle(String title, bool expanded, int index) {
+    void toggle() => setState(() {
+          if (expanded) {
+            _expanded.remove(index);
+          } else {
+            _expanded.add(index);
+          }
+        });
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: true,
+      label: expanded ? 'Hide $title parameters' : '$title parameters',
+      excludeSemantics: true,
+      onTap: toggle,
       child: NightshadeButton(
         label: expanded ? 'Hide parameters' : 'Parameters',
         icon:
             expanded ? NightshadeIcons.chevronUp : NightshadeIcons.chevronDown,
         variant: ButtonVariant.ghost,
         size: ButtonSize.small,
-        onPressed: () => setState(() {
-          if (expanded) {
-            _expanded.remove(index);
-          } else {
-            _expanded.add(index);
-          }
-        }),
+        onPressed: toggle,
       ),
     );
   }

@@ -443,6 +443,63 @@ void main() {
       );
     });
 
+    test('requeueForRetry puts a spent row back on the sweep\'s list with a '
+        'fresh budget', () async {
+      await journal.recordAttempt(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+      );
+      await journal.markFailed(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        error: 'destinationConflict: that name is already there',
+      );
+      expect(await journal.listPendingRetry(), isEmpty);
+
+      final requeued = await journal.requeueForRetry(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+      );
+
+      expect(requeued.state, DeliveryAttemptState.retrying);
+      expect(
+        requeued.attempts,
+        0,
+        reason:
+            'the policy reads attempts for both the backoff and the '
+            'budget, so a row re-queued at its spent count would wait the '
+            'maximum backoff and then be terminal again on its first attempt',
+      );
+      expect(
+        requeued.lastError,
+        'destinationConflict: that name is already there',
+        reason:
+            'until another attempt is made, why it did not arrive is '
+            'still the most recent true thing about the file',
+      );
+      expect(
+        (await journal.listPendingRetry()).single.filePath,
+        file,
+        reason:
+            'the sweep reads only retrying rows, so this is what makes '
+            'anything look at the file again',
+      );
+    });
+
+    test('requeueForRetry refuses a row nothing ever recorded', () async {
+      await expectLater(
+        journal.requeueForRetry(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: '/out/never-attempted.fits',
+        ),
+        throwsA(isA<DeliveryJournalMissingException>()),
+      );
+    });
+
     test('listPendingRetry is the overnight sweep work list', () async {
       final other = await targets.create(
         name: 'nas',

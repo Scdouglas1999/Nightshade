@@ -44,7 +44,10 @@ void main() {
       targetId = await DeliveryTargetsDao(db).create(
         name: 'office-pc',
         kind: ArtifactDestinationKind.peer,
-        configJson: jsonEncode({'peerId': 'office-pc'}),
+        // `rigId` is pinned so the name the desktop writes does not depend on
+        // this machine's host name; the component itself is covered in
+        // nightshade_core's delivery_naming_test.dart.
+        configJson: jsonEncode({'peerId': 'office-pc', 'rigId': 'shed-rig'}),
         content: const {ArtifactContent.linearMasters},
       );
 
@@ -145,7 +148,13 @@ void main() {
         final entry = signed.manifest.entries.single;
         expect(entry.artifactId, artifactIdOfMaster());
         expect(entry.targetId, targetId);
-        expect(entry.fileName, 'M31_Ha_master.fits');
+        expect(
+          entry.fileName,
+          'shed-rig-M31_Ha_master.fits',
+          reason:
+              'the desktop writes a name that says which rig it came '
+              'from, so two rigs pulling into one folder do not collide',
+        );
         expect(entry.checksum, published.artifacts.single.checksum);
         expect(entry.bytes, published.artifacts.single.bytes);
       });

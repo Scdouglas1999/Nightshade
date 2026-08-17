@@ -190,6 +190,48 @@ fn validate_rejects_a_linear_step_after_a_stretch() {
 }
 
 #[test]
+fn a_disabled_step_this_build_cannot_run_is_flagged_yet_still_renders() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "disabled-unknown.fits", 64, 64, 1);
+    let recipe = recipe_json(
+        "r-disabled-unknown",
+        "master:disabled-unknown",
+        json!([
+            stretch_step(),
+            {"opId": "no_such_op", "opVersion": 7, "params": {}, "enabled": false},
+        ]),
+    );
+
+    let reply = parse(
+        &api_darkroom_validate(recipe.clone(), "{}".to_string()).expect("validation must run"),
+    );
+    assert_eq!(
+        reply["ok"],
+        json!(true),
+        "a step that will not run blocks no render: {reply}"
+    );
+    assert!(reply["error"].is_null(), "reply: {reply}");
+    assert_eq!(reply["steps"][0]["registered"], json!(true));
+    assert_eq!(
+        reply["steps"][1]["registered"],
+        json!(false),
+        "the step is still named as one this build cannot run: {reply}"
+    );
+    assert_eq!(reply["steps"][1]["enabled"], json!(false));
+
+    let preview = api_darkroom_render_preview(
+        recipe,
+        json!({"masterPath": master.to_string_lossy()}).to_string(),
+    )
+    .expect("the enabled prefix renders over the disabled step");
+
+    let report = parse(&preview.report_json);
+    assert_eq!(report["report"]["steps"][0]["outcome"], json!("applied"));
+    assert_eq!(report["report"]["steps"][1]["outcome"], json!("disabled"));
+    assert_eq!(report["report"]["hasSkips"], json!(false));
+}
+
+#[test]
 fn validate_refuses_a_payload_that_is_not_a_recipe() {
     let error = api_darkroom_validate("{\"nope\": 1}".to_string(), "{}".to_string())
         .expect_err("a payload with no schema version is not a recipe");

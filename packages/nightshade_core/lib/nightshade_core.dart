@@ -26,7 +26,9 @@ export 'src/database/database_aliases.dart';
 // FirstNightWizard model vs nightshade_app FirstNightWizard widget).
 export 'src/legacy_aliases.dart';
 export 'src/database/integrity_check.dart';
+export 'src/database/integration_stage_marker.dart';
 export 'src/database/single_instance_lock.dart';
+export 'src/database/sqlite_busy.dart';
 
 // DAOs
 export 'src/database/daos/equipment_profiles_dao.dart';

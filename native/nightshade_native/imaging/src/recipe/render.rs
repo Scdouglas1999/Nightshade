@@ -10,7 +10,10 @@
 //! One rule is enforced at validation time: no linear-stage operation may sit
 //! after a stretched-stage one. The rule reads the whole step list, enabled or
 //! not, because a disabled step keeps its place in the order and re-enabling it
-//! must not turn a valid recipe invalid.
+//! must not turn a valid recipe invalid. The one step it cannot read is a
+//! disabled one naming an operation this build does not carry: an unregistered
+//! operation has no stage here, so it orders nothing and blocks nothing until it
+//! is enabled.
 //!
 //! # Cancellation
 //!
@@ -148,9 +151,16 @@ impl RenderOptions {
 
 /// Check a recipe without touching pixels.
 ///
-/// Validates the schema version, the branch link, that every step names a
-/// registered operation, that every step's parameters pass that operation's own
-/// validation, and the stage ordering rule.
+/// Validates the schema version, the branch link, that every *enabled* step
+/// names a registered operation, that every registered step's parameters pass
+/// that operation's own validation, and the stage ordering rule.
+///
+/// A disabled step naming an operation this build does not carry is not a
+/// blocker: the render never reaches it, so refusing the whole recipe would
+/// strand every step below it. The step is still reported as unregistered by the
+/// callers that list steps one by one — see `api_darkroom_validate` — and
+/// enabling it puts the operation back on the render path, where it is
+/// [`RecipeError::UnknownOp`] again.
 pub fn validate(recipe: &Recipe, registry: &OpRegistry) -> Result<(), RecipeError> {
     if recipe.schema_version != super::model::RECIPE_SCHEMA_VERSION {
         return Err(RecipeError::UnsupportedSchemaVersion {
@@ -176,14 +186,19 @@ pub fn validate(recipe: &Recipe, registry: &OpRegistry) -> Result<(), RecipeErro
 
     let mut first_stretched: Option<(usize, String)> = None;
     for (index, step) in recipe.steps.iter().enumerate() {
-        let op =
-            registry
-                .get(&step.op_id, step.op_version)
-                .ok_or_else(|| RecipeError::UnknownOp {
+        let Some(op) = registry.get(&step.op_id, step.op_version) else {
+            if step.enabled {
+                return Err(RecipeError::UnknownOp {
                     index,
                     op_id: step.op_id.clone(),
                     op_version: step.op_version,
-                })?;
+                });
+            }
+            // A disabled step this build cannot run keeps its place in the list
+            // and contributes nothing to the stage rule: an operation the
+            // registry does not carry has no stage here to order against.
+            continue;
+        };
         op.validate_params(&step.params)
             .map_err(|source| RecipeError::InvalidParams {
                 index,

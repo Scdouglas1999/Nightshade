@@ -8,8 +8,12 @@
 ///  "remoteDir": "/srv/astro/incoming",
 ///  "hostKeyFingerprint": "SHA256:s0m3Base64",
 ///  "hostKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...",
-///  "digestCommand": "sha256sum"}
+///  "digestCommand": "sha256sum", "rigId": "shed-rig"}
 /// ```
+///
+/// `rigId` is the rig-identity component every delivered name carries, so two
+/// rigs uploading into one incoming directory do not land on each other's file
+/// names — see [DeliveryNaming].
 ///
 /// The private key lives in `SecretsStore` under the destination row's
 /// `secret_ref` and is written to a mode-0600 file inside a private scratch
@@ -54,6 +58,7 @@ import 'artifact_transport.dart';
 import 'atomic_file_write.dart';
 import 'delivery_failure.dart';
 import 'delivery_artifact.dart';
+import 'delivery_naming.dart';
 import 'sftp_command_runner.dart';
 
 /// How long any one OpenSSH invocation may run before it is killed. The
@@ -256,12 +261,13 @@ class SftpTransport implements ArtifactTransport {
       );
     }
     final config = session.config;
-    final finalPath = p.posix.join(config.remoteDir, artifact.fileName);
+    final deliveredName = config.naming.nameFor(artifact.fileName);
+    final finalPath = p.posix.join(config.remoteDir, deliveredName);
     final stagedPath = p.posix.join(
       config.remoteDir,
-      '.${artifact.fileName}.$jobId$kStagedDeliverySuffix',
+      '.$deliveredName.$jobId$kStagedDeliverySuffix',
     );
-    _refuseUnquotableName(artifact.fileName);
+    _refuseUnquotableName(deliveredName);
 
     final existing = await _runner.run('ssh', [
       ...session.sshOptions,
@@ -295,7 +301,7 @@ class SftpTransport implements ArtifactTransport {
       // being read as an empty destination.
       throw DeliveryFailure(
         classifyOpenSshFailure(existing),
-        'Whether ${artifact.fileName} is already on ${config.userAtHost} could '
+        'Whether $deliveredName is already on ${config.userAtHost} could '
         'not be determined (${existing.diagnostic}), and delivery does not '
         'upload over an answer it does not have',
       );
@@ -311,7 +317,7 @@ class SftpTransport implements ArtifactTransport {
       await _removeRemote(session, stagedPath);
       throw DeliveryFailure(
         classifyOpenSshFailure(upload),
-        'Uploading ${artifact.fileName} to ${config.userAtHost} failed: '
+        'Uploading $deliveredName to ${config.userAtHost} failed: '
         '${upload.diagnostic}',
       );
     }
@@ -321,7 +327,7 @@ class SftpTransport implements ArtifactTransport {
       await _removeRemote(session, stagedPath);
       throw DeliveryFailure(
         DeliveryFailureKind.checksumMismatch,
-        'The copy of ${artifact.fileName} on ${config.userAtHost} hashes to '
+        'The copy of $deliveredName on ${config.userAtHost} hashes to '
         '$landed, not ${artifact.checksum}',
       );
     }
@@ -336,7 +342,7 @@ class SftpTransport implements ArtifactTransport {
       await _removeRemote(session, stagedPath);
       throw DeliveryFailure(
         classifyOpenSshFailure(rename),
-        'Renaming ${artifact.fileName} into place on ${config.userAtHost} '
+        'Renaming $deliveredName into place on ${config.userAtHost} '
         'failed: ${rename.diagnostic}',
       );
     }
@@ -619,6 +625,9 @@ class _SftpConfig {
   final HostKeyScanEntry? hostKey;
   final String digestCommand;
 
+  /// The rig-identity component this destination's delivered names carry.
+  final DeliveryNaming naming;
+
   const _SftpConfig({
     required this.host,
     required this.port,
@@ -627,6 +636,7 @@ class _SftpConfig {
     required this.hostKeyFingerprint,
     required this.hostKey,
     required this.digestCommand,
+    required this.naming,
   });
 
   String get userAtHost => '$user@$host';
@@ -730,6 +740,7 @@ class _SftpConfig {
       hostKeyFingerprint: pinnedFingerprint,
       hostKey: hostKey,
       digestCommand: digestCommand,
+      naming: DeliveryNaming.of(config),
     );
   }
 

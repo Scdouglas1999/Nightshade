@@ -4,6 +4,8 @@ part of '../period_analysis_panel.dart';
 class _PhaseFoldPainter extends StatelessWidget {
   final NightshadeColors colors;
   final List<PhaseFoldedPoint> points;
+
+  /// Named series hue, mapped onto the active theme in [build].
   final Color plotColor;
 
   const _PhaseFoldPainter({
@@ -28,7 +30,7 @@ class _PhaseFoldPainter extends StatelessWidget {
       size: Size.infinite,
       painter: _PhaseFoldCustomPainter(
         points: points,
-        plotColor: plotColor,
+        plotColor: NightshadeChartColors.forTheme(plotColor, colors),
         borderColor: colors.border,
         textColor: colors.textSecondary,
         gridColor: colors.border.withValues(alpha: 0.3),

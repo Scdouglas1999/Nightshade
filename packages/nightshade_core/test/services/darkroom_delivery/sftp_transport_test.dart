@@ -19,6 +19,7 @@ import 'package:nightshade_core/src/models/darkroom/delivery.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/artifact_transport.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_artifact.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_failure.dart';
+import 'package:nightshade_core/src/services/darkroom_delivery/delivery_naming.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/sftp_command_runner.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/sftp_transport.dart';
 import 'package:nightshade_core/src/services/notification/secrets_store.dart';
@@ -126,6 +127,12 @@ void main() {
     String? authMethod,
     String? ref = secretRef,
     String? digestCommand,
+    // Delivered names carry a rig-identity component whose default is this
+    // machine's host name. Pinned to "" here — deliver under the rig's own
+    // file names — so the asserted OpenSSH command lines describe the wire and
+    // not the machine the suite runs on. The component has its own coverage in
+    // delivery_naming_test.dart and against the real sshd.
+    String rigId = '',
   }) {
     return ArtifactDestination(
       id: 9,
@@ -136,6 +143,7 @@ void main() {
         'port': 2222,
         'user': 'sean',
         'remoteDir': '/srv/astro/incoming',
+        kDeliveryRigIdKey: rigId,
         if (fingerprint != null) 'hostKeyFingerprint': fingerprint,
         if (storedKey != null) 'hostKey': storedKey,
         if (authMethod != null) 'authMethod': authMethod,
@@ -397,7 +405,8 @@ void main() {
         expect(
           pinned.single.fingerprint,
           ed.fingerprint,
-          reason: 'the trusted fingerprint is unchanged — what is written is '
+          reason:
+              'the trusted fingerprint is unchanged — what is written is '
               'the key behind it, so the next delivery needs no scan',
         );
         await t.close();
@@ -419,39 +428,39 @@ void main() {
         );
         await t.open([await master()]);
 
-        expect(runner.calls.where((c) => c.executable == 'ssh-keyscan'), isEmpty);
+        expect(
+          runner.calls.where((c) => c.executable == 'ssh-keyscan'),
+          isEmpty,
+        );
         expect(pinned, isEmpty);
         await t.close();
       },
     );
 
-    test(
-      'a stored key that does not match the stored fingerprint is refused '
-      'rather than half-trusted',
-      () async {
-        final key = hostKeyLine('stored');
-        final other = hostKeyLine('other');
-        final runner = _ScriptedRunner();
+    test('a stored key that does not match the stored fingerprint is refused '
+        'rather than half-trusted', () async {
+      final key = hostKeyLine('stored');
+      final other = hostKeyLine('other');
+      final runner = _ScriptedRunner();
 
-        await expectLater(
-          transport(
-            runner,
-            target: destination(
-              fingerprint: other.fingerprint,
-              storedKey: key.storedKey,
-            ),
-          ).open([await master()]),
-          throwsA(
-            isA<DeliveryFailure>().having(
-              (f) => f.kind,
-              'kind',
-              DeliveryFailureKind.configurationInvalid,
-            ),
+      await expectLater(
+        transport(
+          runner,
+          target: destination(
+            fingerprint: other.fingerprint,
+            storedKey: key.storedKey,
           ),
-        );
-        expect(runner.calls, isEmpty);
-      },
-    );
+        ).open([await master()]),
+        throwsA(
+          isA<DeliveryFailure>().having(
+            (f) => f.kind,
+            'kind',
+            DeliveryFailureKind.configurationInvalid,
+          ),
+        ),
+      );
+      expect(runner.calls, isEmpty);
+    });
   });
 
   group('delivering a file', () {

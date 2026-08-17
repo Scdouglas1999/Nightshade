@@ -49,7 +49,10 @@ void main() {
     return targets.create(
       name: peerId,
       kind: ArtifactDestinationKind.peer,
-      configJson: jsonEncode({'peerId': peerId}),
+      // `rigId` is pinned so the manifest's names do not depend on whatever
+      // this machine calls itself; the default-from-the-host-name path has its
+      // own test in delivery_naming_test.dart.
+      configJson: jsonEncode({'peerId': peerId, 'rigId': 'shed-rig'}),
       enabled: enabled,
       content: const {
         ArtifactContent.linearMasters,
@@ -103,12 +106,20 @@ void main() {
         set.artifacts.fold<int>(0, (s, a) => s + a.bytes),
       );
       for (final entry in manifest.entries) {
+        // Joined on the artifact id — the hash of the rig-side path — because
+        // the name the desktop writes is no longer the rig's own name.
         final artifact = set.artifacts.firstWhere(
-          (a) => a.fileName == entry.fileName,
+          (a) => artifactIdForPath(a.sourcePath) == entry.artifactId,
         );
-        expect(entry.artifactId, artifactIdForPath(artifact.sourcePath));
         expect(entry.checksum, artifact.checksum);
         expect(entry.bytes, artifact.bytes);
+        expect(
+          entry.fileName,
+          'shed-rig-${artifact.fileName}',
+          reason:
+              'the desktop writes a name that says which rig it came '
+              'from, so two rigs pulling into one folder do not collide',
+        );
       }
     },
   );

@@ -92,6 +92,15 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// its own stated skip reason.
   List<Map<String, dynamic>> _catalogStars = const [];
 
+  /// The identities of the steps the last `validate` classified as ones this
+  /// build cannot run: an operation version it does not register, or parameters
+  /// the operation refuses.
+  ///
+  /// Held by identity rather than by index so that inserting, removing or
+  /// moving a step cannot re-point this set at a different step; a step whose
+  /// identity is no longer in the stack simply never matches.
+  final Set<Object> _unrenderable = <Object>{};
+
   /// True when an edit has not yet reached the recipe row.
   bool _savePending = false;
 
@@ -107,7 +116,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// The catalogue stars every render of this recipe lends `color_calibrate`.
   ///
   /// Read by the export, which replays the same stack at full resolution: an
-  /// export that dropped the photometry would record the colour step as skipped
+  /// export that dropped the photometry would record the color step as skipped
   /// for want of a catalogue the editor plainly had, and write a file whose
   /// HISTORY says so.
   List<Map<String, dynamic>> get catalogStars =>
@@ -232,6 +241,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
 
     _undoJournal.clear();
     _redoJournal.clear();
+    _unrenderable.clear();
     state = state.copyWith(
       loading: false,
       clearLoadError: true,
@@ -242,6 +252,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       author: recipe.createdBy,
       masterId: recipe.masterId,
       steps: List.unmodifiable(steps),
+      // The steps that arrive here are freshly decoded, so nothing the previous
+      // render or the previous validation said describes any of them. Carrying
+      // those accounts forward would badge a stack this build has not looked at
+      // with the outcomes of one it has.
+      reports: const [],
+      reportedSteps: const [],
+      issues: const [],
+      issuedSteps: const [],
+      omittedFromRender: const [],
+      clearRecipeError: true,
       canUndo: false,
       canRedo: false,
       savePending: false,
@@ -258,7 +278,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// Resolve the catalogue stars `color_calibrate` needs, or state why there
   /// are none.
   ///
-  /// The colour fit regresses against stars the CALLER supplies; with none
+  /// The color fit regresses against stars the CALLER supplies; with none
   /// attached the operation records itself as skipped with that reason. Naming
   /// the app-side half of the same fact is what turns the step card's skip
   /// badge into an explanation instead of a failure.
@@ -269,7 +289,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         photometryStarCount: 0,
         photometryNote:
             'This recipe carries no library row for its master, so the field '
-            'cannot be placed on the sky and the colour calibration has no '
+            'cannot be placed on the sky and the color calibration has no '
             'catalogue stars to regress against.',
       );
       return;
@@ -283,7 +303,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
           photometryStarCount: 0,
           photometryNote:
               'The library row for this master is gone, so its solved '
-              'astrometry cannot be read and the colour calibration has no '
+              'astrometry cannot be read and the color calibration has no '
               'catalogue stars.',
         );
         return;
@@ -328,7 +348,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       state = state.copyWith(
         photometryStarCount: 0,
         photometryNote:
-            'The star catalogue could not be read, so the colour calibration '
+            'The star catalogue could not be read, so the color calibration '
             'has nothing to regress against: $error',
       );
     }
@@ -456,6 +476,21 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     _applyEdit(next, coalesceKey: 'param:$index:$name');
   }
 
+  /// Take the step at [index] out of the recipe.
+  ///
+  /// The one edit that is not reversible by a second press of the same control,
+  /// and the only way out of a stack carrying an operation this build cannot
+  /// run at all: switching such a step off keeps it out of the render, but the
+  /// recipe still names an operation nothing here can replay, and an export or
+  /// another build reads that name. The removal goes through the same journal
+  /// as every other edit, so one undo puts the step back with its parameters.
+  void removeStep(int index) {
+    final steps = state.steps;
+    if (index < 0 || index >= steps.length) return;
+    final next = List<DarkroomStep>.from(steps)..removeAt(index);
+    _applyEdit(next);
+  }
+
   /// Turn every step off. Nothing is destroyed — the stack is intact and one
   /// undo (or one toggle each) brings it back.
   void resetToLinear() {
@@ -522,7 +557,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       );
       return false;
     }
-    _applyEdit(candidate, verdict: verdict);
+    _applyEdit(candidate, verdict: verdict, verdictOf: candidate);
     return true;
   }
 
@@ -565,6 +600,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   void _applyEdit(
     List<DarkroomStep> steps, {
     DarkroomValidation? verdict,
+    List<DarkroomStep>? verdictOf,
     String? coalesceKey,
   }) {
     final now = DateTime.now();
@@ -592,11 +628,40 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // engine about this exact order; every other edit re-asks on the
       // debounce rather than carrying the previous order's verdicts forward.
       issues: verdict?.steps,
+      issuedSteps: verdictOf == null ? null : _identitiesOf(verdictOf),
       recipeError: verdict?.error,
       clearRecipeError: verdict != null && verdict.ok,
     );
+    if (verdict != null) _adoptUnrenderable(verdict, verdictOf ?? steps);
     _scheduleRefresh();
     _scheduleSave();
+  }
+
+  static List<Object> _identitiesOf(List<DarkroomStep> steps) =>
+      List.unmodifiable([for (final step in steps) step.identity]);
+
+  /// Record which of [steps] the engine's refusal names, from [verdict]'s own
+  /// per-step diagnosis.
+  ///
+  /// Only from a verdict that REFUSES. An engine that accepts a recipe carrying
+  /// a switched-off operation it does not register is an engine that will report
+  /// that step itself, in its own words, as disabled — and its account of a step
+  /// is always better than the app leaving the step out and describing the
+  /// absence. The set is what the render is asked WITHOUT, so it is populated
+  /// only when sending the recipe whole is what stops the render.
+  ///
+  /// Rebuilt from scratch each time rather than merged: a step whose parameters
+  /// have just come back inside their range must stop being one the render
+  /// leaves out.
+  void _adoptUnrenderable(
+      DarkroomValidation verdict, List<DarkroomStep> steps) {
+    _unrenderable.clear();
+    if (verdict.ok) return;
+    for (final issue in verdict.steps) {
+      if (issue.isClean) continue;
+      if (issue.index < 0 || issue.index >= steps.length) continue;
+      _unrenderable.add(steps[issue.index].identity);
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -604,13 +669,20 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   // ---------------------------------------------------------------------
 
   /// Re-check the committed step list and adopt its per-step verdicts.
+  ///
+  /// The whole list is validated, disabled steps included: the per-step
+  /// diagnosis is what every card prints, and a step that is switched off still
+  /// has to be able to say that this build does not register it.
   Future<void> _revalidate() async {
     final generation = ++_validateGeneration;
-    final verdict = await _validateSteps(state.steps);
+    final validated = state.steps;
+    final verdict = await _validateSteps(validated);
     if (!mounted || generation != _validateGeneration) return;
     if (verdict == null) return;
+    _adoptUnrenderable(verdict, validated);
     state = state.copyWith(
       issues: verdict.steps,
+      issuedSteps: _identitiesOf(validated),
       recipeError: verdict.error,
       clearRecipeError: verdict.ok,
     );
@@ -687,6 +759,35 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     final masterPath = state.baseMasterPath;
     if (recipeId == null || masterPath.isEmpty) return;
 
+    // An engine that validates the whole recipe before it touches a pixel is
+    // refused by ONE step it cannot run — including a step switched off, which
+    // the replay would have skipped anyway, and which therefore strands every
+    // other step in the stack behind an operation that was never going to run.
+    // When that is the refusal in hand, the render is asked about the steps it
+    // can actually replay: every enabled step, plus every disabled step the
+    // refusal does not name (so the engine keeps reporting those itself, as
+    // disabled, in its own words). Only a switched-off step the engine refuses
+    // is left out, and its card says it was left out.
+    //
+    // The set is empty whenever the engine accepts the recipe as it stands, so
+    // this asks the engine for less than the whole recipe only while asking for
+    // the whole recipe is what produces no picture at all.
+    //
+    // Validation is NOT filtered — see [_revalidate]. The card verdicts and the
+    // whole-stack sentence describe the recipe as stored; only the render
+    // request describes the subset that can run.
+    final asked = <DarkroomStep>[];
+    final askedIdentities = <Object>[];
+    final omitted = <Object>[];
+    for (final step in state.steps) {
+      if (!step.enabled && _unrenderable.contains(step.identity)) {
+        omitted.add(step.identity);
+        continue;
+      }
+      asked.add(step);
+      askedIdentities.add(step.identity);
+    }
+
     final renderId = 'darkroom-editor-$recipeId-$generation';
     _renderInFlight = true;
     _inFlightRenderId = renderId;
@@ -695,13 +796,14 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       cancelRequested: false,
       clearRenderError: true,
       clearCancelledPhase: true,
+      omittedFromRender: List.unmodifiable(omitted),
     );
 
     final recipeJson = encodeDarkroomRecipe(
       recipeId: recipeId,
       baseMasterRef: masterPath,
       author: state.author,
-      steps: state.steps,
+      steps: asked,
     );
 
     try {
@@ -729,6 +831,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
           scaleFromMaster: decodeDarkroomScaleFromMaster(preview.report),
         ),
         reports: decodeDarkroomStepReports(preview.report),
+        reportedSteps: List.unmodifiable(askedIdentities),
       );
     } on DarkroomCancelledOutcome catch (cancelled) {
       if (!mounted || generation != _renderGeneration) return;
@@ -742,10 +845,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       );
     } on DarkroomSeamException catch (error) {
       if (!mounted || generation != _renderGeneration) return;
+      // A render that did not finish produced no outcomes, so the previous
+      // render's account is dropped rather than left on the cards. Keeping it
+      // is what let a stack wear "Applied by the last render" across a render
+      // that never applied anything.
       state = state.copyWith(
         rendering: false,
         cancelRequested: false,
-        renderError: error.message,
+        renderError: _renderErrorFor(error.message, omitted.length),
+        reports: const [],
+        reportedSteps: const [],
       );
     } finally {
       _renderInFlight = false;
@@ -754,6 +863,21 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         unawaited(_runRender(_renderGeneration));
       }
     }
+  }
+
+  /// The engine's refusal, plus what it was counting when it numbered a step.
+  ///
+  /// A refusal names a step by its index in the recipe the engine was HANDED.
+  /// When that recipe was the stack minus the switched-off steps this build
+  /// cannot run, the number the engine wrote is not the number the operator can
+  /// count to in the panel — so the difference is stated rather than left for
+  /// them to discover by counting.
+  static String _renderErrorFor(String message, int omittedCount) {
+    if (omittedCount == 0) return message;
+    final steps = omittedCount == 1 ? 'step' : 'steps';
+    return '$message. The render was asked without $omittedCount '
+        'switched-off $steps this build cannot run, so the step it numbers is '
+        'counted over the steps it was given rather than over the whole stack.';
   }
 
   /// Ask the running render to stop.
@@ -875,7 +999,17 @@ class DarkroomController extends StateNotifier<DarkroomState> {
 
 /// Family provider keyed by the scope, so a recipe opened by id and a master
 /// opened by id are independent controllers.
-final darkroomControllerProvider = StateNotifierProvider.family<
-    DarkroomController,
-    DarkroomState,
-    DarkroomScope>((ref, scope) => DarkroomController(ref, scope));
+///
+/// **autoDispose, and why it is not optional.** A controller reads its recipe
+/// row once, in its constructor, and then owns the step list for as long as it
+/// lives. Without autoDispose a family member outlives the screen that made it,
+/// so re-entering the Darkroom by the same route served the stack as it stood
+/// when that route was last open — and the next edit wrote that stale stack
+/// over the row, silently discarding whatever had been done through the other
+/// route in between. A deleted recipe stayed openable for the same reason: the
+/// surviving controller kept rendering a row that no longer existed. Disposing
+/// with the screen means every entry re-reads the row, which is the only way
+/// the editor and the database can be describing the same recipe.
+final darkroomControllerProvider = StateNotifierProvider.autoDispose
+    .family<DarkroomController, DarkroomState, DarkroomScope>(
+        (ref, scope) => DarkroomController(ref, scope));

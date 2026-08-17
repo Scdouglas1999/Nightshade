@@ -44,6 +44,7 @@ import 'package:nightshade_core/src/services/darkroom_delivery/artifact_transpor
 import 'package:nightshade_core/src/services/darkroom_delivery/atomic_file_write.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_artifact.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_failure.dart';
+import 'package:nightshade_core/src/services/darkroom_delivery/delivery_naming.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/sftp_command_runner.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/sftp_transport.dart';
 import 'package:nightshade_core/src/services/notification/secrets_store.dart';
@@ -97,7 +98,8 @@ void main() {
 
     const secretRef = 'delivery.real_sshd_key';
     const fileName = 'M31_Ha_master.fits';
-    const fileBody = 'SIMPLE  =                    T / real bytes over a wire\n';
+    const fileBody =
+        'SIMPLE  =                    T / real bytes over a wire\n';
 
     setUp(() async {
       server = await RealSshdServer.start();
@@ -124,6 +126,10 @@ void main() {
       String? hostKeyFingerprint,
       String? hostKey,
       String? secret = secretRef,
+      // See sftp_transport_test.dart: pinned to the rig's own file names so
+      // the assertions describe the bytes on the server rather than this
+      // machine's host name. One test below pins a real component instead.
+      String rigId = '',
     }) {
       return ArtifactDestination(
         id: 7,
@@ -134,6 +140,7 @@ void main() {
           'port': server.port,
           'user': server.user,
           'remoteDir': remoteDir ?? server.incomingDir.path,
+          kDeliveryRigIdKey: rigId,
           if (hostKeyFingerprint != null)
             'hostKeyFingerprint': hostKeyFingerprint,
           if (hostKey != null) 'hostKey': hostKey,
@@ -205,29 +212,32 @@ void main() {
       expect(await File(artifact.sourcePath).readAsString(), fileBody);
     });
 
-    test('a pinned destination delivers without scanning the server again',
-        () async {
-      final artifact = await master();
-      final t = transport(
-        destination(
-          hostKeyFingerprint: server.hostKeyFingerprint,
-          hostKey: server.hostKeyEntry,
-        ),
-      );
+    test(
+      'a pinned destination delivers without scanning the server again',
+      () async {
+        final artifact = await master();
+        final t = transport(
+          destination(
+            hostKeyFingerprint: server.hostKeyFingerprint,
+            hostKey: server.hostKeyEntry,
+          ),
+        );
 
-      await t.open([artifact]);
-      await t.deliver(artifact);
-      await t.close();
+        await t.open([artifact]);
+        await t.deliver(artifact);
+        await t.close();
 
-      expect(
-        runner.countOf('ssh-keyscan'),
-        0,
-        reason: 'a scan is six unauthenticated connections, and an sshd built '
-            'after 9.8 penalises a source for making them',
-      );
-      expect(pinned, isEmpty, reason: 'an existing pin is not rewritten');
-      expect(await remoteNames(), [fileName]);
-    });
+        expect(
+          runner.countOf('ssh-keyscan'),
+          0,
+          reason:
+              'a scan is six unauthenticated connections, and an sshd built '
+              'after 9.8 penalises a source for making them',
+        );
+        expect(pinned, isEmpty, reason: 'an existing pin is not rewritten');
+        expect(await remoteNames(), [fileName]);
+      },
+    );
 
     test('a server presenting a different key than the pinned one is refused '
         'and nothing is delivered', () async {
@@ -271,7 +281,11 @@ void main() {
                 'kind',
                 DeliveryFailureKind.hostKeyMismatch,
               )
-              .having((f) => f.message, 'message', contains('nothing was sent')),
+              .having(
+                (f) => f.message,
+                'message',
+                contains('nothing was sent'),
+              ),
         ),
       );
       expect(await remoteNames(), isEmpty);
@@ -292,11 +306,7 @@ void main() {
                 'kind',
                 DeliveryFailureKind.permissionDenied,
               )
-              .having(
-                (f) => f.retryable,
-                'retryable',
-                isFalse,
-              )
+              .having((f) => f.retryable, 'retryable', isFalse)
               .having(
                 (f) => f.message,
                 'message',
@@ -307,32 +317,34 @@ void main() {
       expect(await remoteNames(), isEmpty);
     });
 
-    test('a refusal names the refusal, not the server\'s login banner',
-        () async {
-      await server.dispose();
-      server = await RealSshdServer.start(
-        banner: 'AUTHORIZED USE ONLY. All activity is logged.',
-      );
-      await secrets.write(secretRef, server.unauthorizedPrivateKey);
-      final artifact = await master();
+    test(
+      'a refusal names the refusal, not the server\'s login banner',
+      () async {
+        await server.dispose();
+        server = await RealSshdServer.start(
+          banner: 'AUTHORIZED USE ONLY. All activity is logged.',
+        );
+        await secrets.write(secretRef, server.unauthorizedPrivateKey);
+        final artifact = await master();
 
-      await expectLater(
-        transport(destination()).open([artifact]),
-        throwsA(
-          isA<DeliveryFailure>()
-              .having(
-                (f) => f.message,
-                'message',
-                contains('Permission denied'),
-              )
-              .having(
-                (f) => f.message,
-                'message',
-                isNot(contains('AUTHORIZED USE ONLY')),
-              ),
-        ),
-      );
-    });
+        await expectLater(
+          transport(destination()).open([artifact]),
+          throwsA(
+            isA<DeliveryFailure>()
+                .having(
+                  (f) => f.message,
+                  'message',
+                  contains('Permission denied'),
+                )
+                .having(
+                  (f) => f.message,
+                  'message',
+                  isNot(contains('AUTHORIZED USE ONLY')),
+                ),
+          ),
+        );
+      },
+    );
 
     test('a remote directory that is not there is retryable, and says which '
         'directory', () async {
@@ -424,11 +436,60 @@ void main() {
       expect(
         await File(p.join(server.incomingDir.path, fileName)).readAsString(),
         fileBody,
-        reason: 'SFTP rename replaces silently, so a conflict must be decided '
+        reason:
+            'SFTP rename replaces silently, so a conflict must be decided '
             'before anything is uploaded',
       );
       expect(await remoteNames(), [fileName]);
     });
+
+    test(
+      'two rigs uploading the same file name into one incoming directory '
+      'both land, because the delivered name says which rig wrote it',
+      () async {
+        // The previous test is what a SECOND RIG used to hit: the same name is
+        // already on the server with different bytes, so its night was refused
+        // terminally and never arrived. A rig-identity component on the
+        // delivered name is what keeps both nights.
+        final shed = destination(
+          hostKeyFingerprint: server.hostKeyFingerprint,
+          hostKey: server.hostKeyEntry,
+          rigId: 'shed-rig',
+        );
+        final roof = destination(
+          hostKeyFingerprint: server.hostKeyFingerprint,
+          hostKey: server.hostKeyEntry,
+          rigId: 'roof-rig',
+        );
+
+        final shedTransport = transport(shed);
+        final shedMaster = await master();
+        await shedTransport.open([shedMaster]);
+        final shedOutcome = await shedTransport.deliver(shedMaster);
+        await shedTransport.close();
+
+        const roofBody = 'SIMPLE  = T / the other rig\'s night\n';
+        final roofMaster = await master(body: roofBody);
+        final roofTransport = transport(roof);
+        await roofTransport.open([roofMaster]);
+        final roofOutcome = await roofTransport.deliver(roofMaster);
+        await roofTransport.close();
+
+        expect(shedOutcome.disposition, DeliveryDisposition.delivered);
+        expect(roofOutcome.disposition, DeliveryDisposition.delivered);
+        expect(await remoteNames(), [
+          'roof-rig-$fileName',
+          'shed-rig-$fileName',
+        ]);
+        expect(
+          await File(
+            p.join(server.incomingDir.path, 'roof-rig-$fileName'),
+          ).readAsString(),
+          roofBody,
+          reason: 'the second rig\'s night is on the server, not refused',
+        );
+      },
+    );
 
     test('a server that goes away mid-job stops the delivery instead of '
         'uploading over an answer it does not have', () async {

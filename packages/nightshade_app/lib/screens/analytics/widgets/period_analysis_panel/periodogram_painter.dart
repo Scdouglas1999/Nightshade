@@ -8,6 +8,9 @@ class _PeriodogramPainter extends StatelessWidget {
   final List<double> frequencies;
   final List<double> powers;
   final double bestFrequency;
+
+  /// Named series hues, mapped onto the active theme in [build] — red night
+  /// needs a red-axis plot, not the fixed blue and amber.
   final Color plotColor;
   final Color peakColor;
   final String xLabel;
@@ -32,8 +35,8 @@ class _PeriodogramPainter extends StatelessWidget {
         frequencies: frequencies,
         powers: powers,
         bestFrequency: bestFrequency,
-        plotColor: plotColor,
-        peakColor: peakColor,
+        plotColor: NightshadeChartColors.forTheme(plotColor, colors),
+        peakColor: NightshadeChartColors.forTheme(peakColor, colors),
         borderColor: colors.border,
         textColor: colors.textSecondary,
         gridColor: colors.border.withValues(alpha: 0.3),

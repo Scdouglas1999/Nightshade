@@ -47,7 +47,25 @@ void main() {
     await db.close();
   });
 
+  /// Hold one scope open for the length of the test.
+  ///
+  /// The provider is autoDispose — a bar that outlives its screen keeps drawing
+  /// a family it read once — so a bare `container.read` builds a controller and
+  /// tears it down again while its first read of the family is still in flight.
+  /// This subscription is what a mounted bar's `ref.watch` does; the container's
+  /// own teardown closes it.
+  void open(int? recipeId) {
+    container.listen<DarkroomBranchState>(
+      darkroomBranchControllerProvider(
+        DarkroomBranchScope(masterPath: _masterPath, recipeId: recipeId),
+      ),
+      (_, __) {},
+      fireImmediately: true,
+    );
+  }
+
   DarkroomBranchController controllerFor(int? recipeId) {
+    open(recipeId);
     return container.read(
       darkroomBranchControllerProvider(
         DarkroomBranchScope(masterPath: _masterPath, recipeId: recipeId),
@@ -56,6 +74,7 @@ void main() {
   }
 
   DarkroomBranchState stateFor(int? recipeId) {
+    open(recipeId);
     return container.read(
       darkroomBranchControllerProvider(
         DarkroomBranchScope(masterPath: _masterPath, recipeId: recipeId),

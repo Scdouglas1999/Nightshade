@@ -13,6 +13,7 @@ export 'atomic_file_write.dart';
 export 'delivery_artifact.dart';
 export 'delivery_failure.dart';
 export 'delivery_manifest.dart';
+export 'delivery_naming.dart';
 export 'delivery_providers.dart';
 export 'delivery_retry_policy.dart';
 export 'delivery_retry_sweeper.dart';

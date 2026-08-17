@@ -326,6 +326,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
             state: state,
             onToggle: _controller.toggleStep,
             onParamChanged: _controller.setParam,
+            onRemove: _controller.removeStep,
             onReorder: _controller.reorderStep,
           ),
         ),
@@ -416,7 +417,7 @@ class _DarkroomStartOfferView extends StatelessWidget {
               Text(
                 'The operation registry measures this master and proposes a '
                 'first stack — a crop off the registration edge, a background '
-                'fit, denoise, colour where there is colour to calibrate, and '
+                'fit, denoise, color where there is color to calibrate, and '
                 'a stretch. Every step arrives adjustable.',
                 style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textSecondary,

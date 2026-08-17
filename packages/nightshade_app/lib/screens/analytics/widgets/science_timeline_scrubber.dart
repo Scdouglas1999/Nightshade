@@ -82,10 +82,17 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(
                                       NightshadeTokens.radiusXs),
+                                  // Both bar states resolve against the theme:
+                                  // the selected one reads it directly, the
+                                  // unselected one is a fixed series hue and
+                                  // needs the red-night remap to match.
                                   color: i == selectedIndex
                                       ? NightshadeChartColors.selectedFrame(
                                           widget.colors)
-                                      : NightshadeChartColors.unselectedFrame(),
+                                      : NightshadeChartColors.forTheme(
+                                          NightshadeChartColors
+                                              .unselectedFrame(),
+                                          widget.colors),
                                 ),
                               ),
                             ),

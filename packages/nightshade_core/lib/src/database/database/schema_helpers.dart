@@ -1285,6 +1285,115 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     }
   }
 
+  /// The directory holding this connection's database file, or null when the
+  /// database has no file (an in-memory test connection).
+  ///
+  /// Asked of SQLite rather than re-derived from
+  /// [resolveDefaultDatabaseFile]: a test opens an explicit temp file and a
+  /// headless daemon opens `NIGHTSHADE_DATABASE_DIR`, and `database_list`
+  /// reports whichever one this connection actually holds.
+  Future<Directory?> _databaseDirectory() async {
+    final rows = await customSelect('PRAGMA database_list').get();
+    for (final row in rows) {
+      if (row.data['name'] != 'main') continue;
+      // `file` is the empty string for an in-memory database and null on the
+      // builds that omit the column — neither has a directory to put a marker
+      // in, and both are answered by "no directory" rather than by a path
+      // derived from nothing.
+      final file = row.data['file'];
+      if (file is! String || file.isEmpty) return null;
+      return Directory(p.dirname(file));
+    }
+    return null;
+  }
+
+  /// Report a post-session integration that a previous process died in the
+  /// middle of, then clear its marker.
+  ///
+  /// The pass leaves no `darkroom_jobs` row to recover — it enqueues the
+  /// Darkroom job only after the masters exist — so the marker file written by
+  /// `markIntegrationStarted` is the whole record that the night was
+  /// interrupted. It is turned into two durable, operator-visible things:
+  ///
+  ///  - a line appended to the session's notes, which Session Review and the
+  ///    session wire snapshot both carry, and
+  ///  - a `warning` Night Narrator event on that session, which is what the
+  ///    morning feed reads.
+  ///
+  /// The half-written master files are named in both. A FITS truncated by a
+  /// kill is present and non-empty and looks finished, so an operator told
+  /// only "the integration was interrupted" would open one and trust it.
+  ///
+  /// Re-running the integration is deliberately NOT automatic: the subs are
+  /// still on disk and still graded, so nothing is lost by waiting, whereas a
+  /// pass that re-launches itself at every open is how a crash-on-integrate
+  /// takes the app down repeatedly. The report says the night needs a re-run;
+  /// the operator asks for it.
+  ///
+  /// The marker is deleted last, so a process that dies between reading it and
+  /// writing the report finds it again at the next open.
+  Future<void> _reportInterruptedIntegration() async {
+    final directory = await _databaseDirectory();
+    if (directory == null) return;
+    final interrupted = await readIntegrationMarker(directory);
+    if (interrupted == null) return;
+
+    final orphans = await interrupted.orphanedMasterFiles();
+    final orphanText = orphans.isEmpty
+        ? 'No master file had been written yet, so nothing on disk is '
+              'half-finished.'
+        : 'These master files were being written and are truncated — delete '
+              'them before re-running: ${orphans.join(', ')}.';
+    final startedAt = interrupted.startedAtUtc.toIso8601String();
+    const headline =
+        'The post-session integration was interrupted before it '
+        'finished.';
+    final body =
+        'Nightshade closed while integrating this session (started '
+        '$startedAt UTC). $orphanText The subs are all still on disk and '
+        'still graded, so run the integration again when you are ready.';
+
+    await customUpdate(
+      'UPDATE imaging_sessions SET notes = '
+      "CASE WHEN notes IS NULL OR notes = '' THEN ? "
+      "ELSE notes || char(10) || ? END WHERE id = ?",
+      variables: [
+        Variable<String>('$headline $body'),
+        Variable<String>('$headline $body'),
+        Variable<int>(interrupted.sessionId),
+      ],
+      updates: {imagingSessions},
+      updateKind: UpdateKind.update,
+    );
+
+    await customInsert(
+      'INSERT INTO narrator_events('
+      'session_id, timestamp, event_type, category, severity, headline, '
+      'body, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      variables: [
+        Variable<int>(interrupted.sessionId),
+        Variable<int>(DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000),
+        const Variable<String>('quality.integration_interrupted'),
+        const Variable<String>('quality'),
+        const Variable<String>('warning'),
+        const Variable<String>(headline),
+        Variable<String>(body),
+        // Session-scoped and stamped with the start instant, so re-reporting
+        // the same interruption cannot duplicate the event while two separate
+        // interrupted nights each keep their own.
+        Variable<String>('quality.integration_interrupted:$startedAt'),
+      ],
+    );
+
+    // ignore: avoid_print
+    print(
+      '[nightshade_db] Session ${interrupted.sessionId}: the post-session '
+      'integration started at $startedAt UTC never finished. $orphanText',
+    );
+
+    await clearIntegrationMarker(directory);
+  }
+
   Future<bool> _columnExists(String table, String column) async {
     final result = await customSelect("PRAGMA table_info('$table')").get();
     return result.any((row) => row.data['name'] == column);

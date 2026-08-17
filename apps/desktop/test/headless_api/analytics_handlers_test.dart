@@ -255,6 +255,76 @@ void main() {
       expect((body['stats'] as Map)['avgHfr'], 2.2);
     });
 
+    test('session stats carry the culling verdict, not just the camera\'s '
+        'exposure outcome', () async {
+      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final testContainer = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(database)],
+      );
+      addTearDown(testContainer.dispose);
+      final testHandlers = AnalyticsHandlers(testContainer);
+
+      final sessionId = await database
+          .into(database.imagingSessions)
+          .insert(
+            ImagingSessionsCompanion.insert(
+              startTime: DateTime.utc(2026, 8, 17),
+              totalExposures: const Value(10),
+              successfulExposures: const Value(10),
+            ),
+          );
+
+      Future<void> addFrame({
+        required int index,
+        required String frameType,
+        required bool accepted,
+      }) => database
+          .into(database.capturedImages)
+          .insert(
+            CapturedImagesCompanion.insert(
+              filePath: '/l/$frameType$index.fits',
+              fileName: '$frameType$index.fits',
+              frameType: Value(frameType),
+              exposureDuration: 300.0,
+              capturedAt: DateTime.utc(2026, 8, 17),
+              sessionId: Value(sessionId),
+              isAccepted: Value(accepted),
+            ),
+          );
+
+      for (var i = 0; i < 7; i++) {
+        await addFrame(index: i, frameType: 'light', accepted: true);
+      }
+      for (var i = 0; i < 3; i++) {
+        await addFrame(index: 10 + i, frameType: 'light', accepted: false);
+      }
+      // Calibration frames are not graded. Counting them would inflate
+      // `acceptedLights` with darks that no one ever culled.
+      await addFrame(index: 20, frameType: 'dark', accepted: true);
+
+      final response = await testHandlers.handleGetSessionStats(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/sessions/$sessionId/stats'),
+        ),
+        '$sessionId',
+      );
+      final stats =
+          (jsonDecode(await response.readAsString()) as Map)['stats'] as Map;
+
+      expect(stats['acceptedLights'], 7);
+      expect(stats['rejectedLights'], 3);
+      expect(
+        stats['successfulExposures'],
+        10,
+        reason:
+            'the exposure outcome is a different question from the grading '
+            'verdict — a frame can expose perfectly and still be rejected',
+      );
+      expect((stats['frameBreakdown'] as Map)['light'], 10);
+    });
+
     test('session creation rejects empty and unknown payloads', () async {
       final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
       addTearDown(database.close);

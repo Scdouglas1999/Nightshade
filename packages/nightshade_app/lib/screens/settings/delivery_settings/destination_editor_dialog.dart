@@ -58,6 +58,13 @@ class _DestinationEditorDialogState
   final _userController = TextEditingController();
   final _remoteDirController = TextEditingController();
   final _keyController = TextEditingController();
+  final _rigIdController = TextEditingController();
+
+  /// True once the row carries an explicit `rigId`. Kept apart from the
+  /// controller's text because an empty stored value ("deliver under the bare
+  /// file names") and no stored value at all ("use this host's name") are
+  /// different instructions that both render as an empty field.
+  bool _rigIdIsSet = false;
 
   /// Every key the stored config carried, so an edit here cannot drop the
   /// pinned host key or a configured free-space floor.
@@ -98,6 +105,8 @@ class _DestinationEditorDialogState
     _portController.text = port == null ? '22' : '$port';
     _userController.text = configString(_config, 'user');
     _remoteDirController.text = configString(_config, 'remoteDir');
+    _rigIdIsSet = _config.containsKey(kDeliveryRigIdKey);
+    _rigIdController.text = configString(_config, kDeliveryRigIdKey);
     _content.addAll(destination.content);
     _enabled = destination.enabled;
   }
@@ -111,15 +120,20 @@ class _DestinationEditorDialogState
     _userController.dispose();
     _remoteDirController.dispose();
     _keyController.dispose();
+    _rigIdController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    // `deliveryKindLabel` is the one place a transport is named, and it already
+    // spells the acronyms the way the buttons that open this dialog do.
+    // Lowercasing its answer here turned "SFTP" into "sftp", so the header read
+    // "Add sftp" directly under a button labelled "Add SFTP destination".
     final title = _isEditing
         ? 'Edit ${widget.view!.destination.name}'
-        : 'Add ${deliveryKindLabel(widget.kind).toLowerCase()}';
+        : 'Add ${deliveryKindLabel(widget.kind)}';
 
     return NightshadeDialog(
       title: title,
@@ -166,6 +180,8 @@ class _DestinationEditorDialogState
           const SizedBox(height: NightshadeTokens.spaceLg),
           ..._transportFields(colors),
           const SizedBox(height: NightshadeTokens.spaceLg),
+          ..._rigIdField(colors),
+          const SizedBox(height: NightshadeTokens.spaceLg),
           _ContentSelector(
             selected: _content,
             onToggle: (content, selected) => setState(() {
@@ -205,6 +221,45 @@ class _DestinationEditorDialogState
         ],
       ),
     );
+  }
+
+  /// The rig-identity component every file delivered here is named with.
+  ///
+  /// Offered on all three transports because all three name what the other
+  /// machine ends up holding: a watched folder and an SFTP host write the
+  /// name, and a peer manifest tells the paired desktop what to write.
+  List<Widget> _rigIdField(NightshadeColors colors) {
+    return [
+      NightshadeTextField(
+        label: 'Rig name in delivered files',
+        hint: _rigIdIsSet
+            ? 'no prefix — the rig\'s own file names'
+            : 'this computer\'s name',
+        controller: _rigIdController,
+        onChanged: (_) => setState(() => _rigIdIsSet = true),
+      ),
+      const SizedBox(height: NightshadeTokens.spaceXs),
+      Text(
+        'Files arrive here named "<rig>-<the file the rig wrote>". Two rigs '
+        'that deliver into one folder write the same file names — job_1_'
+        'report.json on both — and the second one is refused, because '
+        'delivery never overwrites. Leave this empty to use this computer\'s '
+        'name. Files already delivered keep the names they have.',
+        style: NightshadeTypography.captionSm.copyWith(
+          color: colors.textMuted,
+        ),
+      ),
+      if (_rigIdIsSet && _rigIdController.text.trim().isEmpty) ...[
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        const NightshadeInlineBanner(
+          message: 'Saving with this empty delivers under the rig\'s own file '
+              'names, with nothing saying which rig wrote them. That is the '
+              'setting a single-rig folder wants and the one that collides '
+              'when a second rig is pointed at the same place.',
+          severity: NightshadeAlertSeverity.warning,
+        ),
+      ],
+    ];
   }
 
   List<Widget> _transportFields(NightshadeColors colors) {
@@ -432,6 +487,12 @@ class _DestinationEditorDialogState
   /// carried so nothing this dialog does not render is lost.
   ({Map<String, Object?> config, String? error}) _buildConfig() {
     final config = Map<String, Object?>.from(_config);
+    // Written only once the operator has touched the field. An untouched field
+    // leaves the key absent, which is the instruction "name the files after
+    // this computer" rather than the instruction "name them after nothing".
+    if (_rigIdIsSet) {
+      config[kDeliveryRigIdKey] = sanitizeRigId(_rigIdController.text);
+    }
     switch (widget.kind) {
       case ArtifactDestinationKind.watchedFolder:
         final path = _pathController.text.trim();
@@ -531,6 +592,12 @@ class _DestinationEditorDialogState
           content: _content,
           enabled: _enabled,
         );
+        // Editing a destination is how an operator answers the failure that
+        // is on screen — the wrong folder, a stale key, a name that collided.
+        // The spent rows would otherwise stay spent, because the sweep reads
+        // only `retrying` rows, and the fix would deliver nothing. They go
+        // back on the queue with a fresh budget; the sweep picks them up.
+        await store.requeueTerminalRows(id);
       }
       if (_clearStoredKey && key.isEmpty) {
         await store.clearSecret(id);

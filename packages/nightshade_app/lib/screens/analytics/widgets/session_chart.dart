@@ -39,6 +39,12 @@ class SessionChart extends StatelessWidget {
   final String? measurementName;
 
   final List<ChartDataPoint> dataPoints;
+
+  /// The series hue this chart names, as a fixed [NightshadeChartColors]
+  /// constant. It is a NAME, not the colour that gets painted: [build] runs it
+  /// through [NightshadeChartColors.forTheme] so red night receives a red-axis
+  /// series instead. Mapping here rather than at each caller means a chart
+  /// added later cannot reintroduce a blue line on a red-night page.
   final Color lineColor;
   final double? minY;
   final double? maxY;
@@ -62,6 +68,10 @@ class SessionChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    // Red night is a wavelength constraint, so the named series hue cannot be
+    // painted as-is: #6B95B8 on the HFR line lit this card blue while the rest
+    // of the screen was red.
+    final seriesColor = NightshadeChartColors.forTheme(lineColor, colors);
 
     if (dataPoints.isEmpty) {
       return _ChartShell(
@@ -218,7 +228,7 @@ class SessionChart extends StatelessWidget {
                 spots: spots,
                 // Straight segments only: these are measurements, not a model.
                 isCurved: false,
-                color: lineColor,
+                color: seriesColor,
                 barWidth: 1.6,
                 isStrokeCapRound: true,
                 dotData: FlDotData(show: spots.length <= 40),
@@ -227,7 +237,7 @@ class SessionChart extends StatelessWidget {
                   // that isn't being measured — the sensor sitting at 20.0 C
                   // filled half the card.
                   show: !isFlat,
-                  color: lineColor.withValues(alpha: 0.08),
+                  color: seriesColor.withValues(alpha: 0.08),
                 ),
               ),
             ],

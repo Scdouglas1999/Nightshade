@@ -4,11 +4,14 @@
 /// Config (`delivery_targets.config_json`):
 ///
 /// ```json
-/// {"path": "/mnt/nas/nightshade", "minFreeBytes": 1073741824}
+/// {"path": "/mnt/nas/nightshade", "minFreeBytes": 1073741824,
+///  "rigId": "shed-rig"}
 /// ```
 ///
 /// `minFreeBytes` is the headroom left after the night's copy; it defaults to
-/// [kDefaultWatchedFolderHeadroomBytes].
+/// [kDefaultWatchedFolderHeadroomBytes]. `rigId` is the rig-identity component
+/// every delivered name carries so two rigs writing into one share do not
+/// collide — see [DeliveryNaming].
 ///
 /// The destination directory is never created. A path that is missing is
 /// reported as unreachable and retried, because the overwhelmingly likely
@@ -28,6 +31,7 @@ import 'artifact_transport.dart';
 import 'atomic_file_write.dart';
 import 'delivery_artifact.dart';
 import 'delivery_failure.dart';
+import 'delivery_naming.dart';
 
 /// Free space left on the destination after a night's delivery, when the
 /// destination row does not name its own figure.
@@ -68,6 +72,7 @@ class WatchedFolderTransport implements ArtifactTransport {
   final FreeSpaceProbe _freeSpace;
 
   Directory? _root;
+  DeliveryNaming? _naming;
 
   WatchedFolderTransport({
     required this.destination,
@@ -81,6 +86,7 @@ class WatchedFolderTransport implements ArtifactTransport {
   @override
   Future<void> open(List<DeliveryFile> artifacts) async {
     final config = _decodeConfig();
+    final naming = DeliveryNaming.of(config);
     final path = config['path'];
     if (path is! String || path.trim().isEmpty) {
       throw const DeliveryFailure(
@@ -118,12 +124,14 @@ class WatchedFolderTransport implements ArtifactTransport {
     }
 
     _root = root;
+    _naming = naming;
   }
 
   @override
   Future<TransportDeliveryOutcome> deliver(DeliveryFile artifact) async {
     final root = _root;
-    if (root == null) {
+    final naming = _naming;
+    if (root == null || naming == null) {
       throw const DeliveryFailure(
         DeliveryFailureKind.configurationInvalid,
         'This watched-folder destination was asked to deliver before it was '
@@ -131,7 +139,8 @@ class WatchedFolderTransport implements ArtifactTransport {
       );
     }
 
-    final existing = File(p.join(root.path, artifact.fileName));
+    final deliveredName = naming.nameFor(artifact.fileName);
+    final existing = File(p.join(root.path, deliveredName));
     if (await existing.exists()) {
       final String onDisk;
       try {
@@ -165,6 +174,7 @@ class WatchedFolderTransport implements ArtifactTransport {
 
     final staged = await AtomicFileWrite.stage(
       artifact: artifact,
+      deliveredName: deliveredName,
       directory: root,
       jobId: jobId,
     );
@@ -179,6 +189,7 @@ class WatchedFolderTransport implements ArtifactTransport {
   @override
   Future<void> close() async {
     _root = null;
+    _naming = null;
   }
 
   Map<String, Object?> _decodeConfig() {

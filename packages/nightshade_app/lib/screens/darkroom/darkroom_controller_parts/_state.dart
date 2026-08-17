@@ -60,8 +60,32 @@ class DarkroomState {
   /// One entry per step the last render covered.
   final List<DarkroomStepReport> reports;
 
+  /// The [DarkroomStep.identity] of every step the last render was ASKED
+  /// about, in the order the engine indexed them.
+  ///
+  /// A report line names an index into the list the engine was handed, which
+  /// is not the position of that step in the stack the operator is now looking
+  /// at: a step can be inserted in front of it, and a step the render was not
+  /// asked about is not in the engine's list at all. [reportFor] joins through
+  /// this list, so an outcome only ever reaches the card of the step the engine
+  /// actually produced it for.
+  final List<Object> reportedSteps;
+
   /// One entry per step from the last `validate` call.
   final List<DarkroomStepIssue> issues;
+
+  /// The step identities [issues] index, in the order they were validated.
+  final List<Object> issuedSteps;
+
+  /// The identities of the steps the last render was NOT asked about, because
+  /// they are switched off and this build cannot run them.
+  ///
+  /// The engine validates the whole recipe before it touches a pixel, so one
+  /// unregistered step refuses the render whether or not it would have been
+  /// applied. A step that is switched off contributes nothing to the picture,
+  /// so it is left out of the render request instead of stopping it — and the
+  /// card says so rather than the operator having to infer it.
+  final List<Object> omittedFromRender;
 
   /// The engine's verdict on the recipe as a whole, null when it validates.
   final String? recipeError;
@@ -85,7 +109,7 @@ class DarkroomState {
   final String? reorderRefusal;
 
   /// Why the field carries no catalogue photometry, when it does not. The
-  /// colour calibration is skipped with the engine's own reason in that case;
+  /// color calibration is skipped with the engine's own reason in that case;
   /// this states the app-side half of the same fact.
   final String? photometryNote;
 
@@ -120,7 +144,10 @@ class DarkroomState {
     this.catalogError,
     this.preview,
     this.reports = const [],
+    this.reportedSteps = const [],
     this.issues = const [],
+    this.issuedSteps = const [],
+    this.omittedFromRender = const [],
     this.recipeError,
     this.rendering = false,
     this.cancelRequested = false,
@@ -142,22 +169,77 @@ class DarkroomState {
   /// behind, with every step and its parameters intact.
   bool get isLinear => steps.isNotEmpty && steps.every((s) => !s.enabled);
 
+  /// True when the stack carries a color calibration.
+  ///
+  /// The catalogue photometry is lent to that one operation and to no other, so
+  /// it is the only step whose absence of catalogue stars is worth stating. A
+  /// stack without it has nothing the missing catalogue would have changed.
+  bool get hasColorCalibrateStep =>
+      steps.any((step) => step.opId == kDarkroomColorCalibrateOpId);
+
   /// The render report for the step at [index], or null when the last render
-  /// carried no line for it.
-  DarkroomStepReport? reportFor(int index) {
-    for (final report in reports) {
-      if (report.index == index) return report;
+  /// carried no line for that step.
+  ///
+  /// Joined on [DarkroomStep.identity], never on list position: an outcome the
+  /// engine produced for one step must never be read onto the step that later
+  /// took its index.
+  DarkroomStepReport? reportFor(int index) =>
+      _joinByIdentity(index, reports, reportedSteps, (r) => r.index);
+
+  /// The validation verdict for the step at [index], or null when the last
+  /// `validate` carried no entry for that step. Joined on identity, as
+  /// [reportFor] is.
+  DarkroomStepIssue? issueFor(int index) =>
+      _joinByIdentity(index, issues, issuedSteps, (i) => i.index);
+
+  T? _joinByIdentity<T>(
+    int index,
+    List<T> entries,
+    List<Object> describes,
+    int Function(T entry) indexOf,
+  ) {
+    if (index < 0 || index >= steps.length) return null;
+    final identity = steps[index].identity;
+    for (final entry in entries) {
+      final at = indexOf(entry);
+      if (at < 0 || at >= describes.length) continue;
+      if (identical(describes[at], identity)) return entry;
     }
     return null;
   }
 
-  /// The validation verdict for the step at [index], or null when the last
-  /// `validate` carried no entry for it.
-  DarkroomStepIssue? issueFor(int index) {
-    for (final issue in issues) {
-      if (issue.index == index) return issue;
+  /// True when the step at [index] was left out of the last render request
+  /// because it is switched off and this build cannot run it.
+  bool isOmittedFromRender(int index) {
+    if (index < 0 || index >= steps.length) return false;
+    final identity = steps[index].identity;
+    for (final omitted in omittedFromRender) {
+      if (identical(omitted, identity)) return true;
     }
-    return null;
+    return false;
+  }
+
+  /// The engine's whole-stack refusal, or null when the stack renders.
+  ///
+  /// The engine refuses a recipe on its FIRST bad step, switched on or off, so
+  /// its sentence alone would tell an operator who has already switched that
+  /// step off that the stack still cannot run — which is untrue, because the
+  /// render is asked without it. The refusal therefore stands only when a step
+  /// the render will actually replay is the one at fault, or when the engine
+  /// named a fault the per-step diagnosis does not attribute to any step (a
+  /// stage-ordering rule, the schema version, the branch link) and which
+  /// switching a step off cannot answer.
+  String? get blockingRecipeError {
+    final error = recipeError;
+    if (error == null) return null;
+    var attributed = false;
+    for (var index = 0; index < steps.length; index++) {
+      final issue = issueFor(index);
+      if (issue == null || issue.isClean) continue;
+      attributed = true;
+      if (steps[index].enabled) return error;
+    }
+    return attributed ? null : error;
   }
 
   DarkroomState copyWith({
@@ -179,7 +261,10 @@ class DarkroomState {
     String? catalogError,
     DarkroomPreviewImage? preview,
     List<DarkroomStepReport>? reports,
+    List<Object>? reportedSteps,
     List<DarkroomStepIssue>? issues,
+    List<Object>? issuedSteps,
+    List<Object>? omittedFromRender,
     String? recipeError,
     bool clearRecipeError = false,
     bool? rendering,
@@ -214,7 +299,10 @@ class DarkroomState {
       catalogError: catalogError ?? this.catalogError,
       preview: preview ?? this.preview,
       reports: reports ?? this.reports,
+      reportedSteps: reportedSteps ?? this.reportedSteps,
       issues: issues ?? this.issues,
+      issuedSteps: issuedSteps ?? this.issuedSteps,
+      omittedFromRender: omittedFromRender ?? this.omittedFromRender,
       recipeError: clearRecipeError ? null : (recipeError ?? this.recipeError),
       rendering: rendering ?? this.rendering,
       cancelRequested: cancelRequested ?? this.cancelRequested,

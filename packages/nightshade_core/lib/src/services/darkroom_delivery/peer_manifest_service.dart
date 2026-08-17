@@ -21,6 +21,7 @@ import '../../models/darkroom/delivery.dart';
 import 'delivery_artifact.dart';
 import 'delivery_failure.dart';
 import 'delivery_manifest.dart';
+import 'delivery_naming.dart';
 import 'peer_publication_transport.dart';
 
 /// No enabled peer destination on this rig answers to the requested peer id.
@@ -81,11 +82,15 @@ class PeerManifestService {
     required int jobId,
     required String peerId,
   }) async {
-    final targetIds = await _peerTargetIds(peerId);
+    final namings = <int, DeliveryNaming>{
+      for (final entry in (await _peerTargets(peerId)).entries)
+        entry.key: DeliveryNaming.forDestination(entry.value),
+    };
     final entries = <DeliveryManifestEntry>[];
     final unavailable = <UnavailableArtifact>[];
     for (final row in await _journal.listForJob(jobId)) {
-      if (!targetIds.contains(row.targetId)) continue;
+      final naming = namings[row.targetId];
+      if (naming == null) continue;
       if (row.state == DeliveryAttemptState.failed) continue;
       final DeliveryFile file;
       try {
@@ -106,7 +111,7 @@ class PeerManifestService {
         DeliveryManifestEntry(
           artifactId: artifactIdForPath(row.filePath),
           targetId: row.targetId,
-          fileName: file.fileName,
+          fileName: naming.nameFor(file.fileName),
           bytes: file.bytes,
           checksum: file.checksum,
         ),
@@ -128,9 +133,9 @@ class PeerManifestService {
     required String peerId,
     required String artifactId,
   }) async {
-    final targetIds = await _peerTargetIds(peerId);
+    final targets = await _peerTargets(peerId);
     for (final row in await _journal.listForJob(jobId)) {
-      if (!targetIds.contains(row.targetId)) continue;
+      if (!targets.containsKey(row.targetId)) continue;
       if (artifactIdForPath(row.filePath) != artifactId) continue;
       return PublishedArtifact(
         targetId: row.targetId,
@@ -186,10 +191,15 @@ class PeerManifestService {
     );
   }
 
-  Future<Set<int>> _peerTargetIds(String peerId) async {
+  /// The enabled peer destinations that answer to [peerId], by row id.
+  ///
+  /// The rows themselves rather than their ids, because the manifest names the
+  /// file the desktop writes and that name carries each destination's own
+  /// rig-identity component.
+  Future<Map<int, ArtifactDestination>> _peerTargets(String peerId) async {
     final wanted = peerId.trim();
     if (wanted.isEmpty) throw UnknownDeliveryPeerException(peerId);
-    final ids = <int>{};
+    final matched = <int, ArtifactDestination>{};
     for (final destination in await _targets.listEnabled()) {
       if (destination.kind != ArtifactDestinationKind.peer) continue;
       final id = destination.id;
@@ -204,9 +214,9 @@ class PeerManifestService {
         // destination does not deny another peer its manifest.
         continue;
       }
-      if (configured == wanted) ids.add(id);
+      if (configured == wanted) matched[id] = destination;
     }
-    if (ids.isEmpty) throw UnknownDeliveryPeerException(peerId);
-    return ids;
+    if (matched.isEmpty) throw UnknownDeliveryPeerException(peerId);
+    return matched;
   }
 }

@@ -127,6 +127,12 @@ enum _DarkroomStageDomain {
 /// switch turns the engine's own auto stretch on and enables them. Nothing here
 /// stretches anything by itself, and the reply names the transfer that was
 /// applied.
+///
+/// **That switch is a standing control, not a one-way door.** It stays on the
+/// sheet for as long as the chosen stage has no display mapping of its own, in
+/// both positions, and the sentence beside it changes to say which way it is
+/// set. Hiding it once it was on left the sheet indistinguishable from a stage
+/// that was genuinely stretched, with no way back except re-tapping the stage.
 class _DarkroomExportSheet extends ConsumerStatefulWidget {
   final int recipeId;
   final String recipeName;
@@ -374,13 +380,21 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// a pointer and a screen reader.
   ///
   /// A [Tooltip] alone puts the reason behind a hover, which is nothing at all
-  /// on a touch screen and nothing at all to assistive tech — a refused format
-  /// announced as the bare word "PNG" states no reason for its refusal. The
-  /// same sentence therefore goes into the node's `hint`. It merges into the
-  /// chip's own semantics node rather than forming a second one: `hint` sets no
-  /// flag and no action, so it is compatible with the chip's
-  /// button/enabled/selected configuration, and one node comes out carrying the
-  /// label, the role, the enabled state, the selection AND the reason.
+  /// on a touch screen — a refused format announced as the bare word "PNG"
+  /// states no reason for its refusal.
+  ///
+  /// `Semantics(hint:)` is not the rescue it looks like. The hint does reach
+  /// Flutter's own semantics tree, but the Linux AT-SPI bridge publishes only a
+  /// node's NAME and description, and the hint reaches neither: every chip on
+  /// this sheet comes back over AT-SPI as `'PNG' | button | desc: ''` —
+  /// measured on this build. So a REFUSED option carries its reason inside its
+  /// accessible name, the shape the disabled Compare button already uses, and
+  /// [ExcludeSemantics] drops the chip's own node so exactly one node comes out
+  /// rather than a bare "PNG" nested under the sentence.
+  ///
+  /// The name is the reason's only assistive-tech channel, never its only
+  /// channel outright: each picker states a live refusal on screen as well, for
+  /// the touch screen that has no hover and no screen reader.
   ///
   /// [onTap] is dropped when [enabled] is false — an unavailable option must not
   /// publish a live tap action beside its disabled flag.
@@ -391,22 +405,30 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     required VoidCallback onTap,
     bool enabled = true,
   }) {
+    final chip = NightshadeChip(
+      label: label,
+      selected: selected,
+      enabled: enabled,
+      onTap: enabled ? onTap : null,
+    );
+    if (!enabled) {
+      return Semantics(
+        button: true,
+        enabled: false,
+        selected: selected,
+        label: '$label — $reason',
+        child: ExcludeSemantics(child: Tooltip(message: reason, child: chip)),
+      );
+    }
     return Semantics(
       hint: reason,
-      child: Tooltip(
-        message: reason,
-        child: NightshadeChip(
-          label: label,
-          selected: selected,
-          enabled: enabled,
-          onTap: enabled ? onTap : null,
-        ),
-      ),
+      child: Tooltip(message: reason, child: chip),
     );
   }
 
   Widget _stagePicker(NightshadeColors colors) {
-    final hasSteps = widget.steps.isNotEmpty;
+    final refusal = _afterStepRefusal();
+    final hasSteps = refusal == null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -430,11 +452,9 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             ),
             _optionChip(
               label: 'After a step',
-              reason: hasSteps
-                  ? 'Replay the stack through one step and write what it '
-                      'produced.'
-                  : 'This recipe carries no steps, so there is no step to stop '
-                      'after. Add one, or export the linear master.',
+              reason: refusal ??
+                  'Replay the stack through one step and write what it '
+                      'produced.',
               selected: _stageKind == _DarkroomExportStageKind.afterStep,
               enabled: hasSteps,
               onTap: () => _setStage(_DarkroomExportStageKind.afterStep),
@@ -448,6 +468,19 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             ),
           ],
         ),
+        if (refusal != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          // On screen, not only in the chip's name: a hover states nothing on a
+          // touch screen, and the format picker's own refusal has read this way
+          // since it shipped. The stage picker is the one that had no
+          // equivalent.
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.info,
+            title: '"After a step" is unavailable for this recipe',
+            message: refusal,
+            compact: true,
+          ),
+        ],
         if (_stageKind == _DarkroomExportStageKind.afterStep) ...[
           const SizedBox(height: NightshadeTokens.spaceSm),
           NightshadeDropdown(
@@ -517,24 +550,38 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
               ),
           ],
         ),
-        if (!rasterAllowed) ...[
+        // Gated on the STAGE's own domain, never on `rasterAllowed`. Whether
+        // these pixels need the engine's transfer is a fact about the stage;
+        // `_screenTransfer` is the operator's answer to it. Gating this block
+        // on the answer made the switch delete itself the moment it was turned
+        // on — taking the only control that could turn it back off, and every
+        // sentence saying a transfer would be applied, off the sheet with it.
+        if (domain != _DarkroomStageDomain.stretched) ...[
           const SizedBox(height: NightshadeTokens.spaceSm),
-          // The refusal is on screen, not only in a tooltip: a disabled chip
-          // whose reason lives behind a hover says nothing on a touch screen.
+          // The state is on screen, not only in a tooltip: a chip whose reason
+          // lives behind a hover says nothing on a touch screen. Both answers
+          // get a sentence — refused, and rendered through the auto stretch.
           NightshadeAlert(
             severity: NightshadeAlertSeverity.info,
-            title: 'PNG, JPEG and TIFF are unavailable for this stage',
-            message: _rasterRefusal(domain),
+            title: _screenTransfer
+                ? 'PNG, JPEG and TIFF are rendered through the auto stretch'
+                : 'PNG, JPEG and TIFF are unavailable for this stage',
+            message: _screenTransfer
+                ? _rasterTransferNote(domain)
+                : _rasterRefusalMessage(domain),
             compact: true,
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           NightshadeSwitchRow(
             label: 'Render the 8/16-bit files through the auto stretch',
+            // "these pixels", not "these linear pixels": this row is offered on
+            // an undetermined stage too, where the build has not established
+            // that the pixels are linear.
             subtitle:
-                'Uses the engine\'s own auto stretch to give these linear '
-                'pixels a display mapping. The recipe is not changed and the '
-                'reply names the transfer that was applied — a FITS export of '
-                'the same stage still carries the linear data.',
+                'Uses the engine\'s own auto stretch to give these pixels a '
+                'display mapping. The recipe is not changed and the reply '
+                'names the transfer that was applied — a FITS export of the '
+                'same stage still carries whatever the pixels are.',
             value: _screenTransfer,
             onChanged: _exporting
                 ? null
@@ -602,17 +649,47 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     }
   }
 
+  /// Why the `afterStep` stage cannot be chosen, or null when it can.
+  ///
+  /// One sentence, read by the chip's accessible name AND by the alert under
+  /// the picker, so the two can never drift into stating different reasons.
+  String? _afterStepRefusal() {
+    if (widget.steps.isNotEmpty) return null;
+    return 'This recipe carries no steps, so there is no step to stop after. '
+        'Add one, or export the linear master.';
+  }
+
+  /// What each stage writes, counted off THIS recipe rather than asserted.
+  ///
+  /// A zero-step recipe is a real state — "Start from linear" produces one —
+  /// and the final stage over it applies nothing at all. Describing "every
+  /// enabled step" there names steps the operator can see are not in the stack,
+  /// beside a History panel that says the recipe carries no operations.
   String _stageExplanation() {
+    final total = widget.steps.length;
+    final enabled = widget.steps.where((step) => step.enabled).length;
     switch (_stageKind) {
       case _DarkroomExportStageKind.linear:
         return 'The master\'s own pixels, untouched. The recipe rides along as '
             'provenance and is recorded as not applied.';
       case _DarkroomExportStageKind.afterStep:
+        final refusal = _afterStepRefusal();
+        if (refusal != null) return refusal;
         return 'The stack replayed from the start through the chosen step. '
             'Steps below it are not applied.';
       case _DarkroomExportStageKind.finalStack:
-        return 'Every enabled step, at the master\'s full resolution — not the '
-            'pyramid level the viewport renders from.';
+        if (total == 0) {
+          return 'This recipe carries no steps, so the final stage applies '
+              'nothing: it writes the master\'s own pixels at full resolution.';
+        }
+        if (enabled == 0) {
+          return 'All $total steps in this recipe are switched off, so the '
+              'final stage applies nothing: it writes the master\'s own pixels '
+              'at full resolution.';
+        }
+        return 'The $enabled enabled step${enabled == 1 ? '' : 's'} of '
+            '$total, at the master\'s full resolution — not the pyramid level '
+            'the viewport renders from.';
     }
   }
 
@@ -696,6 +773,38 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
                 'switch on the auto stretch to render the 8/16-bit files '
                 'through the engine\'s own transfer.';
     }
+  }
+
+  /// The refusal, plus what it means for the format that is actually chosen.
+  ///
+  /// The auto stretch can now be switched back off with a raster still
+  /// selected, and a disabled chip renders identically whether or not it is the
+  /// chosen one — so the sheet says outright that Export is waiting on that
+  /// choice, rather than leaving a greyed button with no sentence beside it.
+  String _rasterRefusalMessage(_DarkroomStageDomain domain) {
+    final refusal = _rasterRefusal(domain);
+    if (!_format.isRaster) return refusal;
+    return '$refusal\n\n${_format.label} is still the chosen format, so Export '
+        'stays off until you pick FITS or switch the auto stretch back on.';
+  }
+
+  /// What the sheet states once the operator has switched the auto stretch on.
+  ///
+  /// The counterpart to [_rasterRefusal]: the rasters are available now, and
+  /// the sheet has to keep saying WHY they are available and what will be done
+  /// to them, or an opted-in export reads exactly like a stage whose pixels
+  /// already carried a display mapping.
+  String _rasterTransferNote(_DarkroomStageDomain domain) {
+    final because = domain == _DarkroomStageDomain.undetermined
+        ? 'this build cannot tell whether the ${_stageLabel()} carries a '
+            'display mapping of its own'
+        : 'the ${_stageLabel()} is still linear ADU and carries no display '
+            'mapping of its own';
+    return 'The 8/16-bit files are rendered through the engine\'s own auto '
+        'stretch, because $because. The recipe is not changed, a FITS export '
+        'of the same stage still carries whatever the pixels are, and the '
+        'reply names the transfer that was applied. Switch it back off to '
+        'return these formats to unavailable.';
   }
 
   String _formatNote(_DarkroomExportFormat format) {

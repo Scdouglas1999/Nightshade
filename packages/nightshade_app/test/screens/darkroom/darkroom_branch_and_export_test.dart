@@ -759,14 +759,17 @@ void main() {
     await openExport(tester);
 
     final png = dataFor(tester, find.widgetWithText(NightshadeChip, 'PNG'));
-    expect(png.label, 'PNG');
     expect(png.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(png.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
     expect(png.hasFlag(SemanticsFlag.isEnabled), isFalse);
     // No live tap beside the disabled flag — the refusal is not a dare.
     expect(png.hasAction(SemanticsAction.tap), isFalse);
-    // The reason travels with the control, not only in a hover tooltip.
-    expect(png.hint, contains('still linear ADU'));
+    // The reason rides the NAME, not the hint. Measured on the Linux release
+    // bundle: every chip came back over AT-SPI as `'PNG' | button | desc: ''`,
+    // so a hint-only reason reaches a screen reader on this platform not at
+    // all. One node, still starting with the option's own word.
+    expect(png.label, startsWith('PNG'));
+    expect(png.label, contains('still linear ADU'));
 
     final fits = dataFor(tester, find.widgetWithText(NightshadeChip, 'FITS'));
     expect(fits.hasFlag(SemanticsFlag.isEnabled), isTrue);
@@ -965,6 +968,231 @@ void main() {
     // control that publishes an on/off state while changing nothing is a lie.
     expect(find.byType(AstroImageViewer), findsNWidgets(2));
     expect(find.text('Hold to see Warmer'), findsNothing);
+    await drain(tester);
+  });
+
+  // ---------------------------------------------------------------------
+  // The export sheet on a recipe with nothing in it, and the auto stretch as
+  // a control that stays put.
+  //
+  // Measured on the release bundle before these landed: a zero-step recipe
+  // offered "After a step" greyed out with its reason nowhere on the sheet and
+  // nowhere in its accessible name, under a stage line reading "Every enabled
+  // step…" over a History panel saying the recipe carries no operations; and
+  // switching the auto stretch ON deleted the switch, the alert and every
+  // sentence about the transfer, leaving a sheet identical to a genuinely
+  // stretched stage with no way back.
+  // ---------------------------------------------------------------------
+
+  testWidgets('a zero-step recipe states WHY "After a step" is dead', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final root = await seedRecipe(const []);
+    await pump(tester, root);
+    await openExport(tester);
+
+    final after = tester.widget<NightshadeChip>(
+      find.widgetWithText(NightshadeChip, 'After a step'),
+    );
+    expect(after.enabled, isFalse);
+
+    // On screen for a touch screen, which has neither hover nor a pointer.
+    expect(
+      find.text('"After a step" is unavailable for this recipe'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('there is no step to stop after'),
+      findsOneWidget,
+    );
+
+    // And in the accessible name for a screen reader, because the hint does
+    // not survive the Linux AT-SPI bridge.
+    final data =
+        dataFor(tester, find.widgetWithText(NightshadeChip, 'After a step'));
+    expect(data.label, startsWith('After a step'));
+    expect(data.label, contains('there is no step to stop after'));
+    expect(data.hasFlag(SemanticsFlag.isEnabled), isFalse);
+    expect(data.hasAction(SemanticsAction.tap), isFalse);
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+    handle.dispose();
+  });
+
+  testWidgets('the stage line counts the recipe rather than asserting steps', (
+    tester,
+  ) async {
+    final empty = await seedRecipe(const [], name: 'Empty');
+    await pump(tester, empty);
+    await openExport(tester);
+
+    expect(
+      find.textContaining('Every enabled step, at the master\'s full'),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('This recipe carries no steps, so the final stage '
+          'applies nothing'),
+      findsOneWidget,
+    );
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('the stage line says so when every step is switched off', (
+    tester,
+  ) async {
+    final off = await seedRecipe([
+      _step('background_extract', enabled: false),
+      _step('stretch', enabled: false),
+    ], name: 'All off');
+    await pump(tester, off);
+    await openExport(tester);
+
+    expect(
+      find.textContaining('All 2 steps in this recipe are switched off'),
+      findsOneWidget,
+    );
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('the stage line counts only the enabled steps', (tester) async {
+    final mixed = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch', enabled: false),
+    ], name: 'Mixed');
+    await pump(tester, mixed);
+    await openExport(tester);
+
+    expect(find.textContaining('The 1 enabled step of 2'), findsOneWidget);
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('the auto stretch switch stays put and can be turned back off', (
+    tester,
+  ) async {
+    const switchLabel = 'Render the 8/16-bit files through the auto stretch';
+    final root = await seedRecipe([_step('background_extract')]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    expect(find.text(switchLabel), findsOneWidget);
+    expect(
+      find.text('PNG, JPEG and TIFF are unavailable for this stage'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byType(NightshadeSwitch).last);
+    await settle(tester);
+
+    // The control that set it is still there, and still says what is set.
+    expect(find.text(switchLabel), findsOneWidget);
+    expect(
+      tester.widget<NightshadeSwitch>(find.byType(NightshadeSwitch).last).value,
+      isTrue,
+    );
+    expect(
+      find.text('PNG, JPEG and TIFF are rendered through the auto stretch'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('rendered through the engine\'s own auto stretch'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<NightshadeChip>(find.widgetWithText(NightshadeChip, 'PNG'))
+          .enabled,
+      isTrue,
+    );
+
+    // Off again, in place, without touching the stage.
+    await tester.tap(find.byType(NightshadeSwitch).last);
+    await settle(tester);
+    expect(
+      tester.widget<NightshadeSwitch>(find.byType(NightshadeSwitch).last).value,
+      isFalse,
+    );
+    expect(
+      find.text('PNG, JPEG and TIFF are unavailable for this stage'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<NightshadeChip>(find.widgetWithText(NightshadeChip, 'PNG'))
+          .enabled,
+      isFalse,
+    );
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets(
+      'turning the stretch off under a chosen raster says Export is '
+      'waiting on that choice', (tester) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    await tester.tap(find.byType(NightshadeSwitch).last);
+    await settle(tester);
+    await tester.tap(find.widgetWithText(NightshadeChip, 'PNG'));
+    await settle(tester);
+    await tester.tap(find.byType(NightshadeSwitch).last);
+    await settle(tester);
+
+    // A disabled chip renders the same whether or not it is the chosen one, so
+    // the sheet names the format that is holding the export.
+    expect(
+      find.textContaining('PNG is still the chosen format, so Export stays '
+          'off'),
+      findsOneWidget,
+    );
+    final export = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Export'),
+    );
+    expect(export.onPressed, isNull);
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('a stretched stage offers no auto-stretch switch at all', (
+    tester,
+  ) async {
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    // Nothing to opt into: these pixels already carry a display mapping.
+    expect(
+      find.text('Render the 8/16-bit files through the auto stretch'),
+      findsNothing,
+    );
+    expect(
+      find.text('PNG, JPEG and TIFF are rendered through the auto stretch'),
+      findsNothing,
+    );
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
     await drain(tester);
   });
 }

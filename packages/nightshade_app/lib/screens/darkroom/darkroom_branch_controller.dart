@@ -657,7 +657,11 @@ class DarkroomBranchController extends StateNotifier<DarkroomBranchState> {
 }
 
 /// Family provider keyed by the master path and the open recipe.
-final darkroomBranchControllerProvider = StateNotifierProvider.family<
-    DarkroomBranchController,
-    DarkroomBranchState,
-    DarkroomBranchScope>((ref, scope) => DarkroomBranchController(ref, scope));
+///
+/// autoDispose for the same reason [darkroomControllerProvider] is: this
+/// notifier reads the family once, in its constructor, so a member that outlives
+/// its bar would keep drawing chips for recipes that have since been deleted and
+/// keep omitting ones that have since been created.
+final darkroomBranchControllerProvider = StateNotifierProvider.autoDispose
+    .family<DarkroomBranchController, DarkroomBranchState, DarkroomBranchScope>(
+        (ref, scope) => DarkroomBranchController(ref, scope));
