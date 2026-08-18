@@ -191,6 +191,80 @@ void main() {
     expect(message, contains('It was Drafting Master · B when it stopped.'));
   });
 
+  // A night whose masters arrived and whose Darkroom pass was never queued was
+  // silent on this screen — the very state the banner's own rationale names.
+  // The open-time recovery now makes that state a `queued` row, and this is
+  // where the operator reads it.
+  testWidgets('a queued pass says the night is still owed its drafts', (
+    tester,
+  ) async {
+    when(() => jobs.listForSession(1)).thenAnswer(
+      (_) async => [
+        DarkroomJob(
+          id: 51,
+          sessionId: 1,
+          kind: DarkroomJobKind.dawn,
+          state: DarkroomJobState.queued,
+          progress: 0.0,
+          note: 'Queued at startup: the integration finished but the previous '
+              'process exited before this pass was queued.',
+          attempts: 0,
+          createdAt: DateTime.utc(2026, 8, 16, 6),
+        ),
+      ],
+    );
+
+    await pumpNarrative(tester);
+
+    expect(banner, findsOneWidget);
+    final widget = tester.widget<NightshadeInlineBanner>(banner);
+    expect(widget.severity, NightshadeAlertSeverity.warning);
+    expect(widget.message, contains('queued and has not run yet'));
+    expect(
+      widget.message,
+      contains(
+        'the drafts, the night report, the delivery and the morning message',
+      ),
+      reason: 'what is owed is the point of the banner',
+    );
+    expect(
+      widget.message,
+      contains('the previous process exited before this pass was queued.'),
+      reason: 'the row\'s own sentence, not a paraphrase of it',
+    );
+    expect(
+      widget.message,
+      isNot(contains('started 0 times')),
+      reason: 'a pass nothing has picked up has no history to state',
+    );
+    expect(widget.message, contains('Process now'));
+  });
+
+  testWidgets('a queued pass that has been started before says so', (
+    tester,
+  ) async {
+    when(() => jobs.listForSession(1)).thenAnswer(
+      (_) async => [
+        DarkroomJob(
+          id: 52,
+          sessionId: 1,
+          kind: DarkroomJobKind.dawn,
+          state: DarkroomJobState.queued,
+          progress: 0.4,
+          note: 'Re-queued: the previous process exited while this job was '
+              'running.',
+          attempts: 2,
+          createdAt: DateTime.utc(2026, 8, 16, 6),
+        ),
+      ],
+    );
+
+    await pumpNarrative(tester);
+
+    final message = tester.widget<NightshadeInlineBanner>(banner).message;
+    expect(message, contains('It has been started 2 times already.'));
+  });
+
   testWidgets('a pass that ran to the end adds nothing', (tester) async {
     when(() => jobs.listForSession(1))
         .thenAnswer((_) async => [_job(DarkroomJobState.done)]);

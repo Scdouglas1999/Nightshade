@@ -19,6 +19,27 @@ use progress_callback::{build_progress_callback, ProgressCallbackArgs};
 use recovery_driver::{run_recovery_driver, RecoveryDriverArgs};
 use trigger_monitor::{run_trigger_monitor_poll_loop, TriggerMonitorArgs};
 
+/// The run's terminal message: the verdict the ROOT node returned, named after
+/// the root node.
+///
+/// The verb follows the status the root actually reported, and the run's
+/// `state` is derived from that same status
+/// ([`executor_state_for_result`]), so the two can never contradict each
+/// other on `/api/sequencer/status`.
+fn terminal_verdict_message(result: NodeStatus, root_display_name: &str) -> String {
+    let verb = match result {
+        NodeStatus::Success => "Completed",
+        NodeStatus::Failure => "Failed",
+        NodeStatus::Cancelled => "Cancelled",
+        NodeStatus::Skipped => "Skipped",
+        // Not reachable: `result` is the terminal status of the root node.
+        // Kept exhaustive so a new NodeStatus variant fails to compile here
+        // rather than silently reporting the wrong verb.
+        NodeStatus::Pending | NodeStatus::Running => "Finished",
+    };
+    format!("{}: {}", verb, root_display_name)
+}
+
 impl SequenceExecutor {
     /// Start executing the sequence.
     ///
@@ -57,6 +78,9 @@ impl SequenceExecutor {
             .root_node
             .take()
             .ok_or("No root node available - sequence may not be properly loaded".to_string())?;
+        // The run's terminal message names the ROOT, so its name is taken here,
+        // before the tree is moved into the execution future.
+        let root_display_name = root_node.name().to_string();
 
         let camera_id = self.camera_id.clone();
         let mount_id = self.mount_id.clone();
@@ -1088,10 +1112,26 @@ impl SequenceExecutor {
 
                 let final_state = executor_state_for_result(result);
 
+                // The terminal message is the run's own verdict, composed from
+                // the status the ROOT returned (after the coercions above), so
+                // `message` and `state` can never disagree on
+                // `/api/sequencer/status`.
+                //
+                // It used to be whatever progress update happened to land last,
+                // and the tree keeps emitting after the root reaches its
+                // terminal status: a night that finished cleanly answered
+                // `state: "completed"` with `message: "Autofocus: step 0/9 HFR
+                // 2.11 (100%)"` — the last update a filter-change autofocus had
+                // queued — and a night cut short by a skip request answered
+                // `state: "completed"`, 8 frames, `message: "Skipped: Night
+                // root"`.
+                let verdict = terminal_verdict_message(result, &root_display_name);
+
                 *state.write().await = final_state;
                 {
                     let mut prog = progress.write();
                     prog.state = final_state;
+                    prog.message = Some(verdict);
                     prog.elapsed_secs = start_time.elapsed().as_secs_f64();
                 }
 
@@ -1144,19 +1184,17 @@ impl SequenceExecutor {
                         // the last instruction that actually reported one.
                         let reason = unreachable_failure_reason
                             .or_else(|| last_instruction_failure(&mut instruction_failure_rx));
-                        // The LAST progress message the node tree emits is the
-                        // root container's "Failed: <root name>"
-                        // (`node/runtime.rs`) — it names the container the
-                        // operator never configured and gives no reason at all,
-                        // and it is verbatim what `GET /api/sequencer/status`
-                        // returns as `message`. A night that died on an
-                        // unevaluable target trigger therefore answered
-                        // "Failed: Night root" to every remote client and
-                        // morning operator while the real refusal sat in the
-                        // Rust log. When the run HAS a reason, that reason is
-                        // the honest terminal message. When it has none, the
-                        // node name is left in place rather than replaced with
-                        // a second placeholder.
+                        // The verdict composed above is "Failed: <root name>" —
+                        // it names the container the operator never configured
+                        // and gives no reason at all, and it is verbatim what
+                        // `GET /api/sequencer/status` returns as `message`. A
+                        // night that died on an unevaluable target trigger
+                        // therefore answered "Failed: Night root" to every
+                        // remote client and morning operator while the real
+                        // refusal sat in the Rust log. When the run HAS a
+                        // reason, that reason is the honest terminal message.
+                        // When it has none, the verdict is left in place rather
+                        // than replaced with a second placeholder.
                         if let Some(reason) = reason.as_deref() {
                             progress.write().message = Some(reason.to_string());
                         }
@@ -1228,5 +1266,34 @@ impl SequenceExecutor {
         });
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The terminal message states what the ROOT did. Reporting a night that
+    /// imaged as "Skipped" — or one that failed as "Completed" — is the same
+    /// class of lie whichever direction it points in, and every remote client
+    /// renders this string next to `state`.
+    #[test]
+    fn the_terminal_verdict_follows_the_status_the_root_returned() {
+        assert_eq!(
+            terminal_verdict_message(NodeStatus::Success, "Night root"),
+            "Completed: Night root"
+        );
+        assert_eq!(
+            terminal_verdict_message(NodeStatus::Skipped, "Night root"),
+            "Skipped: Night root"
+        );
+        assert_eq!(
+            terminal_verdict_message(NodeStatus::Failure, "Night root"),
+            "Failed: Night root"
+        );
+        assert_eq!(
+            terminal_verdict_message(NodeStatus::Cancelled, "Night root"),
+            "Cancelled: Night root"
+        );
     }
 }

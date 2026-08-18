@@ -29,6 +29,7 @@ const IDS = [
   'pair-screen', 'main-screen', 'pair-status',
   'opt-wake-lock', 'opt-wake-lock-row', 'opt-wake-lock-note',
   'opt-push', 'opt-push-row', 'opt-push-note',
+  'btn-pause', 'btn-resume', 'btn-skip', 'btn-stop', 'btn-reset',
 ];
 
 /**
@@ -513,6 +514,212 @@ test('a snapshot that names no state at all is unknown, never idle', () => {
   api.applySnapshot(runningSnapshot({ sequencer: { progress: {} } }));
   assert.equal(doc.getElementById('state-badge').textContent, 'unknown');
   assert.ok(doc.getElementById('state-badge').className.includes('badge-error'));
+});
+
+// D4-1. Measured live: `POST /api/sequencer/pause` at a cancelled run answered
+// 200 {"status":"paused"} and the next snapshot carried
+// `sequencer.state: cancelled` beside `progress.state: paused`; a resume made
+// it `progress.state: running`. The executor block outranked the wire state
+// unconditionally, so this page showed a green "running" badge — across
+// reloads, and without self-healing — for a run that had ended 40 s earlier.
+// The server now refuses those commands; this is the second lock, so neither
+// half can lie on its own.
+test('a run the wire says has ended outranks a live-looking executor block',
+  () => {
+    const { doc, api } = loadRunWatch();
+    api.noteLinkOk();
+    for (const executorState of ['paused', 'running', 'recovering']) {
+      api.applySnapshot(cancelledSnapshot({ state: executorState }));
+      const badge = doc.getElementById('state-badge');
+      assert.equal(badge.textContent, 'cancelled',
+        'a cancelled run cannot be repainted ' + executorState);
+      assert.ok(badge.className.includes('badge-idle'),
+        'and it must not be styled as a live run');
+    }
+    // Every terminal word the wire can carry, not just the one that was
+    // measured: `SequenceExecutionState` has a member for none of them.
+    for (const wireState of ['completed', 'failed', 'stopped', 'error']) {
+      api.applySnapshot(runningSnapshot({
+        sequencer: {
+          state: wireState,
+          currentNodeName: null,
+          progress: { state: 'running', currentTarget: 'D1 Simulated Field' },
+        },
+      }));
+      assert.equal(doc.getElementById('state-badge').textContent, wireState);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// D4-2 — the controls, and what they claim
+// ---------------------------------------------------------------------------
+
+/** The four gated controls' disabled flags, as the operator would find them. */
+function controlState(doc) {
+  const read = (id) => Boolean(doc.getElementById(id).disabled);
+  return {
+    pause: read('btn-pause'), resume: read('btn-resume'),
+    skip: read('btn-skip'), stop: read('btn-stop'),
+    reset: read('btn-reset'),
+  };
+}
+
+// Measured on a fresh-boot rig with no run ever started: every control
+// rendered enabled (disabled === false for all five), Pause drew
+// "Pause accepted", Skip drew "Skip accepted", Resume drew "Resume accepted",
+// and GET /api/sequencer/status still read "idle" afterwards. The desktop
+// dashboard gated the same three on the executor state; this surface did not.
+test('the run controls open only for the state the rig reports', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+
+  api.applySnapshot(runningSnapshot());
+  assert.deepEqual(controlState(doc), {
+    pause: false, resume: true, skip: false, stop: false, reset: false,
+  }, 'a running rig offers pause, skip and stop — not resume');
+
+  api.applySnapshot(runningSnapshot({
+    sequencer: {
+      state: 'paused', currentNodeName: 'Exposure L',
+      progress: { state: 'paused', currentTarget: 'D1 Simulated Field' },
+    },
+  }));
+  assert.deepEqual(controlState(doc), {
+    pause: true, resume: false, skip: false, stop: false, reset: false,
+  }, 'a paused rig offers resume, skip and stop — not pause');
+
+  api.applySnapshot(cancelledSnapshot());
+  assert.deepEqual(controlState(doc), {
+    pause: true, resume: true, skip: true, stop: true, reset: false,
+  }, 'a run that has ended offers nothing but reset');
+
+  api.applySnapshot(runningSnapshot({
+    sequencer: { state: 'idle', currentNodeName: null, progress: { state: 'idle' } },
+  }));
+  assert.deepEqual(controlState(doc), {
+    pause: true, resume: true, skip: true, stop: true, reset: false,
+  }, 'an idle rig offers nothing but reset');
+});
+
+test('a link nobody can vouch for offers no run controls', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  api.applySnapshot(runningSnapshot());
+  assert.equal(controlState(doc).pause, false);
+  api.noteLinkFailure('unreachable', 'connection refused');
+  api.renderLinkState();
+  assert.deepEqual(controlState(doc), {
+    pause: true, resume: true, skip: true, stop: true, reset: false,
+  }, 'a control whose precondition nobody can confirm is not offerable');
+});
+
+test('the shipped markup offers no run control before the first snapshot', () => {
+  const html = fs.readFileSync(path.join(RUN_WATCH, 'index.html'), 'utf8');
+  for (const id of ['btn-pause', 'btn-resume', 'btn-skip', 'btn-stop']) {
+    const tag = html.match(new RegExp('<button id="' + id + '"[^>]*>'));
+    assert.ok(tag, id + ' must exist in the markup');
+    assert.match(tag[0], /\bdisabled\b/,
+      id + ' must not look live before the page has heard anything');
+  }
+  const reset = html.match(/<button id="btn-reset"[^>]*>/);
+  assert.ok(reset && !/\bdisabled\b/.test(reset[0]),
+    'Reset is the way out of a wedged executor and stays available');
+});
+
+// The server answers 409 `sequencer_not_running` with the same `wasRunning`
+// verdict Stop's 200 no-op carries. "Nothing to pause" is a fact about the
+// rig, not a fault in the request, so it earns the warning toast Stop's no-op
+// earns rather than a red failure.
+test('a refused control reports the refusal in the server\'s own words',
+  async () => {
+    const { doc, api } = loadRunWatch({
+      fetch: async () => ({
+        ok: false, status: 409, statusText: 'Conflict',
+        headers: new Headers(),
+        json: async () => ({
+          error: 'sequencer_not_running',
+          message: 'No sequence is running; nothing to pause.',
+          wasRunning: false,
+          state: 'cancelled',
+        }),
+      }),
+    });
+    await api.sequencerAction('/api/sequencer/pause', 'Pause');
+    const toasts = doc.getElementById('toast-region').children;
+    assert.equal(toasts.length, 1);
+    assert.equal(toasts[0].textContent,
+      'No sequence is running; nothing to pause.');
+    assert.ok(toasts[0].className.includes('toast-warning'),
+      'a refusal is neither a success nor a fault');
+    assert.ok(!toasts[0].className.includes('toast-success'));
+  });
+
+test('a control that genuinely failed still reads as a failure', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: false, status: 503, statusText: 'Service Unavailable',
+      headers: new Headers(),
+      json: async () => ({
+        error: 'sequencer_state_unreadable',
+        message: 'Cannot pause: the sequencer state could not be read, so '
+          + 'this host cannot tell whether a run is in flight.',
+      }),
+    }),
+  });
+  await api.sequencerAction('/api/sequencer/pause', 'Pause');
+  const toasts = doc.getElementById('toast-region').children;
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0].textContent, /^Pause failed: Cannot pause/);
+  assert.ok(toasts[0].className.includes('toast-error'));
+});
+
+// ---------------------------------------------------------------------------
+// D4-5 — a figure whose source is gone
+// ---------------------------------------------------------------------------
+
+// The null-progress path has been honest since D4W-03; the read-FAILED path
+// was not. Measured after a SIGTERM at wire progress 0.05: the badge flipped
+// to "unknown" and the banner said every value below might be wrong, while
+// #progress-pct read "5%", the bar stayed 5% wide and aria-valuenow kept
+// announcing 5 at +10 s, +25 s and +45 s. The dashboard's paintRunUnknown
+// settled the stance for the same loss — "a figure whose source is gone is not
+// a smaller truth than a state whose source is gone" — and this is that stance
+// applied here.
+test('a percentage nobody can vouch for is dropped with the state', () => {
+  const { doc, api } = loadRunWatch();
+  const bar = doc.getElementById('progress-bar-aria');
+  api.noteLinkOk();
+  api.applySnapshot(runningSnapshot());
+  assert.equal(doc.getElementById('progress-pct').textContent, '8%');
+  assert.equal(bar.getAttribute('aria-valuenow'), '8');
+
+  api.noteLinkFailure('unreachable', 'connection refused');
+  api.renderLinkState();
+
+  assert.equal(doc.getElementById('state-badge').textContent, 'unknown');
+  assert.equal(doc.getElementById('progress-pct').textContent, '--',
+    'the figure cannot outlive the state it was measured with');
+  assert.equal(doc.getElementById('progress-bar').style.width, '0%');
+  assert.equal(bar.getAttribute('aria-valuenow'), null,
+    'and it must stop being announced');
+  assert.ok(bar.classList.contains('unknown'),
+    'the graphic says what the text says');
+});
+
+test('a healthy snapshot after an outage takes the figure back', () => {
+  const { doc, api } = loadRunWatch();
+  const bar = doc.getElementById('progress-bar-aria');
+  api.noteLinkOk();
+  api.applySnapshot(runningSnapshot());
+  api.noteLinkFailure('unreachable', 'connection refused');
+  api.renderLinkState();
+  assert.equal(doc.getElementById('progress-pct').textContent, '--');
+
+  api.noteLinkOk();
+  api.applySnapshot(runningSnapshot());
+  assert.equal(doc.getElementById('progress-pct').textContent, '8%');
+  assert.equal(bar.getAttribute('aria-valuenow'), '8');
+  assert.ok(!bar.classList.contains('unknown'));
 });
 
 // ---------------------------------------------------------------------------

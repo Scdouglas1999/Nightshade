@@ -33,6 +33,12 @@
 ///     the policy's shortest rung) and asks the journal one indexed question —
 ///     is anything due? It sweeps only when the answer is yes, so a quiet
 ///     night costs one SELECT every 30 seconds and writes nothing to the log.
+///     "Due" means a row a sweep would actually re-attempt: rows held by a
+///     switched-off destination, and rows a paired desktop has not pulled yet,
+///     are the standing state the heartbeat reports, not work this rig owes —
+///     see [DeliveryService.earliestRetryDueAt]. Counting an unpulled peer file
+///     made every night with one turn this check into a full sweep and one INFO
+///     line every 30 seconds until the desktop woke up.
 ///   * the **heartbeat** runs every [interval] (15 minutes) and sweeps
 ///     regardless, which is what keeps the pass that reports a destination's
 ///     standing state — suspended rows, rows awaiting a pull — arriving on a

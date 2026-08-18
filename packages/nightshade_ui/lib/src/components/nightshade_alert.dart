@@ -91,87 +91,143 @@ class NightshadeAlert extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       padding: padding,
-      child: Row(
-        crossAxisAlignment: title != null
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
-        children: [
-          if (showIcon) ...[
-            Icon(
-              icon ?? _defaultIcon,
-              size: compact ? NightshadeTokens.iconSm : NightshadeTokens.iconMd,
-              color: iconColor,
-            ),
-            SizedBox(
-              width: compact
-                  ? NightshadeTokens.spaceSm
-                  : NightshadeTokens.spaceMd,
-            ),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (title != null) ...[
-                  Text(
-                    title!,
-                    style:
-                        (compact
-                                ? NightshadeTypography.labelSm
-                                : NightshadeTypography.label)
-                            .copyWith(color: textColor),
-                  ),
-                  const SizedBox(height: NightshadeTokens.spaceXs),
-                ],
+      child: LayoutBuilder(
+        builder: (context, constraints) =>
+            _body(constraints, iconColor, textColor),
+      ),
+    );
+  }
+
+  /// The alert's contents, laid out against the width it was actually given.
+  ///
+  /// A `Row` measures its INFLEXIBLE children against the full incoming width
+  /// before it hands what is left to the flexible ones. An action appended
+  /// unbounded therefore takes whatever it wants — a `Wrap` of two buttons
+  /// measures as one ~450px run and never wraps — and the text column, the only
+  /// `Expanded` child, is left the remainder. Measured on this component: at a
+  /// 430px window the Darkroom's branch-delete refusal gave its title 0px and
+  /// laid it out one glyph per line down a 6,395px column that took the whole
+  /// editor off screen; at 700px the title still measured 0px.
+  ///
+  /// Two rules, and the width chooses between them:
+  ///
+  ///  - **Wide** (at least [NightshadeTokens.breakpointMobile]): the action
+  ///    stays beside the text and is bounded to half the alert. Bounded, a
+  ///    `Wrap` reflows onto extra runs instead of running off the edge, and the
+  ///    sentence it answers always keeps the other half. A small action is
+  ///    unaffected — natural width, flush against the trailing edge, exactly
+  ///    where it has always been.
+  ///  - **Narrow**: bounding is not enough. Half of 430px is a column the
+  ///    message wraps down for 800px, which removes the screen just as surely
+  ///    as the glyph column did. So the action moves into the text column,
+  ///    under the title and above the message, at the alert's own width.
+  ///
+  /// Under the TITLE, not under the whole text, and that placement is load
+  /// bearing: the Darkroom's recipe panel is a ~330px scrolling column whose
+  /// "Show more" lives inside the alert precisely so the truncated sentence and
+  /// the control that completes it share one viewport. Below a seven-line
+  /// message that control lands past the panel's fold — measured, not
+  /// supposed — which trades this defect for the one it was built to fix.
+  /// Under the title it stays where the reader already is. An alert with no
+  /// title has nothing to sit under, so its action follows the message.
+  ///
+  /// An unbounded width (an alert inside a horizontal scroller) has no half to
+  /// take and no width to compare, and keeps the plain row.
+  Widget _body(BoxConstraints constraints, Color iconColor, Color textColor) {
+    final gap = compact ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd;
+    final bounded = constraints.maxWidth.isFinite;
+    final stacked =
+        action != null &&
+        bounded &&
+        constraints.maxWidth < NightshadeTokens.breakpointMobile;
+
+    return Row(
+      crossAxisAlignment: title != null
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      children: [
+        if (showIcon) ...[
+          Icon(
+            icon ?? _defaultIcon,
+            size: compact ? NightshadeTokens.iconSm : NightshadeTokens.iconMd,
+            color: iconColor,
+          ),
+          SizedBox(
+            width: compact
+                ? NightshadeTokens.spaceSm
+                : NightshadeTokens.spaceMd,
+          ),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (title != null) ...[
                 Text(
-                  message,
+                  title!,
                   style:
                       (compact
-                              ? NightshadeTypography.bodySm
-                              : NightshadeTypography.body)
-                          .copyWith(color: textColor.withValues(alpha: 0.9)),
+                              ? NightshadeTypography.labelSm
+                              : NightshadeTypography.label)
+                          .copyWith(color: textColor),
                 ),
+                const SizedBox(height: NightshadeTokens.spaceXs),
               ],
-            ),
+              if (stacked && title != null) ...[
+                Align(alignment: Alignment.centerRight, child: action!),
+                SizedBox(height: gap),
+              ],
+              Text(
+                message,
+                style:
+                    (compact
+                            ? NightshadeTypography.bodySm
+                            : NightshadeTypography.body)
+                        .copyWith(color: textColor.withValues(alpha: 0.9)),
+              ),
+              if (stacked && title == null) ...[
+                SizedBox(height: gap),
+                Align(alignment: Alignment.centerRight, child: action!),
+              ],
+            ],
           ),
-          if (action != null) ...[
-            SizedBox(
-              width: compact
-                  ? NightshadeTokens.spaceSm
-                  : NightshadeTokens.spaceMd,
+        ),
+        if (action != null && !stacked) ...[
+          SizedBox(width: gap),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: bounded ? constraints.maxWidth / 2 : double.infinity,
             ),
-            action!,
-          ],
-          if (onDismiss != null) ...[
-            SizedBox(
-              width: compact
-                  ? NightshadeTokens.spaceSm
-                  : NightshadeTokens.spaceMd,
-            ),
-            IconButton(
-              icon: Icon(
-                LucideIcons.x,
-                size: compact
-                    ? NightshadeTokens.iconSm
-                    : NightshadeTokens.iconMd,
-                // An icon-only control with no text of its own; without a name
-                // the only way out of the alert is a blank button.
-                semanticLabel: 'Dismiss',
-              ),
-              tooltip: 'Dismiss',
-              onPressed: onDismiss,
-              color: textColor.withValues(alpha: 0.7),
-              padding: EdgeInsets.zero,
-              constraints: BoxConstraints(
-                minWidth: compact ? 24 : 32,
-                minHeight: compact ? 24 : 32,
-              ),
-              splashRadius: compact ? 16 : 20,
-            ),
-          ],
+            child: action!,
+          ),
         ],
-      ),
+        if (onDismiss != null) ...[
+          SizedBox(
+            width: compact
+                ? NightshadeTokens.spaceSm
+                : NightshadeTokens.spaceMd,
+          ),
+          IconButton(
+            icon: Icon(
+              LucideIcons.x,
+              size: compact ? NightshadeTokens.iconSm : NightshadeTokens.iconMd,
+              // An icon-only control with no text of its own; without a name
+              // the only way out of the alert is a blank button.
+              semanticLabel: 'Dismiss',
+            ),
+            tooltip: 'Dismiss',
+            onPressed: onDismiss,
+            color: textColor.withValues(alpha: 0.7),
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(
+              minWidth: compact ? 24 : 32,
+              minHeight: compact ? 24 : 32,
+            ),
+            splashRadius: compact ? 16 : 20,
+          ),
+        ],
+      ],
     );
   }
 

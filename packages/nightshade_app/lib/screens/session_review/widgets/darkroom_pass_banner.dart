@@ -17,6 +17,23 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// is already visible as the drafts and the report themselves, and a running
 /// pass has the screen's own progress strip. Only an ending the operator has
 /// to act on gets a banner.
+///
+/// A `queued` pass DOES get one, because that is what a night still owed its
+/// drafts looks like on this screen. The autopilot queues and runs in one
+/// breath, so a live pass is past `queued` in milliseconds; a row that is still
+/// there when the screen is drawn is a pass nothing has picked up — the state
+/// the open-time recovery leaves after it finds an integrate that finished and
+/// a pass that was never queued, and the state a drain that could not run
+/// leaves behind.
+///
+/// Null stays silent, and that reading is exact rather than a fallback: the
+/// pass that was owed becomes a `queued` row before any screen can be drawn
+/// over it (see `NightshadeDatabase._reportInterruptedIntegration`), so a
+/// session with no row is a session where no pass was ever owed — automatic
+/// drafting off, or no masters to draft. The one case where a pass is owed and
+/// has no row is a recovery whose insert itself failed, and that night's
+/// `SessionInterruptionBanner` states it in full from the same marker stage
+/// this row came from.
 class DarkroomPassBanner extends StatelessWidget {
   const DarkroomPassBanner({super.key, required this.job});
 
@@ -38,6 +55,7 @@ class DarkroomPassBanner extends StatelessWidget {
         lead = 'The Darkroom pass for this night was stopped.';
         severity = NightshadeAlertSeverity.warning;
       case DarkroomJobState.queued:
+        return _QueuedPass(pass: pass);
       case DarkroomJobState.running:
       case DarkroomJobState.done:
         return const SizedBox.shrink();
@@ -93,4 +111,50 @@ class DarkroomPassBanner extends StatelessWidget {
       '.!?'.contains(note[note.length - 1])
           ? note
           : 'It was $note when it stopped.';
+}
+
+/// The night whose drafts, night report, delivery and morning message are still
+/// owed: a `darkroom_jobs` row that exists and has not been picked up.
+///
+/// Kept apart from the ended-pass shapes above because it is not a failure and
+/// must not read as one. Nothing has gone wrong yet — the work is queued and
+/// the startup drain runs it — but the screen said nothing at all about a night
+/// in this state, and a night in this state has no drafts, no report and no
+/// delivery to show for itself.
+class _QueuedPass extends StatelessWidget {
+  const _QueuedPass({required this.pass});
+
+  final DarkroomJob pass;
+
+  @override
+  Widget build(BuildContext context) {
+    // The row's own sentence when it carries one. The recovery that queues an
+    // owed pass writes a finished sentence naming why it is there; the
+    // autopilot's own enqueue writes a short label. Both are the row's account
+    // of itself and neither is re-worded here.
+    final note = pass.note?.trim();
+    final why = note == null || note.isEmpty
+        ? ''
+        : ' ${'.!?'.contains(note[note.length - 1]) ? note : '$note.'}';
+    // A row that has been started before is a pass that stopped and went back
+    // to the queue, which says something different to "it has not run yet".
+    final history = pass.attempts > 0
+        ? ' It has been started ${pass.attempts} '
+            'time${pass.attempts == 1 ? '' : 's'} already.'
+        : '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
+      child: NightshadeInlineBanner(
+        key: const ValueKey('session_review_darkroom_pass_banner'),
+        message:
+            'The Darkroom pass for this night is queued and has not run yet, '
+            'so the drafts, the night report, the delivery and the morning '
+            'message it owes have not happened.$why$history '
+            'It runs on its own when the Darkroom queue is drained; press '
+            'Process now to run it here.',
+        severity: NightshadeAlertSeverity.warning,
+      ),
+    );
+  }
 }

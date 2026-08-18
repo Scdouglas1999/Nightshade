@@ -345,25 +345,41 @@ class DeliveryService {
   /// very sweep the ladder depends on. The caller reports it and keeps its
   /// timer.
   ///
-  /// **A suspended row is not a due row.** A switched-off destination's files
-  /// stay `retrying` for as long as the switch is off — the sweep states them
-  /// and skips them without touching the row — so counting them here would
-  /// answer "due" on every single check and turn the short cadence into a
-  /// permanent sweep loop for every OTHER destination too. They are read by
-  /// the heartbeat pass, which is what keeps the suspended count arriving on
-  /// the cadence an operator can recognise. The same goes for a row this
-  /// build cannot decode: the sweep logs it and moves on, so waking for it
-  /// changes nothing.
+  /// **A row the sweep would not touch is not a due row.** Two kinds sit in
+  /// `retrying` without ever being owed an attempt, and both are excluded here
+  /// for the same reason.
+  ///
+  /// A PEER destination's files are published and waiting for the paired
+  /// desktop to pull them. [_sweepDestination] short-circuits that arm to
+  /// `awaitingPull` and does no work at all: the next move belongs to the peer,
+  /// not to this rig, and it arrives as a pull rather than as a retry. That is
+  /// the NORMAL state between the dawn job and the operator's morning, so
+  /// counting it made [hasDueRetries] permanently true — one unpulled file
+  /// drove a full sweep and an INFO report every 30 seconds, for as long as
+  /// nobody woke the desktop up.
+  ///
+  /// A switched-off destination's files stay `retrying` for as long as the
+  /// switch is off — the sweep states them and skips them without touching the
+  /// row.
+  ///
+  /// Counting either would answer "due" on every single check and turn the
+  /// short cadence into a permanent sweep loop for every OTHER destination too.
+  /// Both are read by the heartbeat pass, which is what keeps the suspended and
+  /// awaiting-pull counts arriving on the cadence an operator can recognise.
+  /// The same goes for a row this build cannot decode: the sweep logs it and
+  /// moves on, so waking for it changes nothing.
   Future<DateTime?> earliestRetryDueAt() async {
     final pending = await _journal.listPendingRetry();
     if (pending.isEmpty) return null;
-    final enabled = <int>{
+    final retryable = <int>{
       for (final destination in (await _targets.readEnabled()).destinations)
-        if (destination.id != null) destination.id!,
+        if (destination.id != null &&
+            destination.kind != ArtifactDestinationKind.peer)
+          destination.id!,
     };
     DateTime? earliest;
     for (final entry in pending) {
-      if (!enabled.contains(entry.targetId)) continue;
+      if (!retryable.contains(entry.targetId)) continue;
       final due = _policy.nextEligibleAt(entry);
       if (earliest == null || due.isBefore(earliest)) earliest = due;
     }

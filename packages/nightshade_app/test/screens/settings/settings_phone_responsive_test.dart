@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/general_settings.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -210,4 +211,45 @@ void main() {
               'must not also be visible at $label.');
     });
   }
+
+  // A search result has two kinds of row: the section, and the settings inside
+  // it that matched. The second kind is indented on the left, and at 430px it
+  // ran flat off the RIGHT edge of the window with its corner radius cut away,
+  // between two section rows that were inset on both sides.
+  testWidgets('a matched setting is inset on both sides at phone width', (
+    tester,
+  ) async {
+    const width = 430.0;
+    await pumpAppScreen(
+      tester,
+      const SettingsScreen(),
+      size: const Size(width, 900),
+      extraOverrides: _stubSettings(),
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'delivery');
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+    // The turn-down arrow is the sub-result's own mark; the section rows above
+    // and below it carry a chevron instead.
+    final marker = find.byIcon(LucideIcons.cornerDownRight);
+    expect(marker, findsWidgets,
+        reason: 'the search must produce a sub-result');
+
+    final row =
+        find.ancestor(of: marker.first, matching: find.byType(Container)).first;
+    // The painted, rounded box inside the row's margin — the thing that was
+    // being clipped.
+    final painted = tester.getRect(
+      find.descendant(of: row, matching: find.byType(DecoratedBox)).first,
+    );
+
+    expect(painted.left, greaterThanOrEqualTo(20.0));
+    expect(
+      painted.right,
+      lessThanOrEqualTo(width - 16),
+      reason: 'the row reached ${painted.right} of a ${width}px window, so its '
+          'trailing corner is off screen',
+    );
+  });
 }

@@ -124,13 +124,19 @@ async fn run_target_body(
     // If the target's stop condition is ALREADY true at entry, there's no
     // imaging to be done — skip cleanly. Checked before the start-when wait
     // so a sequence whose end_when has long passed doesn't sit waiting for
-    // a sunrise that won't help it.
+    // a sunrise that won't help it. A stop condition that cannot be evaluated
+    // from an unset site refuses here exactly as `wait_for_trigger` refuses for
+    // `start_when`: skipping the target on an altitude computed at Null Island
+    // dropped the whole target and told the operator the altitude as fact.
     if let Some(end) = &end_when {
-        if let Some(trig_ctx) = build_trigger_ctx(config, context) {
-            if end.is_satisfied(&trig_ctx) {
-                emit_end_when_skipped_at_entry(context, node.id(), &display_name, end);
-                return NodeStatus::Skipped;
+        match trigger_observer_ctx(config, context, end, TriggerRole::EndWhen) {
+            Ok(trig_ctx) => {
+                if end.is_satisfied(&trig_ctx) {
+                    emit_end_when_skipped_at_entry(context, node.id(), &display_name, end);
+                    return NodeStatus::Skipped;
+                }
             }
+            Err(reason) => return refuse_unevaluable_trigger(context, &display_name, reason),
         }
     }
 
@@ -237,13 +243,23 @@ async fn run_target_body(
     // source of truth.
     context.budget_registry.leave_target().await;
 
-    if result == NodeStatus::Skipped && context.is_skip_to_next_target_requested() {
+    // A skip-to-next-target request names THIS target, so it dies at this
+    // boundary whatever the subtree returned — the target it asked to leave is
+    // over either way. It used to be consumed only when the subtree came back
+    // Skipped, so a request that arrived during the target's LAST child (an
+    // exposure burst finishes the frame it is on rather than aborting mid-
+    // download) outlived the target: the next TargetHeader's entry check
+    // consumed it and skipped a target nobody asked to skip, and with no next
+    // target the root Loop reported Skipped for a night that had imaged every
+    // frame it planned — `/api/sequencer/status` answered
+    // `state: "completed"`, 8 frames, `message: "Skipped: Night root"`.
+    if context.is_skip_to_next_target_requested() {
         context.clear_skip_to_next_target_request();
         tracing::info!(
-            "Target '{}' interrupted by next-target request",
-            display_name
+            "Target '{}' ended on a next-target request (subtree status {:?})",
+            display_name,
+            result
         );
-        return NodeStatus::Skipped;
     }
 
     result
@@ -313,12 +329,18 @@ async fn execute_children_with_budget(
         // long burst doesn't get scheduled if dusk arrived during the
         // previous one.
         if let Some(end) = &end_when {
-            if let Some(trig_ctx) = build_trigger_ctx(config, context) {
-                if end.is_satisfied(&trig_ctx) {
-                    emit_end_when_met(context, &node_id, display_name, end);
-                    mark_remaining_end_when(node, context, i, total).await;
-                    return NodeStatus::Success;
+            match trigger_observer_ctx(config, context, end, TriggerRole::EndWhen) {
+                Ok(trig_ctx) => {
+                    if end.is_satisfied(&trig_ctx) {
+                        emit_end_when_met(context, &node_id, display_name, end);
+                        mark_remaining_end_when(node, context, i, total).await;
+                        return NodeStatus::Success;
+                    }
                 }
+                // Reachable when the observer location is cleared after the
+                // target's entry check passed; the same refusal, not a stop
+                // decision taken from an invented altitude.
+                Err(reason) => return refuse_unevaluable_trigger(context, display_name, reason),
             }
         }
 
@@ -420,11 +442,16 @@ async fn execute_children_with_end_when(
 
         // Pre-child end_when probe — see comment in
         // `execute_children_with_budget`.
-        if let Some(trig_ctx) = build_trigger_ctx(config, context) {
-            if end.is_satisfied(&trig_ctx) {
-                emit_end_when_met(context, &node_id, &config.display_name(), &end);
-                mark_remaining_end_when(node, context, i, total).await;
-                return NodeStatus::Success;
+        match trigger_observer_ctx(config, context, &end, TriggerRole::EndWhen) {
+            Ok(trig_ctx) => {
+                if end.is_satisfied(&trig_ctx) {
+                    emit_end_when_met(context, &node_id, &config.display_name(), &end);
+                    mark_remaining_end_when(node, context, i, total).await;
+                    return NodeStatus::Success;
+                }
+            }
+            Err(reason) => {
+                return refuse_unevaluable_trigger(context, &config.display_name(), reason)
             }
         }
 
@@ -466,11 +493,16 @@ async fn execute_children_with_end_when(
 
         // Post-child end_when check so dusk arriving mid-burst still
         // promptly stops imaging.
-        if let Some(trig_ctx) = build_trigger_ctx(config, context) {
-            if end.is_satisfied(&trig_ctx) {
-                emit_end_when_met(context, &node_id, &config.display_name(), &end);
-                mark_remaining_end_when(node, context, i + 1, total).await;
-                return NodeStatus::Success;
+        match trigger_observer_ctx(config, context, &end, TriggerRole::EndWhen) {
+            Ok(trig_ctx) => {
+                if end.is_satisfied(&trig_ctx) {
+                    emit_end_when_met(context, &node_id, &config.display_name(), &end);
+                    mark_remaining_end_when(node, context, i + 1, total).await;
+                    return NodeStatus::Success;
+                }
+            }
+            Err(reason) => {
+                return refuse_unevaluable_trigger(context, &config.display_name(), reason)
             }
         }
     }
@@ -479,29 +511,113 @@ async fn execute_children_with_end_when(
     NodeStatus::Success
 }
 
-/// Build a [`TriggerObserverContext`] from the live ExecutionContext and
-/// the target's RA/Dec.
+/// Which of a target's two triggers is under evaluation. The no-site refusal
+/// reads back the sentence the operator configured, so it has to know whether
+/// the condition starts the target or stops it.
+#[derive(Clone, Copy)]
+enum TriggerRole {
+    StartWhen,
+    EndWhen,
+}
+
+/// True when evaluating `trigger` needs to know where the rig is.
 ///
-/// Time-only triggers (`TimeAfter`, `TimeBefore`) only consult `now`; the
-/// observer location is irrelevant. To keep the pre-Wave-4 behaviour where
-/// `end_before` worked even without a configured observer, we fall back to
-/// observer = `(0.0, 0.0)` when the location is missing. Altitude-bearing
-/// triggers (`AltitudeAbove`, `AltitudeBelow`, `HourAngleBetween`) will
-/// then evaluate against the equator/prime-meridian — usable only as a
-/// last resort. Validation (`TargetTriggerImpossibleAltitudeRule`) is the
-/// right place to warn users when the observer is unset *and* their
-/// trigger references altitude.
-fn build_trigger_ctx(
+/// [`TargetTrigger::references_altitude`] answers for the two altitude leaves.
+/// `HourAngleBetween` needs the site too — its hour angle is measured against
+/// the local sidereal time, which is a function of longitude — and it is not an
+/// altitude leaf, so it is named here rather than folded into that predicate
+/// (which the Dart validator also consumes for its altitude-specific rule).
+/// `TimeAfter` / `TimeBefore` read the wall clock and nothing else.
+fn needs_observer_site(trigger: &TargetTrigger) -> bool {
+    match trigger {
+        TargetTrigger::HourAngleBetween { .. } => true,
+        TargetTrigger::And(terms) | TargetTrigger::Or(terms) => {
+            terms.iter().any(needs_observer_site)
+        }
+        other => other.references_altitude(),
+    }
+}
+
+/// The operator-facing reason a trigger cannot be evaluated without a site.
+fn no_observer_site_reason(trigger: &TargetTrigger, role: TriggerRole) -> String {
+    let clause = match role {
+        TriggerRole::StartWhen => {
+            format!("This target waits for {} before it starts", trigger.label())
+        }
+        TriggerRole::EndWhen => format!("This target stops when {}", trigger.label()),
+    };
+    format!(
+        "{}, but no observer location is set, so the sequencer cannot work out whether the \
+         target is up. Set the observer latitude and longitude in Settings, then start the \
+         sequence again.",
+        clause
+    )
+}
+
+/// Build the [`TriggerObserverContext`] a trigger evaluation needs from the
+/// live ExecutionContext and the target's RA/Dec, or return the reason it
+/// cannot be built.
+///
+/// Time-only triggers (`TimeAfter`, `TimeBefore`) read `now` and nothing else,
+/// so they evaluate with or without a configured site and the observer fields
+/// go unread — that is what keeps a site-less rig's `end_before` working.
+/// Every other leaf is measured FROM somewhere, and answering it at latitude 0
+/// / longitude 0 invents the answer: a target 5° up at Null Island was reported
+/// as fact in a run warning and a whole target was skipped without imaging,
+/// while the same trigger type on `start_when` refused. Both call sites now go
+/// through this one guard, so neither can state an altitude the rig's location
+/// does not support.
+fn trigger_observer_ctx(
     config: &TargetHeaderConfig,
     context: &ExecutionContext,
-) -> Option<TriggerObserverContext> {
-    Some(TriggerObserverContext {
-        latitude_deg: context.latitude.unwrap_or(0.0),
-        longitude_deg: context.longitude.unwrap_or(0.0),
+    trigger: &TargetTrigger,
+    role: TriggerRole,
+) -> Result<TriggerObserverContext, String> {
+    let (latitude_deg, longitude_deg) = match (context.latitude, context.longitude) {
+        (Some(lat), Some(lon)) => (lat, lon),
+        _ if needs_observer_site(trigger) => return Err(no_observer_site_reason(trigger, role)),
+        // Reached only for a trigger `needs_observer_site` rejected, i.e. one
+        // whose `is_satisfied` reads `now` alone. These two fields are dead
+        // weight on that path; NaN keeps them that way, because a leaf that
+        // did read them would compare false rather than produce a plausible
+        // altitude for the equator.
+        _ => (f64::NAN, f64::NAN),
+    };
+    Ok(TriggerObserverContext {
+        latitude_deg,
+        longitude_deg,
         target_ra_hours: config.ra_hours,
         target_dec_degrees: config.dec_degrees,
         now: context.clock.now_utc(),
     })
+}
+
+/// Log and publish the refusal to evaluate a target trigger, and hand back the
+/// status the caller returns.
+///
+/// The refusal has to leave the log. `InstructionFailed` is the one channel the
+/// run's terminal handler drains for `SequenceFailed { error }`
+/// (`executor::preflight::last_instruction_failure`), and the bridge already
+/// re-publishes it as a mid-run `SequencerEvent::Error`. Publishing here is
+/// therefore what puts the reason on `/api/sequencer/status`, in the run's
+/// `statsJson.errorMessages` and in the Session Report — instead of the
+/// "Sequence failed" placeholder the terminal handler falls back to when no
+/// node reported a reason. A container node rather than an instruction is
+/// still the node that failed, and the drain formats the pair as
+/// "<node>: <reason>", which is what the operator needs to read.
+fn refuse_unevaluable_trigger(
+    context: &ExecutionContext,
+    target_label: &str,
+    reason: String,
+) -> NodeStatus {
+    tracing::error!("Target {}: {}", target_label, reason);
+    if let Some(event_tx) = context.event_tx.as_ref() {
+        let _ = event_tx.send(crate::executor::ExecutorEvent::InstructionFailed {
+            node_name: target_label.to_string(),
+            message: reason,
+        });
+    }
+    NodeStatus::Failure
 }
 
 /// Wait until `trigger.is_satisfied(...)` is true, polling every
@@ -515,48 +631,20 @@ async fn wait_for_trigger(
 ) -> NodeStatus {
     use std::sync::atomic::Ordering;
 
-    // An altitude-bearing start_when with no observer configured is almost
-    // always a misconfigured profile rather than "image at lat=0". The Dart
-    // validator (`TargetTriggerImpossibleAltitudeRule`) warns about this at
-    // edit time; here it fails closed rather than silently behaving as if the
-    // rig were on the equator.
-    if trigger.references_altitude() && (context.latitude.is_none() || context.longitude.is_none())
-    {
-        let target_label = config.display_name();
-        let reason = format!(
-            "This target waits for {} before it starts, but no observer location is set, so \
-             the sequencer cannot work out whether the target is up. Set the observer \
-             latitude and longitude in Settings, then start the sequence again.",
-            trigger.label()
-        );
-        tracing::error!("Target {}: {}", target_label, reason);
-        // The refusal has to leave the log. `InstructionFailed` is the one
-        // channel the run's terminal handler drains for
-        // `SequenceFailed { error }` (`executor::preflight::last_instruction_failure`),
-        // and the bridge already re-publishes it as a mid-run
-        // `SequencerEvent::Error`. Publishing here is therefore what puts the
-        // reason on `/api/sequencer/status`, in the run's
-        // `statsJson.errorMessages` and in the Session Report — instead of the
-        // "Sequence failed" placeholder the terminal handler falls back to when
-        // no node reported a reason. A container node rather than an
-        // instruction is still the node that failed, and the drain formats the
-        // pair as "<node>: <reason>", which is what the operator needs to read.
-        if let Some(event_tx) = context.event_tx.as_ref() {
-            let _ = event_tx.send(crate::executor::ExecutorEvent::InstructionFailed {
-                node_name: target_label,
-                message: reason,
-            });
-        }
-        return NodeStatus::Failure;
-    }
-
-    let trig_ctx = build_trigger_ctx(config, context)
-        .expect("build_trigger_ctx is infallible under the current implementation");
+    // A start_when the observer location is needed for and no location set is
+    // almost always a misconfigured profile rather than "image at lat=0". The
+    // Dart validator (`TargetTriggerImpossibleAltitudeRule`) warns about this
+    // at edit time; here it fails closed rather than silently behaving as if
+    // the rig were on the equator.
+    let target_label = config.display_name();
+    let trig_ctx = match trigger_observer_ctx(config, context, trigger, TriggerRole::StartWhen) {
+        Ok(trig_ctx) => trig_ctx,
+        Err(reason) => return refuse_unevaluable_trigger(context, &target_label, reason),
+    };
     if trigger.is_satisfied(&trig_ctx) {
         return NodeStatus::Success;
     }
 
-    let target_label = config.display_name();
     let label = trigger.label();
     let mut emitted_initial = false;
     let poll = std::time::Duration::from_secs(u64::from(poll_secs));
@@ -574,7 +662,14 @@ async fn wait_for_trigger(
             return NodeStatus::Skipped;
         }
 
-        let trig_ctx = build_trigger_ctx(config, context).expect("build_trigger_ctx is infallible");
+        // Re-derived every poll: the operator can clear the observer location
+        // in Settings while this wait is running, and the refusal is the honest
+        // answer from that moment on.
+        let trig_ctx = match trigger_observer_ctx(config, context, trigger, TriggerRole::StartWhen)
+        {
+            Ok(trig_ctx) => trig_ctx,
+            Err(reason) => return refuse_unevaluable_trigger(context, &target_label, reason),
+        };
         if trigger.is_satisfied(&trig_ctx) {
             tracing::info!("start_when fired for {} ({})", target_label, label);
             return NodeStatus::Success;
@@ -1628,5 +1723,279 @@ mod tests {
             "(time ≥ 2026-01-15 21:00 UTC AND altitude ≤ 20.0°)",
             "a compound renders its time leaves too"
         );
+    }
+
+    /// An `end_when` that needs the observer site and no site set refuses,
+    /// exactly as the same trigger type on `start_when` refuses.
+    ///
+    /// The at-entry check used to evaluate it at latitude 0 / longitude 0: a
+    /// circumpolar target that never drops below 35° at the operator's real
+    /// site never rises above 5° at Null Island, so `AltitudeBelow(10)` read as
+    /// already met, the whole target was dropped without imaging, and the run
+    /// warning stated that altitude as fact without ever mentioning the missing
+    /// site (`state: "completed"`, `framesCaptured: 0`).
+    #[tokio::test]
+    async fn altitude_end_when_without_observer_refuses_instead_of_skipping() {
+        let clock = MockClock::at("2026-01-15T22:00:00Z");
+
+        let header_def = NodeDefinition {
+            id: "tgt".into(),
+            name: "No-Site Target".into(),
+            node_type: NodeType::TargetHeader(TargetHeaderConfig {
+                target_name: "No-Site Target".into(),
+                ra_hours: 6.0,
+                dec_degrees: 85.0,
+                end_when: Some(TargetTrigger::AltitudeBelow(10.0)),
+                ..TargetHeaderConfig::default()
+            }),
+            enabled: true,
+            children: vec![],
+        };
+        let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
+        node.add_child(Box::new(
+            crate::node::runtime::RuntimeNode::from_definition(make_delay_node("d1")),
+        ));
+        // No latitude / longitude → fail closed.
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock);
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
+        ctx.event_tx = Some(event_tx);
+
+        let config = match &node.definition.node_type {
+            NodeType::TargetHeader(c) => c.clone(),
+            _ => unreachable!(),
+        };
+        let status = execute_target_header(&mut node, config, &mut ctx).await;
+        assert_eq!(
+            status,
+            NodeStatus::Failure,
+            "an end_when that cannot be evaluated must refuse, not silently \
+             drop the target"
+        );
+
+        let mut published = None;
+        let mut skips = 0;
+        while let Ok(event) = event_rx.try_recv() {
+            match event {
+                crate::executor::ExecutorEvent::InstructionFailed { node_name, message } => {
+                    published = Some((node_name, message));
+                }
+                crate::executor::ExecutorEvent::TriggerFired { trigger_id, .. }
+                    if trigger_id == TARGET_END_WHEN_TRIGGER_ID =>
+                {
+                    skips += 1;
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(
+            skips, 0,
+            "no skip may be published for a condition the sequencer cannot evaluate"
+        );
+        let (node_name, reason) =
+            published.expect("the refusal published an InstructionFailed reason");
+        assert_eq!(node_name, "No-Site Target");
+        assert!(
+            reason.contains("altitude ≤ 10.0°"),
+            "the reason must quote the condition that could not be evaluated, got: {reason}"
+        );
+        assert!(
+            reason.contains("no observer location is set"),
+            "the reason must name the missing site, got: {reason}"
+        );
+        assert!(
+            reason.contains("latitude and longitude in Settings"),
+            "the reason must tell the operator how to fix it, got: {reason}"
+        );
+        assert!(
+            !reason.contains("was already met"),
+            "the refusal must not state the condition as met, got: {reason}"
+        );
+    }
+
+    /// The `start_when` seam and the `end_when` seam give the same answer to
+    /// the same missing site — one guard, two call sites.
+    #[test]
+    fn both_trigger_roles_refuse_a_missing_site_the_same_way() {
+        let ctx = ExecutionContext::new_for_test("root".into());
+        let config = TargetHeaderConfig {
+            target_name: "M31".into(),
+            ra_hours: 0.7,
+            dec_degrees: 41.27,
+            ..TargetHeaderConfig::default()
+        };
+        let trigger = TargetTrigger::AltitudeBelow(10.0);
+
+        let start = trigger_observer_ctx(&config, &ctx, &trigger, TriggerRole::StartWhen)
+            .expect_err("no site → refusal");
+        let end = trigger_observer_ctx(&config, &ctx, &trigger, TriggerRole::EndWhen)
+            .expect_err("no site → refusal");
+        for reason in [&start, &end] {
+            assert!(reason.contains("altitude ≤ 10.0°"), "got: {reason}");
+            assert!(
+                reason.contains("no observer location is set"),
+                "got: {reason}"
+            );
+            assert!(
+                reason.contains("latitude and longitude in Settings"),
+                "got: {reason}"
+            );
+        }
+        assert!(
+            start.contains("before it starts") && end.contains("stops when"),
+            "each reason reads back the condition the operator configured: \
+             start={start} end={end}"
+        );
+    }
+
+    /// A time-only trigger evaluates with no site configured — that is what
+    /// keeps a site-less rig's `end_before` working — and the observer fields
+    /// it never reads carry no number that could be mistaken for a position.
+    #[test]
+    fn time_only_trigger_evaluates_without_a_site() {
+        let ctx = ExecutionContext::new_for_test("root".into());
+        let config = TargetHeaderConfig {
+            target_name: "M31".into(),
+            ra_hours: 0.7,
+            dec_degrees: 41.27,
+            ..TargetHeaderConfig::default()
+        };
+        let trigger = TargetTrigger::TimeAfter(ctx.clock.now_utc().timestamp() - 1);
+        let trig_ctx = trigger_observer_ctx(&config, &ctx, &trigger, TriggerRole::EndWhen)
+            .expect("a time-only trigger needs no site");
+        assert!(trigger.is_satisfied(&trig_ctx));
+        assert!(
+            trig_ctx.latitude_deg.is_nan() && trig_ctx.longitude_deg.is_nan(),
+            "the unread observer fields must not carry a usable position"
+        );
+    }
+
+    /// Which triggers need to know where the rig is. `HourAngleBetween`
+    /// measures against the local sidereal time, so longitude is not optional
+    /// for it either.
+    #[test]
+    fn needs_observer_site_covers_every_site_bearing_leaf() {
+        assert!(needs_observer_site(&TargetTrigger::AltitudeAbove(35.0)));
+        assert!(needs_observer_site(&TargetTrigger::AltitudeBelow(10.0)));
+        assert!(needs_observer_site(&TargetTrigger::HourAngleBetween {
+            min_ha: -1.0,
+            max_ha: 1.0,
+        }));
+        assert!(!needs_observer_site(&TargetTrigger::TimeAfter(0)));
+        assert!(!needs_observer_site(&TargetTrigger::TimeBefore(0)));
+        assert!(needs_observer_site(&TargetTrigger::And(vec![
+            TargetTrigger::TimeAfter(0),
+            TargetTrigger::HourAngleBetween {
+                min_ha: -1.0,
+                max_ha: 1.0,
+            },
+        ])));
+        assert!(!needs_observer_site(&TargetTrigger::Or(vec![
+            TargetTrigger::TimeAfter(0),
+            TargetTrigger::TimeBefore(1),
+        ])));
+    }
+
+    /// A skip-to-next-target request raised while the target's LAST child runs
+    /// dies with that target.
+    ///
+    /// The request used to be consumed only when the subtree came back Skipped.
+    /// An exposure burst finishes the frame it is on rather than aborting
+    /// mid-download, so the target returned Success with the request still
+    /// pending and it travelled on: the next TargetHeader's entry check
+    /// consumed it and skipped a target nobody asked to skip, and with no next
+    /// target the root Loop reported Skipped over a night that had imaged every
+    /// frame it planned.
+    #[tokio::test]
+    async fn skip_request_dies_with_the_target_that_finished() {
+        let header_def = NodeDefinition {
+            id: "tgt".into(),
+            name: "M31".into(),
+            node_type: NodeType::TargetHeader(TargetHeaderConfig {
+                target_name: "M31".into(),
+                ra_hours: 0.7,
+                dec_degrees: 41.27,
+                ..TargetHeaderConfig::default()
+            }),
+            enabled: true,
+            children: vec![],
+        };
+        let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
+        node.add_child(Box::new(SkipRequestingChild::new("expose")));
+
+        let mut ctx = ExecutionContext::new_for_test("root".into());
+        let config = match &node.definition.node_type {
+            NodeType::TargetHeader(c) => c.clone(),
+            _ => unreachable!(),
+        };
+        let status = execute_target_header(&mut node, config, &mut ctx).await;
+
+        assert_eq!(
+            status,
+            NodeStatus::Success,
+            "the target ran its whole subtree; the request arrived too late to \
+             take anything away from it"
+        );
+        assert!(
+            !ctx.is_skip_to_next_target_requested(),
+            "the request names this target and must not outlive it"
+        );
+    }
+
+    /// A child that asks to move on to the next target while it runs, and then
+    /// finishes its own work — the exposure-burst shape.
+    struct SkipRequestingChild {
+        id: crate::NodeId,
+        name: String,
+        node_type: NodeType,
+        children: Vec<Box<dyn crate::node::runtime::Node>>,
+    }
+
+    impl SkipRequestingChild {
+        fn new(id: &str) -> Self {
+            Self {
+                id: id.to_string(),
+                name: id.to_string(),
+                node_type: NodeType::Delay(crate::DelayConfig { seconds: 0.0 }),
+                children: Vec::new(),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::node::runtime::Node for SkipRequestingChild {
+        fn id(&self) -> &crate::NodeId {
+            &self.id
+        }
+
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn node_type(&self) -> &NodeType {
+            &self.node_type
+        }
+
+        fn is_enabled(&self) -> bool {
+            true
+        }
+
+        async fn execute(&mut self, context: &mut ExecutionContext) -> NodeStatus {
+            context.request_skip_to_next_target();
+            NodeStatus::Success
+        }
+
+        fn reset(&mut self) {}
+
+        async fn abort(&mut self) {}
+
+        fn children(&self) -> &[Box<dyn crate::node::runtime::Node>] {
+            &self.children
+        }
+
+        fn children_mut(&mut self) -> &mut Vec<Box<dyn crate::node::runtime::Node>> {
+            &mut self.children
+        }
+
+        fn mark_completed(&mut self, _node_id: &crate::NodeId) {}
     }
 }

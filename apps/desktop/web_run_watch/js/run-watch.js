@@ -329,6 +329,16 @@ function renderLinkState() {
     badge.textContent = 'unknown';
     badge.className = 'badge badge-error';
   }
+  // The percentage is the same assertion in another shape, and it outlived
+  // the badge: measured after a SIGTERM at wire progress 0.05, the badge went
+  // "unknown" and the banner said every value below might be wrong while "5%"
+  // stayed on screen, the bar stayed 5% wide and aria-valuenow kept announcing
+  // 5 for the next 45 s. The dashboard's `paintRunUnknown` settled the stance
+  // for the same loss — "a figure whose source is gone is not a smaller truth
+  // than a state whose source is gone" — and this is that stance, here.
+  paintProgressUnknown();
+  // A control whose precondition nobody can confirm is not offerable either.
+  updateRunControls('unknown');
   setConnectionState('disconnected');
 
   const age = lastSnapshotAt === 0 ? null : Date.now() - lastSnapshotAt;
@@ -525,6 +535,11 @@ async function fetchSnapshot() {
   }
 }
 
+/// Wire states in which the run is OVER. `sequencer.state` is the only field
+/// that can say so — `SequenceExecutionState` has no member for any of them.
+const TERMINAL_WIRE_STATES = new Set(
+  ['completed', 'failed', 'cancelled', 'stopped', 'error']);
+
 /// The state the snapshot actually reports.
 ///
 /// `progress.state` is the executor's own `SequenceExecutionState`, an enum
@@ -535,14 +550,77 @@ async function fetchSnapshot() {
 /// just been cancelled. So: the executor block wins while it is describing a
 /// live run, and the moment it falls back to `idle` the sequencer status —
 /// which is the one that knows how the run ended — is what gets rendered.
+///
+/// A run the wire says has ENDED overrides the executor block outright, even
+/// when that block names a live-looking state. Measured against the release
+/// bundle: `POST /api/sequencer/pause` at a cancelled run left the snapshot
+/// carrying `sequencer.state: cancelled` beside `progress.state: paused`, and
+/// a resume left `progress.state: running` — this page rendered a green
+/// `running` badge, across reloads, for a run that had ended 40 s earlier.
+/// The server no longer admits those commands, and this tie-break means one
+/// stale executor block can no longer outrank the field that knows how the
+/// run finished.
 function reportedSequencerState(progress, sequencer) {
   const executing = String((progress && progress.state) || '').toLowerCase();
   const reported = String((sequencer && sequencer.state) || '').toLowerCase();
+  if (TERMINAL_WIRE_STATES.has(reported)) return reported;
   if (executing && executing !== 'idle') return executing;
   if (reported) return reported;
   // An executor that says idle with nothing to contradict it is idle. A
   // snapshot that names no state at all is not idle, it is unknown.
   return executing || 'unknown';
+}
+
+/// Enable exactly the run controls the reported state admits.
+///
+/// Every control used to be tappable at all times: on a rig with nothing
+/// running, Pause / Skip / Resume each fired a request and each drew a green
+/// "accepted" toast, while `/api/sequencer/status` went on reading "idle".
+/// The desktop dashboard already gates the same controls on the executor
+/// state (`updateSequencerButtons` in web_dashboard/js/app.js); this surface
+/// now reads the same rule off the same state word.
+///
+/// Reset stays available in every state on purpose: it is the way out of a
+/// wedged executor, and it does the thing it says on an idle one.
+function updateRunControls(state) {
+  const s = String(state || '').toLowerCase().replace(/[_\s]/g, '');
+  const set = (id, enabled) => {
+    const el = $(id);
+    if (el) el.disabled = !enabled;
+  };
+  const running = s === 'running' || s === 'executing';
+  const paused = s === 'paused';
+  const recovering = s === 'recovering';
+  const stopRetry = s === 'stopfailed' || s === 'cleanupfailed';
+  set('btn-pause', running || recovering);
+  set('btn-resume', paused);
+  set('btn-skip', running || paused || recovering);
+  set('btn-stop', running || paused || recovering || stopRetry);
+}
+
+/// Paint the progress readout as UNKNOWN — no figure, no announcement, and a
+/// bar that cannot be mistaken for a run which has genuinely done nothing.
+///
+/// Shared by the two ways the page can stop knowing: the server answering
+/// `progressPercent: null` (its own documented degraded payload), and the
+/// server answering nothing at all.
+function paintProgressUnknown() {
+  const pctEl = $('progress-pct');
+  if (pctEl) pctEl.textContent = '--';
+  const bar = $('progress-bar');
+  if (bar) bar.style.width = '0%';
+  const ariaBar = $('progress-bar-aria');
+  if (ariaBar) {
+    // A progressbar with no aria-valuenow is announced as indeterminate,
+    // which is the truth when nobody has reported a percentage.
+    // aria-valuenow="0" would announce "0 percent" — a number nobody sent.
+    ariaBar.removeAttribute('aria-valuenow');
+    // The GRAPHIC has to say the same thing the text and the announcement do.
+    // A `width: 0%` track is pixel-identical to a fresh boot that has really
+    // done nothing, verified side by side on the same page; the unknown track
+    // is hatched so the two states cannot be confused at a glance.
+    ariaBar.classList.add('unknown');
+  }
 }
 
 /// Show what the run says about itself, and hide the surface when it says
@@ -585,6 +663,7 @@ function applySnapshot(data) {
   else if (unknown) badge.classList.add('badge-error');
   else badge.classList.add('badge-idle');
   lastKnownState = state;
+  updateRunControls(state);
 
   // state 'unknown' means the server's read failed. Never fall back to
   // 'Idle' there — the run may well still be going. With nothing named and a
@@ -632,23 +711,17 @@ function applySnapshot(data) {
   }
 
   // Progress
-  const pctKnown = progress.progressPercent != null;
-  const pct = pctKnown ? Math.round(progress.progressPercent * 100) : 0;
-  $('progress-pct').textContent = pctKnown ? pct + '%' : '--';
-  $('progress-bar').style.width = pct + '%';
-  const ariaBar = $('progress-bar-aria');
-  if (ariaBar) {
-    // A progressbar with no aria-valuenow is announced as indeterminate,
-    // which is the truth when the server did not report a percentage.
-    // aria-valuenow="0" would announce "0 percent" — a number nobody sent.
-    if (pctKnown) ariaBar.setAttribute('aria-valuenow', String(pct));
-    else ariaBar.removeAttribute('aria-valuenow');
-    // The GRAPHIC has to say the same thing the text and the announcement do.
-    // With `progressPercent: null` the readouts all read "--" while the bar
-    // painted `width: 0%` — pixel-identical to a fresh boot that genuinely has
-    // done nothing, verified side by side on the same page. The unknown track
-    // is hatched so the two states cannot be confused at a glance.
-    ariaBar.classList.toggle('unknown', !pctKnown);
+  if (progress.progressPercent == null) {
+    paintProgressUnknown();
+  } else {
+    const pct = Math.round(progress.progressPercent * 100);
+    $('progress-pct').textContent = pct + '%';
+    $('progress-bar').style.width = pct + '%';
+    const ariaBar = $('progress-bar-aria');
+    if (ariaBar) {
+      ariaBar.setAttribute('aria-valuenow', String(pct));
+      ariaBar.classList.remove('unknown');
+    }
   }
   const framesKnown =
     progress.completedExposures != null && progress.totalExposures != null;
@@ -1031,6 +1104,13 @@ async function refreshFrame() {
 /// there is nothing to stop, and this surface used to reply "Stop sent" to
 /// that — a green toast for a command the server declined. The body carries
 /// the verdict; read it.
+///
+/// Pause / Resume / Skip carry that same `wasRunning` verdict, and they carry
+/// it on a REFUSAL: the server answers 409 `sequencer_not_running` rather
+/// than performing a command that would overwrite the state of a run that has
+/// already ended. So the verdict is read before the status code is judged —
+/// "nothing to pause" is a fact about the rig, not a fault, and it earns the
+/// same warning toast Stop's no-op does rather than a red failure.
 async function sequencerAction(path, label, body) {
   try {
     const opts = { method: 'POST' };
@@ -1040,11 +1120,6 @@ async function sequencerAction(path, label, body) {
     }
     const res = await apiFetch(path, opts);
     const payload = await apiJsonOrNull(res);
-    if (!res.ok) {
-      const msg = (payload && (payload.message || payload.error)) || res.statusText;
-      toast(`${label} failed: ${msg}`, 'error');
-      return;
-    }
     const refused = payload != null &&
       (payload.wasRunning === false || payload.accepted === false);
     if (refused) {
@@ -1052,9 +1127,17 @@ async function sequencerAction(path, label, body) {
         (payload.message || `${label} had no effect`),
         'warning',
       );
-    } else {
-      toast(`${label} accepted`, 'success');
+      // Refused or not, the answer describes a rig this page's cache may
+      // disagree with — re-read it rather than leaving the stale badge up.
+      fetchSnapshot();
+      return;
     }
+    if (!res.ok) {
+      const msg = (payload && (payload.message || payload.error)) || res.statusText;
+      toast(`${label} failed: ${msg}`, 'error');
+      return;
+    }
+    toast(`${label} accepted`, 'success');
     fetchSnapshot();
   } catch (e) {
     if (e.kind === 'auth_required') return;

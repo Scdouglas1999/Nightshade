@@ -250,8 +250,15 @@ class AutoIntegrationService {
     // asking for the path anyway would log its failure at the end of every
     // run instead of the ones it applies to.
     final markerDir = await _markerDirectory();
+    // Read BEFORE the integrate, not after it. The answer decides what the
+    // marker records the moment the masters are finished, and a settings read
+    // sitting between "the last master is registered" and "the Darkroom job
+    // row exists" is time inside the one window neither record covers. Reading
+    // it here also fixes the decision to when the pass started, which is the
+    // run the operator's setting was about.
+    final autoDraft = await isDarkroomAutoDraftEnabled();
     try {
-      return await _integrate(sessionId, accepted, markerDir);
+      return await _integrate(sessionId, accepted, markerDir, autoDraft);
     } finally {
       // Cleared on EVERY ending the integration can reach — the success, the
       // early returns, and the caught failures it reports as a result. Only a
@@ -265,6 +272,7 @@ class AutoIntegrationService {
     int sessionId,
     List<DbCapturedImage> accepted,
     Directory? markerDir,
+    bool autoDraft,
   ) async {
     final settings = await _loadDefaultSettings();
     final targetId = accepted
@@ -295,17 +303,13 @@ class AutoIntegrationService {
     // No paths yet — a fold writes into a master that already exists, so
     // there is no half-created file to warn about until the batch phase
     // rewrites this marker with the paths it is about to create.
-    if (markerDir != null) {
-      await markIntegrationStarted(
-        markerDir,
-        InterruptedIntegration(
-          sessionId: sessionId,
-          targetName: targetName,
-          startedAtUtc: DateTime.now().toUtc(),
-          intendedMasterPaths: const [],
-        ),
-      );
-    }
+    var marker = InterruptedIntegration(
+      sessionId: sessionId,
+      targetName: targetName,
+      startedAtUtc: DateTime.now().toUtc(),
+      intendedMasterPaths: const [],
+    );
+    if (markerDir != null) await markIntegrationStarted(markerDir, marker);
 
     try {
       for (final bucket in byFilter.entries) {
@@ -376,17 +380,13 @@ class AutoIntegrationService {
               ),
             )
             .toList(growable: false);
-        if (markerDir != null) {
-          await markIntegrationStarted(
-            markerDir,
-            InterruptedIntegration(
-              sessionId: sessionId,
-              targetName: targetName,
-              startedAtUtc: DateTime.now().toUtc(),
-              intendedMasterPaths: intendedPaths,
-            ),
-          );
-        }
+        marker = InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: targetName,
+          startedAtUtc: DateTime.now().toUtc(),
+          intendedMasterPaths: intendedPaths,
+        );
+        if (markerDir != null) await markIntegrationStarted(markerDir, marker);
         final outcomes =
             await _ref.read(postSessionIntegrationServiceProvider).integrate(
                   subs: batchSubs,
@@ -428,11 +428,36 @@ class AutoIntegrationService {
       );
     }
 
+    // THE SEAM. Every master this pass set out to write is on disk and carries
+    // a library row; the Darkroom job row that owes the drafts, the night
+    // report, the delivery and the morning message does not exist yet. The two
+    // cannot be committed together from here — the masters are finalized inside
+    // `PostSessionIntegrationService`, one transaction per filter bucket, and
+    // this service is only handed the outcomes once each has already committed
+    // — so what is durable at this instant is the marker, and it is advanced
+    // before anything else happens.
+    //
+    // A kill after this line is read at the next open as the pass that is owed,
+    // and the owed pass is queued there; a kill before it is still the
+    // interrupted integrate it always was. What no longer exists is a kill that
+    // is reported as an interrupted integrate while the masters sit finished on
+    // disk — the night that was told to run the integration it had just
+    // completed.
+    if (markerDir != null) {
+      await markPassReached(
+        markerDir,
+        marker,
+        autoDraft
+            ? PostSessionPassStage.darkroomPassOwed
+            : PostSessionPassStage.mastersOnly,
+      );
+    }
+
     // The Darkroom pass owns the morning message when it runs: it knows what
     // was drafted, what the calibration did and where the artifacts went, so a
     // separate "master ready" push minutes earlier would be the same night
     // announced twice.
-    final darkroom = await _runDarkroom(sessionId);
+    final darkroom = await _runDarkroom(sessionId, autoDraft: autoDraft);
 
     await _afterSuccess(
       sessionId: sessionId,
@@ -463,13 +488,15 @@ class AutoIntegrationService {
   /// The pass never throws out of here: its own job row records every ending,
   /// and a draft that could not be made must not undo masters that already
   /// exist on disk.
+  ///
+  /// [autoDraft] is decided by the caller BEFORE the integrate starts — see
+  /// [_maybeRunForSession] — so the only thing standing between the finished
+  /// masters and the durable `darkroom_jobs` row is the insert itself.
   Future<({DawnJobOutcome? outcome, String? skippedReason})> _runDarkroom(
-    int sessionId,
-  ) async {
-    final raw = await _ref
-        .read(settingsDaoProvider)
-        .getSetting(kDarkroomAutoDraftSettingKey);
-    if (raw == 'false') {
+    int sessionId, {
+    required bool autoDraft,
+  }) async {
+    if (!autoDraft) {
       return (
         outcome: null,
         skippedReason:

@@ -38,6 +38,7 @@ import 'darkroom_controller.dart';
 part 'darkroom_screen_parts/_image_surface.dart';
 part 'darkroom_screen_parts/_viewport.dart';
 part 'darkroom_screen_parts/_history_panel.dart';
+part 'darkroom_screen_parts/_add_step.dart';
 part 'darkroom_screen_parts/_recipe_panel.dart';
 part 'darkroom_screen_parts/_branch_bar.dart';
 part 'darkroom_screen_parts/_compare.dart';
@@ -56,6 +57,7 @@ class DarkroomScreen extends ConsumerStatefulWidget {
 
 class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
   String? _lastShownRefusal;
+  String? _lastShownInsertRefusal;
   String? _lastShownSaveError;
 
   /// The recipe the compare pane draws beside the open one, or null when the
@@ -76,6 +78,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       // compare whose labels describe a pairing the operator never asked for.
       _compareRecipeId = null;
       _lastShownRefusal = null;
+      _lastShownInsertRefusal = null;
       _lastShownSaveError = null;
     }
   }
@@ -136,6 +139,15 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     } else if (state.reorderRefusal != _lastShownRefusal) {
       _lastShownRefusal = state.reorderRefusal;
       _toast(state.reorderRefusal!, NightshadeAlertSeverity.warning);
+    }
+    // Announced as well as printed, for the same reason: the chooser closes on
+    // the choice, so a refused insert leaves a stack that looks untouched and
+    // an alert one panel away from where the operator was looking.
+    if (state.insertRefusal == null) {
+      _lastShownInsertRefusal = null;
+    } else if (state.insertRefusal != _lastShownInsertRefusal) {
+      _lastShownInsertRefusal = state.insertRefusal;
+      _toast(state.insertRefusal!, NightshadeAlertSeverity.warning);
     }
     if (state.saveError == null) {
       _lastShownSaveError = null;
@@ -464,6 +476,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
             onParamChanged: _controller.setParam,
             onRemove: _controller.removeStep,
             onReorder: _controller.reorderStep,
+            onInsert: _controller.insertStep,
           ),
         ),
       ],
@@ -478,6 +491,15 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
   void _openExportSheet(DarkroomState state) {
     final recipeId = state.recipeId;
     if (recipeId == null) return;
+    // What the viewport is showing, when what it is showing is that the base
+    // master itself cannot be read. The export replays the stack over that same
+    // file, so the sheet opens already knowing it cannot succeed.
+    final renderError = state.renderError;
+    final masterFailure = renderError != null &&
+            darkroomMasterFailureNextStep(renderError, state.baseMasterPath) !=
+                null
+        ? renderError
+        : null;
     unawaited(
       _DarkroomExportSheet.show(
         context,
@@ -490,6 +512,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         catalog: state.catalog,
         reports: state.reports,
         catalogStars: _controller.catalogStars,
+        baseMasterFailure: masterFailure,
       ),
     );
   }
@@ -588,7 +611,9 @@ class _DarkroomStartOfferView extends StatelessWidget {
               const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
                 'An empty recipe over the master\'s own pixels. Nothing is '
-                'proposed and nothing is applied until you add a step.',
+                'proposed and nothing is applied until you add a step — the '
+                'History stack\'s "Add step" lists every operation this build '
+                'registers, with the stage each one runs in.',
                 style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textSecondary,
                 ),

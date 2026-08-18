@@ -94,7 +94,6 @@
       sessionSummary: null,
       catalogResults: [],
       catalogSearchDebounce: null,
-      currentTargetName: '',
       currentTargetId: null,
       sequenceStartedAt: 0,
     },
@@ -191,8 +190,15 @@
   // Every panel that keeps its own freshness clock. The stale line, the
   // re-ask below, and the Run panel's right to assert a state all read this
   // one list.
+  //
+  // `sequences` and `analytics` joined it late: both panels assert numbers
+  // that outlive their source (Current target, the session frame count) and
+  // both were invisible to the clock, so across a SIGTERM they sat unmarked
+  // beside seven siblings that all carried a "Stale: 1m 0s since last update"
+  // line.
   const PANEL_KEYS = ['devices', 'mount', 'camera', 'sequencer', 'guiding',
-                      'focuser', 'filter-wheel', 'rotator'];
+                      'focuser', 'filter-wheel', 'rotator',
+                      'sequences', 'analytics'];
   // How often a panel whose route is failing is re-asked. Matches the WS
   // fallback poll's cadence: the same load, already accepted, and only while
   // something is actually failing.
@@ -1352,10 +1358,14 @@
     // furthest-reaching claim on the page.
     const opsSeqEta = document.getElementById('ops-seq-eta');
     if (opsSeqEta) opsSeqEta.textContent = '--';
-    // The node and the message are the last two claims about a run whose
-    // source has stopped answering; they read as live text with nothing
-    // around them to say otherwise.
-    for (const id of ['seq-node', 'ops-seq-current-node']) {
+    // The node, the target and the message are the last claims about a run
+    // whose source has stopped answering; they read as live text with nothing
+    // around them to say otherwise. `ops-seq-current-target` was the one this
+    // list forgot: measured across a SIGTERM it went on naming the run for
+    // 68 s beside a Run panel that had already gone to "--" and a banner
+    // saying every value below might be wrong.
+    for (const id of ['seq-node', 'ops-seq-current-node',
+      'ops-seq-current-target']) {
       const el = document.getElementById(id);
       if (el) el.textContent = '--';
     }
@@ -1408,6 +1418,11 @@
         PANEL_KEYS.some(isPanelDataStale)) {
       lastPanelRefreshRetryAt = now;
       fetchAllStatus();
+      // The sequence list is deliberately not part of fetchAllStatus — it is
+      // fetched once per connect because it changes rarely. Without this the
+      // Sequences panel would be the one panel whose stale line could never
+      // clear itself.
+      if (isPanelDataStale('sequences')) fetchOpsSequences();
     }
 
     // Fallback polling: only when WS has been silent past the threshold.
@@ -4081,8 +4096,10 @@
     try {
       const result = await api.sequencerList();
       state.ops.sequences = (result && result.sequences) || [];
+      markPanelFresh('sequences');
       renderOpsSequencesDropdown();
     } catch (e) {
+      markPanelUnconfirmed('sequences');
       addLogEntry('error', describeApiError(e, 'Sequence list fetch'));
     }
   }
@@ -4179,16 +4196,20 @@
       return;
     }
     const s = state.sequencerStatus;
-    // Current target name comes from the analytics session if available, then
-    // falls back to the running node's name. The sequencer status payload
-    // itself does not carry a target name field.
-    const sessionTargetName = state.ops.currentTargetName
-      || (state.ops.sessionSummary && state.ops.sessionSummary.session
-          ? state.ops.sessionSummary.session.name || ''
-          : '');
-    if (targetEl) {
-      targetEl.textContent = sessionTargetName || s.currentNodeName || '--';
-    }
+    // The TARGET, from the field that carries it. `/api/sequencer/status` now
+    // publishes `currentTarget` — the executor's own `SequenceProgress`
+    // target, the same one `/api/run-watch/snapshot` has always carried.
+    //
+    // What this replaces: the analytics session name, falling back to the
+    // current node's name. On a headless run the imaging session is named
+    // after the SEQUENCE, so a target called "M Long Field" rendered as
+    // "M long night" for the whole run; once the run ended and the session
+    // went null, the fallback named the Loop ROOT NODE and the field read
+    // "Live root". Mid-autofocus it read "Autofocus (HFR Degradation)". The
+    // panel never once showed the target. A run that has named no target
+    // leaves this unknown, and unknown renders as "--" — not as the nearest
+    // string to hand.
+    if (targetEl) targetEl.textContent = s.currentTarget || '--';
     if (nodeEl) nodeEl.textContent = s.currentNodeName || '--';
 
     const progress = sequencerProgressPercent(s.progress);
@@ -4342,7 +4363,6 @@
     if (goDec) goDec.value = formatDec(Number(target.dec));
 
     state.ops.currentTargetId = target.id;
-    state.ops.currentTargetName = target.name || ('Target #' + target.id);
 
     try {
       await api.mountSlewToRaDec(state.mountDeviceId,
@@ -4849,15 +4869,11 @@
     try {
       const summary = await api.analyticsGetSessionSummary();
       state.ops.sessionSummary = summary;
-      // Capture the active session's target name so the sequencer load panel
-      // can display it even when the sequencer status payload doesn't carry
-      // a target field.
-      if (summary && summary.session && summary.session.name) {
-        state.ops.currentTargetName = summary.session.name;
-      }
+      markPanelFresh('analytics');
       renderOpsAnalyticsPanel();
       renderOpsSequencerLoadPanel();
     } catch (e) {
+      markPanelUnconfirmed('analytics');
       addLogEntry('error', describeApiError(e, 'Analytics fetch'));
     }
   }

@@ -15,11 +15,19 @@
 // that can silence each link named too. The switch itself is the only thing
 // this page writes.
 //
-// Remote mode: `darkroom.auto_draft` lives in the LOCAL profile database and the
-// pass runs on the imaging host. A phone driving a remote rig would be editing
-// its own row, which governs nothing, so the page says where the setting lives
-// rather than offering a switch for the wrong machine — the same stance the
-// Delivery page takes for the same reason.
+// Remote clients: `darkroom.auto_draft` lives in the LOCAL profile database and
+// the pass runs on the machine that integrated the masters. A phone driving a
+// remote rig would be editing its own row, which governs nothing, so the page
+// says where the setting lives rather than offering a switch for the wrong
+// machine — the same stance the Delivery page takes for the same reason.
+//
+// That refusal reads the client ROLE, not the live connection. A desktop
+// launched with `--remote-host` is that rig's client for the whole window
+// before its first handshake lands, and again after every drop, and
+// `isRemoteModeProvider` reads false through both. Gating on it offered the
+// live switch there: one click wrote `darkroom.auto_draft=false` into a
+// database no dawn job reads, while the rig it was pointed at kept drafting,
+// delivering and notifying at dawn.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,7 +83,7 @@ class DarkroomAutopilotSettings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(isRemoteModeProvider)) {
+    if (ref.watch(isRemoteClientProvider)) {
       return SettingsPage(
         title: 'Darkroom autopilot',
         description: _description,
@@ -121,7 +129,7 @@ class DarkroomAutopilotSettings extends ConsumerWidget {
           title: 'What can silence it',
           isMobile: isMobile,
           children: [
-            const _AutoIntegrateDependencyRow(),
+            _AutoIntegrateDependencyRow(isMobile: isMobile),
             SettingRow(
               icon: LucideIcons.send,
               title: 'Delivery destinations decide what leaves the rig',
@@ -212,7 +220,12 @@ class _AutoDraftSwitchState extends ConsumerState<_AutoDraftSwitch> {
 /// nothing to draft. Stated with the neighbour's LIVE state, because "this
 /// depends on another setting" is only useful next to what that setting says.
 class _AutoIntegrateDependencyRow extends ConsumerWidget {
-  const _AutoIntegrateDependencyRow();
+  const _AutoIntegrateDependencyRow({required this.isMobile});
+
+  /// The page's own density flag. Hardcoding `false` here put one row at
+  /// desktop padding, icon size and title ramp inside a phone-width section
+  /// whose siblings were at phone density — three misalignments in one column.
+  final bool isMobile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -234,11 +247,17 @@ class _AutoIntegrateDependencyRow extends ConsumerWidget {
           'happens next, not whether the night is integrated at all. It is '
           'currently $state. Settings › Image Grading › Post-session '
           'integration.',
-      trailing: Text(
-        state,
-        style: NightshadeTypography.labelSm.copyWith(color: color),
+      // The colour-coded echo is for the eye scanning the column. A screen
+      // reader has already been told the state by the sentence above, so
+      // publishing the echo as well adds a node named only "off" a column
+      // away from the sentence that explains it.
+      trailing: ExcludeSemantics(
+        child: Text(
+          state,
+          style: NightshadeTypography.labelSm.copyWith(color: color),
+        ),
       ),
-      isMobile: false,
+      isMobile: isMobile,
     );
   }
 }

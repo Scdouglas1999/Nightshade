@@ -172,6 +172,16 @@ class DarkroomState {
   /// last reorder was accepted or none has been attempted.
   final String? reorderRefusal;
 
+  /// True while an added step is being measured and checked, so a second press
+  /// cannot put two copies of one operation into the stack.
+  final bool insertBusy;
+
+  /// Why the last "add step" added nothing, in the words of whoever refused it
+  /// — the engine's own sentence for an order it will not run, and the
+  /// registry's own note for an operation it could not measure from this
+  /// master. Null when the last insert was accepted or none has been attempted.
+  final String? insertRefusal;
+
   /// Why the field carries no catalogue photometry, when it does not. The
   /// color calibration is skipped with the engine's own reason in that case;
   /// this states the app-side half of the same fact.
@@ -250,6 +260,8 @@ class DarkroomState {
     this.renderError,
     this.cancelledPhase,
     this.reorderRefusal,
+    this.insertBusy = false,
+    this.insertRefusal,
     this.photometryNote,
     this.photometryStarCount = 0,
     this.canUndo = false,
@@ -297,6 +309,41 @@ class DarkroomState {
   /// stack without it has nothing the missing catalogue would have changed.
   bool get hasColorCalibrateStep =>
       steps.any((step) => step.opId == kDarkroomColorCalibrateOpId);
+
+  /// Where a step for [op] goes so the stack keeps the engine's stage order, or
+  /// null when this build cannot place it.
+  ///
+  /// The rule is the engine's own (`recipe/render.rs` `validate`): a
+  /// linear-stage operation cannot run after a stretched one. A stretched
+  /// operation therefore goes on the end, and a linear one goes in front of the
+  /// first stretched step there is — the last position the rule leaves for it,
+  /// and the one that keeps every step already in the stack where it is.
+  ///
+  /// The stage of a step is read from the catalogue exactly as the engine reads
+  /// it from its registry: a DISABLED step still carries its stage into the
+  /// rule, and a step whose operation this build does not register has no stage
+  /// here to order against.
+  ///
+  /// This decides where to PROPOSE the step, never whether it is legal — the
+  /// engine is asked about the whole candidate stack before the insert commits.
+  /// Null for an operation whose stage the registry names and this build does
+  /// not model: there is no side of the stretch to put it on, and guessing one
+  /// would propose an order no rule in this build supports.
+  int? insertIndexFor(DarkroomOpSpec op) {
+    switch (op.stage) {
+      case DarkroomOpStage.stretched:
+        return steps.length;
+      case DarkroomOpStage.unmodelled:
+        return null;
+      case DarkroomOpStage.linear:
+        for (var i = 0; i < steps.length; i++) {
+          if (catalog?.specFor(steps[i])?.stage == DarkroomOpStage.stretched) {
+            return i;
+          }
+        }
+        return steps.length;
+    }
+  }
 
   /// The render report for the step at [index], or null when the last render
   /// carried no line for that step.
@@ -396,6 +443,9 @@ class DarkroomState {
     bool clearCancelledPhase = false,
     String? reorderRefusal,
     bool clearReorderRefusal = false,
+    bool? insertBusy,
+    String? insertRefusal,
+    bool clearInsertRefusal = false,
     String? photometryNote,
     int? photometryStarCount,
     bool? canUndo,
@@ -440,6 +490,9 @@ class DarkroomState {
           clearCancelledPhase ? null : (cancelledPhase ?? this.cancelledPhase),
       reorderRefusal:
           clearReorderRefusal ? null : (reorderRefusal ?? this.reorderRefusal),
+      insertBusy: insertBusy ?? this.insertBusy,
+      insertRefusal:
+          clearInsertRefusal ? null : (insertRefusal ?? this.insertRefusal),
       photometryNote: photometryNote ?? this.photometryNote,
       photometryStarCount: photometryStarCount ?? this.photometryStarCount,
       canUndo: canUndo ?? this.canUndo,

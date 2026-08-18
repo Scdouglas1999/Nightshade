@@ -1,0 +1,269 @@
+part of '../darkroom_screen.dart';
+
+/// The control that puts an operation into the recipe, and the chooser behind
+/// it.
+///
+/// The editor's other edits all act on steps that are already in the stack:
+/// toggle, reorder, remove, and the parameter controls. This is the one that
+/// gets a step in — and without it "start from linear" produced a recipe that
+/// could never carry an operation, while its own offer promised "nothing is
+/// applied until you add a step".
+///
+/// Everything the chooser states about an operation comes from the registry's
+/// published catalogue: its id, its version, the stage it emits, its summary,
+/// and which of its parameters this build has no default for. Where the stack
+/// or the engine leaves no room for an operation, the choice is DISABLED and
+/// carries the reason — never hidden, because an operator looking for an
+/// operation this build registers has to be able to see what is in the way.
+class _DarkroomAddStep extends StatelessWidget {
+  final DarkroomState state;
+
+  /// Adds a step for the chosen operation. The controller asks the engine
+  /// before anything commits, and states its refusal on the state.
+  final Future<bool> Function(DarkroomOpSpec op) onInsert;
+
+  const _DarkroomAddStep({required this.state, required this.onInsert});
+
+  /// Why no operation can be added right now, or null when the chooser opens.
+  ///
+  /// The stack failing to validate is the case worth stating rather than
+  /// silently allowing: the engine refuses a recipe as a WHOLE, so a step added
+  /// to a stack it already refuses comes back refused for the fault that was
+  /// there before — a refusal about a step the operator did not touch.
+  String? get _blocked {
+    if (!state.hasRecipe) {
+      return 'No recipe is open, so there is no stack to add a step to.';
+    }
+    if (state.catalog == null) {
+      final error = state.catalogError;
+      return error ??
+          'The operation catalogue has not been read from the engine yet, so '
+              'the operations this build registers are not known here.';
+    }
+    final error = state.recipeError;
+    if (error != null) {
+      return 'The engine refuses this stack as it stands, so a step added to '
+          'it would be refused with it: $error';
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = _blocked;
+    final busy = state.insertBusy;
+    final label = busy ? 'Adding the step…' : 'Add step';
+    // The accessible name carries the refusal, because a disabled control that
+    // says only "Add step" leaves the reason on screen for sighted readers and
+    // nowhere else.
+    final name = blocked == null ? label : 'Add step — $blocked';
+    void open() => unawaited(_choose(context));
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: blocked == null && !busy,
+      label: name,
+      excludeSemantics: true,
+      onTap: blocked == null && !busy ? open : null,
+      child: Tooltip(
+        message: blocked ??
+            'Choose an operation from the registry. It goes into the stack '
+                'where the engine\'s stage rule leaves room for it, and the '
+                'move controls on its card change that afterwards.',
+        child: NightshadeButton(
+          key: const ValueKey('darkroom_add_step'),
+          label: label,
+          icon: NightshadeIcons.add,
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          isLoading: busy,
+          onPressed: blocked == null && !busy ? open : null,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _choose(BuildContext context) async {
+    final catalog = state.catalog;
+    if (catalog == null || state.insertBusy) return;
+    final chosen = await showDialog<DarkroomOpSpec>(
+      context: context,
+      builder: (dialogContext) => _DarkroomAddStepDialog(
+        state: state,
+        catalog: catalog,
+      ),
+    );
+    if (chosen == null) return;
+    await onInsert(chosen);
+  }
+}
+
+/// The registry's operations, with what each one does and where it would go.
+class _DarkroomAddStepDialog extends StatelessWidget {
+  final DarkroomState state;
+  final DarkroomCatalog catalog;
+
+  const _DarkroomAddStepDialog({required this.state, required this.catalog});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return NightshadeDialog(
+      title: 'Add a step',
+      icon: NightshadeIcons.add,
+      width: 560,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Every operation this build registers, whether or not this stack '
+            'already carries one. A step arrives switched on and adjustable, '
+            'and nothing is written to the master — the recipe replays over '
+            'its pixels.',
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          // No scroll view of its own: the dialog surface already scrolls its
+          // body, and a second one nested inside it would size this column
+          // against unbounded height.
+          for (final op in catalog.ops)
+            Padding(
+              padding: const EdgeInsets.only(
+                bottom: NightshadeTokens.spaceMd,
+              ),
+              child: _entry(context, colors, op),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _entry(
+    BuildContext context,
+    NightshadeColors colors,
+    DarkroomOpSpec op,
+  ) {
+    final title = darkroomOpTitle(op.id);
+    final at = state.insertIndexFor(op);
+    final refusal = at == null
+        ? 'The registry states this operation\'s stage as "${op.stageWire}", '
+            'which this build does not model, so this editor cannot say '
+            'whether it belongs before or after the stretch.'
+        : null;
+    final placement = at == null ? null : _placement(op, at);
+    final measured = _measuredNote(op);
+    final name = refusal == null
+        ? 'Add $title v${op.version} — ${op.stage.label} stage. $placement'
+        : 'Add $title v${op.version} — $refusal';
+    void choose() => Navigator.of(context).pop(op);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          container: true,
+          button: true,
+          enabled: refusal == null,
+          label: name,
+          excludeSemantics: true,
+          onTap: refusal == null ? choose : null,
+          child: NightshadeButton(
+            label: title,
+            icon: NightshadeIcons.add,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: refusal == null ? choose : null,
+          ),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        // The same two tags the step card carries, so the chooser and the
+        // stack name an operation in one vocabulary. A Wrap, because an
+        // operation name and a stage label both grow, and this dialog is as
+        // narrow as the phone it opens on.
+        Wrap(
+          spacing: NightshadeTokens.spaceXs,
+          runSpacing: NightshadeTokens.spaceXs,
+          children: [
+            _DarkroomTag(
+              label: 'v${op.version}',
+              tooltip: 'The operation version a step added now is written '
+                  'with. A recipe keeps rendering with its own version.',
+            ),
+            _DarkroomTag(label: op.stage.label, tooltip: _stageTooltip(op)),
+          ],
+        ),
+        if (op.summary.isNotEmpty) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            op.summary,
+            style: NightshadeTypography.captionSm.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        Text(
+          refusal ?? placement!,
+          style: NightshadeTypography.captionSm.copyWith(
+            color: refusal == null ? colors.textMuted : colors.warning,
+          ),
+        ),
+        if (measured != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            measured,
+            style: NightshadeTypography.captionSm.copyWith(
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Where the step lands, named by the step it lands in front of.
+  String _placement(DarkroomOpSpec op, int at) {
+    final steps = state.steps;
+    if (steps.isEmpty) return 'Goes in as the first step of the stack.';
+    if (at >= steps.length) {
+      return 'Goes in at the end of the stack, as step ${steps.length + 1}.';
+    }
+    final blocking = darkroomOpTitle(steps[at].opId);
+    return 'Goes in as step ${at + 1}, ahead of $blocking: a linear-stage '
+        'operation cannot run after a stretched one, so this is the last '
+        'place in the stack the rule leaves for it.';
+  }
+
+  /// What the registry has to measure before this operation can be added, or
+  /// null when its parameters all have documented defaults.
+  String? _measuredNote(DarkroomOpSpec op) {
+    final unmeasured = [
+      for (final param in op.params)
+        if (param.required && param.defaultValue == null) param.displayName,
+    ];
+    if (unmeasured.isEmpty) return null;
+    final names = unmeasured.length == 1
+        ? unmeasured.single
+        : '${unmeasured.take(unmeasured.length - 1).join(', ')} and '
+            '${unmeasured.last}';
+    return 'This build documents no default for $names, so adding it asks the '
+        'registry to measure this master first — the same measurement "Draft '
+        'for me" makes, and it takes as long.';
+  }
+
+  String _stageTooltip(DarkroomOpSpec op) {
+    switch (op.stage) {
+      case DarkroomOpStage.linear:
+        return 'Emits linear pixels, so it has to run before the stretch.';
+      case DarkroomOpStage.stretched:
+        return 'Emits stretched (display-domain) pixels. Everything after it '
+            'works on the stretched image.';
+      case DarkroomOpStage.unmodelled:
+        return 'The registry names this operation\'s stage as '
+            '"${op.stageWire}", which this build does not model.';
+    }
+  }
+}

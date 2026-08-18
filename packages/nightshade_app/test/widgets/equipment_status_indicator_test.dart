@@ -6,10 +6,12 @@
 // Equipment / 4 connected" while the Equipment header reads "6 connected · 6
 // unsaved" in the same frame — and the chip is the one readout an operator
 // glances at before starting an unattended run.
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/equipment_status_indicator.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../harness/pump_app_screen.dart';
 
@@ -46,11 +48,12 @@ const _profile = EquipmentProfileModel(
   aperture: 100,
 );
 
-Future<void> _pumpIndicator(WidgetTester tester) async {
+Future<void> _pumpIndicator(WidgetTester tester, {ThemeData? theme}) async {
   await pumpAppScreen(
     tester,
     const EquipmentStatusIndicator(),
     settle: false,
+    theme: theme,
     extraOverrides: [
       activeEquipmentProfileProvider.overrideWithValue(_profile),
       cameraStateProvider.overrideWith(
@@ -107,5 +110,46 @@ void main() {
     expect(find.text('Simulated Camera'), findsOneWidget);
     expect(find.text('Simulated Dome'), findsOneWidget);
     expect(find.text('Simulated Weather Station'), findsOneWidget);
+  });
+
+  // A profile the operator never gave an icon to. The chip used to fill that in
+  // with a literal 🔭, and a colour emoji is painted by the platform's emoji
+  // font: under Red night a pixel scan of the whole 1600x900 window found
+  // exactly one saturated non-red cluster, and it was this glyph.
+  testWidgets('the app\'s own profile badge is a glyph, not a colour emoji', (
+    tester,
+  ) async {
+    await _pumpIndicator(tester);
+
+    expect(_profile.profileIcon, isNull, reason: 'the case under test');
+    expect(find.text('🔭'), findsNothing);
+
+    final colors = NightshadeColors.of(
+      tester.element(find.byType(EquipmentStatusIndicator)),
+    );
+    final badge = tester.widget<Icon>(
+      find.byIcon(NightshadeIcons.mount).first,
+    );
+    expect(badge.color, colors.textSecondary);
+  });
+
+  testWidgets('under red night the badge takes the red palette', (
+    tester,
+  ) async {
+    await _pumpIndicator(tester, theme: NightshadeTheme.redNight);
+
+    final colors = NightshadeColors.of(
+      tester.element(find.byType(EquipmentStatusIndicator)),
+    );
+    expect(colors.textSecondary, NightshadeColors.redNight.textSecondary);
+
+    final badge = tester.widget<Icon>(
+      find.byIcon(NightshadeIcons.mount).first,
+    );
+    expect(
+      badge.color,
+      colors.textSecondary,
+      reason: 'the one thing an emoji could never do',
+    );
   });
 }

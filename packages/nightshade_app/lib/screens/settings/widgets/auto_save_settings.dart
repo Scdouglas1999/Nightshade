@@ -129,12 +129,19 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
   @override
   Widget build(BuildContext context) {
     final isMobile = widget.isMobile;
-    final isRemoteMode = ref.watch(isRemoteModeProvider);
+    // The client ROLE, not the live connection. `main.dart` starts
+    // `autoSaveLifecycleProvider` only when `remoteTarget == null`, so a
+    // desktop launched with `--remote-host` never schedules backups at all —
+    // yet on the connection-shaped gate this page rendered the full editor for
+    // the whole pre-handshake window and after every drop, writing `autosave.*`
+    // into the client's own database and starting, from the settings screen, a
+    // service the entry point deliberately declined to start for this role.
+    final isRemoteClient = ref.watch(isRemoteClientProvider);
 
-    if (isRemoteMode) {
+    if (isRemoteClient) {
       return SettingsPage(
         title: 'Automatic Backups',
-        description: 'Backups run on the connected imaging host',
+        description: 'Backups run on the imaging host',
         isMobile: isMobile,
         hideHeader: isMobile || widget.embedded,
         scrollable: !widget.embedded,

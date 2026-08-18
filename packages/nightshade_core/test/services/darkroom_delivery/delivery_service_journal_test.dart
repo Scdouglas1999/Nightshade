@@ -540,50 +540,52 @@ void main() {
       expect((await DeliveryJournalDao(db).listForJob(1)).single.attempts, 1);
     });
 
-    test('a switched-off peer is suspended, not reported as awaiting a pull',
-        () async {
-      // The sweep used to take the peer branch before it read the switch, so
-      // a destination the operator had turned off was reported as "12
-      // awaiting pull" — while `PeerManifestService` resolves peers through
-      // `readEnabled` and answered that same peer id with
-      // `unknown_delivery_peer`. Nothing could ever pull those files.
-      final db = open();
-      addTearDown(db.close);
-      await enqueueJob(db);
-      final targetId = await createWatchedFolder(
-        db,
-        name: 'office-pc',
-        kind: ArtifactDestinationKind.peer,
-      );
-      var now = DateTime.utc(2026, 8, 16, 5);
-      final transport = _ScriptedTransport(
-        kind: ArtifactDestinationKind.peer,
-        disposition: DeliveryDisposition.awaitingPull,
-      );
-      final service = DeliveryService(
-        targets: DeliveryTargetsDao(db),
-        journal: DeliveryJournalDao(db),
-        transportFactory: (_, __) => transport,
-        clock: () => now,
-      );
-      await service.deliverJobArtifacts(await artifactSet());
-      await DeliveryTargetsDao(db).update(targetId, enabled: false);
+    test(
+      'a switched-off peer is suspended, not reported as awaiting a pull',
+      () async {
+        // The sweep used to take the peer branch before it read the switch, so
+        // a destination the operator had turned off was reported as "12
+        // awaiting pull" — while `PeerManifestService` resolves peers through
+        // `readEnabled` and answered that same peer id with
+        // `unknown_delivery_peer`. Nothing could ever pull those files.
+        final db = open();
+        addTearDown(db.close);
+        await enqueueJob(db);
+        final targetId = await createWatchedFolder(
+          db,
+          name: 'office-pc',
+          kind: ArtifactDestinationKind.peer,
+        );
+        var now = DateTime.utc(2026, 8, 16, 5);
+        final transport = _ScriptedTransport(
+          kind: ArtifactDestinationKind.peer,
+          disposition: DeliveryDisposition.awaitingPull,
+        );
+        final service = DeliveryService(
+          targets: DeliveryTargetsDao(db),
+          journal: DeliveryJournalDao(db),
+          transportFactory: (_, __) => transport,
+          clock: () => now,
+        );
+        await service.deliverJobArtifacts(await artifactSet());
+        await DeliveryTargetsDao(db).update(targetId, enabled: false);
 
-      now = now.add(const Duration(hours: 3));
-      final report = await service.sweepDueRetries();
+        now = now.add(const Duration(hours: 3));
+        final report = await service.sweepDueRetries();
 
-      expect(report.awaitingPull, 0);
-      expect(report.suspended, 1);
-      expect(
-        report.destinations.single.problems.single,
-        contains('no paired desktop can pull them while it is off'),
-      );
-      expect(
-        report.everythingLanded,
-        isFalse,
-        reason: 'a file nothing can pull has not landed',
-      );
-    });
+        expect(report.awaitingPull, 0);
+        expect(report.suspended, 1);
+        expect(
+          report.destinations.single.problems.single,
+          contains('no paired desktop can pull them while it is off'),
+        );
+        expect(
+          report.everythingLanded,
+          isFalse,
+          reason: 'a file nothing can pull has not landed',
+        );
+      },
+    );
 
     test('a destination switched off mid-night pauses without spending an '
         'attempt', () async {
@@ -613,7 +615,8 @@ void main() {
       expect(
         report.suspended,
         1,
-        reason: 'a switched-off destination is owed nothing until the operator '
+        reason:
+            'a switched-off destination is owed nothing until the operator '
             'switches it back on; counting it as retrying reads as work the '
             'sweep is about to do',
       );
@@ -626,54 +629,56 @@ void main() {
       expect((await DeliveryJournalDao(db).listForJob(1)).single.attempts, 1);
     });
 
-    test('the earliest due time is the policy\'s rung, not the sweep tick',
-        () async {
-      // What the sweeper's short cadence asks. Answering it from the journal
-      // is what lets a row due 60 seconds from now be attempted 60 seconds
-      // from now rather than at whatever tick comes next.
-      final db = open();
-      addTearDown(db.close);
-      await enqueueJob(db);
-      await createWatchedFolder(db);
-      var now = DateTime.utc(2026, 8, 16, 5);
-      final service = DeliveryService(
-        targets: DeliveryTargetsDao(db),
-        journal: DeliveryJournalDao(db),
-        transportFactory: (_, __) => _ScriptedTransport(
-          kind: ArtifactDestinationKind.watchedFolder,
-          openFailure: const DeliveryFailure(
-            DeliveryFailureKind.destinationUnreachable,
-            'the share is not mounted',
+    test(
+      'the earliest due time is the policy\'s rung, not the sweep tick',
+      () async {
+        // What the sweeper's short cadence asks. Answering it from the journal
+        // is what lets a row due 60 seconds from now be attempted 60 seconds
+        // from now rather than at whatever tick comes next.
+        final db = open();
+        addTearDown(db.close);
+        await enqueueJob(db);
+        await createWatchedFolder(db);
+        var now = DateTime.utc(2026, 8, 16, 5);
+        final service = DeliveryService(
+          targets: DeliveryTargetsDao(db),
+          journal: DeliveryJournalDao(db),
+          transportFactory: (_, __) => _ScriptedTransport(
+            kind: ArtifactDestinationKind.watchedFolder,
+            openFailure: const DeliveryFailure(
+              DeliveryFailureKind.destinationUnreachable,
+              'the share is not mounted',
+            ),
           ),
-        ),
-        clock: () => now,
-      );
+          clock: () => now,
+        );
 
-      expect(
-        await service.earliestRetryDueAt(),
-        isNull,
-        reason: 'an empty journal owes nothing, and no wake is needed for it',
-      );
+        expect(
+          await service.earliestRetryDueAt(),
+          isNull,
+          reason: 'an empty journal owes nothing, and no wake is needed for it',
+        );
 
-      await service.deliverJobArtifacts(await artifactSet());
+        await service.deliverJobArtifacts(await artifactSet());
 
-      expect(
-        await service.earliestRetryDueAt(),
-        now.add(const Duration(minutes: 1)),
-        reason: 'the first rung of the documented 1m/3m/9m ladder',
-      );
-      expect(await service.hasDueRetries(), isFalse);
+        expect(
+          await service.earliestRetryDueAt(),
+          now.add(const Duration(minutes: 1)),
+          reason: 'the first rung of the documented 1m/3m/9m ladder',
+        );
+        expect(await service.hasDueRetries(), isFalse);
 
-      now = now.add(const Duration(seconds: 59));
-      expect(await service.hasDueRetries(), isFalse);
+        now = now.add(const Duration(seconds: 59));
+        expect(await service.hasDueRetries(), isFalse);
 
-      now = now.add(const Duration(seconds: 2));
-      expect(
-        await service.hasDueRetries(),
-        isTrue,
-        reason: 'a second past the rung is due; the sweeper wakes on this',
-      );
-    });
+        now = now.add(const Duration(seconds: 2));
+        expect(
+          await service.hasDueRetries(),
+          isTrue,
+          reason: 'a second past the rung is due; the sweeper wakes on this',
+        );
+      },
+    );
 
     test('a suspended row is not a due row', () async {
       // A switched-off destination's rows stay `retrying` for as long as the
@@ -717,6 +722,97 @@ void main() {
         reason: 'switching it back on is what makes the backlog due again',
       );
     });
+
+    test('a file awaiting a peer\'s pull is not a due row', () async {
+      // Measured against the release bundle: one published-but-unpulled peer
+      // file made the 30-second due check answer "due" for ever, so the
+      // sweeper ran a full pass and logged `peer-office: 1 awaiting pull`
+      // every 30 seconds — seven identical INFO lines in 3 1/2 minutes, and
+      // the row untouched throughout, because `_sweepDestination`
+      // short-circuits a peer to awaitingPull and does no work at all. That is
+      // the NORMAL state between the dawn job and the operator's morning.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      await createWatchedFolder(
+        db,
+        name: 'peer-office',
+        kind: ArtifactDestinationKind.peer,
+      );
+      var now = DateTime.utc(2026, 8, 16, 5);
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => _ScriptedTransport(
+          kind: ArtifactDestinationKind.peer,
+          disposition: DeliveryDisposition.awaitingPull,
+        ),
+        clock: () => now,
+      );
+      await service.deliverJobArtifacts(await artifactSet());
+
+      expect(
+        (await DeliveryJournalDao(db).listPendingRetry()).single.state,
+        DeliveryAttemptState.retrying,
+        reason: 'the row is still pending — it is pending on the peer',
+      );
+      now = now.add(const Duration(hours: 6));
+      expect(await service.earliestRetryDueAt(), isNull);
+      expect(
+        await service.hasDueRetries(),
+        isFalse,
+        reason:
+            'the next move is a pull by the desktop, not a retry by the '
+            'rig, so there is nothing for the short cadence to wake for',
+      );
+    });
+
+    test(
+      'a genuinely due row still wakes the check past an unpulled peer',
+      () async {
+        // The other half of the same claim: going quiet for the peer must not
+        // go quiet for the destination that really is owed an attempt.
+        final db = open();
+        addTearDown(db.close);
+        await enqueueJob(db);
+        await createWatchedFolder(
+          db,
+          name: 'peer-office',
+          kind: ArtifactDestinationKind.peer,
+        );
+        await createWatchedFolder(db, name: 'nas');
+        var now = DateTime.utc(2026, 8, 16, 5);
+        final service = DeliveryService(
+          targets: DeliveryTargetsDao(db),
+          journal: DeliveryJournalDao(db),
+          transportFactory: (destination, _) =>
+              destination.kind == ArtifactDestinationKind.peer
+              ? _ScriptedTransport(
+                  kind: ArtifactDestinationKind.peer,
+                  disposition: DeliveryDisposition.awaitingPull,
+                )
+              : _ScriptedTransport(
+                  kind: ArtifactDestinationKind.watchedFolder,
+                  openFailure: const DeliveryFailure(
+                    DeliveryFailureKind.destinationUnreachable,
+                    'the share is not mounted',
+                  ),
+                ),
+          clock: () => now,
+        );
+        await service.deliverJobArtifacts(await artifactSet());
+
+        expect(
+          await service.earliestRetryDueAt(),
+          now.add(const Duration(minutes: 1)),
+          reason: 'the share\'s own first rung, unaffected by the peer row',
+        );
+        expect(await service.hasDueRetries(), isFalse);
+
+        now = now.add(const Duration(minutes: 1, seconds: 1));
+        expect(await service.hasDueRetries(), isTrue);
+      },
+    );
 
     test('a source deleted between attempts stops being retried', () async {
       final db = open();

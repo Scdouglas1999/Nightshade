@@ -1061,7 +1061,19 @@ void main() {
       matching: find.widgetWithText(NightshadeButton, 'Show more'),
     );
     expect(expand, findsOneWidget);
-    await tester.tap(expand, warnIfMissed: false);
+    // Where inside the alert depends on the alert's width, and this panel is a
+    // ~330px column: under that breakpoint [NightshadeAlert] lays its action
+    // under the TITLE and above the message, at the alert's own width, because
+    // beside the text it would be squeezed to half a phone-width alert and the
+    // message would wrap down the whole screen. The panel viewport is 256px and
+    // the account is longer than that in either arrangement, so the control is
+    // scrolled to the way an operator scrolls to it — what this case is about
+    // is that it travels WITH the sentence it completes rather than sitting in
+    // a row of its own somewhere else in the panel, which is what the
+    // `find.descendant(of: alert)` above pins.
+    await tester.ensureVisible(expand);
+    await tester.pump();
+    await tester.tap(expand);
     await tester.pump();
 
     expect(find.textContaining('draft that composite'), findsOneWidget);

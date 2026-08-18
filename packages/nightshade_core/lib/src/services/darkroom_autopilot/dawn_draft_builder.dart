@@ -478,7 +478,8 @@ class DawnDraftBuilder {
         index,
         notes,
         opId,
-        'this master has ${master.channels} channel(s) and the colour fit needs '
+        'this master has ${master.channels} '
+        'channel${master.channels == 1 ? '' : 's'} and the colour fit needs '
         'three, so the per-filter masters are combined before it can run',
       );
     }

@@ -72,12 +72,28 @@ pub async fn execute_loop(
         _ => u32::MAX,
     };
 
+    // Iterations THIS execution ran. `node.current_iteration` cannot answer
+    // that question: a resumed run restores it from the checkpoint before the
+    // body has run once here.
+    let mut iterations_run_here: u32 = 0;
+
     loop {
         if context.is_cancelled().await {
             return NodeStatus::Cancelled;
         }
+        // A skip-to-next-target request stops the loop starting another
+        // iteration. What it must not do is turn the work the loop already did
+        // into a skip — the loop reports what IT did, and leaves the request
+        // set for the TargetHeader that owns it. Reporting Skipped whatever had
+        // happened is what put `message: "Skipped: Night root"` on the terminal
+        // status of a night that captured every frame it planned and answered
+        // `state: "completed"` on the same request.
         if context.is_skip_to_next_target_requested() {
-            return NodeStatus::Skipped;
+            return if iterations_run_here == 0 {
+                NodeStatus::Skipped
+            } else {
+                NodeStatus::Success
+            };
         }
 
         let should_continue = match config.condition {
@@ -162,6 +178,7 @@ pub async fn execute_loop(
         }
 
         node.current_iteration += 1;
+        iterations_run_here += 1;
         tracing::info!("=== LOOP ITERATION {} STARTING ===", node.current_iteration);
         tracing::info!("Loop has {} children", node.children.len());
         for (i, child) in node.children.iter().enumerate() {
@@ -368,5 +385,141 @@ mod tests {
         let status = execute_loop(&mut node, cfg, &mut ctx).await;
         assert_eq!(status, NodeStatus::Success);
         assert_eq!(node.current_iteration, 0, "body must not run");
+    }
+
+    /// A loop whose body ran and then met a skip-to-next-target request reports
+    /// what it did, not the request.
+    ///
+    /// Returning Skipped for a loop that had already executed its body is what
+    /// put `message: "Skipped: Night root"` on the terminal status of a night
+    /// that captured all 8 frames it planned and answered `state: "completed"`
+    /// — the run's own verdict and the sentence describing it disagreed. The
+    /// request stays set: the TargetHeader that owns it consumes it at its own
+    /// boundary.
+    #[tokio::test]
+    async fn skip_request_after_an_executed_iteration_reports_the_work_done() {
+        let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+            id: "loop".to_string(),
+            name: "Night root".to_string(),
+            node_type: crate::NodeType::Loop(LoopConfig {
+                iterations: None,
+                condition: LoopCondition::Forever,
+                condition_value: None,
+                horizon_profile: None,
+            }),
+            enabled: true,
+            children: vec![],
+        });
+        node.add_child(Box::new(SkipRequestingChild::new("expose")));
+
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
+        let cfg = LoopConfig {
+            iterations: None,
+            condition: LoopCondition::Forever,
+            condition_value: None,
+            horizon_profile: None,
+        };
+        let status = execute_loop(&mut node, cfg, &mut ctx).await;
+
+        assert_eq!(
+            status,
+            NodeStatus::Success,
+            "the loop ran its body once and then yielded to the request"
+        );
+        assert_eq!(node.current_iteration, 1, "exactly one iteration ran");
+        assert!(
+            ctx.is_skip_to_next_target_requested(),
+            "the loop leaves the request for the TargetHeader that owns it"
+        );
+    }
+
+    /// A request that arrives before the body has run once is a skip: the loop
+    /// did nothing.
+    #[tokio::test]
+    async fn skip_request_before_the_first_iteration_reports_skipped() {
+        let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+            id: "loop".to_string(),
+            name: "Night root".to_string(),
+            node_type: crate::NodeType::Loop(LoopConfig {
+                iterations: Some(1),
+                condition: LoopCondition::Count,
+                condition_value: None,
+                horizon_profile: None,
+            }),
+            enabled: true,
+            children: vec![],
+        });
+        node.add_child(Box::new(SkipRequestingChild::new("expose")));
+
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
+        ctx.request_skip_to_next_target();
+        let cfg = LoopConfig {
+            iterations: Some(1),
+            condition: LoopCondition::Count,
+            condition_value: None,
+            horizon_profile: None,
+        };
+        let status = execute_loop(&mut node, cfg, &mut ctx).await;
+
+        assert_eq!(status, NodeStatus::Skipped);
+        assert_eq!(node.current_iteration, 0, "the body never ran");
+    }
+
+    /// A child that asks to move on to the next target while it runs, and then
+    /// finishes its own work — the exposure-burst shape.
+    struct SkipRequestingChild {
+        id: crate::NodeId,
+        name: String,
+        node_type: crate::NodeType,
+        children: Vec<Box<dyn Node>>,
+    }
+
+    impl SkipRequestingChild {
+        fn new(id: &str) -> Self {
+            Self {
+                id: id.to_string(),
+                name: id.to_string(),
+                node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.0 }),
+                children: Vec::new(),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Node for SkipRequestingChild {
+        fn id(&self) -> &crate::NodeId {
+            &self.id
+        }
+
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn node_type(&self) -> &crate::NodeType {
+            &self.node_type
+        }
+
+        fn is_enabled(&self) -> bool {
+            true
+        }
+
+        async fn execute(&mut self, context: &mut ExecutionContext) -> NodeStatus {
+            context.request_skip_to_next_target();
+            NodeStatus::Success
+        }
+
+        fn reset(&mut self) {}
+
+        async fn abort(&mut self) {}
+
+        fn children(&self) -> &[Box<dyn Node>] {
+            &self.children
+        }
+
+        fn children_mut(&mut self) -> &mut Vec<Box<dyn Node>> {
+            &mut self.children
+        }
+
+        fn mark_completed(&mut self, _node_id: &crate::NodeId) {}
     }
 }

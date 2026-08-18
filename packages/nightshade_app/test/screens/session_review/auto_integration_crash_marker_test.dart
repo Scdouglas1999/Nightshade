@@ -134,6 +134,60 @@ class _ObservingAccumulationService implements MasterAccumulationService {
       throw UnimplementedError('${invocation.memberName} not faked');
 }
 
+/// Dawn autopilot stub that reports what the marker said at the instant the
+/// Darkroom pass was asked for — the far edge of the window the crash report
+/// could not see into.
+class _ObservingAutopilot implements DawnAutopilotService {
+  _ObservingAutopilot(this._markerDir);
+
+  final Directory _markerDir;
+  InterruptedIntegration? markerAtPassStart;
+
+  @override
+  Future<DawnJobOutcome> runDawnForSession(int sessionId) async {
+    markerAtPassStart = await readIntegrationMarker(_markerDir);
+    return const DawnJobOutcome(
+      jobId: 1,
+      state: DarkroomJobState.done,
+      report: null,
+      reportPath: null,
+      failure: null,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName} not faked');
+}
+
+/// Night Doctor stub that reports what the marker said after the Darkroom
+/// decision — the only observation point a night with auto-draft OFF has.
+///
+/// It records and then declines rather than composing a report: the service
+/// runs this call best-effort and swallows its failure by design (a missing
+/// Night Doctor report must not sink a finished master), so declining here
+/// exercises the real path and keeps the stub to the one thing it observes.
+class _ObservingNightAnalysis implements NightAnalysisService {
+  _ObservingNightAnalysis(this._markerDir);
+
+  final Directory _markerDir;
+  InterruptedIntegration? markerAtReport;
+
+  @override
+  Future<NightReport> computeReport({
+    int? sessionId,
+    int? targetId,
+    bool persist = true,
+  }) async {
+    markerAtReport = await readIntegrationMarker(_markerDir);
+    throw StateError('this stub only observes the marker');
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName} not faked');
+}
+
 void main() {
   late NightshadeDatabase db;
   late Directory markerDir;
@@ -330,6 +384,111 @@ void main() {
           'would tell the operator to delete their multi-night stack',
     );
     expect(await integrationMarkerFile(markerDir).exists(), isFalse);
+  });
+
+  // The seam between "every master is written and registered" and "the
+  // `darkroom_jobs` row exists". The two cannot be one transaction from here —
+  // the masters commit inside `PostSessionIntegrationService`, one per filter
+  // bucket — so what has to be durable across it is the marker's stage. Killed
+  // there against the release bundle, a night with four whole, registered
+  // masters was reported as an interrupted integration and told to run the
+  // integration again, with nothing said about the drafts, the night report,
+  // the delivery and the morning message that never happened.
+  group('the marker records the seam it is crossed at', () {
+    test('the pass is recorded as OWED before it is asked for', () async {
+      final sessionId = await seedNight();
+      await db.settingsDao.setSetting(kDarkroomAutoDraftSettingKey, 'true');
+      final autopilot = _ObservingAutopilot(markerDir);
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          postSessionIntegrationServiceProvider.overrideWithValue(
+            _ObservingIntegrationService(markerDir),
+          ),
+          pushNotificationServiceProvider.overrideWithValue(push),
+          dawnAutopilotServiceProvider.overrideWithValue(autopilot),
+          integrationMarkerDirectoryProvider.overrideWith(
+            (ref) async => markerDir,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(autoIntegrationServiceProvider)
+          .maybeRunForSession(sessionId);
+
+      expect(result.ran, isTrue);
+      final marker = autopilot.markerAtPassStart;
+      expect(
+        marker,
+        isNotNull,
+        reason: 'a kill in this window strands the whole Darkroom half',
+      );
+      expect(
+        marker!.stage,
+        PostSessionPassStage.darkroomPassOwed,
+        reason: 'the masters are done and the job row does not exist yet, '
+            'which is exactly what the next open has to be told',
+      );
+      expect(
+        marker.intendedMasterPaths,
+        isNotEmpty,
+        reason: 'the advance carries the paths the report measures',
+      );
+      expect(await integrationMarkerFile(markerDir).exists(), isFalse);
+    });
+
+    test('a night that owes no pass is recorded as masters-only', () async {
+      // `kDarkroomAutoDraftSettingKey` is 'false' from setUp.
+      final sessionId = await seedNight();
+      final analysis = _ObservingNightAnalysis(markerDir);
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          postSessionIntegrationServiceProvider.overrideWithValue(
+            _ObservingIntegrationService(markerDir),
+          ),
+          pushNotificationServiceProvider.overrideWithValue(push),
+          nightAnalysisServiceProvider.overrideWithValue(analysis),
+          integrationMarkerDirectoryProvider.overrideWith(
+            (ref) async => markerDir,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(autoIntegrationServiceProvider)
+          .maybeRunForSession(sessionId);
+
+      expect(result.ran, isTrue);
+      expect(
+        analysis.markerAtReport!.stage,
+        PostSessionPassStage.mastersOnly,
+        reason: 'nothing further was owed, so a kill here cost nothing and '
+            'the next open must not report one',
+      );
+    });
+
+    test('the integrate itself still runs under the integrating stage',
+        () async {
+      final sessionId = await seedNight();
+      final integrate = _ObservingIntegrationService(markerDir);
+      final container = containerFor(integrate, marker: markerDir);
+      addTearDown(container.dispose);
+
+      await container
+          .read(autoIntegrationServiceProvider)
+          .maybeRunForSession(sessionId);
+
+      expect(
+        integrate.markerDuringRun!.stage,
+        PostSessionPassStage.integrating,
+        reason: 'a master may be half-written here, and that is the one state '
+            'where re-running the integration is the right advice',
+      );
+    });
   });
 
   test('an unplaceable marker does not stop the night integrating', () async {

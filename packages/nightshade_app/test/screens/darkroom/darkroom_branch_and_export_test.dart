@@ -51,6 +51,10 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// Thrown out of the next `renderExport` when set.
   Object? exportFailure;
 
+  /// Thrown out of every `renderPreview` while set, the way a master that is no
+  /// longer on disk fails every render rather than the first.
+  Object? previewFailure;
+
   @override
   Future<Map<String, dynamic>> validate({
     required String recipeJson,
@@ -73,6 +77,8 @@ class _ScriptedDarkroom implements DarkroomSeam {
     required String recipeJson,
     required Map<String, dynamic> context,
   }) async {
+    final failure = previewFailure;
+    if (failure != null) throw failure;
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
     return DarkroomRenderedPreview(
@@ -1470,6 +1476,113 @@ void main() {
     expect(
       find.text('PNG, JPEG and TIFF are rendered through the auto stretch'),
       findsNothing,
+    );
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  // ---------------------------------------------------------------------
+  // Export over a master that is no longer readable
+  // ---------------------------------------------------------------------
+
+  /// What the engine says when the base master is not on disk any more, in the
+  /// shape every base-master refusal takes: the path it was handed, in quotes.
+  const missingMaster = DarkroomSeamException(
+    'renderPreview',
+    "cannot read '$_masterPath': No such file or directory (os error 2)",
+    'os error 2',
+  );
+
+  testWidgets('an unreadable master disables Export and says why', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    darkroom.previewFailure = missingMaster;
+    await pump(tester, root);
+    await openExport(tester);
+
+    // The two acts that recover the file, in the same words the viewport
+    // behind the sheet is using — not a second vocabulary for one situation.
+    // Scoped to the sheet's own alert, because the viewport under the modal is
+    // showing that same sentence, which is the whole point of composing it from
+    // the same helper.
+    final refusal = find.widgetWithText(
+      NightshadeAlert,
+      'This master cannot be read',
+    );
+    expect(refusal, findsOneWidget);
+    expect(
+      find.descendant(
+        of: refusal,
+        matching: find.textContaining(
+          'restore the master at that path, or re-integrate this night in '
+          'Session Review',
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    final export = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Export'),
+    );
+    expect(export.onPressed, isNull);
+
+    // And no chooser: an operator must not be asked to name a file for an
+    // export that cannot produce one.
+    await tester.tap(find.text('Export'), warnIfMissed: false);
+    await settle(tester);
+    expect(pickerCalls, isEmpty);
+
+    Navigator.of(tester.element(find.text('Export'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('an export that fails on the master names the way back', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    // The render succeeded and the file went missing after it: the sheet learns
+    // about the file from its own export.
+    darkroom.exportFailure = missingMaster;
+    await tester.tap(find.text('Export'));
+    await settle(tester);
+
+    expect(pickerCalls, hasLength(1));
+    expect(find.text('Export failed'), findsOneWidget);
+    // The dialog's whole body: the engine's refusal and, under it, the two acts
+    // that recover the file. It used to end at the OS error and a Close button.
+    expect(
+      find.text(
+        "cannot read '$_masterPath': No such file or directory (os error 2)"
+        '\n\nThe Darkroom only ever reads that file, so nothing here can put '
+        'it back: restore the master at that path, or re-integrate this night '
+        'in Session Review to write it again.',
+      ),
+      findsOneWidget,
+    );
+
+    // Close the failure dialog: the sheet underneath has stopped offering an
+    // export over a file it has just been told it cannot read.
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Close').last);
+    await settle(tester);
+
+    expect(find.text('This master cannot be read'), findsOneWidget);
+    final export = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Export'),
+    );
+    expect(export.onPressed, isNull);
+    await tester.tap(find.text('Export'), warnIfMissed: false);
+    await settle(tester);
+    expect(
+      pickerCalls,
+      hasLength(1),
+      reason: 'a second chooser for the same missing file is a second dead end',
     );
 
     Navigator.of(tester.element(find.text('Export'))).pop();

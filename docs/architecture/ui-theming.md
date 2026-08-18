@@ -57,6 +57,8 @@ Keep domain classes in `packages/nightshade_ui/lib/src/theme/` and export from `
 
 `NightshadeColors.redNight` sets `useDarkOnPrimary: true` so switch thumbs and primary buttons use `background` (dark red-black) instead of white — white on red would ruin dark adaptation. Dark and light themes use white `onPrimary`.
 
+**Image data is exempt, by design.** Chrome takes the theme; pixels do not. The Darkroom viewport, image previews, thumbnails and every other surface that paints *captured data* render their true colours under every theme, red night included — retinting them would falsify the very pixels the operator is judging, and a colour cast the theme invented is indistinguishable from one the stack introduced. Everything drawn *around* the image — labels, overlay strokes, histograms, controls — is chrome and takes the theme as usual. The one thing an app-drawn glyph must never be is a colour emoji: the platform's emoji font paints those, no theme can retint them, and a literal `🔭` in the status bar was the only non-red cluster in a red-night window. Use a `NightshadeIcons` glyph with a theme colour instead. An emoji the *operator* typed (a profile badge, a note) is their data and is printed as typed.
+
 ## Visual QA
 
 Use **`NightshadeDesignSystemGallery`** (`lib/src/widgets/design_system_gallery.dart`) to preview tokens and components across themes. Widget tests in `packages/nightshade_ui/test/design_system_gallery_test.dart` pump the gallery in dark, light, and red night themes.

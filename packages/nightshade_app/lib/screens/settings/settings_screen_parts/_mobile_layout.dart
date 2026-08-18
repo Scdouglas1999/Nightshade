@@ -174,6 +174,9 @@ class _MobileSearchResults extends StatelessWidget {
                 label: row,
                 colors: colors,
                 onTap: () => onSectionTap(section.key, row),
+                // The same trailing inset the section rows of this list carry,
+                // so the sub-result's rounded corner is on screen with them.
+                endInset: 16,
               ),
           ],
         );

@@ -262,8 +262,10 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
     'ops-seq-progress-text', 'seq-progress-text', 'seq-progress-bar',
     'seq-progress-bar-container', 'ops-seq-progress-bar',
     'ops-seq-progress-bar-container', 'ops-seq-eta', 'ops-seq-current-node',
+    'ops-seq-current-target',
     'stale-devices', 'stale-mount', 'stale-camera', 'stale-sequencer',
     'stale-guiding', 'stale-focuser', 'stale-filter-wheel', 'stale-rotator',
+    'stale-sequences', 'stale-analytics',
   ]);
   doc.getElementById('status-text').textContent = 'Connected';
   doc.getElementById('status-dot').className = 'status-dot connected';
@@ -271,7 +273,7 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
   const repaints = [];
   const zeroed = {
     devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0,
-    focuser: 0, 'filter-wheel': 0, rotator: 0,
+    focuser: 0, 'filter-wheel': 0, rotator: 0, sequences: 0, analytics: 0,
   };
   // Mutable, so a test can move the clock and repaint through the SAME
   // closure — the flag the recovery edge turns off lives in there.
@@ -951,15 +953,64 @@ test('the header and the panels age their data on one clock', () => {
       devices: now - 70000, mount: now - 70000, camera: now - 70000,
       sequencer: now - 70000, guiding: now - 70000, focuser: now - 70000,
       'filter-wheel': now - 70000, rotator: now - 70000,
+      sequences: now - 70000, analytics: now - 70000,
     },
   });
   assert.equal(h.doc.getElementById('status-text').textContent, 'No contact');
   for (const key of ['devices', 'mount', 'camera', 'sequencer', 'guiding',
-    'focuser', 'filter-wheel', 'rotator']) {
+    'focuser', 'filter-wheel', 'rotator', 'sequences', 'analytics']) {
     assert.match(h.doc.getElementById('stale-' + key).textContent,
       /Stale: 1m 10s since last update/,
       key + ' must age from the same verdict the header reached');
   }
+});
+
+// D4-4. Measured across a SIGTERM with the dashboard open on a live run: at
+// +8 s / +18 s / +38 s / +68 s the banner read "Every value below is from then
+// and may be wrong", the Run panel had gone to unknown/--/--, and seven
+// sibling panels carried a "Stale: …" line — while the Sequences panel went on
+// naming "M long night" as the Current target and the Analytics panel went on
+// reporting 15 frames, neither of them marked at all. They were simply not on
+// the clock: PANEL_KEYS never named them and the markup had no line for them
+// to write into.
+test('the Sequences and Analytics panels age like their siblings', () => {
+  const now = Date.now();
+  const h = linkState({
+    unreachable: true,
+    lastContactAt: now - 68000,
+    lastWsMessageAt: now - 68000,
+    lastProbeAt: now - 1000,
+    panelLastUpdate: { sequences: now - 68000, analytics: now - 68000 },
+  });
+  for (const key of ['sequences', 'analytics']) {
+    assert.match(h.doc.getElementById('stale-' + key).textContent,
+      /Stale: 1m 8s since last update/,
+      key + ' must say its data is as old as the header says it is');
+  }
+  // And the line has somewhere to land in the shipped markup.
+  for (const id of ['stale-sequences', 'stale-analytics']) {
+    assert.match(HTML, new RegExp('id="' + id + '"'),
+      id + ' must exist in index.html or the wiring writes into nothing');
+  }
+});
+
+// D4-4, second half. paintRunUnknown clears every other claim the two panels
+// make about a run whose source has stopped answering — the badge, both
+// progress bars, the ETA, the node, the message — and left the target alone,
+// so "Current target: M long night" outlived all of them by 68 s.
+test('a retired run leaves no target named either', () => {
+  const now = Date.now();
+  const h = linkState({
+    unreachable: true,
+    lastContactAt: now - 68000,
+    lastWsMessageAt: now - 68000,
+    lastProbeAt: now - 1000,
+  });
+  const target = h.doc.getElementById('ops-seq-current-target');
+  target.textContent = 'M long night';
+  h.render();
+  assert.equal(target.textContent, '--',
+    'the target is a claim about the run, and it dies with the run');
 });
 
 // Observed on screen during the fix's own re-reproduction: the Run panel had
@@ -989,8 +1040,7 @@ test('the ops mirror cannot repaint a run the clock has already retired', () => 
     // ...and a sequencer route that refused after it.
     panelLastUpdate: { sequencer: now - 45000 },
     panelLastFailure: { sequencer: now - 1000 },
-    ops: { currentTargetName: 'D4 Live Watch', sessionSummary: null,
-      sequenceStartedAt: now - 60000 },
+    ops: { sessionSummary: null, sequenceStartedAt: now - 60000 },
   };
   const render = build(
     ['document', 'api', 'state', 'lastReachabilityProbeAt', 'renderBadge',
@@ -1031,4 +1081,90 @@ test('the ops mirror cannot repaint a run the clock has already retired', () => 
   // And it silences the Run panel with it, so the two can never disagree.
   assert.equal(doc.getElementById('seq-status').textContent, 'unknown');
   assert.equal(doc.getElementById('seq-node').textContent, '--');
+});
+
+// ---------------------------------------------------------------------------
+// D4-3 — "Current target" names the target
+// ---------------------------------------------------------------------------
+
+/** Drive renderOpsSequencerLoadPanel with a healthy clock and one status. */
+function opsLoadPanel(sequencerStatus, opsExtra) {
+  const doc = makeDocument([
+    'seq-status', 'seq-node', 'seq-message', 'seq-progress-text',
+    'seq-progress-bar', 'seq-progress-bar-container',
+    'ops-seq-current-target', 'ops-seq-current-node', 'ops-seq-progress-text',
+    'ops-seq-progress-bar', 'ops-seq-progress-bar-container', 'ops-seq-eta',
+  ]);
+  const now = Date.now();
+  const state = {
+    sequencerStatus,
+    serverUnreachable: false,
+    lastWsMessageAt: now - 200,
+    panelLastUpdate: { sequencer: now - 200 },
+    panelLastFailure: {},
+    ops: Object.assign({ sessionSummary: null, sequenceStartedAt: now - 60000 },
+      opsExtra || {}),
+  };
+  const render = build(
+    ['document', 'api', 'state', 'lastReachabilityProbeAt', 'renderBadge',
+      'sequencerProgressPercent', 'formatDurationSeconds'],
+    [
+      konst('REACHABILITY_PROBE_MS'),
+      konst('SERVER_HEARTBEAT_MS'),
+      konst('MISSED_HEARTBEATS_BEFORE_STALE'),
+      konst('SERVER_CONTACT_STALE_MS'),
+      fn('lastServerContactAt'),
+      fn('isServerContactStale'),
+      fn('isPanelDataStale'),
+      fn('runDataIsStale'),
+      fn('markProgressUnknown'),
+      fn('markProgressKnown'),
+      fn('paintRunUnknown'),
+      fn('renderOpsSequencerLoadPanel'),
+    ],
+    'renderOpsSequencerLoadPanel',
+  )(
+    doc,
+    { lastContactAt: now - 200, isConnected: true, rateLimitRemainingSecs: 0 },
+    state,
+    now - 1000,
+    (el, label, cls) => { el.textContent = label; el.className = cls; },
+    (raw) => raw * 100,
+    () => '3m',
+  );
+  render();
+  return doc;
+}
+
+// Measured live against the release bundle: on a headless run whose
+// TargetHeader names "D4 Web Target" inside a sequence called "D4 web live",
+// the panel read "D4 web live" for every sample of the run — the imaging
+// SESSION's name, which a headless start takes from the sequence. Once the run
+// ended and /api/sessions/active answered {"session":null} the fallback named
+// the Loop ROOT node and the field read "D4 root"; during an interval
+// autofocus it read "Autofocus (HFR Degradation)".
+test('Current target names the target, never the sequence or the node', () => {
+  const doc = opsLoadPanel({
+    state: 'running',
+    currentNodeName: 'Exposure L',
+    currentTarget: 'D4 Web Target',
+    progress: 0.13,
+    message: 'Exposure: Frame 5/40',
+  }, { sessionSummary: { session: { id: 7, name: 'D4 web live' } } });
+  assert.equal(doc.getElementById('ops-seq-current-target').textContent,
+    'D4 Web Target');
+  assert.equal(doc.getElementById('ops-seq-current-node').textContent,
+    'Exposure L', 'the node keeps its own row');
+});
+
+test('a run that has named no target says so rather than guessing', () => {
+  const doc = opsLoadPanel({
+    state: 'running',
+    currentNodeName: 'D4 root',
+    currentTarget: null,
+    progress: 0.13,
+    message: null,
+  }, { sessionSummary: { session: { id: 7, name: 'D4 web live' } } });
+  assert.equal(doc.getElementById('ops-seq-current-target').textContent, '--',
+    'an unknown target is "--", not the nearest string on the page');
 });

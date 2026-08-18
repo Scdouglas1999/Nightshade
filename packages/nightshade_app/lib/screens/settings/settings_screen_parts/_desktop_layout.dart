@@ -258,6 +258,8 @@ class _DesktopSearchResults extends StatelessWidget {
                 label: row,
                 colors: colors,
                 onTap: () => onTap(section.key, row),
+                // The sidebar list already pads its own sides.
+                endInset: 0,
               ),
           ],
         );
@@ -272,11 +274,22 @@ class _SearchRowResult extends StatefulWidget {
     required this.label,
     required this.colors,
     required this.onTap,
+    required this.endInset,
   });
 
   final String label;
   final NightshadeColors colors;
   final VoidCallback onTap;
+
+  /// Space between the row's rounded container and the trailing edge of the
+  /// list, stated by the layout that owns the list rather than assumed here.
+  ///
+  /// The desktop sidebar pads its own list; the mobile list is full-bleed, so
+  /// its section rows can carry an edge-to-edge divider. Inset on the left only,
+  /// this row ran flat off the right edge of a 430px window with its corner
+  /// radius cut away, while the section rows above and below it were inset on
+  /// both sides.
+  final double endInset;
 
   @override
   State<_SearchRowResult> createState() => _SearchRowResultState();
@@ -303,7 +316,11 @@ class _SearchRowResultState extends State<_SearchRowResult> {
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = false),
           child: Container(
-            margin: const EdgeInsets.only(left: 20, bottom: 4),
+            margin: EdgeInsets.only(
+              left: 20,
+              right: widget.endInset,
+              bottom: 4,
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: _hovered ? colors.surfaceAlt : Colors.transparent,

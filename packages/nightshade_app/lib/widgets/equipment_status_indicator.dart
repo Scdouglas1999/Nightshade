@@ -71,7 +71,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
       ),
       color: colors.surface,
       child: _CompactStatus(
-        profileIcon: activeProfile.profileIcon ?? '🔭',
+        profileIcon: activeProfile.profileIcon,
         profileName: activeProfile.name,
         counts: counts,
         colors: colors,
@@ -257,7 +257,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
         height: 44,
         child: _DropdownHeader(
           profileName: activeProfile.name,
-          profileIcon: activeProfile.profileIcon ?? '🔭',
+          profileIcon: activeProfile.profileIcon,
           counts: counts,
           colors: colors,
         ),
@@ -531,9 +531,33 @@ class _EquipmentCounts {
   }
 }
 
+/// The profile's own badge, or the app's, at [size].
+///
+/// A profile the operator gave an emoji to keeps it: that character is their
+/// data, and the chip prints what they typed. Where a profile has none, the app
+/// used to supply a literal telescope emoji of its own — and a colour emoji is
+/// painted by the platform's emoji font, so under Red night it stayed white and
+/// blue in a window whose every other pixel is red-family. Measured on the
+/// running build: a scan of the whole 1600x900 window for saturated
+/// non-red-dominant pixels returned exactly one cluster, this glyph.
+///
+/// The app's own badge is therefore an icon, which takes the theme's colour
+/// like every other glyph in the bar.
+Widget _profileBadge({
+  required String? profileIcon,
+  required double size,
+  required Color color,
+}) {
+  if (profileIcon != null && profileIcon.isNotEmpty) {
+    return Text(profileIcon, style: TextStyle(fontSize: size));
+  }
+  return Icon(NightshadeIcons.mount, size: size, color: color);
+}
+
 /// Compact status display for the status bar
 class _CompactStatus extends StatelessWidget {
-  final String profileIcon;
+  /// The emoji the operator gave this profile, or null when they gave none.
+  final String? profileIcon;
   final String profileName;
   final _EquipmentCounts counts;
   final NightshadeColors colors;
@@ -554,9 +578,10 @@ class _CompactStatus extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            profileIcon,
-            style: const TextStyle(fontSize: 14),
+          _profileBadge(
+            profileIcon: profileIcon,
+            size: 14,
+            color: colors.textSecondary,
           ),
           const SizedBox(width: 6),
           ConstrainedBox(
@@ -599,7 +624,9 @@ class _CompactStatus extends StatelessWidget {
 /// Header row in the dropdown showing profile name and status
 class _DropdownHeader extends StatelessWidget {
   final String profileName;
-  final String profileIcon;
+
+  /// The emoji the operator gave this profile, or null when they gave none.
+  final String? profileIcon;
   final _EquipmentCounts counts;
   final NightshadeColors colors;
 
@@ -616,9 +643,10 @@ class _DropdownHeader extends StatelessWidget {
 
     return Row(
       children: [
-        Text(
-          profileIcon,
-          style: const TextStyle(fontSize: 16),
+        _profileBadge(
+          profileIcon: profileIcon,
+          size: 16,
+          color: colors.textSecondary,
         ),
         const SizedBox(width: 8),
         Expanded(

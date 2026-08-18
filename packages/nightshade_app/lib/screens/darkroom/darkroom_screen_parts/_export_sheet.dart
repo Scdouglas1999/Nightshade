@@ -199,6 +199,15 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
   /// skipped for want of a catalogue the editor plainly had.
   final List<Map<String, dynamic>> catalogStars;
 
+  /// Why the base master could not be read, in the sentence the viewport is
+  /// showing, or null when the last render read it.
+  ///
+  /// Every export replays the stack over that one file. With the file gone, no
+  /// stage, format or destination on this sheet can produce anything — so the
+  /// sheet states the failure and disables Export rather than walking the
+  /// operator through a save chooser for a render that will refuse.
+  final String? baseMasterFailure;
+
   const _DarkroomExportSheet({
     required this.recipeId,
     required this.recipeName,
@@ -208,6 +217,7 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
     required this.catalog,
     required this.reports,
     required this.catalogStars,
+    required this.baseMasterFailure,
   });
 
   /// Show the sheet over [context].
@@ -231,6 +241,7 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
     required DarkroomCatalog? catalog,
     required List<DarkroomStepReport> reports,
     required List<Map<String, dynamic>> catalogStars,
+    required String? baseMasterFailure,
   }) {
     return showAdaptiveModal<void>(
       context: context,
@@ -246,6 +257,7 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
         catalog: catalog,
         reports: reports,
         catalogStars: catalogStars,
+        baseMasterFailure: baseMasterFailure,
       ),
     );
   }
@@ -305,6 +317,22 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
 
   /// Why an Escape was refused, when one arrived mid-export.
   String? _dismissRefused;
+
+  /// The base-master failure an export in this sheet ran into, with the remedy
+  /// the viewport's own error path composes.
+  ///
+  /// Latched: the file the next export would read is the same one this export
+  /// could not, so the sheet stops offering a chooser until the operator has
+  /// been somewhere that can put the file back.
+  String? _exportMasterFailure;
+
+  /// Why no export can succeed, or null when one can be attempted.
+  ///
+  /// The screen hands over what the last render found, and an export that
+  /// refuses on the same file adds its own. Both are about the base master, and
+  /// neither is answered by another stage, format or destination.
+  String? get _masterFailure =>
+      _exportMasterFailure ?? widget.baseMasterFailure;
 
   /// Escape closes the sheet, unless an export is inside the engine.
   ///
@@ -394,13 +422,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             // underneath it cannot be pressed, so it says it cannot.
             onPressed: _exporting ? null : () => Navigator.of(context).pop(),
           ),
-        NightshadeButton(
-          label: 'Export',
-          icon: NightshadeIcons.download,
-          size: ButtonSize.small,
-          isLoading: _exporting,
-          onPressed: _exporting || !_canExport(rasterAllowed) ? null : _export,
-        ),
+        _exportButton(rasterAllowed),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -411,6 +433,15 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
           _formatPicker(colors, domain, rasterAllowed),
           const SizedBox(height: NightshadeTokens.spaceLg),
           _provenanceNote(colors),
+          if (_masterFailure case final failure?) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            NightshadeAlert(
+              severity: NightshadeAlertSeverity.error,
+              title: 'This master cannot be read',
+              message: failure,
+              compact: true,
+            ),
+          ],
           if (_dismissRefused != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             NightshadeAlert(
@@ -463,6 +494,32 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
           ],
         ],
       ),
+    );
+  }
+
+  /// The Export button, carrying its refusal in its accessible name.
+  ///
+  /// The same shape the refused format chips use, and for the same measured
+  /// reason: the Linux AT-SPI bridge publishes a node's name and description
+  /// and drops `Semantics(hint:)`, so a disabled control whose only explanation
+  /// is a hint announces as a bare, dead "Export".
+  Widget _exportButton(bool rasterAllowed) {
+    final blocked = _masterFailure;
+    final enabled = !_exporting && blocked == null && _canExport(rasterAllowed);
+    final button = NightshadeButton(
+      label: 'Export',
+      icon: NightshadeIcons.download,
+      size: ButtonSize.small,
+      isLoading: _exporting,
+      onPressed: enabled ? _export : null,
+    );
+    if (blocked == null) return button;
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: false,
+      label: 'Export — $blocked',
+      child: ExcludeSemantics(child: button),
     );
   }
 
@@ -1009,7 +1066,9 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   }
 
   Future<void> _export() async {
-    if (_exporting) return;
+    // The button is disabled in both of these states; the guard keeps a
+    // keyboard activation that raced the rebuild from opening a chooser.
+    if (_exporting || _masterFailure != null) return;
     final picker = ref.read(darkroomSavePickerProvider);
     final darkroom = ref.read(darkroomSeamProvider);
 
@@ -1116,13 +1175,31 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     // The same humaniser the stack-and-share flow uses: the bridge's stringified
     // union is not a sentence, and the operator reads the payload inside it.
     final failure = describeStackShareFailure(raw);
+
+    // A failure about the base master is not a failure about this export, and
+    // nothing on this sheet answers it. The viewport behind the dialog is
+    // already naming the two acts that recover the file; the dialog named the
+    // path and offered a single Close, which left the operator holding an OS
+    // error and no next step. It now composes the same sentence, from the same
+    // helper, so the two surfaces cannot drift.
+    final masterNextStep = darkroomMasterFailureNextStep(
+      failure.message,
+      widget.baseMasterPath,
+    );
+    if (masterNextStep != null && mounted) {
+      setState(
+        () => _exportMasterFailure = '${failure.message}. $masterNextStep',
+      );
+    }
+
+    final nextStep = masterNextStep ?? failure.nextStep;
     if (!context.mounted) return;
     await ErrorDialog.show(
       context,
       title: 'Export failed',
-      message: failure.nextStep == null
+      message: nextStep == null
           ? failure.message
-          : '${failure.message}\n\n${failure.nextStep}',
+          : '${failure.message}\n\n$nextStep',
       technicalDetails: failure.technical,
     );
   }

@@ -934,6 +934,217 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     _applyEdit(next);
   }
 
+  /// Put a step for [op] into the recipe, where the engine's stage rule leaves
+  /// room for it.
+  ///
+  /// This is the hand-editing half of the Darkroom: a recipe started from the
+  /// linear master carries no steps at all, and every other edit here changes
+  /// steps that are already in it.
+  ///
+  /// Three things decide the outcome and none of them is decided here:
+  ///
+  ///  * WHERE it goes — [DarkroomState.insertIndexFor], which mirrors the
+  ///    engine's stage rule so the proposed order is one the engine can accept;
+  ///  * WHAT it starts with — [_openingParamsFor], which takes the operation's
+  ///    own documented defaults, or the registry's measurement of this master
+  ///    for a required parameter that has no default;
+  ///  * WHETHER it is legal — `validate`, asked about the whole candidate stack
+  ///    before anything commits, exactly as [reorderStep] asks it. A refusal
+  ///    keeps the stack on screen unchanged and states the engine's sentence.
+  ///
+  /// The commit goes through the same journal as every other edit, so one undo
+  /// restores the step list as it was, and the render that follows replays the
+  /// stack WITH the new step.
+  ///
+  /// Answers false when nothing was added; [DarkroomState.insertRefusal] then
+  /// carries the reason.
+  Future<bool> insertStep(DarkroomOpSpec op) async {
+    if (state.recipeId == null || state.insertBusy) return false;
+    final at = state.insertIndexFor(op);
+    if (at == null) {
+      state = state.copyWith(
+        insertRefusal:
+            'The operation registry states ${op.id}@${op.version}\'s stage as '
+            '"${op.stageWire}", which this build does not model, so this '
+            'editor cannot say where in the stack it belongs. Nothing was '
+            'added.',
+      );
+      return false;
+    }
+    state = state.copyWith(insertBusy: true, clearInsertRefusal: true);
+
+    final opening = await _openingParamsFor(op);
+    if (!mounted) return false;
+    final openingRefusal = opening.refusal;
+    if (openingRefusal != null) {
+      state = state.copyWith(insertBusy: false, insertRefusal: openingRefusal);
+      return false;
+    }
+
+    final candidate = List<DarkroomStep>.from(state.steps)
+      ..insert(
+        at,
+        DarkroomStep(
+          opId: op.id,
+          opVersion: op.version,
+          params: opening.params!,
+          enabled: true,
+        ),
+      );
+
+    final DarkroomValidation? verdict;
+    try {
+      verdict = await _validateSteps(candidate);
+    } catch (error) {
+      // The check names its own failure rather than letting it escape: this
+      // future is awaited by a chooser callback, and a throw here would leave
+      // the chooser closed, the stack unchanged and nothing on screen saying
+      // why — the same reason the reorder path catches.
+      if (!mounted) return false;
+      state = state.copyWith(
+        insertBusy: false,
+        insertRefusal: 'That step could not be checked with the engine, so it '
+            'was not added: $error',
+      );
+      return false;
+    }
+    if (!mounted) return false;
+    if (verdict == null) {
+      state = state.copyWith(
+        insertBusy: false,
+        insertRefusal:
+            'The engine could not be asked whether that step is legal here, so '
+            'it was not added.',
+      );
+      return false;
+    }
+    if (!verdict.ok) {
+      // The per-step entries index the REJECTED stack, so adopting them would
+      // attach each message to the wrong card — the same reason the reorder
+      // path shows the whole-recipe sentence alone.
+      final error = verdict.error;
+      state = state.copyWith(
+        insertBusy: false,
+        insertRefusal: error == null
+            ? 'The engine refused that step without naming a reason. Nothing '
+                'was added, so the stack on screen is unchanged.'
+            : _refusalOverCandidate(
+                error,
+                candidate,
+                counted: 'the stack the added step would have produced',
+                undone: 'the step was not added',
+                nextStep: 'Answer what the sentence names — a step whose '
+                    'parameters the engine refuses, or one this build does not '
+                    'register — and add the step again.',
+              ),
+      );
+      return false;
+    }
+    state = state.copyWith(insertBusy: false);
+    _applyEdit(candidate, verdict: verdict, verdictOf: candidate);
+    return true;
+  }
+
+  /// The parameters a freshly added [op] opens with, or the reason it cannot be
+  /// added at all.
+  ///
+  /// An operation whose required parameters all have a documented default opens
+  /// with NO parameters written: an absent key is the operation's own default
+  /// for the life of its version, and freezing today's value into the recipe is
+  /// what stops an improved default from ever reaching it. That is what the
+  /// registry's own draft stores for `background_extract` and `denoise`.
+  ///
+  /// An operation with a required parameter the registry publishes no default
+  /// for — the crop rectangle, the stretch's black and white points — has no
+  /// opening value this editor may supply: the engine refuses the step without
+  /// one, and a number chosen here would be a measurement nothing measured.
+  /// Those come from the registry's measurement of THIS master, the same call
+  /// "Draft for me" makes. When that measurement leaves the operation out, the
+  /// registry's own note for it is the refusal.
+  Future<({Map<String, dynamic>? params, String? refusal})> _openingParamsFor(
+    DarkroomOpSpec op,
+  ) async {
+    final unmeasured = [
+      for (final param in op.params)
+        if (param.required && param.defaultValue == null) param,
+    ];
+    if (unmeasured.isEmpty) {
+      return (params: const <String, dynamic>{}, refusal: null);
+    }
+
+    final title = darkroomOpTitle(op.id);
+    final names = _namesOf(unmeasured);
+    final has = unmeasured.length == 1 ? 'has' : 'have';
+    final masterPath = state.baseMasterPath;
+
+    final Map<String, dynamic> reply;
+    try {
+      reply = await _darkroom.registry({
+        'masterPath': masterPath,
+        'baseMasterRef': masterPath,
+      });
+    } on DarkroomCancelledOutcome catch (cancelled) {
+      return (
+        params: null,
+        refusal: 'Measuring $names from this master was stopped during '
+            '${cancelled.phase}, so no $title step was added.',
+      );
+    } on DarkroomSeamException catch (error) {
+      final nextStep = darkroomMasterFailureNextStep(error.message, masterPath);
+      return (
+        params: null,
+        refusal: 'The operation registry could not measure $names from this '
+            'master, so no $title step was added: ${error.message}'
+            '${nextStep == null ? '' : '. $nextStep'}',
+      );
+    }
+
+    final List<DarkroomStep> measured;
+    try {
+      measured = decodeDarkroomDraft(reply);
+    } on DarkroomRecipeFormatException catch (error) {
+      return (
+        params: null,
+        refusal: 'The operation registry answered without a measured draft of '
+            'this master, so $names could not be read and no $title step was '
+            'added: ${error.message}',
+      );
+    }
+    for (final step in measured) {
+      if (step.opId == op.id && step.opVersion == op.version) {
+        return (params: step.params, refusal: null);
+      }
+    }
+
+    // The registry decides about more operations than its draft carries and
+    // records why it left each of the others out. That note is the honest
+    // refusal: the alternative is an invented rectangle or an invented black
+    // point, which is a measurement of nothing.
+    for (final note in decodeDarkroomDraftNotes(reply)) {
+      if (note.opId != op.id) continue;
+      return (
+        params: null,
+        refusal: 'The operation registry left $title out of its measurement of '
+            'this master, and $names $has no documented default to fall back '
+            'on, so nothing was added: ${note.reason}',
+      );
+    }
+    return (
+      params: null,
+      refusal: 'The operation registry\'s measurement of this master carries '
+          'no $title step and states no reason for leaving it out. $names '
+          '$has no documented default either, so nothing was added rather '
+          'than a step opening on a value nothing measured.',
+    );
+  }
+
+  /// The parameters a refusal names: "a", "a and b", "a, b and c".
+  static String _namesOf(List<DarkroomParamSpec> params) {
+    final names = [for (final param in params) param.displayName];
+    if (names.length == 1) return names.single;
+    return '${names.take(names.length - 1).join(', ')} and ${names.last}';
+  }
+
   /// Turn every step off. Nothing is destroyed — the stack is intact and one
   /// undo (or one toggle each) brings it back.
   void resetToLinear() {
@@ -1035,6 +1246,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       canUndo: _undoJournal.isNotEmpty,
       canRedo: _redoJournal.isNotEmpty,
       clearReorderRefusal: true,
+      clearInsertRefusal: true,
     );
     _scheduleRefresh();
     _scheduleSave();
@@ -1073,9 +1285,11 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       canUndo: _undoJournal.isNotEmpty,
       canRedo: _redoJournal.isNotEmpty,
       clearReorderRefusal: true,
-      // A verdict arrives only from the reorder path, which already asked the
-      // engine about this exact order; every other edit re-asks on the
-      // debounce rather than carrying the previous order's verdicts forward.
+      clearInsertRefusal: true,
+      // A verdict arrives from the two paths that ask the engine before they
+      // commit — a move and an added step — which already asked about this
+      // exact stack; every other edit re-asks on the debounce rather than
+      // carrying the previous stack's verdicts forward.
       issues: verdict?.steps,
       issuedSteps: verdictOf == null ? null : _identitiesOf(verdictOf),
       recipeError: verdict?.error,
@@ -1109,10 +1323,19 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// A number outside the candidate list is left exactly as the engine wrote
   /// it, and the sentence about counting is added only when at least one number
   /// was re-based, so nothing here claims a translation it did not make.
+  ///
+  /// [counted] names the arrangement the numbers count, [undone] what did not
+  /// happen, and [nextStep] what to do about it — so the two edits that ask the
+  /// engine before they commit, a move and an added step, each report their own
+  /// refusal in their own words while sharing the re-basing.
   static String _refusalOverCandidate(
     String message,
-    List<DarkroomStep> candidate,
-  ) {
+    List<DarkroomStep> candidate, {
+    String counted = 'the order the move would have produced',
+    String undone = 'the move was refused',
+    String nextStep = 'Try a different destination for that step, or switch a '
+        'step off if it should not run at all.',
+  }) {
     var rebased = false;
     final rewritten = message.replaceAllMapped(
       RegExp(r'\bstep (\d+)\b'),
@@ -1124,15 +1347,12 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         return 'step ${at + 1}';
       },
     );
-    const nextStep = 'Try a different destination for that step, or switch a '
-        'step off if it should not run at all.';
     if (!rebased) {
-      return '$rewritten. The move was refused, so the stack on screen is '
-          'unchanged. $nextStep';
+      return '$rewritten. The stack on screen is unchanged, because $undone. '
+          '$nextStep';
     }
-    return '$rewritten. Those step numbers count the order the move would have '
-        'produced, from 1 — not the stack on screen, which is unchanged '
-        'because the move was refused. $nextStep';
+    return '$rewritten. Those step numbers count $counted, from 1 — not the '
+        'stack on screen, which is unchanged because $undone. $nextStep';
   }
 
   /// Record which of [steps] the engine's refusal names, from [verdict]'s own

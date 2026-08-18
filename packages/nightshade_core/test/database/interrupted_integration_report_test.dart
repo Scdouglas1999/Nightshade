@@ -468,6 +468,280 @@ void main() {
     );
   });
 
+  // The seam the pass cannot close from one transaction: the masters are
+  // finalized bucket by bucket inside `PostSessionIntegrationService`, and the
+  // `darkroom_jobs` row is inserted afterwards. Reproduced against the release
+  // bundle by killing the headless daemon the instant `integrated_masters`
+  // reached 4 while `darkroom_jobs` was still empty: the relaunch wrote "The
+  // post-session integration was interrupted before it finished ... run the
+  // integration again when you are ready" over four masters it had itself just
+  // measured as complete and registered, and said nothing about the drafts,
+  // the night report, the delivery and the morning message that never
+  // happened. `darkroom_jobs`, `recipes` and `delivery_journal` all stayed at
+  // zero rows across the relaunch.
+  group('the integrate finished and the pass was never queued', () {
+    /// A whole FITS the library knows about — what every master looks like once
+    /// the integrate has committed its bucket.
+    Future<String> registeredMaster(String name) async {
+      final header = StringBuffer()
+        ..write('SIMPLE  =                    T'.padRight(80))
+        ..write('BITPIX  =                    8'.padRight(80))
+        ..write('NAXIS   =                    2'.padRight(80))
+        ..write('NAXIS1  =                  100'.padRight(80))
+        ..write('NAXIS2  =                  100'.padRight(80))
+        ..write('END'.padRight(80));
+      final file = File('${tempDir.path}/$name');
+      await file.writeAsBytes(<int>[
+        ...header.toString().padRight(2880).codeUnits,
+        ...List<int>.filled(((10000 + 2879) ~/ 2880) * 2880, 42),
+      ]);
+      final db = open();
+      await db.customInsert(
+        'INSERT INTO integrated_masters(name, master_fits_path, status, '
+        'accumulation_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        variables: [
+          Variable<String>(name),
+          Variable<String>(file.path),
+          const Variable<String>('ready'),
+          const Variable<String>('oneShot'),
+          Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+          Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+        ],
+      );
+      await db.close();
+      return file.path;
+    }
+
+    Future<List<Map<String, Object?>>> jobsFor(int sessionId) async {
+      final db = open();
+      final rows = await db
+          .customSelect(
+            'SELECT id, kind, state, note, attempts FROM darkroom_jobs '
+            'WHERE session_id = ?',
+            variables: [Variable<int>(sessionId)],
+          )
+          .get();
+      await db.close();
+      return rows.map((r) => r.data).toList();
+    }
+
+    test('the owed pass is queued and the report never blames the '
+        'integration', () async {
+      final sessionId = await seedSession();
+      final master = await registeredMaster('M31_L_master_9.fits');
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: [master],
+          stage: PostSessionPassStage.darkroomPassOwed,
+        ),
+      );
+
+      final read = await reopenAndRead(sessionId);
+      final notes = read.notes!;
+      final jobs = await jobsFor(sessionId);
+
+      expect(
+        notes,
+        contains('The Darkroom pass for this night never started.'),
+      );
+      expect(
+        notes,
+        isNot(contains('so run the integration again when you are ready')),
+        reason: 'the integration is the one part of this night that finished',
+      );
+      expect(notes, contains('Do not run the integration again'));
+      expect(
+        notes,
+        isNot(contains('The post-session integration was interrupted')),
+      );
+      expect(notes, contains('the drafts, the night report, the delivery'));
+      expect(
+        notes,
+        contains('the master library already holds a row for it'),
+        reason: 'the masters are still measured and still named',
+      );
+
+      expect(jobs, hasLength(1), reason: 'the owed pass is durable now');
+      expect(jobs.single['kind'], 'dawn');
+      expect(jobs.single['state'], 'queued');
+      expect(jobs.single['attempts'], 0);
+      expect(notes, contains('Darkroom job #${jobs.single['id']}'));
+      expect(read.events.single['severity'], 'warning');
+      expect(
+        await integrationMarkerFile(tempDir).exists(),
+        isFalse,
+        reason: 'reported once, queued once',
+      );
+    });
+
+    test('a second open queues nothing more and repeats nothing', () async {
+      final sessionId = await seedSession();
+      final master = await registeredMaster('M31_L_master_10.fits');
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: [master],
+          stage: PostSessionPassStage.darkroomPassOwed,
+        ),
+      );
+
+      final first = await reopenAndRead(sessionId);
+      final second = await reopenAndRead(sessionId);
+
+      expect(first.events, hasLength(1));
+      expect(second.events, hasLength(1));
+      expect(second.notes, first.notes);
+      expect(await jobsFor(sessionId), hasLength(1));
+    });
+
+    test('a marker that survived an already-queued pass adds nothing', () async {
+      // The pass WAS queued and ran; the process died in the gap between the
+      // last thing it did and the `finally` that clears the marker. The job row
+      // is the whole record of how it ended, and `DarkroomPassBanner` renders
+      // it — a second warning would only repeat it.
+      final sessionId = await seedSession();
+      final master = await registeredMaster('M31_L_master_11.fits');
+      final db = open();
+      final jobId = await DarkroomJobsDao(db).enqueue(
+        sessionId: sessionId,
+        createdAt: DateTime.utc(2026, 8, 17, 3, 41),
+      );
+      await db.customStatement(
+        "UPDATE darkroom_jobs SET state = 'done', attempts = 1 WHERE id = ?",
+        [jobId],
+      );
+      await db.close();
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: [master],
+          stage: PostSessionPassStage.darkroomPassOwed,
+        ),
+      );
+
+      final read = await reopenAndRead(sessionId);
+
+      expect(read.notes, isNull);
+      expect(read.events, isEmpty);
+      expect(await jobsFor(sessionId), hasLength(1));
+      expect(await integrationMarkerFile(tempDir).exists(), isFalse);
+    });
+
+    test('a night that owed no pass at all is consumed in silence', () async {
+      // Automatic drafting is switched off, so the masters ARE the whole night
+      // and the kill cost nothing. Under the old reading this was reported as
+      // an interrupted integration.
+      final sessionId = await seedSession();
+      final master = await registeredMaster('M31_L_master_12.fits');
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: [master],
+          stage: PostSessionPassStage.mastersOnly,
+        ),
+      );
+
+      final read = await reopenAndRead(sessionId);
+
+      expect(read.notes, isNull);
+      expect(read.events, isEmpty);
+      expect(await jobsFor(sessionId), isEmpty);
+      expect(await integrationMarkerFile(tempDir).exists(), isFalse);
+    });
+
+    test(
+      'a finished master that has since gone missing is still news',
+      () async {
+        final sessionId = await seedSession();
+        final master = await registeredMaster('M31_L_master_13.fits');
+        await File(master).delete();
+        await markIntegrationStarted(
+          tempDir,
+          InterruptedIntegration(
+            sessionId: sessionId,
+            targetName: 'M31',
+            startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+            intendedMasterPaths: [master],
+            stage: PostSessionPassStage.mastersOnly,
+          ),
+        );
+
+        final notes = (await reopenAndRead(sessionId)).notes!;
+        expect(notes, contains('no longer on disk'));
+        expect(notes, contains(master));
+        expect(await jobsFor(sessionId), isEmpty);
+      },
+    );
+
+    test('a pass the machine died inside still reports as the pass', () async {
+      // The marker is written before the insert and never again, so a job the
+      // process died inside carries the same stage. The ROW wins: its own
+      // recovery already re-queued it, and enqueueing a second one would draft
+      // this night twice.
+      final sessionId = await seedSession();
+      final master = await registeredMaster('M31_L_master_14.fits');
+      final db = open();
+      final dao = DarkroomJobsDao(db);
+      final jobId = await dao.enqueue(sessionId: sessionId);
+      await dao.markRunning(jobId);
+      await dao.updateProgress(jobId, 0.4, note: 'rendering the draft');
+      await db.close();
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: [master],
+          stage: PostSessionPassStage.darkroomPassOwed,
+        ),
+      );
+
+      final notes = (await reopenAndRead(sessionId)).notes!;
+      expect(notes, contains('The Darkroom pass was interrupted'));
+      expect(notes, contains('Darkroom job #$jobId'));
+      expect(notes, contains('40% of the way through'));
+      expect(
+        await jobsFor(sessionId),
+        hasLength(1),
+        reason: 'the row that was re-queued is the pass; there is no second',
+      );
+    });
+
+    test('a marker from a build that did not record the stage still blames '
+        'the integrate', () async {
+      final sessionId = await seedSession();
+      await integrationMarkerFile(tempDir).writeAsString(
+        '{"sessionId":$sessionId,"targetName":"M31",'
+        '"startedAtUtc":"2026-08-17T03:30:00.000Z","intendedMasterPaths":[]}',
+      );
+
+      final notes = (await reopenAndRead(sessionId)).notes!;
+      expect(notes, contains('The post-session integration was interrupted'));
+      expect(notes, contains('run the integration again'));
+      expect(
+        await jobsFor(sessionId),
+        isEmpty,
+        reason:
+            'a marker that does not say the masters finished has not '
+            'earned a pass being queued over them',
+      );
+    });
+  });
+
   group('the record is corrected when the retry cap ends the job', () {
     /// A job still `running` with [attempts] starts used, and NO marker on
     /// disk — the state the fourth open finds after three kills, because the
@@ -662,6 +936,40 @@ void main() {
       expect(parsed.targetName, 'NGC 7000');
       expect(parsed.startedAtUtc, original.startedAtUtc);
       expect(parsed.intendedMasterPaths, original.intendedMasterPaths);
+      expect(parsed.stage, PostSessionPassStage.integrating);
+    });
+
+    test('the stage round-trips and an advance keeps everything else', () {
+      final started = InterruptedIntegration(
+        sessionId: 12,
+        targetName: 'NGC 7000',
+        startedAtUtc: DateTime.utc(2026, 8, 17, 4),
+        intendedMasterPaths: const ['/a/one.fits'],
+      );
+      final advanced = started.at(PostSessionPassStage.darkroomPassOwed);
+
+      expect(advanced.sessionId, started.sessionId);
+      expect(advanced.targetName, started.targetName);
+      expect(
+        advanced.startedAtUtc,
+        started.startedAtUtc,
+        reason: 're-stamping it would make one interruption look like two',
+      );
+      expect(advanced.intendedMasterPaths, started.intendedMasterPaths);
+      expect(
+        InterruptedIntegration.fromJson(jsonEncode(advanced.toJson()))!.stage,
+        PostSessionPassStage.darkroomPassOwed,
+      );
+    });
+
+    test('a stage this build does not know reads as the integrate', () {
+      expect(
+        InterruptedIntegration.fromJson(
+          '{"sessionId":3,"startedAtUtc":"2026-08-17T04:00Z",'
+          '"stage":"somethingLater"}',
+        )!.stage,
+        PostSessionPassStage.integrating,
+      );
     });
 
     test('refuses a payload with no session to attribute', () {

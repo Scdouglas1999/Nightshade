@@ -267,12 +267,16 @@
 
     <!-- Playback footer — sticky to bottom so it's always reachable
          one-handed. Big tappable buttons. -->
+    <!-- Pause / Resume / Skip / Stop ship DISABLED: a page that has heard
+         nothing from the rig yet knows of no run to act on, and updateRunControls
+         opens exactly the ones the first snapshot's state admits. Reset is not
+         gated — it is the way out of a wedged executor. -->
     <footer class="playback" role="region" aria-label="Sequencer playback controls">
-      <button id="btn-pause" class="pb-btn" aria-label="Pause">Pause</button>
-      <button id="btn-resume" class="pb-btn pb-primary" aria-label="Resume">Resume</button>
-      <button id="btn-skip" class="pb-btn" aria-label="Skip current">Skip</button>
+      <button id="btn-pause" class="pb-btn" aria-label="Pause" disabled>Pause</button>
+      <button id="btn-resume" class="pb-btn pb-primary" aria-label="Resume" disabled>Resume</button>
+      <button id="btn-skip" class="pb-btn" aria-label="Skip current" disabled>Skip</button>
       <button id="btn-reset" class="pb-btn" aria-label="Reset sequencer">Reset</button>
-      <button id="btn-stop" class="pb-btn pb-danger" aria-label="Stop">Stop</button>
+      <button id="btn-stop" class="pb-btn pb-danger" aria-label="Stop" disabled>Stop</button>
     </footer>
 
     <!-- Toast — bottom-center, transient feedback. -->

@@ -25,12 +25,17 @@ class _DarkroomHistoryPanel extends StatefulWidget {
   /// commits it. Answers false when the move was refused.
   final Future<bool> Function(int oldIndex, int newIndex) onReorder;
 
+  /// Puts a step for the chosen operation into the stack. Answers false when
+  /// nothing was added, with the reason on the state.
+  final Future<bool> Function(DarkroomOpSpec op) onInsert;
+
   const _DarkroomHistoryPanel({
     required this.state,
     required this.onToggle,
     required this.onParamChanged,
     required this.onRemove,
     required this.onReorder,
+    required this.onInsert,
   });
 
   @override
@@ -71,6 +76,15 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             subtitle: steps.isEmpty
                 ? 'No steps — this renders the linear master'
                 : 'Applied top to bottom',
+            // In the heading, outside the scrolling region: the one control
+            // that gets an operation INTO the stack is then on screen whether
+            // the stack is empty or forty cards deep, and it costs the cards
+            // no height — a row of its own pushed the last card out of a
+            // short panel.
+            trailing: _DarkroomAddStep(
+              state: state,
+              onInsert: widget.onInsert,
+            ),
           ),
         ),
         Expanded(
@@ -85,7 +99,9 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                         icon: NightshadeIcons.layers,
                         title: 'Nothing interpreted yet',
                         body: 'This recipe carries no operations, so the '
-                            'viewport is the linear master itself.',
+                            'viewport is the linear master itself. "Add '
+                            'step", above, lists every operation this build '
+                            'registers and puts the first one in.',
                       ),
                     ],
                   ),
@@ -167,6 +183,21 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             severity: NightshadeAlertSeverity.warning,
             title: 'That move was refused',
             message: state.reorderRefusal!,
+            compact: true,
+          ),
+        ),
+      // An insert that added nothing closes its chooser and leaves the stack
+      // exactly as it was, which on its own is indistinguishable from a
+      // control that does nothing. The refusal — the engine's sentence, or the
+      // registry's own note about a master it could not measure — stays beside
+      // the stack until the next edit clears it.
+      if (state.insertRefusal != null)
+        wrap(
+          NightshadeAlert(
+            key: const ValueKey('darkroom_insert_refusal'),
+            severity: NightshadeAlertSeverity.warning,
+            title: 'That step was not added',
+            message: state.insertRefusal!,
             compact: true,
           ),
         ),
@@ -789,6 +820,12 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             width: 116,
             child: _DarkroomNumberField(
               label: 'Exact',
+              // Qualified for the same reason "Remove" and "Use default" are:
+              // three slider-ranged parameters publish three sibling fields,
+              // and a walk of one Stretch card heard "Exact, Exact, Exact".
+              // Reading order is not a name — and the word on screen stays
+              // "Exact" because the box is beside the slider it belongs to.
+              semanticName: 'Exact value for ${spec.displayName}',
               value: value,
               onChanged: (parsed) => widget.onParamChanged(
                 index,
@@ -801,8 +838,15 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       );
     }
 
+    // The parameter's name is already printed above this control, twice over:
+    // as the row's own title and inside the registry's summary of it. The
+    // field carries the half of [_rangeLabel] that is NOT on screen yet — the
+    // bounds — while its accessible name stays the whole thing, because
+    // assistive tech reads this box out of the column that titles it.
+    final bounds = _boundsLabel(spec);
     return _DarkroomNumberField(
-      label: _rangeLabel(spec),
+      label: bounds.isEmpty ? null : bounds,
+      semanticName: _rangeLabel(spec),
       value: value,
       onChanged: (parsed) => widget.onParamChanged(
         index,
@@ -839,6 +883,8 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               Expanded(
                 child: _DarkroomNumberField(
                   label: '#${i + 1}',
+                  semanticName: 'Value ${i + 1} of $length for '
+                      '${spec.displayName}',
                   value: current[i],
                   onChanged: (parsed) {
                     final next = List<double?>.from(current);
@@ -918,11 +964,22 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
   /// master's ADU occupies — and a bare "(-1.00e+12 … 1.00e+12)" beside a
   /// measured 529.74 reads as the range the operator is choosing within.
   static String _rangeLabel(DarkroomParamSpec spec) {
+    final bounds = _boundsLabel(spec);
+    if (bounds.isEmpty) return spec.displayName;
+    return '${spec.displayName} ($bounds)';
+  }
+
+  /// The bounds alone, for the field that sits under a title already carrying
+  /// the parameter's name.
+  ///
+  /// Empty when the registry states no floor or no ceiling: a field captioned
+  /// with half a range would read as a bound the operation does not have.
+  static String _boundsLabel(DarkroomParamSpec spec) {
     final min = spec.min;
     final max = spec.max;
-    if (min == null || max == null) return spec.displayName;
-    return '${spec.displayName} (accepts ${_formatNumber(min, false)} … '
-        '${_formatNumber(max, false)})';
+    if (min == null || max == null) return '';
+    return 'accepts ${_formatNumber(min, false)} … '
+        '${_formatNumber(max, false)}';
   }
 
   static String _formatNumber(double value, bool isInteger) {
@@ -943,8 +1000,22 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
 /// The controller is seeded once and re-seeded only when the incoming value
 /// differs from what the text already parses to — so an undo or a "use default"
 /// updates the box, and typing into it does not.
+///
+/// The words above the box and the name the box publishes are separate, because
+/// they are read in different places. On screen the field sits under a title
+/// that already names the parameter, so its caption carries only what that
+/// title does not — "Exact", or the bounds. Assistive tech reads the box out of
+/// that column, as one of several sibling fields inside one card, so its own
+/// name has to be the qualified one.
 class _DarkroomNumberField extends StatefulWidget {
-  final String label;
+  /// The caption above the box, or null when the row's title says everything a
+  /// sighted reader needs.
+  final String? label;
+
+  /// The name assistive tech reads for the box itself, qualified by the
+  /// parameter it edits.
+  final String semanticName;
+
   final double? value;
 
   /// Called with the parsed number, or null when the box was emptied — which
@@ -953,6 +1024,7 @@ class _DarkroomNumberField extends StatefulWidget {
 
   const _DarkroomNumberField({
     required this.label,
+    required this.semanticName,
     required this.value,
     required this.onChanged,
   });
@@ -965,7 +1037,17 @@ class _DarkroomNumberFieldState extends State<_DarkroomNumberField> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.value == null ? '' : _text(widget.value!),
   );
+
+  /// Owned here because the caption is drawn here: the design system's own
+  /// field tints its caption while it has focus, and a caption this widget
+  /// draws has to be given the same fact to follow.
+  late final FocusNode _focus = FocusNode()..addListener(_onFocusChanged);
+
   bool _unparseable = false;
+
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void didUpdateWidget(covariant _DarkroomNumberField oldWidget) {
@@ -979,6 +1061,9 @@ class _DarkroomNumberFieldState extends State<_DarkroomNumberField> {
 
   @override
   void dispose() {
+    _focus
+      ..removeListener(_onFocusChanged)
+      ..dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -992,8 +1077,37 @@ class _DarkroomNumberFieldState extends State<_DarkroomNumberField> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final label = widget.label;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (label != null) ...[
+          // Excluded from semantics: the field below publishes the qualified
+          // name, and a caption node beside it would announce the same control
+          // twice under two different names.
+          ExcludeSemantics(
+            child: Text(
+              label,
+              style: NightshadeTypography.labelSm.copyWith(
+                color: _focus.hasFocus ? colors.primary : colors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+        ],
+        Semantics(
+          label: widget.semanticName,
+          child: _field(),
+        ),
+      ],
+    );
+  }
+
+  Widget _field() {
     return NightshadeTextField(
-      label: widget.label,
+      focusNode: _focus,
       controller: _controller,
       keyboardType: const TextInputType.numberWithOptions(
         decimal: true,

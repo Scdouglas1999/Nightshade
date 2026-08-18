@@ -1362,19 +1362,41 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   /// takes the app down repeatedly. The report says the night needs a re-run;
   /// the operator asks for it.
   ///
-  /// WHICH STAGE the kill landed in is read off [interruptedJobs] — the
-  /// `darkroom_jobs` rows `_recoverInterruptedDarkroomJobs` found still
-  /// `running`, captured before it re-queued them. The marker's window covers
-  /// the integrate AND the Darkroom pass that follows it (one `finally` clears
-  /// it after both), so its mere presence does not say which was in flight. A
-  /// Darkroom job for the marker's session that was still running is proof the
-  /// integrate had already finished: the pass enqueues that job only once the
-  /// masters exist. Reported as an integration crash, that night told the
-  /// operator to re-run an integration that was complete and said nothing
-  /// about the draft, the night report and the delivery that had not happened.
+  /// WHICH STAGE the kill landed in has two sources, and they answer two
+  /// different questions.
+  ///
+  /// [interruptedJobs] — the `darkroom_jobs` rows
+  /// `_recoverInterruptedDarkroomJobs` found still `running`, captured before
+  /// it re-queued them — answers "was a Darkroom pass in flight?". A row still
+  /// running for the marker's session is a pass the machine died inside, and
+  /// its own recovery already owns it.
+  ///
+  /// [InterruptedIntegration.stage] answers "had the masters finished?", which
+  /// no row can. The marker's window covers the integrate AND the Darkroom pass
+  /// that follows it (one `finally` clears it after both), and between them
+  /// sits a seam the pass cannot close from one transaction: the masters are
+  /// finalized bucket by bucket inside `PostSessionIntegrationService`, and the
+  /// `darkroom_jobs` row is inserted afterwards. A kill in that seam left NO
+  /// row at all, so every one of them was reported as an interrupted integrate
+  /// — a night whose four masters were whole, registered and named as intact in
+  /// the same sentence that told the operator to run the integration again, and
+  /// which said nothing about the drafts, the night report, the delivery and
+  /// the morning message that had never been queued. The marker now records
+  /// that seam as it is crossed, so this open reads it instead of guessing.
+  ///
+  /// A pass that was OWED is not merely reported: a `queued` dawn job is
+  /// inserted for it, which is the state the crash-requeue machinery already
+  /// knows how to finish — `resumeDarkroomWork` drains the queue at every
+  /// startup. That is not the same as re-running an integration, which stays
+  /// manual: the integrate is the expensive, crash-prone stretch that must not
+  /// re-launch itself at every open, while the owed pass is the cheap half that
+  /// was already decided and never got to start.
   ///
   /// The marker is deleted last, so a process that dies between reading it and
-  /// writing the report finds it again at the next open.
+  /// writing the report finds it again at the next open. The owed pass is
+  /// enqueued BEFORE the report, so a process that dies in between finds the
+  /// marker again, sees the job it already inserted, and does not insert a
+  /// second one.
   ///
   /// Returns the session it reported on, or null when there was nothing to
   /// report. [_supersedeRetryPromiseForCappedJobs] runs next and needs to know:
@@ -1397,6 +1419,14 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       }
     }
 
+    // Whether the integrate had finished, from the marker's own record of the
+    // seam rather than from an absence of rows. `darkroomPass` still wins over
+    // it: a row the machine died inside is a pass that HAD started, whatever
+    // the marker last managed to write before the kill.
+    final integrateFinished =
+        darkroomPass == null &&
+        interrupted.stage != PostSessionPassStage.integrating;
+
     // Each intended file is MEASURED before anything is said about it. The
     // pass writes its masters one after another, so an interruption leaves
     // some of them whole; calling every present file "truncated — delete it"
@@ -1406,8 +1436,18 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     final present = await interrupted.presentMasterFiles();
     final incomplete = present.where((file) => !file.complete).toList();
     final whole = present.where((file) => file.complete).toList();
+    // Paths the marker named that are not on disk at all. Before the integrate
+    // finished this is the ordinary case — the pass had not reached them yet —
+    // and after it finished it is a file that went missing since, which the
+    // library still points at.
+    final absent = integrateFinished
+        ? [
+            for (final path in interrupted.intendedMasterPaths)
+              if (!present.any((file) => file.path == path)) path,
+          ]
+        : const <String>[];
     final sentences = <String>[];
-    if (present.isEmpty && darkroomPass == null) {
+    if (present.isEmpty && darkroomPass == null && !integrateFinished) {
       // Only the integrate can leave a master half-written, and only then is
       // "nothing on disk is half-finished" news. A kill during the DRAFT hit a
       // stage that writes no master at all, so saying it there would answer a
@@ -1422,6 +1462,13 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       sentences.add(
         'These master files are incomplete — delete them before re-running: '
         '${incomplete.map((f) => '${f.path} (${f.detail})').join('; ')}.',
+      );
+    }
+    if (absent.isNotEmpty) {
+      sentences.add(
+        'These master files finished and are no longer on disk, so whatever '
+        'the library still says about them, they are gone: '
+        '${absent.join('; ')}.',
       );
     }
     for (final file in whole) {
@@ -1439,34 +1486,108 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     }
     final orphanText = sentences.join(' ');
     final startedAt = interrupted.startedAtUtc.toIso8601String();
-    final headline = darkroomPass == null
-        ? 'The post-session integration was interrupted before it finished.'
-        : 'The Darkroom pass was interrupted before it finished.';
+
+    // The pass that was OWED and the pass that had already been queued share
+    // one marker stage, because the marker is written before the insert and
+    // never again — the ROW is what says which of the two happened.
+    final queuedJobId = integrateFinished
+        ? await _darkroomJobForPass(
+            interrupted.sessionId,
+            interrupted.startedAtUtc,
+          )
+        : null;
+    final passIsOwed =
+        integrateFinished &&
+        interrupted.stage == PostSessionPassStage.darkroomPassOwed &&
+        queuedJobId == null;
+
+    // Nothing is outstanding and nothing on disk moved: the masters finished,
+    // and either no pass was owed or the pass already has a row that says how
+    // it ended. Consuming the marker in silence is the honest answer — a
+    // `warning` for a night that lost nothing is how an operator learns to
+    // scroll past the ones that did.
+    if (integrateFinished &&
+        !passIsOwed &&
+        incomplete.isEmpty &&
+        absent.isEmpty) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] Session ${interrupted.sessionId}: the post-session '
+        'integration had finished when the previous process exited '
+        '${queuedJobId == null ? 'and no Darkroom pass was owed' : '(Darkroom '
+                  'job #$queuedJobId carries the pass)'}; nothing is outstanding.',
+      );
+      await clearIntegrationMarker(directory);
+      return null;
+    }
+
+    // The pass is enqueued BEFORE the report so the report can state what
+    // actually happened to it, and so a death in between is idempotent: the
+    // next open finds the marker, finds this row, and takes the branch above.
+    final owedJobId = passIsOwed
+        ? await _enqueueOwedDarkroomPass(interrupted.sessionId)
+        : null;
+
+    final String headline;
+    if (darkroomPass != null) {
+      headline = 'The Darkroom pass was interrupted before it finished.';
+    } else if (integrateFinished) {
+      headline = passIsOwed
+          ? 'The Darkroom pass for this night never started.'
+          : 'The post-session integration finished, but its master files no '
+                'longer match the library.';
+    } else {
+      headline =
+          'The post-session integration was interrupted before it '
+          'finished.';
+    }
+
     final body = <String>[
-      if (darkroomPass == null)
-        'Nightshade closed while integrating this session (started '
-            '$startedAt UTC).'
-      else
+      if (darkroomPass != null)
         'Nightshade closed while Darkroom job #${darkroomPass.jobId} was '
             'drafting this session, '
             '${(darkroomPass.progress * 100).round()}% of the way through (the '
             'pass started at $startedAt UTC). The integration itself had '
             'already finished — the Darkroom job is queued only once the '
-            'masters exist.',
+            'masters exist.'
+      else if (integrateFinished)
+        'The integration finished: every master it set out to write was on '
+            'disk and in the library when Nightshade closed (the pass started '
+            'at $startedAt UTC).'
+      else
+        'Nightshade closed while integrating this session (started '
+            '$startedAt UTC).',
+      if (passIsOwed)
+        'What had not happened yet is the Darkroom pass — the drafts, the '
+            'night report, the delivery and the morning message. It had not '
+            'been queued when the process exited.',
       if (orphanText.isNotEmpty) orphanText,
-      if (darkroomPass == null)
-        'The subs are all still on disk and still graded, so run the '
-            'integration again when you are ready.'
-      else if (darkroomPass.willRetry)
+      if (darkroomPass != null && darkroomPass.willRetry)
         'The job is re-queued, so the drafts, the night report and the '
             'delivery it owes are still owed; re-running the integration is '
             'not what this night needs.'
-      else
+      else if (darkroomPass != null)
         'That was start ${darkroomPass.attempts} of at most '
             '$kDarkroomJobMaxAttempts, so the job is marked failed rather than '
             're-queued: the drafts, the night report and the delivery are not '
             'coming without you starting the pass yourself. The masters are '
-            'untouched.',
+            'untouched.'
+      else if (passIsOwed && owedJobId != null)
+        'It is queued now as Darkroom job #$owedJobId and runs at this '
+            'startup. Do not run the integration again — it is the one part of '
+            'this night that did finish.'
+      else if (passIsOwed)
+        'It could not be queued here either, so the drafts, the night report '
+            'and the delivery are not coming without you pressing Process now '
+            'in Session Review. Do not run the integration again — it is the '
+            'one part of this night that did finish.'
+      else if (integrateFinished)
+        'The subs are all still on disk and still graded, so re-run the '
+            'integration only for the masters named above; the rest of the '
+            'library is untouched.'
+      else
+        'The subs are all still on disk and still graded, so run the '
+            'integration again when you are ready.',
     ].join(' ');
 
     await customUpdate(
@@ -1612,6 +1733,71 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
 
       // ignore: avoid_print
       print('[nightshade_db] Session $sessionId: $headline $body');
+    }
+  }
+
+  /// The newest `darkroom_jobs` row THIS pass created for [sessionId], or null
+  /// when it never got one.
+  ///
+  /// Identity, not order: a session carries jobs from earlier nights' passes
+  /// and from every "process now" the operator has pressed on it, and none of
+  /// those is the pass this marker is about. The marker's own start instant is
+  /// the divider, floored to the second `created_at` is stored in — a job
+  /// inserted 200 ms after the marker was written shares that second and is
+  /// still this pass's.
+  Future<int?> _darkroomJobForPass(int sessionId, DateTime startedAtUtc) async {
+    final rows = await customSelect(
+      'SELECT id FROM darkroom_jobs WHERE session_id = ? AND created_at >= ? '
+      'ORDER BY created_at DESC, id DESC LIMIT 1',
+      variables: [
+        Variable<int>(sessionId),
+        Variable<int>(startedAtUtc.millisecondsSinceEpoch ~/ 1000),
+      ],
+    ).get();
+    return rows.isEmpty ? null : rows.first.data['id'] as int;
+  }
+
+  /// Queue the Darkroom pass this night was owed and never got, returning the
+  /// new job id, or null when the insert did not land.
+  ///
+  /// A `queued` row is the one state the rest of the system already knows how
+  /// to finish: `resumeDarkroomWork` drains the queue at every startup, so the
+  /// pass this open just discovered runs in this same launch without a second
+  /// mechanism existing to run it.
+  ///
+  /// Written as `dawn` because that is the pass that was owed — the kind
+  /// decides whether the morning message goes out, and the morning message is
+  /// one of the four things this night never got.
+  ///
+  /// The failure is caught rather than thrown: this runs in `beforeOpen`, and a
+  /// database that refuses one INSERT must still open. It is not swallowed —
+  /// the caller reads the null and the report tells the operator the pass is
+  /// owed and was not queued, which is the sentence that gets them to press
+  /// Process now.
+  Future<int?> _enqueueOwedDarkroomPass(int sessionId) async {
+    try {
+      return await customInsert(
+        'INSERT INTO darkroom_jobs('
+        'session_id, kind, state, progress, note, attempts, created_at'
+        ') VALUES (?, ?, ?, 0.0, ?, 0, ?)',
+        variables: [
+          Variable<int>(sessionId),
+          const Variable<String>('dawn'),
+          const Variable<String>('queued'),
+          const Variable<String>(
+            'Queued at startup: the integration finished but the previous '
+            'process exited before this pass was queued.',
+          ),
+          Variable<int>(DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000),
+        ],
+      );
+    } catch (error) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] Session $sessionId: the owed Darkroom pass could not '
+        'be queued ($error); the night report says so.',
+      );
+      return null;
     }
   }
 

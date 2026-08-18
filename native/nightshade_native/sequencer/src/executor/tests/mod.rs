@@ -1593,3 +1593,58 @@ impl DeviceOps for ReacquireGuiderOps {
         self.inner.cover_calibrator_get_max_brightness(id).await
     }
 }
+
+/// The terminal message a finished run publishes is the run's own verdict.
+///
+/// `/api/sequencer/status` returns `state` and `message` side by side, and the
+/// message used to be whatever progress update happened to land last — a night
+/// that finished cleanly answered `state: "completed"` with the last line a
+/// filter-change autofocus had queued ("Autofocus: step 0/9 HFR 2.11 (100%)").
+#[tokio::test]
+async fn a_finished_run_publishes_its_own_verdict_as_the_terminal_message() {
+    let mut sequence = SequenceDefinition::new("Night".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "root".to_string(),
+        name: "Night root".to_string(),
+        node_type: crate::NodeType::Loop(crate::LoopConfig {
+            iterations: Some(1),
+            condition: crate::LoopCondition::Count,
+            condition_value: None,
+            horizon_profile: None,
+        }),
+        enabled: true,
+        children: vec!["wait".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "wait".to_string(),
+        name: "Settle".to_string(),
+        node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.0 }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("root".to_string());
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor.load_sequence(sequence).expect("sequence loads");
+    executor.start().await.expect("run starts");
+
+    for _ in 0..200 {
+        if matches!(
+            executor.get_state().await,
+            ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+        ) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    assert_eq!(executor.get_state().await, ExecutorState::Completed);
+    assert_eq!(
+        executor
+            .get_progress()
+            .message
+            .expect("a terminal run publishes a progress message"),
+        "Completed: Night root",
+        "the message must name the root's outcome, not the last node to report"
+    );
+}

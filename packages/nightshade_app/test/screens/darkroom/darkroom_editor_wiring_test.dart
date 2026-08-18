@@ -652,11 +652,12 @@ void main() {
     expect(find.text('Black point (ADU)'), findsOneWidget);
     expect(find.text('d'), findsNothing);
     expect(find.text('blackPoint'), findsNothing);
-    // And the bounds are named as accepted bounds rather than printed bare.
-    expect(
-      find.textContaining('Black point (ADU) (accepts'),
-      findsOneWidget,
-    );
+    // The name is printed ONCE. The wide-ranged parameter's field sits under
+    // that title and under the registry's summary of it, so it carries the
+    // half neither of them states — the accepted bounds — rather than the
+    // whole label a third time.
+    expect(find.textContaining('Black point (ADU) (accepts'), findsNothing);
+    expect(find.text('accepts -1.00e+12 … 1.00e+12'), findsOneWidget);
     await drain(tester);
   });
 

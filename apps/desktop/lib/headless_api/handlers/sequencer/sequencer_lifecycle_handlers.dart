@@ -1,5 +1,26 @@
 part of '../sequencer_handlers.dart';
 
+/// Executor states in which no run is in flight — the one deny-list every
+/// control verb here answers "was anything running?" from.
+///
+/// A DENY-list of terminal/idle states rather than an allow-list of active
+/// ones, and that direction is deliberate. The executor also reports
+/// `stopping` and `recovering`, both of which are runs very much in flight —
+/// a sequence sitting in `recovering` (retrying after unsafe weather, a lost
+/// guide star, a failed slew) is exactly what an operator reaches for Stop or
+/// Pause over. An allow-list of {running, paused} would answer
+/// `wasRunning: false` there, telling the operator nothing was running when
+/// something was. Any state added later therefore counts as a live run until
+/// it is explicitly listed here.
+const Set<String> _kNoRunInFlightStates = {
+  'idle',
+  'completed',
+  'failed',
+  'cancelled',
+  'stopped',
+  'error',
+};
+
 /// Lifecycle verbs: status/editor-sequence reads, start, stop, pause,
 /// resume, skip, reset, load and load-and-start.
 extension _SequencerLifecycle on SequencerHandlers {
@@ -31,10 +52,24 @@ extension _SequencerLifecycle on SequencerHandlers {
             'errorMessages': liveStats.errorMessages,
           };
 
+    // The name of the TARGET this run is on. Every other field here describes
+    // the executor's position in the tree, so the surfaces that ask "what is
+    // the rig pointed at" had nothing to read: the web dashboard's "Current
+    // target" fell back to the imaging session's name — which on a headless
+    // run is the SEQUENCE's name — and then to the current node's, so it read
+    // "M long night" for a target called "M Long Field" and "Live root" once
+    // the run ended. `SequenceProgress.currentTarget` is the field that
+    // carries the answer, and `/api/run-watch/snapshot` already publishes it.
+    // Null until a TargetHeader names one; a client renders that as unknown.
+    final currentTarget = container
+        .read(sequenceProgressProvider)
+        .currentTarget;
+
     return jsonOk({
       'state': status.state,
       'currentNodeId': status.currentNodeId,
       'currentNodeName': status.currentNodeName,
+      'currentTarget': currentTarget,
       'progress': status.progress,
       'message': status.message,
       if (runVitals != null) 'runVitals': runVitals,
@@ -283,29 +318,16 @@ extension _SequencerLifecycle on SequencerHandlers {
     // A failed status read still runs the stop: a stop that silently declines
     // to act is worse than a redundant one.
     //
-    // This is a DENY-list of terminal/idle states, not an allow-list of active
-    // ones, and that direction is deliberate. `ExecutorState` also contains
-    // `Stopping` and `Recovering`, both of which are runs very much in flight
-    // — a sequence sitting in `recovering` (retrying after unsafe weather, a
-    // lost guide star, a failed slew) is exactly what an operator hits Stop
-    // for. An allow-list of {running, paused} would answer `wasRunning: false`
-    // there, telling the operator nothing was running when something was. Any
-    // state added later therefore counts as running until it is explicitly
-    // listed as terminal here.
+    // The deny-list is [_kNoRunInFlightStates], shared with the pause/resume/
+    // skip precondition so the two can never drift into answering different
+    // things about the same rig. See that declaration for why it is a
+    // deny-list of terminal states rather than an allow-list of active ones.
     var wasRunning = true;
     try {
       final status = await container
           .read(sequencerBackendProvider)
           .sequencerGetStatus();
-      const terminalStates = {
-        'idle',
-        'completed',
-        'failed',
-        'cancelled',
-        'stopped',
-        'error',
-      };
-      wasRunning = !terminalStates.contains(status.state.toLowerCase());
+      wasRunning = !_kNoRunInFlightStates.contains(status.state.toLowerCase());
     } catch (error) {
       _logInfo(
         'sequencer stop precondition check skipped: status read failed ($error)',
@@ -331,8 +353,57 @@ extension _SequencerLifecycle on SequencerHandlers {
     });
   }
 
+  /// Refuse pause/resume/skip unless a run is actually in flight, and refuse
+  /// before anything is forwarded to the backend.
+  ///
+  /// Why this is NOT the stop contract above: safing an already-safe rig
+  /// changes nothing, so stop answers 200 with `wasRunning: false`. Pause and
+  /// resume DO change something. Posted at a cancelled run, the pause reached
+  /// the executor and its `paused` landed in the host's `SequenceProgress`,
+  /// so `/api/sequencer/status` went on reporting `cancelled` while
+  /// `/api/run-watch/snapshot` reported `progress.state: paused` — and the
+  /// phone rendered a paused night that survived every reload (measured: a
+  /// resume posted the same way repainted the badge a green `running` over a
+  /// run that had ended 40 s earlier). The only way the state cannot be
+  /// overwritten is for the command never to be sent.
+  ///
+  /// The status read is a hard precondition here rather than the optional
+  /// check stop makes, for the same reason: a stop that cannot read the state
+  /// is still worth running, a pause is not. An unreadable state is answered
+  /// as an unreadable state — 503 with the reason, and no `wasRunning`
+  /// verdict, because this host has not earned one.
+  Future<void> _requireRunInFlight(String verb) async {
+    final String state;
+    try {
+      final status = await container
+          .read(sequencerBackendProvider)
+          .sequencerGetStatus();
+      state = status.state.toLowerCase();
+    } catch (error, stackTrace) {
+      throw HandlerFailure(
+        code: 'sequencer_state_unreadable',
+        message:
+            'Cannot $verb: the sequencer state could not be read, so this '
+            'host cannot tell whether a run is in flight.',
+        statusCode: 503,
+        cause: error,
+        stackTrace: stackTrace,
+      );
+    }
+    if (!_kNoRunInFlightStates.contains(state)) return;
+    throw HandlerFailure(
+      code: 'sequencer_not_running',
+      message: 'No sequence is running; nothing to $verb.',
+      statusCode: 409,
+      // The did-anything-happen verdict stop already carries, in the same
+      // field name, so one client check covers every control.
+      details: {kWasRunningField: false, 'state': state},
+    );
+  }
+
   Future<Response> _handleSequencerPause(Request request) async {
     _logInfo('[API] POST /api/sequencer/pause');
+    await _requireRunInFlight('pause');
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.pause',
     );
@@ -346,11 +417,13 @@ extension _SequencerLifecycle on SequencerHandlers {
     return jsonOk({
       if (commandId != null) 'commandId': commandId,
       'status': 'paused',
+      kWasRunningField: true,
     });
   }
 
   Future<Response> _handleSequencerResume(Request request) async {
     _logInfo('[API] POST /api/sequencer/resume');
+    await _requireRunInFlight('resume');
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.resume',
     );
@@ -364,11 +437,13 @@ extension _SequencerLifecycle on SequencerHandlers {
     return jsonOk({
       if (commandId != null) 'commandId': commandId,
       'status': 'resumed',
+      kWasRunningField: true,
     });
   }
 
   Future<Response> _handleSequencerSkip(Request request) async {
     _logInfo('[API] POST /api/sequencer/skip');
+    await _requireRunInFlight('skip');
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.skip',
     );
@@ -377,6 +452,7 @@ extension _SequencerLifecycle on SequencerHandlers {
     return jsonOk({
       if (commandId != null) 'commandId': commandId,
       'status': 'skipped',
+      kWasRunningField: true,
     });
   }
 

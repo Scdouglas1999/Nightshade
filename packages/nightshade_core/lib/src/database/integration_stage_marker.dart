@@ -36,6 +36,56 @@ const String kIntegrationMarkerName = '.integration-in-flight.json';
 /// end.
 const String kInterruptedPassEventType = 'quality.integration_interrupted';
 
+/// How far the post-session pass had got when the marker was last written.
+///
+/// The marker's window covers the integrate AND the Darkroom pass that follows
+/// it, and for a long time its mere presence was the whole story — so a kill
+/// landing anywhere in that window was reported as an interrupted integrate.
+/// The seam that made that a lie is the one the pass cannot compose into a
+/// single transaction: the masters are finalized by
+/// `PostSessionIntegrationService`, bucket by bucket, and the `darkroom_jobs`
+/// row is inserted afterwards by the autopilot. A crash in between left a night
+/// whose masters were whole and registered and whose drafts, night report,
+/// delivery and morning message were never queued — and the report told the
+/// operator to run the integration again.
+///
+/// This is the durable answer to "which of those had happened". It is advanced
+/// at the instant each becomes true, so the next open reads a fact rather than
+/// inferring one.
+enum PostSessionPassStage {
+  /// Masters are being written. A kill here can leave one half-written, and
+  /// re-running the integration is what the night needs.
+  integrating,
+
+  /// Every master this pass set out to write is written and registered, and the
+  /// Darkroom pass that owes the drafts, the night report, the delivery and the
+  /// morning message has not been queued yet. A kill here needs the PASS, never
+  /// the integration.
+  darkroomPassOwed,
+
+  /// Every master is written and registered, and automatic drafting is switched
+  /// off for this profile, so nothing further was owed. A kill here cost the
+  /// night nothing.
+  mastersOnly;
+
+  /// The string stored in the marker payload.
+  String get wire => name;
+
+  /// Parse a stored stage.
+  ///
+  /// Anything this build does not recognise — including the absent field of a
+  /// marker written before the stage existed — reads as [integrating]. A marker
+  /// that does not say how far the pass got has not earned the claim that the
+  /// masters are finished, and stating one anyway is how an operator is told
+  /// their half-written stack arrived intact.
+  static PostSessionPassStage fromWire(Object? value) {
+    for (final stage in PostSessionPassStage.values) {
+      if (stage.wire == value) return stage;
+    }
+    return PostSessionPassStage.integrating;
+  }
+}
+
 /// What a previous process was integrating when it died.
 class InterruptedIntegration {
   /// The imaging session whose subs were being integrated.
@@ -58,12 +108,31 @@ class InterruptedIntegration {
   /// the fact that the pass was interrupted.
   final List<String> intendedMasterPaths;
 
+  /// How far the pass had got when this marker was last written.
+  final PostSessionPassStage stage;
+
   const InterruptedIntegration({
     required this.sessionId,
     required this.targetName,
     required this.startedAtUtc,
     required this.intendedMasterPaths,
+    this.stage = PostSessionPassStage.integrating,
   });
+
+  /// The same pass, recorded at [stage].
+  ///
+  /// Everything else is carried over unchanged: the session, the target and the
+  /// intended paths are facts about the pass, not about how far it got, and the
+  /// start instant is what the report and the event's dedupe key are keyed on —
+  /// re-stamping it would make one interruption look like two.
+  InterruptedIntegration at(PostSessionPassStage stage) =>
+      InterruptedIntegration(
+        sessionId: sessionId,
+        targetName: targetName,
+        startedAtUtc: startedAtUtc,
+        intendedMasterPaths: intendedMasterPaths,
+        stage: stage,
+      );
 
   /// What each intended master file actually turned out to be, for the ones
   /// that are on disk right now.
@@ -90,6 +159,7 @@ class InterruptedIntegration {
     'targetName': targetName,
     'startedAtUtc': startedAtUtc.toUtc().toIso8601String(),
     'intendedMasterPaths': intendedMasterPaths,
+    'stage': stage.wire,
   };
 
   /// Parse a marker payload, or null when the file is not one this app wrote.
@@ -118,6 +188,7 @@ class InterruptedIntegration {
       intendedMasterPaths: paths is List
           ? paths.whereType<String>().toList(growable: false)
           : const [],
+      stage: PostSessionPassStage.fromWire(decoded['stage']),
     );
   }
 }
@@ -338,6 +409,18 @@ Future<void> markIntegrationStarted(
     databaseDirectory,
   ).writeAsString(jsonEncode(integration.toJson()), flush: true);
 }
+
+/// Record that the pass has reached [stage].
+///
+/// The same file, re-written whole and flushed, because a stage is only worth
+/// anything if it survives the kill it describes. It costs one small flushed
+/// write at the seam between the integrate and the Darkroom pass — the one
+/// place in the pass where two commits cannot be made one.
+Future<void> markPassReached(
+  Directory databaseDirectory,
+  InterruptedIntegration integration,
+  PostSessionPassStage stage,
+) => markIntegrationStarted(databaseDirectory, integration.at(stage));
 
 /// Clear the marker because the integration finished — successfully or with a
 /// reported failure.

@@ -16,6 +16,7 @@ import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/screens/session_review/auto_integration_service.dart';
 import 'package:nightshade_app/screens/settings/settings_catalog.dart';
 import 'package:nightshade_app/screens/settings/widgets/darkroom_autopilot_settings.dart';
+import 'package:nightshade_app/screens/settings/widgets/settings_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -188,5 +189,169 @@ void main() {
       await SettingsDao(db).getSetting(kDarkroomAutoDraftSettingKey),
       'true',
     );
+  });
+
+  // The gate is the client ROLE, not the live connection — the same gate
+  // Delivery and the Darkroom editor read. `darkroom.auto_draft` is a row in
+  // whichever profile database this process opened, and the dawn pass reads
+  // the one on the machine that integrated the masters.
+  group('the dawn pass belongs to the machine that owns the masters', () {
+    Future<void> pumpAs(
+      WidgetTester tester, {
+      required bool launchedAsClient,
+      required bool connected,
+      required NightshadeDatabase db,
+    }) async {
+      await pumpAppScreen(
+        tester,
+        const DarkroomAutopilotSettings(),
+        database: db,
+        extraOverrides: [
+          remoteClientLaunchProvider.overrideWithValue(launchedAsClient),
+          isRemoteModeProvider.overrideWithValue(connected),
+        ],
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a connected client is told where the switch lives', (
+      tester,
+    ) async {
+      final db = mockDatabase();
+      addTearDown(db.close);
+      await pumpAs(
+        tester,
+        launchedAsClient: false,
+        connected: true,
+        db: db,
+      );
+
+      expect(
+        find.text('The dawn pass runs on the imaging host'),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('darkroom-auto-draft-switch')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'a client that has not reached its rig yet is still that rig\'s client',
+      (tester) async {
+        // The launch flags said `--remote-host`; the handshake has not landed
+        // (or it has dropped), so the connection-shaped gate reads false. On
+        // that gate the page offered a live switch, and one click wrote
+        // `darkroom.auto_draft=false` here while the rig kept drafting,
+        // delivering and notifying at dawn.
+        final db = mockDatabase();
+        addTearDown(db.close);
+        await pumpAs(
+          tester,
+          launchedAsClient: true,
+          connected: false,
+          db: db,
+        );
+
+        expect(
+          find.text('The dawn pass runs on the imaging host'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('darkroom-auto-draft-switch')),
+          findsNothing,
+          reason: 'a switch here writes a row no dawn job will ever read',
+        );
+        expect(
+          await SettingsDao(db).getSetting(kDarkroomAutoDraftSettingKey),
+          isNull,
+        );
+      },
+    );
+
+    testWidgets('a host launch keeps its own switch', (tester) async {
+      final db = mockDatabase();
+      addTearDown(db.close);
+      await pumpAs(
+        tester,
+        launchedAsClient: false,
+        connected: false,
+        db: db,
+      );
+
+      expect(
+        find.text('The dawn pass runs on the imaging host'),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('darkroom-auto-draft-switch')),
+        findsOneWidget,
+      );
+    });
+  });
+
+  testWidgets('the dependency row carries the page\'s own density', (
+    tester,
+  ) async {
+    // Hardcoded `isMobile: false` put desktop padding, icon size and title
+    // ramp on one row inside a phone-width section whose siblings were at
+    // phone density.
+    final db = mockDatabase();
+    addTearDown(db.close);
+    await pumpAppScreen(
+      tester,
+      const DarkroomAutopilotSettings(isMobile: true),
+      database: db,
+      size: const Size(430, 900),
+    );
+    await tester.pumpAndSettle();
+
+    bool densityOf(String title) => tester
+        .widgetList<SettingRow>(find.byType(SettingRow))
+        .firstWhere((row) => row.title == title)
+        .isMobile;
+
+    expect(densityOf('Auto-integrate has to be on for any of this to run'),
+        isTrue);
+    expect(
+      densityOf('Delivery destinations decide what leaves the rig'),
+      isTrue,
+      reason: 'the sibling it is misaligned against',
+    );
+  });
+
+  testWidgets('the dependency row states its neighbour\'s state once', (
+    tester,
+  ) async {
+    // `SettingRow` merges its title, subtitle and trailing into one node, so
+    // the colour-coded echo beside the sentence was read out a second time,
+    // as a bare "off" with nothing to bind it to.
+    final db = mockDatabase();
+    addTearDown(db.close);
+    final semantics = tester.ensureSemantics();
+    await pumpAppScreen(
+      tester,
+      const DarkroomAutopilotSettings(),
+      database: db,
+    );
+    await tester.pumpAndSettle();
+
+    final label = tester
+        .getSemantics(
+          find.text('Auto-integrate has to be on for any of this to run'),
+        )
+        .label
+        .trim();
+
+    expect(label, contains('It is currently off.'));
+    expect(
+      label,
+      endsWith('Settings › Image Grading › Post-session integration.'),
+      reason: 'the sentence carries the state; the visual echo must not '
+          'publish a second, unbound copy of it',
+    );
+    // The echo is still on screen for the eye scanning the column.
+    expect(find.text('off'), findsOneWidget);
+    semantics.dispose();
   });
 }

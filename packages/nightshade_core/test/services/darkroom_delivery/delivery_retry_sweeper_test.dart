@@ -183,66 +183,71 @@ void main() {
     },
   );
 
-  test('a row that comes due is swept without waiting for the heartbeat',
-      () async {
-    // The heartbeat is put an hour out of reach, so the only thing that can
-    // sweep here is the short cadence noticing the row.
-    final sweeper = build(
-      interval: const Duration(hours: 1),
-      dueCheck: const Duration(milliseconds: 10),
-    );
-    addTearDown(sweeper.stop);
+  test(
+    'a row that comes due is swept without waiting for the heartbeat',
+    () async {
+      // The heartbeat is put an hour out of reach, so the only thing that can
+      // sweep here is the short cadence noticing the row.
+      final sweeper = build(
+        interval: const Duration(hours: 1),
+        dueCheck: const Duration(milliseconds: 10),
+      );
+      addTearDown(sweeper.stop);
 
-    sweeper.start();
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    expect(
-      delivery.dueChecks,
-      greaterThan(0),
-      reason: 'the journal is asked on the short cadence',
-    );
-    expect(
-      delivery.sweeps,
-      0,
-      reason: 'nothing is due, so nothing re-reads a file or opens a transport',
-    );
+      sweeper.start();
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(
+        delivery.dueChecks,
+        greaterThan(0),
+        reason: 'the journal is asked on the short cadence',
+      );
+      expect(
+        delivery.sweeps,
+        0,
+        reason:
+            'nothing is due, so nothing re-reads a file or opens a transport',
+      );
 
-    delivery.due = true;
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    sweeper.stop();
+      delivery.due = true;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      sweeper.stop();
 
-    expect(
-      delivery.sweeps,
-      greaterThan(0),
-      reason: 'the row was due; waiting out the heartbeat is the defect',
-    );
-  });
+      expect(
+        delivery.sweeps,
+        greaterThan(0),
+        reason: 'the row was due; waiting out the heartbeat is the defect',
+      );
+    },
+  );
 
-  test('the due check does not start a pass over a pass already running',
-      () async {
-    final sweeper = build(
-      interval: const Duration(hours: 1),
-      dueCheck: const Duration(milliseconds: 10),
-    );
-    addTearDown(sweeper.stop);
-    final gate = Completer<void>();
-    delivery.gate = gate;
-    delivery.due = true;
+  test(
+    'the due check does not start a pass over a pass already running',
+    () async {
+      final sweeper = build(
+        interval: const Duration(hours: 1),
+        dueCheck: const Duration(milliseconds: 10),
+      );
+      addTearDown(sweeper.stop);
+      final gate = Completer<void>();
+      delivery.gate = gate;
+      delivery.due = true;
 
-    final first = sweeper.sweepOnce();
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    sweeper.start();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      final first = sweeper.sweepOnce();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      sweeper.start();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(delivery.sweeps, 1, reason: 'the running pass owns those rows');
-    expect(
-      delivery.dueChecks,
-      0,
-      reason: 'the journal is not even read while a pass holds it',
-    );
+      expect(delivery.sweeps, 1, reason: 'the running pass owns those rows');
+      expect(
+        delivery.dueChecks,
+        0,
+        reason: 'the journal is not even read while a pass holds it',
+      );
 
-    gate.complete();
-    expect(await first, isNotNull);
-  });
+      gate.complete();
+      expect(await first, isNotNull);
+    },
+  );
 
   test('a due check the journal refuses leaves both timers armed', () async {
     final sweeper = build(
@@ -259,6 +264,79 @@ void main() {
     expect(delivery.sweeps, 0);
     expect(sweeper.isRunning, isTrue);
   });
+
+  test(
+    'an unpulled peer file does not turn the due check into a sweep loop',
+    () async {
+      // Driven over the REAL DeliveryService and a real journal, because the
+      // defect lived in the answer `hasDueRetries` gives, not in the timer.
+      //
+      // Measured against the release bundle: one published-but-unpulled peer
+      // file made the 30-second due check answer "due" for ever, so a full sweep
+      // ran and logged `peer-office: 1 awaiting pull` every 30 seconds — seven
+      // identical INFO lines in 3 1/2 minutes, with the row untouched throughout
+      // (`attempts` 1, `updated_at` unchanged). That is the ordinary state
+      // between the dawn job and the operator's morning.
+      final jobId = await DarkroomJobsDao(db).enqueue();
+      final targetId = await DeliveryTargetsDao(db).create(
+        name: 'peer-office',
+        kind: ArtifactDestinationKind.peer,
+        configJson: '{"peerId":"office-pc"}',
+        content: const {ArtifactContent.draftRender},
+      );
+      await DeliveryJournalDao(db).recordAttempt(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: '/tmp/does-not-need-to-exist/draft.png',
+        bytes: 1024,
+      );
+
+      // Six hours on, so the row is long past every rung of the backoff ladder:
+      // what keeps the check quiet has to be the destination's kind, not a
+      // retry that has simply not come due yet.
+      final real = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) =>
+            throw StateError('the due check must not build a transport'),
+        clock: () => DateTime.now().toUtc().add(const Duration(hours: 6)),
+      );
+      final sweeper = DeliveryRetrySweeper(
+        delivery: real,
+        logger: logger,
+        interval: const Duration(hours: 1),
+        dueCheckInterval: const Duration(milliseconds: 10),
+      );
+      addTearDown(sweeper.stop);
+
+      sweeper.start();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      sweeper.stop();
+
+      expect(
+        logger
+            .getRecentLogs()
+            .where((entry) => entry.message.contains('Delivery retry sweep:'))
+            .toList(),
+        isEmpty,
+        reason:
+            'this is the log line that arrived every 30 seconds for ever; '
+            'the due check must go quiet, not just do less work',
+      );
+      expect(
+        (await DeliveryJournalDao(db).listPendingRetry()).single.state,
+        DeliveryAttemptState.retrying,
+        reason: 'the row is still pending — it is pending on the peer',
+      );
+      expect(
+        await real.hasDueRetries(),
+        isFalse,
+        reason:
+            'the short cadence has nothing to wake for; the next move is a '
+            'pull by the desktop',
+      );
+    },
+  );
 
   test('stop ends the due check as well as the heartbeat', () async {
     final sweeper = build(
