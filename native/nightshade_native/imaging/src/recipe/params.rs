@@ -241,8 +241,12 @@ impl<'a> Params<'a> {
         if items.len() != len {
             return Err(self.range_error(
                 key,
-                format!("{} element(s)", items.len()),
-                format!("exactly {len} element(s)"),
+                format!(
+                    "{} element{}",
+                    items.len(),
+                    if items.len() == 1 { "" } else { "s" }
+                ),
+                format!("exactly {len} element{}", if len == 1 { "" } else { "s" }),
             ));
         }
         let mut out = Vec::with_capacity(len);
@@ -275,8 +279,12 @@ impl<'a> Params<'a> {
         if !len_range.contains(&items.len()) {
             return Err(self.range_error(
                 key,
-                format!("{} element(s)", items.len()),
-                format!("{} to {} element(s)", len_range.start(), len_range.end()),
+                format!(
+                    "{} element{}",
+                    items.len(),
+                    if items.len() == 1 { "" } else { "s" }
+                ),
+                format!("{} to {} elements", len_range.start(), len_range.end()),
             ));
         }
         let mut out = Vec::with_capacity(items.len());

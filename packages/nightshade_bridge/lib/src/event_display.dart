@@ -462,7 +462,8 @@ String _sequencerDetail(SequencerEvent v) {
           ? (a > 1
                 ? '$t · succeeded on attempt $a · ${d.toStringAsFixed(1)}s'
                 : '$t · ${d.toStringAsFixed(1)}s')
-          : '$t · after $a attempt(s): ${e ?? "unknown error"}',
+          : '$t · after $a attempt${a == 1 ? '' : 's'}: '
+                '${e ?? "unknown error"}',
     SequencerEvent_TriggerFired(triggerName: final n, action: final a) =>
       '$n → $a',
     SequencerEvent_InstructionProgress(

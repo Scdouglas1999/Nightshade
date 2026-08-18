@@ -137,7 +137,7 @@ pub enum ColorCalError {
     /// count, or `channels` was zero. The flux vector must describe exactly the
     /// image's channels.
     #[error(
-        "channel count mismatch: expected {expected} channel flux value(s) per star, found a star with {actual}"
+        "channel count mismatch: each star's channel_flux must be of length {expected}, found one of length {actual}"
     )]
     ChannelMismatch {
         /// The requested channel count.

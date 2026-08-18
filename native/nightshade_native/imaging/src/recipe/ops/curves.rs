@@ -248,8 +248,12 @@ fn read_settings(params: &Value) -> Result<Settings, OpError> {
     if y.len() != x.len() {
         return Err(range_error(
             "y",
-            format!("{} element(s)", y.len()),
-            format!("the {} element(s) 'x' carries", x.len()),
+            format!("{} element{}", y.len(), if y.len() == 1 { "" } else { "s" }),
+            format!(
+                "the {} element{} 'x' carries",
+                x.len(),
+                if x.len() == 1 { "" } else { "s" }
+            ),
         ));
     }
     if x[0] != 0.0 || x[x.len() - 1] != 1.0 {

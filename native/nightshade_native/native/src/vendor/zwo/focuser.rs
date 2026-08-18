@@ -568,7 +568,11 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
     let sdk_version = eaf_sdk_version_from_sdk(sdk);
     // SAFETY: zwo_eaf_mutex held above; EAFGetNum takes no arguments and only reads internal SDK state.
     let num_focusers = unsafe { (sdk.get_num)() };
-    tracing::info!("EAF SDK reports {} connected focuser(s)", num_focusers);
+    tracing::info!(
+        "EAF SDK reports {} connected focuser{}",
+        num_focusers,
+        if num_focusers == 1 { "" } else { "s" }
+    );
 
     let mut focusers = Vec::new();
 

@@ -68,7 +68,8 @@ class BatchOperationsToolbar extends ConsumerWidget {
                           .copySelected();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('$count node(s) copied'),
+                          content: Text(
+                              '$count node${count == 1 ? '' : 's'} copied'),
                           duration: const Duration(seconds: 2),
                           backgroundColor: colors.info,
                         ),
@@ -95,7 +96,7 @@ class BatchOperationsToolbar extends ConsumerWidget {
                             _showCountSnackBar(
                               context,
                               colors,
-                              'Pasted $pasted node(s)',
+                              'Pasted $pasted node${pasted == 1 ? '' : 's'}',
                             );
                           }
                         : null,
@@ -119,7 +120,7 @@ class BatchOperationsToolbar extends ConsumerWidget {
                             _showCountSnackBar(
                               context,
                               colors,
-                              '$count node(s) enabled',
+                              '$count node${count == 1 ? '' : 's'} enabled',
                             );
                           }
                         : null,
@@ -141,7 +142,7 @@ class BatchOperationsToolbar extends ConsumerWidget {
                             _showCountSnackBar(
                               context,
                               colors,
-                              '$count node(s) disabled',
+                              '$count node${count == 1 ? '' : 's'} disabled',
                             );
                           }
                         : null,
@@ -219,18 +220,18 @@ class BatchOperationsToolbar extends ConsumerWidget {
     // Point at the toolbar button, not only the keystroke: Ctrl+Z needs
     // keyboard focus inside the builder subtree, the Undo button never does.
     final body = descendants == 0
-        ? 'This will remove the selected node(s). '
+        ? 'This will remove the selected node${count == 1 ? '' : 's'}. '
             'Recover them with Undo in the toolbar (or Ctrl+Z).'
-        : 'This will remove $count node(s) plus their $descendants '
-            'descendant(s). Recover them with Undo in the toolbar '
-            '(or Ctrl+Z).';
+        : 'This will remove $count node${count == 1 ? '' : 's'} plus their '
+            '$descendants descendant${descendants == 1 ? '' : 's'}. '
+            'Recover them with Undo in the toolbar (or Ctrl+Z).';
 
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: colors.surface,
         title: Text(
-          'Delete $count node(s)?',
+          'Delete $count node${count == 1 ? '' : 's'}?',
           style: TextStyle(color: colors.textPrimary),
         ),
         content: ConstrainedBox(

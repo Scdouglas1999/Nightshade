@@ -219,7 +219,7 @@ class AnalyticsHandlers {
       throw BadRequestError(
         field: unknownFields.join(','),
         expected: 'one of: ${allowedFields.join(', ')}',
-        message: 'Unknown session field(s)',
+        message: 'Unknown session field${unknownFields.length == 1 ? '' : 's'}',
       );
     }
     if (!payload.keys.any(allowedFields.contains)) {

@@ -323,9 +323,11 @@ const String _pairPageHtml = r'''
             startBtn.textContent = 'Restart pairing';
             startBtn.disabled = false;
             var secs = res.body && res.body.expiresInSeconds;
+            var mins = secs ? Math.round(secs / 60) : 0;
             expiryNote.textContent = secs
-              ? ('Code is valid for about ' + Math.round(secs / 60)
-                 + ' minute(s). Read it from the appliance log.')
+              ? ('Code is valid for about ' + mins
+                 + (mins === 1 ? ' minute' : ' minutes')
+                 + '. Read it from the appliance log.')
               : 'Read the code from the appliance log.';
             showResult('warn', 'Pairing started. The code was printed '
               + 'to the appliance log — it is deliberately not sent over '

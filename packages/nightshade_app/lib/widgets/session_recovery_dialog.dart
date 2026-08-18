@@ -39,6 +39,7 @@ class _SessionRecoveryDialogState extends ConsumerState<SessionRecoveryDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final sessionCount = _sessions.length;
     final dialog = AlertDialog(
       title: Row(
         children: [
@@ -60,8 +61,11 @@ class _SessionRecoveryDialogState extends ConsumerState<SessionRecoveryDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'The following imaging session(s) were not properly closed. '
-              'Would you like to resume or discard them?',
+              'The following imaging '
+              'session${sessionCount == 1 ? '' : 's'} '
+              '${sessionCount == 1 ? 'was' : 'were'} not properly closed. '
+              'Would you like to resume or discard '
+              '${sessionCount == 1 ? 'it' : 'them'}?',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),

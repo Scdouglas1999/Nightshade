@@ -266,7 +266,7 @@ class PushHandlers {
       }
     }
     _logInfo(
-      '[push][$requestId] deleted push token(s) '
+      '[push][$requestId] deleted push tokens '
       '(deviceId=${deviceId ?? '-'}, byToken=${token != null})',
     );
     return jsonOk({'status': 'deleted'}, headers: {requestIdHeader: requestId});

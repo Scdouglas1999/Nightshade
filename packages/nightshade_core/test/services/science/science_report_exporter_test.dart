@@ -111,7 +111,7 @@ void main() {
     // exactly "24.35".
     expect(md, contains('24.35'));
     expect(md, contains('Median ZP across 6 frames'));
-    expect(md, contains('Catalog source(s):**'));
+    expect(md, contains('- **Catalog source:** localGaia'));
     expect(md, contains('87% (good)'));
   });
 

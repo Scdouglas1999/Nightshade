@@ -435,7 +435,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
 
     if (copiedCount > 0) {
       context.showSuccessSnackBar(
-          'Copied $copiedCount device(s) from connected equipment');
+          'Copied $copiedCount device${copiedCount == 1 ? '' : 's'} '
+          'from connected equipment');
     } else {
       context.showWarningSnackBar('No devices currently connected');
     }

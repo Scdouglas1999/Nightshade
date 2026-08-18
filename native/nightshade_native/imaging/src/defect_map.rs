@@ -868,10 +868,20 @@ pub fn correct_u16_slice(
 
     if skipped_due_to_no_neighbours > 0 {
         tracing::warn!(
-            "Defect-map correction left {} pixel(s) unchanged because no healthy \
-             neighbours existed inside the expanded kernel — these defects sit \
-             inside a cluster larger than the configured kernel can repair.",
-            skipped_due_to_no_neighbours
+            "Defect-map correction left {} pixel{} unchanged because no healthy \
+             neighbours existed inside the expanded kernel — {} inside a cluster \
+             larger than the configured kernel can repair.",
+            skipped_due_to_no_neighbours,
+            if skipped_due_to_no_neighbours == 1 {
+                ""
+            } else {
+                "s"
+            },
+            if skipped_due_to_no_neighbours == 1 {
+                "that defect sits"
+            } else {
+                "those defects sit"
+            }
         );
     }
 

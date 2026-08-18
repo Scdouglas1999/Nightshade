@@ -948,7 +948,7 @@ class SmartNightService {
         .toList();
     return 'Auto-built by Smart Night using the '
         '${_strategyLabel(strategy)} strategy. '
-        '${planned.length} target(s), '
+        '${planned.length} target${planned.length == 1 ? '' : 's'}, '
         '${integrationHours.toStringAsFixed(1)}h integration, '
         'filters: ${filters.join(", ")}. '
         'AF cadence: ${_afCadenceLabel(settings)}. '

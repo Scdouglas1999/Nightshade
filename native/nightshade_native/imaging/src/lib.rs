@@ -299,7 +299,7 @@ pub enum ImageDisplayError {
     /// The image has a channel count the display pipeline does not know how
     /// to render. Supported layouts are 1 (mono), 3 (RGB), and 4 (RGBA).
     #[error(
-        "unsupported channel layout for display: {channels} channel(s); supported counts are 1 (mono), 3 (RGB), and 4 (RGBA)"
+        "unsupported channel layout for display: a {channels}-channel image; supported counts are 1 (mono), 3 (RGB), and 4 (RGBA)"
     )]
     UnsupportedChannelLayout { channels: u32 },
 }

@@ -754,8 +754,9 @@ fn rollback_in_place(install_dir: &Path, log: &RollbackLog) -> Result<()> {
         Ok(())
     } else {
         Err(anyhow::anyhow!(
-            "Rollback completed with {} error(s):\n{}",
+            "Rollback completed with {} error{}:\n{}",
             errors.len(),
+            if errors.len() == 1 { "" } else { "s" },
             errors.join("\n")
         ))
     }
@@ -825,8 +826,9 @@ fn retain_restore_point(install_dir: &Path, backup_dir: &Path, log: &RollbackLog
         // incomplete, so surface them loudly. A best-effort restore
         // point beats none.
         eprintln!(
-            "Warning: restore-point retention encountered {} non-fatal issue(s):\n{}",
+            "Warning: restore-point retention encountered {} non-fatal issue{}:\n{}",
             errors.len(),
+            if errors.len() == 1 { "" } else { "s" },
             errors.join("\n")
         );
         Ok(())
@@ -988,8 +990,9 @@ fn restore_from_restore_point(
         Ok(())
     } else {
         Err(anyhow::anyhow!(
-            "Rollback completed with {} error(s):\n{}",
+            "Rollback completed with {} error{}:\n{}",
             errors.len(),
+            if errors.len() == 1 { "" } else { "s" },
             errors.join("\n")
         ))
     }

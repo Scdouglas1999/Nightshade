@@ -365,7 +365,8 @@ class AutoSaveService {
     }
 
     developer.log(
-      'AutoSaveService: Auto-saving ${_pendingSequences.length} sequence(s)...',
+      'AutoSaveService: Auto-saving ${_pendingSequences.length} '
+      'sequence${_pendingSequences.length == 1 ? '' : 's'}...',
       name: 'AutoSaveService',
       level: 800,
     );
@@ -395,7 +396,8 @@ class AutoSaveService {
       );
 
       developer.log(
-        'AutoSaveService: Successfully saved ${sequences.length} sequence(s)',
+        'AutoSaveService: Successfully saved ${sequences.length} '
+        'sequence${sequences.length == 1 ? '' : 's'}',
         name: 'AutoSaveService',
         level: 800,
       );
@@ -620,7 +622,8 @@ class AutoSaveService {
       final cutoff = clock().toUtc().subtract(Duration(days: days));
       final removed = await service.pruneOlderThan(cutoff);
       developer.log(
-        'AutoSaveService: Pruned $removed replay decision row(s) older than $cutoff',
+        'AutoSaveService: Pruned $removed replay decision '
+        'row${removed == 1 ? '' : 's'} older than $cutoff',
         name: 'AutoSaveService',
         level: 800,
       );
@@ -657,7 +660,8 @@ class AutoSaveService {
         final toDelete = autoSaveBackups.sublist(_config.maxBackups);
 
         developer.log(
-          'AutoSaveService: Cleaning up ${toDelete.length} old backup(s)',
+          'AutoSaveService: Cleaning up ${toDelete.length} old '
+          'backup${toDelete.length == 1 ? '' : 's'}',
           name: 'AutoSaveService',
           level: 800,
         );

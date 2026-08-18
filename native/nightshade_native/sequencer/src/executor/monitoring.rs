@@ -409,9 +409,10 @@ pub(super) async fn apply_recovery_escalation(
         // parked — leaving the rig dome+cover OPEN with safety monitoring OFF until
         // dawn, where a rolling cloud / dew reject-storm can lose the optics.
         tracing::error!(
-            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt(s) on an UNATTENDED rig: {} — abandoning safely (park + close cover + close dome)",
+            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt{} on an UNATTENDED rig: {} — abandoning safely (park + close cover + close dome)",
             ctx.cause,
             ctx.attempt_count,
+            if ctx.attempt_count == 1 { "" } else { "s" },
             pause_message
         );
         s.gave_up.store(true, Ordering::Relaxed);
@@ -439,9 +440,10 @@ pub(super) async fn apply_recovery_escalation(
         if let (Some(mount_id), Some(park)) = (s.mount_id, &outcome.park) {
             if park.success {
                 tracing::info!(
-                    "[RECOVERY] Parked mount '{}' on unattended reject-storm abandonment ({} attempt(s))",
+                    "[RECOVERY] Parked mount '{}' on unattended reject-storm abandonment ({} attempt{})",
                     mount_id,
-                    park.attempts_made
+                    park.attempts_made,
+                    if park.attempts_made == 1 { "" } else { "s" }
                 );
             } else {
                 let msg = format!(
@@ -483,8 +485,9 @@ pub(super) async fn apply_recovery_escalation(
             let mut prog = s.progress.write();
             prog.state = ExecutorState::Failed;
             prog.message = Some(format!(
-                "Unattended reject-storm: abandoned safely after {} attempt(s)",
-                ctx.attempt_count
+                "Unattended reject-storm: abandoned safely after {} attempt{}",
+                ctx.attempt_count,
+                if ctx.attempt_count == 1 { "" } else { "s" }
             ));
         }
         let _ = s
@@ -503,9 +506,10 @@ pub(super) async fn apply_recovery_escalation(
         // auto-resume. The operator's Resume clears is_paused and flips back to
         // Running.
         tracing::warn!(
-            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt(s) on an ATTENDED rig: {}",
+            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt{} on an ATTENDED rig: {}",
             ctx.cause,
             ctx.attempt_count,
+            if ctx.attempt_count == 1 { "" } else { "s" },
             pause_message
         );
 

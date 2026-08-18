@@ -508,7 +508,7 @@ void main() {
       expect(job!.state, DarkroomJobState.done);
       expect(job.kind, DarkroomJobKind.dawn);
       expect(job.progress, 1.0);
-      expect(job.note, contains('draft(s) ready'));
+      expect(job.note, contains('1 draft ready'));
 
       final recipes = await RecipesDao(db).listForMaster(masterPath);
       expect(recipes, hasLength(1));
@@ -1676,7 +1676,7 @@ void main() {
     );
     expect(outcome.report!.body, contains('was not delivered'));
     final job = await DarkroomJobsDao(db).getById(outcome.jobId);
-    expect(job!.note, contains('1 master(s) were not delivered'));
+    expect(job!.note, contains('1 master was not delivered'));
     final journal = await DeliveryJournalDao(db).listForJob(outcome.jobId);
     expect(journal.map((row) => row.filePath), isNot(contains(shortPath)));
     // The delivery run's own counts agree: nothing claims 4 delivered.

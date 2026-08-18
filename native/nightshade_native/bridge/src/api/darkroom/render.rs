@@ -115,8 +115,9 @@ pub(crate) fn resolve_level(
         (Some(explicit), _) => {
             if explicit >= pyramid.level_count() {
                 return Err(format!(
-                    "pyramid level {explicit} is out of range; this master has {} level(s)",
-                    pyramid.level_count()
+                    "pyramid level {explicit} is out of range; this master has {} level{}",
+                    pyramid.level_count(),
+                    if pyramid.level_count() == 1 { "" } else { "s" }
                 ));
             }
             Ok(explicit)

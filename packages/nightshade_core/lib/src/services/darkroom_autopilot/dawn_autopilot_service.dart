@@ -1261,7 +1261,9 @@ class DawnAutopilotService {
     final withheld = report.masters.where((m) => !m.deliverable).length;
     final tail = withheld == 0
         ? ''
-        : '; $withheld master(s) were not delivered — see the night report';
+        : '; $withheld master${withheld == 1 ? '' : 's'} '
+              '${withheld == 1 ? 'was' : 'were'} not delivered — see the '
+              'night report';
     final first = report.masters.firstWhere(
       (master) => master.hasDraft,
       orElse: () => report.masters.isEmpty ? _noMasters : report.masters.first,
@@ -1279,7 +1281,9 @@ class DawnAutopilotService {
       return 'No draft came out of the pass; the night report carries the '
           'per-master detail.';
     }
-    return '${report.draftsRendered} draft(s) ready; first at $path$tail';
+    return '${report.draftsRendered} '
+        'draft${report.draftsRendered == 1 ? '' : 's'} ready; '
+        'first at $path$tail';
   }
 
   static const DawnMasterReport _noMasters = DawnMasterReport(

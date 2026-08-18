@@ -934,9 +934,10 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                             // may be unsafe" from a generic
                             // ParkAndAbort termination.
                             let msg = format!(
-                                "ParkAndAbort: mount park FAILED after {} attempt(s): {}. \
+                                "ParkAndAbort: mount park FAILED after {} attempt{}: {}. \
                                  Mount may be in an unsafe position — manual intervention required.",
                                 park_outcome.attempts_made,
+                                if park_outcome.attempts_made == 1 { "" } else { "s" },
                                 park_outcome
                                     .last_error
                                     .clone()
@@ -1193,12 +1194,14 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                 if let AutofocusOutcome::KeepImaging { current_hfr, limit } =
                                     verdict
                                 {
+                                    let attempts = af_config.number_of_attempts.max(1);
                                     let message = format!(
-                                        "Autofocus failed after {} attempt(s), but HFR {:.2} is \
+                                        "Autofocus failed after {} attempt{}, but HFR {:.2} is \
                                          within the {:.2} tolerance limit — continuing to image. \
                                          Frames will be slightly soft; focus will be retried on \
                                          the next interval.",
-                                        af_config.number_of_attempts.max(1),
+                                        attempts,
+                                        if attempts == 1 { "" } else { "s" },
                                         current_hfr,
                                         limit
                                     );
@@ -1211,11 +1214,13 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                 if af_config.failure_action
                                     == crate::AutofocusFailureAction::AbortAndPark
                                 {
+                                    let attempts = af_config.number_of_attempts.max(1);
                                     let message = format!(
-                                        "Autofocus failed after {} attempt(s) and {} — ending the \
+                                        "Autofocus failed after {} attempt{} and {} — ending the \
                                          sequence and parking. Further frames would not be worth \
                                          keeping.",
-                                        af_config.number_of_attempts.max(1),
+                                        attempts,
+                                        if attempts == 1 { "" } else { "s" },
                                         verdict.describe()
                                     );
                                     tracing::error!("{}", message);
@@ -1482,10 +1487,13 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                         // progress + a reason banner.
                                         let pause_message = format!(
                                             "Meridian flip for '{}' FAILED after {} \
-                                         attempt(s): {}. Sequence paused — the \
+                                         attempt{}: {}. Sequence paused — the \
                                          mount may be on the wrong side of the \
                                          pier; verify framing before resuming.",
-                                            target_name, flip_attempts, error
+                                            target_name,
+                                            flip_attempts,
+                                            if flip_attempts == 1 { "" } else { "s" },
+                                            error
                                         );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
@@ -1555,9 +1563,14 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                                 let _ = event_tx_clone2.send(
                                                 ExecutorEvent::Error {
                                                     message: format!(
-                                                        "FlipFailure AbortAndPark: mount park FAILED after {} attempt(s): {}. \
+                                                        "FlipFailure AbortAndPark: mount park FAILED after {} attempt{}: {}. \
                                                          Mount may be in an unsafe position — manual intervention required.",
                                                         park_outcome.attempts_made,
+                                                        if park_outcome.attempts_made == 1 {
+                                                            ""
+                                                        } else {
+                                                            "s"
+                                                        },
                                                         park_outcome
                                                             .last_error
                                                             .unwrap_or_else(|| {

@@ -38,10 +38,13 @@ class NoLightsToStackException implements Exception {
       'NoLightsToStackException: no light frames qualify for stacking in '
       '$scope.',
     );
-    buf.write(' Examined $framesExamined frame(s)');
+    buf.write(
+      ' Examined $framesExamined frame${framesExamined == 1 ? '' : 's'}',
+    );
     if (lightsExcluded > 0) {
       buf.write(
-        '; $lightsExcluded light frame(s) were excluded by the accepted / '
+        '; $lightsExcluded light frame${lightsExcluded == 1 ? '' : 's'} '
+        '${lightsExcluded == 1 ? 'was' : 'were'} excluded by the accepted / '
         'quality gates — relax the quality threshold or re-accept frames.',
       );
     } else {

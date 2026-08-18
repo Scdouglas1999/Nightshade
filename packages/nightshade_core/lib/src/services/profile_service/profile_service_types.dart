@@ -22,7 +22,8 @@ class ProfileAutoConnectException implements Exception {
 
   @override
   String toString() =>
-      'ProfileAutoConnectException: ${failures.length} device(s) failed to '
+      'ProfileAutoConnectException: ${failures.length} '
+      'device${failures.length == 1 ? '' : 's'} failed to '
       'connect for profile "$profileName": ${failures.join('; ')}';
 }
 

@@ -439,10 +439,12 @@ class DeliveryService {
           source: 'DeliveryService',
           fields: {'stack': stack.toString()},
         );
+        final owed = byTarget[targetId]!.length;
         problems.add(
           'Delivery destination #$targetId was skipped by the retry sweep '
           'because its row could not be read ($error); its '
-          '${byTarget[targetId]!.length} pending file(s) were left owed',
+          '$owed pending file${owed == 1 ? '' : 's'} '
+          '${owed == 1 ? 'was' : 'were'} left owed',
         );
         continue;
       }
@@ -581,7 +583,8 @@ class DeliveryService {
           ? 'no paired desktop can pull them while it is off'
           : 'no attempt was made and no attempt was spent';
       tally.problems.add(
-        '${rows.length} file(s) are suspended: ${destination.name} is '
+        '${rows.length} file${rows.length == 1 ? '' : 's'} '
+        '${rows.length == 1 ? 'is' : 'are'} suspended: ${destination.name} is '
         'switched off, so $consequence',
       );
       return tally.build();

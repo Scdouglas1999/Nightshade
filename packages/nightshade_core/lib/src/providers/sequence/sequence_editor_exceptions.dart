@@ -124,7 +124,8 @@ class SequenceValidationFailedException extends SequenceEditorException {
         .where((i) => i.severity == ValidationSeverity.error)
         .map((i) => '  - ${i.title}: ${i.description}')
         .join('\n');
-    return 'Sequence has ${issues.length} validation issue(s) blocking export:\n'
+    return 'Sequence has ${issues.length} validation '
+        'issue${issues.length == 1 ? '' : 's'} blocking export:\n'
         '$errors';
   }
 }

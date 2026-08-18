@@ -315,8 +315,10 @@ pub async fn execute_center(
                 cb(100.0, format!("Centered: {:.1}\"", separation_arcsec));
             }
             return InstructionResult::success_with_message(format!(
-                "Centered within {:.1}\" after {} attempt(s)",
-                separation_arcsec, attempt
+                "Centered within {:.1}\" after {} attempt{}",
+                separation_arcsec,
+                attempt,
+                if attempt == 1 { "" } else { "s" }
             ));
         }
 

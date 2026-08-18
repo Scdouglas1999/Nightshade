@@ -218,9 +218,9 @@ class _SequencerShortcutsSheet {
     (keys: 'Ctrl+Z', action: 'Undo'),
     (keys: 'Ctrl+Y', action: 'Redo'),
     (keys: 'Ctrl+D', action: 'Duplicate node'),
-    (keys: 'Ctrl+C', action: 'Copy selected node(s)'),
-    (keys: 'Ctrl+V', action: 'Paste node(s)'),
-    (keys: 'Delete', action: 'Delete selected node(s)'),
+    (keys: 'Ctrl+C', action: 'Copy selected nodes'),
+    (keys: 'Ctrl+V', action: 'Paste nodes'),
+    (keys: 'Delete', action: 'Delete selected nodes'),
     (keys: 'Esc', action: 'Clear multi-selection'),
   ];
 

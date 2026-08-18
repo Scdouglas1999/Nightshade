@@ -447,7 +447,7 @@ class MosaicProjectService {
         'mosaic project $projectId needs >= 2 panels with integrated masters '
         'AND a usable WCS to stitch (found $contributingMasters'
         '${skips.isEmpty ? '' : '; skipped ${skips.length} WCS-less/'
-                  'pathless panel(s)'})',
+                  'pathless panel${skips.length == 1 ? '' : 's'}'})',
       );
     }
 

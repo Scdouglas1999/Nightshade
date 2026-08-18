@@ -126,7 +126,8 @@ extension _SequencerCheckpoints on SequencerHandlers {
         .toList(growable: false);
     if (issues.isEmpty) return null;
     _logInfo(
-      '[API] checkpoint resume rejected: ${issues.length} target(s) still on '
+      '[API] checkpoint resume rejected: ${issues.length} '
+      'target${issues.length == 1 ? '' : 's'} still on '
       'the RA 0h / Dec +0 placeholder',
     );
     return jsonBadRequest({

@@ -497,7 +497,8 @@ class _SmartNightTonightActionState
       if (!mounted) return;
       context.showSuccessSnackBar(
         'Smart Night plan loaded - '
-        '${draft.plan.plannedTargets.length} target(s), '
+        '${draft.plan.plannedTargets.length} '
+        'target${draft.plan.plannedTargets.length == 1 ? '' : 's'}, '
         '${(draft.plan.totalIntegrationSecs / 3600).toStringAsFixed(1)}h.',
       );
     } catch (e) {

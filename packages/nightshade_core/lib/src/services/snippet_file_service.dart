@@ -62,7 +62,8 @@ class SnippetImportException implements Exception {
   @override
   String toString() {
     final lines = issues.map((i) => '  - $i').join('\n');
-    return 'Snippet file has ${issues.length} issue(s):\n$lines';
+    return 'Snippet file has ${issues.length} '
+        'issue${issues.length == 1 ? '' : 's'}:\n$lines';
   }
 }
 

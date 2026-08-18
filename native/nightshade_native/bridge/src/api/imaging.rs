@@ -1694,7 +1694,12 @@ pub async fn api_update_fits_keywords(
         NightshadeError::IoError(format!("Failed to atomically replace FITS: {}", e))
     })?;
 
-    tracing::info!("Updated {} FITS keyword(s) on {}", updates.len(), file_path);
+    tracing::info!(
+        "Updated {} FITS keyword{} on {}",
+        updates.len(),
+        if updates.len() == 1 { "" } else { "s" },
+        file_path
+    );
     Ok(())
 }
 

@@ -655,7 +655,8 @@ class _PlanSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionHeader(
-          title: 'Tonight: ${plan.plannedTargets.length} target(s), '
+          title: 'Tonight: ${plan.plannedTargets.length} '
+              'target${plan.plannedTargets.length == 1 ? '' : 's'}, '
               '${(plan.totalIntegrationSecs / 3600).toStringAsFixed(1)}h '
               'integration',
           subtitle: 'Estimated wall-clock: '
@@ -733,7 +734,8 @@ class _PlannedTargetCard extends StatelessWidget {
                   'Total: '
                   '${(planned.integrationSecs / 3600).toStringAsFixed(1)}h '
                   '${planned.isUnfiltered ? 'unfiltered.' : 'across '
-                      '${planned.filterPlans.length} filter(s).'}',
+                      '${planned.filterPlans.length} '
+                      'filter${planned.filterPlans.length == 1 ? '' : 's'}.'}',
                   style: TextStyle(
                     color: colors.textMuted,
                     fontSize: NightshadeTypography.fontSize11,

@@ -686,7 +686,8 @@ class _QuickStartWizardDialogState
     } else {
       context.showSuccessSnackBar(
         'Created sequence for "$targetName" with '
-        '${enabledFilters.length} filter(s)',
+        '${enabledFilters.length} '
+        'filter${enabledFilters.length == 1 ? '' : 's'}',
       );
     }
     Navigator.of(context).pop();

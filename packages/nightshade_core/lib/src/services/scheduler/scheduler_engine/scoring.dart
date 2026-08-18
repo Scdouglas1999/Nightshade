@@ -70,8 +70,13 @@ extension _SchedulerEngineScoring on SchedulerEngine {
                 filtersOnEquipmentLower.contains(p.goal.filter.toLowerCase()),
           );
     if (c.goals.isNotEmpty && !hasUsableGoal && stillNeeded.isNotEmpty) {
+      final missingFilters = stillNeeded
+          .map((p) => p.goal.filter)
+          .toSet()
+          .toList();
       rejections.add(
-        'required filter(s) not in equipment wheel (${stillNeeded.map((p) => p.goal.filter).toSet().join(", ")})',
+        'required filter${missingFilters.length == 1 ? '' : 's'} not in '
+        'equipment wheel (${missingFilters.join(", ")})',
       );
     }
 

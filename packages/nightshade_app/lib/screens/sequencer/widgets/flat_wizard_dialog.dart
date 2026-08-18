@@ -380,7 +380,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
             _snapshot = snapshot;
             _calculationStatus =
                 'Calibration complete for ${snapshot.filters.length} '
-                'filter(s)';
+                'filter${snapshot.filters.length == 1 ? '' : 's'}';
           });
         } else {
           setState(() {
@@ -463,7 +463,8 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Added ${nodes.length} calibrated flat capture node(s). '
+          'Added ${nodes.length} calibrated flat capture '
+          'node${nodes.length == 1 ? '' : 's'}. '
           'Save the sequence to persist them.',
         ),
       ),

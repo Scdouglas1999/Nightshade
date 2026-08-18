@@ -509,7 +509,8 @@ extension _ScienceProcessingFrameLanes on ScienceProcessingService {
             stopwatch: sw,
             note: photometryResult == 0
                 ? 'No target/comparison anchors matched in field'
-                : '$photometryResult measurement(s)',
+                : '$photometryResult '
+                      'measurement${photometryResult == 1 ? '' : 's'}',
           );
         } catch (error) {
           _status.endStage(
@@ -603,7 +604,8 @@ extension _ScienceProcessingFrameLanes on ScienceProcessingService {
               stopwatch: sw,
               note: candidates.isEmpty
                   ? 'No candidates passed motion checks'
-                  : '${candidates.length} candidate(s)',
+                  : '${candidates.length} '
+                        'candidate${candidates.length == 1 ? '' : 's'}',
             );
           } else {
             _status.endStage(

@@ -212,7 +212,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
         _starMatches = topMatches;
         _isComputing = false;
         _statusMessage = 'Matched ${topMatches.length} stars across '
-            '${imageIds.length} frame(s). '
+            '${imageIds.length} frame${imageIds.length == 1 ? '' : 's'}. '
             'Airmass span ${airmassSpan.toStringAsFixed(2)} — '
             '${airmassSpan >= 0.05 ? 'extinction is fittable.' : 'add frames at different altitudes to fit extinction (k will be reported as 0).'}';
       });
@@ -519,9 +519,10 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     if (skippedNoCatalog > 0 || skippedImplausible > 0) {
       ref.read(loggingServiceProvider).info(
             'Calibration wizard (${image.fileName}): ${matches.length} '
-            'catalog matches kept, $skippedNoCatalog star(s) without '
+            'catalog matches kept, $skippedNoCatalog '
+            'star${skippedNoCatalog == 1 ? '' : 's'} without '
             'usable catalog data, $skippedImplausible implausible '
-            'pairing(s) rejected.',
+            'pairing${skippedImplausible == 1 ? '' : 's'} rejected.',
             source: 'PhotometricCalibrationWizard',
           );
     }

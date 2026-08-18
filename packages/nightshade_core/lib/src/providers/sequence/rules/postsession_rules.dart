@@ -94,7 +94,7 @@ List<ValidationIssue> postSessionEquipmentHealthSummary(
             'reconnect${summary.disconnectsDuringSession == 1 ? "" : "s"} '
             'occurred during the run.',
         resolutionHint: summary.disconnectsDuringSession > 10
-            ? 'High count — investigate the USB cable / hub for the device(s) '
+            ? 'High count — investigate the USB cable / hub for the devices '
                   'involved before the next session.'
             : null,
       ),

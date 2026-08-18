@@ -350,7 +350,8 @@ class ImportSequenceFlow {
               children: [
                 Text(
                   'Importing this file would create a sequence with '
-                  '${errors.length} blocking error(s). Some features may '
+                  '${errors.length} blocking '
+                  'error${errors.length == 1 ? '' : 's'}. Some features may '
                   "not work until you fix them.",
                   style: TextStyle(
                       fontSize: NightshadeTypography.fontSize13,
@@ -529,7 +530,8 @@ class ImportSequenceFlow {
         final n = summary.unresolved.length;
         context.showSuccessSnackBar(
           'Calendar: ${summary.totalEvents - n} events parsed, '
-          '$n event(s) had no RA/Dec and were skipped.',
+          '$n event${n == 1 ? '' : 's'} had no RA/Dec and '
+          '${n == 1 ? 'was' : 'were'} skipped.',
         );
       }
       return summary.importResult;
@@ -713,7 +715,8 @@ class ImportSequenceFlow {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'This file uses ${unsupported.length} node type(s) Nightshade '
+                'This file uses ${unsupported.length} node '
+                'type${unsupported.length == 1 ? '' : 's'} Nightshade '
                 "doesn't support. Importing them as-is would leave your "
                 'sequence incomplete.',
                 style: TextStyle(

@@ -54,8 +54,8 @@ Future<void> _resumeDarkroomWork(
         .drainQueue();
     if (outcomes.isNotEmpty) {
       logger.info(
-        'Resumed ${outcomes.length} queued Darkroom job(s) left by a previous '
-        'run',
+        'Resumed ${outcomes.length} queued Darkroom '
+        'job${outcomes.length == 1 ? '' : 's'} left by a previous run',
         source: logSource,
         fields: {
           'done': outcomes.where((o) => o.succeeded).length,

@@ -143,7 +143,8 @@ class VisualTimeline extends ConsumerWidget {
                     if (simulation.issues.length > 1) ...[
                       const SizedBox(height: 4),
                       Text(
-                        '+${simulation.issues.length - 1} more issue(s)',
+                        '+${simulation.issues.length - 1} more '
+                        'issue${simulation.issues.length - 1 == 1 ? '' : 's'}',
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,

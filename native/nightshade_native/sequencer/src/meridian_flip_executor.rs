@@ -1382,15 +1382,19 @@ impl MeridianFlipExecutor {
         }
         if sample_count > 0 && max_rms > rms_ceiling {
             return Err(format!(
-                "Post-flip guiding RMS too high: {:.2}px peak across {} sample(s) \
+                "Post-flip guiding RMS too high: {:.2}px peak across {} sample{} \
                  (limit {:.2}px). The guider re-locked but is tracking poorly.",
-                max_rms, sample_count, rms_ceiling
+                max_rms,
+                sample_count,
+                if sample_count == 1 { "" } else { "s" },
+                rms_ceiling
             ));
         }
         tracing::info!(
-            "[MERIDIAN] Post-flip guiding validated: peak RMS {:.2}px over {} sample(s)",
+            "[MERIDIAN] Post-flip guiding validated: peak RMS {:.2}px over {} sample{}",
             max_rms,
-            sample_count
+            sample_count,
+            if sample_count == 1 { "" } else { "s" }
         );
         Ok(())
     }

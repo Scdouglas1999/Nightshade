@@ -184,7 +184,8 @@ Future<void> registerPluginDescriptors({
 
   if (failures.isNotEmpty) {
     throw PluginException(
-      '${failures.length} plugin registration(s) failed',
+      '${failures.length} plugin '
+      'registration${failures.length == 1 ? '' : 's'} failed',
       failures.first,
     );
   }

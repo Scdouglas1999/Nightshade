@@ -199,4 +199,63 @@ void main() {
           'the title got ${title.width}px of ${alert.width}px',
     );
   });
+
+  _intrinsicHostCases();
+}
+
+/// [AlertDialog] measures its content with `IntrinsicWidth`, and a
+/// [LayoutBuilder] cannot answer an intrinsic query — the first build of this
+/// component's width-adaptive body crashed every alert-with-action hosted in
+/// a dialog (found by the startup-checkpoint recovery dialog's own tests).
+/// The component answers the query itself now; this pins that an alert
+/// renders inside the exact widget shape that threw.
+void _intrinsicHostCases() {
+  testWidgets('an alert with a wide action survives an IntrinsicWidth host', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: IntrinsicWidth(
+              child: NightshadeAlert(
+                severity: NightshadeAlertSeverity.error,
+                title: _refusalTitle,
+                message: _refusalMessage,
+                action: _refusalAction(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text(_refusalTitle), findsOneWidget);
+  });
+
+  testWidgets('an alert with an action renders inside an AlertDialog', (
+    tester,
+  ) async {
+    // A short message: the case pins the intrinsic-measuring HOST, and a
+    // seven-line message at the dialog's collapsed width would overflow the
+    // test viewport vertically — a harness artifact, not the defect.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AlertDialog(
+            content: NightshadeAlert(
+              severity: NightshadeAlertSeverity.warning,
+              title: _refusalTitle,
+              message: 'The checkpoint could not be resumed.',
+              action: _refusalAction(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text(_refusalTitle), findsOneWidget);
+  });
 }

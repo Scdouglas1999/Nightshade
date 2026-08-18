@@ -455,7 +455,8 @@ extension _SmartNightPlanHelpers on _SmartNightDialogState {
     GoRouter.maybeOf(context)?.go('/imaging');
     context.showSuccessSnackBar(
       'Smart Night plan loaded — '
-      '${plan.plannedTargets.length} target(s), '
+      '${plan.plannedTargets.length} '
+      'target${plan.plannedTargets.length == 1 ? '' : 's'}, '
       '${(plan.totalIntegrationSecs / 3600).toStringAsFixed(1)}h integration.',
     );
   }

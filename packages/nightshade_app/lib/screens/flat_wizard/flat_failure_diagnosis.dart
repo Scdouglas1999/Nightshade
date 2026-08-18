@@ -91,7 +91,8 @@ FlatFailureDiagnosis? diagnoseFlatFailure(FlatWizardState state) {
 
   return FlatFailureDiagnosis(
     reason: '${filterLabel}the exposure search stopped after '
-        '${history.length} attempt(s) at ${_formatSeconds(last.exposure)} / '
+        '${history.length} attempt${history.length == 1 ? '' : 's'} at '
+        '${_formatSeconds(last.exposure)} / '
         '${last.adu.round()} ADU without settling on the $targetPercent '
         'target.',
     nextStep:

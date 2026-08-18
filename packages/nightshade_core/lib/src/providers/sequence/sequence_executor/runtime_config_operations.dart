@@ -714,7 +714,8 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
       _logger.info(
         'Staged integration carry-over for ${carryOverPayload.length} '
-        'target(s) (handoff decisions applied)',
+        'target${carryOverPayload.length == 1 ? '' : 's'} '
+        '(handoff decisions applied)',
         source: 'SequenceExecutor',
       );
     } catch (e, st) {

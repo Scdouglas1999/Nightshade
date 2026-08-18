@@ -223,11 +223,12 @@ pub async fn execute_start_guiding(
                     }
                     if sample_count > 0 && max_rms > config.max_post_settle_rms_pixels {
                         return InstructionResult::failure(format!(
-                            "Post-settle guiding RMS too high: {:.2}px peak across {} sample(s) \
+                            "Post-settle guiding RMS too high: {:.2}px peak across {} sample{} \
                          over {}s (limit {:.2}px). Calibration looks poor — \
                          recalibrate the guider before continuing.",
                             max_rms,
                             sample_count,
+                            if sample_count == 1 { "" } else { "s" },
                             rms_samples as u64 * rms_interval.as_secs(),
                             config.max_post_settle_rms_pixels
                         ));

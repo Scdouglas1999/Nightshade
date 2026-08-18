@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
@@ -91,9 +92,11 @@ class NightshadeAlert extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       padding: padding,
-      child: LayoutBuilder(
-        builder: (context, constraints) =>
-            _body(constraints, iconColor, textColor),
+      child: _IntrinsicSafeLayout(
+        child: LayoutBuilder(
+          builder: (context, constraints) =>
+              _body(constraints, iconColor, textColor),
+        ),
       ),
     );
   }
@@ -273,6 +276,42 @@ class NightshadeAlert extends StatelessWidget {
       ),
     };
   }
+}
+
+/// Answers intrinsic-dimension queries so they never reach the
+/// [LayoutBuilder] beneath it, which cannot answer them — measuring a
+/// LayoutBuilder speculatively would run its build callback against the live
+/// tree, so the framework throws instead. [AlertDialog] measures its content
+/// with `IntrinsicWidth`, which made every alert-with-action inside a dialog
+/// crash at layout.
+///
+/// Zero is the honest answer for a wrapping banner: the alert conforms to
+/// whatever width its parent chooses and wraps its text there, so it has no
+/// preferred width of its own to report, and letting it drive an
+/// `IntrinsicWidth` parent wider would size a dialog to the alert's longest
+/// unwrapped line. Inside a measuring parent the alert therefore defers to
+/// its siblings for sizing; everywhere else these overrides are never called
+/// and layout is untouched.
+class _IntrinsicSafeLayout extends SingleChildRenderObjectWidget {
+  const _IntrinsicSafeLayout({super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderIntrinsicSafeLayout();
+}
+
+class _RenderIntrinsicSafeLayout extends RenderProxyBox {
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) => 0;
+
+  @override
+  double computeMinIntrinsicHeight(double width) => 0;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => 0;
 }
 
 /// An inline banner alert that can be placed within content.

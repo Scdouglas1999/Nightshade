@@ -173,7 +173,12 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
 
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Imported $importedCount target(s)')),
+                  SnackBar(
+                    content: Text(
+                      'Imported $importedCount '
+                      'target${importedCount == 1 ? '' : 's'}',
+                    ),
+                  ),
                 );
               }
             } catch (e) {

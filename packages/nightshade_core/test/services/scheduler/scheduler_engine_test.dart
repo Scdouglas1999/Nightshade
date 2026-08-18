@@ -1865,7 +1865,7 @@ void main() {
     // The integration-goals editor offers an unfiltered ('') goal, which is
     // how a profile with no filter wheel expresses a target. `availableFilters`
     // is EMPTY on such a rig, so a `contains('')` admission test rejects the
-    // candidate with "required filter(s) not in equipment wheel ()" — a target
+    // candidate with "required filter not in equipment wheel ()" — a target
     // that schedules fine free-form becomes unschedulable the moment the
     // operator follows the app's own empty-state prompt.
     //

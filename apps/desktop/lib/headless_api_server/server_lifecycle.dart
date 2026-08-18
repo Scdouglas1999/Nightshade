@@ -385,7 +385,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         restored++;
       }
       _logInfo(
-        '[AUTH] Restored $restored paired session token(s) from disk',
+        '[AUTH] Restored $restored paired session '
+        'token${restored == 1 ? '' : 's'} from disk',
         fields: {'restored': restored, 'rejectedMalformed': rejected},
       );
     } catch (e, st) {
@@ -456,7 +457,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       if (!result.isEmpty) {
         _logInfo(
           '[AUTH] Token sweep purged ${result.expiredTokens.length} expired '
-          'and ${result.revokedTokens.length} revoked session token(s)',
+          'and ${result.revokedTokens.length} revoked session '
+          'token${result.revokedTokens.length == 1 ? '' : 's'}',
         );
       }
     } catch (e, st) {

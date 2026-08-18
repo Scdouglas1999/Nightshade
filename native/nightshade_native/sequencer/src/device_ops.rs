@@ -1099,10 +1099,11 @@ pub async fn try_park_with_retry(
     }
 
     tracing::error!(
-        "mount_park({}) exhausted {} attempt(s); last error: {:?}. \
+        "mount_park({}) exhausted {} attempt{}; last error: {:?}. \
          Mount may be in an unsafe position!",
         mount_id,
         total_attempts,
+        if total_attempts == 1 { "" } else { "s" },
         last_error
     );
     ParkRetryResult {

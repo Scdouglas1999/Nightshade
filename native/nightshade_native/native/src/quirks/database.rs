@@ -418,9 +418,10 @@ pub fn get_device_quirks(device_id: &str) -> Vec<Quirk> {
     if parts.len() < 2 {
         tracing::warn!(
             "Quirks lookup rejected malformed device ID `{}`: expected at \
-             least 'protocol:vendor[:model]', got {} segment(s)",
+             least 'protocol:vendor[:model]', got {} segment{}",
             device_id,
-            parts.len()
+            parts.len(),
+            if parts.len() == 1 { "" } else { "s" }
         );
         return quirks;
     }

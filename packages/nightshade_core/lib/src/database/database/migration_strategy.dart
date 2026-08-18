@@ -82,8 +82,9 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         if (interrupted > 0) {
           // ignore: avoid_print
           print(
-            '[nightshade_db] Marked $interrupted sequence run(s) left '
-            "live by a previous process as 'interrupted'.",
+            '[nightshade_db] Marked $interrupted sequence '
+            "run${interrupted == 1 ? '' : 's'} left live by a previous "
+            "process as 'interrupted'.",
           );
         }
 
@@ -152,7 +153,8 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
           // ignore: avoid_print
           print(
             '[nightshade_db] Rebuilt statistics for $rebuilt imaging '
-            'session(s) from the frames actually on record.',
+            'session${rebuilt == 1 ? '' : 's'} from the frames actually '
+            'on record.',
           );
         }
 

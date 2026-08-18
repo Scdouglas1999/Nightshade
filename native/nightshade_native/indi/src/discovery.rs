@@ -230,8 +230,13 @@ pub async fn discover_mdns(timeout: Duration) -> Vec<IndiServer> {
     }
 
     tracing::info!(
-        "mDNS discovery complete. Found {} INDI server(s).",
-        discovered_servers.len()
+        "mDNS discovery complete. Found {} INDI server{}.",
+        discovered_servers.len(),
+        if discovered_servers.len() == 1 {
+            ""
+        } else {
+            "s"
+        }
     );
     discovered_servers
 }

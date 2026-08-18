@@ -218,7 +218,7 @@ class ScienceReportExporter {
     final limStr = lim5.isEmpty
         ? '—'
         : 'median ${lim5[lim5.length ~/ 2].toStringAsFixed(2)} mag';
-    final catalog = calibrated.map((c) => c.catalogSource).toSet().join(', ');
+    final catalogs = calibrated.map((c) => c.catalogSource).toSet().toList();
     return '## Photometric calibration\n'
         '- **Latest zero point:** ${latest.zeroPoint!.toStringAsFixed(2)} mag '
         '(${latest.matchedStarCount} catalog stars matched, RMS '
@@ -226,7 +226,8 @@ class ScienceReportExporter {
         '- **Median ZP across ${calibrated.length} frames:** ${median.toStringAsFixed(2)} mag '
         '(mean ${mean.toStringAsFixed(2)}, range ${range.toStringAsFixed(2)} mag)\n'
         '- **Limiting magnitude (5σ):** $limStr\n'
-        '- **Catalog source(s):** $catalog\n';
+        '- **Catalog source${catalogs.length == 1 ? '' : 's'}:** '
+        '${catalogs.join(', ')}\n';
   }
 
   /// The differential-photometry time series this session actually produced.

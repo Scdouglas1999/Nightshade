@@ -202,7 +202,8 @@ class ConstellationService {
     _joined[target.targetId] = target;
     _logger.info(
       'Joined shared target "${target.name}" (#${target.targetId}) — '
-      '${target.contributors} contributor(s), '
+      '${target.contributors} '
+      'contributor${target.contributors == 1 ? '' : 's'}, '
       '${(target.integrationSeconds / 3600).toStringAsFixed(1)}h fused.',
       source: _logSource,
     );
@@ -486,7 +487,8 @@ class ConstellationService {
       }
 
       _logger.info(
-        'contributeTarget(#$targetId): pushed ${accepted.length} tile(s), '
+        'contributeTarget(#$targetId): pushed ${accepted.length} '
+        'tile${accepted.length == 1 ? '' : 's'}, '
         '$skippedEmpty already-current, ${rejected.length} rejected.',
         source: _logSource,
       );
@@ -614,7 +616,8 @@ class ConstellationService {
         }
       }
       _logger.info(
-        'contributeRawSubs(#$targetId): shared $shared raw frame(s) under tile '
+        'contributeRawSubs(#$targetId): shared $shared raw '
+        'frame${shared == 1 ? '' : 's'} under tile '
         '$tileId, ${rejected.length} rejected.',
         source: _logSource,
       );
@@ -735,8 +738,8 @@ class ConstellationService {
         pulled.add(swarm);
       }
       _logger.info(
-        'pullTarget(#$targetId): cached ${pulled.length} community tile(s) '
-        'for blending.',
+        'pullTarget(#$targetId): cached ${pulled.length} community '
+        'tile${pulled.length == 1 ? '' : 's'} for blending.',
         source: _logSource,
       );
       return pulled;
@@ -1074,8 +1077,9 @@ class ConstellationService {
     }
 
     _logger.info(
-      'sweepSwarmBlobs: reclaimed $deleted swarm blob(s) '
-      '($reclaimedBytes bytes); ${live.length} live overlay(s) preserved.',
+      'sweepSwarmBlobs: reclaimed $deleted swarm '
+      'blob${deleted == 1 ? '' : 's'} ($reclaimedBytes bytes); '
+      '${live.length} live overlay${live.length == 1 ? '' : 's'} preserved.',
       source: _logSource,
     );
     return deleted;

@@ -170,9 +170,10 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
             }
             if recovery_driver_signals.take_abort() {
                 tracing::warn!(
-                    "[RECOVERY] Operator aborted recovery for cause {:?} after {} attempt(s)",
+                    "[RECOVERY] Operator aborted recovery for cause {:?} after {} attempt{}",
                     ctx.cause,
-                    ctx.attempt_count
+                    ctx.attempt_count,
+                    if ctx.attempt_count == 1 { "" } else { "s" }
                 );
                 aborted_by_user = true;
                 recovered = false;
@@ -285,10 +286,11 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
                 crate::recovery::AttemptOutcome::Unrecoverable { message } => {
                     tracing::error!(
                         "[RECOVERY] Cause {:?} is not retryable: {} — ending the \
-                         loop after {} attempt(s) instead of burning the budget",
+                         loop after {} attempt{} instead of burning the budget",
                         ctx.cause,
                         message,
-                        ctx.attempt_count
+                        ctx.attempt_count,
+                        if ctx.attempt_count == 1 { "" } else { "s" }
                     );
                     // Take the ordinary give-up path (park, close
                     // cover/dome, fail) rather than sleeping the
@@ -367,8 +369,9 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
             apply_recovery_escalation(&escalation_state, &ctx, pause_message, stop_tracking).await;
         } else if recovered {
             tracing::info!(
-                "[RECOVERY] Loop succeeded after {} attempt(s); resuming sequence",
-                ctx.attempt_count
+                "[RECOVERY] Loop succeeded after {} attempt{}; resuming sequence",
+                ctx.attempt_count,
+                if ctx.attempt_count == 1 { "" } else { "s" }
             );
             *recovery_driver_state.write().await = ExecutorState::Running;
             {
@@ -416,8 +419,9 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
             });
         } else {
             tracing::error!(
-                "[RECOVERY] Loop gave up after {} attempt(s) (aborted={})",
+                "[RECOVERY] Loop gave up after {} attempt{} (aborted={})",
                 ctx.attempt_count,
+                if ctx.attempt_count == 1 { "" } else { "s" },
                 aborted_by_user
             );
             *recovery_driver_current.write() = None;
@@ -453,9 +457,10 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
                 if let (Some(mount_id), Some(park)) = (&recovery_driver_mount_id, &outcome.park) {
                     if park.success {
                         tracing::info!(
-                            "[RECOVERY] Parked mount '{}' on give-up ({} attempt(s))",
+                            "[RECOVERY] Parked mount '{}' on give-up ({} attempt{})",
                             mount_id,
-                            park.attempts_made
+                            park.attempts_made,
+                            if park.attempts_made == 1 { "" } else { "s" }
                         );
                     } else {
                         let msg = format!(
@@ -506,11 +511,16 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
                 prog.state = ExecutorState::Failed;
                 prog.message = Some(if aborted_by_user {
                     format!(
-                        "Recovery aborted by operator after {} attempt(s)",
-                        ctx.attempt_count
+                        "Recovery aborted by operator after {} attempt{}",
+                        ctx.attempt_count,
+                        if ctx.attempt_count == 1 { "" } else { "s" }
                     )
                 } else {
-                    format!("Recovery exhausted after {} attempt(s)", ctx.attempt_count)
+                    format!(
+                        "Recovery exhausted after {} attempt{}",
+                        ctx.attempt_count,
+                        if ctx.attempt_count == 1 { "" } else { "s" }
+                    )
                 });
             }
             let _ =

@@ -319,8 +319,9 @@ impl BackgroundExtractV1 {
             op_id: self.id(),
             op_version: self.version(),
             reason: format!(
-                "channel {channel} kept {} clean background sample(s) after {after} but a degree-{model_order} surface needs {n_terms}; lower modelOrder or sampleSpacing",
-                samples.len()
+                "channel {channel} kept {} clean background sample{} after {after} but a degree-{model_order} surface needs {n_terms}; lower modelOrder or sampleSpacing",
+                samples.len(),
+                if samples.len() == 1 { "" } else { "s" }
             ),
         })
     }

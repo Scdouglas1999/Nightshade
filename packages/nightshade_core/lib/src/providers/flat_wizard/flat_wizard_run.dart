@@ -584,14 +584,15 @@ extension FlatWizardRun on FlatWizardNotifier {
 
     if (cancelled) {
       setStatusMessage(
-        'Cancelled — saved $framesSaved frame(s); '
+        'Cancelled — saved $framesSaved frame${framesSaved == 1 ? '' : 's'}; '
         '$complete complete, $partial partial.',
       );
       return;
     }
     if (complete == queue.length && partial == 0 && failed == 0) {
       setStatusMessage(
-        'Complete — ${queue.length} filter(s), $framesSaved frame(s) saved.',
+        'Complete — ${queue.length} filter${queue.length == 1 ? '' : 's'}, '
+        '$framesSaved frame${framesSaved == 1 ? '' : 's'} saved.',
       );
       return;
     }
@@ -602,7 +603,7 @@ extension FlatWizardRun on FlatWizardNotifier {
     }
     setStatusMessage(
       'Finished with issues — $complete complete, $partial partial, '
-      '$failed failed; $framesSaved frame(s) saved.',
+      '$failed failed; $framesSaved frame${framesSaved == 1 ? '' : 's'} saved.',
     );
   }
 

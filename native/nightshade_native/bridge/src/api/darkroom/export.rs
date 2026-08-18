@@ -256,10 +256,11 @@ fn history_lines(
     fingerprint: &str,
 ) -> Vec<String> {
     let mut lines = vec![format!(
-        "Nightshade Darkroom: stage={}, recipe={} ({} step(s)), fingerprint={}",
+        "Nightshade Darkroom: stage={}, recipe={} ({} step{}), fingerprint={}",
         stage.as_wire(),
         recipe.id,
         recipe.steps.len(),
+        if recipe.steps.len() == 1 { "" } else { "s" },
         fingerprint
     )];
     match report {

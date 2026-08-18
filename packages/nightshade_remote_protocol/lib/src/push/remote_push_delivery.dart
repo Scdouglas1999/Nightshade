@@ -382,7 +382,10 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
       }
     }
     if (attempted > 0 && failed == attempted) {
-      throw StateError('FCM delivery failed: all $attempted send(s) errored');
+      throw StateError(
+        'FCM delivery failed: all $attempted '
+        'send${attempted == 1 ? '' : 's'} errored',
+      );
     }
   }
 
@@ -620,7 +623,10 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
       }
     }
     if (attempted > 0 && failed == attempted) {
-      throw StateError('APNs delivery failed: all $attempted send(s) errored');
+      throw StateError(
+        'APNs delivery failed: all $attempted '
+        'send${attempted == 1 ? '' : 's'} errored',
+      );
     }
   }
 
@@ -657,8 +663,9 @@ class CompositeRemotePushDelivery implements RemotePushDelivery {
     await Future.wait(futures);
     if (failures.isNotEmpty) {
       throw StateError(
-        '${failures.length} of ${deliveries.length} remote push '
-        'delivery channel(s) failed: ${failures.join('; ')}',
+        '${failures.length} of ${deliveries.length} remote push delivery '
+        'channel${deliveries.length == 1 ? '' : 's'} failed: '
+        '${failures.join('; ')}',
       );
     }
   }

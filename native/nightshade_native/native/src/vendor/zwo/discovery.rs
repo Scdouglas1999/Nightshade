@@ -56,7 +56,11 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
     tracing::debug!("Discovering ZWO cameras via native ASI SDK...");
     // SAFETY: zwo_camera_mutex held above; ASIGetNumOfConnectedCameras takes no arguments and only reads internal SDK state.
     let num_cameras = unsafe { (sdk.get_num_cameras)() };
-    tracing::debug!("ASI SDK reports {} connected camera(s)", num_cameras);
+    tracing::debug!(
+        "ASI SDK reports {} connected camera{}",
+        num_cameras,
+        if num_cameras == 1 { "" } else { "s" }
+    );
 
     let mut cameras = Vec::new();
     let mut failed_count = 0;
@@ -129,15 +133,19 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
 
     if cameras.is_empty() && num_cameras > 0 {
         tracing::error!(
-            "ASI SDK detected {} camera(s) but none could be queried. \
+            "ASI SDK detected {} camera{} but none could be queried. \
             This usually means the cameras are in use by another application \
             (NINA, SharpCap, APT, PHD2, etc.). Close other astrophotography software and try again.",
-            num_cameras
+            num_cameras,
+            if num_cameras == 1 { "" } else { "s" }
         );
     } else if failed_count > 0 {
         tracing::warn!(
-            "Successfully discovered {} of {} cameras. {} camera(s) may be in use by other software.",
-            cameras.len(), num_cameras, failed_count
+            "Successfully discovered {} of {} cameras. {} camera{} may be in use by other software.",
+            cameras.len(),
+            num_cameras,
+            failed_count,
+            if failed_count == 1 { "" } else { "s" }
         );
     }
 

@@ -351,11 +351,16 @@ pub(crate) fn last_instruction_failure(
 
 /// Operator-facing sentence naming the instructions a run could not reach.
 pub(super) fn unreachable_instructions_message(names: &[String]) -> String {
+    let count = names.len();
+    let (plural, verb, pronoun, sit) = if count == 1 {
+        ("", "is", "it", "it sits")
+    } else {
+        ("s", "are", "them", "they sit")
+    };
     format!(
-        "{} instruction(s) in this sequence are attached to an instruction that cannot \
-         hold children, so the executor never reaches them: {}. Move them so they sit \
-         beside that instruction rather than inside it.",
-        names.len(),
+        "{count} instruction{plural} in this sequence {verb} attached to an instruction that \
+         cannot hold children, so the executor never reaches {pronoun}: {}. Move {pronoun} so \
+         {sit} beside that instruction rather than inside it.",
         names.join(", ")
     )
 }

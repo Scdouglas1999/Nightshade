@@ -306,7 +306,8 @@ class CoImagingSessionService {
       }
       _logger.info(
         'Co-imaging session $sessionId now at ${accounting.combinedFrames} '
-        'combined frames across ${accounting.participantCount} rig(s).',
+        'combined frames across ${accounting.participantCount} '
+        'rig${accounting.participantCount == 1 ? '' : 's'}.',
         source: _logSource,
       );
       return accounting;

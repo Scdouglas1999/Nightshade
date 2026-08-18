@@ -96,7 +96,9 @@ class OrphanedNodesRule implements SequenceValidator {
         category: ValidationCategory.structure,
         title: 'Orphaned Nodes',
         description:
-            '${orphaned.length} node(s) are not connected to the sequence.',
+            '${orphaned.length} node${orphaned.length == 1 ? '' : 's'} '
+            '${orphaned.length == 1 ? 'is' : 'are'} not connected to the '
+            'sequence.',
         resolutionHint: 'Remove unused nodes or connect them to a parent.',
       ),
     ];

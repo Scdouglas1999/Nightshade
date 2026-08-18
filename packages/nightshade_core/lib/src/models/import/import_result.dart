@@ -172,8 +172,9 @@ class UnsupportedNodeError implements Exception {
   @override
   String toString() {
     final names = unsupported.map((u) => u.sourceType).toSet().join(', ');
-    return 'UnsupportedNodeError: ${unsupported.length} node(s) have no '
-        'Nightshade equivalent: $names';
+    final count = unsupported.length;
+    return 'UnsupportedNodeError: $count node${count == 1 ? '' : 's'} '
+        '${count == 1 ? 'has' : 'have'} no Nightshade equivalent: $names';
   }
 }
 
@@ -221,7 +222,9 @@ class SequenceImportValidationFailedException implements Exception {
   @override
   String toString() {
     final blockers = errors.map((i) => i.title).toSet().join(', ');
-    return 'SequenceImportValidationFailedException: ${errors.length} '
-        'blocking issue(s) [$blockers]; ${issues.length} total.';
+    final blocking = errors.length;
+    return 'SequenceImportValidationFailedException: $blocking '
+        'blocking issue${blocking == 1 ? '' : 's'} [$blockers]; '
+        '${issues.length} total.';
   }
 }

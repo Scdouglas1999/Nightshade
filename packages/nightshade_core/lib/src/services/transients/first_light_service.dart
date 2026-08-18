@@ -288,7 +288,8 @@ class FirstLightService {
       if (coverage.tilesChecked == 0 && coverage.tilesCovered > 0) {
         _logger.info(
           'First Light scan: atlas not deep enough here yet for $framePath — '
-          '${coverage.tilesSkippedThin} tile(s) below the '
+          '${coverage.tilesSkippedThin} '
+          'tile${coverage.tilesSkippedThin == 1 ? '' : 's'} below the '
           '$minTemplateCoverage-frame depth gate, '
           '${coverage.tilesNoTemplate} not folded into yet '
           '(0 of ${coverage.tilesCovered} deep enough)',
@@ -297,7 +298,8 @@ class FirstLightService {
       } else {
         _logger.debug(
           'First Light scan: no residuals above SNR $_minSnr for $framePath '
-          '(${coverage.tilesChecked} tile(s) checked)',
+          '(${coverage.tilesChecked} '
+          'tile${coverage.tilesChecked == 1 ? '' : 's'} checked)',
           source: _logSource,
         );
       }
@@ -353,7 +355,8 @@ class FirstLightService {
     await _dao.insertDetections(companions);
 
     _logger.info(
-      'First Light scan: persisted ${companions.length} transient detection(s) '
+      'First Light scan: persisted ${companions.length} transient '
+      'detection${companions.length == 1 ? '' : 's'} '
       'for $framePath (${matched.where((c) => c.catalogMatch == null).length} '
       'unnamed)',
       source: _logSource,
@@ -395,7 +398,7 @@ class FirstLightService {
     if (reclaimed > 0) {
       _logger.info(
         'First Light retention: reclaimed $reclaimed dismissed transient '
-        'detection(s) older than $cutoff',
+        'detection${reclaimed == 1 ? '' : 's'} older than $cutoff',
         source: _logSource,
       );
     }

@@ -698,7 +698,9 @@ class _EquipmentProfilesScreenState
       }
 
       if (context.mounted) {
-        context.showSuccessSnackBar('Imported ${ids.length} profile(s)');
+        context.showSuccessSnackBar(
+          'Imported ${ids.length} profile${ids.length == 1 ? '' : 's'}',
+        );
       }
     } catch (e) {
       if (!context.mounted || !_isCurrentImport(generation, authority)) return;

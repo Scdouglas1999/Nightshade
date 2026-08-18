@@ -445,9 +445,11 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
                 ),
                 Text(
                   hasErrors
-                      ? 'Please fix $errorCount error(s) before starting'
+                      ? 'Please fix $errorCount '
+                          'error${errorCount == 1 ? '' : 's'} before starting'
                       : hasWarnings
-                          ? '$warningCount warning(s) found'
+                          ? '$warningCount '
+                              'warning${warningCount == 1 ? '' : 's'} found'
                           : 'Sequence is ready to run',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize12,
@@ -633,7 +635,8 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
                   '$changeCount change${changeCount == 1 ? '' : 's'} '
                   'across ${diff.added.length} added, '
                   '${diff.removed.length} removed, '
-                  '${diff.modified.length} modified node(s).',
+                  '${diff.modified.length} modified '
+                  'node${diff.modified.length == 1 ? '' : 's'}.',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,

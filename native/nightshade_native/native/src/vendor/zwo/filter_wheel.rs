@@ -254,10 +254,12 @@ impl NativeDevice for ZwoFilterWheel {
             }
         }
         if !id_is_present {
+            let reported = num_wheels.max(0);
             return Err(NativeError::DeviceNotFound(format!(
-                "ZWO EFW ID {} is not present (SDK reported {} wheel(s))",
+                "ZWO EFW ID {} is not present (SDK reported {} wheel{})",
                 self.filterwheel_id,
-                num_wheels.max(0)
+                reported,
+                if reported == 1 { "" } else { "s" }
             )));
         }
 
@@ -573,7 +575,11 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
     let sdk_version = efw_sdk_version_from_sdk(sdk);
     // SAFETY: zwo_efw_mutex held above; EFWGetNum takes no arguments and only reads internal SDK state.
     let num_wheels = unsafe { (sdk.get_num)() };
-    tracing::info!("EFW SDK reports {} connected filter wheel(s)", num_wheels);
+    tracing::info!(
+        "EFW SDK reports {} connected filter wheel{}",
+        num_wheels,
+        if num_wheels == 1 { "" } else { "s" }
+    );
 
     let mut wheels = Vec::new();
 

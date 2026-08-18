@@ -403,7 +403,9 @@ pub enum OpError {
         found: PixelType,
     },
     /// The operation does not define a result for this channel layout.
-    #[error("{op_id}@{op_version}: unsupported channel layout: {channels} channel(s), {expected}")]
+    #[error(
+        "{op_id}@{op_version}: unsupported channel layout: a {channels}-channel image, {expected}"
+    )]
     UnsupportedChannels {
         /// Operation id.
         op_id: &'static str,
@@ -504,7 +506,7 @@ pub enum RecipeError {
         reason: String,
     },
     /// A render was asked to stop after a step the recipe does not have.
-    #[error("step index {index} is out of range for a recipe with {step_count} step(s)")]
+    #[error("step index {index} is out of range; the recipe's step count is {step_count}")]
     StepIndexOutOfRange {
         /// The index that was requested.
         index: usize,
@@ -512,7 +514,7 @@ pub enum RecipeError {
         step_count: usize,
     },
     /// A preview was asked for a pyramid level that was not built.
-    #[error("pyramid level {level} is out of range; the pyramid has {level_count} level(s)")]
+    #[error("pyramid level {level} is out of range; the pyramid's level count is {level_count}")]
     LevelOutOfRange {
         /// The level that was requested.
         level: u32,

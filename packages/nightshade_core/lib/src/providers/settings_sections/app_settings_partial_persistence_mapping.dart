@@ -201,7 +201,8 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
         .toList();
     if (unsupported.isNotEmpty) {
       throw UnsupportedError(
-        'Cannot persist setting(s) over a remote/network backend: '
+        'Cannot persist setting${unsupported.length == 1 ? '' : 's'} over a '
+        'remote/network backend: '
         '${unsupported.join(', ')}. These keys are not carried by the '
         'remote settings wire model, so the write would be silently '
         'dropped by the host. Extend models.AppSettings + _toRemoteSettings '

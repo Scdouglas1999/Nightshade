@@ -78,7 +78,8 @@ Future<void> _driveCoImagingAutoContribute({
           logger.info(
             'Co-imaging: sub folded into session ${row.sessionId}; combined '
             'now ${accounting.combinedFrames} frames across '
-            '${accounting.participantCount} rig(s).',
+            '${accounting.participantCount} '
+            'rig${accounting.participantCount == 1 ? '' : 's'}.',
             source: 'CoImagingSessionService',
           );
         }

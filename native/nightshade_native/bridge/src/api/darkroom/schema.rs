@@ -755,12 +755,17 @@ pub(crate) fn draft_for_master(
     if base.channels() == 3 {
         steps.push(RecipeStep::new("color_calibrate", 1));
     } else {
+        let channels = base.channels();
+        let (count, coverage) = if channels == 1 {
+            ("1 channel".to_string(), "the one channel it was given")
+        } else {
+            (format!("{channels} channels"), "the channels it was given")
+        };
         notes.push(json!({
             "opId": "color_calibrate",
             "outcome": "omitted",
             "reason": format!(
-                "this master has {} channel(s) and the colour fit needs three, so this draft covers the one channel it was given; to calibrate colour, combine the per-filter masters into a single three-channel master and draft that composite",
-                base.channels()
+                "this master has {count} and the colour fit needs three, so this draft covers {coverage}; to calibrate colour, combine the per-filter masters into a single three-channel master and draft that composite",
             ),
         }));
     }
@@ -876,8 +881,9 @@ fn measure_linear_prefix(
             Err(RecipeError::Step { index, source }) => {
                 if index >= steps.len() {
                     return Err(format!(
-                        "the draft's step {index} failed and the draft holds {} step(s): {source}",
-                        steps.len()
+                        "the draft's step {index} failed and the draft holds {} step{}: {source}",
+                        steps.len(),
+                        if steps.len() == 1 { "" } else { "s" }
                     ));
                 }
                 let removed = steps.remove(index);

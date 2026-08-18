@@ -1141,7 +1141,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         } else {
           final message =
               'Meridian flip for "$targetName" succeeded only on attempt '
-              '$attempts after ${failedSteps.length} failed attempt(s): '
+              '$attempts after ${failedSteps.length} failed '
+              'attempt${failedSteps.length == 1 ? '' : 's'}: '
               '${failedSteps.join("; ")}. Verify framing — the post-flip '
               'recentre needed retries.';
           _logger.warning(message, source: 'SequenceExecutor');
@@ -1153,7 +1154,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       case 'aborted':
         final message =
             'Meridian flip for "$targetName" was aborted after $attempts '
-            'attempt(s)${error != null ? ": $error" : ""}. The mount was NOT '
+            'attempt${attempts == 1 ? "" : "s"}'
+            '${error != null ? ": $error" : ""}. The mount was NOT '
             'flipped.';
         _logger.warning(message, source: 'SequenceExecutor');
         _incrementRunStat((stats) => stats.recordWarning(message));
@@ -1163,7 +1165,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       default:
         final message =
             'Meridian flip for "$targetName" FAILED after $attempts '
-            'attempt(s): ${error ?? "unknown error"}'
+            'attempt${attempts == 1 ? "" : "s"}: ${error ?? "unknown error"}'
             '${actionTaken != null ? " (action: $actionTaken)" : ""}. '
             'Frames captured after this point may be mis-framed.';
         _logger.error(message, source: 'SequenceExecutor');

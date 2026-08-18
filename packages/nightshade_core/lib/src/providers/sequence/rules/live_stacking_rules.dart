@@ -153,7 +153,8 @@ class LiveStackingPortClashRule implements SequenceValidator {
               title: 'Multiple Live Stacking nodes share a port',
               description:
                   'Live Stacking "${n.name}" shares broadcast port $port with '
-                  '${nodes.length - 1} other Live Stacking node(s). Only the '
+                  '${nodes.length - 1} other Live Stacking '
+                  'node${(nodes.length - 1) == 1 ? '' : 's'}. Only the '
                   'most recently entered node\'s broadcast will be live.',
               affectedNodeId: n.id,
               resolutionHint:

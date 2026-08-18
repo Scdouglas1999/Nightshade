@@ -175,7 +175,7 @@ void main() {
     expect(
       stats.errorMessages.single,
       allOf(
-        contains('FAILED after 4 attempt(s)'),
+        contains('FAILED after 4 attempts'),
         contains('Plate solve failed'),
         contains('PauseAndAlert'),
       ),

@@ -733,10 +733,13 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     String endpoint,
     List<String> fields,
   ) {
-    final missing = fields.where((field) => !response.containsKey(field));
+    final missing = fields
+        .where((field) => !response.containsKey(field))
+        .toList();
     if (missing.isNotEmpty) {
       throw FormatException(
-        'GET /api/$endpoint returned no `${missing.join('`, `')}` field(s)',
+        'GET /api/$endpoint returned no `${missing.join('`, `')}` '
+        'field${missing.length == 1 ? '' : 's'}',
       );
     }
   }

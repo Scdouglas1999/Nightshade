@@ -644,7 +644,8 @@ class ObservationReportService {
       children: [
         _sectionTitle('Differential Photometry'),
         pw.Text(
-          '${measurements.length} measurements across ${objectIds.length} object(s)',
+          '${measurements.length} measurements across ${objectIds.length} '
+          'object${objectIds.length == 1 ? '' : 's'}',
           style: const pw.TextStyle(fontSize: 10, color: PdfColors.blueGrey700),
         ),
         pw.SizedBox(height: 4),

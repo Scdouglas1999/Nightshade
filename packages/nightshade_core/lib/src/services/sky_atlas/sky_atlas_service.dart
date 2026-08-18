@@ -106,7 +106,8 @@ class SkyAtlasService {
     final dropped = frames.length - usable.length;
     if (dropped > 0) {
       _logger.warning(
-        'foldSession($sessionId): dropped $dropped frame(s) with a '
+        'foldSession($sessionId): dropped $dropped '
+        'frame${dropped == 1 ? '' : 's'} with a '
         'degenerate WCS before folding.',
         source: _logSource,
       );
@@ -149,8 +150,10 @@ class SkyAtlasService {
     });
 
     _logger.info(
-      'foldSession($sessionId): folded ${summary.totalFramesFolded} frame(s) '
-      'across ${summary.tilesTouched.length} tile(s); '
+      'foldSession($sessionId): folded ${summary.totalFramesFolded} '
+      'frame${summary.totalFramesFolded == 1 ? '' : 's'} across '
+      '${summary.tilesTouched.length} '
+      'tile${summary.tilesTouched.length == 1 ? '' : 's'}; '
       '${summary.framesSkippedNoCoverage} off-sky.',
       source: _logSource,
     );
@@ -756,7 +759,8 @@ class SkyAtlasService {
       } catch (e) {
         _logger.warning(
           'mergeSwarmDelta(tile $tileId): overlay index refresh failed: $e '
-          '(overlay persisted, $contributors contributor(s)).',
+          '(overlay persisted, $contributors '
+          'contributor${contributors == 1 ? '' : 's'}).',
           source: _logSource,
         );
       }
@@ -834,7 +838,8 @@ class SkyAtlasService {
 
     if (deleted > 0) {
       _logger.info(
-        'sweepCache: reclaimed $deleted cache file(s) ($reclaimedBytes bytes).',
+        'sweepCache: reclaimed $deleted cache '
+        'file${deleted == 1 ? '' : 's'} ($reclaimedBytes bytes).',
         source: _logSource,
       );
     }

@@ -448,7 +448,8 @@ class SessionService {
       }
 
       _logger.info(
-        'Found ${incompleteSessions.length} incomplete session(s)',
+        'Found ${incompleteSessions.length} incomplete '
+        'session${incompleteSessions.length == 1 ? '' : 's'}',
         source: 'SessionService',
       );
 

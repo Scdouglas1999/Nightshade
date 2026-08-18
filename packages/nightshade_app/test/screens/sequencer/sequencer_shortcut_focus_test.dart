@@ -245,7 +245,7 @@ void main() {
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Delete 1 node(s)?'), findsOneWidget);
+    expect(find.text('Delete 1 node?'), findsOneWidget);
     expect(find.textContaining('Undo in the toolbar'), findsOneWidget);
     expect(find.textContaining('cannot be undone except'), findsNothing);
   });

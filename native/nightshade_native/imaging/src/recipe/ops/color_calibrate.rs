@@ -386,8 +386,9 @@ pub fn solve(image: &OpImage, params: &Value, ctx: &OpContext) -> Result<ColorSo
     let matched = cross_match(image, &wcs, &detected, &catalog_stars, match_radius, ctx)?;
     if matched.len() < settings.min_stars as usize {
         return Err(failed(&format!(
-            "{} catalog star(s) cross-matched within {match_radius:.2} px but the fit needs {}; widen matchRadiusPx or lower minStars",
+            "{} catalog star{} cross-matched within {match_radius:.2} px but the fit needs {}; widen matchRadiusPx or lower minStars",
             matched.len(),
+            if matched.len() == 1 { "" } else { "s" },
             settings.min_stars
         )));
     }
@@ -400,11 +401,14 @@ pub fn solve(image: &OpImage, params: &Value, ctx: &OpContext) -> Result<ColorSo
     )
     .map_err(|error| match error {
         ColorCalError::TooFewStars => failed(&format!(
-            "{} cross-matched star(s) is below the {MIN_MATCHED_STARS} the color fit needs",
-            matched.len()
+            "{} cross-matched star{} {} below the {MIN_MATCHED_STARS} the color fit needs",
+            matched.len(),
+            if matched.len() == 1 { "" } else { "s" },
+            if matched.len() == 1 { "is" } else { "are" }
         )),
         ColorCalError::ChannelMismatch { expected, actual } => failed(&format!(
-            "the photometry produced {actual} channel flux value(s) for a {expected}-channel master"
+            "the photometry produced {actual} channel flux value{} for a {expected}-channel master",
+            if actual == 1 { "" } else { "s" }
         )),
         ColorCalError::DegenerateFit { channel } => failed(&format!(
             "channel {channel} has too few positive-flux stars or no color spread to fit; widen magLimit or matchRadiusPx"

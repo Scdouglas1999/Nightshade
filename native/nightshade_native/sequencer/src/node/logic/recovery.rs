@@ -95,9 +95,10 @@ pub async fn execute_recovery(
                         .await;
                         if !park_outcome.success {
                             let park_error = format!(
-                                "Recovery::ParkAndAbort: mount park FAILED after {} attempt(s): {}. \
+                                "Recovery::ParkAndAbort: mount park FAILED after {} attempt{}: {}. \
                                  Mount may be in an unsafe position — manual intervention required.",
                                 park_outcome.attempts_made,
+                                if park_outcome.attempts_made == 1 { "" } else { "s" },
                                 park_outcome
                                     .last_error
                                     .clone()

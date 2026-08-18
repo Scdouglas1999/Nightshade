@@ -251,8 +251,11 @@ class _ValidationDialogHeader extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   hasErrors
-                      ? 'Sequence has $errorCount error(s) blocking this action.'
-                      : 'Sequence has $warningCount warning(s).',
+                      ? 'Sequence has $errorCount '
+                          'error${errorCount == 1 ? '' : 's'} '
+                          'blocking this action.'
+                      : 'Sequence has $warningCount '
+                          'warning${warningCount == 1 ? '' : 's'}.',
                   style: TextStyle(
                     fontSize: 12,
                     color: colors.textSecondary,

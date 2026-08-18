@@ -420,7 +420,8 @@ class ImagingService {
       final sorted = unknown.toList()..sort();
       throw ValidationException(
         message:
-            'Unknown naming-pattern variable(s) ${sorted.join(', ')} in '
+            'Unknown naming-pattern variable${sorted.length == 1 ? '' : 's'} '
+            '${sorted.join(', ')} in '
             'pattern "$pattern". Supported variables: '
             '${(_patternVariables.toList()..sort()).join(', ')}.',
         userMessage: 'The naming pattern contains unknown variables',

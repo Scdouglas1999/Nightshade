@@ -259,11 +259,12 @@ class _ConnectionStatusSummary extends ConsumerWidget {
 
     return Tooltip(
       message: sessionOnly > 0
-          ? '$connectedCount device(s) connected, of which $sessionOnly are not '
+          ? '$connectedCount device${connectedCount == 1 ? '' : 's'} connected, '
+              'of which $sessionOnly ${sessionOnly == 1 ? 'is' : 'are'} not '
               'saved to the active profile and will not reconnect on the next '
               'launch.'
-          : '$connectedCount device(s) connected, all saved to the active '
-              'profile.',
+          : '$connectedCount device${connectedCount == 1 ? '' : 's'} connected, '
+              'all saved to the active profile.',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: NightshadeDecorations.statusChip(

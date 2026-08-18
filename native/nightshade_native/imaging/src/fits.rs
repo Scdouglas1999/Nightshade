@@ -2421,15 +2421,25 @@ pub fn validate_image_comprehensive(
             tracing::debug!("[IMAGE_VALIDATION] PASSED: Image validated successfully");
         } else {
             tracing::info!(
-                "[IMAGE_VALIDATION] PASSED with {} warning(s): {:?}",
+                "[IMAGE_VALIDATION] PASSED with {} warning{}: {:?}",
                 validation.warnings.len(),
+                if validation.warnings.len() == 1 {
+                    ""
+                } else {
+                    "s"
+                },
                 validation.warnings
             );
         }
     } else {
         tracing::error!(
-            "[IMAGE_VALIDATION] FAILED with {} error(s): {:?}",
+            "[IMAGE_VALIDATION] FAILED with {} error{}: {:?}",
             validation.errors.len(),
+            if validation.errors.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
             validation.errors
         );
     }
@@ -3960,9 +3970,9 @@ mod tests {
         }
     }
 
-    /// The Darkroom's own summary line, verbatim from an export whose cards
-    /// split `fingerprint=e232` from `8f40…` (finding D3UI-1).
-    const LONG_HISTORY_LINE: &str = "Nightshade Darkroom: stage=final, recipe=1 (4 step(s)), fingerprint=e2328f40d1890f8d378ab91a6195ab17";
+    /// The Darkroom's own summary line, verbatim from an export. A hard split
+    /// at column 72 cuts `fingerprint=e2328f` from `40d1…` (finding D3UI-1).
+    const LONG_HISTORY_LINE: &str = "Nightshade Darkroom: stage=final, recipe=1 (4 steps), fingerprint=e2328f40d1890f8d378ab91a6195ab17";
 
     /// The calibration report's reference-light line, whose path carries spaces.
     const LONG_PATH_HISTORY_LINE: &str = "Calibration compared against light /home/scdouglas/.cache/ns-d3ui-8104/captures/D1 Simulated Field_B_0001.fits";

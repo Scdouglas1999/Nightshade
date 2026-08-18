@@ -148,7 +148,8 @@ where
                 Ok(()) => {
                     tracing::debug!(
                         target: "supervisor",
-                        "{name} completed normally after {panic_count} panic(s); stopping supervision"
+                        "{name} completed normally after {panic_count} panic{}; stopping supervision",
+                        if panic_count == 1 { "" } else { "s" }
                     );
                     return;
                 }

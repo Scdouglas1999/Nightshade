@@ -5514,7 +5514,8 @@
     document.getElementById('btn-flat-wizard-calibrate').disabled = true;
     document.getElementById('btn-flat-wizard-build').disabled = true;
     document.getElementById('flat-wizard-progress').textContent =
-      'Calibrating ' + filters.length + ' filter(s)... this can take minutes';
+      'Calibrating ' + filters.length + ' filter' +
+      (filters.length === 1 ? '' : 's') + '... this can take minutes';
 
     try {
       const result = await api.flatWizardCalibrateMulti(state.cameraDeviceId, filters, {

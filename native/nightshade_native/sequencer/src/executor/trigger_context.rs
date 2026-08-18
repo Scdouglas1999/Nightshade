@@ -683,9 +683,10 @@ pub(super) fn terminate_with(
 ) -> Vec<(String, RecoveryAction)> {
     is_cancelled.store(true, Ordering::Relaxed);
     tracing::info!(
-        "[TRIGGER_MONITOR] terminating sequence ({}); fired {} trigger(s)",
+        "[TRIGGER_MONITOR] terminating sequence ({}); fired {} trigger{}",
         reason,
-        triggers.len()
+        triggers.len(),
+        if triggers.len() == 1 { "" } else { "s" }
     );
     triggers
 }

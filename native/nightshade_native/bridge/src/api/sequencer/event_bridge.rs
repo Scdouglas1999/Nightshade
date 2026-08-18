@@ -404,12 +404,14 @@ pub(crate) async fn run_sequencer_event_loop(
                         _ => EventSeverity::Critical,
                     };
                     tracing::info!(
-                        "[EVENT_SUB] Meridian flip outcome: {} for '{}' after {} attempt(s) \
-                         ({} failed step(s))",
+                        "[EVENT_SUB] Meridian flip outcome: {} for '{}' after {} attempt{} \
+                         ({} failed step{})",
                         outcome,
                         target_name,
                         attempts,
-                        failed_steps.len()
+                        if *attempts == 1 { "" } else { "s" },
+                        failed_steps.len(),
+                        if failed_steps.len() == 1 { "" } else { "s" }
                     );
                     Some(create_event_auto_id(
                         severity,
