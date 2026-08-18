@@ -521,6 +521,69 @@ pub struct ImageStatsResult {
     pub star_count: u32,
 }
 
+/// Stars sampled for the per-frame medians: the brightest half of the
+/// detections, never more than this many. Detection returns stars brightest
+/// first, so the sample is the same set on every run over the same frame.
+const FRAME_METRIC_SAMPLE_CAP: usize = 50;
+
+/// Largest HFR or FWHM, in pixels, that a detection can contribute to a frame
+/// median. A value at or past it is a smear or a detection artefact, not a star
+/// this frame can be measured by.
+const FRAME_METRIC_MAX_PIXELS: f64 = 20.0;
+
+/// Median of the sampled stars' `value`, or `None` when none of them carries a
+/// usable one.
+fn frame_metric_median(
+    stars: &[nightshade_imaging::DetectedStar],
+    value: impl Fn(&nightshade_imaging::DetectedStar) -> f64,
+) -> Option<f64> {
+    let sample = (stars.len() / 2).clamp(1, FRAME_METRIC_SAMPLE_CAP);
+    let mut values: Vec<f64> = stars
+        .iter()
+        .take(sample)
+        .map(&value)
+        .filter(|v| *v > 0.0 && *v < FRAME_METRIC_MAX_PIXELS)
+        .collect();
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    Some(values[values.len() / 2])
+}
+
+/// The stats block a captured frame publishes to the last-image cache, built
+/// from that frame's own statistics and the stars already detected in it.
+///
+/// Every path that stores a frame builds its block here — the simulated
+/// exposure, the real-camera exposure, and the sequencer's own exposure through
+/// `UnifiedDeviceOps` — so one frame reports the same measurements whoever asked
+/// for it. The sequencer path used to fill the struct itself and left `hfr` and
+/// `fwhm` out, so a whole night of frames answered `/api/camera/last-image` with
+/// a real star count beside a null HFR while the same frames' HFR was measured,
+/// logged and stored.
+///
+/// It measures nothing new: `stats` and `stars` are the results the caller
+/// already computed for the frame, and the medians are read out of them.
+///
+/// `None` for HFR, FWHM or eccentricity means too few usable stars to measure
+/// this frame — never a fabricated 0.
+pub(crate) fn frame_stats_result(
+    stats: &nightshade_imaging::ImageStats,
+    stars: &[nightshade_imaging::DetectedStar],
+) -> ImageStatsResult {
+    ImageStatsResult {
+        min: stats.min,
+        max: stats.max,
+        mean: stats.mean,
+        median: stats.median,
+        std_dev: stats.std_dev,
+        hfr: frame_metric_median(stars, |s| s.hfr),
+        eccentricity: nightshade_imaging::frame_eccentricity(stars),
+        fwhm: frame_metric_median(stars, |s| s.fwhm),
+        star_count: stars.len() as u32,
+    }
+}
+
 /// Raw image info with metadata - used by sequencer for actual image analysis
 /// This preserves the original 16-bit sensor data needed for HFR calculation, plate solving, etc.
 #[derive(Debug, Clone)]
@@ -906,39 +969,14 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             &image,
             &nightshade_imaging::StarDetectionConfig::default(),
         );
-        let star_count = stars.len() as u32;
-        let median_of = |values: &mut Vec<f64>| -> Option<f64> {
-            if values.is_empty() {
-                return None;
-            }
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            Some(values[values.len() / 2])
-        };
-        // Top 50% brightest, capped at 50 — mirrors the real-camera branch.
-        let sample = (stars.len() / 2).clamp(1, 50);
-        let mut hfrs: Vec<f64> = stars
-            .iter()
-            .take(sample)
-            .map(|s| s.hfr)
-            .filter(|&h| h > 0.0 && h < 20.0)
-            .collect();
-        let median_hfr = median_of(&mut hfrs);
-        let mut fwhms: Vec<f64> = stars
-            .iter()
-            .take(sample)
-            .map(|s| s.fwhm)
-            .filter(|&f| f > 0.0 && f < 20.0)
-            .collect();
-        let median_fwhm = median_of(&mut fwhms);
-        // Fails closed (None) when too few reliable stars — never fabricated.
-        let median_eccentricity = nightshade_imaging::frame_eccentricity(&stars);
+        let frame_stats = frame_stats_result(&stats, &stars);
         tracing::info!(
             "Simulated capture: {}x{}, {} stars detected, median HFR: {:?}, median ecc: {:?}",
             sensor_width,
             sensor_height,
-            star_count,
-            median_hfr,
-            median_eccentricity
+            frame_stats.star_count,
+            frame_stats.hfr,
+            frame_stats.eccentricity
         );
 
         // Convert grayscale display data to RGBA for Flutter rendering
@@ -951,17 +989,7 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             height: sensor_height,
             display_data,
             histogram,
-            stats: ImageStatsResult {
-                min: stats.min,
-                max: stats.max,
-                mean: stats.mean,
-                median: stats.median,
-                std_dev: stats.std_dev,
-                hfr: median_hfr,
-                eccentricity: median_eccentricity,
-                fwhm: median_fwhm,
-                star_count,
-            },
+            stats: frame_stats,
             exposure_time: duration_secs,
             timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
             is_color: false, // Simulated images are grayscale
@@ -1177,52 +1205,12 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             &image,
             &nightshade_imaging::StarDetectionConfig::default(),
         );
-        let star_count = stars.len() as u32;
-
-        // Compute median HFR from detected stars (top 50% brightest, capped at 50)
-        let median_hfr = if !stars.is_empty() {
-            let count = (stars.len() / 2).clamp(1, 50);
-            let mut hfrs: Vec<f64> = stars
-                .iter()
-                .take(count)
-                .map(|s| s.hfr)
-                .filter(|&h| h > 0.0 && h < 20.0)
-                .collect();
-            if hfrs.is_empty() {
-                None
-            } else {
-                hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                Some(hfrs[hfrs.len() / 2])
-            }
-        } else {
-            None
-        };
-        // Compute median FWHM from detected stars (top 50% brightest, capped at 50)
-        let median_fwhm = if !stars.is_empty() {
-            let count = (stars.len() / 2).clamp(1, 50);
-            let mut fwhms: Vec<f64> = stars
-                .iter()
-                .take(count)
-                .map(|s| s.fwhm)
-                .filter(|&f| f > 0.0 && f < 20.0)
-                .collect();
-            if fwhms.is_empty() {
-                None
-            } else {
-                fwhms.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                Some(fwhms[fwhms.len() / 2])
-            }
-        } else {
-            None
-        };
-        // Per-frame median eccentricity from the same detected stars. Fails
-        // closed (None) when too few reliable stars — never fabricated.
-        let median_eccentricity = nightshade_imaging::frame_eccentricity(&stars);
+        let frame_stats = frame_stats_result(&stats, &stars);
         tracing::info!(
             "Star detection: {} stars found, median HFR: {:?}, median ecc: {:?}",
-            star_count,
-            median_hfr,
-            median_eccentricity
+            frame_stats.star_count,
+            frame_stats.hfr,
+            frame_stats.eccentricity
         );
 
         // Calculate histogram from pre-RGBA display data (256 bins for u8 pixel values)
@@ -1241,17 +1229,7 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             height: seq_image.height,
             display_data,
             histogram,
-            stats: ImageStatsResult {
-                min: stats.min,
-                max: stats.max,
-                mean: stats.mean,
-                median: stats.median,
-                std_dev: stats.std_dev,
-                hfr: median_hfr,
-                eccentricity: median_eccentricity,
-                fwhm: median_fwhm,
-                star_count,
-            },
+            stats: frame_stats,
             exposure_time: duration_secs,
             timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
             is_color,
@@ -5222,3 +5200,6 @@ mod display_diagnostic_tests;
 
 #[cfg(test)]
 mod calibrate_header_carry_over_tests;
+
+#[cfg(test)]
+mod frame_stats_tests;

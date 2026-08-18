@@ -523,9 +523,20 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     final String label;
     switch (report?.outcome) {
       case DarkroomStepOutcome.applied:
-        icon = NightshadeIcons.check;
-        tint = colors.success;
-        label = 'Applied by the last render';
+        final clampNote = _cropClampNote(report);
+        if (clampNote != null) {
+          // Applied, but not as written: the engine measured an adjustment
+          // (crop's rectangle did not fit this master) and said so in the
+          // report. Plain green "Applied" over that measurement would carry
+          // the recipe's numbers as if they had run.
+          icon = NightshadeIcons.info;
+          tint = colors.warning;
+          label = clampNote;
+        } else {
+          icon = NightshadeIcons.check;
+          tint = colors.success;
+          label = 'Applied by the last render';
+        }
       case DarkroomStepOutcome.disabled:
         icon = NightshadeIcons.hidden;
         tint = colors.textMuted;
@@ -576,6 +587,30 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
         ),
       ],
     );
+  }
+
+  /// The adjustment sentence for a crop the render clamped, or null.
+  ///
+  /// The engine publishes `clampedToImage` only when the intersection did real
+  /// work (past the one-pixel scale rounding), so a note here always reflects
+  /// a rectangle that genuinely reached past the frame. The sentence quotes
+  /// the recipe's own numbers; the measurement's `requested`/`applied` rects
+  /// are render-level pixels, and quoting them beside master coordinates
+  /// would misstate one or the other.
+  String? _cropClampNote(DarkroomStepReport? report) {
+    final clamp = report?.measured?['clampedToImage'];
+    if (clamp is! Map<String, dynamic>) return null;
+    final rect = clamp['recipeRect'];
+    if (rect is! Map<String, dynamic>) {
+      return 'Applied, adjusted to fit: the rectangle reaches past this '
+          "master's edge, so the render applied only the part inside the "
+          'frame';
+    }
+    return 'Applied, adjusted to fit: the crop asks for '
+        '${rect['width']}×${rect['height']} at '
+        '(${rect['x']}, ${rect['y']}), which reaches past this '
+        "master's edge — the render applied only the part inside the "
+        'frame';
   }
 
   /// The parameters expander.

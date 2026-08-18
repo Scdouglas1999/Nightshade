@@ -24,6 +24,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsFlag, SemanticsNode;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1078,6 +1079,53 @@ void main() {
     );
     await settle(tester);
     expect(alert, findsNothing);
+    await drain(tester);
+  });
+  // -------------------------------------------------------------------
+  // W9-B — the start offer's header is text, not a control's name
+  // -------------------------------------------------------------------
+
+  testWidgets('the start offer reads its header as text, not as Reload\'s name',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final masterId = await seedMaster(name: 'Master · B', path: _masterPath);
+    await pump(tester, location: '/darkroom?master=$masterId');
+    expect(find.text('Master · B has no recipe yet'), findsOneWidget);
+
+    // The header action is a bare fragment with a tap on it and the header's
+    // title and subtitle are fragments with none, so in THIS layout — whose
+    // body publishes its own boundary — the two merged and the whole header
+    // reached AT-SPI as one button named "Darkroom / No recipe yet / Reload".
+    // The editor layout escaped it only because its body has actions of its
+    // own to be incompatible with, which is why one state of one screen read
+    // correctly and the other did not.
+    final reload = find.widgetWithText(NightshadeButton, 'Reload');
+    final node = tester.getSemantics(reload);
+    final data = node.getSemanticsData();
+    expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(data.label, contains('Reload'));
+    expect(data.label, isNot(contains('No recipe yet')));
+    expect(data.label, isNot(contains('Darkroom')));
+    expect(node.rect.size, tester.getSize(reload));
+
+    // The header's own words are still reachable, on a node with no role.
+    final spoken = <String>[];
+    void visit(SemanticsNode node) {
+      if (node.isMergedIntoParent) return;
+      final data = node.getSemanticsData();
+      if (data.label.contains('No recipe yet')) {
+        spoken.add(data.label);
+        expect(data.hasFlag(SemanticsFlag.isButton), isFalse);
+      }
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    expect(spoken, isNotEmpty);
+    handle.dispose();
     await drain(tester);
   });
 }

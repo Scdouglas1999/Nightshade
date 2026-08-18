@@ -89,6 +89,14 @@ void main() {
 
     final failures = <String>[];
     void visit(SemanticsNode node) {
+      // A node merged into its parent is dropped from the platform update and
+      // its flags and actions are carried by the ancestor it merged into, so it
+      // is not what a screen reader walks. `NightshadeDropdown` merges on
+      // purpose — it publishes the button role above Material's own annotation,
+      // which Material clears as soon as the control carries a hint — and
+      // judging its inner node alone would fail the control over a node no
+      // assistive technology can reach.
+      if (node.isMergedIntoParent) return;
       final data = node.getSemanticsData();
       final hasRole = data.hasFlag(SemanticsFlag.isButton) ||
           data.hasFlag(SemanticsFlag.hasCheckedState) ||

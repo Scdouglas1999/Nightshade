@@ -265,6 +265,41 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
     );
   }
 
+  /// What the picture on screen IS, in words.
+  ///
+  /// Every fact is read off the render being painted — its own dimensions, the
+  /// domain its samples are in, the pyramid level it came from — and joined to
+  /// the branch and the master those pixels belong to. Nothing is read off the
+  /// stack as it stands: a render that fails leaves the previous picture up and
+  /// clears its step reports, so a label that counted the steps now in the
+  /// editor would describe a render that never happened. When the pixels are
+  /// not the current stack's, the label says so in the same terms the strip
+  /// under the canvas does.
+  String _pictureLabel(DarkroomState state, DarkroomPreviewImage preview) {
+    final stage = switch (preview.encoding.sourceDomain) {
+      'linear' => 'still-linear pixels',
+      'stretched' => 'stretched pixels',
+      null => 'pixels whose stage the engine did not name',
+      final String named => 'pixels the engine called "$named"',
+    };
+    final level = preview.level;
+    final from = level == null ? '' : ', rendered from pyramid level $level';
+    final String freshness;
+    if (state.rendering) {
+      freshness = ' A newer render is still running, so these are the previous '
+          'render\'s pixels.';
+    } else if (state.renderError != null) {
+      freshness = ' This is the last render that finished, not the stack as it '
+          'stands.';
+    } else {
+      freshness = '';
+    }
+    return 'Rendered draft of ${state.recipeName} over '
+        '${p.basename(state.baseMasterPath)}: ${preview.width}×'
+        '${preview.height} ${preview.isColor ? 'colour' : 'monochrome'} '
+        '$stage$from.$freshness';
+  }
+
   Widget _canvas(NightshadeColors colors, DarkroomState state) {
     final preview = state.preview;
     if (preview == null) {
@@ -312,13 +347,23 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
     return Stack(
       children: [
         Positioned.fill(
-          child: ColoredBox(
-            color: colors.background,
-            child: _DarkroomImageSurface(
-              preview: preview,
-              transform: _transform,
-              minScale: kDarkroomMinViewerScale,
-              maxScale: kDarkroomMaxViewerScale,
+          // The picture is the primary content of this screen and it published
+          // no semantics node at all: a reader walking the Darkroom got the
+          // zoom toolbar and the encoding strip, and nothing saying a picture
+          // was there, what it was of, or how big it is. The role and the words
+          // are here, on the box the pixels are painted in.
+          child: Semantics(
+            container: true,
+            image: true,
+            label: _pictureLabel(state, preview),
+            child: ColoredBox(
+              color: colors.background,
+              child: _DarkroomImageSurface(
+                preview: preview,
+                transform: _transform,
+                minScale: kDarkroomMinViewerScale,
+                maxScale: kDarkroomMaxViewerScale,
+              ),
             ),
           ),
         ),

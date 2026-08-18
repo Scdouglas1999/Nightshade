@@ -274,9 +274,19 @@ fn history_lines(
                     StepOutcome::Disabled => "disabled".to_string(),
                     StepOutcome::Skipped { reason } => format!("skipped: {reason}"),
                 };
+                // A step that solved something while it ran carries it here
+                // too, not only in the render report the caller reads back: the
+                // exported file is the copy that outlives the session, and
+                // "applied" alone hid a crop rectangle the render had to shrink
+                // to fit the master. HISTORY takes one logical line of any
+                // length — the writer breaks it across cards.
+                let measured = match &step.measurement {
+                    Some(measured) => format!(" measured={measured}"),
+                    None => String::new(),
+                };
                 lines.push(format!(
-                    "  step {}: {}@{} {}",
-                    step.index, step.op_id, step.op_version, outcome
+                    "  step {}: {}@{} {}{}",
+                    step.index, step.op_id, step.op_version, outcome, measured
                 ));
             }
         }

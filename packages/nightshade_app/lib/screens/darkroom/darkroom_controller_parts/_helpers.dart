@@ -517,6 +517,7 @@ List<DarkroomStepReport> decodeDarkroomStepReports(
     final opId = entry['opId'];
     final outcome = entry['outcome'];
     final reason = entry['reason'];
+    final measured = entry['measured'];
     out.add(
       DarkroomStepReport(
         index: index,
@@ -525,6 +526,7 @@ List<DarkroomStepReport> decodeDarkroomStepReports(
           outcome is String ? outcome : null,
         ),
         reason: reason is String && reason.isNotEmpty ? reason : null,
+        measured: measured is Map<String, dynamic> ? measured : null,
       ),
     );
   }

@@ -140,6 +140,128 @@ fn validate_accepts_a_registered_recipe_and_reports_the_master() {
     assert_eq!(reply["base"]["hasWcs"], json!(true));
 }
 
+/// A crop step in the wire form the engine reads.
+fn crop_step(x: u32, y: u32, width: u32, height: u32, enabled: bool) -> Value {
+    json!({
+        "opId": "crop",
+        "opVersion": 1,
+        "params": {"x": x, "y": y, "width": width, "height": height},
+        "enabled": enabled,
+    })
+}
+
+#[test]
+fn validate_reports_a_crop_the_master_cannot_hold() {
+    // The import case: a sidecar written over a 1920x1080 master, replayed over
+    // a 64x64 one. The recipe is valid — it renders — and silently frames
+    // something else, so the answer is a finding, not `ok: false`.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "fit.fits", 64, 64, 1);
+    let recipe = recipe_json(
+        "r-crop-fit",
+        "master:fit",
+        json!([crop_step(0, 0, 1920, 1080, true)]),
+    );
+
+    let reply = parse(
+        &api_darkroom_validate(
+            recipe,
+            json!({"masterPath": master.to_string_lossy()}).to_string(),
+        )
+        .expect("validation must run"),
+    );
+
+    assert_eq!(reply["ok"], json!(true), "reply: {reply}");
+    assert_eq!(reply["geometryChecked"], json!(true));
+    let finding = &reply["findings"][0];
+    assert_eq!(finding["index"], json!(0));
+    assert_eq!(finding["kind"], json!("cropDoesNotFit"));
+    assert_eq!(
+        finding["requested"],
+        json!({"x": 0, "y": 0, "width": 1920, "height": 1080})
+    );
+    assert_eq!(
+        finding["applied"],
+        json!({"x": 0, "y": 0, "width": 64, "height": 64})
+    );
+    assert!(
+        finding["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("does not fit the 64x64 image")),
+        "finding: {finding}"
+    );
+}
+
+#[test]
+fn validate_reports_nothing_for_a_crop_that_fits_and_follows_the_geometry_down() {
+    // Two crops in a row: the second is measured against what the first leaves,
+    // not against the master, which is the only way a chained recipe can be
+    // judged. The first fits, the second asks for more than 32x32 holds.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "chain.fits", 64, 64, 1);
+    let fits_recipe = recipe_json(
+        "r-crop-ok",
+        "master:chain",
+        json!([crop_step(0, 0, 32, 32, true)]),
+    );
+    let reply = parse(
+        &api_darkroom_validate(
+            fits_recipe,
+            json!({"masterPath": master.to_string_lossy()}).to_string(),
+        )
+        .expect("validation must run"),
+    );
+    assert_eq!(reply["geometryChecked"], json!(true));
+    assert_eq!(reply["findings"], json!([]), "reply: {reply}");
+
+    let chained = recipe_json(
+        "r-crop-chain",
+        "master:chain",
+        json!([crop_step(0, 0, 32, 32, true), crop_step(0, 0, 64, 64, true)]),
+    );
+    let reply = parse(
+        &api_darkroom_validate(
+            chained,
+            json!({"masterPath": master.to_string_lossy()}).to_string(),
+        )
+        .expect("validation must run"),
+    );
+    let findings = reply["findings"].as_array().expect("findings is a list");
+    assert_eq!(findings.len(), 1, "reply: {reply}");
+    assert_eq!(findings[0]["index"], json!(1));
+    assert_eq!(findings[0]["imageWidth"], json!(32));
+}
+
+#[test]
+fn validate_leaves_a_disabled_crop_alone_and_says_when_it_checked_nothing() {
+    // A disabled step is not on the render path: it frames nothing and moves no
+    // geometry. And without a master there is no geometry to check at all,
+    // which `geometryChecked` states rather than letting an empty list imply a
+    // clean bill of health.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "disabled.fits", 64, 64, 1);
+    let recipe = recipe_json(
+        "r-crop-off",
+        "master:disabled",
+        json!([crop_step(0, 0, 1920, 1080, false)]),
+    );
+
+    let reply = parse(
+        &api_darkroom_validate(
+            recipe.clone(),
+            json!({"masterPath": master.to_string_lossy()}).to_string(),
+        )
+        .expect("validation must run"),
+    );
+    assert_eq!(reply["geometryChecked"], json!(true));
+    assert_eq!(reply["findings"], json!([]), "reply: {reply}");
+
+    let reply =
+        parse(&api_darkroom_validate(recipe, "{}".to_string()).expect("validation must run"));
+    assert_eq!(reply["geometryChecked"], json!(false));
+    assert_eq!(reply["findings"], json!([]));
+}
+
 #[test]
 fn validate_names_every_bad_step_rather_than_only_the_first() {
     let recipe = recipe_json(
@@ -588,6 +710,56 @@ fn export_writes_the_recipe_into_the_fits_and_beside_it() {
         reply["recipeFingerprint"].as_str()
     );
     assert_eq!(sidecar["canonicalRecipe"], json!(expected));
+}
+
+#[test]
+fn the_exported_history_states_a_crop_the_render_had_to_shrink() {
+    // The exported file is the copy that outlives the session, and "applied"
+    // alone was the same word a faithfully applied crop earned. The recipe
+    // itself still records the rectangle that was asked for — the sidecar and
+    // the payload cards are the determinism contract and do not move.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "clamped.fits", 64, 64, 1);
+    let out = dir.path().join("clamped_final.fits");
+    let recipe = recipe_json(
+        "r-clamped",
+        "master:clamped",
+        json!([crop_step(0, 0, 1920, 1080, true)]),
+    );
+
+    let reply = parse(
+        &api_darkroom_render_export(
+            recipe,
+            json!({
+                "masterPath": master.to_string_lossy(),
+                "stage": {"kind": "final"},
+                "outputs": [{"format": "fits", "path": out.to_string_lossy()}],
+            })
+            .to_string(),
+        )
+        .expect("the export must run"),
+    );
+
+    assert_eq!(reply["outputs"][0]["width"], json!(64));
+    assert_eq!(reply["outputs"][0]["height"], json!(64));
+    let step = &reply["report"]["steps"][0];
+    assert_eq!(step["outcome"], json!("applied"));
+    assert_eq!(step["measured"]["clampedToImage"]["imageWidth"], json!(64));
+    assert_eq!(
+        step["measured"]["clampedToImage"]["requested"],
+        json!({"x": 0, "y": 0, "width": 1920, "height": 1080})
+    );
+
+    let (_, header) = read_fits(&out).expect("the exported master must read back");
+    let line = header
+        .history
+        .iter()
+        .find(|line| line.contains("crop@1 applied"))
+        .unwrap_or_else(|| panic!("no crop step line: {:?}", header.history));
+    assert!(
+        line.contains("clampedToImage"),
+        "the exported HISTORY must state the adjustment, not only 'applied': {line}"
+    );
 }
 
 #[test]

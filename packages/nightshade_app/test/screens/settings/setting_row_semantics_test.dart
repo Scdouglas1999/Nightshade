@@ -83,4 +83,47 @@ void main() {
 
     handle.dispose();
   });
+
+  /// The row that hid a missing role for the whole app.
+  ///
+  /// `NightshadeDropdown` published no button role of its own on the closed
+  /// control whenever it also carried a hint, and every settings dropdown got
+  /// away with it because this row merges its title and its control into one
+  /// node that Material happened to annotate. The component now states the
+  /// role itself; a row hosting one must still announce ONE control, with the
+  /// setting's name and its current value, and not the value twice.
+  testWidgets('a settings row announces its dropdown once, with its value', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+
+    await tester.pumpWidget(
+      wrap(
+        SettingRow(
+          icon: LucideIcons.palette,
+          title: 'Theme',
+          trailing: SettingsDropdown(
+            value: 'Dark',
+            items: const ['Light', 'Dark', 'Red night'],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSemantics(find.byType(SettingRow)),
+      isSemantics(
+        label: 'Theme\nDark',
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasTapAction: true,
+      ),
+      reason: 'the row must name the setting, its value and the fact that the '
+          'value can be changed',
+    );
+
+    handle.dispose();
+  });
 }

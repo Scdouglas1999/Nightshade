@@ -31,6 +31,13 @@ void main() {
     final failures = <String>[];
 
     void visit(SemanticsNode node) {
+      // A node merged into its parent never reaches the platform: the owner
+      // drops it from the update and the ancestor it merged into carries its
+      // flags and its actions instead. Judging one on its own would fail a
+      // control that merges DELIBERATELY — [NightshadeDropdown] publishes the
+      // button role above Material's own annotation, and Material's inner node
+      // is merged away — over a node no screen reader can reach.
+      if (node.isMergedIntoParent) return;
       final data = node.getSemanticsData();
       final isRole =
           data.hasFlag(SemanticsFlag.isButton) ||
@@ -246,6 +253,113 @@ void main() {
           reason: '${entry.key} reports the wrong checked state',
         );
       }
+      handle.dispose();
+    });
+
+    // The export sheet's "After a step" picker is this shape: a hint for the
+    // state before a step is chosen, and a value once one is. Material decides
+    // whether to publish the button role from whether a hint EXISTS, not from
+    // what is on screen, so with both it published none at all and the live
+    // control reached AT-SPI as ROLE_PANEL — a screen reader was told the step
+    // was "4. Stretch" and never that it could choose another.
+    testWidgets('a picker with a hint AND a value is still a button', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        host(
+          NightshadeDropdown(
+            value: '4. Stretch',
+            hint: 'Choose the step to stop after',
+            items: const ['1. Crop', '4. Stretch'],
+            isExpanded: true,
+            onChanged: (_) {},
+          ),
+        ),
+      );
+
+      assertOperableNodes(tester, what: 'NightshadeDropdown hint + value');
+      final data = nodeOf(
+        tester,
+        find.byType(DropdownButton<String>),
+      ).getSemanticsData();
+      expect(data.label, '4. Stretch');
+      expect(
+        data.hasFlag(SemanticsFlag.isButton),
+        isTrue,
+        reason:
+            'the closed picker publishes no role, so nothing tells a '
+            'screen reader the step is choosable',
+      );
+      expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue);
+      expect(data.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('a hint with no value is one node, named and operable', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        host(
+          NightshadeDropdown(
+            hint: 'Choose the step to stop after',
+            items: const ['1. Crop', '4. Stretch'],
+            onChanged: (_) {},
+          ),
+        ),
+      );
+
+      assertOperableNodes(tester, what: 'NightshadeDropdown hint only');
+      final data = nodeOf(
+        tester,
+        find.byType(DropdownButton<String>),
+      ).getSemanticsData();
+      // Both halves on ONE node: the hint used to be named on a node with no
+      // tap and operable on a node with no name, which leaves assistive tech
+      // with nothing it can both read out and activate.
+      expect(data.label, 'Choose the step to stop after');
+      expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue);
+      expect(data.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('a merging host announces the value exactly once', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      // The shape every settings dropdown ships in: `SettingRow` merges its
+      // title and its control into one node, which is what hid the missing
+      // role for so long. The role must not arrive twice now that the
+      // component carries one of its own.
+      await tester.pumpWidget(
+        host(
+          MergeSemantics(
+            key: const Key('row'),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Theme'),
+                NightshadeDropdown(
+                  value: 'Dark',
+                  items: const ['Light', 'Dark'],
+                  onChanged: (_) {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      assertOperableNodes(tester, what: 'NightshadeDropdown in a merging host');
+      final data = nodeOf(
+        tester,
+        find.byKey(const Key('row')),
+      ).getSemanticsData();
+      expect(data.label, 'Theme\nDark');
+      expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue);
       handle.dispose();
     });
   });

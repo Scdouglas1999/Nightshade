@@ -168,9 +168,11 @@ class WatchedFolderTransport implements ArtifactTransport {
       } on DeliveryFailure catch (failure) {
         // The file being hashed is the destination's, not the rig's. A share
         // that unmounts between the exists() and the read must not be recorded
-        // as the master having vanished.
+        // as the master having vanished — and a file that goes while the share
+        // stays must not be recorded as the share having gone.
         throw await destinationReadFailure(
           sourcePath: artifact.sourcePath,
+          destinationFile: existing,
           failure: failure,
         );
       }

@@ -43,12 +43,22 @@ class DeliveryStatusLine {
 
   /// Read [view] and state what is true of it.
   ///
-  /// The journal outranks the configuration: the newest recorded verdict —
-  /// no `ssh` binary, a full disk, a conflicting file — leads the sentence,
-  /// and any structural gap (a missing key, an empty selection, a folder that
-  /// is not there) rides behind it. A configuration blocker stated first would
-  /// hide the real mechanism and point the operator at a fix that cannot
-  /// change the outcome.
+  /// A journal verdict that NAMES ITS OWN MECHANISM — no `ssh` binary, a full
+  /// disk, a conflicting file — outranks the configuration: it leads the
+  /// sentence and any structural gap (a missing key, an empty selection, a
+  /// folder that is not there) rides behind it. A configuration blocker stated
+  /// first would hide the real mechanism and point the operator at a fix that
+  /// cannot change the outcome.
+  ///
+  /// A verdict that reports a SUCCESS does not outrank it. Last night's
+  /// delivery is history, and history cannot answer for a destination nothing
+  /// can be written to tonight: nine `delivered` rows under a folder that is
+  /// not there kept the kind — and so the dot — at `delivered`, painting the
+  /// whole row in the success token with the refusal trailing behind it. The
+  /// blocker leads, the kind is [DeliveryStatusKind.incomplete] (the same one
+  /// this blocker gets when nothing has ever run), and the delivery history is
+  /// stated second. Mount the share and the next read of the page has no
+  /// blocker to state, so the green returns on its own.
   static DeliveryStatusLine of(DeliveryDestinationView view) {
     final destination = view.destination;
     if (!destination.enabled) return _offSentence(view);
@@ -56,9 +66,15 @@ class DeliveryStatusLine {
     if (view.journal.isNotEmpty) {
       final verdict = _journalSentence(view);
       if (note == null) return verdict;
+      if (_namesItsOwnMechanism(verdict.kind)) {
+        return DeliveryStatusLine(
+          verdict.kind,
+          '${_ended(verdict.sentence)} $note',
+        );
+      }
       return DeliveryStatusLine(
-        verdict.kind,
-        '${_ended(verdict.sentence)} $note',
+        DeliveryStatusKind.incomplete,
+        '$note ${_ended(verdict.sentence)}',
       );
     }
     if (note != null) {
@@ -92,6 +108,18 @@ class DeliveryStatusLine {
       ['Off — nothing is sent here.', ...sentences].join(' '),
     );
   }
+
+  /// Whether [kind] is a verdict the journal recorded a reason for.
+  ///
+  /// These are the two states carrying a `last_error`, and that text is the
+  /// only thing on the page naming why the transport itself stopped. Every
+  /// other kind reports that something went well, or that nothing has been
+  /// tried — neither of which answers a blocker.
+  ///
+  /// Keeping `failed` in front also keeps its row's Retry control, which is
+  /// gated on that kind and re-queues files nothing else will look at again.
+  static bool _namesItsOwnMechanism(DeliveryStatusKind kind) =>
+      kind == DeliveryStatusKind.failed || kind == DeliveryStatusKind.retrying;
 
   /// [sentence] with a full stop, unless it already ends in punctuation. The
   /// journal verdict ends in raw `last_error` text, which may end with a

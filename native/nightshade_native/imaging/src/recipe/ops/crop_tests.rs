@@ -207,6 +207,143 @@ fn a_rect_reaching_past_the_frame_is_cropped_to_what_exists() {
 }
 
 #[test]
+fn a_clamped_rect_keeps_its_pixels_and_states_the_adjustment() {
+    // A recipe written over a 1920x1080 master, replayed over a 64x48 one. The
+    // pixels are the determinism contract and do not move; what changes is that
+    // the step no longer reports "applied" and nothing else.
+    let base = synthetic_star_field(64, 48, 1, 61);
+    let applied = CropV1
+        .apply_measured(
+            &base,
+            &json!({ "x": 0, "y": 0, "width": 1920, "height": 1080 }),
+            &OpContext::new(),
+        )
+        .expect("the oversized rect renders");
+    assert_eq!(applied.image.width(), 64);
+    assert_eq!(applied.image.height(), 48);
+    let measured = applied.measurement.expect("the clamp is reported");
+    let clamp = &measured["clampedToImage"];
+    assert_eq!(clamp["imageWidth"], json!(64));
+    assert_eq!(clamp["imageHeight"], json!(48));
+    assert_eq!(
+        clamp["requested"],
+        json!({"x": 0, "y": 0, "width": 1920, "height": 1080})
+    );
+    assert_eq!(
+        clamp["applied"],
+        json!({"x": 0, "y": 0, "width": 64, "height": 48})
+    );
+    assert_eq!(
+        clamp["recipeRect"],
+        json!({"x": 0, "y": 0, "width": 1920, "height": 1080})
+    );
+}
+
+#[test]
+fn a_rect_that_fits_reports_no_adjustment() {
+    // The control the clamped case has to be distinguishable from: an exact
+    // rect, and the whole frame, both measure nothing.
+    let base = synthetic_star_field(64, 48, 1, 62);
+    for params in [
+        json!({ "x": 16, "y": 12, "width": 32, "height": 24 }),
+        json!({ "x": 0, "y": 0, "width": 64, "height": 48 }),
+    ] {
+        let applied = CropV1
+            .apply_measured(&base, &params, &OpContext::new())
+            .expect("the in-fit rect renders");
+        assert!(
+            applied.measurement.is_none(),
+            "a rect that fits describes its result in full: {params}"
+        );
+    }
+}
+
+#[test]
+fn the_whole_frame_at_a_preview_level_is_not_reported_as_an_adjustment() {
+    // The far edge ceils, so a rect ending exactly on the image can land one
+    // pixel past a downsampled level's own size. That single pixel is the
+    // rounding the intersection exists for, and calling it an adjustment would
+    // put a warning on every preview of a correct recipe.
+    let base = synthetic_star_field(33, 25, 1, 63);
+    for level in 1..=2 {
+        let applied = CropV1
+            .apply_measured(
+                &base,
+                &json!({ "x": 0, "y": 0, "width": 33, "height": 25 }),
+                &OpContext::new().at_level(level),
+            )
+            .expect("the whole-frame rect renders at every level");
+        assert!(
+            applied.measurement.is_none(),
+            "level {level} rounding is not an adjustment"
+        );
+    }
+}
+
+#[test]
+fn the_clamp_is_reported_through_the_render_report() {
+    // The step-outcome channel is what the badge, the sidecar and the exported
+    // HISTORY read, so the measurement has to survive the render, not just the
+    // operation.
+    let base = Arc::new(synthetic_star_field(64, 48, 1, 64));
+    let recipe = recipe_with(json!({ "x": 0, "y": 0, "width": 1920, "height": 1080 }));
+    let mut cache = crate::recipe::RenderCache::new(1 << 20);
+    let output = crate::recipe::render(
+        &recipe,
+        &base,
+        &registry(),
+        &mut cache,
+        &OpContext::new(),
+        RenderOptions::full(),
+    )
+    .expect("the clamped recipe renders");
+    assert_eq!(output.report.steps[0].outcome, StepOutcome::Applied);
+    let measured = output.report.steps[0]
+        .measurement
+        .as_ref()
+        .expect("the render report carries the clamp");
+    assert_eq!(measured["clampedToImage"]["applied"]["width"], json!(64));
+}
+
+#[test]
+fn the_pre_render_fit_answers_what_the_render_would_do() {
+    // One intersection, two callers: the warning an editor shows before a render
+    // and the rectangle the render produces have to be the same rectangle.
+    let fit = crop_fit(
+        &json!({ "x": 0, "y": 0, "width": 1920, "height": 1080 }),
+        64,
+        48,
+    )
+    .expect("the payload parses");
+    assert!(fit.clamped());
+    assert!(!fit.origin_outside());
+    assert_eq!(
+        fit.applied,
+        CropRect {
+            x: 0,
+            y: 0,
+            width: 64,
+            height: 48
+        }
+    );
+    assert!(fit.statement().contains("does not fit the 64x48 image"));
+
+    let exact = crop_fit(
+        &json!({ "x": 16, "y": 12, "width": 32, "height": 24 }),
+        64,
+        48,
+    )
+    .expect("the payload parses");
+    assert!(!exact.clamped());
+    assert!(!exact.origin_outside());
+
+    let outside = crop_fit(&json!({ "x": 64, "y": 0, "width": 8, "height": 8 }), 64, 48)
+        .expect("the payload parses");
+    assert!(outside.origin_outside());
+    assert!(outside.statement().contains("lies outside the 64x48 image"));
+}
+
+#[test]
 fn an_origin_outside_the_frame_is_reported_rather_than_clamped() {
     let base = synthetic_star_field(64, 48, 1, 46);
     assert!(matches!(

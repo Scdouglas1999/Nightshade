@@ -15,6 +15,13 @@
 // that can silence each link named too. The switch itself is the only thing
 // this page writes.
 //
+// Each of those neighbours states the value it is actually set to. Describing
+// them abstractly left two of the three notes as unanswered questions on the
+// one page whose job is to say what will silence tonight's pass: the Delivery
+// note never said this rig had exactly one destination, pointed at a folder
+// that was not there, and the Notifications note never said whether either
+// gate was on.
+//
 // Remote clients: `darkroom.auto_draft` lives in the LOCAL profile database and
 // the pass runs on the machine that integrated the masters. A phone driving a
 // remote rig would be editing its own row, which governs nothing, so the page
@@ -35,7 +42,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/user_facing_error.dart';
 import '../../session_review/auto_integration_service.dart';
+import '../delivery_settings.dart';
 import 'settings_widgets.dart';
 
 /// Whether a finished run drafts itself.
@@ -130,31 +139,8 @@ class DarkroomAutopilotSettings extends ConsumerWidget {
           isMobile: isMobile,
           children: [
             _AutoIntegrateDependencyRow(isMobile: isMobile),
-            SettingRow(
-              icon: LucideIcons.send,
-              title: 'Delivery destinations decide what leaves the rig',
-              subtitle:
-                  'The pass hands its masters, drafts and report to Delivery. '
-                  'A destination with nothing selected receives nothing, and a '
-                  'rig with no destinations keeps everything locally — the '
-                  'drafts are still in the Darkroom either way. Settings › '
-                  'Delivery.',
-              trailing: const SizedBox.shrink(),
-              isMobile: isMobile,
-            ),
-            SettingRow(
-              icon: LucideIcons.bell,
-              title: 'The morning message rides the sequence-complete alerts',
-              subtitle:
-                  'One notification goes out when the pass finishes, through '
-                  'the same gates as any end-of-sequence alert. With '
-                  'notifications off, or sequence-complete alerts off, the job '
-                  'records that it was silenced and names the flag rather than '
-                  'sending it another way. Settings › Notifications.',
-              trailing: const SizedBox.shrink(),
-              isLast: true,
-              isMobile: isMobile,
-            ),
+            _DeliveryDependencyRow(isMobile: isMobile),
+            _NotificationDependencyRow(isMobile: isMobile),
           ],
         ),
       ],
@@ -257,6 +243,128 @@ class _AutoIntegrateDependencyRow extends ConsumerWidget {
           style: NightshadeTypography.labelSm.copyWith(color: color),
         ),
       ),
+      isMobile: isMobile,
+    );
+  }
+}
+
+/// What Delivery is holding for the pass right now, in one sentence.
+///
+/// "A rig with no destinations keeps everything locally" is only useful beside
+/// how many this rig has and whether any of them can take tonight's files. The
+/// count and the blockers come from [DeliveryStatusLine] — the same verdict the
+/// Delivery page's own rows state — so the two pages cannot disagree about a
+/// destination, and a folder that is not there is named here the moment it is
+/// named there.
+///
+/// A row that will not decode counts as configured AND as blocked: it is a
+/// destination this rig has and cannot deliver to.
+String deliveryDependencyState(AsyncValue<DeliveryDestinations> destinations) {
+  if (destinations.hasError) {
+    return 'The destinations could not be read '
+        '(${userFacingError(destinations.error)}), so what would leave the rig '
+        'tonight is unknown.';
+  }
+  final read = destinations.valueOrNull;
+  if (read == null) return 'Reading the destinations…';
+  final configured = read.views.length + read.unreadable.length;
+  if (configured == 0) {
+    return 'No destination is configured here, so tonight\'s files stay on '
+        'this machine.';
+  }
+  final blocked = read.views
+          .where((view) => _cannotReceive(view.status.kind))
+          .length +
+      read.unreadable.length;
+  if (blocked == 0) {
+    return configured == 1
+        ? '1 destination is configured and nothing is standing in its way '
+            'right now.'
+        : '$configured destinations are configured and nothing is standing in '
+            'their way right now.';
+  }
+  if (configured == 1) {
+    return '1 destination is configured and it cannot be delivered to as it '
+        'stands.';
+  }
+  return '$configured destinations are configured and $blocked of them cannot '
+      'be delivered to as they stand.';
+}
+
+/// Whether a destination in this state would take tonight's files.
+///
+/// Off and structurally incomplete are the two that would not: the first sends
+/// nothing by the operator's own switch, the second cannot — no folder, no key,
+/// nothing selected. Every other kind is a destination that has moved bytes or
+/// is owed an attempt, which the Delivery page reports on its own row.
+bool _cannotReceive(DeliveryStatusKind kind) =>
+    kind == DeliveryStatusKind.off || kind == DeliveryStatusKind.incomplete;
+
+/// What the two notification gates the morning message rides are set to.
+String notificationDependencyState(AsyncValue<AppSettingsState> settings) {
+  if (settings.hasError) {
+    return 'The notification settings could not be read '
+        '(${userFacingError(settings.error)}), so whether the message goes out '
+        'is unknown.';
+  }
+  final read = settings.valueOrNull;
+  if (read == null) return 'Reading the notification settings…';
+  if (!read.notificationsEnabled) {
+    return 'Notifications are currently off, so the pass would record this '
+        'message as silenced.';
+  }
+  if (!read.notifyOnSequenceComplete) {
+    return 'Notifications are on and the sequence-complete alert is currently '
+        'off, so the pass would record this message as silenced.';
+  }
+  return 'Notifications and the sequence-complete alert are both on.';
+}
+
+/// The dependency that decides what leaves the rig, with Delivery's own count.
+class _DeliveryDependencyRow extends ConsumerWidget {
+  const _DeliveryDependencyRow({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SettingRow(
+      icon: LucideIcons.send,
+      title: 'Delivery destinations decide what leaves the rig',
+      subtitle:
+          'The pass hands its masters, drafts and report to Delivery. A '
+          'destination with nothing selected receives nothing, and a rig with '
+          'no destinations keeps everything locally — the drafts are still in '
+          'the Darkroom either way. '
+          '${deliveryDependencyState(ref.watch(deliveryDestinationsProvider))} '
+          'Settings › Delivery.',
+      trailing: const SizedBox.shrink(),
+      isMobile: isMobile,
+    );
+  }
+}
+
+/// The dependency that decides whether the morning message is sent, with the
+/// two gates' own state.
+class _NotificationDependencyRow extends ConsumerWidget {
+  const _NotificationDependencyRow({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SettingRow(
+      icon: LucideIcons.bell,
+      title: 'The morning message rides the sequence-complete alerts',
+      subtitle:
+          'One notification goes out when the pass finishes, through the same '
+          'gates as any end-of-sequence alert. With notifications off, or '
+          'sequence-complete alerts off, the job records that it was silenced '
+          'and names the flag rather than sending it another way. '
+          '${notificationDependencyState(ref.watch(appSettingsProvider))} '
+          'Settings › Notifications.',
+      trailing: const SizedBox.shrink(),
+      isLast: true,
       isMobile: isMobile,
     );
   }

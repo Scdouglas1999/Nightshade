@@ -516,6 +516,88 @@ void main() {
       );
     });
 
+    // The other half of that rule: a claim about the SHARE has to be earned
+    // from the share. A drop folder watched by a sync agent that unlinks
+    // `.nsdelivery-part` files 0-2 ms after they appear produced
+    //   destinationUnreachable: Reading <drop>/.<master>.2.nsdelivery-part
+    //   failed: Cannot open file — No such file or directory (errno 2). That
+    //   is the destination's copy and <rig>/<master> is still on the rig, so
+    //   the destination went away, not the artifact
+    // while `ls -d <drop>` answered normally in the same second. The sibling
+    // arm, `_copyFailure`, stats the directory before saying that; this one
+    // inferred it from the source still existing.
+    test('a staged copy deleted under a live directory is not a vanished '
+        'share', () async {
+      final artifact = await writeMaster('M31_Ha_master.fits');
+      final staged = File(
+        p.join(
+          destinationDir.path,
+          '.M31_Ha_master.fits.2$kStagedDeliverySuffix',
+        ),
+      );
+
+      DeliveryFailure? read;
+      try {
+        await sha256OfFile(staged);
+      } on DeliveryFailure catch (failure) {
+        read = failure;
+      }
+      final typed = await destinationReadFailure(
+        sourcePath: artifact.sourcePath,
+        destinationFile: staged,
+        failure: read!,
+      );
+
+      expect(await destinationDir.exists(), isTrue);
+      expect(
+        typed.message,
+        isNot(contains('the destination went away')),
+        reason: 'the directory answered; only the staged copy is missing',
+      );
+      expect(
+        typed.message,
+        contains(destinationDir.path),
+        reason: 'the directory that was stat-ed is named, as _copyFailure does',
+      );
+      expect(
+        typed.message,
+        contains(kStagedDeliverySuffix),
+        reason: 'what is deleting part files is the operator\'s next question',
+      );
+      expect(
+        typed.retryable,
+        isTrue,
+        reason: 'the next sweep re-stages this file and delivers it',
+      );
+    });
+
+    test('a staged copy read under a share that dropped still says the share '
+        'went away', () async {
+      final artifact = await writeMaster('M31_Ha_master.fits');
+      final staged = File(
+        p.join(
+          destinationDir.path,
+          '.M31_Ha_master.fits.2$kStagedDeliverySuffix',
+        ),
+      );
+      await destinationDir.delete(recursive: true);
+
+      DeliveryFailure? read;
+      try {
+        await sha256OfFile(staged);
+      } on DeliveryFailure catch (failure) {
+        read = failure;
+      }
+      final typed = await destinationReadFailure(
+        sourcePath: artifact.sourcePath,
+        destinationFile: staged,
+        failure: read!,
+      );
+
+      expect(typed.kind, DeliveryFailureKind.destinationUnreachable);
+      expect(typed.message, contains('the destination went away'));
+    });
+
     test('a rename onto a vanished share is unreachable too', () async {
       final artifact = await writeMaster('M31_Ha_master.fits');
       final staged = await AtomicFileWrite.stage(

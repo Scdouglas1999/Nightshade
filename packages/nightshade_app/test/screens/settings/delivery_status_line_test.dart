@@ -8,6 +8,12 @@
 // change the outcome. The verdict now leads and the structural note rides
 // behind it.
 //
+// A verdict that reports SUCCESS does not get that seniority. Nine delivered
+// rows under a folder that is not there kept the kind — and so the dot — at
+// `delivered`, so the whole row rendered in the success token with the refusal
+// trailing behind it. History cannot answer for a destination nothing can be
+// written to tonight: the blocker leads and the kind is `incomplete`.
+//
 // The second rule pinned here: what did NOT arrive is counted across every job
 // at the destination, and only what did arrive is read from the newest run. A
 // destination holding a previous night's terminally-failed files under
@@ -17,6 +23,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/delivery_settings.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 void main() {
   final now = DateTime.utc(2026, 8, 16, 6, 30);
@@ -433,6 +440,91 @@ void main() {
 
     expect(line.kind, DeliveryStatusKind.incomplete);
     expect(line.sentence, contains('could not be checked (Permission denied)'));
+  });
+
+  // The wave-9 shape, from the release bundle: nine `delivered` rows and a
+  // folder that is not there rendered
+  //   "Delivered 23:20, 9 files, 33.0 MB. There is no directory at
+  //    /mnt/nas-that-is-not-mounted/drop — delivery never creates one, so
+  //    nothing can be written there."
+  // with the dot AND the whole sentence in the dark theme's success token
+  // (0xFF3DAA6D, sampled off the capture). Glance-level the row read healthy;
+  // the refusal was the second half of a paragraph.
+  test('a blocker outranks a delivered history, and green comes back with the '
+      'folder', () {
+    DeliveryStatusLine lineFor(WatchedFolderState state) =>
+        DeliveryStatusLine.of(
+          DeliveryDestinationView(
+            destination: watchedFolder(
+              path: '/mnt/nas-that-is-not-mounted/drop',
+            ),
+            journal: [
+              for (var i = 0; i < 9; i++)
+                DeliveryJournalEntry(
+                  id: i,
+                  targetId: 9,
+                  jobId: 1,
+                  filePath: '/captures/masters/master_$i.fits',
+                  bytes: 3844444,
+                  checksum: 'abc',
+                  state: DeliveryAttemptState.delivered,
+                  attempts: 1,
+                  lastError: null,
+                  createdAt: now,
+                  updatedAt: now,
+                  deliveredAt: now,
+                ),
+            ],
+            secret: StoredSecretState.absent,
+            folder: state,
+          ),
+        );
+
+    final blocked = lineFor(WatchedFolderState.absent);
+    expect(
+      blocked.kind,
+      DeliveryStatusKind.incomplete,
+      reason: 'nothing can be written there, so nothing may read as delivered',
+    );
+    expect(
+      deliveryStatusColor(blocked.kind, NightshadeColors.dark),
+      isNot(NightshadeColors.dark.success),
+      reason: 'the dot is the kind; the enum doc forbids borrowing the green',
+    );
+    expect(
+      blocked.sentence,
+      startsWith('There is no directory at /mnt/nas-that-is-not-mounted/drop'),
+    );
+    expect(
+      blocked.sentence,
+      contains('Delivered'),
+      reason: 'the delivery history is still stated, just second',
+    );
+
+    // The share is mounted again and the page is read again.
+    final restored = lineFor(WatchedFolderState.present);
+    expect(restored.kind, DeliveryStatusKind.delivered);
+    expect(restored.sentence, startsWith('Delivered '));
+    expect(
+      deliveryStatusColor(restored.kind, NightshadeColors.dark),
+      NightshadeColors.dark.success,
+    );
+  });
+
+  test('an empty selection outranks a delivered history too', () {
+    // The rule is about the blocker, not about the folder: a destination that
+    // now receives no class of file will not deliver tonight either.
+    final line = DeliveryStatusLine.of(
+      DeliveryDestinationView(
+        destination: sftp(content: const {}),
+        journal: [entry(state: DeliveryAttemptState.delivered)],
+        secret: StoredSecretState.present,
+      ),
+    );
+
+    expect(line.kind, DeliveryStatusKind.incomplete);
+    expect(line.sentence, startsWith('Nothing selected'));
+    expect(line.sentence, contains('Delivered'));
   });
 
   test('a watched folder that is there states nothing about its folder', () {

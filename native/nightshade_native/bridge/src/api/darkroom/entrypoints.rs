@@ -2,7 +2,8 @@
 
 use serde_json::{json, Value};
 
-use nightshade_imaging::recipe::{RenderOptions, RECIPE_SCHEMA_VERSION};
+use nightshade_imaging::recipe::ops::crop::{crop_fit, CropRect};
+use nightshade_imaging::recipe::{Recipe, RenderOptions, RECIPE_SCHEMA_VERSION};
 
 use super::args::{
     report_json, DarkroomCancelArgs, DarkroomCancelResult, DarkroomContextArgs, DarkroomExportArgs,
@@ -47,10 +48,21 @@ pub struct DarkroomPreview {
 /// adds the base master's geometry to the reply, which is what tells an editor
 /// whether a three-channel operation has three channels to work with.
 ///
-/// The reply is `{ok, error, steps[], base?}`. A recipe that decodes and fails
-/// validation is `ok: false` with the engine's own message plus a per-step
-/// diagnosis, so an editor can mark every bad step at once instead of the first
-/// one. A payload that is not a recipe at all surfaces as `Err(String)`.
+/// The reply is `{ok, error, steps[], geometryChecked, findings[], base?}`. A
+/// recipe that decodes and fails validation is `ok: false` with the engine's own
+/// message plus a per-step diagnosis, so an editor can mark every bad step at
+/// once instead of the first one. A payload that is not a recipe at all surfaces
+/// as `Err(String)`.
+///
+/// # Findings
+///
+/// `ok` answers whether the recipe is well formed, which is a question about the
+/// recipe alone. A `masterPath` adds the second question — whether it fits
+/// *these* pixels — and the answer travels as `findings`, because a recipe whose
+/// crop runs off this master is still a valid recipe: the render succeeds and
+/// silently frames something else. `geometryChecked` says whether that question
+/// was asked at all, so an empty `findings` never has to stand in for "no
+/// master was supplied".
 pub fn api_darkroom_validate(recipe_json: String, context_json: String) -> Result<String, String> {
     let context: DarkroomContextArgs = serde_json::from_str(&context_json)
         .map_err(|e| format!("invalid darkroom context: {e}"))?;
@@ -102,6 +114,8 @@ pub fn api_darkroom_validate(recipe_json: String, context_json: String) -> Resul
         "baseMasterRef": recipe.base_master_ref,
         "schemaVersion": RECIPE_SCHEMA_VERSION,
         "steps": steps,
+        "geometryChecked": false,
+        "findings": Vec::<Value>::new(),
     });
 
     if !context.master_path.trim().is_empty() {
@@ -116,9 +130,68 @@ pub fn api_darkroom_validate(recipe_json: String, context_json: String) -> Resul
             "hasWcs": base.wcs().is_some(),
             "levelCount": pyramid.level_count(),
         });
+        reply["geometryChecked"] = json!(true);
+        reply["findings"] = json!(geometry_findings(&recipe, base.width(), base.height()));
     }
 
     serde_json::to_string(&reply).map_err(|e| format!("failed to encode result: {e}"))
+}
+
+/// Every step whose rectangle does not fit the pixels it would be replayed over.
+///
+/// The working geometry starts at the base master's full resolution and follows
+/// the render: `crop@1` is the one registered operation that changes it, so each
+/// enabled crop is measured against what the steps above it left, and then hands
+/// on the rectangle a render would actually produce. A disabled step is not
+/// applied and neither changes the geometry nor earns a finding — it is not part
+/// of this render, and enabling it is what puts it back on the path.
+///
+/// A step whose parameters do not parse is already reported as invalid by the
+/// per-step pass; there is no rectangle to measure, so it contributes nothing
+/// here and leaves the geometry untouched, which is the same thing a failed
+/// render would do.
+fn geometry_findings(recipe: &Recipe, base_width: u32, base_height: u32) -> Vec<Value> {
+    let mut findings = Vec::new();
+    let (mut width, mut height) = (base_width, base_height);
+    for (index, step) in recipe.steps.iter().enumerate() {
+        if !step.enabled || step.op_id != "crop" || step.op_version != 1 {
+            continue;
+        }
+        let Ok(fit) = crop_fit(&step.params, width, height) else {
+            continue;
+        };
+        if fit.origin_outside() || fit.clamped() {
+            findings.push(json!({
+                "index": index,
+                "opId": step.op_id,
+                "opVersion": step.op_version,
+                "kind": if fit.origin_outside() { "cropOriginOutsideImage" } else { "cropDoesNotFit" },
+                "message": fit.statement(),
+                "imageWidth": fit.image_width,
+                "imageHeight": fit.image_height,
+                "requested": rect_json(&fit.recipe_rect),
+                "applied": rect_json(&fit.applied),
+            }));
+        }
+        if fit.origin_outside() {
+            // The render fails typed at this step, so nothing below it runs and
+            // there is no geometry to carry on with.
+            break;
+        }
+        width = fit.applied.width;
+        height = fit.applied.height;
+    }
+    findings
+}
+
+/// One rectangle as wire JSON.
+fn rect_json(rect: &CropRect) -> Value {
+    json!({
+        "x": rect.x,
+        "y": rect.y,
+        "width": rect.width,
+        "height": rect.height,
+    })
 }
 
 /// Render a recipe over a master at one pyramid level and return the RGBA buffer

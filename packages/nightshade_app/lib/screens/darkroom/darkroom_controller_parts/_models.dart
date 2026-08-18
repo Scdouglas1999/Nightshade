@@ -441,11 +441,19 @@ class DarkroomStepReport {
   /// Why the operation declined, when it did. Null for every other outcome.
   final String? reason;
 
+  /// What the operation measured while applying, verbatim from the report.
+  /// An applied step is not always applied as written — crop publishes
+  /// `clampedToImage` here when the recipe's rectangle did not fit the master
+  /// it replayed over — and a card that ignores this wears plain "Applied"
+  /// over an adjustment the engine stated.
+  final Map<String, dynamic>? measured;
+
   const DarkroomStepReport({
     required this.index,
     required this.opId,
     required this.outcome,
     required this.reason,
+    this.measured,
   });
 }
 

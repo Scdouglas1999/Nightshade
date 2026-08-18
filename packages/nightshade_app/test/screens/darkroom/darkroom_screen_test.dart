@@ -10,9 +10,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'dart:ui' show SemanticsAction, Tristate;
+import 'dart:ui' show SemanticsAction, SemanticsFlag, Tristate;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_controller.dart';
@@ -28,6 +29,9 @@ class _ScriptedDarkroom implements DarkroomSeam {
   bool validateOk = true;
   String validateError = 'a linear operation cannot run after a stretch';
   Map<int, String> skipReasons = {};
+
+  /// Per-step `measured` blocks, the way crop publishes `clampedToImage`.
+  Map<int, Map<String, dynamic>> measurements = {};
   Completer<void>? holdPreview;
 
   /// `opId@opVersion` keys this scripted build does not register, keyed on the
@@ -145,6 +149,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
                         ? 'disabled'
                         : (skipReasons.containsKey(i) ? 'skipped' : 'applied'),
                 if (skipReasons.containsKey(i)) 'reason': skipReasons[i],
+                if (measurements.containsKey(i)) 'measured': measurements[i],
               },
           ],
         },
@@ -410,6 +415,35 @@ void main() {
     expect(find.text('Parameters'), findsNothing);
   });
 
+  testWidgets('a clamped crop is applied-with-adjustment, never plain green', (
+    tester,
+  ) async {
+    darkroom.measurements = {
+      0: {
+        'clampedToImage': {
+          'level': 0,
+          'imageWidth': 640,
+          'imageHeight': 480,
+          'requested': {'x': 0, 'y': 0, 'width': 1920, 'height': 1080},
+          'applied': {'x': 0, 'y': 0, 'width': 640, 'height': 480},
+          'recipeRect': {'x': 0, 'y': 0, 'width': 1920, 'height': 1080},
+        },
+      },
+    };
+    final id = await seedRecipe([_step('crop')]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    expect(find.text('Applied by the last render'), findsNothing);
+    expect(
+      find.textContaining('the crop asks for 1920×1080 at (0, 0)'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('only the part inside the frame'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('the enable switch turns a step off without destroying it', (
     tester,
   ) async {
@@ -657,6 +691,7 @@ void main() {
 
   testWidgets('a failed render labels the picture it left up, on the picture',
       (tester) async {
+    final semantics = tester.ensureSemantics();
     final id =
         await seedRecipe([_step('background_extract'), _step('stretch')]);
     final scope = DarkroomScope.recipe(id);
@@ -698,6 +733,17 @@ void main() {
       find.textContaining('Display transfer of the last render that finished'),
       findsOneWidget,
     );
+    // And the picture's own name to a screen reader says it too. A label that
+    // went on describing the current stack over superseded pixels would be the
+    // same cry-wolf the strip above was fixed for.
+    expect(
+      tester
+          .getSemantics(find.byKey(kDarkroomPreviewSurfaceKey))
+          .getSemanticsData()
+          .label,
+      contains('the last render that finished'),
+    );
+    semantics.dispose();
     await drain(tester);
   });
 
@@ -1087,6 +1133,75 @@ void main() {
       ),
       findsOneWidget,
     );
+    await drain(tester);
+  });
+
+  testWidgets(
+      'the "nothing to open" state keeps its way out as a control of its own',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(tester, const DarkroomScope.recipe(4242));
+
+    // The whole screen used to be ONE ~300-character button: the header's
+    // title and subtitle, the empty state's title, the reason and this label
+    // twice over, merged into the single fragment that carried a tap. Nothing
+    // was named "Back to session review" for an exact-name lookup to find, and
+    // an activation landed on a node whose extents were the screen.
+    final action = find.widgetWithText(
+      NightshadeButton,
+      'Back to session review',
+    );
+    final node = tester.getSemantics(action);
+    final data = node.getSemanticsData();
+    expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(data.hasAction(SemanticsAction.tap), isTrue);
+    expect(data.label, contains('Back to session review'));
+    expect(data.label, isNot(contains('Nothing to open in the Darkroom')));
+    expect(data.label, isNot(contains('no longer has a row')));
+    expect(node.rect.size, tester.getSize(action));
+
+    // And the screen's own words read as text, on nodes that carry no role.
+    final spoken = <String>[];
+    void visit(SemanticsNode node) {
+      if (node.isMergedIntoParent) return;
+      final data = node.getSemanticsData();
+      if (data.label.contains('no longer has a row')) {
+        spoken.add(data.label);
+        expect(data.hasFlag(SemanticsFlag.isButton), isFalse);
+      }
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    expect(spoken, isNotEmpty);
+    handle.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('the rendered draft says what the picture is', (tester) async {
+    final handle = tester.ensureSemantics();
+    final id = await seedRecipe([_step('background_extract')]);
+    await pump(tester, DarkroomScope.recipe(id));
+
+    // The Darkroom's primary content published no node at all: a reader
+    // walking the screen got the zoom toolbar and the encoding strip, and
+    // nothing saying a picture was there or what it was of.
+    final data = tester
+        .getSemantics(find.byKey(kDarkroomPreviewSurfaceKey))
+        .getSemanticsData();
+    expect(data.hasFlag(SemanticsFlag.isImage), isTrue);
+    // Every fact is the render's own: the branch and the master those pixels
+    // belong to, the size the engine answered with, the domain it named and
+    // the level it rendered from.
+    expect(data.label, contains('Draft'));
+    expect(data.label, contains('m31_L.fits'));
+    expect(data.label, contains('2×2'));
+    expect(data.label, contains('still-linear pixels'));
+    expect(data.label, contains('pyramid level 0'));
+    handle.dispose();
     await drain(tester);
   });
 }

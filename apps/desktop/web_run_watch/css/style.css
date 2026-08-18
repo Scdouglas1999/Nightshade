@@ -737,6 +737,16 @@ body {
   outline-offset: 2px;
 }
 
+/* `updateRunControls` disables the controls the reported state does not admit,
+   and during an outage that is all of them. Without this rule the bar paints a
+   dead Stop exactly like a live one — same red, same opacity, same pointer —
+   so the tap it swallows looks like a command that went through. Same tokens
+   as `.btn:disabled` above: one visual language for a control that is off. */
+.pb-btn:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
 .pb-primary {
   background: var(--color-success);
   color: var(--color-on-primary);

@@ -626,6 +626,33 @@ test('the shipped markup offers no run control before the first snapshot', () =>
     'Reset is the way out of a wedged executor and stays available');
 });
 
+/** The declarations of one CSS rule, normalised for comparison. */
+function ruleBody(css, selector) {
+  const at = css.indexOf(selector + ' {');
+  assert.notEqual(at, -1, selector + ' must exist in the stylesheet');
+  const body = css.slice(at + selector.length + 2, css.indexOf('}', at));
+  return body.split(';').map((d) => d.trim()).filter(Boolean).sort();
+}
+
+// D4-W1. `updateRunControls` set `disabled` truthfully in every state, but the
+// stylesheet carried no `.pb-btn:disabled` rule, so the flag painted nothing:
+// with the daemon killed under a live run the bar read `disabled: true` on all
+// four controls while rendering opacity 1, cursor pointer and full saturation
+// — computed-style byte-identical to the same bar seconds earlier with the run
+// live. A dead Stop looked like a live one and swallowed the tap in silence.
+// The DOM shim carries no cascade, so the stylesheet is where this is pinned.
+test('a run control the state does not admit is painted dead', () => {
+  const css = fs.readFileSync(path.join(RUN_WATCH, 'css', 'style.css'), 'utf8');
+  const playback = ruleBody(css, '.pb-btn:disabled');
+  assert.deepEqual(playback, ruleBody(css, '.btn:disabled'),
+    'the phone bar and the page buttons owe the operator one visual language '
+    + 'for a control that is off');
+  assert.ok(playback.includes('opacity: var(--opacity-disabled)'),
+    'a control that cannot fire must not paint at full strength');
+  assert.ok(playback.includes('cursor: not-allowed'),
+    'a pointer over a dead control promises a tap that goes nowhere');
+});
+
 // The server answers 409 `sequencer_not_running` with the same `wasRunning`
 // verdict Stop's 200 no-op carries. "Nothing to pause" is a fact about the
 // rig, not a fault in the request, so it earns the warning toast Stop's no-op

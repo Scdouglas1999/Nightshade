@@ -605,10 +605,13 @@ impl DeviceOps for UnifiedDeviceOps {
                 &image,
                 &nightshade_imaging::StarDetectionConfig::default(),
             );
-            let star_count = stars.len() as u32;
-            // Per-frame median eccentricity from the same detected stars.
-            // Fails closed (None) when too few reliable stars — never faked.
-            let median_eccentricity = nightshade_imaging::frame_eccentricity(&stars);
+            // The same block the manual exposure paths publish, read out of the
+            // stars this frame already detected: HFR, FWHM, eccentricity and the
+            // star count all come from one detection, so a sequencer frame
+            // answers `/api/camera/last-image` with everything a manual one
+            // does. Building the struct here by hand is what published `hfr:
+            // null` beside a real star count for every frame of a run.
+            let frame_stats = crate::api::imaging::frame_stats_result(&stats, &stars);
 
             let mut histogram = vec![0u32; 256];
             for &pixel in &display_data_raw {
@@ -624,17 +627,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 height: native_image.height,
                 display_data,
                 histogram,
-                stats: ImageStatsResult {
-                    min: stats.min,
-                    max: stats.max,
-                    mean: stats.mean,
-                    median: stats.median,
-                    std_dev: stats.std_dev,
-                    hfr: None,
-                    fwhm: None,
-                    eccentricity: median_eccentricity,
-                    star_count,
-                },
+                stats: frame_stats,
                 exposure_time: duration_secs,
                 timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
                 is_color,

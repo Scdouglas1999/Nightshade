@@ -34,14 +34,25 @@ const String kStagedDeliverySuffix = '.nsdelivery-part';
 /// records `failed` on an attempt the sweep would have survived.
 ///
 /// [sourcePath] is stat-ed here, at failure time, rather than trusted from the
-/// describe pass minutes ago: a source still on the rig means the DESTINATION
-/// is what disappeared, which is exactly the failure another attempt fixes.
+/// describe pass minutes ago: a source still on the rig means the failure is on
+/// the DESTINATION side, which is exactly the failure another attempt fixes.
+///
+/// WHICH destination-side failure is then read off [destinationFile] and the
+/// directory holding it, not inferred. "The destination went away" is a claim
+/// about the SHARE, and a drop folder watched by a sync agent that unlinks
+/// `.nsdelivery-part` files milliseconds after they appear produced exactly
+/// that sentence while `ls` on the directory answered normally in the same
+/// second. The sibling arm, [AtomicFileWrite._copyFailure], stats the directory
+/// before saying it; this one now does too, and when the directory is still
+/// there it says what is actually true — one file at the destination did not
+/// survive, which the next sweep re-stages.
 ///
 /// [failure] comes from [sha256OfFile], whose message already names the file it
 /// could not read, so the destination path is not repeated here — what is
 /// added is the verdict on the OTHER side.
 Future<DeliveryFailure> destinationReadFailure({
   required String sourcePath,
+  required File destinationFile,
   required DeliveryFailure failure,
 }) async {
   final cause = failure.cause ?? failure;
@@ -61,12 +72,53 @@ Future<DeliveryFailure> destinationReadFailure({
       cause: cause,
     );
   }
+  final directory = destinationFile.parent;
+  if (!await directory.exists()) {
+    return DeliveryFailure(
+      DeliveryFailureKind.destinationUnreachable,
+      '${failure.message}. That is the destination\'s copy, $sourcePath is '
+      'still on the rig and ${directory.path} is no longer on the filesystem, '
+      'so the destination went away, not the artifact',
+      cause: cause,
+    );
+  }
+  // The share is up and one file on it is not. Retryable, like the sibling
+  // arm's unclassified copy failure: the next sweep stages this file again.
+  if (!await destinationFile.exists()) {
+    return DeliveryFailure(
+      DeliveryFailureKind.transportFailure,
+      '${failure.message}. That is the destination\'s copy, $sourcePath is '
+      'still on the rig and ${directory.path} is still on the filesystem, so '
+      '${_removedAtDestination(destinationFile)}',
+      cause: cause,
+    );
+  }
   return DeliveryFailure(
-    DeliveryFailureKind.destinationUnreachable,
-    '${failure.message}. That is the destination\'s copy and $sourcePath is '
-    'still on the rig, so the destination went away, not the artifact',
+    DeliveryFailureKind.transportFailure,
+    '${failure.message}. That is the destination\'s copy, $sourcePath is still '
+    'on the rig and both ${directory.path} and that copy are still on the '
+    'filesystem, so the read failed on the one file rather than on the '
+    'destination',
     cause: cause,
   );
+}
+
+/// What a destination-side file's disappearance means, told apart by the name.
+///
+/// Nothing but [AtomicFileWrite.stage] writes [kStagedDeliverySuffix], so a
+/// missing one is this attempt's own copy being taken out from under it — the
+/// shape a folder-watching sync agent or scanner produces. Any other name is a
+/// file an earlier delivery committed, which something at the destination has
+/// since removed.
+String _removedAtDestination(File file) {
+  if (file.path.endsWith(kStagedDeliverySuffix)) {
+    return 'the staged copy was removed while this delivery was writing it — '
+        'something on the destination side is deleting '
+        '$kStagedDeliverySuffix files';
+  }
+  return 'the file already at that name was removed between being found and '
+      'being read — something on the destination side is deleting what '
+      'delivery has written';
 }
 
 /// A staged copy waiting to be committed onto its final name.
@@ -132,6 +184,7 @@ class AtomicFileWrite {
     } on DeliveryFailure catch (failure) {
       final typed = await destinationReadFailure(
         sourcePath: artifact.sourcePath,
+        destinationFile: staged,
         failure: failure,
       );
       throw DeliveryFailure(

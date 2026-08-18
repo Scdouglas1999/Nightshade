@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/screens/session_review/auto_integration_service.dart';
+import 'package:nightshade_app/screens/settings/delivery_settings.dart';
 import 'package:nightshade_app/screens/settings/settings_catalog.dart';
 import 'package:nightshade_app/screens/settings/widgets/darkroom_autopilot_settings.dart';
 import 'package:nightshade_app/screens/settings/widgets/settings_widgets.dart';
@@ -118,6 +119,110 @@ void main() {
       findsOneWidget,
       reason: 'the dependency is only useful beside what it currently says',
     );
+  });
+
+  // "What can silence it" answered for one of its three dependencies and
+  // described the other two abstractly: the Delivery note never said how many
+  // destinations this rig has — nor that the one it had could not be written
+  // to — and the Notifications note never said whether either switch was on.
+  // On the one page whose job is to say what will silence tonight's pass, two
+  // of the three notes were unanswered questions.
+  group('every dependency states its own live value', () {
+    List<Override> deliveryOverrides({bool folderExists = true}) => [
+          secretsStoreProvider.overrideWithValue(
+            SecretsStore(InMemorySecureKeyValueStore()),
+          ),
+          watchedFolderExistsProvider.overrideWithValue(
+            (_) async => folderExists,
+          ),
+        ];
+
+    Future<void> seedDestination(NightshadeDatabase db, String name) async {
+      await DeliveryTargetsDao(db).create(
+        name: name,
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas-that-is-not-mounted/drop"}',
+        content: const {ArtifactContent.linearMasters},
+        enabled: true,
+      );
+    }
+
+    String notesOf(WidgetTester tester) => tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data ?? '')
+        .join('\n');
+
+    testWidgets('a destination whose folder is not there is counted and named',
+        (tester) async {
+      final db = mockDatabase();
+      addTearDown(db.close);
+      await seedDestination(db, 'd1-drop');
+      await pumpAppScreen(
+        tester,
+        const DarkroomAutopilotSettings(),
+        database: db,
+        extraOverrides: deliveryOverrides(folderExists: false),
+      );
+      await tester.pumpAndSettle();
+
+      final notes = notesOf(tester);
+      expect(
+        notes,
+        contains('1 destination is configured'),
+        reason: 'the count is the first thing the note cannot answer without',
+      );
+      expect(notes, contains('cannot be delivered to as it stands'));
+      // Both notification gates default on, and the note says so rather than
+      // describing what "off" would do.
+      expect(notes, contains('Notifications and the sequence-complete alert '
+          'are both on'));
+    });
+
+    testWidgets('a rig with no destinations says so, and an off gate is named',
+        (tester) async {
+      final db = mockDatabase();
+      addTearDown(db.close);
+      await SettingsDao(db).setSetting('notifications_enabled', 'false');
+      await pumpAppScreen(
+        tester,
+        const DarkroomAutopilotSettings(),
+        database: db,
+        extraOverrides: deliveryOverrides(),
+      );
+      await tester.pumpAndSettle();
+
+      final notes = notesOf(tester);
+      expect(notes, contains('No destination is configured here'));
+      expect(notes, contains('Notifications are currently off'));
+    });
+
+    testWidgets('two destinations, one blocked, are counted as two', (
+      tester,
+    ) async {
+      final db = mockDatabase();
+      addTearDown(db.close);
+      await seedDestination(db, 'd1-drop');
+      await DeliveryTargetsDao(db).create(
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.peer,
+        configJson: '{"peerId":"office-pc"}',
+        content: const {ArtifactContent.draftRender},
+        enabled: true,
+      );
+      await pumpAppScreen(
+        tester,
+        const DarkroomAutopilotSettings(),
+        database: db,
+        extraOverrides: deliveryOverrides(folderExists: false),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        notesOf(tester),
+        contains('2 destinations are configured and 1 of them cannot be '
+            'delivered to'),
+      );
+    });
   });
 
   testWidgets('the switch shows on for a row nobody has written', (

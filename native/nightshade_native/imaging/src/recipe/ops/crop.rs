@@ -21,15 +21,40 @@
 //! previewed region never shows less than the full render does. The rect is
 //! intersected with the image, because that rounding can push the far edge one
 //! pixel past the level's own size.
+//!
+//! # Rectangles that do not fit
+//!
+//! The same intersection also absorbs a rect that genuinely runs off the image —
+//! a recipe written over a 1920x1080 master and replayed over a 640x480 one asks
+//! for three times the frame and gets the frame. The pixels are not the problem:
+//! a recipe replays bit-identical forever, so the clamp stays exactly as it is.
+//! What the intersection must not do is stay silent, and it no longer does.
+//! [`CropFit::clamped`] separates the two cases — the documented one-pixel
+//! rounding from an intersection that cut real area away — and an application
+//! that was clamped reports the rect it asked for beside the rect it applied
+//! through [`OpApplied::measurement`], so the render report, the export
+//! `HISTORY` and the step badge all state the adjustment. `crop_fit` answers the
+//! same question before a render, which is how `api_darkroom_validate` warns an
+//! editor holding a master the recipe does not fit.
 
 use rayon::prelude::*;
 use serde_json::{json, Value};
 
-use crate::recipe::{DarkroomOp, OpContext, OpError, OpImage, OpStage, Params};
+use crate::recipe::{DarkroomOp, OpApplied, OpContext, OpError, OpImage, OpStage, Params};
 
 /// Largest coordinate or extent, in pixels. No sensor reaches it; it exists so a
 /// hand-edited recipe cannot ask for a rect that overflows the geometry maths.
 const COORD_MAX: u32 = 1_000_000;
+
+/// Level pixels per axis the intersection may remove before it counts as having
+/// changed the framing.
+///
+/// The far edge ceils, so a rect that ends exactly on the image can land at most
+/// one pixel past the level's own size — that single pixel is the rounding the
+/// intersection exists for and says nothing about the recipe. Anything past it
+/// is area the rect asked for and did not get, which is a fact about this master
+/// that the operator has to be told.
+const ROUNDING_SLACK: u32 = 1;
 
 /// Crops a rectangle out of linear data and moves the astrometry with it.
 pub struct CropV1;
@@ -64,17 +89,27 @@ impl DarkroomOp for CropV1 {
     }
 
     fn apply(&self, image: &OpImage, params: &Value, ctx: &OpContext) -> Result<OpImage, OpError> {
+        self.apply_measured(image, params, ctx)
+            .map(|applied| applied.image)
+    }
+
+    fn apply_measured(
+        &self,
+        image: &OpImage,
+        params: &Value,
+        ctx: &OpContext,
+    ) -> Result<OpApplied, OpError> {
         let settings = self.read_settings(params)?;
         ctx.check_cancel()?;
 
-        let width = image.width() as usize;
-        let height = image.height() as usize;
+        let width = image.width();
+        let height = image.height();
         let channels = image.channels() as usize;
         let scale = ctx.scale();
+        let fit = settings.fit(width, height, scale);
 
-        let x0 = (settings.x as f64 * scale).floor() as usize;
-        let y0 = (settings.y as f64 * scale).floor() as usize;
-        if x0 >= width || y0 >= height {
+        let (x0, y0) = (fit.applied.x as usize, fit.applied.y as usize);
+        if x0 >= width as usize || y0 >= height as usize {
             return Err(OpError::Failed {
                 op_id: self.id(),
                 op_version: self.version(),
@@ -94,9 +129,10 @@ impl DarkroomOp for CropV1 {
                 ),
             });
         }
-        let x1 = (((settings.x as f64 + settings.width as f64) * scale).ceil() as usize).min(width);
-        let y1 =
-            (((settings.y as f64 + settings.height as f64) * scale).ceil() as usize).min(height);
+        let (x1, y1) = (
+            (x0 + fit.applied.width as usize),
+            (y0 + fit.applied.height as usize),
+        );
         if x1 <= x0 || y1 <= y0 {
             return Err(OpError::Failed {
                 op_id: self.id(),
@@ -118,6 +154,7 @@ impl DarkroomOp for CropV1 {
             });
         }
 
+        let width = width as usize;
         let out_width = x1 - x0;
         let out_height = y1 - y0;
         let out_row = out_width * channels;
@@ -138,7 +175,10 @@ impl DarkroomOp for CropV1 {
         let mut cropped =
             image.with_geometry(out_width as u32, out_height as u32, channels as u32, out)?;
         cropped.translate_reference_pixel(x0 as f64, y0 as f64);
-        Ok(cropped)
+        Ok(OpApplied {
+            image: cropped,
+            measurement: fit.measurement(ctx.level()),
+        })
     }
 }
 
@@ -158,6 +198,139 @@ impl CropV1 {
             width: p.u32_required("width", 1..=COORD_MAX)?,
             height: p.u32_required("height", 1..=COORD_MAX)?,
         })
+    }
+}
+
+impl Settings {
+    /// Where this rectangle lands on a `width` x `height` image rendered at
+    /// `scale`.
+    ///
+    /// The only place the mapping and the intersection are written: `apply`
+    /// crops what this returns, and [`crop_fit`] answers the pre-render question
+    /// from it, so the warning an editor shows and the pixels a render produces
+    /// cannot describe different rectangles.
+    fn fit(&self, width: u32, height: u32, scale: f64) -> CropFit {
+        let x0 = (self.x as f64 * scale).floor() as u32;
+        let y0 = (self.y as f64 * scale).floor() as u32;
+        let x1 = ((self.x as f64 + self.width as f64) * scale).ceil() as u32;
+        let y1 = ((self.y as f64 + self.height as f64) * scale).ceil() as u32;
+        CropFit {
+            requested: CropRect {
+                x: x0,
+                y: y0,
+                width: x1.saturating_sub(x0),
+                height: y1.saturating_sub(y0),
+            },
+            applied: CropRect {
+                x: x0,
+                y: y0,
+                width: x1.min(width).saturating_sub(x0),
+                height: y1.min(height).saturating_sub(y0),
+            },
+            image_width: width,
+            image_height: height,
+            recipe_rect: CropRect {
+                x: self.x,
+                y: self.y,
+                width: self.width,
+                height: self.height,
+            },
+        }
+    }
+}
+
+/// Where a `crop@1` payload's rectangle lands on an image, at full resolution.
+///
+/// The pre-render half of the same question `apply` answers: given the base
+/// master's geometry, does the recipe's rectangle fit, and what would a render
+/// produce if it does not. `api_darkroom_validate` walks a step list with it so
+/// the editor can warn about a rect the master cannot hold before any pixels
+/// move.
+///
+/// # Errors
+///
+/// [`OpError`] when `params` is not a valid `crop@1` payload — the same
+/// rejection [`DarkroomOp::validate_params`] makes.
+pub fn crop_fit(params: &Value, width: u32, height: u32) -> Result<CropFit, OpError> {
+    Ok(CropV1.read_settings(params)?.fit(width, height, 1.0))
+}
+
+/// How one crop rectangle lands on one image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CropFit {
+    /// The rectangle the step asks for, in the rendered image's own pixels.
+    pub requested: CropRect,
+    /// The part of it that lies on the image — the rectangle a render crops.
+    pub applied: CropRect,
+    /// Width of the image the rectangle was measured against.
+    pub image_width: u32,
+    /// Height of the image the rectangle was measured against.
+    pub image_height: u32,
+    /// The step's own rectangle, in full-resolution pixels. Equal to
+    /// `requested` at level 0, and the number an operator reading the recipe
+    /// sees at every level.
+    pub recipe_rect: CropRect,
+}
+
+impl CropFit {
+    /// Whether the origin lies off the image, which no render can crop: the step
+    /// fails typed rather than producing a rectangle.
+    pub fn origin_outside(&self) -> bool {
+        self.applied.x >= self.image_width || self.applied.y >= self.image_height
+    }
+
+    /// Whether the intersection cut away more than the far edge's rounding —
+    /// that is, whether the rectangle the render used is a different framing
+    /// from the one the recipe asked for. See [`ROUNDING_SLACK`].
+    pub fn clamped(&self) -> bool {
+        self.requested.width.saturating_sub(self.applied.width) > ROUNDING_SLACK
+            || self.requested.height.saturating_sub(self.applied.height) > ROUNDING_SLACK
+    }
+
+    /// The render report's detail for a clamped application: the rectangle asked
+    /// for beside the one applied, and the image that decided it. `None` when
+    /// the rectangle fit, because then the step's own parameters describe its
+    /// result in full.
+    fn measurement(&self, level: u32) -> Option<Value> {
+        if !self.clamped() {
+            return None;
+        }
+        Some(json!({
+            "clampedToImage": {
+                "level": level,
+                "imageWidth": self.image_width,
+                "imageHeight": self.image_height,
+                "requested": self.requested.to_params(),
+                "applied": self.applied.to_params(),
+                "recipeRect": self.recipe_rect.to_params(),
+            }
+        }))
+    }
+
+    /// What happened to this rectangle, in the words a reader gets in the render
+    /// report, the exported `HISTORY` and the editor's pre-render warning.
+    pub fn statement(&self) -> String {
+        if self.origin_outside() {
+            return format!(
+                "crop origin ({}, {}) lies outside the {}x{} image, so the render cannot run \
+                 this step",
+                self.recipe_rect.x, self.recipe_rect.y, self.image_width, self.image_height
+            );
+        }
+        format!(
+            "crop asks for {}x{} at ({}, {}), which does not fit the {}x{} image: the render \
+             applies {}x{} at ({}, {})",
+            self.recipe_rect.width,
+            self.recipe_rect.height,
+            self.recipe_rect.x,
+            self.recipe_rect.y,
+            self.image_width,
+            self.image_height,
+            self.applied.width,
+            self.applied.height,
+            self.applied.x,
+            self.applied.y
+        )
     }
 }
 
