@@ -202,6 +202,36 @@ void main() {
       expect(resolved!.filePath, set.artifacts.single.sourcePath);
       expect(resolved.targetId, targetId);
       expect(resolved.jobId, jobId);
+      // The download's `Content-Disposition` is built from this, and it used
+      // to carry the rig's bare file name while the manifest promised the
+      // namespaced one. Any puller that saves what the header says — `curl
+      // -OJ`, a browser — then wrote the very name the namespacing exists to
+      // keep two rigs off.
+      expect(
+        resolved.fileName,
+        'shed-rig-${set.artifacts.single.fileName}',
+        reason: 'the resolved name is the name the manifest published',
+      );
+    });
+
+    test('the resolved name is exactly the manifest entry\'s name', () async {
+      final jobId = await DarkroomJobsDao(db).enqueue();
+      await createPeer('office-pc');
+      final set = await publishSet(jobId, names: ['a.fits', 'b.fits']);
+      await serviceFor().deliverJobArtifacts(set);
+
+      final manifest = await peers.buildManifest(
+        jobId: jobId,
+        peerId: 'office-pc',
+      );
+      for (final entry in manifest.entries) {
+        final resolved = await peers.resolveArtifact(
+          jobId: jobId,
+          peerId: 'office-pc',
+          artifactId: entry.artifactId,
+        );
+        expect(resolved!.fileName, entry.fileName);
+      }
     });
 
     test('refuses an id this job never published', () async {

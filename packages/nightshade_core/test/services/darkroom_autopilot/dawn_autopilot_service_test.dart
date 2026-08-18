@@ -1292,7 +1292,13 @@ void main() {
 
     final outcome = await buildService().runDawnForSession(sessionId);
 
-    expect(outcome.succeeded, isTrue);
+    // A pass with nothing to draft is not a pass that succeeded. It used to end
+    // `done` with an empty error, which the Session Review banner paints
+    // nothing for — so the night read "a clean night, no problems detected"
+    // with no mention anywhere that the drafting had not happened.
+    expect(outcome.succeeded, isFalse);
+    expect(outcome.state, DarkroomJobState.failed);
+    expect(outcome.failure, contains('still accumulating'));
     expect(outcome.report!.masters, isEmpty);
     expect(outcome.report!.withoutFile, hasLength(1));
     expect(
@@ -1734,6 +1740,65 @@ void main() {
       report.headline,
     );
   });
+
+  test('a night that rendered no draft ends failed, naming the master that '
+      'stopped it, and the report on disk says the same', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    darkroom.beforeRegistry = () async {
+      throw const DarkroomSeamException(
+        'registry',
+        'cannot read as FITS',
+        'unexpected end of FITS data',
+      );
+    };
+
+    final outcome = await buildService().runDawnForSession(sessionId);
+
+    // `done` with a NULL error_text is what the Session Review banner
+    // deliberately paints nothing for, so a pass that produced no draft was
+    // invisible on the one screen the operator opens the next morning.
+    expect(outcome.state, DarkroomJobState.failed);
+    expect(outcome.succeeded, isFalse);
+    expect(outcome.failure, contains('cannot read as FITS'));
+
+    final job = await DarkroomJobsDao(db).getById(outcome.jobId);
+    expect(job!.state, DarkroomJobState.failed);
+    expect(job.errorText, isNotNull);
+    expect(job.errorText, contains('rendered no draft'));
+    // The note is the banner's second sentence; without this it still named
+    // the last stage that ran ("Sending the morning report").
+    expect(job.note, contains('the night report carries'));
+    // And it is a FINISHED sentence: the banner frames a note that does not
+    // punctuate itself as the stage the pass stopped at — "It was No draft
+    // was rendered … when it stopped" — which is a stop this pass, having
+    // run every stage, never made.
+    expect(job.note, endsWith('.'));
+
+    final onDisk =
+        jsonDecode(File(outcome.reportPath!).readAsStringSync())
+            as Map<String, dynamic>;
+    expect(onDisk['state'], DarkroomJobState.failed.wire);
+    expect(onDisk['failure'], job.errorText);
+    // The morning message still goes out: the pass that produced nothing is
+    // the one the operator most needs told about.
+    expect((onDisk['notification'] as Map<String, dynamic>)['sent'], isNotNull);
+  });
+
+  test(
+    'a session with no integrated master at all ends failed and says what to '
+    'do about it',
+    () async {
+      final sessionId = await insertSession();
+
+      final outcome = await buildService().runDawnForSession(sessionId);
+
+      expect(outcome.state, DarkroomJobState.failed);
+      expect(outcome.failure, contains('no integrated master'));
+      expect(outcome.failure, contains('Session Review'));
+    },
+  );
 
   test('a draft is named for the target and the filter it covers', () async {
     final sessionId = await insertSession();

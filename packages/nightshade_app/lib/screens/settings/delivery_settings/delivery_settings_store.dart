@@ -32,15 +32,46 @@ const Map<ArtifactContent, String> kArtifactContentLabels =
   ArtifactContent.nightReport: 'Night report',
 };
 
-/// One destination as this settings page needs it: the row, the journal's
-/// verdict on its most recent run, and what the keyring says about its key.
+/// What this page's own check says about a watched folder's directory.
+///
+/// The editor's write probe answers only while the editor is open, and an
+/// operator who ignored its refusal and saved anyway got a row that said
+/// nothing about the folder at all. This is the same question asked cheaply
+/// enough to ask on every read of the page.
+enum WatchedFolderState {
+  /// Nothing was asked: the destination is not a watched folder, or it names
+  /// no path — which the status line reports as the configuration gap it is.
+  notProbed,
+
+  /// A directory answers at that path.
+  present,
+
+  /// Nothing is at that path. Delivery never creates one, so nothing can be
+  /// written there until the operator mounts or makes it.
+  absent,
+
+  /// The check itself was refused — a permission, or a mount that would not
+  /// answer. Distinct from [absent]: "we could not ask" is not "there is none".
+  unreadable,
+}
+
+/// One destination as this settings page needs it: the row, its whole delivery
+/// journal, what the keyring says about its key, and — for a watched folder —
+/// whether its directory is there.
+///
+/// The journal arrives whole rather than pre-filtered, and the facts the page
+/// states are derived here. Handing this class one already-narrowed list is
+/// exactly how the page came to read a green "Delivered" over four files that
+/// never arrived: the narrowing was correct for the sentence it was written
+/// for and wrong for every other sentence built from it.
 class DeliveryDestinationView {
   /// The `delivery_targets` row.
   final ArtifactDestination destination;
 
-  /// Journal rows for the NEWEST JOB that delivered to this destination,
-  /// newest update first. Empty when nothing has ever been attempted here.
-  final List<DeliveryJournalEntry> lastRun;
+  /// EVERY `delivery_journal` row for this destination, across every job, in
+  /// `listForTarget`'s newest-updated-first order. Empty when nothing has ever
+  /// been attempted here.
+  final List<DeliveryJournalEntry> journal;
 
   /// What the keyring says about [ArtifactDestination.secretRef].
   final StoredSecretState secret;
@@ -49,12 +80,69 @@ class DeliveryDestinationView {
   /// [StoredSecretState.unreadable].
   final String? secretError;
 
+  /// What this page's directory check says about a watched folder's path.
+  final WatchedFolderState folder;
+
+  /// Why the directory check could not answer, when [folder] is
+  /// [WatchedFolderState.unreadable].
+  final String? folderError;
+
   const DeliveryDestinationView({
     required this.destination,
-    required this.lastRun,
+    required this.journal,
     required this.secret,
     this.secretError,
+    this.folder = WatchedFolderState.notProbed,
+    this.folderError,
   });
+
+  /// The journal rows belonging to the NEWEST JOB that delivered to this
+  /// destination.
+  ///
+  /// The newest job, not the newest-touched row. Those are different rows the
+  /// moment the overnight sweep re-attempts an older night: the sweep writes
+  /// `updated_at` on a row from two nights ago, which lifts that row to the
+  /// top of `listForTarget` and made this page report THAT job.
+  ///
+  /// A job is dated by the newest row it created, because that is when its
+  /// delivery started; the higher `darkroom_jobs.id` breaks a tie, since the
+  /// column is an autoincrement and the later job always holds the larger one.
+  List<DeliveryJournalEntry> get lastRun {
+    if (journal.isEmpty) return const <DeliveryJournalEntry>[];
+    var newestJobId = journal.first.jobId;
+    var newestStartedAt = journal.first.createdAt;
+    for (final entry in journal.skip(1)) {
+      final startedAt = entry.createdAt;
+      final isNewer = startedAt.isAfter(newestStartedAt) ||
+          (!startedAt.isBefore(newestStartedAt) && entry.jobId > newestJobId);
+      if (isNewer) {
+        newestJobId = entry.jobId;
+        newestStartedAt = entry.createdAt;
+      }
+    }
+    return journal
+        .where((entry) => entry.jobId == newestJobId)
+        .toList(growable: false);
+  }
+
+  /// Every file at this destination whose attempts are spent, across EVERY
+  /// job — the backlog nothing on the rig will look at again.
+  ///
+  /// The sweep reads only `retrying` rows, so a `failed` row is the end of the
+  /// line until somebody re-queues it. Scoping this to the newest job is what
+  /// let a destination holding a previous night's terminally-failed files read
+  /// a green "Delivered" for tonight's.
+  List<DeliveryJournalEntry> get unresolvedFailures => journal
+      .where((entry) => entry.state == DeliveryAttemptState.failed)
+      .toList(growable: false);
+
+  /// Every file at this destination still owed an attempt, across EVERY job.
+  ///
+  /// This is the same set the retry sweep works from, which is what makes the
+  /// count the page prints and the count the sweep logs the same number.
+  List<DeliveryJournalEntry> get owed => journal
+      .where((entry) => entry.state == DeliveryAttemptState.retrying)
+      .toList(growable: false);
 
   /// The sentence this destination's status line states.
   DeliveryStatusLine get status => DeliveryStatusLine.of(this);
@@ -121,8 +209,8 @@ abstract class DeliverySettingsStore {
   /// Delete a destination, including its keyring entry.
   Future<void> deleteDestination(int id);
 
-  /// Put the newest job's spent rows on [destinationId] back in the retry
-  /// queue, and answer how many were re-queued.
+  /// Put every spent row on [destinationId] back in the retry queue, across
+  /// every job, and answer how many were re-queued.
   ///
   /// A `failed` row is the end of the line: the sweep reads only `retrying`
   /// rows, so nothing on the rig ever looks at that file again. The operator
@@ -131,9 +219,11 @@ abstract class DeliverySettingsStore {
   /// the file gets the whole budget again rather than one attempt at the
   /// maximum backoff.
   ///
-  /// Only the newest job's rows: older nights' failures were already reported
-  /// and closed, and re-queueing a fortnight of them would spend the night's
-  /// bandwidth on files the operator did not ask about.
+  /// Every job, not only the newest. This is the action offered beside a
+  /// status line that counts the destination's whole terminal backlog, and a
+  /// button that re-queued a subset of what the sentence beside it names would
+  /// report re-queueing files it left behind. An older night's failure is
+  /// still a file that never arrived; nothing else is ever going to fetch it.
   Future<int> requeueTerminalRows(int destinationId);
 
   /// Write [value] into the keyring and point the row's `secret_ref` at it.
@@ -146,19 +236,31 @@ abstract class DeliverySettingsStore {
   Future<WatchedFolderProbe> probeWatchedFolder(String path);
 }
 
-/// Production [DeliverySettingsStore]: the v58 DAOs plus the keyring.
+/// Whether a directory answers at [path].
+///
+/// The seam the page's folder check runs through, so a widget test states what
+/// the filesystem answers rather than depending on what happens to be mounted
+/// on the machine running it — the same shape [PairedDesktopReader] already
+/// uses for the pairing database.
+typedef WatchedFolderExists = Future<bool> Function(String path);
+
+/// Production [DeliverySettingsStore]: the v58 DAOs, the keyring, and the
+/// directory check behind a watched folder's status.
 class DaoDeliverySettingsStore implements DeliverySettingsStore {
   final DeliveryTargetsDao _targets;
   final DeliveryJournalDao _journal;
   final SecretsStore _secrets;
+  final WatchedFolderExists _folderExists;
 
   DaoDeliverySettingsStore({
     required DeliveryTargetsDao targets,
     required DeliveryJournalDao journal,
     required SecretsStore secrets,
+    required WatchedFolderExists folderExists,
   })  : _targets = targets,
         _journal = journal,
-        _secrets = secrets;
+        _secrets = secrets,
+        _folderExists = folderExists;
 
   @override
   Future<DeliveryDestinations> listDestinations() async {
@@ -170,16 +272,56 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
           ? const <DeliveryJournalEntry>[]
           : await _journal.listForTarget(id);
       final secret = await _secretStateOf(destination);
+      final folder = await _folderStateOf(destination);
       views.add(
         DeliveryDestinationView(
           destination: destination,
-          lastRun: _newestJobRows(entries),
+          journal: entries,
           secret: secret.state,
           secretError: secret.error,
+          folder: folder.state,
+          folderError: folder.error,
         ),
       );
     }
     return DeliveryDestinations(views: views, unreadable: read.undecodable);
+  }
+
+  /// Whether a watched folder's directory is there, and — when the question
+  /// itself was refused — what refused it.
+  ///
+  /// Existence only. The editor's probe writes and removes a file because it
+  /// is answering "may I deliver here?" on demand; this one runs for every
+  /// destination on every read of the page, and a page that littered somebody's
+  /// NAS with probe files each time it opened would be worse than the silence
+  /// it replaces. A directory that exists but refuses writes is still caught by
+  /// the journal's own verdict, which this note rides behind.
+  Future<({WatchedFolderState state, String? error})> _folderStateOf(
+    ArtifactDestination destination,
+  ) async {
+    if (destination.kind != ArtifactDestinationKind.watchedFolder) {
+      return (state: WatchedFolderState.notProbed, error: null);
+    }
+    final path = configString(
+      decodeDestinationConfig(destination.configJson),
+      'path',
+    ).trim();
+    if (path.isEmpty) {
+      return (state: WatchedFolderState.notProbed, error: null);
+    }
+    try {
+      final present = await _folderExists(path);
+      return (
+        state: present ? WatchedFolderState.present : WatchedFolderState.absent,
+        error: null,
+      );
+    } on FileSystemException catch (error) {
+      final osError = error.osError;
+      return (
+        state: WatchedFolderState.unreadable,
+        error: osError == null ? error.message : osError.message,
+      );
+    }
   }
 
   /// What the keyring says about one destination's key, and — when it refused
@@ -203,40 +345,6 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
         error: userFacingError(error),
       );
     }
-  }
-
-  /// The journal rows belonging to the NEWEST JOB that delivered to this
-  /// destination, in `listForTarget`'s newest-updated-first order.
-  ///
-  /// The newest job, not the newest-touched row. Those are different rows the
-  /// moment the overnight sweep re-attempts an older night: the sweep writes
-  /// `updated_at` on a row from two nights ago, which lifts that row to the top
-  /// of `listForTarget` and made this page report THAT job. An operator whose
-  /// latest night failed and whose previous night was finally delivered at
-  /// 06:20 therefore read a green "Delivered 06:20" and no sign of the failure
-  /// — the one sentence the page exists to get right.
-  ///
-  /// A job is dated by the newest row it created, because that is when its
-  /// delivery started; the higher `darkroom_jobs.id` breaks a tie, since the
-  /// column is an autoincrement and the later job always holds the larger one.
-  static List<DeliveryJournalEntry> _newestJobRows(
-    List<DeliveryJournalEntry> entries,
-  ) {
-    if (entries.isEmpty) return const <DeliveryJournalEntry>[];
-    var newestJobId = entries.first.jobId;
-    var newestStartedAt = entries.first.createdAt;
-    for (final entry in entries.skip(1)) {
-      final startedAt = entry.createdAt;
-      final isNewer = startedAt.isAfter(newestStartedAt) ||
-          (!startedAt.isBefore(newestStartedAt) && entry.jobId > newestJobId);
-      if (isNewer) {
-        newestJobId = entry.jobId;
-        newestStartedAt = entry.createdAt;
-      }
-    }
-    return entries
-        .where((entry) => entry.jobId == newestJobId)
-        .toList(growable: false);
   }
 
   @override
@@ -292,7 +400,7 @@ class DaoDeliverySettingsStore implements DeliverySettingsStore {
 
   @override
   Future<int> requeueTerminalRows(int destinationId) async {
-    final rows = _newestJobRows(await _journal.listForTarget(destinationId));
+    final rows = await _journal.listForTarget(destinationId);
     var requeued = 0;
     for (final row in rows) {
       if (row.state != DeliveryAttemptState.failed) continue;
@@ -411,12 +519,21 @@ int? configInt(Map<String, Object?> config, String key) {
   return null;
 }
 
+/// Asks the filesystem whether a watched folder's directory is there.
+///
+/// A `Provider` so a widget test overrides it rather than reaching for whatever
+/// is mounted on the machine running the suite. Production is one `stat`.
+final watchedFolderExistsProvider = Provider<WatchedFolderExists>(
+  (ref) => (path) => Directory(path).exists(),
+);
+
 /// The store this page reads and writes through.
 final deliverySettingsStoreProvider = Provider<DeliverySettingsStore>((ref) {
   return DaoDeliverySettingsStore(
     targets: ref.watch(deliveryTargetsDaoProvider),
     journal: ref.watch(deliveryJournalDaoProvider),
     secrets: ref.watch(secretsStoreProvider),
+    folderExists: ref.watch(watchedFolderExistsProvider),
   );
 });
 

@@ -48,9 +48,10 @@ pub struct FitsHeader {
     keyword_order: Vec<String>,
     /// Optional inline comment text for each keyword (`KEY = value / comment`).
     keyword_comments: HashMap<String, String>,
-    /// COMMENT card text in original order.
+    /// COMMENT text in original order, one entry per LOGICAL line rather than
+    /// per 80-column card. See [`commentary_cards`] for the split.
     pub comments: Vec<String>,
-    /// HISTORY card text in original order.
+    /// HISTORY text in original order, one entry per logical line.
     pub history: Vec<String>,
 }
 
@@ -201,12 +202,17 @@ impl FitsHeader {
             .insert(key.to_uppercase(), comment.to_string());
     }
 
-    /// Append a free-form COMMENT card.
+    /// Append a free-form COMMENT line.
+    ///
+    /// One LOGICAL line, of any length: the writer breaks it across as many
+    /// cards as it needs at a token boundary with an explicit continuation, and
+    /// the reader puts it back together. See [`commentary_cards`].
     pub fn add_comment(&mut self, text: &str) {
         self.comments.push(text.to_string());
     }
 
-    /// Append a HISTORY card.
+    /// Append a HISTORY line. One logical line of any length — see
+    /// [`Self::add_comment`] for how it reaches the file.
     pub fn add_history(&mut self, text: &str) {
         self.history.push(text.to_string());
     }
@@ -752,6 +758,14 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
         }
     }
 
+    // Rejoin the commentary blocks. `comments` and `history` hold LOGICAL
+    // lines — a line too long for one card was split by `commentary_cards` at
+    // write time and is put back together here, so a path or a digest that
+    // overran column 80 reads whole instead of as two entries a consumer has to
+    // guess how to concatenate.
+    header.comments = join_commentary_cards(std::mem::take(&mut header.comments));
+    header.history = join_commentary_cards(std::mem::take(&mut header.history));
+
     // Skip to next 2880-byte boundary
     // The header is padded with spaces to a multiple of 2880 bytes
     // Use total_records (which counts every 80-byte record including
@@ -1178,8 +1192,9 @@ fn write_end_card<W: Write>(writer: &mut W) -> Result<(), FitsError> {
 /// Write a free-form text card (COMMENT, HISTORY, or any spec-defined commentary
 /// keyword). Per FITS 4.4.2.4 these have no `=` separator; the text body fills
 /// columns 9..80 (1-indexed) and is padded with trailing spaces. Long text is
-/// split across multiple cards. Why: emitting a value-card for COMMENT/HISTORY
-/// would produce malformed cards like `COMMENT = some text`.
+/// split across multiple cards by [`commentary_cards`]. Why: emitting a
+/// value-card for COMMENT/HISTORY would produce malformed cards like
+/// `COMMENT = some text`.
 fn write_text_card<W: Write>(writer: &mut W, keyword: &str, text: &str) -> Result<(), FitsError> {
     if keyword.len() > 8 {
         return Err(FitsError::InvalidFormat(format!(
@@ -1187,27 +1202,144 @@ fn write_text_card<W: Write>(writer: &mut W, keyword: &str, text: &str) -> Resul
             keyword
         )));
     }
-    // Up to 72 bytes of text per card (cols 9..80). Wrap longer payloads.
-    let bytes = text.as_bytes();
-    let chunk_size = 72;
-    if bytes.is_empty() {
-        let mut record = [b' '; 80];
-        let key_bytes = keyword.as_bytes();
-        record[..key_bytes.len()].copy_from_slice(key_bytes);
-        writer.write_all(&record)?;
-        return Ok(());
-    }
-    for chunk in bytes.chunks(chunk_size) {
+    for body in commentary_cards(text) {
         let mut record = [b' '; 80];
         let key_bytes = keyword.as_bytes();
         record[..key_bytes.len()].copy_from_slice(key_bytes);
         // Why: column 9 is the first text byte (0-indexed offset 8) and the spec
         // does not place an `=` at column 9 for commentary keywords.
-        let copy_len = chunk.len().min(72);
-        record[8..8 + copy_len].copy_from_slice(&chunk[..copy_len]);
+        let bytes = body.as_bytes();
+        record[8..8 + bytes.len()].copy_from_slice(bytes);
         writer.write_all(&record)?;
     }
     Ok(())
+}
+
+/// Text bytes one commentary card holds: columns 9..80 of the 80-column record.
+const COMMENTARY_BODY_LEN: usize = 72;
+
+/// Last character of a commentary card whose logical line continues on the next
+/// card, and the character a literal one doubles itself into.
+///
+/// The same `&` FITS 4.2.1.2 gives the long-string convention, for the same
+/// reason and read the same way: a reader that knows nothing of this sees a
+/// trailing ampersand and knows the text is not finished, rather than a value
+/// sliced at column 80 with nothing to say so.
+const COMMENTARY_CONTINUATION: char = '&';
+
+/// How many [`COMMENTARY_CONTINUATION`] characters `text` ends with.
+fn trailing_marker_run(text: &str) -> usize {
+    text.chars()
+        .rev()
+        .take_while(|c| *c == COMMENTARY_CONTINUATION)
+        .count()
+}
+
+/// `text` with its trailing marker run doubled, so a card body ending in a
+/// literal ampersand cannot be read as a continuation.
+fn escape_trailing_markers(text: &str) -> String {
+    let run = trailing_marker_run(text);
+    let mut body = String::with_capacity(text.len() + run);
+    body.push_str(text);
+    for _ in 0..run {
+        body.push(COMMENTARY_CONTINUATION);
+    }
+    body
+}
+
+/// Where to break `text` so the head, escaped and marked, fits one card.
+///
+/// The break falls after the last space that leaves a worthwhile head, so a
+/// path, a digest or a keyword=value pair lands whole on one card rather than
+/// halved at whatever column 80 happens to fall on. A token longer than a card
+/// has no such space and is broken at the last character that fits — the
+/// continuation marker is what makes that break readable rather than silent.
+fn commentary_wrap_point(text: &str) -> usize {
+    let mut limit = 0;
+    for (index, ch) in text.char_indices() {
+        let end = index + ch.len_utf8();
+        if escape_trailing_markers(&text[..end]).len() + 1 > COMMENTARY_BODY_LEN {
+            break;
+        }
+        limit = end;
+    }
+    if limit == 0 {
+        // One character whose escaped form plus a marker overruns a card cannot
+        // happen (three bytes at most), but a zero break point would loop
+        // forever, so advance by one character rather than trust the arithmetic.
+        return text
+            .char_indices()
+            .nth(1)
+            .map_or(text.len(), |(index, _)| index);
+    }
+    match text[..limit].rfind(' ') {
+        // The space stays on the head, so plain concatenation puts it back.
+        Some(space) if space + 1 >= COMMENTARY_BODY_LEN / 4 => space + 1,
+        _ => limit,
+    }
+}
+
+/// The card bodies one logical commentary line becomes.
+///
+/// Every card but the last ends with [`COMMENTARY_CONTINUATION`]; the reader
+/// side is [`join_commentary_cards`], and the two round-trip exactly — a line
+/// written and read back is the line that was written, spaces and ampersands
+/// included.
+fn commentary_cards(text: &str) -> Vec<String> {
+    let mut cards = Vec::new();
+    let mut rest = text;
+    loop {
+        let escaped = escape_trailing_markers(rest);
+        if escaped.len() <= COMMENTARY_BODY_LEN {
+            cards.push(escaped);
+            return cards;
+        }
+        let split = commentary_wrap_point(rest);
+        let mut body = escape_trailing_markers(&rest[..split]);
+        body.push(COMMENTARY_CONTINUATION);
+        cards.push(body);
+        rest = &rest[split..];
+    }
+}
+
+/// Fold a block of commentary card bodies back into logical lines.
+///
+/// The inverse of [`commentary_cards`]. A card body ending in an ODD number of
+/// ampersands is continued by the next card — the last one is the marker, the
+/// pairs before it are literals; an EVEN number ends the line and every pair is
+/// one literal ampersand. A file written before this convention carries no
+/// markers at all, so each of its cards reads as its own line exactly as it did.
+fn join_commentary_cards(cards: Vec<String>) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::with_capacity(cards.len());
+    let mut pending: Option<String> = None;
+    for card in cards {
+        let run = trailing_marker_run(&card);
+        let continued = run % 2 == 1;
+        let literals = if continued { (run - 1) / 2 } else { run / 2 };
+        let mut body = card[..card.len() - run].to_string();
+        for _ in 0..literals {
+            body.push(COMMENTARY_CONTINUATION);
+        }
+        match pending.take() {
+            Some(mut head) => {
+                head.push_str(&body);
+                pending = Some(head);
+            }
+            None => pending = Some(body),
+        }
+        if !continued {
+            if let Some(line) = pending.take() {
+                lines.push(line);
+            }
+        }
+    }
+    // A block whose last card still asks to be continued has nothing to be
+    // continued by — a truncated header, or one edited by another tool. What was
+    // read is stated as it stands rather than dropped.
+    if let Some(tail) = pending {
+        lines.push(tail);
+    }
+    lines
 }
 
 /// Write a value-card record `KEYNAME = value [/ comment]`.
@@ -3826,6 +3958,133 @@ mod tests {
                 key
             );
         }
+    }
+
+    /// The Darkroom's own summary line, verbatim from an export whose cards
+    /// split `fingerprint=e232` from `8f40…` (finding D3UI-1).
+    const LONG_HISTORY_LINE: &str = "Nightshade Darkroom: stage=final, recipe=1 (4 step(s)), fingerprint=e2328f40d1890f8d378ab91a6195ab17";
+
+    /// The calibration report's reference-light line, whose path carries spaces.
+    const LONG_PATH_HISTORY_LINE: &str = "Calibration compared against light /home/scdouglas/.cache/ns-d3ui-8104/captures/D1 Simulated Field_B_0001.fits";
+
+    #[test]
+    fn test_long_history_wraps_at_token_boundaries_and_reassembles() {
+        let mut header = FitsHeader::new();
+        header.add_history(LONG_HISTORY_LINE);
+        header.add_history(LONG_PATH_HISTORY_LINE);
+        let image = ImageData::from_u16(2, 1, 1, &[1, 2]);
+
+        let path = std::env::temp_dir().join(format!(
+            "nightshade_history_wrap_{}.fits",
+            std::process::id()
+        ));
+        write_fits(&path, &image, &header).expect("write");
+        let on_disk = std::fs::read(&path).expect("read");
+
+        // No card may end mid-token: the digest and every path segment land
+        // whole on one card. A continued card is marked, and only a continued
+        // card may break a run of non-space characters.
+        let mut bodies: Vec<String> = Vec::new();
+        for chunk in on_disk[..2880].chunks_exact(80) {
+            if chunk.starts_with(b"HISTORY ") {
+                bodies.push(String::from_utf8_lossy(&chunk[8..]).trim_end().to_string());
+            }
+        }
+        assert!(!bodies.is_empty(), "no HISTORY cards emitted");
+        for body in &bodies {
+            assert!(
+                body.len() <= COMMENTARY_BODY_LEN,
+                "card body overruns column 80: {body:?}"
+            );
+        }
+        assert!(
+            bodies
+                .iter()
+                .any(|b| b.contains("fingerprint=e2328f40d1890f8d378ab91a6195ab17")),
+            "the fingerprint was split across cards: {bodies:?}"
+        );
+        assert!(
+            bodies.iter().any(|b| b.contains("Field_B_0001.fits")),
+            "the reference-light filename was split across cards: {bodies:?}"
+        );
+        // Every card that continues its line says so; the last one does not.
+        let continued: Vec<bool> = bodies
+            .iter()
+            .map(|b| trailing_marker_run(b) % 2 == 1)
+            .collect();
+        assert!(
+            continued.iter().any(|c| *c),
+            "a wrapped line carried no continuation marker: {bodies:?}"
+        );
+        assert!(
+            !continued[continued.len() - 1],
+            "the final card claims a continuation that does not exist"
+        );
+
+        let (_image, read_back) = read_fits(&path).expect("read");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(
+            read_back.history,
+            vec![
+                LONG_HISTORY_LINE.to_string(),
+                LONG_PATH_HISTORY_LINE.to_string()
+            ],
+            "the reader did not reassemble the wrapped lines"
+        );
+    }
+
+    #[test]
+    fn test_commentary_cards_round_trip_edge_cases() {
+        // A literal trailing ampersand must not be read as a continuation, a
+        // token longer than a card must still break with one, and a line that
+        // already fits must be left exactly as it is.
+        let cases = [
+            "short line",
+            "trailing ampersand &",
+            "double trailing ampersand &&",
+            &"z".repeat(200),
+            &format!("prefix {} suffix", "y".repeat(150)),
+            LONG_HISTORY_LINE,
+            LONG_PATH_HISTORY_LINE,
+            "",
+        ];
+        for case in cases {
+            let cards = commentary_cards(case);
+            for card in &cards {
+                assert!(
+                    card.len() <= COMMENTARY_BODY_LEN,
+                    "card body overruns column 80 for {case:?}: {card:?}"
+                );
+            }
+            let joined = join_commentary_cards(cards.clone());
+            assert_eq!(
+                joined,
+                vec![case.to_string()],
+                "round trip lost text for {case:?} (cards {cards:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn test_history_written_before_this_convention_still_reads_as_written() {
+        // A file whose HISTORY was hard-split by the old writer carries no
+        // markers, so each of its cards stays its own line — the reader invents
+        // no join it cannot prove.
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                    1",
+            "NAXIS2  =                    1",
+            "HISTORY Calibration compared against light /home/scdouglas/.cache/ns-d3ui-8104/c",
+            "HISTORY aptures/D1 Simulated Field_B_0001.fits",
+        ];
+        let data: Vec<u8> = vec![0x00, 0x10];
+        let bytes = synth_fits_with_cards(&cards, &data);
+        let (_image, header) = read_fits_from_bytes(&bytes).expect("read");
+        assert_eq!(header.history.len(), 2);
+        assert!(header.history[0].ends_with("/c"));
+        assert!(header.history[1].starts_with("aptures/"));
     }
 
     #[test]

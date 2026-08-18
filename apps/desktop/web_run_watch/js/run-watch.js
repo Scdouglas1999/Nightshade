@@ -545,6 +545,28 @@ function reportedSequencerState(progress, sequencer) {
   return executing || 'unknown';
 }
 
+/// Show what the run says about itself, and hide the surface when it says
+/// nothing.
+///
+/// `sequencer.message` is the status line `/api/sequencer/status` carries;
+/// `progress.message` is the executor's own line for the node it is on. They
+/// often agree, and a message already spelled out in the header is not repeated
+/// underneath it, so the surface holds what the operator has not already read.
+function renderSequencerMessages(sequencer, progress, headline) {
+  const slot = $('seq-message');
+  if (!slot) return;
+  const seen = new Set();
+  const lines = [];
+  for (const raw of [sequencer.message, progress.message]) {
+    const text = typeof raw === 'string' ? raw.trim() : '';
+    if (!text || text === headline || seen.has(text)) continue;
+    seen.add(text);
+    lines.push(text);
+  }
+  slot.textContent = lines.join('\n');
+  slot.classList.toggle('hidden', lines.length === 0);
+}
+
 function applySnapshot(data) {
   if (!data) return;
 
@@ -568,10 +590,19 @@ function applySnapshot(data) {
   // 'Idle' there — the run may well still be going. With nothing named and a
   // state that is not idle either (a cancelled run keeps no current node),
   // the state word itself is the only true thing left to show.
-  $('seq-name').textContent =
+  const headline =
     progress.currentTarget || sequencer.currentNodeName ||
     (unknown ? (progress.message || 'Status unavailable')
              : state.charAt(0).toUpperCase() + state.slice(1));
+  $('seq-name').textContent = headline;
+
+  // What the executor is saying about the run. Both fields are rendered for
+  // every state, not just `unknown`: they are where a failing meridian flip, a
+  // trigger's retry countdown and the current exposure's own line arrive, and
+  // the desktop dashboard has always shown them. Dropping them here meant a run
+  // stalled on a flip read as "RUNNING 33%" on the phone while the wire carried
+  // the reason in two fields.
+  renderSequencerMessages(sequencer, progress, headline);
 
   // Active target. `coordinatesKnown: false` is the headless case — the native
   // executor holds the sequence, so the host can name the target but cannot
@@ -727,7 +758,7 @@ function renderEventLi(evt) {
   body.className = 'event-body';
   const title = document.createElement('div');
   title.className = 'event-title';
-  title.textContent = (evt.eventType || evt.eventName || 'event').replace(/_/g, ' ');
+  title.textContent = eventTitleText(evt);
   const detail = document.createElement('div');
   detail.className = 'event-detail';
   detail.textContent = formatEventDetail(evt);
@@ -738,8 +769,44 @@ function renderEventLi(evt) {
   return li;
 }
 
+/// Whether this row is the host's "no case for this variant" bucket.
+///
+/// The host has one such bucket per event family — `UnknownSequencerEvent`,
+/// `UnknownImagingEvent`, `UnknownSafetyEvent` and the rest — and they are the
+/// only rows whose data map is not a set of read fields. They are matched by
+/// shape rather than by a list of names so a family added to the host later
+/// arrives here already covered.
+function isUnreadEventBucket(type) {
+  return /^Unknown\w*Event$/.test(type);
+}
+
+/// The name a feed row carries.
+///
+/// An event the host has no mapping for arrives in an unread bucket carrying
+/// the union variant it stands for; that variant is what the operator can act
+/// on, so it is what the row is called. Without it the row was titled
+/// "UnknownSequencerEvent" over a line of Dart source.
+function eventTitleText(evt) {
+  const type = evt.eventType || evt.eventName || 'event';
+  if (isUnreadEventBucket(type) && evt.data && typeof evt.data.variant === 'string') {
+    const variant = evt.data.variant.trim();
+    if (variant) return variant;
+  }
+  return type.replace(/_/g, ' ');
+}
+
 function formatEventDetail(evt) {
   if (!evt.data || typeof evt.data !== 'object') return '';
+  // An unmapped event carries one written sentence and a variant name that is
+  // already this row's title. Render the sentence and nothing else: the
+  // generic field walk below prints every string it finds, and a bucket whose
+  // host has not been taught to name its variants still puts the stringified
+  // event object in that map — which is how Dart source text reached the
+  // operator's phone in the first place. A row with nothing written for a
+  // person says only what it is named, which is the truth.
+  if (isUnreadEventBucket(evt.eventType || evt.eventName || '')) {
+    return typeof evt.data.message === 'string' ? evt.data.message : '';
+  }
   // Surface the first 2 non-empty string-ish fields so the row stays
   // compact on a phone. Numeric fields render as `key: value`.
   const parts = [];
@@ -877,7 +944,9 @@ function handleSseMessage(evt) {
   // Critical events — surface as a toast (web Push API is opt-in via
   // settings sheet and lives in registerPushIfEnabled() below).
   if ((payload.severity || '').toLowerCase() === 'critical') {
-    const title = (payload.eventType || payload.eventName || 'Critical event').replace(/_/g, ' ');
+    const title = (payload.eventType || payload.eventName)
+      ? eventTitleText(payload)
+      : 'Critical event';
     toast(title, 'error');
     // Also browser-level notification if permission granted.
     maybeShowNotification(title, formatEventDetail(payload));

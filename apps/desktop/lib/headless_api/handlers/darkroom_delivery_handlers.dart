@@ -166,7 +166,12 @@ class DarkroomDeliveryHandlers {
       });
     }
 
-    final fileName = _fileNameOf(published.filePath);
+    // The name the manifest promised for this artifact — `<rigId>-<name>` —
+    // not the rig's own file name. A puller that saves what
+    // `Content-Disposition` says now writes the same file the manifest listed,
+    // which is the whole point of the namespacing: two rigs pulling into one
+    // folder do not land on each other's names.
+    final fileName = published.fileName;
     final etag = '"$artifactId-${mtime.millisecondsSinceEpoch}"';
     final rangeHeader = request.headers['range'];
     final ifRange = request.headers['if-range'];
@@ -295,12 +300,6 @@ class DarkroomDeliveryHandlers {
       );
     }
     return peerId;
-  }
-
-  static String _fileNameOf(String path) {
-    final normalized = path.replaceAll('\\', '/');
-    final slash = normalized.lastIndexOf('/');
-    return slash < 0 ? normalized : normalized.substring(slash + 1);
   }
 
   static String _contentTypeFor(String fileName) {

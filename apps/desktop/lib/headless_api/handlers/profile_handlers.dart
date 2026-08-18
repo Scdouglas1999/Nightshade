@@ -296,13 +296,53 @@ class ProfileHandlers {
 
   // Settings
 
+  /// The settings-document keys that mirror the observer site.
+  ///
+  /// The site's canonical store is the one `GET /api/settings/location`, the
+  /// planetarium and the native sequencer read; these four are its projection
+  /// into the flat settings document. A settings save that names none of them
+  /// is not a save about the site, and must not move it.
+  static const _siteKeys = <String>{
+    'latitude',
+    'longitude',
+    'elevation',
+    'location',
+  };
+
   Future<Response> handleGetSettings(Request request) async {
     // Read from the DB-backed settings notifier (the desktop's source of
     // truth) rather than the Rust bridge, which only carries the ~7
     // engine-relevant fields and would report defaults for everything else.
     final notifier = container.read(appSettingsProvider.notifier);
     await container.read(appSettingsProvider.future);
-    return jsonOk({"settings": notifier.exportRemoteSettings().toJson()});
+    final settings = notifier.exportRemoteSettings().toJson();
+
+    // The site comes from the CANONICAL store, not from the settings
+    // notifier's copy of it. Two things were wrong with the copy:
+    //
+    //  * it is not refreshed when POST /api/settings/location writes the
+    //    canonical store, so this endpoint served the pre-write coordinates
+    //    for the rest of the process's life while /api/settings/location
+    //    served the new ones — two endpoints on one rig disagreeing about
+    //    where the rig is;
+    //  * `AppSettingsState.latitude/longitude/elevation` are non-nullable
+    //    doubles defaulting to 0.0, so a rig that has never had a site
+    //    reported `latitude 0.0, longitude 0.0` — a real point in the Gulf of
+    //    Guinea — where the canonical endpoint honestly answers null and the
+    //    app's own log line says "Settings have no observer location".
+    //
+    // Unset therefore serializes as null on all four keys plus a
+    // `locationStatus` that names it, which is what a remote client needs to
+    // tell "no site configured" from "a site at 0N 0E".
+    final backend = container.read(profileSettingsBackendProvider);
+    final site = await backend.getLocation();
+    settings['location'] = site?.toJson();
+    settings['latitude'] = site?.latitude;
+    settings['longitude'] = site?.longitude;
+    settings['elevation'] = site?.elevation;
+    settings['locationStatus'] = site == null ? 'not configured' : 'configured';
+
+    return jsonOk({"settings": settings});
   }
 
   /// Global meridian-flip defaults are stored separately from the generated
@@ -501,6 +541,10 @@ class ProfileHandlers {
 
     final backend = container.read(profileSettingsBackendProvider);
     final settingsNotifier = container.read(appSettingsProvider.notifier);
+    // The site as the CANONICAL store holds it right now, read before anything
+    // is written. Both halves of the site rule below are decided from it, and
+    // it is what a failed write is rolled back to.
+    final canonicalSite = await backend.getLocation();
     // [settings sync] capture the full previous settings (DB-backed) BEFORE
     // constructing the new state: they seed both the partial-update merge
     // below and the fine-grained `settings.changed` diff events. If the read
@@ -533,26 +577,78 @@ class ProfileHandlers {
     // The jsonDecode(jsonEncode(...)) round-trip flattens nested freezed
     // values (e.g. ObserverLocation) into plain maps — freezed `toJson` is
     // shallow, and `fromJson` requires pure JSON.
-    final mergedJson = previous == null
-        ? settingsJson
-        : <String, dynamic>{
-            ...jsonDecode(jsonEncode(previous.toJson()))
-                as Map<String, dynamic>,
-            ...settingsJson,
-          };
+    final mergedJson = <String, dynamic>{
+      if (previous != null)
+        ...jsonDecode(jsonEncode(previous.toJson())) as Map<String, dynamic>,
+      ...settingsJson,
+    };
+
+    // WHAT THIS SAVE MAY DO TO THE OBSERVER SITE.
+    //
+    // `latitude` / `longitude` / `elevation` / `location` live in this flat
+    // document AND in the canonical observer store. The settings notifier's
+    // copy of them is NOT refreshed when POST /api/settings/location writes
+    // that store, so the merge above used to carry a STALE site into every
+    // save: a POST touching one unrelated field rewrote the observer rows —
+    // and the native settings blob the site is reloaded from at boot — with
+    // coordinates the operator had already replaced. The replacement survived
+    // in memory until the process ended and was gone at the next launch, and
+    // nothing anywhere reported it.
+    //
+    // The rule has two halves:
+    //  * a save naming NONE of the site keys writes the CANONICAL site back,
+    //    so an unrelated field cannot move the rig;
+    //  * a save that DOES name one writes BOTH stores — the canonical one
+    //    first, rolled back below if the settings write then fails.
+    final site = _siteRequestedBy(settingsJson, canonicalSite);
+    _writeSiteInto(mergedJson, site.value);
+
     final settings = settings_models.AppSettings.fromJson(mergedJson);
+
+    // The canonical store goes first so the two can only ever disagree in the
+    // window this method holds, and only until the rollback below runs.
+    if (site.changed) {
+      await backend.setLocation(site.value);
+    }
 
     // The database is the source of truth, shared with the desktop, so the
     // COMPLETE settings go there. The bridge then gets the engine-relevant
     // subset (location/theme/language/autoConnect) to keep the executor
     // consistent. Writing only the bridge would drop every other field.
-    await settingsNotifier.applyRemoteSettings(settings);
-    await backend.updateSettings(settings);
+    try {
+      await settingsNotifier.applyRemoteSettings(settings);
+      await backend.updateSettings(settings);
+    } on Object catch (error, stackTrace) {
+      if (site.changed) {
+        // The site moved and the document that mirrors it did not. Put the
+        // canonical store back where the caller found it rather than leaving
+        // the rig at a site no settings row records.
+        try {
+          await backend.setLocation(canonicalSite);
+        } on Object catch (rollbackError) {
+          _logger.error(
+            'The observer location could not be rolled back after a failed '
+            'settings save; the canonical store and the settings document '
+            'disagree: $rollbackError',
+            source: 'ProfileHandlers',
+          );
+        }
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
     publishHostMutationFromContainer(
       container,
       entityType: HostMutationEntity.settings,
       action: HostMutationAction.updated,
     );
+    if (site.changed) {
+      publishHostMutationFromContainer(
+        container,
+        entityType: HostMutationEntity.settings,
+        action: HostMutationAction.updated,
+        extra: {'scope': 'location'},
+      );
+    }
 
     // [settings sync] emit live settings-change events so every
     // connected WS client can update its in-memory state without a GET
@@ -565,7 +661,155 @@ class ProfileHandlers {
       commandId: commandId,
     );
 
-    return jsonOk({"status": "updated"});
+    // What this save did to the site, said out loud. A caller whose flat
+    // coordinates were not taken as a site learns it here rather than
+    // discovering at the next restart that the rig never moved.
+    return jsonOk({
+      "status": "updated",
+      "observerLocation": {
+        "action": site.changed ? 'updated' : 'unchanged',
+        if (site.note != null) "note": site.note,
+      },
+    });
+  }
+
+  /// What a settings patch asks to happen to the observer site.
+  ///
+  /// [value] is the site to write and [changed] says whether the canonical
+  /// store has to be told; [note] carries the sentence for a patch that named
+  /// site keys the site did not take.
+  ///
+  /// [patch] is the POSTED map — only the keys the caller actually wrote — and
+  /// [canonical] is the site the canonical store currently holds, which is the
+  /// base a partial patch updates. Reading the base from the settings document
+  /// instead would build the new site on top of the stale copy this whole rule
+  /// exists to stop trusting.
+  ///
+  /// `latitude: 0, longitude: 0` is NOT a site. It is the wire model's declared
+  /// default for both fields, so it is exactly what a full-snapshot client
+  /// composes for a rig whose site it does not know — the shape that pushes a
+  /// rig to Null Island. A site AT 0N 0E, and clearing one, go through
+  /// POST /api/settings/location, which can say `null` and this document
+  /// cannot.
+  ({bool changed, settings_models.ObserverLocation? value, String? note})
+  _siteRequestedBy(
+    Map<String, dynamic> patch,
+    settings_models.ObserverLocation? canonical,
+  ) {
+    if (!patch.keys.any(_siteKeys.contains)) {
+      return (changed: false, value: canonical, note: null);
+    }
+
+    final nested = patch['location'];
+    final settings_models.ObserverLocation requested;
+    if (nested is Map<String, dynamic>) {
+      // A nested location is complete by construction: every field of
+      // `ObserverLocation` is required, so `fromJson` refuses a partial one.
+      try {
+        requested = settings_models.ObserverLocation.fromJson(nested);
+      } on Object catch (error) {
+        throw BadRequestError(
+          field: 'settings.location',
+          expected: 'an object with latitude, longitude and elevation',
+          message: 'The observer location could not be read: $error',
+        );
+      }
+    } else if (nested != null) {
+      throw BadRequestError(
+        field: 'settings.location',
+        expected:
+            'an object with latitude, longitude and elevation, or the '
+            'flat latitude/longitude/elevation fields',
+        message: 'settings.location must be an object.',
+      );
+    } else {
+      requested = settings_models.ObserverLocation(
+        latitude: _siteCoordinate(patch, 'latitude', canonical?.latitude),
+        longitude: _siteCoordinate(patch, 'longitude', canonical?.longitude),
+        // Elevation alone does not locate anything, so an omitted one falls
+        // back to the stored site and then to sea level rather than refusing
+        // a latitude/longitude pair over the third number.
+        elevation: _siteCoordinate(
+          patch,
+          'elevation',
+          canonical?.elevation ?? 0.0,
+        ),
+      );
+    }
+
+    if (requested.latitude == 0.0 && requested.longitude == 0.0) {
+      return (
+        changed: false,
+        value: canonical,
+        note:
+            'latitude 0 / longitude 0 is this document\'s default for a site '
+            'it does not know, so it was not taken as one and the observer '
+            'location is unchanged. POST /api/settings/location to set a site '
+            'at 0N 0E, or to clear the one on record.',
+      );
+    }
+    if (canonical != null &&
+        requested.latitude == canonical.latitude &&
+        requested.longitude == canonical.longitude &&
+        requested.elevation == canonical.elevation) {
+      return (changed: false, value: canonical, note: null);
+    }
+    return (changed: true, value: requested, note: null);
+  }
+
+  /// One coordinate of a site the settings patch is building.
+  ///
+  /// Falls back to [canonical] — the stored site — when the patch does not name
+  /// this key, so a patch of `{"latitude": 41.0}` keeps the longitude the
+  /// operator already set. With no stored site and no posted value there is no
+  /// honest answer, and the caller is pointed at the endpoint that can express
+  /// a whole site.
+  double _siteCoordinate(
+    Map<String, dynamic> patch,
+    String key,
+    double? canonical,
+  ) {
+    final raw = patch[key];
+    if (raw is num) return raw.toDouble();
+    if (raw != null) {
+      throw BadRequestError(
+        field: 'settings.$key',
+        expected: 'number',
+        message: '$key must be a number.',
+      );
+    }
+    if (canonical != null) return canonical;
+    throw BadRequestError(
+      field: 'settings.$key',
+      expected: 'latitude and longitude together',
+      message:
+          'This rig has no observer location, so a settings save cannot set '
+          '$key on its own — there is nothing to update it against. Supply '
+          'latitude and longitude together, or POST the site to '
+          '/api/settings/location.',
+    );
+  }
+
+  /// Project [site] into the settings document [json] writes.
+  ///
+  /// A null site writes `location: null` and leaves the flat mirror alone. The
+  /// nested field is what the native settings blob is built from, and the blob
+  /// is what `load_observer_location_from_settings` reloads at boot: written as
+  /// `ObserverLocation(0, 0, 0)` — which is what the notifier's non-nullable
+  /// defaults project for a rig that has never had a site — the next launch
+  /// came up believing it stood in the Gulf of Guinea.
+  void _writeSiteInto(
+    Map<String, dynamic> json,
+    settings_models.ObserverLocation? site,
+  ) {
+    if (site == null) {
+      json['location'] = null;
+      return;
+    }
+    json['location'] = site.toJson();
+    json['latitude'] = site.latitude;
+    json['longitude'] = site.longitude;
+    json['elevation'] = site.elevation;
   }
 
   /// Fan out one `settings.changed` event per
@@ -648,18 +892,31 @@ class ProfileHandlers {
     final backend = container.read(profileSettingsBackendProvider);
     await backend.setLocation(location);
 
-    // Mirror the location into the Drift settings DAO. The backend store above
-    // is the canonical one read by GET /api/settings/location, the planetarium,
+    // Mirror the location into the settings store. The backend store above is
+    // the canonical one read by GET /api/settings/location, the planetarium,
     // and the native sequencer — but the scheduler and "tonight" suggestion
-    // subsystems read observer lat/lon straight from `settingsDao`, which on a
-    // headless appliance is otherwise only ever populated by the GUI settings
-    // flow (never run here). Without this mirror, a remote client that sets its
-    // location through the API gets a working planetarium but a permanently
-    // "No observer location configured" scheduler. Clearing (null) zeroes both.
-    final settingsDao = container.read(databaseProvider).settingsDao;
-    await settingsDao.setObserverLatitude(location?.latitude ?? 0.0);
-    await settingsDao.setObserverLongitude(location?.longitude ?? 0.0);
-    await settingsDao.setObserverElevation(location?.elevation ?? 0.0);
+    // subsystems read observer lat/lon straight from the settings rows, which
+    // on a headless appliance are otherwise only ever populated by the GUI
+    // settings flow (never run here). Without this mirror, a remote client that
+    // sets its location through the API gets a working planetarium but a
+    // permanently "No observer location configured" scheduler. Clearing (null)
+    // zeroes both.
+    //
+    // Through the NOTIFIER, not the DAO underneath it: the DAO write moved the
+    // rows while the notifier went on holding the pre-write coordinates, and
+    // that in-memory copy is what GET /api/settings served and what the merge
+    // in POST /api/settings built its next full snapshot from. The site the
+    // operator had just set was therefore reverted by the next unrelated
+    // settings save. `updateLocation` writes the same three rows in one
+    // transaction and patches the state with them, so every reader agrees.
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .updateLocation(
+          latitude: location?.latitude ?? 0.0,
+          longitude: location?.longitude ?? 0.0,
+          elevation: location?.elevation ?? 0.0,
+        );
 
     publishHostMutationFromContainer(
       container,

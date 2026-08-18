@@ -119,6 +119,40 @@ void main() {
     expect(target.unavailableReason, contains('imaging host'));
   });
 
+  testWidgets(
+    'a --remote-host client that has not reached its rig is told where the '
+    'Darkroom lives, not handed the client\'s own masters',
+    (tester) async {
+      // The launch flag makes this process the rig's client; the backend is
+      // still `Disconnected` because the handshake has not happened. Gating on
+      // `backendProvider is NetworkBackend` read false for that whole window,
+      // so this resolver went on to read the CLIENT's database and hand back a
+      // master id — the editor then opened over recipes no dawn job would read.
+      final target = await withRef(
+        tester,
+        [
+          remoteClientLaunchProvider.overrideWithValue(true),
+          backendProvider.overrideWith(
+            (ref) => _PinnedBackend(ref, DisconnectedBackend()),
+          ),
+          dawnMasterResolverProvider.overrideWithValue(
+            _ScriptedResolver(
+              DawnMasterSet(
+                sessionId: 3,
+                masters: [_master(11)],
+                withoutFile: const [],
+              ),
+            ),
+          ),
+        ],
+        (ref) => resolveDarkroomTargetForSession(ref, 3),
+      );
+
+      expect(target.masterId, isNull);
+      expect(target.unavailableReason, contains('imaging host'));
+    },
+  );
+
   testWidgets('a night that was never integrated says so', (tester) async {
     final target = await withRef(
       tester,

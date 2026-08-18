@@ -111,6 +111,14 @@
          returns a non-null recovery context. Hidden by default. -->
     <div id="recovery-banner" class="recovery-banner hidden" role="alert"></div>
 
+    <!-- What the executor is saying about this run: `sequencer.message` and
+         `progress.message` off the snapshot. These carry the warnings a remote
+         operator can act on — a meridian flip that is overdue and has not
+         fired, a trigger on its third retry — and until this surface existed
+         the page rendered them nowhere, so a stalled run read as "RUNNING 33%"
+         with the reason sitting unread on the wire. -->
+    <div id="seq-message" class="seq-message hidden" role="status" aria-live="polite"></div>
+
     <main class="content" role="main">
       <!-- Live frame thumbnail. Built from /api/run-watch/frame-thumbnail.
            Refreshed via SSE FrameAccepted events; polls every 10s as a

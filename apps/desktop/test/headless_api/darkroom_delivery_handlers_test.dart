@@ -229,6 +229,31 @@ void main() {
         );
       });
 
+      test('names the file the way the manifest promised it', () async {
+        // The header used to carry the rig's own file name while the manifest
+        // listed `shed-rig-<name>`. Nightshade's puller writes the manifest
+        // entry's name and never noticed; `curl -OJ`, a browser or any
+        // third-party puller writes what this header says — which is exactly
+        // the two-rigs-one-share collision the namespacing exists to prevent.
+        final listed = jsonDecode(await (await manifest()).readAsString())
+            as Map<String, Object?>;
+        final entries =
+            (listed['manifest']! as Map<String, Object?>)['entries']! as List;
+        final promised =
+            (entries.single as Map<String, Object?>)['fileName'] as String;
+        expect(promised, startsWith('shed-rig-'));
+
+        for (final response in [
+          await artifact(),
+          await artifact(headers: {'range': 'bytes=0-4'}),
+        ]) {
+          expect(
+            response.headers['content-disposition'],
+            'attachment; filename="$promised"',
+          );
+        }
+      });
+
       test('answers a Range request with 206 and a Content-Range', () async {
         final response = await artifact(headers: {'range': 'bytes=7-12'});
 

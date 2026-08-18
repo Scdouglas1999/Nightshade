@@ -56,6 +56,7 @@ List<Override> _overrides({
   SecretsStore? secrets,
   List<PairedDevice> pairedDevices = const <PairedDevice>[],
   DeliverySweepRequest? sweep,
+  WatchedFolderExists? folderExists,
 }) {
   return [
     secretsStoreProvider.overrideWithValue(
@@ -69,6 +70,15 @@ List<Override> _overrides({
     deliverySweepRequestProvider.overrideWithValue(
       sweep ?? () async => null,
     ),
+    // The folder check is stated rather than performed. `/mnt/nas/...` is not
+    // mounted on a CI runner, so the real `stat` would make every row in this
+    // file report a missing directory — and reaching the machine's filesystem
+    // from a widget test is also what made these tests race the provider: the
+    // page renders its loading state, `pumpAndSettle` sees no scheduled frame
+    // and returns before the I/O lands.
+    watchedFolderExistsProvider.overrideWithValue(
+      folderExists ?? (_) async => true,
+    ),
   ];
 }
 
@@ -78,6 +88,7 @@ Future<HarnessHandle> _pumpDelivery(
   SecretsStore? secrets,
   List<PairedDevice> pairedDevices = const <PairedDevice>[],
   DeliverySweepRequest? sweep,
+  WatchedFolderExists? folderExists,
 }) {
   return pumpAppScreen(
     tester,
@@ -88,6 +99,7 @@ Future<HarnessHandle> _pumpDelivery(
       secrets: secrets,
       pairedDevices: pairedDevices,
       sweep: sweep,
+      folderExists: folderExists,
     ),
   );
 }
@@ -497,7 +509,143 @@ void main() {
   );
 
   testWidgets(
-    'retry_now_requeues_the_newest_job_terminal_rows_and_asks_for_a_sweep',
+    'stranded_older_failures_outrank_a_newer_clean_run, and the page offers '
+    'the retry that reaches them',
+    (tester) async {
+      // The wave-7 shape, read off the release bundle: `case8-strand` held
+      // four of job 4's drafts `failed` with destinationConflict and four of
+      // job 5's `delivered`. The row read "Delivered 17:55, 4 files, 1.4 MB."
+      // in green, said nothing about the four, and offered no way to retry
+      // them — while nothing on the rig was ever going to look at them again.
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final journal = DeliveryJournalDao(database);
+      final jobs = DarkroomJobsDao(database);
+
+      final strandedNight = DateTime.utc(2026, 8, 15, 6, 5);
+      final lastNight = DateTime.utc(2026, 8, 16, 6, 10);
+
+      final target = await targets.create(
+        name: 'case8-strand',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nas"}',
+        content: {ArtifactContent.draftRender},
+      );
+      final strandedJob = await jobs.enqueue();
+      final newJob = await jobs.enqueue();
+
+      for (var i = 1; i <= 4; i++) {
+        await journal.recordAttempt(
+          targetId: target,
+          jobId: strandedJob,
+          filePath: '/out/job4_master_${i}_draft.jpg',
+          bytes: 350000,
+          now: strandedNight,
+        );
+        await journal.markFailed(
+          targetId: target,
+          jobId: strandedJob,
+          filePath: '/out/job4_master_${i}_draft.jpg',
+          error: 'destinationConflict: a different file already holds that '
+              'name',
+          now: strandedNight,
+        );
+        await journal.recordAttempt(
+          targetId: target,
+          jobId: newJob,
+          filePath: '/out/job5_master_${i}_draft.jpg',
+          bytes: 350000,
+          now: lastNight,
+        );
+        await journal.markDelivered(
+          targetId: target,
+          jobId: newJob,
+          filePath: '/out/job5_master_${i}_draft.jpg',
+          checksum: 'abc$i',
+          now: lastNight,
+        );
+      }
+
+      var sweeps = 0;
+      await _pumpDelivery(
+        tester,
+        database,
+        sweep: () async {
+          sweeps++;
+          return null;
+        },
+      );
+
+      expect(
+        find.textContaining('4 files never arrived'),
+        findsOneWidget,
+        reason: 'four files are stranded at this destination; the newest '
+            'night delivering cleanly does not un-strand them',
+      );
+      expect(
+        find.textContaining('Delivered '),
+        findsNothing,
+        reason: 'a red truth outranks a newer green when files never arrived',
+      );
+
+      await tester.tap(find.text('Retry now'));
+      await tester.pumpAndSettle();
+
+      final after = await journal.listForTarget(target);
+      expect(
+        after.where((e) => e.jobId == strandedJob).map((e) => e.state),
+        everyElement(DeliveryAttemptState.retrying),
+        reason: 'the control beside that sentence has to reach the files it '
+            'names',
+      );
+      expect(sweeps, 1);
+    },
+  );
+
+  testWidgets(
+    'a watched folder whose directory is not there says so on the row',
+    (tester) async {
+      // The editor's write probe refuses "/mnt/nowhere/nightshade" honestly.
+      // Saving past that refusal used to produce a row that said only "No
+      // delivery has run yet." — the page's own contract is that a channel
+      // going nowhere says so in that same sentence slot.
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+
+      await targets.create(
+        name: 'nas',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/nowhere/nightshade"}',
+        content: {ArtifactContent.nightReport},
+      );
+
+      await _pumpDelivery(
+        tester,
+        database,
+        folderExists: (path) async => path != '/mnt/nowhere/nightshade',
+      );
+
+      expect(
+        find.textContaining(
+          'There is no directory at /mnt/nowhere/nightshade',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('No delivery has run yet.'),
+        findsNothing,
+        reason: 'that sentence reads as a destination merely waiting for its '
+            'first night, which this one is not',
+      );
+    },
+  );
+
+  testWidgets(
+    'retry_now_requeues_every_terminal_row_the_status_line_counts',
     (tester) async {
       _swallowKnownOverflows();
       final database = mockDatabase();
@@ -514,7 +662,9 @@ void main() {
       );
       final oldJob = await jobs.enqueue();
       final newJob = await jobs.enqueue();
-      // An older night's failure, already reported and closed.
+      // An older night's failure. Nothing on the rig will look at it again:
+      // the sweep reads only `retrying` rows, so this file is as lost as the
+      // newest night's until somebody re-queues it.
       await journal.recordAttempt(
         targetId: target,
         jobId: oldJob,
@@ -565,9 +715,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final requeued = await journal.listForTarget(target);
-      final newest = requeued.where((e) => e.jobId == newJob).toList();
-      expect(newest, hasLength(2));
-      for (final entry in newest) {
+      expect(requeued, hasLength(3));
+      for (final entry in requeued) {
         expect(entry.state, DeliveryAttemptState.retrying);
         expect(
           entry.attempts,
@@ -578,12 +727,12 @@ void main() {
       }
       expect(
         requeued.singleWhere((e) => e.jobId == oldJob).state,
-        DeliveryAttemptState.failed,
-        reason: 'older nights were already reported and closed; re-queueing '
-            'them would spend the night on files nobody asked about',
+        DeliveryAttemptState.retrying,
+        reason: 'the sentence beside this button counts the older night too, '
+            'so a button that left it behind would report work it did not do',
       );
       expect(sweeps, 1, reason: '"Retry now" asks for a pass, not just a row');
-      expect(find.textContaining('Re-queued 2 files'), findsOneWidget);
+      expect(find.textContaining('Re-queued 3 files'), findsOneWidget);
     },
   );
 
@@ -637,6 +786,52 @@ void main() {
             'row left spent means the fix delivers nothing',
       );
       expect(entry.attempts, 0);
+    },
+  );
+
+  testWidgets(
+    'name_assertion_clears_when_the_field_gains_text',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+
+      await _pumpDelivery(tester, database);
+      await tester.tap(find.text('Add watched folder'));
+      await tester.pumpAndSettle();
+
+      // Save with the form empty: the assertion appears.
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('This destination needs a name.'), findsOneWidget);
+      // On the Name field itself, not in a footer ~470px below the box it is
+      // about: `NightshadeTextField.errorText` paints under its own box and
+      // turns the border red, which is what makes the sentence point at the
+      // field it is about.
+      expect(
+        tester
+            .widget<NightshadeTextField>(
+              find.widgetWithText(NightshadeTextField, 'Name'),
+            )
+            .errorText,
+        'This destination needs a name.',
+      );
+
+      // Typing the name answers it. As a footer string it survived the
+      // keystroke that answered it, so the form went on asserting "This
+      // destination needs a name." over a Name field holding `nas` — and the
+      // next Save succeeded, proving the sentence had been stale all along.
+      await tester.enterText(_dialogTextFields().at(0), 'nas');
+      await tester.pumpAndSettle();
+      expect(find.text('This destination needs a name.'), findsNothing);
+      expect(
+        tester
+            .widget<NightshadeTextField>(
+              find.widgetWithText(NightshadeTextField, 'Name'),
+            )
+            .errorText,
+        isNull,
+      );
     },
   );
 

@@ -262,9 +262,12 @@ class _EnhancedProjectCard extends ConsumerWidget {
                   value: '${progress.sessionCount}',
                   colors: colors,
                 ),
+                // "Frames returned", not "Frames": the sum is over each
+                // session's `successful_exposures`, which counts what the
+                // camera handed back rather than what the culling kept.
                 _MetricChip(
                   icon: LucideIcons.image,
-                  label: 'Frames',
+                  label: 'Frames returned',
                   value: '${progress.successfulExposures}',
                   colors: colors,
                 ),

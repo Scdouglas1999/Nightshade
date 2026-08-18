@@ -101,6 +101,7 @@ body {
   }
 
   .recovery-banner,
+  .seq-message,
   .link-banner {
     max-width: 720px;
     margin-left: auto;
@@ -664,6 +665,22 @@ body {
   color: var(--accent-orange);
   font-size: 13px;
   margin-top: var(--gap);
+}
+
+/* Executor message — quieter than either banner: it is the run narrating
+   itself, which is normal, and only its CONTENT says whether something is
+   wrong. Reads as body text on the page's own surface rather than as an alert
+   colour the message has not earned. */
+.seq-message {
+  margin: var(--gap) var(--pad) 0;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-line;
 }
 
 /* Link banner — louder than the recovery banner because it says the whole

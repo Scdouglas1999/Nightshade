@@ -228,8 +228,16 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsDuration': 'Duration',
     'analyticsEditGoal': 'Edit Goal',
     'analyticsEquipmentStats': 'Equipment Stats',
+    'analyticsAcceptedLights': 'Accepted',
+    'analyticsCameraReturned': 'Camera Returned',
     'analyticsExposureCountsLightOnly':
-        'Exposure counts are light frames only.',
+        'Exposure counts are light frames only. "Camera Returned" is what the '
+            'camera handed back; "Accepted" and "Rejected" are what the culling '
+            'decided about those frames.',
+    'analyticsGradingUnread':
+        'Exposure counts are light frames only. Accepted and Rejected are '
+            'still being read from this session\'s frames.',
+    'analyticsRejectedLights': 'Rejected',
     'analyticsExposures': 'Exposures',
     'analyticsExportCsv': 'Export to CSV',
     'analyticsExportHtml': 'Export HTML report',
@@ -275,7 +283,6 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsSetGoal': 'Set Goal',
     'analyticsStarted': 'Started: {time}',
     'analyticsStatistics': 'Statistics',
-    'analyticsSuccessful': 'Successful',
     'analyticsThisMonth': 'This Month',
     'analyticsThisYear': 'This Year',
     'analyticsTotalExposures': 'Total Exposures',
@@ -971,8 +978,19 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsDuration': 'Duraci\u00F3n',
     'analyticsEditGoal': 'Editar meta',
     'analyticsEquipmentStats': 'Equipo',
+    'analyticsAcceptedLights': 'Aceptadas',
+    'analyticsCameraReturned': 'Devueltas por la c\u00E1mara',
     'analyticsExposureCountsLightOnly':
-        'Los recuentos de exposiciones incluyen solo cuadros de luz.',
+        'Los recuentos de exposiciones incluyen solo cuadros de luz. '
+            '"Devueltas por la c\u00E1mara" es lo que entreg\u00F3 la '
+            'c\u00E1mara; '
+            '"Aceptadas" y "Rechazadas" son lo que decidi\u00F3 el descarte sobre '
+            'esos cuadros.',
+    'analyticsGradingUnread':
+        'Los recuentos de exposiciones incluyen solo cuadros de luz. '
+            'Aceptadas y Rechazadas a\u00FAn se est\u00E1n leyendo de los cuadros '
+            'de esta sesi\u00F3n.',
+    'analyticsRejectedLights': 'Rechazadas',
     'analyticsExposures': 'Exposiciones',
     'analyticsExportCsv': 'Exportar a CSV',
     'analyticsExportHtml': 'Exportar informe HTML',
@@ -1015,7 +1033,6 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsSetGoal': 'Definir meta',
     'analyticsStarted': 'Inicio: {time}',
     'analyticsStatistics': 'Estad\u00EDsticas',
-    'analyticsSuccessful': 'Exitosas',
     'analyticsThisMonth': 'Este mes',
     'analyticsThisYear': 'Este a\u00F1o',
     'analyticsTotalExposures': 'Exposiciones totales',

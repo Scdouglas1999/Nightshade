@@ -105,7 +105,20 @@ void main() {
     expect(find.text('Images (16)'), findsOneWidget);
     expect(find.text('12 light · 4 calibration'), findsOneWidget);
     expect(
-      find.text('Exposure counts are light frames only.'),
+      find.textContaining('Exposure counts are light frames only.'),
+      findsOneWidget,
+    );
+    // The stats block now carries a THIRD reading beside those two: the
+    // culling's verdict on the light frames. The four darks are excluded —
+    // calibration is never graded, so counting it would inflate Accepted.
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Accepted'),
+          matching: find.byType(Column),
+        ).first,
+        matching: find.text('12'),
+      ),
       findsOneWidget,
     );
   });

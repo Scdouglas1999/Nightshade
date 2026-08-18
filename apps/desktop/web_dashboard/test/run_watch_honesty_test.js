@@ -25,6 +25,7 @@ const IDS = [
   'progress-integration', 'progress-node', 'progress-filter',
   'equipment-list', 'guide-state', 'guide-ra', 'guide-dec', 'guide-total',
   'guide-snr', 'weather-badge', 'weather-message', 'event-feed', 'toast-region',
+  'seq-message',
   'pair-screen', 'main-screen', 'pair-status',
   'opt-wake-lock', 'opt-wake-lock-row', 'opt-wake-lock-note',
   'opt-push', 'opt-push-row', 'opt-push-note',
@@ -733,4 +734,133 @@ test('a browser that CLAIMS the capability but lacks the API is still refused', 
   api.refreshCapabilityToggles();
   assert.equal(doc.getElementById('opt-wake-lock').disabled, true);
   assert.match(doc.getElementById('opt-wake-lock-note').textContent, /HTTPS/);
+});
+
+/** Every word the shim's tree renders under `el`, in order. */
+function textOf(el) {
+  if (!el) return '';
+  const own = el.textContent || '';
+  const kids = el.children.map(textOf).join(' ');
+  return (own + ' ' + kids).trim();
+}
+
+// D4W-3. With the run stalled on a failing meridian flip, the wire carried the
+// reason in `sequencer.message` AND `progress.message` while the page showed
+// "RUNNING / 33% / 1 of 3" and nothing else: a DOM grep for "meridian" found
+// only the static "TIME TO MERIDIAN" label. The desktop dashboard's Sequencer
+// panel has always rendered the same field, so the two clients disagreed about
+// whether the operator gets told.
+test('the executor\'s own message about a live run reaches the page', () => {
+  const { doc, api } = loadRunWatch();
+  const snap = runningSnapshot();
+  snap.sequencer.message =
+    'Meridian flip is overdue by 415 min and has not fired (hour angle '
+    + '+7.00h, threshold 5 min past meridian) - proceeding with the next 4s '
+    + 'exposure instead of waiting for it.';
+  snap.sequencer.progress.message =
+    'MeridianFlip: attempt 3/4 failed, retrying in 120s';
+  api.applySnapshot(snap);
+
+  const slot = doc.getElementById('seq-message');
+  assert.ok(!slot.classList.contains('hidden'),
+    'a run with something to say must show it');
+  assert.match(slot.textContent, /Meridian flip is overdue by 415 min/);
+  assert.match(slot.textContent, /attempt 3\/4 failed, retrying in 120s/);
+});
+
+test('a message already read in the header is not repeated underneath it', () => {
+  const { doc, api } = loadRunWatch();
+  const snap = runningSnapshot();
+  // `currentTarget` wins the header; an identical message adds nothing.
+  snap.sequencer.message = 'D1 Simulated Field';
+  snap.sequencer.progress.message = 'Exposure: Frame 5/40 (4.0s) (12%)';
+  api.applySnapshot(snap);
+
+  const slot = doc.getElementById('seq-message');
+  assert.equal(slot.textContent, 'Exposure: Frame 5/40 (4.0s) (12%)');
+});
+
+test('a run that says nothing raises no message surface', () => {
+  const { doc, api } = loadRunWatch();
+  api.applySnapshot(runningSnapshot());
+  assert.ok(doc.getElementById('seq-message').classList.contains('hidden'),
+    'an empty message must not paint an empty box');
+});
+
+// D4W-4. `exposureAdjusted` is an ordinary event of an adaptive-exposure night,
+// and the mapper had no case for it, so the feed printed
+// "SequencerEvent.exposureAdjusted(nodeId: exp_r, adaptedSecs: 2.0, …)" — Dart
+// source text — on the operator's phone during routine imaging.
+test('an event this build cannot read names itself instead of printing source', () => {
+  const { doc, api } = loadRunWatch();
+  api.applySnapshot(runningSnapshot({
+    recentEvents: [{
+      timestamp: Date.now(),
+      severity: 'info',
+      eventType: 'UnknownSequencerEvent',
+      data: {
+        variant: 'ExposureAdjusted',
+        message: 'This build has no reading for the ExposureAdjusted '
+          + 'sequencer event, so only its name is reported.',
+      },
+    }],
+  }));
+
+  const feed = textOf(doc.getElementById('event-feed'));
+  assert.match(feed, /ExposureAdjusted/, 'the event is named');
+  assert.match(feed, /no reading for the ExposureAdjusted sequencer event/);
+  assert.ok(!/UnknownSequencerEvent/.test(feed),
+    'the row is titled by the variant, not by the fallback bucket: ' + feed);
+});
+
+test('a stringified event object is never rendered, whoever sends one', () => {
+  const { doc, api } = loadRunWatch();
+  api.applySnapshot(runningSnapshot({
+    recentEvents: [{
+      timestamp: Date.now(),
+      severity: 'info',
+      eventType: 'UnknownSequencerEvent',
+      // `event` first, the way the mapper used to send it and the way the
+      // generic field walk would find it.
+      data: {
+        event: 'SequencerEvent.exposureAdjusted(nodeId: exp_r, adaptedSecs: '
+          + '2.0, nominalSecs: 2.0, skyBrightnessMag: null, filter: R, '
+          + 'reason: disabled)',
+        variant: 'ExposureAdjusted',
+        message: 'This build has no reading for the ExposureAdjusted '
+          + 'sequencer event, so only its name is reported.',
+      },
+    }],
+  }));
+
+  const feed = textOf(doc.getElementById('event-feed'));
+  assert.ok(!/SequencerEvent\./.test(feed),
+    'source text must not reach the operator: ' + feed);
+  assert.ok(!/nodeId:/.test(feed), feed);
+});
+
+// The host has an unread bucket per event family, and only the sequencer one
+// has been taught to name its variants — the other five still hand over
+// `<Family>Event.someVariant(...)` in `data.event`. Whichever bucket a row
+// arrives in, the page must not print that object at the operator.
+test('an unread event from any family renders no stringified object', () => {
+  const { doc, api } = loadRunWatch();
+  api.applySnapshot(runningSnapshot({
+    recentEvents: [{
+      timestamp: Date.now(),
+      severity: 'warning',
+      eventType: 'UnknownImagingEvent',
+      data: {
+        event: 'ImagingEvent.coolerRamp(deviceId: sim_camera_1, '
+          + 'targetC: -10.0, currentC: 3.5)',
+      },
+    }],
+  }));
+
+  const feed = textOf(doc.getElementById('event-feed'));
+  assert.match(feed, /Unknown ?ImagingEvent/,
+    'the row still says which family the event came from: ' + feed);
+  assert.ok(!/ImagingEvent\./.test(feed),
+    'source text must not reach the operator: ' + feed);
+  assert.ok(!/deviceId:/.test(feed), feed);
 });

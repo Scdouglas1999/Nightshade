@@ -656,7 +656,30 @@ class DawnAutopilotService {
       failure: null,
     );
 
+    // A pass that rendered NO draft did not do the thing a Darkroom pass is
+    // for, so it does not end `done`. Recorded as `done` with an empty
+    // `error_text` the outcome was invisible everywhere: the Session Review
+    // banner paints only an ending the operator has to act on, so a night whose
+    // masters were all unreadable read as "a clean night — no problems
+    // detected" with nothing on the screen saying the drafting and the delivery
+    // had not produced a draft. Ending it `failed` is what puts the reason on
+    // the row, in the banner, and in the report — and no queue re-runs it,
+    // because `drainQueue` only takes rows still `queued`.
+    final zeroDraft = report.draftsRendered == 0
+        ? _zeroDraftFailure(report)
+        : null;
+    if (zeroDraft != null) {
+      report = report.withEnding(
+        state: DarkroomJobState.failed.wire,
+        failure: zeroDraft,
+      );
+    }
+
     await _reportProgress(jobId, 0.95, 'Sending the morning report');
+    // The morning notification still goes out on a zero-draft pass: its
+    // headline is already written for the empty hand ("no draft was rendered"),
+    // and the pass the operator most needs told about is the one that produced
+    // nothing.
     final decision = kind == DarkroomJobKind.dawn
         ? await _announce(jobId, report)
         : const DawnNotificationDecision(
@@ -672,13 +695,15 @@ class DawnAutopilotService {
       sessionId: sessionId,
       startedAt: startedAt,
       finishedAt: _clock(),
-      state: DarkroomJobState.done.wire,
+      state: zeroDraft == null
+          ? DarkroomJobState.done.wire
+          : DarkroomJobState.failed.wire,
       masters: reports,
       withoutFile: set.withoutFile,
       delivery: delivered.report,
       deliveryProblems: [...excluded, ...delivered.problems],
       notification: decision,
-      failure: null,
+      failure: zeroDraft,
     );
 
     // The row is closed BEFORE the report that announces the ending is
@@ -688,7 +713,17 @@ class DawnAutopilotService {
     // the stop it is, and the failure path records it.
     _stage[jobId] = 'closing the job row';
     try {
-      await _markDone(jobId, _completionNote(report));
+      if (zeroDraft == null) {
+        await _markDone(jobId, _completionNote(report));
+      } else {
+        // `markFailed` writes no note, and the row's note still names the last
+        // stage that ran ("Sending the morning report") — which the Session
+        // Review banner reads as the stage that stopped. The completion note
+        // goes on while the row is still `running`, at the progress the attempt
+        // actually reached, so the banner's second sentence is the ending.
+        await _jobs.updateProgress(jobId, 0.95, note: _completionNote(report));
+        await _markFailed(jobId, zeroDraft);
+      }
     } catch (error) {
       await _writeReport(
         baseDirectory,
@@ -706,11 +741,36 @@ class DawnAutopilotService {
 
     return DawnJobOutcome(
       jobId: jobId,
-      state: DarkroomJobState.done,
+      state: zeroDraft == null
+          ? DarkroomJobState.done
+          : DarkroomJobState.failed,
       report: report,
       reportPath: finalPath,
-      failure: null,
+      failure: zeroDraft,
     );
+  }
+
+  /// Why a pass that rendered no draft ended where it did, built only from
+  /// reasons already on the record.
+  ///
+  /// Each master carries the failure that stopped its own draft and the
+  /// resolver names every master it could not hand over a file for; those
+  /// sentences are the reason, so the ending repeats them rather than composing
+  /// a cause of its own. When neither has anything to say — a session with no
+  /// integrated master at all — that is what it says.
+  static String _zeroDraftFailure(DawnJobReport report) {
+    final reasons = <String>[
+      for (final master in report.masters)
+        if (master.failure != null) '${master.master.name}: ${master.failure}',
+      for (final missing in report.withoutFile)
+        '${missing.name}: ${missing.reason}',
+    ];
+    if (reasons.isEmpty) {
+      return 'The Darkroom pass rendered no draft. This night has no '
+          'integrated master to draft from — integrate it in Session Review, '
+          'then run the pass again.';
+    }
+    return 'The Darkroom pass rendered no draft: ${reasons.join('; ')}.';
   }
 
   /// Compose, persist and render one master's first draft.
@@ -1208,7 +1268,16 @@ class DawnAutopilotService {
     );
     final path = first.draftRenderPath;
     if (path == null) {
-      return 'No draft was rendered; see the night report for the reason';
+      // A FINISHED sentence, because `draftRenderPath == null` here means
+      // `draftsRendered == 0`, which is the ending that now fails — and the
+      // Session Review banner prints a failed row's note as the pass's own
+      // second sentence. It frames a note without terminal punctuation as the
+      // stage the pass stopped at ("It was <note> when it stopped"), which for
+      // a pass that ran every stage would name a stop that never happened.
+      // It also does not repeat the failure line above it: that names which
+      // master stopped and why, so this one points at the artifact instead.
+      return 'No draft came out of the pass; the night report carries the '
+          'per-master detail.';
     }
     return '${report.draftsRendered} draft(s) ready; first at $path$tail';
   }

@@ -77,6 +77,18 @@ class _DestinationEditorDialogState
   String? _validationError;
   WatchedFolderProbe? _probe;
 
+  /// True once a save was refused because the Name field was empty.
+  ///
+  /// Held apart from [_validationError] because this assertion is about ONE
+  /// field, and a field-level assertion has to answer to that field: it renders
+  /// as the Name field's own `errorText` — beside the box it is about rather
+  /// than in the footer ~470px below it — and it clears the moment the field
+  /// gains text. As a footer string it survived the typing that answered it,
+  /// so the form asserted "This destination needs a name." over a Name field
+  /// holding `nas`, and the next Save succeeded — proving the sentence had been
+  /// stale since the first keystroke.
+  bool _nameMissing = false;
+
   /// True once the operator asks for the stored key to be removed. Applied on
   /// save so a cancelled dialog leaves the keyring alone.
   bool _clearStoredKey = false;
@@ -169,6 +181,12 @@ class _DestinationEditorDialogState
             hint: 'nas',
             controller: _nameController,
             enabled: !_isPeer,
+            errorText: _nameMissing ? 'This destination needs a name.' : null,
+            onChanged: (value) {
+              if (_nameMissing && value.trim().isNotEmpty) {
+                setState(() => _nameMissing = false);
+              }
+            },
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
@@ -551,18 +569,25 @@ class _DestinationEditorDialogState
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      setState(() => _validationError = 'This destination needs a name.');
+      setState(() {
+        _nameMissing = true;
+        _validationError = null;
+      });
       return;
     }
     final built = _buildConfig();
     final configError = built.error;
     if (configError != null) {
-      setState(() => _validationError = configError);
+      setState(() {
+        _nameMissing = false;
+        _validationError = configError;
+      });
       return;
     }
 
     setState(() {
       _saving = true;
+      _nameMissing = false;
       _validationError = null;
     });
 

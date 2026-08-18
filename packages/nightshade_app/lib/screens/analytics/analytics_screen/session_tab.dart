@@ -754,7 +754,9 @@ class _SessionReviewBar extends StatelessWidget {
                       child: Text(
                         '${session.name ?? 'Session ${session.id}'}'
                         '  ·  ${format.format(session.startTime)}'
-                        '  ·  ${session.successfulExposures} frames',
+                        // "frames returned": `successful_exposures` counts what
+                        // the camera handed back, not what the culling kept.
+                        '  ·  ${session.successfulExposures} frames returned',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: NightshadeTypography.labelSm

@@ -1,33 +1,53 @@
 part of '../darkroom_screen.dart';
 
-/// Longest draft account the panel states without being asked.
+/// Longest account this panel states without being asked.
 ///
 /// The Recipe panel shares its column with the History stack, so its viewport
 /// is a couple of hundred pixels: an account longer than this runs past the
 /// fold, and the operator reads a sentence that stops in the middle of a clause
-/// with nothing to say the rest exists. Roughly three lines at this panel's
-/// width — short enough to sit above the fold with its own control beneath it.
-const int kDarkroomDraftNoteCollapsedChars = 160;
+/// with nothing to say the rest exists.
+///
+/// Measured, not guessed: on a 1600x900 desktop with the panel at its 360-pixel
+/// default, the alert's message column holds about 28 characters a line and the
+/// panel's viewport gives the alert about four of them beneath its heading. So
+/// the collapsed account is sized to sit inside that block WITH the control
+/// that opens it, rather than to a round number that then runs past the fold
+/// again.
+const int kDarkroomDraftNoteCollapsedChars = 100;
 
-/// The draft's own account of what it left out, which is the only surface that
-/// carries it — an omitted operation is not in the history stack at all.
+/// A long account stated in full inside ONE alert, collapsed to its first few
+/// lines with the control that opens it in the alert's own block.
 ///
 /// Long accounts collapse at a WORD boundary and say so, rather than being
 /// sliced wherever the panel's scroll fold happens to fall. The cut is the
 /// widget's own and it is marked, so "…" plus a control that names the rest is
 /// the difference between text that was shortened and text that looks broken.
-class _DarkroomDraftNotesAlert extends StatefulWidget {
-  const _DarkroomDraftNotesAlert({required this.title, required this.message});
+///
+/// The control lives in the alert's `action` slot rather than under the alert.
+/// Under it, the control was a separate row in the panel's scroll view: the
+/// alert sat above the fold and the button that completed its sentence sat one
+/// line below it, so the operator saw a clause cut off with — as far as the
+/// screen was concerned — nothing that said the rest existed. Inside the alert
+/// the control cannot be scrolled away from the text it discloses; they share a
+/// viewport because they share a box. It costs the message column the button's
+/// width, which is less than the row the button used to occupy underneath.
+class _DarkroomCollapsibleAlert extends StatefulWidget {
+  const _DarkroomCollapsibleAlert({
+    required this.message,
+    required this.severity,
+    this.title,
+  });
 
-  final String title;
+  final String? title;
   final String message;
+  final NightshadeAlertSeverity severity;
 
   @override
-  State<_DarkroomDraftNotesAlert> createState() =>
-      _DarkroomDraftNotesAlertState();
+  State<_DarkroomCollapsibleAlert> createState() =>
+      _DarkroomCollapsibleAlertState();
 }
 
-class _DarkroomDraftNotesAlertState extends State<_DarkroomDraftNotesAlert> {
+class _DarkroomCollapsibleAlertState extends State<_DarkroomCollapsibleAlert> {
   bool _expanded = false;
 
   /// A different account starts collapsed again.
@@ -37,7 +57,7 @@ class _DarkroomDraftNotesAlertState extends State<_DarkroomDraftNotesAlert> {
   /// opened the LAST one — and the panel it is in would be past its fold before
   /// they had read a word of it.
   @override
-  void didUpdateWidget(_DarkroomDraftNotesAlert oldWidget) {
+  void didUpdateWidget(_DarkroomCollapsibleAlert oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.message != widget.message) _expanded = false;
   }
@@ -62,21 +82,15 @@ class _DarkroomDraftNotesAlertState extends State<_DarkroomDraftNotesAlert> {
     final collapsed = _collapsed(widget.message);
     final showing =
         (collapsed == null || _expanded) ? widget.message : collapsed;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.info,
-          title: widget.title,
-          message: showing,
-          compact: true,
-        ),
-        if (collapsed != null) ...[
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: NightshadeButton(
-              label: _expanded ? 'Show less' : 'Show the whole reason',
+    return NightshadeAlert(
+      severity: widget.severity,
+      title: widget.title,
+      message: showing,
+      compact: true,
+      action: collapsed == null
+          ? null
+          : NightshadeButton(
+              label: _expanded ? 'Show less' : 'Show more',
               icon: _expanded
                   ? NightshadeIcons.chevronUp
                   : NightshadeIcons.chevronDown,
@@ -84,9 +98,6 @@ class _DarkroomDraftNotesAlertState extends State<_DarkroomDraftNotesAlert> {
               size: ButtonSize.small,
               onPressed: () => setState(() => _expanded = !_expanded),
             ),
-          ),
-        ],
-      ],
     );
   }
 }
@@ -232,7 +243,8 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         const SizedBox(height: NightshadeTokens.spaceLg),
       ],
       if (notes.isNotEmpty) ...[
-        _DarkroomDraftNotesAlert(
+        _DarkroomCollapsibleAlert(
+          severity: NightshadeAlertSeverity.info,
           title: _draftNotesTitle(notes),
           message: [
             for (final note in notes) darkroomDraftNoteSentence(note),
@@ -417,12 +429,16 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
       final error = state.renderError;
       final cancelled = state.cancelledPhase;
       if (error != null) {
+        // Collapsible for the same reason the draft account is: a render
+        // failure names the path, the errno and two next steps, which is four
+        // lines the panel's viewport does not have. Cut at a word with the
+        // control that opens it inside the alert, rather than at the fold with
+        // nothing.
         children.add(
-          NightshadeAlert(
+          _DarkroomCollapsibleAlert(
             severity: NightshadeAlertSeverity.error,
             title: 'The render did not finish',
             message: error,
-            compact: true,
           ),
         );
       } else if (cancelled != null) {

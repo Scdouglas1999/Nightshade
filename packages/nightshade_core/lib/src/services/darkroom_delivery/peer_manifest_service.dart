@@ -15,6 +15,8 @@
 /// manifest once per job rather than polling it.
 library;
 
+import 'package:path/path.dart' as p;
+
 import '../../database/daos/delivery_journal_dao.dart';
 import '../../database/daos/delivery_targets_dao.dart';
 import '../../models/darkroom/delivery.dart';
@@ -47,10 +49,22 @@ class PublishedArtifact {
   /// Absolute path on the rig.
   final String filePath;
 
+  /// The name this destination publishes it under — the same namespaced name
+  /// [DeliveryManifest] listed for it.
+  ///
+  /// Not the rig's own file name. Every other transport writes
+  /// `<rigId>-<name>` precisely so two rigs sharing one folder do not collide,
+  /// and a download that offered the bare name handed exactly that collision
+  /// to any puller that saves what the header says — `curl -OJ`, a browser, a
+  /// third-party script. Nightshade's own puller writes the manifest entry's
+  /// name and was never affected, which is what let the two disagree unnoticed.
+  final String fileName;
+
   const PublishedArtifact({
     required this.targetId,
     required this.jobId,
     required this.filePath,
+    required this.fileName,
   });
 }
 
@@ -135,12 +149,20 @@ class PeerManifestService {
   }) async {
     final targets = await _peerTargets(peerId);
     for (final row in await _journal.listForJob(jobId)) {
-      if (!targets.containsKey(row.targetId)) continue;
+      final destination = targets[row.targetId];
+      if (destination == null) continue;
       if (artifactIdForPath(row.filePath) != artifactId) continue;
+      // The same naming the manifest published this file under, read from the
+      // same destination row, so the two cannot drift. A `rigId` this build
+      // cannot read throws here exactly as it does in [buildManifest] — the
+      // caller has already had that refusal, because the id it is asking with
+      // came out of a manifest.
+      final naming = DeliveryNaming.forDestination(destination);
       return PublishedArtifact(
         targetId: row.targetId,
         jobId: row.jobId,
         filePath: row.filePath,
+        fileName: naming.nameFor(p.basename(row.filePath)),
       );
     }
     return null;

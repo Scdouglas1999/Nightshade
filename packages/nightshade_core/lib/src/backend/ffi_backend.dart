@@ -160,4 +160,25 @@ class FfiBackend extends _FfiBackendBase
   (String, Map<String, dynamic>) sequencerEventInfoForTesting(
     bridge.SequencerEvent event,
   ) => _extractSequencerEventInfo(event);
+
+  /// Family seams matching [sequencerEventInfoForTesting], one per union the
+  /// event stream dispatches. The mappers take `dynamic`, so a test can hand
+  /// a stand-in whose runtime type name mimics a generated variant this build
+  /// has no arm for — the only way to reach the unread fallback while every
+  /// real variant is mapped.
+  @visibleForTesting
+  (String, Map<String, dynamic>) safetyEventInfoForTesting(dynamic event) =>
+      _extractSafetyEventInfo(event);
+  @visibleForTesting
+  (String, Map<String, dynamic>) systemEventInfoForTesting(dynamic event) =>
+      _extractSystemEventInfo(event);
+  @visibleForTesting
+  (String, Map<String, dynamic>) equipmentEventInfoForTesting(dynamic event) =>
+      _extractEquipmentEventInfo(event);
+  @visibleForTesting
+  (String, Map<String, dynamic>) guidingEventInfoForTesting(dynamic event) =>
+      _extractGuidingEventInfo(event);
+  @visibleForTesting
+  (String, Map<String, dynamic>) imagingEventInfoForTesting(dynamic event) =>
+      _extractImagingEventInfo(event);
 }

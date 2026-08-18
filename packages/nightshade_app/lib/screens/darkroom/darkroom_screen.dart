@@ -83,13 +83,20 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final backend = ref.watch(backendProvider);
-    if (backend is NetworkBackend) {
+    if (ref.watch(isRemoteClientProvider)) {
       // The Darkroom renders a linear master FITS through the native recipe
       // engine, and both the file and the engine live on the imaging host. A
       // remote client has neither, so there is nothing here it could render —
       // and a client-local recipe row would be a second, divergent history of
       // a master it cannot see.
+      //
+      // Gated on the client ROLE, not on the connection, exactly as Delivery
+      // settings is. A desktop launched with `--remote-host` that has not
+      // reached its rig yet has a `Disconnected` backend, not a
+      // `NetworkBackend`: `backend is NetworkBackend` read false for the whole
+      // pre-handshake window and after every drop, so the full editor opened
+      // over the client's OWN database — recipes no dawn job on the rig will
+      // ever read — while Delivery on the same launch correctly refused.
       return Scaffold(
         backgroundColor: colors.background,
         body: const SafeArea(

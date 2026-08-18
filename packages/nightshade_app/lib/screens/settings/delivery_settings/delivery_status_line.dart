@@ -45,20 +45,16 @@ class DeliveryStatusLine {
   ///
   /// The journal outranks the configuration: the newest recorded verdict —
   /// no `ssh` binary, a full disk, a conflicting file — leads the sentence,
-  /// and any structural gap (a missing key, an empty selection) rides behind
-  /// it. A configuration blocker stated first would hide the real mechanism
-  /// and point the operator at a fix that cannot change the outcome.
+  /// and any structural gap (a missing key, an empty selection, a folder that
+  /// is not there) rides behind it. A configuration blocker stated first would
+  /// hide the real mechanism and point the operator at a fix that cannot
+  /// change the outcome.
   static DeliveryStatusLine of(DeliveryDestinationView view) {
     final destination = view.destination;
-    if (!destination.enabled) {
-      return const DeliveryStatusLine(
-        DeliveryStatusKind.off,
-        'Off — nothing is sent here.',
-      );
-    }
+    if (!destination.enabled) return _offSentence(view);
     final note = _configurationNote(view);
-    if (view.lastRun.isNotEmpty) {
-      final verdict = _lastRunSentence(view);
+    if (view.journal.isNotEmpty) {
+      final verdict = _journalSentence(view);
       if (note == null) return verdict;
       return DeliveryStatusLine(
         verdict.kind,
@@ -71,6 +67,29 @@ class DeliveryStatusLine {
     return const DeliveryStatusLine(
       DeliveryStatusKind.neverRun,
       'No delivery has run yet.',
+    );
+  }
+
+  /// What a switched-off destination says, including the files standing at it.
+  ///
+  /// Off is not empty. The rows a destination holds when the operator turns it
+  /// off stay `retrying` — the sweep names them suspended and skips them, and
+  /// a peer's manifest endpoint answers that peer `unknown_delivery_peer`, so
+  /// nothing on either side is going to move them. A row that said only "Off —
+  /// nothing is sent here." left twelve published files invisible on the one
+  /// page that owns the switch that would release them.
+  static DeliveryStatusLine _offSentence(DeliveryDestinationView view) {
+    final suspended = view.owed.length;
+    final failed = view.unresolvedFailures.length;
+    final sentences = <String>[
+      if (suspended > 0)
+        '${_files(suspended)} ${suspended == 1 ? 'is' : 'are'} suspended here '
+            'until it is switched back on.',
+      if (failed > 0) '${_files(failed)} never arrived.',
+    ];
+    return DeliveryStatusLine(
+      DeliveryStatusKind.off,
+      ['Off — nothing is sent here.', ...sentences].join(' '),
     );
   }
 
@@ -103,10 +122,29 @@ class DeliveryStatusLine {
     final config = decodeDestinationConfig(destination.configJson);
     switch (destination.kind) {
       case ArtifactDestinationKind.watchedFolder:
-        if (configString(config, 'path').trim().isEmpty) {
+        final path = configString(config, 'path').trim();
+        if (path.isEmpty) {
           return 'No folder set — nothing can be written.';
         }
-        return null;
+        switch (view.folder) {
+          case WatchedFolderState.absent:
+            // The same refusal the editor's write probe gives, kept alive on
+            // the row after the dialog closed. An operator who saved past that
+            // refusal used to get a row that said nothing at all about the
+            // folder, and an unmounted share looks exactly like this.
+            return 'There is no directory at $path — delivery never creates '
+                'one, so nothing can be written there.';
+          case WatchedFolderState.unreadable:
+            final error = view.folderError;
+            final detail = error != null && error.trim().isNotEmpty
+                ? error.trim()
+                : 'the filesystem did not answer';
+            return 'The folder at $path could not be checked ($detail), so '
+                'whether anything can be written there is unknown.';
+          case WatchedFolderState.present:
+          case WatchedFolderState.notProbed:
+            return null;
+        }
       case ArtifactDestinationKind.sftp:
         if (configString(config, 'host').trim().isEmpty) {
           return 'No host set — nothing can be sent.';
@@ -136,41 +174,61 @@ class DeliveryStatusLine {
     }
   }
 
-  /// The sentence for the most recent run's journal rows.
-  static DeliveryStatusLine _lastRunSentence(DeliveryDestinationView view) {
-    final entries = view.lastRun;
+  /// The sentence this destination's journal states.
+  ///
+  /// **A red truth outranks a newer green.** What did not arrive is counted
+  /// across EVERY job at this destination, and only what DID arrive is read
+  /// from the newest run. A destination holding four of last night's drafts
+  /// that failed terminally, and four of tonight's that landed, used to read
+  /// "Delivered 17:55, 4 files" in green with no mention of the four the rig
+  /// will never look at again — the exact sentence this page exists to get
+  /// right, in the other direction.
+  ///
+  /// **The counts are the destination's whole backlog.** "4 files owed" beside
+  /// a sweep logging "8 retrying" for the same destination is the page
+  /// disagreeing with the process, and an operator whose share was full for
+  /// two nights was told half of it.
+  static DeliveryStatusLine _journalSentence(DeliveryDestinationView view) {
     final isPeer = view.destination.kind == ArtifactDestinationKind.peer;
 
-    final delivered = <DeliveryJournalEntry>[];
-    final failed = <DeliveryJournalEntry>[];
+    final failed = view.unresolvedFailures;
     final retrying = <DeliveryJournalEntry>[];
     final awaitingPull = <DeliveryJournalEntry>[];
-    for (final entry in entries) {
-      switch (entry.state) {
-        case DeliveryAttemptState.delivered:
-          delivered.add(entry);
-        case DeliveryAttemptState.failed:
-          failed.add(entry);
-        case DeliveryAttemptState.retrying:
-          // A peer row is `retrying` from the moment it is published until the
-          // desktop acknowledges the pull, because publication moves no bytes.
-          // With no error recorded, that row is waiting on the desktop — not
-          // on a retry — and saying "will retry" would blame the wrong side.
-          if (isPeer && entry.lastError == null) {
-            awaitingPull.add(entry);
-          } else {
-            retrying.add(entry);
-          }
+    for (final entry in view.owed) {
+      // A peer row is `retrying` from the moment it is published until the
+      // desktop acknowledges the pull, because publication moves no bytes.
+      // With no error recorded, that row is waiting on the desktop — not on a
+      // retry — and saying "will retry" would blame the wrong side.
+      if (isPeer && entry.lastError == null) {
+        awaitingPull.add(entry);
+      } else {
+        retrying.add(entry);
       }
     }
+    final lastRun = view.lastRun;
+    final delivered = lastRun
+        .where((entry) => entry.state == DeliveryAttemptState.delivered)
+        .toList(growable: false);
 
     if (failed.isNotEmpty) {
       final reason = _newestError(failed);
+      // `lastRun` is never empty here: this is only reached for a destination
+      // whose journal holds rows, and every row belongs to some job.
+      final newestJobId = lastRun.first.jobId;
+      if (failed.every((entry) => entry.jobId == newestJobId)) {
+        return DeliveryStatusLine(
+          DeliveryStatusKind.failed,
+          // The unit belongs to the pair, not to each half: counting both
+          // sides separately printed "1 file of 3 files failed".
+          '${failed.length} of ${_files(lastRun.length)} failed — $reason',
+        );
+      }
+      // Failures the newest run does not account for. Naming them as a share
+      // of that run's file count would understate them — they are files from
+      // nights this destination has already been told were done with.
       return DeliveryStatusLine(
         DeliveryStatusKind.failed,
-        // The unit belongs to the pair, not to each half: counting both sides
-        // separately printed "1 file of 3 files failed".
-        '${failed.length} of ${_files(entries.length)} failed — $reason',
+        '${_files(failed.length)} never arrived — $reason',
       );
     }
     if (retrying.isNotEmpty) {

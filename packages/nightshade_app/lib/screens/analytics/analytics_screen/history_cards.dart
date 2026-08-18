@@ -74,6 +74,10 @@ class _SessionHistoryCard extends ConsumerWidget {
       lastFrameAt: ref.watch(lastFrameBySessionProvider)[session.id],
     );
 
+    // Null while the frame catalogue has not been read; a session the map has
+    // no entry for has no light frames at all.
+    final grading = ref.watch(gradingBySessionProvider)?[session.id];
+
     final titleRow = Row(
       children: [
         Flexible(
@@ -124,12 +128,28 @@ class _SessionHistoryCard extends ConsumerWidget {
         label: elapsed.valueLabel,
         colors: colors,
       ),
+      // "frames returned", not "frames": the number is
+      // `successful_exposures`, which counts what the CAMERA handed back. A
+      // night whose every sub was culled still counts them all here, so the row
+      // read `COMPLETED · 6 frames · 0 integration` — a good night with an odd
+      // integration figure rather than a night that kept nothing.
       _StatChip(
         icon: LucideIcons.image,
-        caption: 'frames',
+        caption: 'frames returned',
         label: '${session.successfulExposures}',
         colors: colors,
       ),
+      // The culling's own verdict, from `captured_images.is_accepted`, and only
+      // when it threw something away: a night that kept everything is the
+      // common case and does not need a chip saying so, but a night that kept
+      // nothing must not look like one.
+      if (grading != null && grading.rejected > 0)
+        _StatChip(
+          icon: LucideIcons.imageOff,
+          caption: 'rejected',
+          label: '${grading.rejected}',
+          colors: colors,
+        ),
       _StatChip(
         icon: LucideIcons.timer,
         caption: 'integration',

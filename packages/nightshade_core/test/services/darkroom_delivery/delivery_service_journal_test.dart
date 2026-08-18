@@ -540,6 +540,51 @@ void main() {
       expect((await DeliveryJournalDao(db).listForJob(1)).single.attempts, 1);
     });
 
+    test('a switched-off peer is suspended, not reported as awaiting a pull',
+        () async {
+      // The sweep used to take the peer branch before it read the switch, so
+      // a destination the operator had turned off was reported as "12
+      // awaiting pull" — while `PeerManifestService` resolves peers through
+      // `readEnabled` and answered that same peer id with
+      // `unknown_delivery_peer`. Nothing could ever pull those files.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      final targetId = await createWatchedFolder(
+        db,
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.peer,
+      );
+      var now = DateTime.utc(2026, 8, 16, 5);
+      final transport = _ScriptedTransport(
+        kind: ArtifactDestinationKind.peer,
+        disposition: DeliveryDisposition.awaitingPull,
+      );
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => transport,
+        clock: () => now,
+      );
+      await service.deliverJobArtifacts(await artifactSet());
+      await DeliveryTargetsDao(db).update(targetId, enabled: false);
+
+      now = now.add(const Duration(hours: 3));
+      final report = await service.sweepDueRetries();
+
+      expect(report.awaitingPull, 0);
+      expect(report.suspended, 1);
+      expect(
+        report.destinations.single.problems.single,
+        contains('no paired desktop can pull them while it is off'),
+      );
+      expect(
+        report.everythingLanded,
+        isFalse,
+        reason: 'a file nothing can pull has not landed',
+      );
+    });
+
     test('a destination switched off mid-night pauses without spending an '
         'attempt', () async {
       final db = open();
@@ -565,12 +610,112 @@ void main() {
       now = now.add(const Duration(hours: 1));
       final report = await service.sweepDueRetries();
 
-      expect(report.retrying, 1);
+      expect(
+        report.suspended,
+        1,
+        reason: 'a switched-off destination is owed nothing until the operator '
+            'switches it back on; counting it as retrying reads as work the '
+            'sweep is about to do',
+      );
+      expect(report.retrying, 0);
       expect(
         report.destinations.single.problems.single,
         contains('switched off'),
       );
+      expect(report.destinations.single.summary, contains('suspended'));
       expect((await DeliveryJournalDao(db).listForJob(1)).single.attempts, 1);
+    });
+
+    test('the earliest due time is the policy\'s rung, not the sweep tick',
+        () async {
+      // What the sweeper's short cadence asks. Answering it from the journal
+      // is what lets a row due 60 seconds from now be attempted 60 seconds
+      // from now rather than at whatever tick comes next.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      await createWatchedFolder(db);
+      var now = DateTime.utc(2026, 8, 16, 5);
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => _ScriptedTransport(
+          kind: ArtifactDestinationKind.watchedFolder,
+          openFailure: const DeliveryFailure(
+            DeliveryFailureKind.destinationUnreachable,
+            'the share is not mounted',
+          ),
+        ),
+        clock: () => now,
+      );
+
+      expect(
+        await service.earliestRetryDueAt(),
+        isNull,
+        reason: 'an empty journal owes nothing, and no wake is needed for it',
+      );
+
+      await service.deliverJobArtifacts(await artifactSet());
+
+      expect(
+        await service.earliestRetryDueAt(),
+        now.add(const Duration(minutes: 1)),
+        reason: 'the first rung of the documented 1m/3m/9m ladder',
+      );
+      expect(await service.hasDueRetries(), isFalse);
+
+      now = now.add(const Duration(seconds: 59));
+      expect(await service.hasDueRetries(), isFalse);
+
+      now = now.add(const Duration(seconds: 2));
+      expect(
+        await service.hasDueRetries(),
+        isTrue,
+        reason: 'a second past the rung is due; the sweeper wakes on this',
+      );
+    });
+
+    test('a suspended row is not a due row', () async {
+      // A switched-off destination's rows stay `retrying` for as long as the
+      // switch is off — the sweep states them and skips them without touching
+      // the row. Counting them as due answers "due" on every 30-second check
+      // for ever, which sweeps every OTHER destination on that cadence too.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      final targetId = await createWatchedFolder(db);
+      var now = DateTime.utc(2026, 8, 16, 5);
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => _ScriptedTransport(
+          kind: ArtifactDestinationKind.watchedFolder,
+          openFailure: const DeliveryFailure(
+            DeliveryFailureKind.destinationUnreachable,
+            'the share is not mounted',
+          ),
+        ),
+        clock: () => now,
+      );
+      await service.deliverJobArtifacts(await artifactSet());
+      await DeliveryTargetsDao(db).update(targetId, enabled: false);
+
+      now = now.add(const Duration(hours: 6));
+      expect(
+        (await DeliveryJournalDao(db).listPendingRetry()).single.state,
+        DeliveryAttemptState.retrying,
+        reason: 'the row is still owed — it is just owed to a switch',
+      );
+      expect(await service.earliestRetryDueAt(), isNull);
+      expect(await service.hasDueRetries(), isFalse);
+
+      await DeliveryTargetsDao(db).update(targetId, enabled: true);
+
+      expect(
+        await service.hasDueRetries(),
+        isTrue,
+        reason: 'switching it back on is what makes the backlog due again',
+      );
     });
 
     test('a source deleted between attempts stops being retried', () async {

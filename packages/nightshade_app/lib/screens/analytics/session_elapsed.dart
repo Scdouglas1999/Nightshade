@@ -118,3 +118,54 @@ final lastFrameBySessionProvider = Provider<Map<int, DateTime>>((ref) {
   }
   return byId;
 });
+
+/// What the culling decided about one session's LIGHT frames.
+///
+/// `imaging_sessions.successful_exposures` answers a different question — how
+/// many frames the CAMERA returned — so a night whose every sub was thrown away
+/// still counts them all there. The verdict lives in
+/// `captured_images.is_accepted`, and this is the History list's reading of it.
+class SessionFrameGrading {
+  const SessionFrameGrading({required this.accepted, required this.rejected});
+
+  final int accepted;
+  final int rejected;
+
+  /// Light frames this session has a verdict for at all.
+  int get graded => accepted + rejected;
+}
+
+/// Accepted and rejected light frames per session id, or null while the frames
+/// have not been read.
+///
+/// Null rather than an empty map so a caller can tell "this session rejected
+/// nothing" from "nobody has looked yet" — printing `0 rejected` over an
+/// unread catalogue is the cry-wolf shape the accepted/rejected pair exists to
+/// close.
+///
+/// Derived from [allDbImagesProvider], the same list [lastFrameBySessionProvider]
+/// reads, so the History list gains the verdict without a second query per row
+/// and remote mode gets it from the host's polled catalogue for free.
+/// Calibration frames are excluded: they are never graded, so counting them
+/// would inflate `accepted` with darks and flats nobody culled.
+final gradingBySessionProvider = Provider<Map<int, SessionFrameGrading>?>((
+  ref,
+) {
+  final images = ref.watch(allDbImagesProvider).valueOrNull;
+  if (images == null) return null;
+  final accepted = <int, int>{};
+  final rejected = <int, int>{};
+  for (final image in images) {
+    final sessionId = image.sessionId;
+    if (sessionId == null || image.frameType != 'light') continue;
+    final bucket = image.isAccepted ? accepted : rejected;
+    bucket[sessionId] = (bucket[sessionId] ?? 0) + 1;
+  }
+  return {
+    for (final id in {...accepted.keys, ...rejected.keys})
+      id: SessionFrameGrading(
+        accepted: accepted[id] ?? 0,
+        rejected: rejected[id] ?? 0,
+      ),
+  };
+});

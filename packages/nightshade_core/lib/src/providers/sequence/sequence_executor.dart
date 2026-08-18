@@ -830,6 +830,20 @@ class SequenceExecutor {
       );
       return existing;
     }
+    // Clear the PREVIOUS run's progress, the last piece of [_acquireAndStartRun]
+    // this path did not mirror.
+    //
+    // Every producer writes `completedExposures` as the event's ABSOLUTE frame
+    // index, so the frame count re-zeroed itself on the second run and made the
+    // omission look harmless. `completedIntegrationSecs` accumulates, and
+    // nothing on this path cleared it: measured against a scratch database,
+    // four 3-and-4-frame runs in one process reported 12.0, then 24.0, then
+    // 140.0, then 156.0 seconds — the whole process's integration, next to a
+    // frame count covering only the run in front of the operator ("FRAMES 4 / 4"
+    // beside "INTEGRATION 2m 36s" on the run-watch page for 4 x 4.0 s). The
+    // per-node badges leaked the same way. A run's integration is the run's.
+    _ref.read(sequenceProgressProvider.notifier).reset();
+    _ref.read(nodeExposureTallyProvider.notifier).reset();
     return _openRunRecords(
       sequenceName: sequenceName,
       sequenceDatabaseId: sequenceDatabaseId,

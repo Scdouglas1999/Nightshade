@@ -403,12 +403,16 @@ class _UnreadableDestinationRowState
   }
 }
 
-/// Re-queues the spent rows of a destination's newest job and runs a sweep.
+/// Re-queues every spent row a destination holds — across every job — and runs
+/// a sweep.
 ///
 /// Shown only beside a `failed` status line, because that is the only state
 /// where nothing else is going to happen: `retrying` rows are already on the
 /// sweep's list and a second push at them would only reset a backoff that is
-/// doing its job.
+/// doing its job. The status line beside it counts terminal rows across every
+/// job, so this button reaches exactly as far — it is the action for that
+/// sentence, and re-queueing less than the sentence counts would report work
+/// it did not do.
 class _RetryNowButton extends ConsumerStatefulWidget {
   const _RetryNowButton({required this.destination, required this.id});
 
@@ -511,6 +515,8 @@ class _RetryNowButtonState extends ConsumerState<_RetryNowButton> {
       if (swept.delivered > 0) '${swept.delivered} delivered',
       if (swept.awaitingPull > 0) '${swept.awaitingPull} awaiting a pull',
       if (swept.retrying > 0) '${swept.retrying} owed another attempt',
+      if (swept.suspended > 0)
+        '${swept.suspended} suspended while the destination is switched off',
       if (swept.failed > 0) '${swept.failed} failed again',
       if (swept.unjournalled > 0) '${swept.unjournalled} not journalled',
     ];

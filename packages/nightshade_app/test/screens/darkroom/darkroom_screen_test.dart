@@ -312,6 +312,43 @@ void main() {
     expect(find.byKey(kDarkroomPreviewSurfaceKey), findsNothing);
   });
 
+  testWidgets(
+    'a --remote-host client that has not reached its rig is told where the '
+    'work lives',
+    (tester) async {
+      // Launched as a client, backend still `Disconnected`: the pre-handshake
+      // window, and again after every drop. Gating the editor on
+      // `backendProvider is NetworkBackend` read false here, so the full editor
+      // opened over the CLIENT's own database — recipes no dawn job on the rig
+      // will ever read — while Delivery settings on the same launch correctly
+      // refused, because it gates on the role.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            darkroomSeamProvider.overrideWithValue(darkroom),
+            dawnPhotometryResolverProvider
+                .overrideWithValue(_emptyPhotometry()),
+            remoteClientLaunchProvider.overrideWithValue(true),
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, DisconnectedBackend()),
+            ),
+          ],
+          child: const MaterialApp(
+            home: DarkroomScreen(scope: DarkroomScope.recipe(1)),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('Open the Darkroom on the imaging host'),
+        findsOneWidget,
+      );
+      expect(find.byKey(kDarkroomPreviewSurfaceKey), findsNothing);
+    },
+  );
+
   testWidgets('a link that names nothing explains itself and offers a way out',
       (tester) async {
     await pump(tester, const DarkroomScope.empty());
@@ -1009,18 +1046,35 @@ void main() {
       reason: 'the cut lands after a whole word: $collapsed',
     );
 
-    final expand = find.widgetWithText(
-      NightshadeButton,
-      'Show the whole reason',
+    // The control that completes the sentence is INSIDE the alert that carries
+    // it. Under the alert it was a separate row in the panel's scroll view, so
+    // the truncated text sat above the fold and the button that said the rest
+    // existed sat below it; sharing the alert's box is what makes them share a
+    // viewport whatever the panel's height.
+    final alert = find.ancestor(
+      of: find.textContaining('Color calibrate — omitted:'),
+      matching: find.byType(NightshadeAlert),
+    );
+    expect(alert, findsOneWidget);
+    final expand = find.descendant(
+      of: alert,
+      matching: find.widgetWithText(NightshadeButton, 'Show more'),
     );
     expect(expand, findsOneWidget);
-    await tester.ensureVisible(expand);
-    await tester.pump();
-    await tester.tap(expand);
+    await tester.tap(expand, warnIfMissed: false);
     await tester.pump();
 
     expect(find.textContaining('draft that composite'), findsOneWidget);
-    expect(find.widgetWithText(NightshadeButton, 'Show less'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.textContaining('draft that composite'),
+          matching: find.byType(NightshadeAlert),
+        ),
+        matching: find.widgetWithText(NightshadeButton, 'Show less'),
+      ),
+      findsOneWidget,
+    );
     await drain(tester);
   });
 }

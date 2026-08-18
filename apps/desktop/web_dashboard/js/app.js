@@ -4875,6 +4875,7 @@
     if (!session) {
       setText('ops-analytics-session-name', 'no active session');
       setText('ops-analytics-frames', '--');
+      setText('ops-analytics-graded', '--');
       setText('ops-analytics-integration', '--');
       setText('ops-analytics-hfr', '--');
       setText('ops-analytics-rms', '--');
@@ -4885,10 +4886,24 @@
 
     setText('ops-analytics-session-name', session.name
       || ('Session #' + session.id));
+    // `successfulExposures` answers "did the camera return the frame", not
+    // "was the frame worth keeping" — the label says "returned" and the
+    // Graded row beside it carries what the culling actually decided.
     const totalFrames = (session.successfulExposures != null
       ? session.successfulExposures : session.totalExposures);
     setText('ops-analytics-frames', totalFrames != null
       ? String(totalFrames) : '--');
+    if (session.acceptedLights != null && session.rejectedLights != null) {
+      const decided = session.acceptedLights + session.rejectedLights;
+      // The server counts only decided frames, so 0 + 0 means nobody has
+      // looked yet — not a clean slate and not an all-rejected night.
+      setText('ops-analytics-graded', decided > 0
+        ? (session.acceptedLights + ' accepted · '
+          + session.rejectedLights + ' rejected')
+        : 'nothing graded yet');
+    } else {
+      setText('ops-analytics-graded', '--');
+    }
     setText('ops-analytics-integration', session.totalIntegrationSecs != null
       ? formatDurationSeconds(Number(session.totalIntegrationSecs))
       : '--');

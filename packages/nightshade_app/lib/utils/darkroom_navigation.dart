@@ -60,11 +60,17 @@ class DarkroomSessionTarget {
 /// Host-only by construction: the resolver reads the local database and the
 /// master's pixels live on the imaging host's disk, so a remote client is told
 /// where to open it instead of being handed a path it cannot read.
+///
+/// The refusal is gated on the client ROLE, the same gate the Darkroom screen
+/// and Delivery settings use. `backendProvider is NetworkBackend` is a
+/// CONNECTION fact: a client launched with `--remote-host` that has not reached
+/// its rig is `Disconnected`, so that test read false and this resolver went on
+/// to read the CLIENT's own masters and open an editor over them.
 Future<DarkroomSessionTarget> resolveDarkroomTargetForSession(
   WidgetRef ref,
   int sessionId,
 ) async {
-  if (ref.read(backendProvider) is NetworkBackend) {
+  if (ref.read(isRemoteClientProvider)) {
     return const DarkroomSessionTarget.unavailable(
       'The Darkroom works on the imaging host, where the linear masters are '
       'stored. Open Nightshade there to refine this night.',

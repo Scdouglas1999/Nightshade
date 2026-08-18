@@ -19,6 +19,9 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const EquipmentProfile(id: '0', name: 'fallback'));
     registerFallbackValue(const AppSettings());
+    registerFallbackValue(
+      const ObserverLocation(latitude: 0, longitude: 0, elevation: 0),
+    );
   });
 
   group('ProfileHandlers', () {
@@ -28,7 +31,24 @@ void main() {
     late SecretsStore secrets;
     late _MockProfileSettingsBackend profileBackend;
 
+    /// The site the CANONICAL store holds, as `/api/settings/location` would
+    /// answer it. Stubbed for every test because both settings handlers read
+    /// it now; `setLocation` is stubbed only where a test is about writing it,
+    /// so the disconnected-backend case below still gets its refusal.
+    ObserverLocation? canonicalSite;
+
+    /// Make `setLocation` write [canonicalSite], the way the real store does.
+    void allowLocationWrites() {
+      when(() => profileBackend.setLocation(any())).thenAnswer((
+        invocation,
+      ) async {
+        canonicalSite =
+            invocation.positionalArguments.first as ObserverLocation?;
+      });
+    }
+
     setUp(() {
+      canonicalSite = null;
       // Hermetic in-memory DB: the GUI's real DB resolves its file via
       // path_provider, which a unit-test isolate cannot service. Overriding it
       // here keeps these error-translation tests deterministic (the real DB
@@ -38,6 +58,9 @@ void main() {
       profileBackend = _MockProfileSettingsBackend();
       when(() => profileBackend.saveProfile(any())).thenAnswer((_) async {});
       when(() => profileBackend.loadProfile(any())).thenAnswer((_) async {});
+      when(
+        () => profileBackend.getLocation(),
+      ).thenAnswer((_) async => canonicalSite);
       container = ProviderContainer(
         overrides: [
           databaseProvider.overrideWithValue(db),
@@ -438,6 +461,207 @@ void main() {
         saved['webServerEnabled'],
         isTrue,
         reason: 'a partial update must preserve keys it does not mention',
+      );
+    });
+
+    group('the observer site and the settings document', () {
+      /// POST [settings] to /api/settings.
+      Future<Response> postSettings(Map<String, dynamic> settings) =>
+          translateHandlerErrors(
+            handlers.handleUpdateSettings(
+              Request(
+                'POST',
+                Uri.parse('http://localhost/api/settings'),
+                body: jsonEncode({'settings': settings}),
+                headers: {'content-type': 'application/json'},
+              ),
+            ),
+          );
+
+      /// The settings document /api/settings serves.
+      Future<Map<String, dynamic>> getSettings() async {
+        final response = await translateHandlerErrors(
+          handlers.handleGetSettings(
+            Request('GET', Uri.parse('http://localhost/api/settings')),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final envelope =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        return envelope['settings'] as Map<String, dynamic>;
+      }
+
+      setUp(() {
+        when(
+          () => profileBackend.updateSettings(any()),
+        ).thenAnswer((_) async {});
+      });
+
+      test('a rig that has never had a site reports null, not 0N 0E', () async {
+        final settings = await getSettings();
+
+        // `AppSettingsState.latitude/longitude/elevation` are non-nullable
+        // doubles defaulting to 0.0, so this endpoint used to answer
+        // {latitude: 0.0, longitude: 0.0} for a fresh install — a real point
+        // in the Gulf of Guinea — while /api/settings/location answered null
+        // and the app's own log said "Settings have no observer location".
+        expect(settings['latitude'], isNull);
+        expect(settings['longitude'], isNull);
+        expect(settings['elevation'], isNull);
+        expect(settings['location'], isNull);
+        expect(settings['locationStatus'], 'not configured');
+      });
+
+      test(
+        'the site served is the canonical one, never a stale copy',
+        () async {
+          // What POST /api/settings/location wrote. The settings notifier's own
+          // copy is NOT refreshed by that write, so this endpoint served the
+          // pre-write coordinates for the rest of the process's life.
+          canonicalSite = const ObserverLocation(
+            latitude: 55.5,
+            longitude: 11.25,
+            elevation: 777,
+          );
+
+          final settings = await getSettings();
+
+          expect(settings['latitude'], 55.5);
+          expect(settings['longitude'], 11.25);
+          expect(settings['elevation'], 777.0);
+          expect(settings['locationStatus'], 'configured');
+        },
+      );
+
+      test(
+        'a settings save that names no site key leaves the site alone',
+        () async {
+          allowLocationWrites();
+          canonicalSite = const ObserverLocation(
+            latitude: 55.5,
+            longitude: 11.25,
+            elevation: 777,
+          );
+
+          // The worst member of the family: one unrelated field, and the
+          // operator's site was overwritten with the notifier's stale copy —
+          // in the observer rows AND in the native settings blob the site is
+          // reloaded from at boot. Nothing reported it, and the loss only
+          // showed at the next launch.
+          final response = await postSettings({'enableImageGrading': false});
+          expect(response.statusCode, HttpStatus.ok);
+
+          verifyNever(() => profileBackend.setLocation(any()));
+          expect(canonicalSite?.latitude, 55.5);
+          expect(canonicalSite?.longitude, 11.25);
+          expect(canonicalSite?.elevation, 777.0);
+
+          final settings = await getSettings();
+          expect(settings['latitude'], 55.5);
+          expect(settings['longitude'], 11.25);
+          expect(settings['elevation'], 777.0);
+
+          final body =
+              jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+          expect(
+            (body['observerLocation'] as Map<String, dynamic>)['action'],
+            'unchanged',
+          );
+        },
+      );
+
+      test(
+        'flat latitude/longitude write the canonical store too, not just the '
+        'settings mirror',
+        () async {
+          allowLocationWrites();
+
+          final response = await postSettings({
+            'latitude': 40.0,
+            'longitude': -105.0,
+          });
+          expect(response.statusCode, HttpStatus.ok);
+
+          // Before this the flat fields reached the settings rows only, so
+          // /api/settings/location went on answering with the old site — two
+          // stores, one rig, two answers.
+          expect(canonicalSite?.latitude, 40.0);
+          expect(canonicalSite?.longitude, -105.0);
+
+          final settings = await getSettings();
+          expect(settings['latitude'], 40.0);
+          expect(settings['longitude'], -105.0);
+          expect(settings['locationStatus'], 'configured');
+
+          final body =
+              jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+          expect(
+            (body['observerLocation'] as Map<String, dynamic>)['action'],
+            'updated',
+          );
+        },
+      );
+
+      test(
+        'a partial site update keeps the coordinate it does not name',
+        () async {
+          allowLocationWrites();
+          canonicalSite = const ObserverLocation(
+            latitude: 40.0,
+            longitude: -105.0,
+            elevation: 1600,
+          );
+
+          final response = await postSettings({'latitude': 41.5});
+          expect(response.statusCode, HttpStatus.ok);
+
+          expect(canonicalSite?.latitude, 41.5);
+          expect(canonicalSite?.longitude, -105.0);
+          expect(canonicalSite?.elevation, 1600.0);
+        },
+      );
+
+      test('latitude 0 / longitude 0 is not taken as a site', () async {
+        allowLocationWrites();
+        canonicalSite = const ObserverLocation(
+          latitude: 55.5,
+          longitude: 11.25,
+          elevation: 777,
+        );
+
+        // This is the model's declared default for both fields, so it is
+        // exactly what a full-snapshot client composes for a rig whose site it
+        // does not know — the shape that pushed a rig to Null Island.
+        final response = await postSettings({
+          'latitude': 0.0,
+          'longitude': 0.0,
+          'elevation': 0.0,
+        });
+        expect(response.statusCode, HttpStatus.ok);
+
+        verifyNever(() => profileBackend.setLocation(any()));
+        expect(canonicalSite?.latitude, 55.5);
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        final outcome = body['observerLocation'] as Map<String, dynamic>;
+        expect(outcome['action'], 'unchanged');
+        expect(outcome['note'], contains('/api/settings/location'));
+      });
+
+      test(
+        'half a site on a rig that has none is refused, with the endpoint that '
+        'can take a whole one',
+        () async {
+          allowLocationWrites();
+
+          final response = await postSettings({'latitude': 41.5});
+
+          expect(response.statusCode, HttpStatus.badRequest);
+          final body =
+              jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+          expect('${body['message']}', contains('/api/settings/location'));
+          verifyNever(() => profileBackend.setLocation(any()));
+        },
       );
     });
   });

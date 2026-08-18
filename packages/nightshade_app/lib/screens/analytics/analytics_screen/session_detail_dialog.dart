@@ -39,6 +39,36 @@ class _SessionHeaderAction {
   final Key? buttonKey;
 }
 
+/// What the culling decided about a session's LIGHT frames.
+///
+/// Counted from `captured_images.is_accepted`, the one place the verdict is
+/// recorded — the same source `/api/sessions` reads for its
+/// `acceptedLights` / `rejectedLights` pair, so the dialog and the API cannot
+/// disagree about the same night.
+///
+/// Calibration frames are excluded because they are never graded: counting them
+/// would inflate `accepted` with darks and flats nobody culled.
+class _SessionGrading {
+  const _SessionGrading({required this.accepted, required this.rejected});
+
+  final int accepted;
+  final int rejected;
+
+  static _SessionGrading of(List<DbCapturedImage> images) {
+    var accepted = 0;
+    var rejected = 0;
+    for (final image in images) {
+      if (image.frameType != 'light') continue;
+      if (image.isAccepted) {
+        accepted++;
+      } else {
+        rejected++;
+      }
+    }
+    return _SessionGrading(accepted: accepted, rejected: rejected);
+  }
+}
+
 class _SessionDetailDialog extends ConsumerStatefulWidget {
   final ImagingSession session;
 
@@ -193,7 +223,11 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Statistics
-                    _buildStatisticsSection(context, colors),
+                    _buildStatisticsSection(
+                      context,
+                      colors,
+                      imagesAsyncValue,
+                    ),
                     const SizedBox(height: 16),
 
                     // Images
@@ -374,9 +408,31 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
     );
   }
 
+  /// The night's numbers, in two readings that answer two questions.
+  ///
+  /// `successful_exposures` counts what the CAMERA returned, and this dialog
+  /// used to label it "Successful". A night whose every sub was rejected for
+  /// low star count therefore read "Successful 6 · Failed 0" directly above its
+  /// own six cards each stamped REJECTED. The culling verdict lives in
+  /// `captured_images.is_accepted`, which [images] carries, so the pair is
+  /// counted from the frames themselves and shown beside the camera's tally
+  /// rather than in place of it — a frame the camera returned and the culling
+  /// threw away is a fact about each.
+  ///
+  /// This is the same split the API (`acceptedLights`/`rejectedLights` on
+  /// `/api/sessions`), the exported HTML report ("returned by the camera") and
+  /// the observation report ("Camera Returned") already publish; the dialog was
+  /// the last surface still calling the camera's count a success.
   Widget _buildStatisticsSection(
-      BuildContext context, NightshadeColors colors) {
+    BuildContext context,
+    NightshadeColors colors,
+    AsyncValue<List<DbCapturedImage>> images,
+  ) {
     final l10n = context.l10n;
+    // Null until the frames have been read: the counts are not claimed from a
+    // list that is still loading or failed to load, and the footnote below says
+    // so instead of printing a zero that would read as "nothing was rejected".
+    final grading = images.whenOrNull(data: _SessionGrading.of);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -397,13 +453,23 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
               colors,
             ),
             _buildStat(
-              l10n.text('analyticsSuccessful'),
+              l10n.text('analyticsCameraReturned'),
               session.successfulExposures.toString(),
               colors,
             ),
             _buildStat(
               l10n.text('analyticsFailed'),
               session.failedExposures.toString(),
+              colors,
+            ),
+            _buildStat(
+              l10n.text('analyticsAcceptedLights'),
+              grading == null ? '—' : grading.accepted.toString(),
+              colors,
+            ),
+            _buildStat(
+              l10n.text('analyticsRejectedLights'),
+              grading == null ? '—' : grading.rejected.toString(),
               colors,
             ),
             _buildStat(
@@ -431,7 +497,9 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
         // "Total Exposures 12" over "Images (16)" reads as one count the app
         // cannot keep straight.
         Text(
-          l10n.text('analyticsExposureCountsLightOnly'),
+          grading == null
+              ? l10n.text('analyticsGradingUnread')
+              : l10n.text('analyticsExposureCountsLightOnly'),
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,

@@ -591,6 +591,63 @@ fn export_writes_the_recipe_into_the_fits_and_beside_it() {
 }
 
 #[test]
+fn the_exported_summary_line_carries_the_whole_fingerprint() {
+    // The summary line runs past column 80 — a digest halved at the card
+    // boundary cannot be matched against `NSRECIPE` or against the sidecar, and
+    // that is what a reader has to do to know which recipe made these pixels.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "fingerprint.fits", 64, 64, 1);
+    let out = dir.path().join("fingerprint-export.fits");
+    let recipe = recipe_json(
+        "r-fingerprint-summary",
+        "master:fingerprint",
+        json!([stretch_step()]),
+    );
+
+    let reply = parse(
+        &api_darkroom_render_export(
+            recipe,
+            json!({
+                "masterPath": master.to_string_lossy(),
+                "stage": {"kind": "final"},
+                "outputs": [{"format": "fits", "path": out.to_string_lossy()}],
+            })
+            .to_string(),
+        )
+        .expect("the export must run"),
+    );
+    let fingerprint = reply["recipeFingerprint"]
+        .as_str()
+        .expect("the reply names the recipe fingerprint");
+
+    let (_, header) = read_fits(&out).expect("the exported master must read back");
+    let summary = header
+        .history
+        .iter()
+        .find(|line| line.starts_with("Nightshade Darkroom:"))
+        .unwrap_or_else(|| panic!("no Darkroom summary line: {:?}", header.history));
+    assert!(
+        summary.len() > 72,
+        "this test only proves anything on a line that overruns a card: {summary:?}"
+    );
+    assert!(
+        summary.ends_with(&format!("fingerprint={fingerprint}")),
+        "the summary line lost part of the fingerprint: {summary:?}"
+    );
+    assert_eq!(header.get_string("NSRECIPE"), Some(fingerprint));
+
+    let sidecar = parse(
+        &std::fs::read_to_string(
+            reply["sidecarPath"]
+                .as_str()
+                .expect("a sidecar is written beside the FITS"),
+        )
+        .expect("sidecar reads"),
+    );
+    assert_eq!(sidecar["fingerprint"].as_str(), Some(fingerprint));
+}
+
+#[test]
 fn export_of_the_linear_stage_writes_the_masters_own_pixels() {
     let dir = tempfile::tempdir().expect("temp dir");
     let master = write_master(dir.path(), "linear-source.fits", 64, 64, 1);

@@ -95,7 +95,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
     } else if (safetyEvent is bridge.SafetyEvent_ParkCompleted) {
       return ('ParkCompleted', {});
     }
-    return ('UnknownSafetyEvent', {'event': safetyEvent.toString()});
+    return _unreadEvent(safetyEvent, 'SafetyEvent', 'safety');
   }
 
   /// Extract event type and data from a SystemEvent
@@ -128,7 +128,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     }
-    return ('UnknownSystemEvent', {'event': systemEvent.toString()});
+    return _unreadEvent(systemEvent, 'SystemEvent', 'system');
   }
 
   /// Extract event type and data from an EquipmentEvent
@@ -359,8 +359,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     }
-    // Fallback
-    return ('UnknownEquipmentEvent', {'event': equipmentEvent.toString()});
+    return _unreadEvent(equipmentEvent, 'EquipmentEvent', 'equipment');
   }
 
   /// Extract event type and data from a GuidingEvent
@@ -416,7 +415,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
       );
     }
 
-    return ('UnknownGuidingEvent', {'event': guidingEvent.toString()});
+    return _unreadEvent(guidingEvent, 'GuidingEvent', 'guiding');
   }
 
   /// Extract event type and data from a SequencerEvent
@@ -805,7 +804,50 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
       }
     }
 
-    return ('UnknownSequencerEvent', {'event': sequencerEvent.toString()});
+    // A variant with no case above is still an ordinary event of a real night —
+    // `exposureAdjusted` reached here on every adaptive-exposure frame — and it
+    // is fanned out verbatim to the run-watch feed, the web dashboard and the
+    // mobile client. `toString()` on the generated union writes source text
+    // ("SequencerEvent.exposureAdjusted(nodeId: exp_r, adaptedSecs: 2.0, …)"),
+    // which is what those clients then printed at the operator. The generated
+    // class name carries the variant without the constructor call around it, so
+    // the event is NAMED, and the sentence beside it says plainly that this
+    // build reads no further into it.
+    return _unreadEvent(sequencerEvent, 'SequencerEvent', 'sequencer');
+  }
+
+  /// The honest shape for a union variant this build has no case for, shared
+  /// by every event family's fallback: the event is NAMED by its variant, and
+  /// the only prose beside it is a sentence written for a person — never the
+  /// generated class's `toString()`, which is Dart source text and reached
+  /// operators verbatim on the run-watch feed.
+  static (String, Map<String, dynamic>) _unreadEvent(
+    dynamic event,
+    String union,
+    String family,
+  ) {
+    final variant = _variantName(event.runtimeType.toString(), union);
+    return (
+      'Unknown$union',
+      {
+        'variant': variant,
+        'message':
+            'This build has no reading for the $variant $family event, so '
+            'only its name is reported.',
+      },
+    );
+  }
+
+  /// The union variant a generated `<union>_<Variant>` class stands for.
+  ///
+  /// Falls back to the runtime type name itself when the generator changes its
+  /// naming: an unexpected name is still the truest thing available about the
+  /// event, where a placeholder would name nothing.
+  static String _variantName(String runtimeTypeName, String union) {
+    final prefix = '${union}_';
+    return runtimeTypeName.startsWith(prefix)
+        ? runtimeTypeName.substring(prefix.length)
+        : runtimeTypeName;
   }
 
   /// Extract event type and data from an ImagingEvent
@@ -910,7 +952,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     }
-    return ('UnknownImagingEvent', {'event': imagingEvent.toString()});
+    return _unreadEvent(imagingEvent, 'ImagingEvent', 'imaging');
   }
 
   EventSeverity _fromBridgeSeverity(dynamic severity) {

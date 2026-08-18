@@ -76,6 +76,16 @@ class DeliveryDestinationReport {
   /// Files whose attempts are spent, or whose failure no retry can change.
   final int failed;
 
+  /// Files nothing was attempted for because the destination is switched off.
+  ///
+  /// Kept apart from every other count, and especially from [awaitingPull]: a
+  /// switched-off peer destination is refused by the manifest endpoint —
+  /// `PeerManifestService` resolves peers through `readEnabled` — so its
+  /// published rows are not waiting on a desktop that could collect them.
+  /// They are waiting on the operator's own switch, and nothing on the rig
+  /// will touch them until it moves.
+  final int suspended;
+
   /// Files whose journal row could not be written.
   ///
   /// These are neither retrying nor failed: the journal is the ONLY state the
@@ -100,6 +110,7 @@ class DeliveryDestinationReport {
     required this.failed,
     required this.problems,
     this.stoppedPending = 0,
+    this.suspended = 0,
     this.unjournalled = 0,
     this.nothingToSend,
   });
@@ -110,6 +121,7 @@ class DeliveryDestinationReport {
       awaitingPull +
       retrying +
       stoppedPending +
+      suspended +
       failed +
       unjournalled;
 
@@ -125,6 +137,7 @@ class DeliveryDestinationReport {
       if (stoppedPending > 0)
         'stopped during delivery, $stoppedPending file'
             '${stoppedPending == 1 ? '' : 's'} pending',
+      if (suspended > 0) '$suspended suspended while $name is switched off',
       if (failed > 0) '$failed failed',
       if (unjournalled > 0) '$unjournalled not journalled',
     ];
@@ -167,6 +180,9 @@ class DeliveryRunReport {
   int get stoppedPending =>
       destinations.fold<int>(0, (sum, d) => sum + d.stoppedPending);
 
+  /// Files sitting at a destination the operator has switched off.
+  int get suspended => destinations.fold<int>(0, (sum, d) => sum + d.suspended);
+
   /// True when a stop ended this pass before it had sent everything.
   bool get wasStopped => stoppedPending > 0;
 
@@ -182,6 +198,7 @@ class DeliveryRunReport {
       problems.isEmpty &&
       retrying == 0 &&
       stoppedPending == 0 &&
+      suspended == 0 &&
       failed == 0 &&
       unjournalled == 0;
 
@@ -310,6 +327,56 @@ class DeliveryService {
       problems.add(sentence);
     }
     return problems;
+  }
+
+  /// When the earliest still-owed row becomes due, or null when the journal
+  /// owes nothing.
+  ///
+  /// [DeliveryRetrySweeper] asks this on its short cadence so its next sweep
+  /// lands on the rung [DeliveryRetryPolicy] documents — 1 m, 3 m, 9 m — rather
+  /// than on whatever tick happens next. Reading it is one indexed SELECT over
+  /// the `retrying` rows and no filesystem or transport work at all, which is
+  /// what makes it cheap enough to ask far more often than a sweep runs.
+  ///
+  /// Unlike [sweepDueRetries] this throws what the journal or the destination
+  /// read throws. The sweep answers with a report because a destination being
+  /// offline at 4am must not kill the timer; an unreadable database is a
+  /// different fact, and answering "nothing is due" to it would silence the
+  /// very sweep the ladder depends on. The caller reports it and keeps its
+  /// timer.
+  ///
+  /// **A suspended row is not a due row.** A switched-off destination's files
+  /// stay `retrying` for as long as the switch is off — the sweep states them
+  /// and skips them without touching the row — so counting them here would
+  /// answer "due" on every single check and turn the short cadence into a
+  /// permanent sweep loop for every OTHER destination too. They are read by
+  /// the heartbeat pass, which is what keeps the suspended count arriving on
+  /// the cadence an operator can recognise. The same goes for a row this
+  /// build cannot decode: the sweep logs it and moves on, so waking for it
+  /// changes nothing.
+  Future<DateTime?> earliestRetryDueAt() async {
+    final pending = await _journal.listPendingRetry();
+    if (pending.isEmpty) return null;
+    final enabled = <int>{
+      for (final destination in (await _targets.readEnabled()).destinations)
+        if (destination.id != null) destination.id!,
+    };
+    DateTime? earliest;
+    for (final entry in pending) {
+      if (!enabled.contains(entry.targetId)) continue;
+      final due = _policy.nextEligibleAt(entry);
+      if (earliest == null || due.isBefore(earliest)) earliest = due;
+    }
+    return earliest;
+  }
+
+  /// Whether any journal row is due another attempt right now.
+  ///
+  /// The question [DeliveryRetrySweeper]'s short cadence actually asks; see
+  /// [earliestRetryDueAt] for why it throws rather than reporting.
+  Future<bool> hasDueRetries() async {
+    final due = await earliestRetryDueAt();
+    return due != null && !_clock().toUtc().isBefore(due);
   }
 
   /// Re-attempt every journal row that is due, across every job.
@@ -486,19 +553,28 @@ class DeliveryService {
     final targetId = destination.id ?? rows.first.targetId;
     final tally = _Tally(destination, targetId);
 
+    // The switch is read before the kind, for every transport. A peer's rows
+    // used to take the awaiting-pull branch above this check and be reported
+    // as waiting for a desktop to collect them — while `PeerManifestService`
+    // resolves peers through `readEnabled`, so the manifest endpoint answered
+    // that same peer with `unknown_delivery_peer` and nothing could ever pull
+    // them. Off is off on every transport, and it is what the row says.
+    if (!destination.enabled) {
+      tally.suspended += rows.length;
+      final consequence = destination.kind == ArtifactDestinationKind.peer
+          ? 'no paired desktop can pull them while it is off'
+          : 'no attempt was made and no attempt was spent';
+      tally.problems.add(
+        '${rows.length} file(s) are suspended: ${destination.name} is '
+        'switched off, so $consequence',
+      );
+      return tally.build();
+    }
     if (destination.kind == ArtifactDestinationKind.peer) {
       // A peer row is published and waiting for the desktop to pull it, not
       // owed another attempt. Counting it as a retry would burn the budget on
       // work the rig is not the one doing.
       tally.awaitingPull += rows.length;
-      return tally.build();
-    }
-    if (!destination.enabled) {
-      tally.retrying += rows.length;
-      tally.problems.add(
-        '${rows.length} file(s) are paused: ${destination.name} is switched '
-        'off, so no attempt was made and no attempt was spent',
-      );
       return tally.build();
     }
 
@@ -932,6 +1008,7 @@ class _Tally {
   int awaitingPull = 0;
   int retrying = 0;
   int stoppedPending = 0;
+  int suspended = 0;
   int failed = 0;
   int unjournalled = 0;
   final List<String> problems = [];
@@ -946,6 +1023,7 @@ class _Tally {
     awaitingPull: awaitingPull,
     retrying: retrying,
     stoppedPending: stoppedPending,
+    suspended: suspended,
     failed: failed,
     unjournalled: unjournalled,
     problems: List<String>.unmodifiable(problems),

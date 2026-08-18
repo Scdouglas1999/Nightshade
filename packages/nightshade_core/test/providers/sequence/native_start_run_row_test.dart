@@ -199,4 +199,52 @@ void main() {
       1,
     );
   });
+
+  test('a second native run reports only its own integration time', () async {
+    // Measured on the run-watch page against the release bundle: four runs in
+    // one process read "FRAMES 4 / 4" beside "INTEGRATION 2m 36s" for a run of
+    // 4 x 4.0 s. The frame count re-zeroed itself because every producer writes
+    // it as the event's ABSOLUTE index; the integration seconds accumulate, and
+    // nothing on this path cleared them between runs.
+    final container = buildContainer();
+    final executor = container.read(sequenceExecutorProvider);
+    var clock = DateTime.now().millisecondsSinceEpoch;
+
+    Future<void> runThreeFrames(String name) async {
+      await startNativeRun(container, executor, name: name);
+      for (var frame = 1; frame <= 3; frame++) {
+        clock += 1000;
+        applySequencerEventToSequenceProviders(
+          container.read,
+          bridge_event.NightshadeEvent(
+            timestamp: clock,
+            severity: bridge_event.EventSeverity.info,
+            category: bridge_event.EventCategory.sequencer,
+            eventType: 'ExposureCompleted',
+            data: {'frame': frame, 'total': 3, 'duration_secs': 4.0},
+          ),
+        );
+      }
+      eventController.add(_sequencerEvent('Completed'));
+      await pumpEvents();
+      await executor.terminalCleanupSettledForTest;
+    }
+
+    await runThreeFrames('night one');
+    expect(
+      container.read(sequenceProgressProvider).completedIntegrationSecs,
+      12.0,
+    );
+
+    await runThreeFrames('night two');
+    final progress = container.read(sequenceProgressProvider);
+    expect(progress.completedExposures, 3);
+    expect(
+      progress.completedIntegrationSecs,
+      12.0,
+      reason:
+          'the second run of 3 x 4.0 s reported '
+          '${progress.completedIntegrationSecs}s of integration',
+    );
+  });
 }
