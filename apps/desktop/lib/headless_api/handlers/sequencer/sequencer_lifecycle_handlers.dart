@@ -61,19 +61,38 @@ extension _SequencerLifecycle on SequencerHandlers {
     // the run ended. `SequenceProgress.currentTarget` is the field that
     // carries the answer, and `/api/run-watch/snapshot` already publishes it.
     // Null until a TargetHeader names one; a client renders that as unknown.
-    final currentTarget = container
-        .read(sequenceProgressProvider)
-        .currentTarget;
+    final progressRecord = container.read(sequenceProgressProvider);
+    final currentTarget = progressRecord.currentTarget;
 
     return jsonOk({
       'state': status.state,
       'currentNodeId': status.currentNodeId,
       'currentNodeName': status.currentNodeName,
       'currentTarget': currentTarget,
-      'progress': status.progress,
+      'progress': _publishedProgress(progressRecord, status),
       'message': status.message,
       if (runVitals != null) 'runVitals': runVitals,
     });
+  }
+
+  /// The run's completion fraction, or null when no run has ever written one.
+  ///
+  /// The native status starts every counter at zero, so a rig that has never
+  /// exposed a frame published `progress: 0.0` while every neighbouring field
+  /// in the same payload — node id, node name, target, message — correctly
+  /// came back null, and the web dashboard duly asserted "Progress 0%" with
+  /// `aria-valuenow="0"` about a fresh install. Zero of zero planned is not a
+  /// measurement, it is the absence of one.
+  ///
+  /// `/api/run-watch/snapshot` has answered that with null since
+  /// `run_watch_handlers.dart`'s `_neverRanProgressJson`, on this same
+  /// predicate: [SequenceProgress] still equal to its constructed default —
+  /// true only until the first write lands on the record. The two wires
+  /// describing one rig now agree. A rig that HAS run keeps its real figure,
+  /// including the 0.0 a run reports in its first instants.
+  Object? _publishedProgress(SequenceProgress record, SequencerStatus status) {
+    if (record == const SequenceProgress()) return null;
+    return status.progress;
   }
 
   /// GET /api/sequencer/editor-sequence.

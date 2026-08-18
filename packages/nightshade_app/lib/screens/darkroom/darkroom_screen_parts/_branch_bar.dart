@@ -606,9 +606,15 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     // possible outcome was a refusal, and only THEN offered the whole line. So
     // the choice that can actually be carried out is the one on the button,
     // named in full, and the other one plainly says the branches stay.
+    // Dismissible, like every other modal in this app: Escape and a tap on the
+    // barrier answer NULL, which falls through both branches below and leaves
+    // the family exactly as it was — the outcome "Keep it" has. Only the
+    // destructive button deletes anything, so the way out an operator reaches
+    // for first cannot cost them a branch. A barrier closed here answers
+    // neither the key nor the tap, while the shared [ConfirmDialog] and the
+    // export sheet on this same screen both answer them.
     final choice = await showDialog<_DarkroomDeleteChoice>(
       context: context,
-      barrierDismissible: false,
       builder: (dialogContext) => NightshadeDialog(
         title: 'Delete "$label"?',
         icon: NightshadeIcons.delete,
@@ -890,6 +896,11 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   /// Answers null when the operator backed out, and the trimmed text otherwise;
   /// an empty field cannot be confirmed, so a branch never loses its label to a
   /// stray return key.
+  ///
+  /// Dismissible: Escape and a tap on the barrier answer null, which is exactly
+  /// what Cancel answers, and every caller reads null as "renamed nothing,
+  /// created nothing". The field's text is dropped with the dialog — the same
+  /// thing Cancel does with it — and nothing typed here has reached the recipe.
   Future<String?> _promptForName({
     required String title,
     required String body,
@@ -898,7 +909,6 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   }) {
     return showDialog<String>(
       context: context,
-      barrierDismissible: false,
       builder: (_) => _DarkroomNameDialog(
         title: title,
         body: body,

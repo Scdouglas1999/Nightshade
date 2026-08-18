@@ -16,6 +16,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import '../darkroom_delivery/delivery_artifact.dart';
 import '../darkroom_delivery/delivery_service.dart';
 import 'dawn_draft_builder.dart';
 import 'dawn_master_resolver.dart';
@@ -274,13 +275,35 @@ class DawnMasterStats {
   }
 }
 
-/// What a master's file looked like at one instant.
+/// What a master's file was at one instant — its size, its modification time,
+/// and the SHA-256 of the bytes themselves.
 ///
 /// Taken when the pass opens the master to read its pixels, and taken again
 /// when delivery stages that same path. The two are compared because they are
 /// separated by everything the draft stage does: a file that is a different
-/// size or carries a different modification time at the second reading is not
-/// the file this pass measured, whatever its name still says.
+/// size, carries a different modification time, or hashes differently at the
+/// second reading is not the file this pass measured, whatever its name still
+/// says.
+///
+/// **Why the digest and not size + mtime alone.** Size and mtime are metadata
+/// a writer chooses. `rsync --times`, `cp -p` and `restic restore` all put a
+/// file back under its old modification time, and a filesystem with two-second
+/// mtime granularity (SMB, exFAT) cannot distinguish two writes inside one
+/// tick. A master overwritten by a same-sized file with a restored mtime
+/// therefore matched on both fields and rode out to every destination under the
+/// name of the master this pass had actually drafted. The digest is the only
+/// field that answers "are these the same bytes", so it is the one the
+/// comparison turns on; size and mtime stay because they are what the refusal
+/// sentence quotes back to the operator.
+///
+/// **Cost.** One extra streamed read + SHA-256 per master over the whole pass.
+/// The draft stage's reading is new; the staging reading is handed to delivery,
+/// which used to hash the same bytes itself. Measured with this SHA-256
+/// compiled AOT on the machine this was written on: 0.16 GB/s — 48 ms for an
+/// 8.3 MB master, 770 ms for a 132.7 MB one, about 25 s for a 4 GB one, against
+/// a pass that spends minutes rendering each of them. Staging short-circuits
+/// too: a size or mtime difference is stated without hashing, because it has
+/// already proved the file changed.
 class DawnSourceStat {
   /// Size in bytes.
   final int bytes;
@@ -288,26 +311,45 @@ class DawnSourceStat {
   /// Last modification time as the filesystem reports it.
   final DateTime modified;
 
-  const DawnSourceStat({required this.bytes, required this.modified});
+  /// Lowercase hex SHA-256 of the file's bytes at this instant.
+  final String digest;
 
-  /// Stat [path], or null when it cannot be stat-ed at all.
+  const DawnSourceStat({
+    required this.bytes,
+    required this.modified,
+    required this.digest,
+  });
+
+  /// Stat and hash [path], or null when there is no file there at all.
   ///
   /// A null is not "unchanged": callers state which reading is missing rather
-  /// than treating an unmeasurable file as a match.
+  /// than treating an unmeasurable file as a match. A file that exists but
+  /// whose bytes cannot be read raises the [DeliveryFailure] `sha256OfFile`
+  /// composes, so the caller names the reason instead of reporting the file as
+  /// absent.
   static Future<DawnSourceStat?> of(String path) async {
     final stat = await FileStat.stat(path);
     if (stat.type == FileSystemEntityType.notFound) return null;
-    return DawnSourceStat(bytes: stat.size, modified: stat.modified);
+    return DawnSourceStat(
+      bytes: stat.size,
+      modified: stat.modified,
+      digest: await sha256OfFile(File(path)),
+    );
   }
 
   /// True when [other] is the same file contents this reading saw.
-  bool matches(DawnSourceStat other) =>
+  bool matches(DawnSourceStat other) => digest == other.digest;
+
+  /// True when [other] carries the same size and modification time — the
+  /// metadata pair a refusal quotes, which says nothing about the bytes.
+  bool metadataMatches(DawnSourceStat other) =>
       bytes == other.bytes && modified.isAtSameMomentAs(other.modified);
 
   /// The reading as report JSON.
   Map<String, dynamic> toJson() => {
     'bytes': bytes,
     'modified': modified.toUtc().toIso8601String(),
+    'sha256': digest,
   };
 }
 

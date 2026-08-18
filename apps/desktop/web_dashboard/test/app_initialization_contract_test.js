@@ -158,13 +158,20 @@ test('sequencer progress converts the 0..1 API fraction to percent', () => {
   assert.equal(toPercent(1), 100, 'a finished run must read 100%');
   assert.equal(toPercent(0.9), 90);
   assert.equal(toPercent(0.1), 10);
-  assert.equal(toPercent(0), 0);
-  // Defensive clamping + non-numeric input must never produce NaN%.
+  assert.equal(toPercent(0), 0, 'a run that HAS started and is at zero reads 0%');
+  // Clamping + non-numeric input must never produce NaN%.
   assert.equal(toPercent(1.5), 100);
   assert.equal(toPercent(-1), 0);
-  assert.equal(toPercent(null), 0);
-  assert.equal(toPercent(undefined), 0);
   assert.equal(toPercent('0.42'), 42);
+  // A wire that carries no figure gets null, never 0. `/api/sequencer/status`
+  // withholds `progress` on a rig that has never run — the nulls
+  // `/api/run-watch/snapshot` publishes there — and `Number(null)` is 0, so
+  // returning 0 made both panels assert "Progress 0%" with aria-valuenow="0"
+  // about a fresh install that had never exposed a frame.
+  assert.equal(toPercent(null), null);
+  assert.equal(toPercent(undefined), null);
+  assert.equal(toPercent(''), null);
+  assert.equal(toPercent('not a number'), null);
 
   // Both render paths must go through the helper rather than using the raw
   // fraction, and neither may reintroduce a bare `s.progress` percent.

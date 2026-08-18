@@ -417,6 +417,63 @@ void main() {
     },
   );
 
+  // D3-DEL-1. The page told the operator that an unmatched peer id meant
+  // "nothing can pull these files". Proved false against the same build: with
+  // `paired_devices` empty, a bearer token completed
+  // `GET /api/darkroom/delivery/manifest/<job>?peer=office-pc`, the artifact
+  // download and the ack, and the journal row flipped to delivered. The three
+  // peer routes authenticate the token and resolve `?peer=` against
+  // `delivery_targets`; they never read the pairing store. The line may report
+  // what the pairing register holds — it may not claim a capability it does not
+  // control.
+  testWidgets(
+    'a peer row with no matching pairing says nobody is REGISTERED, and names '
+    'what actually gates the pull',
+    (tester) async {
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+      final targets = DeliveryTargetsDao(database);
+      final journal = DeliveryJournalDao(database);
+      final jobId = await DarkroomJobsDao(database).enqueue();
+
+      final peer = await targets.create(
+        name: 'desk',
+        kind: ArtifactDestinationKind.peer,
+        configJson: '{"peerId":"office-pc"}',
+        content: {ArtifactContent.draftRender},
+      );
+      await journal.recordAttempt(
+        targetId: peer,
+        jobId: jobId,
+        filePath: '/out/draft.jpg',
+        bytes: 2048,
+      );
+
+      await _pumpDelivery(tester, database);
+
+      expect(
+        find.textContaining('no paired desktop is registered under '
+            '"office-pc"'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'served to any client holding this rig\'s access token',
+        ),
+        findsOneWidget,
+        reason: 'the token is the gate, so the token is what the page names',
+      );
+      expect(
+        find.textContaining('nothing can pull these files'),
+        findsNothing,
+        reason:
+            'the same build serves and acknowledges exactly those files with '
+            'the pairing store empty',
+      );
+    },
+  );
+
   testWidgets(
     'newest_job_outranks_newest_touched_row: a failing latest night is not '
     'hidden by an older night the sweep finally delivered',
@@ -836,7 +893,7 @@ void main() {
   );
 
   testWidgets(
-    'peer_without_pairing_says_nothing_can_pull',
+    'peer_without_pairing_reports_the_register_not_a_capability',
     (tester) async {
       _swallowKnownOverflows();
       final database = mockDatabase();
@@ -852,7 +909,9 @@ void main() {
 
       expect(find.text('Paired desktop pulls'), findsWidgets);
       expect(
-        find.textContaining('no active pairing answers to "office-pc"'),
+        find.textContaining(
+          'no paired desktop is registered under "office-pc"',
+        ),
         findsOneWidget,
       );
     },

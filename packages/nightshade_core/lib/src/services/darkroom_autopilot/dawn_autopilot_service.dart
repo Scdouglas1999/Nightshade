@@ -91,6 +91,40 @@ class _DawnCancelled implements Exception {
   String toString() => 'The dawn job stopped during $where on request';
 }
 
+/// A pass over this session is already queued or running, so a second one was
+/// refused.
+///
+/// The Darkroom runs one pass per session: two over the same masters fight for
+/// the render cache and for the one cancellation id a job's render is stopped
+/// by, and a Stop can only reach one of them. Carries the live job so the
+/// caller can name it rather than saying "busy".
+class DarkroomSessionBusyException implements Exception {
+  /// The session the caller asked for.
+  final int sessionId;
+
+  /// The `darkroom_jobs.id` already holding it.
+  final int jobId;
+
+  /// What that job is doing.
+  final DarkroomJobState state;
+
+  const DarkroomSessionBusyException({
+    required this.sessionId,
+    required this.jobId,
+    required this.state,
+  });
+
+  /// The sentence a surface shows the operator.
+  String get message => state == DarkroomJobState.running
+      ? 'A Darkroom pass over this session is already running (job $jobId). '
+            'Wait for it to finish, or stop it first.'
+      : 'A Darkroom pass over this session is already queued (job $jobId) and '
+            'starts on its own.';
+
+  @override
+  String toString() => message;
+}
+
 /// Orchestrates the dawn Darkroom pass over a night's masters.
 class DawnAutopilotService {
   final DarkroomJobsDao _jobs;
@@ -116,6 +150,11 @@ class DawnAutopilotService {
   /// The catch-all cannot see where in the descent an exception came from, so
   /// the pipeline records where it is as it goes.
   final Map<int, String> _stage = <int, String>{};
+
+  /// Serializes "is a pass already live for this session?" with the insert that
+  /// answers it, so two requests arriving together cannot both read an empty
+  /// queue. See [_enqueueOnePassPerSession].
+  Future<void> _enqueueGate = Future<void>.value();
 
   /// How many times a state-mark write is retried after a refusal before the
   /// failure is let out.
@@ -169,12 +208,14 @@ class DawnAutopilotService {
   /// Queue and run the dawn pass for [sessionId].
   ///
   /// The job is `dawn`, so it sends the morning notification when it finishes.
+  ///
+  /// Throws [DarkroomSessionBusyException] when a pass over this session is
+  /// already queued or running — see [_enqueueOnePassPerSession].
   Future<DawnJobOutcome> runDawnForSession(int sessionId) async {
-    final jobId = await _jobs.enqueue(
+    final jobId = await _enqueueOnePassPerSession(
       sessionId: sessionId,
       kind: DarkroomJobKind.dawn,
       note: 'Queued by the dawn autopilot',
-      createdAt: _clock(),
     );
     return runJob(jobId);
   }
@@ -186,14 +227,73 @@ class DawnAutopilotService {
   /// the same delivery, and sends NO morning notification: the operator is
   /// standing at the machine and does not need to be told what they just asked
   /// for.
+  ///
+  /// Throws [DarkroomSessionBusyException] when a pass over this session is
+  /// already queued or running — see [_enqueueOnePassPerSession].
   Future<DawnJobOutcome> processSessionNow(int sessionId) async {
-    final jobId = await _jobs.enqueue(
+    final jobId = await _enqueueOnePassPerSession(
       sessionId: sessionId,
       kind: DarkroomJobKind.manual,
       note: 'Queued on request',
-      createdAt: _clock(),
     );
     return runJob(jobId);
+  }
+
+  /// Queue one pass over [sessionId], or refuse because one is already live.
+  ///
+  /// **The guard is the durable row, not a screen's latch.** Session Review
+  /// kept a per-screen `_darkroomRunning` flag, so navigating away and back
+  /// built a fresh screen state that offered "Process now" again while the
+  /// first pass was still rendering. Two passes then ran over one session's
+  /// masters — fighting for the render cache and for the one cancellation id
+  /// [renderIdFor] derives per job — and a Stop, which finds the session's
+  /// newest live job, halted one of them. `darkroom_jobs` is the only record
+  /// both presses can see, and any surface that grows a "process now" button
+  /// later reaches this method rather than re-deriving the rule.
+  ///
+  /// **Why the enqueues are serialized.** The check and the insert are two
+  /// awaits, so two calls that arrive together could both read an empty queue
+  /// before either wrote its row. Chaining them through [_enqueueGate] makes
+  /// the pair atomic for this process — which is every caller, since the
+  /// autopilot is a single service instance and a second process opening the
+  /// same database is what the open-time crash recovery already forbids.
+  Future<int> _enqueueOnePassPerSession({
+    required int sessionId,
+    required DarkroomJobKind kind,
+    required String note,
+  }) {
+    final queued = _enqueueGate.then((_) async {
+      final live = await liveJobsForSession(sessionId);
+      if (live.isNotEmpty) {
+        throw DarkroomSessionBusyException(
+          sessionId: sessionId,
+          jobId: live.first.id!,
+          state: live.first.state,
+        );
+      }
+      return _jobs.enqueue(
+        sessionId: sessionId,
+        kind: kind,
+        note: note,
+        createdAt: _clock(),
+      );
+    });
+    // The gate advances whether the enqueue succeeded or was refused, so one
+    // refusal does not strand every later request behind it.
+    _enqueueGate = queued.then((_) {}, onError: (_) {});
+    return queued;
+  }
+
+  /// Every non-terminal `darkroom_jobs` row for [sessionId], oldest first.
+  ///
+  /// The passes a Stop has to reach and the passes a new request has to refuse
+  /// behind are the same set, so both read it from here.
+  Future<List<DarkroomJob>> liveJobsForSession(int sessionId) async {
+    final jobs = await _jobs.listForSession(sessionId);
+    return [
+      for (final job in jobs.reversed)
+        if (job.id != null && !job.state.isTerminal) job,
+    ];
   }
 
   /// Run every queued job, oldest first.
@@ -544,9 +644,10 @@ class DawnAutopilotService {
     // that is no longer the file this pass measured. It runs HERE, before the
     // night report is written, because that report is itself one of the
     // delivered artifacts and has to carry the exclusion it caused; the instant
-    // between this reading and the copy is covered by delivery's own stat and
-    // checksum of every source it takes.
-    reports = await _stageForDelivery(jobId, reports);
+    // between this reading and the copy is covered by every transport verifying
+    // what landed against the checksum this reading took.
+    final staging = await _stageForDelivery(jobId, reports);
+    reports = staging.reports;
 
     final linearMasters = <String>[
       for (final master in reports)
@@ -605,6 +706,7 @@ class DawnAutopilotService {
       linearMasters: linearMasters,
       draftRenders: draftRenders,
       reportPath: reportPath,
+      described: staging.verified,
     );
 
     // A stop that landed WHILE delivery was running ends the job here, as the
@@ -813,10 +915,31 @@ class DawnAutopilotService {
         : DawnMasterStats.parse(row.statsJson);
     final targetName = await _targetName(master.targetId);
 
-    // The file as it is at the moment the pass is about to read its pixels.
-    // Delivery stages the same path minutes later and compares the two; see
-    // `_stageForDelivery`.
-    final sourceAtRead = await DawnSourceStat.of(master.masterFitsPath);
+    // The file as it is at the moment the pass is about to read its pixels —
+    // size, modification time and the SHA-256 of the bytes. Delivery stages the
+    // same path minutes later and compares the two; see `_stageForDelivery`.
+    //
+    // A master whose bytes cannot be read here still gets its draft attempted,
+    // because the engine reads the file itself and its failure is the more
+    // precise sentence. What is lost is the identity to compare against, so the
+    // reading is recorded as absent and staging says exactly that rather than
+    // delivering an unchecked file.
+    DawnSourceStat? sourceAtRead;
+    try {
+      sourceAtRead = await DawnSourceStat.of(master.masterFitsPath);
+    } on DeliveryFailure catch (failure) {
+      _logger?.warning(
+        'A master could not be read to record what the pass drafted from, so '
+        'delivery has nothing to check it against',
+        source: 'DawnAutopilotService',
+        fields: {
+          'jobId': jobId,
+          'master': master.name,
+          'path': master.masterFitsPath,
+          'error': failure.message,
+        },
+      );
+    }
 
     DawnMasterReport failed(String reason) => DawnMasterReport(
       master: master,
@@ -1049,21 +1172,32 @@ class DawnAutopilotService {
   /// out under the night's name with a checksum of bytes nothing had measured,
   /// and the report called the delivery clean.
   ///
-  /// **What counts as changed.** Size or modification time, either one. Both
-  /// come from one `stat`, neither can be read as "probably still fine", and a
-  /// dawn pass has no legitimate writer of its own masters — so a difference is
-  /// the file having become a different file, and it is stated as exactly that.
-  /// A master that cannot be stat-ed at all in either reading is named for that
-  /// instead of being guessed at.
+  /// **What counts as changed.** The bytes. Size and modification time are
+  /// checked first because they are free and because a difference in either
+  /// already proves the file changed — but they are metadata a writer chooses,
+  /// and a same-sized replacement under a restored mtime (`rsync --times`,
+  /// `cp -p`, a restore, a two-second-granularity share) matched on both while
+  /// carrying another master's pixels. So when the metadata agrees the SHA-256
+  /// the draft stage recorded is compared against the file as it stands now,
+  /// and that is the comparison the verdict turns on. A master that cannot be
+  /// stat-ed, or whose bytes cannot be read, in either reading is named for
+  /// that instead of being guessed at.
   ///
   /// Only masters the draft stage already cleared are read again: one that
   /// failed there is out for its own reason and re-reading it would replace a
   /// precise sentence with a vaguer one.
-  Future<List<DawnMasterReport>> _stageForDelivery(
-    int jobId,
-    List<DawnMasterReport> reports,
-  ) async {
+  ///
+  /// **The hash is taken once.** A master that clears this check is returned as
+  /// a described [DeliveryFile] carrying the digest just computed, and [_deliver]
+  /// takes it instead of hashing the same bytes a second time. So the content
+  /// check costs one extra streamed read per master over the whole pass, not
+  /// two. Measured on this machine with `sha256OfFile` compiled AOT: 0.16 GB/s
+  /// — 48 ms for an 8.3 MB master, 770 ms for a 132.7 MB one, about 25 s for a
+  /// 4 GB one, against a pass that spends minutes rendering each of them.
+  Future<({List<DawnMasterReport> reports, Map<String, DeliveryFile> verified})>
+  _stageForDelivery(int jobId, List<DawnMasterReport> reports) async {
     final staged = <DawnMasterReport>[];
+    final verified = <String, DeliveryFile>{};
     for (final report in reports) {
       if (!report.pixelsWereRead) {
         staged.add(report);
@@ -1071,29 +1205,16 @@ class DawnAutopilotService {
       }
       final path = report.master.masterFitsPath;
       final atRead = report.sourceAtRead;
-      final now = await DawnSourceStat.of(path);
-      final String? refusal;
-      if (now == null) {
-        refusal =
-            'it is no longer on disk at $path, so the pass has nothing to '
-            'deliver under this name';
-      } else if (atRead == null) {
-        refusal =
-            'the pass could not measure $path when it read its pixels, so '
-            'there is nothing to check the ${now.bytes} bytes now on disk '
-            'against';
-      } else if (!atRead.matches(now)) {
-        refusal =
-            'the file changed after the pass read it ($path was '
-            '${atRead.bytes} bytes, modified '
-            '${atRead.modified.toUtc().toIso8601String()}, when its pixels '
-            'were read and is ${now.bytes} bytes, modified '
-            '${now.modified.toUtc().toIso8601String()}, now), so what is on '
-            'disk is not what this pass measured';
-      } else {
-        refusal = null;
-      }
+      final metadata = await FileStat.stat(path);
+      final outcome = await _stageOneMaster(
+        path: path,
+        atRead: atRead,
+        metadata: metadata,
+      );
+      final refusal = outcome.refusal;
       if (refusal == null) {
+        final file = outcome.file;
+        if (file != null) verified[path] = file;
         staged.add(report);
         continue;
       }
@@ -1106,13 +1227,91 @@ class DawnAutopilotService {
           'master': report.master.name,
           'path': path,
           'bytesAtRead': atRead?.bytes,
-          'bytesAtStaging': now?.bytes,
+          'digestAtRead': atRead?.digest,
+          'bytesAtStaging': metadata.type == FileSystemEntityType.notFound
+              ? null
+              : metadata.size,
           'reason': refusal,
         },
       );
       staged.add(report.withheldAtStaging(refusal));
     }
-    return staged;
+    return (reports: staged, verified: verified);
+  }
+
+  /// Read one master again: why it may not be delivered, or the described file
+  /// delivery should take when it may.
+  ///
+  /// [metadata] is the free reading; the bytes are only hashed when it agrees
+  /// with [atRead], since a metadata difference has already settled the
+  /// question and hashing a 4 GB master to confirm it would cost seconds for
+  /// nothing. When the hash is taken it is returned as a [DeliveryFile] so the
+  /// delivery stage does not read the same bytes again.
+  Future<({String? refusal, DeliveryFile? file})> _stageOneMaster({
+    required String path,
+    required DawnSourceStat? atRead,
+    required FileStat metadata,
+  }) async {
+    ({String? refusal, DeliveryFile? file}) refuse(String reason) =>
+        (refusal: reason, file: null);
+
+    if (metadata.type == FileSystemEntityType.notFound) {
+      return refuse(
+        'it is no longer on disk at $path, so the pass has nothing to '
+        'deliver under this name',
+      );
+    }
+    if (atRead == null) {
+      return refuse(
+        'the pass could not measure $path when it read its pixels, so '
+        'there is nothing to check the ${metadata.size} bytes now on disk '
+        'against',
+      );
+    }
+    if (atRead.bytes != metadata.size ||
+        !atRead.modified.isAtSameMomentAs(metadata.modified)) {
+      return refuse(
+        'the file changed after the pass read it ($path was '
+        '${atRead.bytes} bytes, modified '
+        '${atRead.modified.toUtc().toIso8601String()}, when its pixels '
+        'were read and is ${metadata.size} bytes, modified '
+        '${metadata.modified.toUtc().toIso8601String()}, now), so what is '
+        'on disk is not what this pass measured',
+      );
+    }
+    final DawnSourceStat? now;
+    try {
+      now = await DawnSourceStat.of(path);
+    } on DeliveryFailure catch (failure) {
+      return refuse(
+        'the file is still ${metadata.size} bytes at $path but its bytes '
+        'could not be read to check them against the pass: '
+        '${failure.message}',
+      );
+    }
+    if (now == null) {
+      return refuse(
+        'it is no longer on disk at $path, so the pass has nothing to '
+        'deliver under this name',
+      );
+    }
+    if (!atRead.matches(now)) {
+      return refuse(
+        'the file changed after the pass read it ($path is still '
+        '${metadata.size} bytes, modified '
+        '${metadata.modified.toUtc().toIso8601String()}, but its contents '
+        'now hash to ${now.digest} where the pass read ${atRead.digest}), '
+        'so what is on disk is not what this pass measured',
+      );
+    }
+    return (
+      refusal: null,
+      file: DeliveryFile(
+        sourcePath: File(path).absolute.path,
+        bytes: now.bytes,
+        checksum: now.digest,
+      ),
+    );
   }
 
   /// Hand the night's artifacts to delivery.
@@ -1129,11 +1328,20 @@ class DawnAutopilotService {
   /// there, and the ones that are not are named. The set keeps
   /// [DeliveryArtifactSet.build]'s order — by artifact class, then by the order
   /// listed — so two runs of one job deliver in the same order.
+  ///
+  /// **A master staging already hashed is not hashed again.** [described]
+  /// carries the readings `_stageForDelivery` just took to prove each master is
+  /// still the file the pass drafted from, which are exactly the size and
+  /// SHA-256 an artifact description holds. Re-reading a 4 GB master to compute
+  /// the same number twice in the same second buys nothing: a source that
+  /// changes after staging still fails, because every transport verifies what
+  /// landed against this checksum.
   Future<({DeliveryRunReport? report, List<String> problems})> _deliver({
     required int jobId,
     required List<String> linearMasters,
     required List<String> draftRenders,
     required String? reportPath,
+    Map<String, DeliveryFile> described = const {},
   }) async {
     final sources = <ArtifactContent, List<String>>{
       ArtifactContent.linearMasters: linearMasters,
@@ -1145,11 +1353,19 @@ class DawnAutopilotService {
     for (final content in ArtifactContent.values) {
       for (final path in sources[content] ?? const <String>[]) {
         try {
+          final already = described[path];
           artifacts.add(
-            await DeliveryArtifact.describeArtifact(
-              content: content,
-              path: path,
-            ),
+            already == null
+                ? await DeliveryArtifact.describeArtifact(
+                    content: content,
+                    path: path,
+                  )
+                : DeliveryArtifact(
+                    content: content,
+                    sourcePath: already.sourcePath,
+                    bytes: already.bytes,
+                    checksum: already.checksum,
+                  ),
           );
         } on DeliveryFailure catch (error) {
           problems.add(

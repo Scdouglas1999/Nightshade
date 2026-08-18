@@ -553,7 +553,28 @@ class _StatusLine extends StatelessWidget {
   }
 }
 
-/// Whether a paired desktop actually answers to this peer destination's id.
+/// What actually gates a peer pull, stated on every peer row.
+///
+/// Kept next to the pairing line because the pairing line is the half an
+/// operator reads as the gate, and it is not: the routes check the token, and
+/// the peer id only picks which destination's file list is served.
+const String _peerPullAuthSentence =
+    'These files are served to any client holding this rig\'s access token '
+    'that asks as this peer id — the pairing list does not gate the pull.';
+
+/// Whether a paired desktop is registered under this peer destination's id.
+///
+/// **What this line may and may not claim.** The pairing store is a register of
+/// desktops the operator has paired; it is NOT what gates a pull. The three
+/// peer routes — `GET /api/darkroom/delivery/manifest/<job>`,
+/// `GET .../artifact/<job>/<id>` and `POST .../ack/<job>` — authenticate with
+/// the rig's ordinary access token (view scope reads the manifest and the
+/// bytes, control acknowledges) and `PeerManifestService` resolves `?peer=`
+/// against `delivery_targets` alone. So an empty pairing list means nobody is
+/// REGISTERED under that name, not that nothing can collect the files: a
+/// desktop holding the rig's token and asking as that peer id completes the
+/// whole pull with the pairing store empty. This line used to say "so nothing
+/// can pull these files", which was the opposite of what the same build does.
 class _PeerPairingLine extends ConsumerWidget {
   const _PeerPairingLine({required this.destination});
 
@@ -583,8 +604,8 @@ class _PeerPairingLine extends ConsumerWidget {
         final match = _matchFor(list, peerId);
         if (match == null) {
           return Text(
-            'Pairing: no active pairing answers to "$peerId", so nothing can '
-            'pull these files',
+            'Pairing: no paired desktop is registered under "$peerId". '
+            '$_peerPullAuthSentence',
             style: style.copyWith(color: colors.warning),
           );
         }
@@ -594,7 +615,7 @@ class _PeerPairingLine extends ConsumerWidget {
             : 'last connected '
                 '${DateFormat('d MMM HH:mm').format(lastSeen.toLocal())}';
         return Text(
-          'Pairing: ${match.deviceName} ($seen)',
+          'Pairing: ${match.deviceName} ($seen). $_peerPullAuthSentence',
           style: style,
         );
       },

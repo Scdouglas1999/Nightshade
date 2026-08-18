@@ -895,15 +895,95 @@ void main() {
       // already the row's title, and printing it again under that title is the
       // same words three times over.
       expect(find.text('Black point (ADU)'), findsOneWidget);
-      expect(find.text('accepts -1.00e+12 … 1.00e+12'), findsOneWidget);
+      expect(
+        find.text('no practical limit; the engine refuses past ±1.00e+12'),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsLabel(
-          'Black point (ADU) (accepts -1.00e+12 … 1.00e+12)',
+          'Black point (ADU) (no practical limit; the engine refuses past '
+          '±1.00e+12)',
         ),
         findsOneWidget,
       );
       await drain(tester);
       handle.dispose();
+    });
+
+    testWidgets(
+        'a bound the engine keeps as a guard is stated as one, not as a range',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      final id = await seedScreenRecipe([
+        _step('stretch', params: {'blackPoint': 529.7, 'd': 1.938}),
+      ]);
+      await pump(tester, recipeId: id);
+      await tester.tap(find.text('Parameters'));
+      await settleScreen(tester);
+
+      // ±1e12 ADU is the engine's guard against a nonsense number, not a range
+      // any master's data occupies. Printed bare beside a measured 529.751 it
+      // read as the range the operator was choosing within.
+      expect(find.textContaining('accepts -1.00e+12'), findsNothing);
+      expect(
+        find.text('no practical limit; the engine refuses past ±1.00e+12'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(
+          'Black point (ADU) (no practical limit; the engine refuses past '
+          '±1.00e+12)',
+        ),
+        findsOneWidget,
+      );
+      await drain(tester);
+      handle.dispose();
+    });
+
+    testWidgets(
+        'a stored double is read out rounded and revealed in full to edit',
+        (tester) async {
+      // The autopilot's own measured black point, to the last digit the row
+      // holds. The box echoed it verbatim — 529.7506799121094 — beside sliders
+      // that all read out to three decimals.
+      const stored = 529.7506799121094;
+      final id = await seedScreenRecipe([
+        _step('stretch', params: {'blackPoint': stored, 'd': 1.938}),
+      ]);
+      await pump(tester, recipeId: id);
+      await tester.tap(find.text('Parameters'));
+      await settleScreen(tester);
+
+      expect(find.text('529.751'), findsOneWidget);
+      expect(find.text('$stored'), findsNothing);
+
+      // A field being edited shows what the recipe HOLDS: an edit that started
+      // from a rounded reading would write a number the operator never chose.
+      await tester.ensureVisible(find.text('529.751'));
+      await settleScreen(tester);
+      await tester.tap(find.text('529.751'));
+      await settleScreen(tester);
+      expect(find.text('$stored'), findsOneWidget);
+
+      // Focus moves to the intensity's own box; the black point goes back to
+      // reading itself out, still holding what it held.
+      await tester.tap(find.widgetWithText(NightshadeTextField, '1.938'));
+      await settleScreen(tester);
+      expect(find.text('529.751'), findsOneWidget);
+      expect(find.text('$stored'), findsNothing);
+
+      // And moving through the field wrote nothing — the row still carries
+      // every digit of a value the operator never typed into.
+      final row = await screenRecipes.getById(id);
+      final steps = jsonDecode(row!.stepsJson) as List;
+      final stretch = steps.firstWhere(
+        (s) => (s as Map<String, dynamic>)['opId'] == 'stretch',
+      ) as Map<String, dynamic>;
+      expect(
+        (stretch['params'] as Map<String, dynamic>)['blackPoint'],
+        stored,
+      );
+      await drain(tester);
     });
 
     testWidgets(

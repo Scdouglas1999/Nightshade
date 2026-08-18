@@ -10,6 +10,13 @@
 // control appears only while a pass is live, one press reaches the RUNNING
 // job's id, and the control then states that it is stopping rather than
 // claiming the pass is over.
+//
+// They also pin what the header reads the answer FROM. It used to be a
+// per-screen latch, so a Session Review that had been popped and re-pushed over
+// a session already being processed came back with the latch clear and offered
+// "Process now" again — two passes then ran over one night and Stop reached one
+// of them (D3LC2-F1). The durable `darkroom_jobs` row is the authority now, and
+// a fresh screen state reads the same answer as the one it replaced.
 
 import 'dart:async';
 import 'dart:io';
@@ -70,6 +77,9 @@ void main() {
     when(
       () => dawn.requestCancel(any(), reason: any(named: 'reason')),
     ).thenAnswer((_) async {});
+    // The default world: nothing is live over this session. Each test that
+    // needs a live pass says so.
+    when(() => dawn.liveJobsForSession(any())).thenAnswer((_) async => []);
   });
 
   tearDown(() async {
@@ -159,12 +169,13 @@ void main() {
   testWidgets('a running pass offers Stop, and one press reaches the job', (
     tester,
   ) async {
-    when(() => jobs.listForSession(1)).thenAnswer(
+    when(() => dawn.liveJobsForSession(1)).thenAnswer(
       (_) async => [_job(DarkroomJobState.running)],
     );
     await pumpScreen(tester);
 
-    await press(tester, processKey);
+    // The durable row is what puts Stop on the header — this screen never
+    // started the pass.
     expect(stopKey, findsOneWidget);
 
     await press(tester, stopKey);
@@ -182,9 +193,7 @@ void main() {
   });
 
   testWidgets('a terminal job is never asked to stop', (tester) async {
-    when(() => jobs.listForSession(1)).thenAnswer(
-      (_) async => [_job(DarkroomJobState.done)],
-    );
+    when(() => dawn.liveJobsForSession(1)).thenAnswer((_) async => []);
     await pumpScreen(tester);
 
     await press(tester, processKey);
@@ -194,6 +203,103 @@ void main() {
     // Nothing was stopped, so the control goes back to offering the stop.
     expect(tester.widget<NightshadeButton>(stopKey).label, 'Stop');
     expect(tester.widget<NightshadeButton>(stopKey).onPressed, isNotNull);
+
+    await finish(tester);
+  });
+
+  // D3LC2-F1, the re-pushed-route shape. The screen is built fresh — every
+  // per-screen latch starts clear, exactly as it did after Analytics → History
+  // → Review & Integrate — over a session that `darkroom_jobs` says is already
+  // being processed.
+  testWidgets(
+      'a freshly built screen over a session already being processed '
+      'offers Stop, not Process now', (tester) async {
+    when(() => dawn.liveJobsForSession(1)).thenAnswer(
+      (_) async => [_job(DarkroomJobState.running)],
+    );
+
+    await pumpScreen(tester);
+
+    expect(
+      tester.widget<NightshadeButton>(processKey).onPressed,
+      isNull,
+      reason: 'the durable row says a pass holds this night',
+    );
+    expect(stopKey, findsOneWidget);
+    verifyNever(() => dawn.processSessionNow(any()));
+
+    await finish(tester);
+  });
+
+  testWidgets('a queued pass disables Process now too', (tester) async {
+    when(() => dawn.liveJobsForSession(1)).thenAnswer(
+      (_) async => [_job(DarkroomJobState.queued)],
+    );
+
+    await pumpScreen(tester);
+
+    expect(tester.widget<NightshadeButton>(processKey).onPressed, isNull);
+
+    await finish(tester);
+  });
+
+  // The second half of the same defect: even if a press does get through — the
+  // durable state was read a moment before the other pass began — the service
+  // refuses it, and the screen says so instead of reporting a failure.
+  testWidgets(
+      'a press the service refuses is reported as already running, '
+      'and starts nothing', (tester) async {
+    await pumpScreen(tester);
+    when(() => dawn.processSessionNow(1)).thenThrow(
+      const DarkroomSessionBusyException(
+        sessionId: 1,
+        jobId: 42,
+        state: DarkroomJobState.running,
+      ),
+    );
+    when(() => dawn.liveJobsForSession(1)).thenAnswer(
+      (_) async => [_job(DarkroomJobState.running)],
+    );
+
+    await press(tester, processKey);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(
+      find.textContaining('already running (job 42)'),
+      findsOneWidget,
+      reason: 'the operator is told which pass has the night',
+    );
+    // The screen catches up to the durable answer rather than staying on a
+    // control that would refuse again.
+    expect(tester.widget<NightshadeButton>(processKey).onPressed, isNull);
+
+    await finish(tester);
+  });
+
+  // The Stop that D3LC2-F1 caught halting only one of two passes. A build
+  // without the enqueue guard can have left two live rows behind; every one of
+  // them is asked to stop.
+  testWidgets(
+      'Stop reaches every live pass over the session, not just the '
+      'newest', (tester) async {
+    when(() => dawn.liveJobsForSession(1)).thenAnswer(
+      (_) async => [
+        _job(DarkroomJobState.running, id: 17),
+        _job(DarkroomJobState.running, id: 18),
+      ],
+    );
+    await pumpScreen(tester);
+
+    await press(tester, stopKey);
+    await tester.pump();
+
+    verify(
+      () => dawn.requestCancel(17, reason: 'Stopped from Session Review'),
+    ).called(1);
+    verify(
+      () => dawn.requestCancel(18, reason: 'Stopped from Session Review'),
+    ).called(1);
 
     await finish(tester);
   });

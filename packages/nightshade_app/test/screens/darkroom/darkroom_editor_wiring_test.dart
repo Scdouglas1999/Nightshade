@@ -660,8 +660,12 @@ void main() {
     // that title and under the registry's summary of it, so it carries the
     // half neither of them states — the accepted bounds — rather than the
     // whole label a third time.
-    expect(find.textContaining('Black point (ADU) (accepts'), findsNothing);
-    expect(find.text('accepts -1.00e+12 … 1.00e+12'), findsOneWidget);
+    expect(
+        find.textContaining('Black point (ADU) (no practical'), findsNothing);
+    expect(
+      find.text('no practical limit; the engine refuses past ±1.00e+12'),
+      findsOneWidget,
+    );
     await drain(tester);
   });
 

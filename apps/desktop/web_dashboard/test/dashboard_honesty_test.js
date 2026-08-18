@@ -49,6 +49,34 @@ function letDecl(name) {
   return m[0];
 }
 
+/** The REAL galleryCountLine, over the real galleryRejection. */
+function countLine() {
+  return build(
+    [],
+    [fn('galleryRejection'), fn('galleryCountLine')],
+    'galleryCountLine',
+  )();
+}
+
+/**
+ * The REAL reportRefreshFailure, wired to recorders. Built from the source so
+ * every caller's test exercises the actual cadence-vs-failure branch rather
+ * than a stub that always records.
+ */
+function refreshFailureReporter({ marks = [], log = [], debug = [] } = {}) {
+  const report = build(
+    ['markPanelUnconfirmed', 'addLogEntry', 'describeApiError', 'console'],
+    [fn('isCadenceRefusal'), fn('reportRefreshFailure')],
+    'reportRefreshFailure',
+  )(
+    (k) => marks.push('unconfirmed:' + k),
+    (kind, text) => log.push(kind + ': ' + text),
+    build(['x'], [fn('describeApiError')], 'describeApiError')(null),
+    { debug: (m) => debug.push(m) },
+  );
+  return { report, marks, log, debug };
+}
+
 function build(params, sources, exportName) {
   // eslint-disable-next-line no-new-func
   return new Function(
@@ -1093,7 +1121,7 @@ test('the ops mirror cannot repaint a run the clock has already retired', () => 
     state,
     now - 1000,
     (el, label, cls) => { el.textContent = label; el.className = cls; },
-    (raw) => raw * 100,
+    build(['x'], [fn('sequencerProgressPercent')], 'sequencerProgressPercent')(null),
     () => '3m',
   );
   render();
@@ -1156,7 +1184,7 @@ function opsLoadPanel(sequencerStatus, opsExtra) {
     state,
     now - 1000,
     (el, label, cls) => { el.textContent = label; el.className = cls; },
-    (raw) => raw * 100,
+    build(['x'], [fn('sequencerProgressPercent')], 'sequencerProgressPercent')(null),
     () => '3m',
   );
   render();
@@ -1256,10 +1284,12 @@ function devicesFetch(answer) {
     ops: {},
   };
   let rendered = 0;
+  const debug = [];
+  const reporter = refreshFailureReporter({ marks, log, debug });
   const run = build(
-    ['api', 'state', 'requireWireList', 'NightshadeApiError', 'addLogEntry',
-      'describeApiError', 'renderDevicesPanel', 'markPanelFresh',
-      'markPanelUnconfirmed', 'refreshPanelEnablement',
+    ['api', 'state', 'requireWireList', 'NightshadeApiError',
+      'reportRefreshFailure', 'renderDevicesPanel', 'markPanelFresh',
+      'refreshPanelEnablement',
       'maybeLoadCameraReadoutModes', 'maybeLoadFilterWheelPositions'],
     [fn('fetchDevices')],
     'fetchDevices',
@@ -1271,14 +1301,12 @@ function devicesFetch(answer) {
     state,
     wireList(),
     TestApiError,
-    (kind, text) => log.push(kind + ': ' + text),
-    build(['x'], [fn('describeApiError')], 'describeApiError')(null),
+    reporter.report,
     () => { rendered += 1; },
     (k) => marks.push('fresh:' + k),
-    (k) => marks.push('unconfirmed:' + k),
     () => {}, () => {}, () => {},
   );
-  return { run, state, log, marks, rendered: () => rendered };
+  return { run, state, log, marks, debug, rendered: () => rendered };
 }
 
 test('a content-free devices answer never asserts an empty rig', async () => {
@@ -1321,7 +1349,7 @@ function galleryFetch(answer) {
   let rendered = 0;
   const run = build(
     ['document', 'api', 'gallery', 'requireWireList', 'NightshadeApiError',
-      'renderGallery', 'addLogEntry', 'describeApiError'],
+      'renderGallery', 'addLogEntry', 'describeApiError', 'galleryCountLine'],
     [fn('refreshGalleryFromServer')],
     'refreshGalleryFromServer',
   )(
@@ -1336,6 +1364,7 @@ function galleryFetch(answer) {
     () => { rendered += 1; },
     (kind, text) => log.push(kind + ': ' + text),
     build(['x'], [fn('describeApiError')], 'describeApiError')(null),
+    countLine(),
   );
   return { run, doc, gallery, log, rendered: () => rendered };
 }
@@ -1655,20 +1684,20 @@ function weatherFetch({ rejects }) {
       ? Promise.reject(Object.assign(new Error('refused'), { kind: 'unreachable' }))
       : Promise.resolve({ isSafe: true, monitorsConnected: 1 }),
   };
+  const debug = [];
+  const reporter = refreshFailureReporter({ marks, log: logs, debug });
   const run = build(
-    ['api', 'state', 'markPanelFresh', 'markPanelUnconfirmed',
-      'renderOpsWeatherPanel', 'addLogEntry', 'describeApiError'],
+    ['api', 'state', 'markPanelFresh', 'reportRefreshFailure',
+      'renderOpsWeatherPanel'],
     [fn('fetchOpsWeatherAndSafety')],
     'fetchOpsWeatherAndSafety',
   )(
     api, state,
     (key) => marks.push('fresh:' + key),
-    (key) => marks.push('unconfirmed:' + key),
+    reporter.report,
     () => renders.push(1),
-    (cat, msg) => logs.push(msg),
-    (e, what) => what + ' failed',
   );
-  return { run, marks, logs, renders, state };
+  return { run, marks, logs, renders, debug, state };
 }
 
 test('a refused weather answer reaches the clock, not only the log', () => {
@@ -1676,7 +1705,7 @@ test('a refused weather answer reaches the clock, not only the log', () => {
   return h.run().then(() => {
     assert.deepEqual(h.marks, ['unconfirmed:weather'],
       'the refusal used to reach nothing but a log line');
-    assert.deepEqual(h.logs, ['Weather/safety fetch failed']);
+    assert.match(h.logs.join('\n'), /Weather\/safety fetch failed/);
     assert.equal(h.renders.length, 1,
       'the panel must repaint so the verdict comes off the screen');
   });
@@ -1893,4 +1922,358 @@ test('a live socket arms no fallback and logs nothing', () => {
   const { logs, state } = staleness({ lastWsMessageAt: Date.now() - 2000 });
   assert.deepEqual(logs, []);
   assert.equal(state.wsFallbackPollInterval, null);
+});
+
+// ---------------------------------------------------------------------------
+// W13-C / D4-W1 — the dashboard must not 429-storm itself during a live run
+//
+// Measured against the release bundle on a D1 sim night (port 8212): with the
+// Event Log cleared and no other operator traffic, one 75 s run put 746 lines
+// in the panel of which 274 carried the red `error` category, and every single
+// one of those 274 was this page's own request coming back rate-limited
+// ("Sequencer fetch skipped: server is rate-limiting this session (retry in
+// 1s)" and its Checkpoint / Analytics / Camera siblings). Server-side over the
+// same shape, /api/logs/tail?minSeverity=debug recorded 147 real 429s in 45 s
+// across /api/sessions/active, /api/sequencer/checkpoint/has,
+// /api/sequencer/status, /api/sequencer/checkpoint/info and
+// /api/equipment/camera/status. The rig was healthy throughout.
+// ---------------------------------------------------------------------------
+
+/** The coalescing scheduler over a fake clock, so a burst can be replayed. */
+function refreshScheduler() {
+  let now = 1000;
+  let nextId = 0;
+  const pending = [];
+  const refreshes = [];
+  const gets = [];
+  const fakeSetTimeout = (fn, ms) => {
+    const id = ++nextId;
+    pending.push({ id, at: now + (ms || 0), fn });
+    return id;
+  };
+  const fakeClearTimeout = (id) => {
+    const i = pending.findIndex((t) => t.id === id);
+    if (i >= 0) pending.splice(i, 1);
+  };
+  const scheduler = build(
+    ['Date', 'setTimeout', 'clearTimeout', 'fetchSequencerStatus',
+      'fetchOpsCheckpoints', 'fetchOpsAnalyticsSummary'],
+    [
+      konst('SEQUENCER_REFRESH_MIN_INTERVAL_MS'),
+      letDecl('sequencerRefreshTimer'),
+      letDecl('sequencerRefreshLastAt'),
+      fn('scheduleSequencerRefresh'),
+      fn('runSequencerRefresh'),
+      fn('cancelSequencerRefresh'),
+    ],
+    '({ schedule: scheduleSequencerRefresh, cancel: cancelSequencerRefresh, '
+      + 'interval: SEQUENCER_REFRESH_MIN_INTERVAL_MS })',
+  )(
+    { now: () => now },
+    fakeSetTimeout,
+    fakeClearTimeout,
+    () => { refreshes.push(now); gets.push('GET /api/sequencer/status'); },
+    () => gets.push('GET /api/sequencer/checkpoint/has'),
+    () => gets.push('GET /api/analytics/session-summary'),
+  );
+
+  function advance(ms) {
+    const end = now + ms;
+    for (;;) {
+      let due = null;
+      for (const t of pending) {
+        if (t.at <= end && (due === null || t.at < due.at)) due = t;
+      }
+      if (!due) break;
+      pending.splice(pending.indexOf(due), 1);
+      now = due.at;
+      due.fn();
+    }
+    now = end;
+  }
+
+  return { scheduler, advance, refreshes, gets, at: () => now };
+}
+
+test('an event burst collapses into one refresh', () => {
+  const h = refreshScheduler();
+  // Twenty Progress events inside one tick, the shape the executor emits.
+  for (let i = 0; i < 20; i++) h.scheduler.schedule();
+  h.advance(1);
+  assert.equal(h.refreshes.length, 1,
+    'twenty events in one tick are one thing happening, not twenty');
+  assert.deepEqual(h.gets, [
+    'GET /api/sequencer/status',
+    'GET /api/sequencer/checkpoint/has',
+    'GET /api/analytics/session-summary',
+  ], 'the trio still goes out — coalesced, not dropped');
+});
+
+test('the trailing refresh runs, so a burst ends on its LAST event', () => {
+  const h = refreshScheduler();
+  h.scheduler.schedule();
+  h.advance(1);
+  assert.equal(h.refreshes.length, 1, 'the first event of a quiet period is prompt');
+  // Something moves again immediately: too soon to send, never dropped.
+  h.scheduler.schedule();
+  h.advance(1);
+  assert.equal(h.refreshes.length, 1, 'still inside the minimum interval');
+  h.advance(h.scheduler.interval);
+  assert.equal(h.refreshes.length, 2,
+    'the deferred refresh fires once the interval has passed');
+});
+
+test('a 75s run at 10 events a second never outruns the server budget', () => {
+  const h = refreshScheduler();
+  // The measured shape: Progress/InstructionProgress several times a second
+  // for the length of the run.
+  for (let tick = 0; tick < 750; tick++) {
+    h.scheduler.schedule();
+    h.advance(100);
+  }
+  assert.equal(h.gets.length, h.refreshes.length * 3);
+  // 7500 events used to mean 22 500 GETs. The budget the server sizes for a
+  // dashboard is 60 reads a second (route_metadata/rate_limiting.dart), and
+  // three panels' worth of state is one refresh.
+  assert.ok(h.refreshes.length <= 76,
+    'at most one refresh per second over 75s, got ' + h.refreshes.length);
+  assert.ok(h.refreshes.length >= 74,
+    'the panels must still keep up with the run, got ' + h.refreshes.length);
+  for (let i = 1; i < h.refreshes.length; i++) {
+    assert.ok(h.refreshes[i] - h.refreshes[i - 1] >= h.scheduler.interval,
+      'two refreshes ' + (h.refreshes[i] - h.refreshes[i - 1]) + 'ms apart');
+  }
+});
+
+test('a scheduled refresh is dropped when polling stops', () => {
+  const h = refreshScheduler();
+  h.scheduler.schedule();
+  h.scheduler.cancel();
+  h.advance(5000);
+  assert.deepEqual(h.refreshes, [], 'a torn-down page asks for nothing');
+});
+
+test('a sequencer event schedules the refresh, never a per-event fan-out', () => {
+  const body = fn('handleServerEvent');
+  const branch = /category === 'sequencer'\) \{([\s\S]*?)\} else if/.exec(body);
+  assert.ok(branch, "handleServerEvent must have a 'sequencer' branch");
+  assert.match(branch[1], /scheduleSequencerRefresh\(\)/);
+  for (const direct of ['fetchSequencerStatus', 'fetchOpsCheckpoints',
+    'fetchOpsAnalyticsSummary']) {
+    assert.doesNotMatch(branch[1], new RegExp(direct + '\\('),
+      direct + ' must go through the coalescer, not fire once per event');
+  }
+});
+
+test('a rate-limited refresh is a cadence fact, not an operator error', () => {
+  const h = refreshFailureReporter();
+  h.report('sequencer', { kind: 'rate_limited', retryAfterSecs: 1 },
+    'Sequencer fetch');
+  assert.deepEqual(h.log, [],
+    'a self-skipped fetch is not one of the night\'s errors');
+  assert.deepEqual(h.marks, [],
+    'the panel is exactly as fresh as its last successful read');
+  assert.equal(h.debug.length, 1, 'the fact is still recorded, for developers');
+  assert.match(h.debug[0], /rate-limiting this session/);
+});
+
+test('a refusal that IS the data source still reaches the log and the clock', () => {
+  for (const kind of ['unreachable', 'timeout', 'http_error', 'unusable_answer']) {
+    const h = refreshFailureReporter();
+    h.report('camera', { kind, message: 'SENTINEL' }, 'Camera status fetch');
+    assert.deepEqual(h.marks, ['unconfirmed:camera'], kind + ' is panel staleness');
+    assert.equal(h.log.length, 1, kind + ' is an operator-facing error');
+    assert.match(h.log[0], /^error: Camera status fetch/);
+    assert.deepEqual(h.debug, []);
+  }
+});
+
+test('a panel-less background refresh still logs a real failure', () => {
+  const h = refreshFailureReporter();
+  h.report(null, { kind: 'unreachable', message: 'gone' }, 'Checkpoint fetch');
+  assert.deepEqual(h.marks, []);
+  assert.match(h.log.join('\n'), /Checkpoint fetch failed/);
+});
+
+// ---------------------------------------------------------------------------
+// W13-C / D4-W2 — a rig that has never run reports no percentage
+//
+// Measured against the release bundle on an EMPTY database dir:
+// GET /api/sequencer/status answered
+// {"state":"idle","currentNodeId":null,"currentNodeName":null,
+//  "currentTarget":null,"progress":0.0,"message":null} — every field null
+// except the one figure, which was zero — and the two panels read
+// "Status IDLE / Current Node -- / Progress 0%" and "Current target -- /
+// Current node -- / Progress 0% / ETA --", both with aria-valuenow="0". The
+// same process answered /api/run-watch/snapshot with progressPercent null and
+// the phone surface rendered "PROGRESS --".
+// ---------------------------------------------------------------------------
+
+test('a rig that has never run shows no progress figure', () => {
+  const { doc, buttons } = sequencerPanel({
+    state: 'idle', currentNodeId: null, currentNodeName: null,
+    currentTarget: null, progress: null, message: null,
+  });
+  assert.equal(doc.getElementById('seq-status').textContent, 'idle',
+    'the STATE is known — no run is going — and only the figure is withheld');
+  assert.deepEqual(buttons, ['idle']);
+  assert.equal(doc.getElementById('seq-progress-text').textContent, '--',
+    '0% is a measurement of a run that never happened');
+  assert.equal(
+    doc.getElementById('seq-progress-bar-container')
+      .getAttribute('aria-valuenow'), null,
+    'aria-valuenow="0" announces "0 percent" for a figure nobody sent');
+  assert.ok(doc.getElementById('seq-progress-bar-container').classList
+    .contains('unknown'));
+});
+
+test('the ops mirror renders the same absence, and no ETA from it', () => {
+  const doc = opsLoadPanel({
+    state: 'idle', currentNodeId: null, currentNodeName: null,
+    currentTarget: null, progress: null, message: null,
+  });
+  assert.equal(doc.getElementById('ops-seq-progress-text').textContent, '--');
+  assert.equal(doc.getElementById('ops-seq-eta').textContent, '--');
+  assert.equal(
+    doc.getElementById('ops-seq-progress-bar-container')
+      .getAttribute('aria-valuenow'), null);
+  assert.ok(doc.getElementById('ops-seq-progress-bar-container').classList
+    .contains('unknown'));
+});
+
+test('a rig that HAS run keeps its real figure, zero included', () => {
+  const { doc } = sequencerPanel({
+    state: 'running', currentNodeName: 'Exposure L', progress: 0,
+    message: 'Frame 1/12',
+  });
+  assert.equal(doc.getElementById('seq-progress-text').textContent, '0%',
+    'a started run at zero percent HAS a measurement, and it is zero');
+  assert.equal(
+    doc.getElementById('seq-progress-bar-container')
+      .getAttribute('aria-valuenow'), '0');
+  assert.ok(!doc.getElementById('seq-progress-bar-container').classList
+    .contains('unknown'));
+});
+
+// ---------------------------------------------------------------------------
+// W13-C / D4-W3 — the gallery states the grader's verdict
+//
+// Measured against the release bundle after a D1 harness night whose star
+// floor was raised past anything the simulator produces: 26 of the 38 rows
+// GET /api/images returned carried "isAccepted": false plus a reason string,
+// and every tile rendered as
+// <button class="gallery-card" aria-label="B · 8/18/2026, 8:58:10 AM">
+//   <img …><div class="gallery-caption">B · 8/18/2026, 8:58:10 AM</div>
+// </button>
+// — indistinguishable from a keeper. The count line read "38 images shown."
+// and the preview modal read "Image preview / B · … / Download original /
+// Close".
+// ---------------------------------------------------------------------------
+
+/** renderGallery over a scripted listing. */
+function galleryGrid(items) {
+  const doc = makeDocument(['gallery-grid']);
+  const render = build(
+    ['document', 'gallery', 'revokeGalleryThumbnailUrls',
+      'loadGalleryThumbnail', 'markGalleryThumbUnavailable',
+      'openGalleryModal'],
+    [fn('formatGalleryMeta'), fn('galleryRejection'), fn('renderGallery')],
+    'renderGallery',
+  )(
+    doc,
+    { items },
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+  );
+  render();
+  const cards = doc.getElementById('gallery-grid').children;
+  return {
+    doc,
+    cards,
+    textOf: (i) => cards[i].children
+      .map((c) => c.children.length
+        ? c.children.map((g) => g.textContent).join('')
+        : c.textContent)
+      .join(' | '),
+  };
+}
+
+const REJECT_REASON =
+  'star count 43 below minimum 100000 (likely cloud / off-target)';
+
+test('a grader-rejected sub carries a visible verdict and its reason', () => {
+  const h = galleryGrid([
+    { id: 14, filter: 'L', createdAt: 1787057569000, isAccepted: false,
+      rejectionReason: REJECT_REASON },
+  ]);
+  const card = h.cards[0];
+  assert.ok(card.classList.contains('gallery-card-rejected'));
+  assert.match(card.getAttribute('aria-label'), /rejected by the grader$/,
+    'a screen reader must get the verdict with the frame');
+  const rendered = h.textOf(0);
+  assert.match(rendered, /Rejected/, 'a badge an operator can see at a glance');
+  assert.match(rendered, new RegExp(REJECT_REASON.replace(/[()/]/g, '\\$&')),
+    "the grader's own words, not a shrug");
+});
+
+test('an accepted sub is untouched', () => {
+  const h = galleryGrid([
+    { id: 26, filter: 'B', createdAt: 1787057569000, isAccepted: true,
+      rejectionReason: null },
+  ]);
+  const card = h.cards[0];
+  assert.ok(!card.classList.contains('gallery-card-rejected'));
+  assert.doesNotMatch(card.getAttribute('aria-label'), /rejected/i);
+  assert.doesNotMatch(h.textOf(0), /Rejected/);
+  assert.equal(card.children.filter((c) => c.className === 'gallery-caption')
+    .length, 1, 'an accepted card gains no second caption line');
+});
+
+test('a listing that says nothing about the verdict invents none', () => {
+  const h = galleryGrid([{ id: 3, filter: 'R', createdAt: 1787057569000 }]);
+  assert.ok(!h.cards[0].classList.contains('gallery-card-rejected'));
+  assert.doesNotMatch(h.textOf(0), /Rejected/);
+});
+
+test('a rejection with no stated reason still shows the verdict', () => {
+  const h = galleryGrid([
+    { id: 9, filter: 'G', createdAt: 1787057569000, isAccepted: false,
+      rejectionReason: null },
+  ]);
+  assert.ok(h.cards[0].classList.contains('gallery-card-rejected'));
+  assert.match(h.textOf(0), /Rejected/);
+});
+
+test('the count line states the tally the grader produced', () => {
+  const line = countLine();
+  const night = [];
+  for (let i = 0; i < 24; i++) night.push({ id: i, isAccepted: true });
+  night.push({ id: 24, isAccepted: false, rejectionReason: REJECT_REASON });
+  night.push({ id: 25, isAccepted: false, rejectionReason: REJECT_REASON });
+  assert.equal(line(night), '26 images — 2 rejected.');
+  assert.equal(line([{ id: 1, isAccepted: true }]), '1 image shown.');
+  assert.equal(line([{ id: 1 }, { id: 2 }]), '2 images shown.',
+    'a listing that names no verdict reports no rejections');
+  assert.equal(line([]), 'No images captured yet.');
+  assert.equal(
+    line([{ id: 1, isAccepted: false, rejectionReason: REJECT_REASON }]),
+    '1 image — 1 rejected.');
+});
+
+test('the preview modal states the verdict on the frame it is showing', () => {
+  const meta = build(
+    [],
+    [fn('formatGalleryMeta'), fn('galleryRejection'), fn('galleryModalMeta')],
+    'galleryModalMeta',
+  )();
+  const rejected = meta({ id: 13, filter: 'L', createdAt: 1787057569000,
+    isAccepted: false, rejectionReason: REJECT_REASON });
+  assert.match(rejected, /REJECTED/);
+  assert.ok(rejected.includes(REJECT_REASON));
+  const accepted = meta({ id: 26, filter: 'B', createdAt: 1787057569000,
+    isAccepted: true, rejectionReason: null });
+  assert.doesNotMatch(accepted, /REJECT/i);
+  assert.match(accepted, /^B · /);
 });

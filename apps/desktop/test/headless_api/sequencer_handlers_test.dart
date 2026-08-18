@@ -786,4 +786,93 @@ void main() {
       ).called(1);
     });
   });
+
+  // W13-C / D4-W2: a rig that has never run publishes no progress figure.
+  //
+  // Measured against the release bundle on an EMPTY database dir, one process
+  // answered two questions about the same rig two ways:
+  //   GET /api/sequencer/status    -> {"state":"idle", …, "progress":0.0}
+  //   GET /api/run-watch/snapshot  -> sequencer.progress.progressPercent: null
+  // Every other field on the status payload was null. The web dashboard read
+  // the one figure it was given and asserted "Progress 0%" with
+  // aria-valuenow="0" over a fresh install that had never exposed a frame,
+  // while the phone surface fed by the same process rendered "PROGRESS --".
+  group('SequencerHandlers status progress', () {
+    late ProviderContainer container;
+    late SequencerHandlers handlers;
+    late _MockSequencerBackend backend;
+
+    setUp(() {
+      backend = _MockSequencerBackend();
+      container = createHeadlessTestContainer(
+        overrides: [sequencerBackendProvider.overrideWithValue(backend)],
+      );
+      handlers = SequencerHandlers(container);
+    });
+
+    tearDown(() => container.dispose());
+
+    Future<Map<String, Object?>> status() async {
+      final response = await translateHandlerErrors(
+        handlers.handleSequencerStatus(
+          Request('GET', Uri.parse('http://localhost/api/sequencer/status')),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      return jsonDecode(await response.readAsString()) as Map<String, Object?>;
+    }
+
+    test('a rig that has never run reports no progress', () async {
+      when(() => backend.sequencerGetStatus()).thenAnswer(
+        (_) async => const SequencerStatus(state: 'idle', progress: 0.0),
+      );
+
+      final body = await status();
+
+      // The state IS known — no run is going. Only the figure is withheld.
+      expect(body['state'], 'idle');
+      // The field stays on the wire; it is its VALUE that is absent.
+      expect(body.containsKey('progress'), isTrue);
+      // 0.0 of nothing planned is not a measurement.
+      expect(body['progress'], isNull);
+      expect(body['currentNodeId'], isNull);
+      expect(body['currentNodeName'], isNull);
+      expect(body['currentTarget'], isNull);
+    });
+
+    test('a run that has written progress keeps its real figure', () async {
+      when(() => backend.sequencerGetStatus()).thenAnswer(
+        (_) async => const SequencerStatus(
+          state: 'running',
+          currentNodeId: 'exp_l',
+          currentNodeName: 'Exposure L',
+          progress: 0.42,
+          message: 'Frame 5/12',
+        ),
+      );
+      container
+          .read(sequenceProgressProvider.notifier)
+          .updateProgress(currentTarget: 'M Long Field');
+
+      final body = await status();
+
+      expect(body['progress'], 0.42);
+      expect(body['currentTarget'], 'M Long Field');
+      expect(body['currentNodeName'], 'Exposure L');
+    });
+
+    test('a started run at zero percent still reports zero', () async {
+      when(() => backend.sequencerGetStatus()).thenAnswer(
+        (_) async => const SequencerStatus(state: 'running', progress: 0.0),
+      );
+      container
+          .read(sequenceProgressProvider.notifier)
+          .updateState(SequenceExecutionState.running);
+
+      final body = await status();
+
+      // A run the record knows about has a measurement, and it is zero.
+      expect(body['progress'], 0.0);
+    });
+  });
 }

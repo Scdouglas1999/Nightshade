@@ -8,6 +8,7 @@
 // real: job state transitions, recipe rows and the delivery journal are what the
 // pipeline is judged on.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -1726,6 +1727,267 @@ void main() {
       expect(job!.note, isNot(contains('not delivered')));
     },
   );
+
+  // D3G1-01. Reproduced on the release bundle: one master overwritten mid-pass
+  // with another master's FITS of exactly the same size, its mtime restored
+  // with `touch -r`, was delivered under the original's name with
+  // deliveryProblems [] and withheldFromDelivery null — the drop then held G's
+  // pixels in B's file while the draft beside it had been rendered from B's.
+  // Size and mtime are what a restoring writer puts back; only the bytes
+  // answer.
+  test(
+    'a master SUBSTITUTED after it is drafted — same size, same mtime, '
+    'different bytes — is withheld and the report names the contents',
+    () async {
+      final delivered = <String>[];
+      await DeliveryTargetsDao(db).create(
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: '{"path":"/mnt/office"}',
+        content: ArtifactContent.values.toSet(),
+      );
+      final sessionId = await insertSession();
+      final imageId = await insertSub(sessionId: sessionId);
+      final keptPath = '${workspace.path}/M42_L_master.fits';
+      final swappedPath = '${workspace.path}/M42_R_master.fits';
+      await insertMaster(imageIds: [imageId], filter: 'L', path: keptPath);
+      await insertMaster(imageIds: [imageId], filter: 'R', path: swappedPath);
+      // Every metadata field the old guard read is put back exactly as it was:
+      // the replacement is written to the same length and the original
+      // modification time is restored, which is what `rsync --times`, `cp -p`
+      // and a restic restore all do.
+      final swapped = File(swappedPath);
+      final original = await swapped.readAsBytes();
+      final stolen = Uint8List.fromList(
+        List<int>.generate(original.length, (i) => (original[i] + 7) & 0xff),
+      );
+      // Stamped before the pass opens it and stamped again after the swap, so
+      // both readings see the same modification time no matter what resolution
+      // the filesystem stores. That is what a restoring writer achieves.
+      final stamp = DateTime.fromMillisecondsSinceEpoch(
+        (DateTime.now().millisecondsSinceEpoch ~/ 1000) * 1000,
+      );
+      await swapped.setLastModified(stamp);
+      darkroom.afterExport = (args) async {
+        if (args['masterPath'] != swappedPath) return;
+        await swapped.writeAsBytes(stolen);
+        await swapped.setLastModified(stamp);
+      };
+
+      final outcome = await buildService(
+        transportFactory: (destination, jobId) =>
+            _RecordingTransport(delivered),
+      ).runDawnForSession(sessionId);
+
+      expect(outcome.succeeded, isTrue);
+      // The metadata the old guard compared is genuinely unchanged, so this test
+      // only passes on a guard that reads the bytes.
+      final now = await swapped.stat();
+      expect(now.size, original.length);
+      final substituted = outcome.report!.masters.firstWhere(
+        (m) => m.master.masterFitsPath == swappedPath,
+      );
+      expect(substituted.sourceAtRead!.bytes, now.size);
+      expect(
+        substituted.sourceAtRead!.modified.isAtSameMomentAs(now.modified),
+        isTrue,
+        reason: 'the substitution restored the modification time',
+      );
+
+      // The draft stage is untouched: these pixels WERE read, and the draft it
+      // composed from them is real. Only delivery refuses.
+      expect(substituted.pixelsWereRead, isTrue);
+      expect(substituted.hasDraft, isTrue);
+      expect(substituted.deliverable, isFalse);
+      expect(
+        substituted.withheldFromDelivery,
+        contains('changed after the pass read it'),
+      );
+      expect(
+        substituted.withheldFromDelivery,
+        contains('its contents now hash to'),
+        reason: 'the sentence names what differs — the contents, not the size',
+      );
+      expect(
+        substituted.withheldFromDelivery,
+        contains(substituted.sourceAtRead!.digest),
+      );
+
+      expect(
+        delivered,
+        isNot(contains(swappedPath)),
+        reason: 'bytes nothing in this pass measured are not the night',
+      );
+      expect(delivered, contains(keptPath));
+      expect(
+        outcome.report!.deliveryProblems.join('\n'),
+        contains('changed after the pass read it'),
+      );
+      final journal = await DeliveryJournalDao(db).listForJob(outcome.jobId);
+      expect(journal.map((row) => row.filePath), isNot(contains(swappedPath)));
+    },
+  );
+
+  test('the pass records the SHA-256 of every master it drafts from, and the '
+      'report carries it', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    final path = '${workspace.path}/M42_L_master.fits';
+    await insertMaster(imageIds: [imageId], filter: 'L', path: path);
+
+    final outcome = await buildService().runDawnForSession(sessionId);
+
+    final master = outcome.report!.masters.single;
+    final onDisk = await sha256OfFile(File(path));
+    expect(master.sourceAtRead!.digest, onDisk);
+    final json =
+        jsonDecode(File(outcome.reportPath!).readAsStringSync())
+            as Map<String, dynamic>;
+    final reported =
+        ((json['masters'] as List).single
+                as Map<String, dynamic>)['sourceAtRead']
+            as Map<String, dynamic>;
+    expect(reported['sha256'], onDisk);
+  });
+
+  // D3LC2-F1. Reproduced on the release bundle GUI: navigating away and back
+  // built a fresh Session Review state whose `_darkroomRunning` latch was
+  // false, so "Process now" was offered over a session already being
+  // processed. Two `manual` rows then ran concurrently (59 samples at 200 ms
+  // with two `running` rows) and Stop cancelled only the newer one while the
+  // older ran on to done, delivery included. The guard is the durable row.
+  test('a second pass over a session already being processed is refused, and '
+      'the refusal names the live job', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    final service = buildService();
+
+    // Hold the first pass inside the render so the second press lands while it
+    // is genuinely running, which is the shape the GUI reproduced.
+    final firstIsRendering = Completer<void>();
+    final releaseFirst = Completer<void>();
+    darkroom.beforeRegistry = () async {
+      if (!firstIsRendering.isCompleted) firstIsRendering.complete();
+      await releaseFirst.future;
+    };
+
+    final first = service.processSessionNow(sessionId);
+    await firstIsRendering.future;
+
+    await expectLater(
+      service.processSessionNow(sessionId),
+      throwsA(
+        isA<DarkroomSessionBusyException>()
+            .having((e) => e.sessionId, 'sessionId', sessionId)
+            .having((e) => e.state, 'state', DarkroomJobState.running)
+            .having((e) => e.message, 'message', contains('already running')),
+      ),
+    );
+    // No second row was written: the refusal is before the enqueue.
+    expect(await DarkroomJobsDao(db).listForSession(sessionId), hasLength(1));
+
+    releaseFirst.complete();
+    darkroom.beforeRegistry = null;
+    final outcome = await first;
+    expect(outcome.succeeded, isTrue);
+
+    // Once it has ended the session is free again.
+    final second = await service.processSessionNow(sessionId);
+    expect(second.succeeded, isTrue);
+    expect(await DarkroomJobsDao(db).listForSession(sessionId), hasLength(2));
+  });
+
+  test('two presses that arrive together still produce one pass', () async {
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    final service = buildService();
+
+    // No await between them: the check and the insert are two awaits apart, so
+    // an unserialized guard lets both read an empty queue and enqueue.
+    final results = await Future.wait<Object>([
+      service.processSessionNow(sessionId).then<Object>((o) => o),
+      service
+          .processSessionNow(sessionId)
+          .then<Object>((o) => o, onError: (Object error) => error),
+    ]);
+
+    expect(
+      results.whereType<DarkroomSessionBusyException>(),
+      hasLength(1),
+      reason: 'exactly one of the two presses is refused',
+    );
+    expect(results.whereType<DawnJobOutcome>(), hasLength(1));
+    expect(await DarkroomJobsDao(db).listForSession(sessionId), hasLength(1));
+  });
+
+  test(
+    'a pass still queued for a session refuses the next request too',
+    () async {
+      final sessionId = await insertSession();
+      final jobs = DarkroomJobsDao(db);
+      await jobs.enqueue(
+        sessionId: sessionId,
+        kind: DarkroomJobKind.dawn,
+        note: 'left queued by the crash recovery',
+      );
+
+      await expectLater(
+        buildService().processSessionNow(sessionId),
+        throwsA(
+          isA<DarkroomSessionBusyException>()
+              .having((e) => e.state, 'state', DarkroomJobState.queued)
+              .having((e) => e.message, 'message', contains('already queued')),
+        ),
+      );
+      expect(await jobs.listForSession(sessionId), hasLength(1));
+    },
+  );
+
+  test('a pass over ANOTHER session is not refused', () async {
+    final busySession = await insertSession();
+    final freeSession = await insertSession();
+    final imageId = await insertSub(sessionId: freeSession);
+    await insertMaster(imageIds: [imageId]);
+    await DarkroomJobsDao(db).enqueue(
+      sessionId: busySession,
+      kind: DarkroomJobKind.manual,
+      note: 'holding a different night',
+    );
+
+    final outcome = await buildService().processSessionNow(freeSession);
+
+    expect(outcome.succeeded, isTrue);
+  });
+
+  test('every live pass over a session is reported, oldest first', () async {
+    final sessionId = await insertSession();
+    final jobs = DarkroomJobsDao(db);
+    // The shape a build without the enqueue guard already left on disk: two
+    // live rows over one night. A Stop has to reach both.
+    final older = await jobs.enqueue(
+      sessionId: sessionId,
+      kind: DarkroomJobKind.manual,
+      createdAt: DateTime.now().subtract(const Duration(minutes: 2)),
+    );
+    final newer = await jobs.enqueue(
+      sessionId: sessionId,
+      kind: DarkroomJobKind.manual,
+      createdAt: DateTime.now(),
+    );
+    final done = await jobs.enqueue(
+      sessionId: sessionId,
+      kind: DarkroomJobKind.manual,
+      createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+    );
+    await jobs.markRunning(done);
+    await jobs.markDone(done);
+
+    final live = await buildService().liveJobsForSession(sessionId);
+
+    expect(live.map((j) => j.id), [older, newer]);
+  });
 
   test('a night that rendered no draft never announces "0 drafts"', () async {
     final sessionId = await insertSession();

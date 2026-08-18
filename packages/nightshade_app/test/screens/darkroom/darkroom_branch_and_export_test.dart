@@ -732,6 +732,72 @@ void main() {
     await drain(tester);
   });
 
+  // Escape and a tap on the barrier are how every other modal in this app is
+  // backed out of — the shared `ConfirmDialog`, the export sheet on this very
+  // screen — and these two answered neither, so the only way out of a delete
+  // confirm was to aim at one of its three buttons.
+  testWidgets('Escape backs out of the delete confirm and keeps the branch', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await pump(tester, root);
+
+    await tester.tap(find.text('Delete branch'));
+    await settle(tester);
+    expect(find.text('Delete "Draft"?'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester);
+
+    // The dialog is gone and the key took the SAFE path: Escape is "Keep it",
+    // never the destructive button.
+    expect(find.text('Delete "Draft"?'), findsNothing);
+    expect(await recipes.listForMaster(_masterPath), hasLength(1));
+    // And it was spent on the dialog, not on the screen behind it — the shell
+    // binds Escape to leaving the Darkroom.
+    expect(find.text('Delete branch'), findsOneWidget);
+    await drain(tester);
+  });
+
+  testWidgets('a tap outside the delete confirm keeps the branch', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await pump(tester, root);
+
+    await tester.tap(find.text('Delete branch'));
+    await settle(tester);
+    expect(find.text('Delete "Draft"?'), findsOneWidget);
+
+    // The corner of the window, which is barrier and nothing else — the dialog
+    // is 480 wide and centred.
+    await tester.tapAt(const Offset(12, 12));
+    await settle(tester);
+
+    expect(find.text('Delete "Draft"?'), findsNothing);
+    expect(await recipes.listForMaster(_masterPath), hasLength(1));
+    await drain(tester);
+  });
+
+  testWidgets('Escape backs out of the rename dialog and keeps the label', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await pump(tester, root);
+
+    await tester.tap(find.text('Rename'));
+    await settle(tester);
+    expect(find.text('Rename this branch'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester);
+
+    expect(find.text('Rename this branch'), findsNothing);
+    expect((await recipes.getById(root))!.name, 'Draft');
+    expect(find.text('Rename'), findsOneWidget);
+    await drain(tester);
+  });
+
   testWidgets('the confirm\'s own escalation deletes the whole line', (
     tester,
   ) async {

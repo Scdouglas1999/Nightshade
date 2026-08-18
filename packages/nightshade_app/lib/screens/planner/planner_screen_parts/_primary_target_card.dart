@@ -305,9 +305,19 @@ class _PrimaryTargetCard extends ConsumerWidget {
     );
   }
 
+  /// Hours and minutes, with the minutes CARRIED into the hour.
+  ///
+  /// Flooring the hour and rounding the minutes are independent steps, so from
+  /// 59.5 minutes on the rounding produces a sixtieth minute: 3.99 hours read
+  /// "3h 60m" under a chip reading "~4.0h integration" — one number, one card,
+  /// on a clock nobody owns.
   String _formatUsableHours(double hours) {
-    final h = hours.floor();
-    final m = ((hours - h) * 60).round();
+    var h = hours.floor();
+    var m = ((hours - h) * 60).round();
+    if (m == 60) {
+      h += 1;
+      m = 0;
+    }
     if (h == 0) return '${m}m';
     if (m == 0) return '${h}h';
     return '${h}h ${m}m';

@@ -74,6 +74,11 @@ class ManualDarkroomRun {
   /// got a row.
   final String? failure;
 
+  /// True when the refusal was "one is already live over this session", so the
+  /// surface can go on showing that pass rather than treating the press as an
+  /// error.
+  final bool alreadyRunning;
+
   /// Whether finished runs also draft themselves. Carried so the surface can
   /// say that this draft is a one-off, rather than leaving the operator to
   /// assume the automatic pass they switched off has come back.
@@ -83,6 +88,7 @@ class ManualDarkroomRun {
     required this.outcome,
     required this.failure,
     required this.autoDraftEnabled,
+    this.alreadyRunning = false,
   });
 
   /// The sentence the surface shows when the pass returns.
@@ -510,6 +516,16 @@ class AutoIntegrationService {
                 sessionId,
               );
       return (outcome: outcome, skippedReason: null);
+    } on DarkroomSessionBusyException catch (busy) {
+      // The night already has a pass — an operator's "Process now", or a
+      // re-queued row the crash recovery picked up. A second one would fight it
+      // for the render cache, so this run states which pass has the night
+      // rather than adding one.
+      return (
+        outcome: null,
+        skippedReason:
+            'The masters were integrated without a new draft: ${busy.message}',
+      );
     } catch (error) {
       _ref.read(loggingServiceProvider).error(
         'The Darkroom pass could not be started',
@@ -551,6 +567,26 @@ class AutoIntegrationService {
         failure: null,
         autoDraftEnabled: autoDraft,
       );
+    } on DarkroomSessionBusyException catch (busy) {
+      // Not an error: a pass over this session is already under way, and the
+      // press is a second one. Say which pass holds it rather than reporting
+      // a failure the operator cannot act on.
+      _ref.read(loggingServiceProvider).info(
+        'A second Darkroom pass over this session was refused; one is already '
+        'live',
+        source: 'AutoIntegrationService',
+        fields: {
+          'sessionId': sessionId,
+          'liveJobId': busy.jobId,
+          'liveJobState': busy.state.wire,
+        },
+      );
+      return ManualDarkroomRun(
+        outcome: null,
+        failure: busy.message,
+        autoDraftEnabled: autoDraft,
+        alreadyRunning: true,
+      );
     } catch (error) {
       _ref.read(loggingServiceProvider).error(
         'The requested Darkroom pass could not be started',
@@ -563,6 +599,19 @@ class AutoIntegrationService {
         autoDraftEnabled: autoDraft,
       );
     }
+  }
+
+  /// Whether a Darkroom pass is queued or running over [sessionId] right now.
+  ///
+  /// The durable answer, read from `darkroom_jobs`. Session Review polls it so
+  /// the header offers "Process now" or "Stop" according to what is actually
+  /// live, rather than according to what this instance of the screen happens to
+  /// have started — a screen that was popped and re-pushed knows nothing.
+  Future<bool> isDarkroomPassLiveForSession(int sessionId) async {
+    final live = await _ref
+        .read(dawnAutopilotServiceProvider)
+        .liveJobsForSession(sessionId);
+    return live.isNotEmpty;
   }
 
   /// Whether a finished run drafts itself.
@@ -599,32 +648,38 @@ class AutoIntegrationService {
         .requestCancel(jobId, reason: reason);
   }
 
-  /// Ask whatever Darkroom pass is live over [sessionId] to stop, and report
-  /// which job that was.
+  /// Ask every Darkroom pass live over [sessionId] to stop, and report which
+  /// jobs those were.
   ///
   /// [runDarkroomNow] only hands its job id back when the pass has already
   /// finished, so an operator standing in front of a pass that is minutes into
-  /// rendering has nothing to name. The durable row does: the session's newest
-  /// non-terminal job IS the pass in flight, because the autopilot runs one job
-  /// at a time.
+  /// rendering has nothing to name. The durable rows do.
   ///
-  /// Returns the job asked to stop, or null when the session has no live job —
-  /// the press landed in the gap between the enqueue and the row, or the pass
-  /// finished on its own. The caller states which happened rather than
-  /// reporting a stop that did not occur.
-  Future<int?> cancelDarkroomPassForSession(
+  /// **Every live row, not the newest one.** This used to stop at the first
+  /// non-terminal job it found, which was written when one pass per session was
+  /// assumed rather than enforced. It was not: a re-pushed Session Review
+  /// offered "Process now" over a session that was already being processed, and
+  /// a Stop then cancelled the newer pass while the older one ran on to done,
+  /// delivery included. The enqueue seam now refuses the second pass, and this
+  /// covers the rows a build without that guard already left behind.
+  ///
+  /// Returns the jobs asked to stop, oldest first, or an empty list when the
+  /// session has no live job — the press landed in the gap between the enqueue
+  /// and the row, or the pass finished on its own. The caller states which
+  /// happened rather than reporting a stop that did not occur.
+  Future<List<int>> cancelDarkroomPassForSession(
     int sessionId, {
     String? reason,
   }) async {
-    final jobs =
-        await _ref.read(darkroomJobsDaoProvider).listForSession(sessionId);
-    for (final job in jobs) {
-      final id = job.id;
-      if (id == null || job.isTerminal) continue;
-      await cancelDarkroomJob(id, reason: reason);
-      return id;
+    final live = await _ref
+        .read(dawnAutopilotServiceProvider)
+        .liveJobsForSession(sessionId);
+    final stopped = <int>[];
+    for (final job in live) {
+      await cancelDarkroomJob(job.id!, reason: reason);
+      stopped.add(job.id!);
     }
-    return null;
+    return stopped;
   }
 
   /// Build the run-completion toast covering BOTH paths: subs folded into

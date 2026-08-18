@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -32,10 +34,18 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   String? _lastShownError;
   String? _lastShownShortfall;
 
-  /// True while an operator-requested Darkroom pass is running. The pass spans
-  /// minutes of native rendering, so the control latches rather than letting a
-  /// second press queue a second job over the same masters.
+  /// True while a Darkroom pass this screen started is running. Fast-path
+  /// polish only: it makes the button latch on the press rather than on the
+  /// next poll. What actually decides whether a pass may start is the durable
+  /// `darkroom_jobs` row — [_darkroomLive] here, and the refusal
+  /// `DawnAutopilotService` raises beneath it, which is what a screen that was
+  /// popped and re-pushed still obeys.
   bool _darkroomRunning = false;
+
+  /// True while `darkroom_jobs` holds a queued or running row for this session,
+  /// whoever started it. Polled, because a pass can be started by the dawn
+  /// autopilot or by another surface while this screen is open.
+  bool _darkroomLive = false;
 
   /// True once the operator has asked the running pass to stop. The stop is
   /// cooperative — the engine's flag is polled between tiles and the pipeline
@@ -43,8 +53,63 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   /// disabled rather than pretending the pass is already over.
   bool _stopRequested = false;
 
+  /// Polls the durable job state for this session.
+  Timer? _darkroomPoll;
+
+  /// How often the durable pass state is re-read. A pass runs for minutes, so
+  /// this is about the control being right within a couple of seconds of the
+  /// operator looking at it, not about tracking progress.
+  static const Duration _darkroomPollInterval = Duration(seconds: 2);
+
   SessionReviewController get _controller =>
       ref.read(sessionReviewControllerProvider(widget.scope).notifier);
+
+  @override
+  void initState() {
+    super.initState();
+    final sessionId = widget.scope.sessionId;
+    if (sessionId == null) return;
+    unawaited(_refreshDarkroomLive(sessionId));
+    _darkroomPoll = Timer.periodic(
+      _darkroomPollInterval,
+      (_) => unawaited(_refreshDarkroomLive(sessionId)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _darkroomPoll?.cancel();
+    super.dispose();
+  }
+
+  /// Re-read whether a pass is live over this session.
+  ///
+  /// A read that fails leaves the last known answer standing and says so in the
+  /// log: the enqueue seam refuses a second pass on its own, so a stale button
+  /// costs a refusal toast rather than a second pass.
+  Future<void> _refreshDarkroomLive(int sessionId) async {
+    final bool live;
+    try {
+      live = await ref
+          .read(autoIntegrationServiceProvider)
+          .isDarkroomPassLiveForSession(sessionId);
+    } catch (error) {
+      ref.read(loggingServiceProvider).warning(
+        'The live Darkroom pass state could not be read; the header keeps its '
+        'last answer',
+        source: 'SessionReviewScreen',
+        fields: {'sessionId': sessionId, 'error': '$error'},
+      );
+      return;
+    }
+    if (!mounted || live == _darkroomLive) return;
+    setState(() {
+      _darkroomLive = live;
+      // A pass that has ended clears the stop latch, so the control offers
+      // "Process now" again rather than staying stuck on "Stopping…".
+      if (!live) _stopRequested = false;
+    });
+  }
 
   /// Run the Darkroom pass for this session on request.
   ///
@@ -71,6 +136,18 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
       }
     }
     if (!mounted) return;
+    if (run.alreadyRunning) {
+      // The press landed on a session another pass already holds. Nothing was
+      // started, so nothing was re-read; the header catches up on its next poll
+      // and offers Stop instead.
+      unawaited(_refreshDarkroomLive(sessionId));
+      NightshadeToastHelper.show(
+        context: context,
+        message: run.message,
+        severity: NightshadeAlertSeverity.info,
+      );
+      return;
+    }
     // The masters are re-read because a finished pass has written recipes the
     // library panel's Darkroom buttons now open.
     await _controller.refresh();
@@ -100,9 +177,9 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   Future<void> _stopTonightsPass(int sessionId) async {
     if (_stopRequested) return;
     setState(() => _stopRequested = true);
-    final int? jobId;
+    final List<int> jobIds;
     try {
-      jobId = await ref
+      jobIds = await ref
           .read(autoIntegrationServiceProvider)
           .cancelDarkroomPassForSession(
             sessionId,
@@ -119,7 +196,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
       return;
     }
     if (!mounted) return;
-    if (jobId == null) {
+    if (jobIds.isEmpty) {
       // Nothing was asked to stop, so the control goes back to offering it.
       setState(() => _stopRequested = false);
       NightshadeToastHelper.show(
@@ -132,8 +209,12 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
     }
     NightshadeToastHelper.show(
       context: context,
-      message: 'Stopping the Darkroom pass. A master already being rendered '
-          'finishes that render first; nothing after it is started.',
+      message: jobIds.length == 1
+          ? 'Stopping the Darkroom pass. A master already being rendered '
+              'finishes that render first; nothing after it is started.'
+          : 'Stopping all ${jobIds.length} Darkroom passes over this session. '
+              'A master already being rendered finishes that render first; '
+              'nothing after it is started.',
       severity: NightshadeAlertSeverity.warning,
     );
   }
@@ -230,6 +311,9 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
     final isNarrative = state.viewMode == SessionReviewViewMode.narrative;
     final progress = state.progress;
     final sessionId = widget.scope.sessionId;
+    // The durable row is the authority; the local latch only closes the gap
+    // between the press and the first poll that sees the row it created.
+    final passIsLive = _darkroomLive || _darkroomRunning;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -254,11 +338,14 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                   // returns before this — so the pass only ever runs on the
                   // machine that owns the masters it reads.
                   Tooltip(
-                    message: sessionId != null
-                        ? 'Draft tonight\'s masters in the Darkroom now, '
-                            'without waiting for dawn'
-                        : 'This review spans a target rather than one night. '
-                            'Open a single session to process it.',
+                    message: sessionId == null
+                        ? 'This review spans a target rather than one night. '
+                            'Open a single session to process it.'
+                        : passIsLive
+                            ? 'A Darkroom pass over this night is already '
+                                'under way. Stop it before starting another.'
+                            : 'Draft tonight\'s masters in the Darkroom now, '
+                                'without waiting for dawn',
                     child: NightshadeButton(
                       key: const ValueKey('session_review_process_now'),
                       label: 'Process now',
@@ -266,7 +353,10 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                       variant: ButtonVariant.outline,
                       size: ButtonSize.small,
                       isLoading: _darkroomRunning,
-                      onPressed: (sessionId == null || _darkroomRunning)
+                      // Disabled on the DURABLE answer, so a screen that was
+                      // popped and re-pushed over a session already being
+                      // processed does not offer to process it again.
+                      onPressed: (sessionId == null || passIsLive)
                           ? null
                           : () => _processTonightNow(sessionId),
                     ),
@@ -274,7 +364,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                   // The way out of a pass that is already under way. Present
                   // only while one is: a Stop that is always on the header
                   // would be a control with nothing to stop.
-                  if (_darkroomRunning && sessionId != null)
+                  if (passIsLive && sessionId != null)
                     Tooltip(
                       message: 'Stop the Darkroom pass. The master being '
                           'rendered finishes; nothing after it starts.',

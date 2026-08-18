@@ -1202,6 +1202,7 @@
       clearInterval(state.staleCheckInterval);
       state.staleCheckInterval = null;
     }
+    cancelSequencerRefresh();
   }
 
   // =========================================================================
@@ -1564,6 +1565,42 @@
     state.panelLastFailure[panelKey] = Date.now();
   }
 
+  /// True when a request never reached the rig's state at all because this
+  /// session is over its request budget — the client declining to send inside
+  /// a known retry window, or the server answering 429.
+  function isCadenceRefusal(e) {
+    return Boolean(e) && e.kind === 'rate_limited';
+  }
+
+  /// How a BACKGROUND refresh reports its own failure.
+  ///
+  /// A cadence refusal is not a failure of the panel's data source. The
+  /// request never got as far as asking, so nothing the panel shows became
+  /// wrong — it is exactly as old as its last successful read, and the next
+  /// refresh in the cadence carries the update. Treating one as a panel
+  /// failure was what blanked live panels to UNKNOWN mid-run and, through
+  /// isPanelDataStale(), re-armed checkStaleness()'s failing-panel retry into
+  /// a second fan-out against the same exhausted budget.
+  ///
+  /// It is not an operator-facing error either: 274 red ERROR lines in one
+  /// 75 s run told the operator nothing they could act on and buried the
+  /// events that could. The throttle itself is still stated — once, on the
+  /// link banner ("Server is rate-limiting this session — polling paused for
+  /// Ns."), repainted by the data clock for as long as it lasts — so this is
+  /// a duplicate, dropped to the developer channel.
+  ///
+  /// A refusal on something the OPERATOR pressed is a different fact: that
+  /// request was asked for and did not happen. Those paths keep their toast
+  /// and their log line and do not come through here.
+  function reportRefreshFailure(panelKey, e, what) {
+    if (isCadenceRefusal(e)) {
+      console.debug('[nightshade] ' + describeApiError(e, what));
+      return;
+    }
+    if (panelKey) markPanelUnconfirmed(panelKey);
+    addLogEntry('error', describeApiError(e, what));
+  }
+
   // =========================================================================
   // Data fetching
   // =========================================================================
@@ -1709,9 +1746,57 @@
       maybeLoadFilterWheelPositions();
     } catch (e) {
       // Recorded, not only logged: the panel's stale line is drawn from this.
-      markPanelUnconfirmed('devices');
-      addLogEntry('error', describeApiError(e, 'Devices fetch'));
+      reportRefreshFailure('devices', e, 'Devices fetch');
     }
+  }
+
+  // =========================================================================
+  // The sequencer refresh, coalesced
+  //
+  // A sequencer event says "something moved"; it does not carry the panel's
+  // full state, so three GETs — status, checkpoints, analytics — go out to
+  // fetch it. Firing that trio once per event was the whole storm: the
+  // executor emits Progress/InstructionProgress several times a second, and a
+  // measured 75 s sim run put 274 red ERROR lines in the operator's Event Log,
+  // every one of them this page's own request coming back 429 (147 refusals
+  // across five routes server-side in a 45 s run). The refusals then marked
+  // four panels stale, which re-armed the failing-panel retry in
+  // checkStaleness() and asked for everything again.
+  //
+  // So the burst is COALESCED. The first event of a quiet period refreshes
+  // immediately; every event that lands while a refresh is already scheduled
+  // folds into it; and two refreshes are never closer together than
+  // SEQUENCER_REFRESH_MIN_INTERVAL_MS. The trailing refresh always runs, so
+  // the panels end a burst on the LAST event's state, not the first.
+  //
+  // The interval is the cadence the server's own budget is sized for: the
+  // per-token read bucket (route_metadata/rate_limiting.dart) allows 60 GETs
+  // a second precisely so "a phone dashboard [can] poll status, devices,
+  // sequencer state, etc. at ~1 Hz across a dozen endpoints". Three GETs per
+  // second is that, with room to spare for every other panel on the page.
+  const SEQUENCER_REFRESH_MIN_INTERVAL_MS = 1000;
+  let sequencerRefreshTimer = null;
+  let sequencerRefreshLastAt = 0;
+
+  function scheduleSequencerRefresh() {
+    if (sequencerRefreshTimer !== null) return;
+    const sinceLast = Date.now() - sequencerRefreshLastAt;
+    const wait = Math.max(0, SEQUENCER_REFRESH_MIN_INTERVAL_MS - sinceLast);
+    sequencerRefreshTimer = setTimeout(runSequencerRefresh, wait);
+  }
+
+  function runSequencerRefresh() {
+    sequencerRefreshTimer = null;
+    sequencerRefreshLastAt = Date.now();
+    fetchSequencerStatus();
+    fetchOpsCheckpoints();
+    fetchOpsAnalyticsSummary();
+  }
+
+  function cancelSequencerRefresh() {
+    if (sequencerRefreshTimer === null) return;
+    clearTimeout(sequencerRefreshTimer);
+    sequencerRefreshTimer = null;
   }
 
   async function fetchSequencerStatus() {
@@ -1730,8 +1815,7 @@
       }
       renderSequencerPanel();
     } catch (e) {
-      markPanelUnconfirmed('sequencer');
-      addLogEntry('error', describeApiError(e, 'Sequencer fetch'));
+      reportRefreshFailure('sequencer', e, 'Sequencer fetch');
     }
   }
 
@@ -1742,8 +1826,7 @@
       renderGuidingPanel();
       markPanelFresh('guiding');
     } catch (e) {
-      markPanelUnconfirmed('guiding');
-      addLogEntry('error', describeApiError(e, 'Guiding fetch'));
+      reportRefreshFailure('guiding', e, 'Guiding fetch');
     }
   }
 
@@ -1755,8 +1838,7 @@
       renderMountPanel();
       markPanelFresh('mount');
     } catch (e) {
-      markPanelUnconfirmed('mount');
-      addLogEntry('error', describeApiError(e, 'Mount status fetch'));
+      reportRefreshFailure('mount', e, 'Mount status fetch');
     }
   }
 
@@ -1772,8 +1854,7 @@
       syncCameraInputsFromStatus(status);
       markPanelFresh('camera');
     } catch (e) {
-      markPanelUnconfirmed('camera');
-      addLogEntry('error', describeApiError(e, 'Camera status fetch'));
+      reportRefreshFailure('camera', e, 'Camera status fetch');
     }
   }
 
@@ -1785,8 +1866,7 @@
       renderFocuserPanel();
       markPanelFresh('focuser');
     } catch (e) {
-      markPanelUnconfirmed('focuser');
-      addLogEntry('error', describeApiError(e, 'Focuser status fetch'));
+      reportRefreshFailure('focuser', e, 'Focuser status fetch');
     }
   }
 
@@ -1802,8 +1882,7 @@
       renderFilterWheelPanel();
       markPanelFresh('filter-wheel');
     } catch (e) {
-      markPanelUnconfirmed('filter-wheel');
-      addLogEntry('error', describeApiError(e, 'Filter wheel status fetch'));
+      reportRefreshFailure('filter-wheel', e, 'Filter wheel status fetch');
     }
   }
 
@@ -1815,8 +1894,7 @@
       renderRotatorPanel();
       markPanelFresh('rotator');
     } catch (e) {
-      markPanelUnconfirmed('rotator');
-      addLogEntry('error', describeApiError(e, 'Rotator status fetch'));
+      reportRefreshFailure('rotator', e, 'Rotator status fetch');
     }
   }
 
@@ -1907,11 +1985,10 @@
     } else if (category === 'rotator') {
       fetchRotatorStatusIfConnected();
     } else if (category === 'sequencer') {
-      fetchSequencerStatus();
-      // Checkpoint state and analytics change in lock step with sequencer
-      // events. Both are cheap GETs, so refreshing on every event is fine.
-      fetchOpsCheckpoints();
-      fetchOpsAnalyticsSummary();
+      // Checkpoint state and analytics change in lock step with the sequencer,
+      // so all three refresh together — but COALESCED, never once per event.
+      // See scheduleSequencerRefresh().
+      scheduleSequencerRefresh();
     } else if (category === 'dome') {
       fetchOpsDomeStatusIfConnected();
     } else if (category === 'safety' || category === 'safetyMonitor'
@@ -3649,9 +3726,18 @@
   // extrapolation) wants percent, so convert at the single point where the
   // fraction enters the render path. Without this a finished run rendered
   // "1%" with an empty bar. `/run-watch` already scales its own feed by 100.
+  //
+  // A wire that carries no number gets null, not 0. `/api/sequencer/status`
+  // withholds `progress` on a rig that has never run — the same nulls
+  // `/api/run-watch/snapshot` has always published there — and `Number(null)`
+  // is 0, so the panels asserted "Progress 0%" with aria-valuenow="0" about a
+  // fresh install that had never exposed a frame, beside a Current Node and a
+  // Current target that both honestly read "--". Null is the absence of a
+  // measurement and the renderers paint it with markProgressUnknown().
   function sequencerProgressPercent(raw) {
+    if (raw == null || raw === '') return null;
     const n = Number(raw);
-    if (!Number.isFinite(n)) return 0;
+    if (!Number.isFinite(n)) return null;
     return Math.min(100, Math.max(0, n * 100));
   }
 
@@ -3747,6 +3833,15 @@
     if (messageEl) messageEl.textContent = s.message || '';
 
     const progress = sequencerProgressPercent(s.progress);
+    if (progress == null) {
+      // The reply named a state but withheld the figure. That is what a rig
+      // which has never run answers, and "--" is what the rest of this panel
+      // already says about it.
+      markProgressUnknown('seq-progress-bar', 'seq-progress-bar-container',
+        'seq-progress-text');
+      renderOpsSequencerLoadPanel();
+      return;
+    }
     markProgressKnown('seq-progress-bar', 'seq-progress-bar-container');
     if (progressBar) {
       progressBar.style.width = progress + '%';
@@ -4254,8 +4349,7 @@
       markPanelFresh('sequences');
       renderOpsSequencesDropdown();
     } catch (e) {
-      markPanelUnconfirmed('sequences');
-      addLogEntry('error', describeApiError(e, 'Sequence list fetch'));
+      reportRefreshFailure('sequences', e, 'Sequence list fetch');
     }
   }
 
@@ -4368,6 +4462,18 @@
     if (nodeEl) nodeEl.textContent = s.currentNodeName || '--';
 
     const progress = sequencerProgressPercent(s.progress);
+    if (progress == null) {
+      // Same rule as the Run panel: a state with no figure behind it renders
+      // "--", and an ETA extrapolated from a percentage nobody sent would be
+      // an invention on top of an invention.
+      markProgressUnknown(
+        'ops-seq-progress-bar',
+        'ops-seq-progress-bar-container',
+        'ops-seq-progress-text',
+      );
+      if (etaEl) etaEl.textContent = '--';
+      return;
+    }
     markProgressKnown('ops-seq-progress-bar', 'ops-seq-progress-bar-container');
     if (progressBar) {
       progressBar.style.width = progress + '%';
@@ -4552,8 +4658,7 @@
       // Recorded, not only logged: this panel's verdict is the one an
       // operator acts on, so a refusal has to reach the stale line and
       // silence the verdict — not just print into the event log.
-      markPanelUnconfirmed('weather');
-      addLogEntry('error', describeApiError(e, 'Weather/safety fetch'));
+      reportRefreshFailure('weather', e, 'Weather/safety fetch');
       renderOpsWeatherPanel();
     }
   }
@@ -4761,8 +4866,7 @@
       markPanelFresh('dome');
       renderOpsDomePanel();
     } catch (e) {
-      markPanelUnconfirmed('dome');
-      addLogEntry('error', describeApiError(e, 'Dome status fetch'));
+      reportRefreshFailure('dome', e, 'Dome status fetch');
       renderOpsDomePanel();
     }
   }
@@ -4945,7 +5049,7 @@
         result, 'checkpoints', 'Checkpoint list');
       renderOpsCheckpointPanel();
     } catch (e) {
-      addLogEntry('error', describeApiError(e, 'Checkpoint fetch'));
+      reportRefreshFailure(null, e, 'Checkpoint fetch');
     }
   }
 
@@ -5135,8 +5239,7 @@
       renderOpsAnalyticsPanel();
       renderOpsSequencerLoadPanel();
     } catch (e) {
-      markPanelUnconfirmed('analytics');
-      addLogEntry('error', describeApiError(e, 'Analytics fetch'));
+      reportRefreshFailure('analytics', e, 'Analytics fetch');
     }
   }
 
@@ -6739,12 +6842,7 @@
         ? 'items' : 'images';
       gallery.items = requireWireList(resp, named, 'Image listing');
       renderGallery();
-      if (status) {
-        status.textContent = gallery.items.length === 0
-          ? 'No images captured yet.'
-          : gallery.items.length + ' image' +
-            (gallery.items.length === 1 ? '' : 's') + ' shown.';
-      }
+      if (status) status.textContent = galleryCountLine(gallery.items);
       gallery.freshSinceLastView = 0;
       const badge = document.getElementById('gallery-fresh-badge');
       if (badge) badge.classList.add('hidden-inline');
@@ -6758,6 +6856,38 @@
     } finally {
       gallery.loading = false;
     }
+  }
+
+  // The grader's verdict on one frame, or null when the listing carried none.
+  //
+  // `/api/images` answers `isAccepted` + `rejectionReason` on every row, and
+  // the gallery threw both away: a sub the grader had thrown out for "star
+  // count 43 below minimum 100000 (likely cloud / off-target)" rendered
+  // pixel-identical to a keeper — same markup, same aria-label, nothing in the
+  // preview modal either. Measured against one harness night, 26 of the 38
+  // tiles on screen were rejects and the panel called them all "38 images
+  // shown."
+  //
+  // Absent is distinct from accepted: an older server, or a frame graded
+  // before the column existed, says nothing about the verdict, and the card
+  // must not invent one in either direction.
+  function galleryRejection(item) {
+    if (!item || item.isAccepted !== false) return null;
+    const reason = typeof item.rejectionReason === 'string'
+      ? item.rejectionReason.trim() : '';
+    return { reason: reason };
+  }
+
+  /// The count line under the grid, which states the grader's tally as well as
+  /// the total: a night whose frames were mostly thrown out must not read the
+  /// same as a night that kept them all.
+  function galleryCountLine(items) {
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) return 'No images captured yet.';
+    const shown = list.length + ' image' + (list.length === 1 ? '' : 's');
+    const rejected = list.filter((i) => galleryRejection(i)).length;
+    if (rejected === 0) return shown + ' shown.';
+    return shown + ' — ' + rejected + ' rejected.';
   }
 
   function renderGallery() {
@@ -6775,7 +6905,12 @@
       card.className = 'gallery-card';
       card.setAttribute('role', 'listitem');
       const meta = formatGalleryMeta(item);
-      card.setAttribute('aria-label', meta);
+      const rejection = galleryRejection(item);
+      // The verdict rides the accessible name too: a screen reader gets the
+      // same fact the badge shows, in the same breath as the frame's identity.
+      card.setAttribute('aria-label',
+        rejection ? meta + ' — rejected by the grader' : meta);
+      if (rejection) card.classList.add('gallery-card-rejected');
       const id = String(item.id ?? item.imageId ?? '');
       if (id) {
         const img = document.createElement('img');
@@ -6790,6 +6925,24 @@
       label.className = 'gallery-caption';
       label.textContent = meta;
       card.appendChild(label);
+      if (rejection) {
+        const verdict = document.createElement('div');
+        verdict.className = 'gallery-caption';
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-error';
+        badge.textContent = 'Rejected';
+        verdict.appendChild(badge);
+        // The reason as the grader wrote it. A rejection with no reason on the
+        // wire keeps the badge and says no more — the badge is the part that
+        // was actually asserted.
+        if (rejection.reason) {
+          const why = document.createElement('span');
+          why.className = 'gallery-reject-reason';
+          why.textContent = ' ' + rejection.reason;
+          verdict.appendChild(why);
+        }
+        card.appendChild(verdict);
+      }
       card.addEventListener('click', () => openGalleryModal(item));
       grid.appendChild(card);
     }
@@ -6861,13 +7014,29 @@
     return parts.length ? parts.join(' · ') : ('Image #' + (item.id ?? ''));
   }
 
+  /// The preview header: the frame's identity, plus the grader's verdict when
+  /// there is one. Accepted frames read exactly as they did.
+  function galleryModalMeta(item) {
+    const meta = formatGalleryMeta(item);
+    const rejection = galleryRejection(item);
+    if (!rejection) return meta;
+    return rejection.reason
+      ? meta + ' — REJECTED: ' + rejection.reason
+      : meta + ' — REJECTED';
+  }
+
   async function openGalleryModal(item) {
     const modal = document.getElementById('gallery-modal');
     if (!modal) return;
     const id = String(item.id ?? item.imageId ?? '');
     if (!id) return;
     const meta = document.getElementById('gallery-modal-meta');
-    if (meta) meta.textContent = formatGalleryMeta(item);
+    // The verdict travels with the frame into the preview. Opening a reject
+    // full-size used to show the same header line as a keeper — "L · 8/18/2026,
+    // 7:51:35 AM / Download original / Close" — so the one place an operator
+    // goes to judge a frame was the one place the grader's judgement was
+    // missing.
+    if (meta) meta.textContent = galleryModalMeta(item);
     const generation = ++gallery.modalLoadGeneration;
     if (gallery.modalPreviewUrl) {
       URL.revokeObjectURL(gallery.modalPreviewUrl);
@@ -6875,7 +7044,7 @@
     }
     const img = document.getElementById('gallery-modal-image');
     if (img) {
-      img.alt = 'Preview of ' + formatGalleryMeta(item);
+      img.alt = 'Preview of ' + galleryModalMeta(item);
       img.style.display = '';
       img.removeAttribute('src');
     }

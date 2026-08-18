@@ -437,12 +437,19 @@ class ImagingHistorySection extends ConsumerWidget {
     final totalHours = history.totalIntegrationSecs / 3600.0;
     final totalMinutes = (history.totalIntegrationSecs / 60.0).round();
 
-    // Format total integration nicely.
+    // Format total integration nicely. Rounded minutes can reach 60, and
+    // without the carry 3.99h printed "3h 60m".
     String integrationStr;
     if (totalHours >= 1.0) {
-      final h = totalHours.floor();
-      final m = ((totalHours - h) * 60).round();
-      integrationStr = '${h}h ${m}m';
+      var h = totalHours.floor();
+      var m = ((totalHours - h) * 60).round();
+      if (m == 60) {
+        h += 1;
+        m = 0;
+      }
+      integrationStr = m == 0 ? '${h}h' : '${h}h ${m}m';
+    } else if (totalMinutes == 60) {
+      integrationStr = '1h';
     } else {
       integrationStr = '${totalMinutes}m';
     }

@@ -824,7 +824,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // own slider semantics use.
       final step =
           divisions != null && divisions > 0 ? span / divisions : span / 10;
-      final reading = _formatNumber(clamped, isInteger);
+      final reading = _darkroomNumberReading(clamped, isInteger: isInteger);
       return Row(
         children: [
           Expanded(
@@ -852,13 +852,13 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               child: Semantics(
                 label: '${_rangeLabel(spec)} — $reading',
                 value: reading,
-                increasedValue: _formatNumber(
+                increasedValue: _darkroomNumberReading(
                   (clamped + step).clamp(min, max),
-                  isInteger,
+                  isInteger: isInteger,
                 ),
-                decreasedValue: _formatNumber(
+                decreasedValue: _darkroomNumberReading(
                   (clamped - step).clamp(min, max),
-                  isInteger,
+                  isInteger: isInteger,
                 ),
                 child: NightshadeSlider(
                   value: clamped,
@@ -1042,28 +1042,65 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     final min = spec.min;
     final max = spec.max;
     if (min == null || max == null) return '';
-    return 'accepts ${_formatNumber(min, false)} … '
-        '${_formatNumber(max, false)}';
+    if (min.abs() >= _kDarkroomGuardMagnitude &&
+        max.abs() >= _kDarkroomGuardMagnitude) {
+      if (min == -max) {
+        return 'no practical limit; the engine refuses past '
+            '±${_darkroomNumberReading(max)}';
+      }
+      return 'no practical limit; the engine refuses below '
+          '${_darkroomNumberReading(min)} or above '
+          '${_darkroomNumberReading(max)}';
+    }
+    return 'accepts ${_darkroomNumberReading(min)} … '
+        '${_darkroomNumberReading(max)}';
   }
+}
 
-  static String _formatNumber(double value, bool isInteger) {
-    if (isInteger) return value.round().toString();
-    if (value == value.roundToDouble() && value.abs() < 1e6) {
-      return value.toStringAsFixed(0);
-    }
-    if (value.abs() >= 1e6 || (value != 0 && value.abs() < 1e-3)) {
-      return value.toStringAsExponential(2);
-    }
-    return value.toStringAsFixed(3);
+/// Magnitude past which a stated bound is a guard rather than a range.
+///
+/// The stretch's black and white points are bounded at ±1e12 ADU, which is the
+/// engine's limit on a nonsense number rather than a range any master's data
+/// occupies: a 16-bit sensor's full scale is 65 535 ADU, so even summing ten
+/// thousand of them stays under a billion. Printed bare, "accepts -1.00e+12 …
+/// 1.00e+12" beside a measured black point of 529.751 reads as the range the
+/// operator is choosing within.
+const double _kDarkroomGuardMagnitude = 1e9;
+
+/// How a number is READ OUT on this panel: three decimals for the values these
+/// parameters actually take, exponent form only where a fixed-point reading
+/// would be a wall of zeros.
+///
+/// One function for every reading the panel prints — slider readouts, the
+/// bounds captions, and the numeric fields' resting text — so a value shown in
+/// two places is shown the same way in both.
+String _darkroomNumberReading(double value, {bool isInteger = false}) {
+  if (isInteger) return value.round().toString();
+  if (value == value.roundToDouble() && value.abs() < 1e6) {
+    return value.toStringAsFixed(0);
   }
+  if (value.abs() >= 1e6 || (value != 0 && value.abs() < 1e-3)) {
+    return value.toStringAsExponential(2);
+  }
+  return value.toStringAsFixed(3);
 }
 
 /// A numeric field that follows the value it is given without fighting the
 /// operator's cursor.
 ///
-/// The controller is seeded once and re-seeded only when the incoming value
-/// differs from what the text already parses to — so an undo or a "use default"
-/// updates the box, and typing into it does not.
+/// The controller is seeded once and re-seeded only when the box is not already
+/// showing the incoming value — so an undo or a "use default" updates it, and
+/// typing into it does not.
+///
+/// At rest the box READS the value the way every slider readout on the same
+/// card does; focused, it shows the stored double in full. The box is both a
+/// readout and an editor and the two jobs want different text: the autopilot's
+/// measured black point is 529.7506799121094, and all seventeen digits echoed
+/// into a 116-pixel box beside sliders that read to three decimals is noise,
+/// while rounding what an EDIT starts from hands the recipe a number the
+/// operator never chose. Switching form writes nothing: [onChanged] is the text
+/// field's own, which fires on the operator's keystrokes and never on a
+/// controller this widget seeds.
 ///
 /// The words above the box and the name the box publishes are separate, because
 /// they are read in different places. On screen the field sits under a title
@@ -1109,18 +1146,43 @@ class _DarkroomNumberFieldState extends State<_DarkroomNumberField> {
 
   bool _unparseable = false;
 
+  /// Swap the reading for the stored value, and back, as focus moves.
+  ///
+  /// Only while the box is still showing what it was given: text the operator
+  /// has typed is theirs, and reformatting it under them — or reverting an
+  /// unfinished entry the field is already refusing — would be this widget
+  /// editing on their behalf.
   void _onFocusChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final value = widget.value;
+    if (value != null && _showsValue(value)) {
+      final text = _text(value);
+      if (_controller.text != text) {
+        _controller.value = TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+      }
+    }
+    setState(() {});
   }
 
   @override
   void didUpdateWidget(covariant _DarkroomNumberField oldWidget) {
     super.didUpdateWidget(oldWidget);
     final incoming = widget.value;
-    final typed = double.tryParse(_controller.text.trim());
-    if (incoming != typed) {
+    if (!_showsValue(incoming)) {
       _controller.text = incoming == null ? '' : _text(incoming);
     }
+  }
+
+  /// Whether the box is showing [value] rather than something the operator has
+  /// typed: either of the two forms it is drawn in, or any text that parses to
+  /// it — which is what leaves a half-typed "529." alone.
+  bool _showsValue(double? value) {
+    final text = _controller.text.trim();
+    if (double.tryParse(text) == value) return true;
+    return value != null && text == _darkroomNumberReading(value);
   }
 
   @override
@@ -1132,7 +1194,15 @@ class _DarkroomNumberFieldState extends State<_DarkroomNumberField> {
     super.dispose();
   }
 
-  static String _text(double value) {
+  /// What the box shows for [value]: the stored double in full while the field
+  /// is being edited, the panel's reading of it while it is not.
+  String _text(double value) =>
+      _focus.hasFocus ? _exact(value) : _darkroomNumberReading(value);
+
+  /// Every digit the recipe holds. `toString` is what round-trips a double, so
+  /// what the operator sees is what the row carries; whole values lose the
+  /// trailing `.0` no astronomer types.
+  static String _exact(double value) {
     if (value == value.roundToDouble() && value.abs() < 1e15) {
       return value.toStringAsFixed(0);
     }
