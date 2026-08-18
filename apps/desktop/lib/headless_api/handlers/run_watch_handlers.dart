@@ -302,20 +302,54 @@ class RunWatchHandlers {
     return value;
   }
 
-  Map<String, Object?> _progressToJson(SequenceProgress p) => {
-    'state': p.state.name,
-    'currentNodeId': p.currentNodeId,
-    'currentNodeName': p.currentNodeName,
-    'currentTarget': p.currentTarget,
-    'currentFilter': p.currentFilter,
-    'totalExposures': p.totalExposures,
-    'completedExposures': p.completedExposures,
-    'totalIntegrationSecs': _knownIntegrationDenominator(p),
-    'completedIntegrationSecs': p.completedIntegrationSecs,
-    'elapsedSecs': p.elapsedSecs,
-    'estimatedRemainingSecs': p.estimatedRemainingSecs,
-    'message': p.message,
-    'progressPercent': p.progressPercent,
+  Map<String, Object?> _progressToJson(SequenceProgress p) {
+    if (p == const SequenceProgress()) return _neverRanProgressJson();
+    return {
+      'state': p.state.name,
+      'currentNodeId': p.currentNodeId,
+      'currentNodeName': p.currentNodeName,
+      'currentTarget': p.currentTarget,
+      'currentFilter': p.currentFilter,
+      'totalExposures': p.totalExposures,
+      'completedExposures': p.completedExposures,
+      'totalIntegrationSecs': _knownIntegrationDenominator(p),
+      'completedIntegrationSecs': p.completedIntegrationSecs,
+      'elapsedSecs': p.elapsedSecs,
+      'estimatedRemainingSecs': p.estimatedRemainingSecs,
+      'message': p.message,
+      'progressPercent': p.progressPercent,
+    };
+  }
+
+  /// Progress block for a rig where NO run has ever written progress — a fresh
+  /// install, or a host restarted since its last night.
+  ///
+  /// [SequenceProgress] starts every counter at zero, so publishing it verbatim
+  /// made a rig that has never exposed a frame assert "0% / 0 of 0 / 0s of 0s"
+  /// while every neighbouring block on the same page — target, last frame,
+  /// guiding, filter — correctly rendered `--`. Zero frames of zero planned is
+  /// not a measurement, it is the absence of one, so this says so with the
+  /// nulls [_unavailableProgressJson] already uses and the client already
+  /// renders as `--`.
+  ///
+  /// The state stays `idle` because that part IS known: no run is going. Only
+  /// the figures are withheld. A rig that HAS run keeps its last run's real
+  /// figures — the record equals the constructed default only until the first
+  /// write lands on it.
+  Map<String, Object?> _neverRanProgressJson() => {
+    'state': const SequenceProgress().state.name,
+    'currentNodeId': null,
+    'currentNodeName': null,
+    'currentTarget': null,
+    'currentFilter': null,
+    'totalExposures': null,
+    'completedExposures': null,
+    'totalIntegrationSecs': null,
+    'completedIntegrationSecs': null,
+    'elapsedSecs': null,
+    'estimatedRemainingSecs': null,
+    'message': null,
+    'progressPercent': null,
   };
 
   /// The planned integration total, or null when this run has none to report.

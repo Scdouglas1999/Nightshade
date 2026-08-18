@@ -47,6 +47,10 @@ const String kSequenceStoppedByRequestMessage = 'Stopped by request';
 /// unattended stop must never claim a human asked for it.
 const String kSequenceStoppedByAutopilotMessage = 'Stopped by autopilot';
 
+/// The cause-neutral terminal line: the run ended and nothing on the wire names
+/// who ended it. Says THAT, claims no WHO.
+const String kSequenceStoppedMessage = 'Stopped';
+
 /// Log tag stamped by every producer that reclassifies a stop. Each call site
 /// logs `[$kStopClassificationLogTag] <site>` when it reclassifies, so the run
 /// log says WHICH producer acted.
@@ -72,6 +76,8 @@ bool isSequenceCancelledNotice(String message) {
 //   system_event        / "Autopilot: stop"                     -> the scheduler
 //   system_event        / "System: stop" + details.origin        -> a subsystem
 //                          (`rollback`, `disk-watchdog`, …)
+//   trigger_fired       / "Trigger X fired → ParkAndAbort"       -> the trigger
+//                          monitor, which is a subsystem too
 //
 // The vocabulary is read HERE, once, so the surfaces that consume it (the Run
 // Dashboard's stop row on bridge-typed events, the notification router on
@@ -82,6 +88,23 @@ const String kManualInterventionDecisionCategory = 'manual_intervention';
 
 /// Decision-row category for the executor's system-event rows.
 const String kSystemEventDecisionCategory = 'system_event';
+
+/// Decision-row category for the trigger monitor's fired-trigger rows.
+const String kTriggerFiredDecisionCategory = 'trigger_fired';
+
+/// The one fired-trigger action that ENDS the run, spelled as the trigger
+/// monitor puts it on the wire (`format!("{:?}", action)` in
+/// `native/nightshade_native/sequencer/src/executor/start/trigger_monitor.rs`).
+///
+/// Every other action leaves the run going — `Pause`, `NextTarget`, `Dither`,
+/// `Recenter`, `Continue` — so a fire carrying one of those is NOT evidence of
+/// who ended a cancellation that arrives later: reading it as the cause would
+/// blame the dither trigger for the operator's Stop ten minutes on. The
+/// autofocus- and flip-failure aborts do end a run, but their fired-trigger row
+/// still names the action that was ATTEMPTED (`Autofocus`, `MeridianFlip(..)`),
+/// so the wire does not say they ended it and this stays silent rather than
+/// guessing.
+const String kParkAndAbortTriggerAction = 'ParkAndAbort';
 
 /// Summary PREFIX of the operator's stop decision. A prefix, not an equality:
 /// both `Operator: stop` and `Operator: stop requested` occur on the wire.
@@ -111,10 +134,27 @@ class SequenceStopDecision {
   final SequenceStopAuthor author;
 
   /// For [SequenceStopAuthor.system]: the caller the stop API was given
-  /// (`rollback`, `disk-watchdog`, …). Null for the other authors.
+  /// (`rollback`, `disk-watchdog`, a trigger id). Null for the other authors.
   final String? origin;
 
-  const SequenceStopDecision(this.author, {this.origin});
+  /// The operator-facing name of [origin] when the wire carried one beside the
+  /// id — a trigger row ships `trigger_id: dawn_approaching` AND
+  /// `trigger_name: Dawn Approaching`, and the operator knows the second.
+  /// Null when only the id is on the wire, and [sequenceStopOriginLabel] then
+  /// does the naming.
+  final String? originLabel;
+
+  /// True when the stop also PARKED the mount. The operator's next move
+  /// differs for a parked rig, so the terminal line says so instead of only
+  /// "stopped".
+  final bool parked;
+
+  const SequenceStopDecision(
+    this.author, {
+    this.origin,
+    this.originLabel,
+    this.parked = false,
+  });
 }
 
 /// Read a `DecisionLogged` row as stop authorship, or `null` when the row is
@@ -129,6 +169,14 @@ SequenceStopDecision? sequenceStopDecision({
       summary.startsWith(kOperatorStopSummaryPrefix)) {
     return const SequenceStopDecision(SequenceStopAuthor.operatorPress);
   }
+  if (category == kTriggerFiredDecisionCategory) {
+    final details = _decodeDetails(detailsJson);
+    return sequenceStopTriggerDecision(
+      triggerId: details['trigger_id'] as String?,
+      triggerName: details['trigger_name'] as String?,
+      action: details['action'] as String?,
+    );
+  }
   if (category != kSystemEventDecisionCategory) return null;
   if (summary == kAutopilotStopSummary) {
     return const SequenceStopDecision(SequenceStopAuthor.autopilot);
@@ -142,19 +190,61 @@ SequenceStopDecision? sequenceStopDecision({
   return null;
 }
 
+/// Read a fired-trigger row as stop authorship, or null when this fire did not
+/// end the run (see [kParkAndAbortTriggerAction]) or names no trigger.
+///
+/// The trigger monitor is a subsystem, so the authorship is
+/// [SequenceStopAuthor.system] with the trigger as its origin — the same shape
+/// the `System: stop` rows already use, which is why every surface that reads
+/// the vocabulary gets the trigger's name for free.
+///
+/// A row carrying neither an id nor a name names nobody: it is a fired-trigger
+/// row this build cannot read, not a stop to attribute to something.
+SequenceStopDecision? sequenceStopTriggerDecision({
+  required String? triggerId,
+  required String? triggerName,
+  required String? action,
+}) {
+  if (action?.trim() != kParkAndAbortTriggerAction) return null;
+  final id = _nonEmpty(triggerId);
+  final name = _nonEmpty(triggerName);
+  // The operator knows the trigger by its display name; the id is the fallback
+  // so a row that carries only the id still names the real caller.
+  final named = name ?? id;
+  if (named == null) return null;
+  return SequenceStopDecision(
+    SequenceStopAuthor.system,
+    origin: id ?? named,
+    originLabel: 'the $named trigger',
+    parked: true,
+  );
+}
+
+/// [value] trimmed, or null when it is absent or blank — "" is not a name.
+String? _nonEmpty(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  return trimmed;
+}
+
 String? _stopOrigin(String? detailsJson) {
-  if (detailsJson == null || detailsJson.isEmpty) return null;
+  final origin = _decodeDetails(detailsJson)['origin'];
+  if (origin is String && origin.isNotEmpty) return origin;
+  return null;
+}
+
+/// The decision row's `details` payload, or an empty map when there is none to
+/// read. A payload we cannot parse names nothing, and the stop stays
+/// cause-neutral — the honest direction.
+Map<String, dynamic> _decodeDetails(String? detailsJson) {
+  if (detailsJson == null || detailsJson.isEmpty) return const {};
   try {
     final decoded = jsonDecode(detailsJson);
-    if (decoded is Map<String, dynamic>) {
-      final origin = decoded['origin'];
-      if (origin is String && origin.isNotEmpty) return origin;
-    }
+    if (decoded is Map<String, dynamic>) return decoded;
   } on FormatException {
-    // A details payload we cannot read names no origin; the stop stays
-    // cause-neutral, which is the honest direction.
+    // Fall through: an unreadable payload names nothing.
   }
-  return null;
+  return const {};
 }
 
 /// The clause naming who ended the run — `by request`, `by autopilot`,
@@ -171,10 +261,34 @@ String sequenceStopCauseClause(SequenceStopDecision? decision) {
     case SequenceStopAuthor.autopilot:
       return 'by autopilot';
     case SequenceStopAuthor.system:
+      final label = decision?.originLabel;
+      if (label != null && label.isNotEmpty) return 'by $label';
       final origin = decision?.origin;
       return origin == null ? '' : 'by ${sequenceStopOriginLabel(origin)}';
     case null:
       return '';
+  }
+}
+
+/// The terminal line a cancelled run shows — the sentence stating the cause the
+/// run's own decision rows carried, or [kSequenceStoppedMessage] when they
+/// carried none.
+///
+/// Every cancellation path emits the same cancel notice, so the notice cannot
+/// tell an operator's Stop from a weather/dawn ParkAndAbort; only the
+/// authorship row can. Composed around [sequenceStopCauseClause] so the run
+/// header and the phone push say the same thing about the same stop.
+String sequenceStoppedMessage(SequenceStopDecision? decision) {
+  switch (decision?.author) {
+    case SequenceStopAuthor.operatorPress:
+      return kSequenceStoppedByRequestMessage;
+    case SequenceStopAuthor.autopilot:
+      return kSequenceStoppedByAutopilotMessage;
+    case SequenceStopAuthor.system:
+    case null:
+      final clause = sequenceStopCauseClause(decision);
+      if (clause.isEmpty) return kSequenceStoppedMessage;
+      return '${decision!.parked ? 'Parked' : 'Stopped'} $clause';
   }
 }
 

@@ -20,6 +20,11 @@ D1="${D1_SCRATCH:-/tmp/nightshade-d1-two-nights}"
 BUNDLE="${D1_BUNDLE:-$HERE/../../../apps/desktop/build/linux/x64/release/bundle/nightshade_desktop}"
 T=d1-two-nights-token
 P="${D1_PORT:-8094}"
+
+# One observing site for the whole leg: the sequence builder picks it (solar
+# 01:00 at the site, so no dawn logic can arm mid-run) and the settings POSTs
+# below use the same pair.
+read D1_SITE_LAT D1_SITE_LON <<< "$(python3 "$HERE/make_sequence.py" --print-site)"
 B="http://127.0.0.1:$P"
 AH="Authorization: Bearer $T"
 DBDIR=$D1/db; OUT=$D1/captures; DROP=$D1/drop; DATA=$D1/data
@@ -69,11 +74,11 @@ sqlite3 "$DB" "INSERT INTO app_settings(key,value,updated_at) VALUES('darkroom.a
 say "=== phase 3: relaunch + configure ==="
 launch || exit 1
 api -X POST "$B/api/settings" -H 'Content-Type: application/json' \
-  -d "{\"settings\":{\"imageOutputPath\":\"$OUT\",\"notificationsEnabled\":true,\"notifyOnSequenceComplete\":true,\"latitude\":40.0,\"longitude\":-105.0}}" >/dev/null \
+  -d "{\"settings\":{\"imageOutputPath\":\"$OUT\",\"notificationsEnabled\":true,\"notifyOnSequenceComplete\":true,\"latitude\":$D1_SITE_LAT,\"longitude\":$D1_SITE_LON}}" >/dev/null \
   && ok "settings written" || bad "settings write"
 sleep 1
 api -X POST "$B/api/settings/location" -H 'Content-Type: application/json' \
-  -d '{"location":{"latitude":40.0,"longitude":-105.0,"elevation":1600.0}}' >/dev/null \
+  -d "{\"location\":{\"latitude\":$D1_SITE_LAT,\"longitude\":$D1_SITE_LON,\"elevation\":1600.0}}" >/dev/null \
   && ok "observer location set" || bad "location set"
 sleep 1
 api -X POST "$B/api/post-session/settings" -H 'Content-Type: application/json' -d '{"autoIntegrate":true}' >/dev/null \

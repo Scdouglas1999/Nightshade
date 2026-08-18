@@ -394,6 +394,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         onStartFromLinear: _controller.startFromLinear,
         onDraftForMe: _controller.draftForMe,
         onImportRecipe: () => unawaited(_controller.importRecipe()),
+        onDismissError: _controller.dismissOfferError,
       );
     }
 
@@ -669,6 +670,13 @@ class _DarkroomStartOfferView extends StatelessWidget {
   /// `.nsrecipe` sidecar an export wrote.
   final VoidCallback onImportRecipe;
 
+  /// Put the standing import refusal away.
+  ///
+  /// The same callback the editor layout hands its copy of this alert: both
+  /// layouts render the one `offerError` field, so clearing it here is the same
+  /// act as clearing it there.
+  final VoidCallback onDismissError;
+
   const _DarkroomStartOfferView({
     required this.offer,
     required this.busy,
@@ -678,6 +686,7 @@ class _DarkroomStartOfferView extends StatelessWidget {
     required this.onStartFromLinear,
     required this.onDraftForMe,
     required this.onImportRecipe,
+    required this.onDismissError,
   });
 
   @override
@@ -702,9 +711,16 @@ class _DarkroomStartOfferView extends StatelessWidget {
               ),
               if (message != null) ...[
                 const SizedBox(height: NightshadeTokens.spaceMd),
+                // Dismissible, exactly as the editor layout's copy is: this
+                // alert takes ~46 pixels above the three start buttons and
+                // stood until another import replaced it, so a refusal the
+                // operator had finished reading kept moving the controls it
+                // was telling them to use.
                 NightshadeAlert(
+                  key: const ValueKey('darkroom_import_refusal'),
                   severity: NightshadeAlertSeverity.error,
                   message: message,
+                  onDismiss: onDismissError,
                 ),
               ],
               const SizedBox(height: NightshadeTokens.spaceLg),

@@ -570,7 +570,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 SafeArea(
                                   top: false,
                                   bottom: false,
-                                  child: widget.child,
+                                  child: _ContentSemanticsBoundary(
+                                    child: widget.child,
+                                  ),
                                 ),
                                 // Mobile sequence overlay (only on mobile and
                                 // sequencer screen). Gated on the shared route
@@ -684,6 +686,43 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Stops a routed page's modal barrier from erasing the shell chrome from the
+/// accessibility tree.
+///
+/// [child] is the nested `Navigator` that go_router's `ShellRoute` hands the
+/// shell. Every route it holds is a `ModalRoute`, and a `ModalRoute`'s first
+/// overlay entry is a `ModalBarrier`, which is a `BlockSemantics` — it sets
+/// `isBlockingSemanticsOfPreviouslyPaintedNodes`, and Flutter propagates that
+/// "drop everything painted before me" flag UP through every ancestor render
+/// object that is not itself a semantics boundary. Unbounded, it escaped the
+/// overlay, the navigator and this content column, wiped the [SideNavigation]
+/// out of the shell Row and then the [TitleBar] out of the shell Column: on
+/// the Linux bundle the AT-SPI tree carried the routed screen and the status
+/// bar but not one rail destination, not Collapse and not one title-bar
+/// action, so assistive tech could not reach Settings or any other desktop
+/// entry point. The phone chrome lost its gear strip the same way, and kept
+/// its bottom bar only because that paints after the content.
+///
+/// `container: true` is the load-bearing flag: it makes this an explicit
+/// semantics boundary, which is where the upward propagation stops. Modals
+/// that SHOULD hide the chrome are unaffected — `showDialog` defaults to the
+/// root navigator, whose barrier paints above the whole shell and blocks it
+/// from outside this boundary.
+class _ContentSemanticsBoundary extends StatelessWidget {
+  final Widget child;
+
+  const _ContentSemanticsBoundary({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      child: child,
     );
   }
 }

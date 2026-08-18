@@ -1004,6 +1004,54 @@ void main() {
       );
       await drain(tester);
     });
+
+    testWidgets('each operation is read once, not once per caption', (
+      tester,
+    ) async {
+      // The entry's button composed its accessible name out of the same
+      // sentences its sibling captions render, and nothing excluded those
+      // captions — so a reader walking to the operation they want heard every
+      // placement rule and every refusal twice, once as a control's name and
+      // once as loose text beside it.
+      final id = await seedScreenRecipe([_step('stretch')]);
+      await pump(tester, recipeId: id);
+      final handle = tester.ensureSemantics();
+
+      await tester.tap(find.byKey(const ValueKey('darkroom_add_step')));
+      await settleScreen(tester);
+
+      const placement = 'Goes in as step 1, ahead of Stretch: a linear-stage '
+          'operation cannot run after a stretched one, so this is the last '
+          'place in the stack the rule leaves for it.';
+      const summary = 'Shrinks wavelet detail.';
+
+      // Still painted: this is an accessibility change, not a copy deletion.
+      expect(find.text(placement), findsWidgets);
+      expect(find.text(summary), findsOneWidget);
+
+      final loose = [
+        for (final node in _traversal(tester))
+          if (node.getSemanticsData().label == placement ||
+              node.getSemanticsData().label == summary)
+            node.getSemanticsData().label,
+      ];
+      expect(
+        loose,
+        isEmpty,
+        reason: 'the captions are the control\'s own name; published again as '
+            'loose nodes they are read a second time',
+      );
+
+      // And the one node that IS the control carries every sentence its card
+      // shows, so nothing was silenced to stop the repetition.
+      final denoise =
+          _dataLabelStartingWith(tester, RegExp('^Add Denoise v1 — '));
+      expect(denoise, isNotNull);
+      expect(denoise!.label, contains(summary));
+      expect(denoise.label, contains(placement));
+      handle.dispose();
+      await drain(tester);
+    });
   });
 }
 
@@ -1021,6 +1069,15 @@ List<SemanticsNode> _traversal(WidgetTester tester) {
 
   walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
   return nodes;
+}
+
+/// The node whose label matches [pattern], or null when none does.
+SemanticsData? _dataLabelStartingWith(WidgetTester tester, Pattern pattern) {
+  for (final node in _traversal(tester)) {
+    final data = node.getSemanticsData();
+    if (data.label.startsWith(pattern)) return data;
+  }
+  return null;
 }
 
 /// The node whose label is exactly [label], or null when none is.

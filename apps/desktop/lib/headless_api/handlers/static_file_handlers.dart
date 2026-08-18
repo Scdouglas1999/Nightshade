@@ -148,7 +148,25 @@ class StaticFileHandlers {
 
   /// `GET /run-watch` / `GET /run-watch/` — serve `index.html` for the
   /// phone SPA bootstrap.
+  ///
+  /// The slash-less spelling redirects instead of serving, so the SPA has
+  /// exactly one address. The service worker registers with scope
+  /// `/run-watch/` (see `web_run_watch/js/run-watch.js`), so a document
+  /// served at `/run-watch` is outside it and no service worker controls the
+  /// page: with the rig unreachable — the case the worker's offline shell
+  /// exists for — that URL rendered the browser's own ERR_CONNECTION_REFUSED
+  /// interstitial while `/run-watch/` loaded the cached shell in the same
+  /// browser, the same second. 301 rather than 302 so the browser keeps the
+  /// mapping and can follow it from cache once the server is gone.
   Future<Response> handleRunWatchIndex(Request request) async {
+    // `request.url` is mount-relative, so the slash-less form arrives as
+    // `run-watch` and the canonical one as `run-watch/`.
+    if (request.url.path == 'run-watch') {
+      final query = request.url.query;
+      return Response.movedPermanently(
+        query.isEmpty ? '/run-watch/' : '/run-watch/?$query',
+      );
+    }
     return _serveFile(findRunWatchDir(), 'index.html', surface: 'run-watch');
   }
 

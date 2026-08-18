@@ -175,72 +175,85 @@ class _DarkroomAddStepDialog extends StatelessWidget {
         : _channelRefusal(op);
     final placement = at == null ? null : _placement(op, at);
     final measured = _measuredNote(op);
-    final name = refusal == null
-        ? 'Add $title v${op.version} — ${op.stage.label} stage. $placement'
-        : 'Add $title v${op.version} — $refusal';
+    // Every sentence this card shows, in the order it shows them, on the node
+    // that IS the card. The button used to carry the placement rule in its name
+    // while the captions beside it published that same sentence again as loose
+    // text, so a reader walking nine operations to reach the one they wanted
+    // heard every placement rule and every refusal twice. This is the shape
+    // `darkroom_screen.dart` already uses for its Back control and its compare
+    // ownership strip: one node with the whole sentence, `excludeSemantics` over
+    // the children that paint it.
+    final name = [
+      refusal == null
+          ? 'Add $title v${op.version} — ${op.stage.label} stage.'
+          : 'Add $title v${op.version} — $refusal',
+      if (op.summary.isNotEmpty) op.summary,
+      if (refusal == null) placement!,
+      if (measured != null) measured,
+    ].join(' ');
     void choose() => Navigator.of(context).pop(op);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          container: true,
-          button: true,
-          enabled: refusal == null,
-          label: name,
-          excludeSemantics: true,
-          onTap: refusal == null ? choose : null,
-          child: NightshadeButton(
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: refusal == null,
+      label: name,
+      excludeSemantics: true,
+      onTap: refusal == null ? choose : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NightshadeButton(
             label: title,
             icon: NightshadeIcons.add,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
             onPressed: refusal == null ? choose : null,
           ),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceXs),
-        // The same two tags the step card carries, so the chooser and the
-        // stack name an operation in one vocabulary. A Wrap, because an
-        // operation name and a stage label both grow, and this dialog is as
-        // narrow as the phone it opens on.
-        Wrap(
-          spacing: NightshadeTokens.spaceXs,
-          runSpacing: NightshadeTokens.spaceXs,
-          children: [
-            _DarkroomTag(
-              label: 'v${op.version}',
-              tooltip: 'The operation version a step added now is written '
-                  'with. A recipe keeps rendering with its own version.',
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          // The same two tags the step card carries, so the chooser and the
+          // stack name an operation in one vocabulary. A Wrap, because an
+          // operation name and a stage label both grow, and this dialog is as
+          // narrow as the phone it opens on.
+          Wrap(
+            spacing: NightshadeTokens.spaceXs,
+            runSpacing: NightshadeTokens.spaceXs,
+            children: [
+              _DarkroomTag(
+                label: 'v${op.version}',
+                tooltip: 'The operation version a step added now is written '
+                    'with. A recipe keeps rendering with its own version.',
+              ),
+              _DarkroomTag(label: op.stage.label, tooltip: _stageTooltip(op)),
+            ],
+          ),
+          if (op.summary.isNotEmpty) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              op.summary,
+              style: NightshadeTypography.captionSm.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
-            _DarkroomTag(label: op.stage.label, tooltip: _stageTooltip(op)),
           ],
-        ),
-        if (op.summary.isNotEmpty) ...[
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
-            op.summary,
+            refusal ?? placement!,
             style: NightshadeTypography.captionSm.copyWith(
-              color: colors.textSecondary,
+              color: refusal == null ? colors.textMuted : colors.warning,
             ),
           ),
-        ],
-        const SizedBox(height: NightshadeTokens.spaceXs),
-        Text(
-          refusal ?? placement!,
-          style: NightshadeTypography.captionSm.copyWith(
-            color: refusal == null ? colors.textMuted : colors.warning,
-          ),
-        ),
-        if (measured != null) ...[
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            measured,
-            style: NightshadeTypography.captionSm.copyWith(
-              color: colors.textMuted,
+          if (measured != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              measured,
+              style: NightshadeTypography.captionSm.copyWith(
+                color: colors.textMuted,
+              ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 

@@ -824,6 +824,14 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     return Semantics(
       container: true,
       button: true,
+      // Every option in this picker is choosable — the picker lists only the
+      // branches compare CAN run against — and a node that names no enabled
+      // state resolves none, which the AT-SPI bridge publishes as no ENABLED
+      // state at all. Without this field the one route into A/B compare was
+      // announced to a screen reader as unavailable while a click on the same
+      // row armed the comparison. `_add_step.dart` and the Back control both
+      // carry the field for the same reason.
+      enabled: true,
       label: autopilot ? '${branch.label} — the autopilot draft' : branch.label,
       excludeSemantics: true,
       onTap: choose,

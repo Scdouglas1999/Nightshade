@@ -184,12 +184,24 @@ class DarkroomStep {
 /// A stored recipe, or a registry reply, could not be read as this build's
 /// recipe format.
 class DarkroomRecipeFormatException implements Exception {
+  /// What is wrong with the document, in the vocabulary of the file — the
+  /// sentence an operator is shown.
   final String message;
 
-  const DarkroomRecipeFormatException(this.message);
+  /// What the reader underneath said, when a reader was what refused.
+  ///
+  /// Carried apart from [message] because a parser fragment ("Unexpected
+  /// character") names nothing the operator chose and nothing they can do: it
+  /// may FOLLOW the sentence, attributed to the reader that produced it, and it
+  /// may never be the sentence. A refusal this build composes itself carries
+  /// none.
+  final String? detail;
+
+  const DarkroomRecipeFormatException(this.message, {this.detail});
 
   @override
-  String toString() => 'The stored recipe cannot be read: $message';
+  String toString() => 'The stored recipe cannot be read: $message'
+      '${detail == null ? '' : ' ($detail)'}';
 }
 
 /// The domain an operation emits: the rule that orders the stack.

@@ -1167,6 +1167,93 @@ void main() {
     await drain(tester);
   });
   // -------------------------------------------------------------------
+  // The refusal the start offer shows: what it says, and how it goes away
+  // -------------------------------------------------------------------
+
+  testWidgets('a file that is not JSON is refused with a next step', (
+    tester,
+  ) async {
+    // The refusal ENDED on the Dart JSON reader's own fragment — "…: Unexpected
+    // character." — which names nothing the operator chose and nothing they can
+    // do. The missing-master error two inches away names two next steps.
+    final masterId = await seedMaster(name: 'Master · B', path: _masterPath);
+    sidecarAnswer = const DarkroomSidecarPick(
+      path: '/tmp/nightshade-test/notjson.nsrecipe',
+      text: 'this is not json at all',
+    );
+
+    await pump(tester, location: '/darkroom?master=$masterId');
+    await tester.tap(find.text('Import .nsrecipe'));
+    await settle(tester);
+
+    final message = tester
+        .widgetList<NightshadeAlert>(find.byType(NightshadeAlert))
+        .map((alert) => alert.message)
+        .singleWhere((text) => text.contains('was not imported'));
+    expect(message, startsWith('notjson.nsrecipe was not imported:'));
+    expect(message, contains('not JSON'));
+    // The next step, in the file's own vocabulary.
+    expect(
+      message,
+      contains('Export the recipe again from the Darkroom that wrote it'),
+    );
+    expect(message, contains('choose a different .nsrecipe file'));
+    // The parser's words may FOLLOW the refusal, attributed to the reader that
+    // produced them — they may never BE the refusal. Everything this screen
+    // says on its own account is the part before that attribution.
+    final spoken = message.split('The JSON reader stopped').first;
+    expect(spoken, isNot(contains('Unexpected character')));
+    expect(spoken, endsWith('choose a different .nsrecipe file. '));
+    expect(message, contains('The JSON reader stopped'));
+    expect(message, contains('Unexpected character'));
+    await drain(tester);
+  });
+
+  testWidgets('the start offer\'s import refusal can be dismissed', (
+    tester,
+  ) async {
+    // The identical refusal reached from the editor layout carries a close
+    // affordance; on the offer it had none, so it sat on the screen until
+    // another import replaced it — pushing the three start buttons down with
+    // it.
+    final masterId = await seedMaster(name: 'Master · B', path: _masterPath);
+    sidecarAnswer = const DarkroomSidecarPick(
+      path: '/tmp/nightshade-test/notjson.nsrecipe',
+      text: 'this is not json at all',
+    );
+
+    await pump(tester, location: '/darkroom?master=$masterId');
+    await tester.tap(find.text('Import .nsrecipe'));
+    await settle(tester);
+
+    final refusal = tester
+        .widgetList<NightshadeAlert>(find.byType(NightshadeAlert))
+        .singleWhere((alert) => alert.message.contains('was not imported'));
+    expect(
+      refusal.onDismiss,
+      isNotNull,
+      reason: 'an alert with no onDismiss renders no close affordance at all',
+    );
+
+    final alert = find.byKey(const ValueKey('darkroom_import_refusal'));
+    expect(alert, findsOneWidget);
+    expect(find.textContaining('was not imported'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: alert, matching: find.byType(IconButton)),
+    );
+    await settle(tester);
+
+    // Gone, and the offer is the offer again: dismissal clears the one field
+    // both layouts read.
+    expect(alert, findsNothing);
+    expect(find.textContaining('was not imported'), findsNothing);
+    expect(find.text('Master · B has no recipe yet'), findsOneWidget);
+    expect(find.text('Import .nsrecipe'), findsOneWidget);
+    await drain(tester);
+  });
+
+  // -------------------------------------------------------------------
   // W9-B — the start offer's header is text, not a control's name
   // -------------------------------------------------------------------
 

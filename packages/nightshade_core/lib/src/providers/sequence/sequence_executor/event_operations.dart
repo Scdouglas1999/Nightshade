@@ -43,6 +43,12 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       event,
     );
 
+    // WHO is ending this run, kept as it arrives. The cancel notice this
+    // handler reclassifies below names no author, and the rows that do — the
+    // operator's manual-intervention decision, the autopilot's, a subsystem's,
+    // the trigger monitor's ParkAndAbort — all precede it.
+    recordSequenceStopEvidence(_ref.read, event);
+
     switch (event.eventType) {
       case 'NodeStarted':
         final nodeId =
@@ -264,14 +270,19 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         // must not poison run stats, paint a node red, or push a stopping run
         // into `recovering` as if something were being salvaged.
         if (isSequenceCancelledNotice(message)) {
+          // The cause comes from the run's authorship rows, not from the
+          // notice — every cancellation path emits the same notice, so
+          // reading it as the operator's Stop invents a human for a
+          // trigger-driven park nobody was present for.
+          final stopped = sequenceStoppedMessage(
+            _ref.read(sequenceStopEvidenceProvider),
+          );
           _logger.info(
             '[$kStopClassificationLogTag] sequence_executor: cancellation '
-            'notice treated as a stop, not an error',
+            'notice treated as a stop, not an error ($stopped)',
             source: 'SequenceExecutor',
           );
-          progressNotifier.updateProgress(
-            message: kSequenceStoppedByRequestMessage,
-          );
+          progressNotifier.updateProgress(message: stopped);
           break;
         }
         _recordRunError(message);
@@ -411,6 +422,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'Started':
+        // A new run answers for itself: the previous run's ParkAndAbort must
+        // not be read as the cause of this one's stop.
+        _ref.read(sequenceStopEvidenceProvider.notifier).state = null;
         progressNotifier.updateState(SequenceExecutionState.running);
         _ref.read(sequenceExecutionStateProvider.notifier).state =
             SequenceExecutionState.running;

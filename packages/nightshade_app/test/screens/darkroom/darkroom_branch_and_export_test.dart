@@ -2024,6 +2024,44 @@ void main() {
     await drain(tester);
   });
 
+  testWidgets('a compare option publishes as an ENABLED button', (
+    tester,
+  ) async {
+    // The one route into A/B compare read as dead to a screen reader: the
+    // option's node carried `button: true` and no enabled state at all, and the
+    // AT-SPI bridge publishes ENABLED only for a node that resolves one — so
+    // Orca announced the row that opens compare as unavailable while a click on
+    // the same row armed the comparison.
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+    final handle = tester.ensureSemantics();
+
+    await tester.tap(find.text('Compare with…'));
+    await settle(tester);
+
+    final option = nodeLabelled(tester, 'Warmer');
+    expect(option, isNotNull);
+    expect(option!.flagsCollection.isButton, isTrue);
+    expect(
+      option.hasFlag(SemanticsFlag.hasEnabledState),
+      isTrue,
+      reason: 'a node with no enabled state reads as DISABLED over AT-SPI',
+    );
+    expect(option.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    // And it is operable, which is what makes the DISABLED announcement a lie.
+    expect(option.hasAction(SemanticsAction.tap), isTrue);
+
+    handle.dispose();
+    Navigator.of(tester.element(find.text('Compare with'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
   testWidgets('the export sheet is traversed in the order it is painted', (
     tester,
   ) async {
@@ -2049,6 +2087,52 @@ void main() {
     handle.dispose();
     Navigator.of(tester.element(find.text('Format'))).pop();
     await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('the branch strip keeps its place after it is rebuilt', (
+    tester,
+  ) async {
+    // The branch strip is the ONE row in the bar that is torn down and rebuilt
+    // on every navigation: `_chips` swaps the strip for a "Reading the
+    // branches…" line while the controller reloads, so switching recipes
+    // destroys the `_ChipStrip` element and builds a new one, while the
+    // sibling strip beside it survives. A screen reader must still meet the
+    // strip where it is painted — above Duplicate/Rename/Delete — and not at
+    // the tail of the screen.
+    //
+    // The Linux bundle's AT-SPI tree walked the rebuilt strip LAST, after
+    // every action in the bar. This pins the half of that ordering the repo
+    // owns — Flutter's own compiled traversal order, which is what the engine
+    // is handed — so a real regression above the bridge fails here.
+    final root = await seedRecipe([_step('background_extract')]);
+    final variant = await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    final router = await pump(tester, root);
+    final handle = tester.ensureSemantics();
+
+    expect(
+      traversalIndexOf(tester, 'Branches over this master'),
+      lessThan(traversalIndexOf(tester, 'Duplicate as variant')),
+      reason: 'on the first open the strip already reads above the actions',
+    );
+
+    // Switch recipes the way a chip tap does. This is the step after which the
+    // live AT-SPI tree moved the strip to the end of the walk.
+    router.go('/darkroom?recipe=$variant');
+    await settle(tester);
+
+    expect(
+      traversalIndexOf(tester, 'Branches over this master'),
+      lessThan(traversalIndexOf(tester, 'Duplicate as variant')),
+      reason: 'a rebuilt strip must be traversed where it is painted, not '
+          'appended after every action in the bar',
+    );
+
+    handle.dispose();
     await drain(tester);
   });
 }

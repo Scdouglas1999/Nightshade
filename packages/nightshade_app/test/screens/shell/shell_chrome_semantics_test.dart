@@ -1,25 +1,37 @@
 // The shell chrome must reach the accessibility tree.
 //
-// On the running Linux bundle `tree --all` contains ZERO title-bar nodes and
-// ZERO nav-rail destinations while the dashboard's own content and the alert
-// popup ARE exposed, which leaves Settings — reachable only through the gear —
+// On the running Linux bundle `tree --all` contained ZERO title-bar nodes and
+// ZERO nav-rail destinations while the dashboard's own content and the status
+// bar WERE exposed, which left Settings — reachable only through the gear —
 // unreachable to assistive tech.
 //
-// This file settles which layer is at fault by asserting on the COMPILED
-// SemanticsNode tree (not on widget properties) for the exact arrangement the
-// desktop shell builds: title bar on top, nav rail beside the content. If the
-// labels are here, the Flutter side is doing its job and the loss is below it
-// (the GTK/AT-SPI bridge in the engine), which is out of this repo's reach.
-//
-// It also pins the in-widget half: the rail's collapse button must not be a bare
-// GestureDetector with no role and no name.
+// The loss was never in these widgets: each of them annotates itself, and the
+// three tests below pin that. It was in how the shell composes them with the
+// routed page. go_router's `ShellRoute` hands `AppShell` a nested `Navigator`;
+// a `ModalRoute`'s first overlay entry is a `ModalBarrier`, which is a
+// `BlockSemantics`; and Flutter propagates that "drop everything painted
+// before me" flag up through every ancestor that is not a semantics boundary.
+// It escaped the navigator and erased the rail out of the shell Row and the
+// title bar out of the shell Column. `_ContentSemanticsBoundary` in
+// app_shell.dart is the boundary that stops it, and the last test here pumps
+// the REAL shell around a real routed page route so a regression fails here
+// rather than on a rig.
+import 'dart:io';
+import 'dart:ui' show Tristate;
+
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/localization/nightshade_localizations.dart';
+import 'package:nightshade_app/screens/shell/app_shell.dart';
+import 'package:nightshade_app/screens/shell/shell_navigation.dart';
 import 'package:nightshade_app/screens/shell/widgets/side_navigation.dart';
 import 'package:nightshade_app/screens/shell/widgets/title_bar.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
 
@@ -32,12 +44,17 @@ final _quietAlerts = <Override>[
 ];
 
 /// Every label in the compiled semantics tree, in traversal order.
-List<String> _semanticsLabels(WidgetTester tester) {
+List<String> _semanticsLabels(WidgetTester tester) =>
+    _semanticsNodes(tester).map((node) => node.label).toList();
+
+/// Every labelled node in the compiled semantics tree, in traversal order.
+List<SemanticsData> _semanticsNodes(WidgetTester tester) {
   final root = tester.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
-  if (root == null) return const <String>[];
-  final labels = <String>[];
+  if (root == null) return const <SemanticsData>[];
+  final nodes = <SemanticsData>[];
   void visit(SemanticsNode node) {
-    if (node.label.isNotEmpty) labels.add(node.label);
+    final data = node.getSemanticsData();
+    if (data.label.isNotEmpty) nodes.add(data);
     node.visitChildren((child) {
       visit(child);
       return true;
@@ -45,7 +62,7 @@ List<String> _semanticsLabels(WidgetTester tester) {
   }
 
   visit(root);
-  return labels;
+  return nodes;
 }
 
 /// Flutter merges a labelled ancestor with the Text inside it into ONE node
@@ -57,7 +74,56 @@ Matcher _publishes(String label) => predicate<List<String>>(
       'publishes a semantics label containing "$label"',
     );
 
+SemanticsData? _nodeLabelled(List<SemanticsData> nodes, String label) {
+  for (final node in nodes) {
+    if (node.label.contains(label)) return node;
+  }
+  return null;
+}
+
+/// The shell reads the checkpoint API on startup; keep that quiet so the test
+/// is about semantics, not about startup IO.
+class _QuietBackend extends DisconnectedBackend {
+  @override
+  Future<void> sequencerSetCheckpointDir(String path) async {}
+
+  @override
+  Future<bool> hasCheckpoint() async => false;
+}
+
+class _StubBackendNotifier extends BackendNotifier {
+  _StubBackendNotifier(super.ref, NightshadeBackend backend) {
+    // ignore: invalid_use_of_protected_member
+    state = backend;
+  }
+}
+
+void _mockPathProvider(String root) {
+  const channel = MethodChannel('plugins.flutter.io/path_provider');
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(channel, (call) async => root);
+  addTearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
+  });
+}
+
+/// The routed page as go_router builds it: a nested [Navigator] holding a
+/// [ModalRoute]. The barrier that route publishes is the whole point — a
+/// bare widget here would pass with the boundary removed.
+Widget _routedPage(String marker) => Navigator(
+      onGenerateRoute: (settings) => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => Semantics(
+          label: marker,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   testWidgets('the collapse button names itself and its action',
       (tester) async {
     final semantics = tester.ensureSemantics();
@@ -175,4 +241,101 @@ void main() {
 
     semantics.dispose();
   });
+
+  testWidgets('the whole desktop shell survives the routed page route barrier',
+      (tester) async {
+    // Synchronous on purpose: `testWidgets` runs inside a fake-async zone, and
+    // an awaited dart:io future never completes there.
+    final root = Directory.systemTemp.createTempSync('ns-shell-semantics-');
+    addTearDown(() => root.deleteSync(recursive: true));
+    _mockPathProvider(root.path);
+
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1600, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          backendProvider.overrideWith(
+            (ref) => _StubBackendNotifier(ref, _QuietBackend()),
+          ),
+          ..._quietAlerts,
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: AppShell(child: _routedPage('Routed content')),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final nodes = _semanticsNodes(tester);
+    final labels = nodes.map((n) => n.label).toList();
+    final l10n = NightshadeLocalizations(const Locale('en'));
+
+    // Non-vacuous: the routed page is inside the barrier and always published.
+    expect(labels, _publishes('Routed content'));
+
+    // Every rail destination, with a role and a selected state — a name with
+    // no role reads as static text to a screen reader.
+    for (var index = 0;
+        index < ShellNavigation.primaryDestinations.length;
+        index++) {
+      final destination = ShellNavigation.primaryDestinations[index];
+      final name = destination.label(l10n);
+      // Match on the description, not the name: the title bar's own
+      // "Equipment Profiles" button contains "Equipment" and would answer for
+      // the rail's Equipment destination. Only the rail renders the
+      // description under the name, so this picks out the rail row.
+      final node = _nodeLabelled(nodes, destination.description(l10n));
+      expect(
+        node,
+        isNotNull,
+        reason: 'the rail destination "$name" must reach the semantics tree; '
+            'the routed page route barrier used to erase the whole rail',
+      );
+      expect(node!.label, contains(name),
+          reason: 'the rail row must announce its destination by name');
+      expect(node.flagsCollection.isButton, isTrue,
+          reason: '"$name" must publish a button role');
+      expect(node.flagsCollection.isEnabled, Tristate.isTrue,
+          reason: '"$name" is live and must not announce as disabled');
+      // No GoRouter above this shell, so `_getCurrentLocation` falls back to
+      // /dashboard and index 0 is the selected destination. `Tristate.none`
+      // would mean the rail never says which screen the operator is on.
+      expect(
+        node.flagsCollection.isSelected,
+        index == 0 ? Tristate.isTrue : Tristate.isFalse,
+        reason: '"$name" must publish whether it is the current screen, and '
+            'only the current destination may announce as selected',
+      );
+    }
+
+    // The rail's own control and the title-bar action row, in the order a
+    // reader meets them.
+    expect(labels, _publishes('Collapse navigation'));
+    expect(labels, _publishes(l10n.text('settingsEquipmentProfiles')));
+    expect(labels, _publishes(l10n.text('settingsTitle')));
+    expect(labels, _publishes('Minimize'));
+    expect(labels, _publishes('Maximize'));
+    expect(labels, _publishes('Close window'));
+
+    semantics.dispose();
+
+    // Unmount inside the test body so the drift stream-close timers the
+    // ProviderScope schedules on dispose can drain.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pump(const Duration(milliseconds: 10));
+  }, timeout: const Timeout(Duration(seconds: 90)));
 }

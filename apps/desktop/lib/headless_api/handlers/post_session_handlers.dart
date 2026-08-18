@@ -127,6 +127,61 @@ class PostSessionHandlers {
     }
   }
 
+  /// Refuse an `exposuresSec` list the bridge is going to refuse anyway,
+  /// while the answer can still be a 400 instead of a job id.
+  ///
+  /// `exposures_per_light` (`bridge/src/api/post_session/helpers.rs`) requires
+  /// one exposure per light or none at all, and every entry finite and `>= 0`.
+  /// It runs INSIDE the bridge call, which happens after [JobManager.start] has
+  /// already minted and returned an id — so a body the server could read as
+  /// malformed on arrival answered `200 {"status":"queued"}` and only turned
+  /// out to be refused on a later `/api/jobs/{id}` poll. A job id is a claim
+  /// that the request's inputs were shaped right; two exposures for three
+  /// lights never were.
+  ///
+  /// The sentences are the native ones verbatim, in the native ORDER (arity
+  /// first, then per-entry values), so the operator who reads this 400 and the
+  /// operator who reads the job error read the same words.
+  ///
+  /// Scope matches the guard's own: nothing is claimed about a body whose
+  /// `exposuresSec` is absent or is not a list, and the arity half is skipped
+  /// when [lightsField] carries no list either — those shapes are the bridge's
+  /// own deserializer to name, and inventing a second sentence for them here
+  /// would make the two surfaces disagree.
+  void _refuseExposuresSec(
+    Map<String, dynamic> args, {
+    required String lightsField,
+  }) {
+    final exposures = args['exposuresSec'];
+    if (exposures is! List || exposures.isEmpty) return;
+    final lights = args[lightsField];
+    if (lights is List && exposures.length != lights.length) {
+      throw BadRequestError(
+        field: 'exposuresSec',
+        expected: 'one entry per light frame',
+        message:
+            'exposuresSec has ${exposures.length} entries but ${lights.length} '
+            'light frames were supplied; supply one exposure per light, or '
+            'omit exposuresSec entirely',
+      );
+    }
+    for (var index = 0; index < exposures.length; index++) {
+      final seconds = exposures[index];
+      // A non-finite entry is named by [_refuseNonFiniteNumbers] for what it
+      // is, which is what the bridge says about it too — `-Infinity` is not a
+      // negative exposure, it is not a number of seconds at all.
+      if (seconds is num && seconds.isFinite && seconds < 0) {
+        throw BadRequestError(
+          field: 'exposuresSec[$index]',
+          expected: 'number',
+          message:
+              'exposuresSec[$index] is $seconds, a negative exposure; every '
+              'entry must be a finite value >= 0',
+        );
+      }
+    }
+  }
+
   /// Register [work] as a JobManager job and return the queued-job envelope.
   Future<Response> _startJob(
     String operation,
@@ -168,6 +223,7 @@ class PostSessionHandlers {
   Future<Response> handleIntegrateSession(Request request) async {
     _logInfo('[API] POST /api/post-session/integrate');
     final args = await readJsonObject(request);
+    _refuseExposuresSec(args, lightsField: 'lightPaths');
     final argsJson = _encodeArgs(args);
     return _startJob('post-session.integrate', () async {
       final out = await bridge.apiIntegrateSession(argsJson: argsJson);
@@ -319,7 +375,14 @@ class PostSessionHandlers {
   Future<Response> handleMasterAccumulate(Request request) async {
     _logInfo('[API] POST /api/post-session/master-accumulate');
     final args = await readJsonObject(request);
-    requireString(args, 'op');
+    final op = requireString(args, 'op');
+    // Only the `add` op folds lights, and it is the only one whose args carry
+    // `exposuresSec` at all — `create` / `finalize` / `info` never reach
+    // `exposures_per_light`, so refusing their (ignored) list here would be a
+    // refusal the host itself does not make.
+    if (op == 'add') {
+      _refuseExposuresSec(args, lightsField: 'lightPaths');
+    }
     final argsJson = _encodeArgs(args);
     return _startJob('post-session.master-accumulate', () async {
       final out = await bridge.apiMasterAccumulate(argsJson: argsJson);

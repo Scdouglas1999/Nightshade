@@ -14,6 +14,11 @@ mkdir -p "$D1"
 BUNDLE="${D1_BUNDLE:-$HERE/../../../apps/desktop/build/linux/x64/release/bundle/nightshade_desktop}"
 T=d1-secret-token
 P="${D1_PORT:-8093}"
+
+# One observing site for the whole leg: the sequence builder picks it (solar
+# 01:00 at the site, so no dawn logic can arm mid-run) and the settings POSTs
+# below use the same pair.
+read D1_SITE_LAT D1_SITE_LON <<< "$(python3 "$HERE/make_sequence.py" --print-site)"
 B="http://127.0.0.1:$P"
 AH="Authorization: Bearer $T"
 DBDIR=$D1/db; OUT=$D1/captures; DROP=$D1/drop; DATA=$D1/data
@@ -85,11 +90,11 @@ sqlite3 "$DBDIR/nightshade.db" "INSERT INTO app_settings(key,value,updated_at) V
 say "=== phase 3: relaunch + configure ==="
 launch || exit 1
 api -X POST "$B/api/settings" -H 'Content-Type: application/json' \
-  -d "{\"settings\":{\"imageOutputPath\":\"$OUT\",\"notificationsEnabled\":true,\"notifyOnSequenceComplete\":true,\"latitude\":40.0,\"longitude\":-105.0}}" >/dev/null \
+  -d "{\"settings\":{\"imageOutputPath\":\"$OUT\",\"notificationsEnabled\":true,\"notifyOnSequenceComplete\":true,\"latitude\":$D1_SITE_LAT,\"longitude\":$D1_SITE_LON}}" >/dev/null \
   && ok "settings written" || bad "settings write"
 sleep 1
 api -X POST "$B/api/settings/location" -H 'Content-Type: application/json' \
-  -d '{"location":{"latitude":40.0,"longitude":-105.0,"elevation":1600.0}}' >/dev/null \
+  -d "{\"location\":{\"latitude\":$D1_SITE_LAT,\"longitude\":$D1_SITE_LON,\"elevation\":1600.0}}" >/dev/null \
   && ok "observer location set (canonical store)" || bad "location set"
 sleep 1
 api -X POST "$B/api/post-session/settings" -H 'Content-Type: application/json' -d '{"autoIntegrate":true}' >/dev/null \
@@ -240,10 +245,11 @@ api -X POST "$B/api/settings" -H 'Content-Type: application/json' \
   && ok "raised the star floor above anything the simulator can produce" \
   || bad "grading settings write"
 sleep 1
-python3 - "$D1/reject_sequence.json" <<'EOF'
+python3 - "$D1/reject_sequence.json" "$D1_SITE_LAT" "$D1_SITE_LON" <<'EOF'
 import json, sys, time
 # One target, one filter, two subs — the smallest sequence that can be graded.
-lat, lon = 40.0, -105.0
+# The site rides in from the leg so this probe and the main night agree.
+lat, lon = float(sys.argv[2]), float(sys.argv[3])
 jd = time.time() / 86400.0 + 2440587.5
 d = jd - 2451545.0
 lst = ((18.697374558 + 24.06570982441908 * d) % 24.0 + lon / 15.0) % 24.0

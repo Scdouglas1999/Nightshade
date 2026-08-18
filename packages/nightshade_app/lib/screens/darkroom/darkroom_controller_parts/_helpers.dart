@@ -437,9 +437,14 @@ DarkroomImportedRecipe decodeDarkroomSidecar(String text) {
   try {
     document = jsonDecode(text);
   } on FormatException catch (error) {
+    // The reader's own words go in `detail`, never into the sentence: what the
+    // operator is shown has to be about the file they chose.
+    final offset = error.offset;
     throw DarkroomRecipeFormatException(
-      'this file is not JSON, so it carries no recipe to read: '
-      '${error.message}',
+      'this file is not JSON, so it carries no recipe to read',
+      detail: offset == null
+          ? 'The JSON reader stopped: ${error.message}.'
+          : 'The JSON reader stopped at character $offset: ${error.message}.',
     );
   }
   if (document is! Map<String, dynamic>) {

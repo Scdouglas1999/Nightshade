@@ -9,6 +9,11 @@
 // (`post_session/helpers.rs`: "exposuresSec[0] is …, which is not a number of
 // seconds") and could never run, because `jsonEncode` threw before the payload
 // reached it.
+//
+// The same argument covers the list's SHAPE, which the second group pins: a
+// wrong-length or negative `exposuresSec` also answered `200 {"jobId":…}` and
+// only failed a `/api/jobs/{id}` poll later, for a body the request path could
+// already read as malformed.
 
 import 'dart:convert';
 import 'dart:io';
@@ -143,10 +148,7 @@ void main() {
   test('a body of finite numbers still queues its job', () async {
     final response = await translateHandlerErrors(
       handlers.handleIntegrateSession(
-        post(
-          '/api/post-session/integrate',
-          integrateBody(exposures: '[60.0,60.0]'),
-        ),
+        post('/api/post-session/integrate', integrateBody(exposures: '[60.0]')),
       ),
     );
 
@@ -156,7 +158,167 @@ void main() {
     expect(
       jobManager.length,
       1,
-      reason: 'the guard refuses only what the encoder cannot carry',
+      reason: 'the guard refuses only what the host itself would refuse',
     );
+  });
+
+  // The same seam, one step further out: a list the host can already see is
+  // the wrong SHAPE was queued as a job, answered 200 with an id, and only
+  // failed on a later `/api/jobs/{id}` poll. A job id says the request's
+  // inputs were shaped right; two exposures for three lights never were.
+  group('exposuresSec shape', () {
+    String integrateWith(String lights, String exposures) =>
+        '{"runId":"x","lightPaths":$lights,"exposuresSec":$exposures,'
+        '"calibration":{},"settings":{},'
+        '"output":{"masterFitsPath":"/tmp/o.fits"}}';
+
+    test('integrate refuses a short list in the request path', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith(
+              '["/tmp/a.fits","/tmp/b.fits","/tmp/c.fits"]',
+              '[60.0,60.0]',
+            ),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'exposuresSec');
+      expect(body['code'], 'invalid_request');
+      // Verbatim the bridge's own sentence (`post_session/helpers.rs`), so the
+      // 400 and the job error cannot describe one input two ways.
+      expect(
+        body['message'],
+        'exposuresSec has 2 entries but 3 light frames were supplied; supply '
+        'one exposure per light, or omit exposuresSec entirely',
+      );
+      expect(jobManager.length, 0, reason: 'no run id is claimed');
+    });
+
+    test('a list longer than the lights is refused too', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith('["/tmp/a.fits"]', '[60.0,60.0,60.0,60.0]'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['message'], contains('4 entries but 1 light frames'));
+      expect(jobManager.length, 0);
+    });
+
+    test('a negative exposure is named by index', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith('["/tmp/a.fits","/tmp/b.fits"]', '[60.0,-100.0]'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'exposuresSec[1]');
+      expect(body['message'], contains('a negative exposure'));
+      expect(
+        body['message'],
+        contains('every entry must be a finite value >= 0'),
+      );
+      expect(jobManager.length, 0);
+    });
+
+    test('master-accumulate add refuses the same shapes', () async {
+      final short = await translateHandlerErrors(
+        handlers.handleMasterAccumulate(
+          post(
+            '/api/post-session/master-accumulate',
+            '{"op":"add","sidecarPath":"/tmp/m.nsm",'
+                '"lightPaths":["/tmp/a.fits","/tmp/b.fits"],'
+                '"exposuresSec":[60.0],"calibration":{},"settings":{}}',
+          ),
+        ),
+      );
+      expect(short.statusCode, HttpStatus.badRequest);
+      expect(
+        (jsonDecode(await short.readAsString()) as Map)['message'],
+        contains('1 entries but 2 light frames'),
+      );
+
+      final negative = await translateHandlerErrors(
+        handlers.handleMasterAccumulate(
+          post(
+            '/api/post-session/master-accumulate',
+            '{"op":"add","sidecarPath":"/tmp/m.nsm",'
+                '"lightPaths":["/tmp/a.fits"],"exposuresSec":[-1.0],'
+                '"calibration":{},"settings":{}}',
+          ),
+        ),
+      );
+      expect(negative.statusCode, HttpStatus.badRequest);
+      expect(
+        (jsonDecode(await negative.readAsString()) as Map)['field'],
+        'exposuresSec[0]',
+      );
+      expect(jobManager.length, 0);
+    });
+
+    // The bridge only reads `exposuresSec` on `add`; refusing it on an op that
+    // never looks at it would be a refusal the host does not make.
+    test('a non-add master-accumulate op is not second-guessed', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleMasterAccumulate(
+          post(
+            '/api/post-session/master-accumulate',
+            '{"op":"info","sidecarPath":"/tmp/m.nsm",'
+                '"lightPaths":["/tmp/a.fits","/tmp/b.fits"],'
+                '"exposuresSec":[60.0],"calibration":{},"settings":{}}',
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(jobManager.length, 1);
+    });
+
+    // An omitted or empty list is the documented "no exposure metadata" shape
+    // and reports every frame as 0 s — it is not a mismatch.
+    test('an omitted list is still the documented shape', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            '{"runId":"x","lightPaths":["/tmp/a.fits","/tmp/b.fits"],'
+                '"calibration":{},"settings":{},'
+                '"output":{"masterFitsPath":"/tmp/o.fits"}}',
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(jobManager.length, 1);
+    });
+
+    test('zero seconds is allowed, as it is on the host', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith('["/tmp/a.fits"]', '[0.0]'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(jobManager.length, 1);
+    });
   });
 }

@@ -13,6 +13,11 @@ D1="${D1_SCRATCH:-/tmp/nightshade-d1-crash}"
 BUNDLE="${D1_BUNDLE:-$HERE/../../../apps/desktop/build/linux/x64/release/bundle/nightshade_desktop}"
 T=d1-secret-token
 P="${D1_PORT:-8094}"
+
+# One observing site for the whole leg: the sequence builder picks it (solar
+# 01:00 at the site, so no dawn logic can arm mid-run) and the settings POSTs
+# below use the same pair.
+read D1_SITE_LAT D1_SITE_LON <<< "$(python3 "$HERE/make_sequence.py" --print-site)"
 B="http://127.0.0.1:$P"
 AH="Authorization: Bearer $T"
 DBDIR=$D1/db; OUT=$D1/captures; DROP=$D1/drop; DATA=$D1/data
@@ -24,13 +29,32 @@ bad()  { FAIL=$((FAIL+1)); echo "[d1cr]   FAIL: $*"; }
 api()  { curl -sf -m 10 -H "$AH" "$@"; }
 Q()    { sqlite3 "$DBDIR/nightshade.db" "$1"; }
 
-pkill -f nightshade_desktop 2>/dev/null; sleep 1
+PIDFILE=$D1/app.pid
+# Reap only what a previous run of THIS script left behind. `pkill -f
+# nightshade_desktop` kills every instance on the machine — a parallel
+# harness on another port, another agent's sweep, the operator's own rig —
+# so the pid is recorded and re-identified by its command line (the port is
+# unique per leg) before any signal goes out. Same discipline as run.sh.
+reap_previous() {
+  [ -f "$PIDFILE" ] || return 0
+  old=$(cat "$PIDFILE" 2>/dev/null)
+  rm -f "$PIDFILE"
+  case "$old" in ''|*[!0-9]*) return 0;; esac
+  kill -0 "$old" 2>/dev/null || return 0
+  tr '\0' ' ' < "/proc/$old/cmdline" 2>/dev/null | grep -q -- "--port=$P" || return 0
+  say "reaping leftover instance from a previous run (pid $old, port $P)"
+  kill -TERM "$old" 2>/dev/null
+  for i in $(seq 1 15); do kill -0 "$old" 2>/dev/null || return 0; sleep 1; done
+  kill -9 "$old" 2>/dev/null
+}
+reap_previous
 rm -rf "$D1"; mkdir -p "$DBDIR" "$OUT" "$DROP" "$DATA"
 
 launch() {
   NIGHTSHADE_DATABASE_DIR=$DBDIR NIGHTSHADE_DATA_DIR=$DATA LIBGL_ALWAYS_SOFTWARE=1 \
     "$BUNDLE" --headless --auth-token=$T --port=$P >> "$LOG" 2>&1 &
   APP=$!
+  echo "$APP" > "$PIDFILE"
   for i in $(seq 1 40); do
     sleep 1
     curl -sf -m 2 "$B/api/info" >/dev/null 2>&1 && return 0
@@ -49,7 +73,7 @@ api -X POST "$B/api/settings" -H 'Content-Type: application/json' \
   -d "{\"settings\":{\"imageOutputPath\":\"$OUT\",\"notificationsEnabled\":true,\"notifyOnSequenceComplete\":true}}" >/dev/null
 sleep 1
 api -X POST "$B/api/settings/location" -H 'Content-Type: application/json' \
-  -d '{"location":{"latitude":40.0,"longitude":-105.0,"elevation":1600.0}}' >/dev/null
+  -d "{\"location\":{\"latitude\":$D1_SITE_LAT,\"longitude\":$D1_SITE_LON,\"elevation\":1600.0}}" >/dev/null
 sleep 1
 api -X POST "$B/api/post-session/settings" -H 'Content-Type: application/json' -d '{"autoIntegrate":true}' >/dev/null
 sleep 1
@@ -78,12 +102,12 @@ for i in $(seq 1 240); do
   sleep 1
   ST=$(Q "SELECT state FROM darkroom_jobs ORDER BY id DESC LIMIT 1;" 2>/dev/null)
   if [ "$ST" = "running" ]; then
-    kill -9 $APP 2>/dev/null; pkill -9 -f nightshade_desktop 2>/dev/null
+    kill -9 $APP 2>/dev/null
     KILLED=1; ok "killed app with job running (${i}s after start)"; break
   fi
   [ "$ST" = "done" ] && { bad "job finished before the kill window — pipeline too fast for this leg on this machine"; break; }
 done
-[ "$KILLED" = "1" ] || { say "teardown"; pkill -f nightshade_desktop 2>/dev/null; echo "[d1cr] RESULT: PASS=$PASS FAIL=$((FAIL+1))"; exit 1; }
+[ "$KILLED" = "1" ] || { say "teardown"; kill -TERM $APP 2>/dev/null; echo "[d1cr] RESULT: PASS=$PASS FAIL=$((FAIL+1))"; exit 1; }
 sleep 2
 PRE_ATTEMPTS=$(Q "SELECT attempts FROM darkroom_jobs ORDER BY id DESC LIMIT 1;")
 
@@ -116,6 +140,8 @@ else
 fi
 
 say "=== teardown ==="
-kill -TERM $APP 2>/dev/null; sleep 3; pkill -f nightshade_desktop 2>/dev/null
+kill -TERM $APP 2>/dev/null
+for i in $(seq 1 10); do kill -0 $APP 2>/dev/null || break; sleep 1; done
+kill -9 $APP 2>/dev/null; rm -f "$PIDFILE"
 echo "[d1cr] RESULT: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

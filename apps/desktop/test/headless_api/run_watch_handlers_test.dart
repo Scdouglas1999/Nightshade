@@ -94,6 +94,53 @@ void main() {
       expect(progress['progressPercent'], isNull);
     });
 
+    // A fresh install has no profile, no devices and no run in its history.
+    // Every other block on the phone renders that absence as `--`; the
+    // progress block published `0 / 0`, `0s / 0s` and `progressPercent: 0.0`,
+    // which the client faithfully drew as "0% / 0 of 0" — a measurement of a
+    // run that has never existed.
+    test('a rig that has never run reports no figures, not zeros', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleSnapshot(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
+        ),
+      );
+
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final wire =
+          (body['sequencer'] as Map)['progress'] as Map<String, Object?>;
+      // The state IS known — nothing is running — so only the figures are
+      // withheld.
+      expect(wire['state'], 'idle');
+      for (final field in const [
+        'totalExposures',
+        'completedExposures',
+        'totalIntegrationSecs',
+        'completedIntegrationSecs',
+        'elapsedSecs',
+        'progressPercent',
+      ]) {
+        expect(wire[field], isNull, reason: '$field asserts a run that ran');
+      }
+    });
+
+    test('the first thing a run reports puts the figures back', () async {
+      container.read(sequenceProgressProvider.notifier).setTotals(12, 24.0);
+
+      final response = await translateHandlerErrors(
+        handlers.handleSnapshot(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
+        ),
+      );
+
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final wire =
+          (body['sequencer'] as Map)['progress'] as Map<String, Object?>;
+      expect(wire['totalExposures'], 12);
+      expect(wire['completedExposures'], 0);
+      expect(wire['progressPercent'], 0.0);
+    });
+
     // A headless run loads its wire JSON straight into the native executor,
     // so nothing ever populates `currentSequenceProvider` and nothing ever
     // calls `setTotals` with an integration total: the live progress arrives

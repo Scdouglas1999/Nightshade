@@ -115,7 +115,7 @@ test('the RA row reads the key the server sends', () => {
 // D4-10 — safety verdict with no sensor
 // ---------------------------------------------------------------------------
 
-function weatherPanel(weather, safety) {
+function weatherPanel(weather, safety, { stale = false } = {}) {
   const doc = makeDocument([
     'ops-weather-safe', 'ops-weather-alert-level', 'ops-weather-message',
     'ops-weather-temp', 'ops-weather-humidity', 'ops-weather-clouds',
@@ -123,10 +123,12 @@ function weatherPanel(weather, safety) {
     'ops-safety-monitor-count', 'ops-safety-monitor-list',
   ]);
   const render = build(
-    ['document', 'state', 'clearElement'],
-    [fn('renderOpsWeatherPanel'), fn('setOpsTelemetry')],
+    ['document', 'state', 'clearElement', 'weatherDataIsStale'],
+    [fn('paintOpsWeatherUnknown'), fn('renderOpsWeatherPanel'),
+      fn('setOpsTelemetry')],
     'renderOpsWeatherPanel',
-  )(doc, { ops: { weather, safety } }, (el) => { el.children = []; });
+  )(doc, { ops: { weather, safety } }, (el) => { el.children = []; },
+    () => stale);
   render();
   return doc;
 }
@@ -265,15 +267,26 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
     'ops-seq-current-target',
     'stale-devices', 'stale-mount', 'stale-camera', 'stale-sequencer',
     'stale-guiding', 'stale-focuser', 'stale-filter-wheel', 'stale-rotator',
-    'stale-sequences', 'stale-analytics',
+    'stale-sequences', 'stale-analytics', 'stale-weather', 'stale-dome',
+    'ops-weather-safe', 'ops-weather-alert-level', 'ops-weather-message',
+    'ops-weather-temp', 'ops-weather-humidity', 'ops-weather-clouds',
+    'ops-weather-wind', 'ops-weather-dew', 'ops-safety-badge',
+    'ops-safety-monitor-count', 'ops-safety-monitor-list',
+    'ops-dome-shutter', 'ops-dome-az', 'ops-dome-slewing', 'ops-dome-sync',
+    'ops-dome-state-badge',
   ]);
   doc.getElementById('status-text').textContent = 'Connected';
   doc.getElementById('status-dot').className = 'status-dot connected';
   const calls = [];
   const repaints = [];
+  // The ops panels keep their own list: the Run panel's recovery edge is
+  // asserted exactly, and a sibling joining the clock must not read as a
+  // second sequencer repaint.
+  const opsRepaints = [];
   const zeroed = {
     devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0,
     focuser: 0, 'filter-wheel': 0, rotator: 0, sequences: 0, analytics: 0,
+    weather: 0, dome: 0,
   };
   // Mutable, so a test can move the clock and repaint through the SAME
   // closure — the flag the recovery edge turns off lives in there.
@@ -286,7 +299,8 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
   };
   const render = build(
     ['document', 'api', 'state', 'lastReachabilityProbeAt',
-      'setConnectionStatus', 'renderBadge', 'renderSequencerPanel'],
+      'setConnectionStatus', 'renderBadge', 'renderSequencerPanel',
+      'renderOpsWeatherPanel', 'renderOpsDomePanel', 'clearElement'],
     [
       konst('REACHABILITY_PROBE_MS'),
       konst('SERVER_HEARTBEAT_MS'),
@@ -294,6 +308,8 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
       konst('SERVER_CONTACT_STALE_MS'),
       konst('PANEL_KEYS'),
       letDecl('runUnknownAsserted'),
+      letDecl('weatherUnknownAsserted'),
+      letDecl('domeUnknownAsserted'),
       fn('lastServerContactAt'),
       fn('isServerContactStale'),
       fn('isPanelDataStale'),
@@ -305,6 +321,12 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
       fn('runDataIsStale'),
       fn('paintRunUnknown'),
       fn('renderRunDataState'),
+      fn('weatherDataIsStale'),
+      fn('paintOpsWeatherUnknown'),
+      fn('renderOpsWeatherDataState'),
+      fn('domeDataIsStale'),
+      fn('paintOpsDomeUnknown'),
+      fn('renderOpsDomeDataState'),
       fn('renderStaleIndicator'),
       // The tick itself, and the wiring init() performs — both real, so a
       // subscriber the page forgets to register fails here too.
@@ -313,6 +335,8 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
       fn('repaintDataState'),
       `subscribeToDataClock(renderLinkState);
        subscribeToDataClock(renderRunDataState);
+       subscribeToDataClock(renderOpsWeatherDataState);
+       subscribeToDataClock(renderOpsDomeDataState);
        for (const panelKey of PANEL_KEYS) {
          subscribeToDataClock((view) => renderStaleIndicator(panelKey, view));
        }`,
@@ -331,9 +355,12 @@ function linkState({ unreachable, lastContactAt, lastWsMessageAt,
     },
     (el, label, cls) => { el.textContent = label; el.className = cls; },
     () => { repaints.push('sequencer'); },
+    () => { opsRepaints.push('weather'); },
+    () => { opsRepaints.push('dome'); },
+    (el) => { el.children = []; },
   );
   render();
-  return { doc, calls, repaints, render, api, state };
+  return { doc, calls, repaints, opsRepaints, render, api, state };
 }
 
 // Measured before the fix: 65 s after SIGKILL the header still read a green
@@ -1479,4 +1506,391 @@ test('an automatic connect only raises the form for a credential problem', () =>
       'token would send the operator hunting for the wrong thing');
   }
   assert.equal(isCredential(undefined), false);
+});
+
+// ---------------------------------------------------------------------------
+// D4W-2 — Weather & Safety is not exempt from the staleness clock
+//
+// Measured against the release bundle on :8213 with a hardware-connected safe
+// reading on the wire: 74 s after kill -TERM, with the header already reading
+// "No contact" and five sibling panels carrying "Stale: 1m 14s since last
+// update", the Weather & Safety panel still read "SAFE / Safe to image yes /
+// Alert level clear / Conditions are within limits / Temperature 8.5 °C /
+// Humidity 41 % / Cloud cover 3 %" with no freshness marker of any kind. It
+// was simply not on the clock: PANEL_KEYS never named it and the markup had
+// no line for it to write into. The Dome panel had the same shape.
+// ---------------------------------------------------------------------------
+
+test('the Weather & Safety and Dome panels age like their siblings', () => {
+  const now = Date.now();
+  const h = linkState({
+    unreachable: true,
+    lastContactAt: now - 74000,
+    lastWsMessageAt: now - 74000,
+    lastProbeAt: now - 1000,
+    panelLastUpdate: { weather: now - 74000, dome: now - 74000 },
+  });
+  assert.equal(h.doc.getElementById('status-text').textContent, 'No contact');
+  for (const key of ['weather', 'dome']) {
+    assert.match(h.doc.getElementById('stale-' + key).textContent,
+      /Stale: 1m 14s since last update/,
+      key + ' must say its data is as old as the header says it is');
+  }
+  // And the line has somewhere to land in the shipped markup.
+  for (const id of ['stale-weather', 'stale-dome']) {
+    assert.match(HTML, new RegExp('id="' + id + '"'),
+      id + ' must exist in index.html or the wiring writes into nothing');
+  }
+});
+
+test('a rig nobody can reach is not reported safe to image', () => {
+  const now = Date.now();
+  const h = linkState({
+    unreachable: false,
+    lastContactAt: now - 200,
+    lastWsMessageAt: now - 200,
+    panelLastUpdate: { weather: now - 1000 },
+  });
+  // A hardware-connected safe reading is on screen when the route starts
+  // refusing — the dangerous case, not the sensorless one.
+  const safe = h.doc.getElementById('ops-weather-safe');
+  safe.textContent = 'yes';
+  safe.className = 'status-value good';
+  h.doc.getElementById('ops-weather-alert-level').textContent = 'clear';
+  h.doc.getElementById('ops-weather-message').textContent =
+    'Conditions are within limits';
+  h.doc.getElementById('ops-weather-temp').textContent = '8.5 °C';
+  h.doc.getElementById('ops-weather-humidity').textContent = '41 %';
+  h.doc.getElementById('ops-weather-clouds').textContent = '3 %';
+  h.doc.getElementById('ops-safety-monitor-count').textContent = '1';
+  h.doc.getElementById('ops-safety-monitor-list').children = [{}];
+  const badge = h.doc.getElementById('ops-safety-badge');
+  badge.textContent = 'safe';
+  badge.className = 'badge badge-running';
+
+  h.state.panelLastFailure.weather = Date.now();
+  h.render();
+
+  assert.equal(safe.textContent, '--',
+    'a verdict whose source refused is not "yes"');
+  assert.ok(!safe.className.includes('good'));
+  assert.equal(badge.textContent, 'unknown');
+  assert.ok(!badge.className.includes('badge-running'),
+    'an unreachable sky must not read green');
+  for (const id of ['ops-weather-alert-level', 'ops-weather-message',
+    'ops-weather-temp', 'ops-weather-humidity', 'ops-weather-clouds',
+    'ops-safety-monitor-count']) {
+    assert.equal(h.doc.getElementById(id).textContent, '--',
+      id + ' outlived the answer it came from');
+  }
+  assert.deepEqual(h.doc.getElementById('ops-safety-monitor-list').children, [],
+    'a per-monitor "safe" row is the same verdict in another shape');
+  assert.match(h.doc.getElementById('stale-weather').textContent,
+    /since last update/);
+});
+
+test('a dome whose source stopped answering stops naming its shutter', () => {
+  const now = Date.now();
+  const h = linkState({
+    unreachable: false,
+    lastContactAt: now - 200,
+    lastWsMessageAt: now - 200,
+    panelLastUpdate: { dome: now - 1000 },
+  });
+  h.doc.getElementById('ops-dome-shutter').textContent = 'open';
+  h.doc.getElementById('ops-dome-az').textContent = '182.4 °';
+  h.doc.getElementById('ops-dome-slewing').textContent = 'no';
+  h.doc.getElementById('ops-dome-sync').textContent = 'enabled';
+  const badge = h.doc.getElementById('ops-dome-state-badge');
+  badge.textContent = 'open';
+  badge.className = 'badge badge-running';
+
+  h.state.panelLastFailure.dome = Date.now();
+  h.render();
+
+  for (const id of ['ops-dome-shutter', 'ops-dome-az', 'ops-dome-slewing',
+    'ops-dome-sync']) {
+    assert.equal(h.doc.getElementById(id).textContent, '--');
+  }
+  assert.equal(badge.textContent, 'unknown');
+  assert.ok(!badge.className.includes('badge-running'));
+});
+
+test('a route that answers again hands both ops panels back', () => {
+  const now = Date.now();
+  const h = linkState({
+    unreachable: false,
+    lastContactAt: now - 200,
+    lastWsMessageAt: now - 200,
+    panelLastUpdate: { weather: now - 1000, dome: now - 1000 },
+  });
+  assert.deepEqual(h.opsRepaints, [], 'nothing to restore on a healthy link');
+  h.state.panelLastFailure.weather = Date.now();
+  h.state.panelLastFailure.dome = Date.now();
+  h.render();
+  assert.equal(h.doc.getElementById('ops-safety-badge').textContent, 'unknown');
+  assert.deepEqual(h.opsRepaints, [], 'nothing to restore while still stale');
+
+  h.state.panelLastUpdate.weather = Date.now();
+  h.state.panelLastUpdate.dome = Date.now();
+  h.render();
+  assert.deepEqual(h.opsRepaints, ['weather', 'dome'],
+    'the panels repaint from the data, not from the overlay');
+  h.render();
+  assert.deepEqual(h.opsRepaints, ['weather', 'dome'],
+    'the recovery edge fires once, not on every healthy tick');
+});
+
+/** Drive the real weather/safety fetch with a stubbed API. */
+function weatherFetch({ rejects }) {
+  const state = { ops: {} };
+  const marks = [];
+  const logs = [];
+  const renders = [];
+  const api = {
+    weatherGetCurrent: () => rejects
+      ? Promise.reject(Object.assign(new Error('refused'), { kind: 'unreachable' }))
+      : Promise.resolve({ dataSource: 'hardware', safeToImage: true }),
+    safetyGetStatus: () => rejects
+      ? Promise.reject(Object.assign(new Error('refused'), { kind: 'unreachable' }))
+      : Promise.resolve({ isSafe: true, monitorsConnected: 1 }),
+  };
+  const run = build(
+    ['api', 'state', 'markPanelFresh', 'markPanelUnconfirmed',
+      'renderOpsWeatherPanel', 'addLogEntry', 'describeApiError'],
+    [fn('fetchOpsWeatherAndSafety')],
+    'fetchOpsWeatherAndSafety',
+  )(
+    api, state,
+    (key) => marks.push('fresh:' + key),
+    (key) => marks.push('unconfirmed:' + key),
+    () => renders.push(1),
+    (cat, msg) => logs.push(msg),
+    (e, what) => what + ' failed',
+  );
+  return { run, marks, logs, renders, state };
+}
+
+test('a refused weather answer reaches the clock, not only the log', () => {
+  const h = weatherFetch({ rejects: true });
+  return h.run().then(() => {
+    assert.deepEqual(h.marks, ['unconfirmed:weather'],
+      'the refusal used to reach nothing but a log line');
+    assert.deepEqual(h.logs, ['Weather/safety fetch failed']);
+    assert.equal(h.renders.length, 1,
+      'the panel must repaint so the verdict comes off the screen');
+  });
+});
+
+test('an answered weather fetch marks the panel fresh', () => {
+  const h = weatherFetch({ rejects: false });
+  return h.run().then(() => {
+    assert.deepEqual(h.marks, ['fresh:weather']);
+    assert.deepEqual(h.logs, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D4W-3 — a sequencer status that names no state
+//
+// Measured against the release bundle with {"state":null,...,"progress":null}
+// on /api/sequencer/status: the Run panel read Status IDLE / Progress 0% /
+// aria-valuenow="0" with no stale line, so a screen reader announced "0
+// percent" for a figure the server had explicitly refused to supply. The same
+// wire fed to /run-watch renders "Status unavailable / UNKNOWN / PROGRESS --".
+// ---------------------------------------------------------------------------
+
+function sequencerPanel(sequencerStatus, { stale = false } = {}) {
+  const doc = makeDocument([
+    'seq-status', 'seq-node', 'seq-message', 'seq-progress-bar',
+    'seq-progress-bar-container', 'seq-progress-text',
+    'ops-seq-progress-bar', 'ops-seq-progress-bar-container',
+    'ops-seq-progress-text', 'ops-seq-eta', 'ops-seq-current-node',
+    'ops-seq-current-target',
+  ]);
+  const buttons = [];
+  const render = build(
+    ['document', 'state', 'renderBadge', 'updateSequencerButtons',
+      'renderOpsSequencerLoadPanel', 'runDataIsStale'],
+    [fn('sequencerStateOf'), fn('getSequencerBadgeClass'),
+      fn('sequencerProgressPercent'), fn('markProgressUnknown'),
+      fn('markProgressKnown'), fn('paintRunUnknown'),
+      fn('renderSequencerPanel')],
+    'renderSequencerPanel',
+  )(
+    doc,
+    { sequencerStatus },
+    (el, label, cls) => { el.textContent = label; el.className = cls; },
+    (s) => { buttons.push(s); },
+    () => {},
+    () => stale,
+  );
+  render();
+  return { doc, buttons };
+}
+
+test('a status that names no state renders unknown, never idle', () => {
+  const { doc, buttons } = sequencerPanel({
+    state: null, currentNodeId: null, currentNodeName: null,
+    currentTarget: null, progress: null, message: null,
+  });
+  const badge = doc.getElementById('seq-status');
+  assert.equal(badge.textContent, 'unknown',
+    'a null state is not a parked telescope');
+  assert.ok(badge.className.includes('badge-error'));
+  assert.equal(doc.getElementById('seq-progress-text').textContent, '--',
+    '0% is a figure the server refused to supply');
+  assert.equal(
+    doc.getElementById('seq-progress-bar-container')
+      .getAttribute('aria-valuenow'), null,
+    'aria-valuenow="0" announces "0 percent" for nothing anyone sent');
+  assert.ok(doc.getElementById('seq-progress-bar-container').classList
+    .contains('unknown'));
+  assert.equal(doc.getElementById('seq-node').textContent, '--');
+  assert.equal(doc.getElementById('seq-message').textContent, '');
+  assert.equal(doc.getElementById('ops-seq-current-target').textContent, '--');
+  assert.deepEqual(buttons, [null]);
+});
+
+test('a status that names a state still renders it', () => {
+  const { doc, buttons } = sequencerPanel({
+    state: 'running', currentNodeName: 'SENTINEL NODE', progress: 0.42,
+    message: 'SENTINEL MESSAGE',
+  });
+  assert.equal(doc.getElementById('seq-status').textContent, 'running');
+  assert.equal(doc.getElementById('seq-node').textContent, 'SENTINEL NODE');
+  assert.equal(doc.getElementById('seq-progress-text').textContent, '42%');
+  assert.equal(
+    doc.getElementById('seq-progress-bar-container')
+      .getAttribute('aria-valuenow'), '42');
+  assert.equal(doc.getElementById('seq-message').textContent,
+    'SENTINEL MESSAGE');
+  assert.deepEqual(buttons, ['running']);
+});
+
+test('only a named state counts as a state', () => {
+  const named = build(['x'], [fn('sequencerStateOf')], 'sequencerStateOf')(null);
+  for (const carried of [null, undefined, '', '   ', 42, { weird: true }, []]) {
+    assert.equal(named({ state: carried }), null,
+      JSON.stringify(carried) + ' names no run state');
+  }
+  assert.equal(named(null), null);
+  assert.equal(named({ state: 'running' }), 'running');
+  assert.equal(named({ state: '  paused  ' }), 'paused');
+});
+
+/** Drive the real sequencer fetch with a stubbed API. */
+function sequencerFetch(answer) {
+  const state = {};
+  const marks = [];
+  const run = build(
+    ['api', 'state', 'sequencerStateOf', 'markPanelFresh',
+      'markPanelUnconfirmed', 'renderSequencerPanel', 'addLogEntry',
+      'describeApiError'],
+    [fn('fetchSequencerStatus')],
+    'fetchSequencerStatus',
+  )(
+    { sequencerGetStatus: () => Promise.resolve(answer) },
+    state,
+    build(['x'], [fn('sequencerStateOf')], 'sequencerStateOf')(null),
+    (key) => marks.push('fresh:' + key),
+    (key) => marks.push('unconfirmed:' + key),
+    () => {},
+    () => {},
+    () => '',
+  );
+  return { run, marks };
+}
+
+test('a 200 that names no state is not a refreshed panel', () => {
+  const h = sequencerFetch({ state: null, progress: null });
+  return h.run().then(() => {
+    assert.deepEqual(h.marks, ['unconfirmed:sequencer'],
+      'the panel must carry a stale line, as it does for a malformed reply');
+  });
+});
+
+test('a 200 that names a state is a refreshed panel', () => {
+  const h = sequencerFetch({ state: 'running', progress: 0.42 });
+  return h.run().then(() => {
+    assert.deepEqual(h.marks, ['fresh:sequencer']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D4W-5 — a socket that never opened
+//
+// Measured against the release bundle through a page whose WebSocket never
+// completes its upgrade (a WS-hostile proxy or captive portal): the Event Log
+// printed the literal line "WebSocket silent for Infinitys — falling back to
+// REST polling". `Infinity` was the sentinel for "never connected" and it was
+// interpolated straight into operator-visible copy.
+// ---------------------------------------------------------------------------
+
+function staleness({ lastWsMessageAt, lastContactAt = Date.now() - 200 }) {
+  const logs = [];
+  const state = {
+    lastWsMessageAt,
+    wsFallbackPollInterval: null,
+    panelLastUpdate: {}, panelLastFailure: {},
+  };
+  const run = build(
+    ['api', 'state', 'lastServerContactAt', 'lastReachabilityProbeAt',
+      'probeServerReachable', 'repaintDataState', 'isServerContactStale',
+      'isPanelDataStale', 'lastPanelRefreshRetryAt', 'fetchAllStatus',
+      'fetchOpsSequences', 'addLogEntry', 'setInterval', 'clearInterval'],
+    [
+      konst('SERVER_HEARTBEAT_MS'),
+      konst('REACHABILITY_PROBE_MS'),
+      konst('HEARTBEAT_GRACE_MS'),
+      konst('PANEL_REFRESH_RETRY_MS'),
+      konst('WS_FALLBACK_THRESHOLD_MS'),
+      konst('PANEL_KEYS'),
+      fn('checkStaleness'),
+    ],
+    'checkStaleness',
+  )(
+    { isConnected: true, isWsConnected: false },
+    state,
+    () => lastContactAt,
+    Date.now(),
+    () => {},
+    () => {},
+    () => false,
+    () => false,
+    Date.now(),
+    () => {},
+    () => {},
+    (cat, msg) => logs.push(msg),
+    () => 'timer-handle',
+    () => {},
+  );
+  run();
+  return { logs, state };
+}
+
+test('a socket that never opened says so in words', () => {
+  const { logs, state } = staleness({ lastWsMessageAt: 0 });
+  assert.deepEqual(logs,
+    ['WebSocket never connected — falling back to REST polling']);
+  assert.equal(state.wsFallbackPollInterval, 'timer-handle',
+    'the fallback must still arm — the socket is no less absent');
+  for (const line of logs) {
+    assert.doesNotMatch(line, /Infinity|NaN|undefined|null/,
+      'no sentinel may reach operator-visible copy');
+  }
+});
+
+test('a socket that opened and went quiet reports how long', () => {
+  const now = Date.now();
+  const { logs } = staleness({ lastWsMessageAt: now - 60000 });
+  assert.equal(logs.length, 1);
+  assert.match(logs[0],
+    /^WebSocket silent for (59|60|61)s — falling back to REST polling$/);
+});
+
+test('a live socket arms no fallback and logs nothing', () => {
+  const { logs, state } = staleness({ lastWsMessageAt: Date.now() - 2000 });
+  assert.deepEqual(logs, []);
+  assert.equal(state.wsFallbackPollInterval, null);
 });

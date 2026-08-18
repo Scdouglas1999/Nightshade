@@ -9,7 +9,31 @@ with serde(default) are omitted; required ones are stated.
 import json, sys, time, math
 
 FILTERS = ["L", "R", "G", "B"]
-SITE_LAT, SITE_LON = 40.0, -105.0
+
+def site(unix=None):
+    """The harness observing site: lat 40N, longitude chosen so it is 01:00
+    LOCAL SOLAR TIME at the site right now.
+
+    A fixed longitude put the site wherever the wall clock happened to be: a
+    Phase D wave running at ~04:00 UTC landed 40N/105W inside the
+    DawnApproaching trigger's lead window, and the trigger — behaving
+    correctly for that site — parked a run the harness then failed as its
+    own. Solar 01:00 keeps every run mid-night at its site whatever hour the
+    harness fires, with the whole night ahead of it before any dawn logic
+    can arm."""
+    unix = time.time() if unix is None else unix
+    utc_hours = (unix / 3600.0) % 24.0
+    lon = (1.0 - utc_hours) * 15.0
+    lon = ((lon + 180.0) % 360.0) - 180.0
+    return 40.0, round(lon, 4)
+
+SITE_LAT, SITE_LON = site()
+
+# The shell legs POST the observer location before they build the sequence;
+# printing the pair here keeps them and the sequence on ONE site.
+if len(sys.argv) > 1 and sys.argv[1] == "--print-site":
+    print(f"{SITE_LAT} {SITE_LON}")
+    sys.exit(0)
 
 def lst_hours(unix, lon_deg):
     jd = unix / 86400.0 + 2440587.5

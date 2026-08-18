@@ -26,13 +26,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-NightshadeEvent _sequencerError(String message) => NightshadeEvent(
+NightshadeEvent _sequencerEvent(
+  String eventType,
+  Map<String, dynamic> data, {
+  EventSeverity severity = EventSeverity.info,
+}) => NightshadeEvent(
   timestamp: DateTime.now().millisecondsSinceEpoch,
-  severity: EventSeverity.error,
+  severity: severity,
   category: EventCategory.sequencer,
-  eventType: 'Error',
-  data: {'message': message},
+  eventType: eventType,
+  data: data,
 );
+
+NightshadeEvent _sequencerError(String message) => _sequencerEvent('Error', {
+  'message': message,
+}, severity: EventSeverity.error);
+
+/// The row the trigger monitor writes when a trigger ends the run, exactly as
+/// it reached the release bundle's own DB on a dawn abort:
+/// `trigger_fired | Trigger Dawn Approaching fired → ParkAndAbort`.
+NightshadeEvent _triggerFired(String name, String action) =>
+    _sequencerEvent('TriggerFired', {
+      'trigger_id': name.toLowerCase().replaceAll(' ', '_'),
+      'trigger_name': name,
+      'action': action,
+    }, severity: EventSeverity.warning);
+
+NightshadeEvent _operatorStopDecision() => _sequencerEvent('DecisionLogged', {
+  'category': kManualInterventionDecisionCategory,
+  'summary': 'Operator: stop requested',
+  'details_json': '{}',
+});
 
 void main() {
   group('the DeviceService-driven pump (producer 2b)', () {
@@ -44,12 +68,93 @@ void main() {
     test('an operator stop does not become "Error: Sequence cancelled"', () {
       applySequencerEventToSequenceProviders(
         container.read,
+        _operatorStopDecision(),
+      );
+      applySequencerEventToSequenceProviders(
+        container.read,
         _sequencerError(kSequenceCancelledNotice),
       );
 
       final message = container.read(sequenceProgressProvider).message;
       expect(message, kSequenceStoppedByRequestMessage);
       expect(message, isNot(contains('Error')));
+    });
+
+    // The defect: the pump answered the cancel notice with the operator's
+    // sentence whatever ended the run, so a weather/dawn ParkAndAbort with
+    // nobody at the keyboard read "Stopped by request" on run-watch.
+    test('a trigger-driven park names its trigger, not a human', () {
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _triggerFired('Dawn Approaching', kParkAndAbortTriggerAction),
+      );
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _sequencerError(kSequenceCancelledNotice),
+      );
+
+      final message = container.read(sequenceProgressProvider).message;
+      expect(message, 'Parked by the Dawn Approaching trigger');
+      expect(message, isNot(kSequenceStoppedByRequestMessage));
+    });
+
+    // The cancel-notice lifecycle decision lands AFTER the row that named the
+    // cause and names nobody itself. It must not erase the cause.
+    test('the cause survives the cause-neutral rows that follow it', () {
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _triggerFired('Weather Unsafe', kParkAndAbortTriggerAction),
+      );
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _sequencerEvent('DecisionLogged', {
+          'category': kSystemEventDecisionCategory,
+          'summary': kSequenceCancelledNotice,
+          'details_json': '{"phase":"cancelled"}',
+        }),
+      );
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _sequencerError(kSequenceCancelledNotice),
+      );
+
+      expect(
+        container.read(sequenceProgressProvider).message,
+        'Parked by the Weather Unsafe trigger',
+      );
+    });
+
+    test('a cancel nothing on the wire explains claims no cause', () {
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _sequencerError(kSequenceCancelledNotice),
+      );
+
+      final message = container.read(sequenceProgressProvider).message;
+      expect(message, kSequenceStoppedMessage);
+      expect(message, isNot(kSequenceStoppedByRequestMessage));
+      expect(message, isNot(contains('Error')));
+    });
+
+    // One night's cause may never be attached to the next night's stop.
+    test('a new run clears the previous run\'s cause', () {
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _triggerFired('Dawn Approaching', kParkAndAbortTriggerAction),
+      );
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _sequencerEvent('Started', {'sequence_name': 'Night two'}),
+      );
+      applySequencerEventToSequenceProviders(
+        container.read,
+        _sequencerError(kSequenceCancelledNotice),
+      );
+
+      expect(
+        container.read(sequenceProgressProvider).message,
+        kSequenceStoppedMessage,
+      );
     });
 
     test('a real fault is still reported as an error', () {
@@ -88,6 +193,21 @@ void main() {
             '$path handles a sequencer Error without asking whether it is '
             'the operator\'s Stop. That is the defect this file keeps '
             'reopening: one producer fixed, the other still crying wolf.',
+      );
+      expect(
+        source,
+        contains('sequenceStoppedMessage('),
+        reason:
+            '$path answers the cancel notice without asking WHO ended the '
+            'run. The notice is identical for an operator Stop and for a '
+            'dawn/weather ParkAndAbort, so the constant is a guess.',
+      );
+      expect(
+        source,
+        isNot(contains('message: kSequenceStoppedByRequestMessage')),
+        reason:
+            '$path writes the operator\'s sentence as a constant again. The '
+            'cause has to come from the run\'s own authorship rows.',
       );
     }
   });

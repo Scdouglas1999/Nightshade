@@ -196,9 +196,19 @@
   // both were invisible to the clock, so across a SIGTERM they sat unmarked
   // beside seven siblings that all carried a "Stale: 1m 0s since last update"
   // line.
+  //
+  // `weather` and `dome` joined for the same reason and matter more. Measured
+  // 74 s after a SIGTERM, with the header already reading "No contact" and
+  // five siblings carrying "Stale: 1m 14s since last update", the Weather &
+  // Safety panel still read "SAFE / Safe to image yes / Alert level clear /
+  // Conditions are within limits / Temperature 8.5 °C" — an affirmative
+  // safety verdict about a rig nobody could reach. `weather` is one key for
+  // both routes because one fetch gets both and one panel shows both: if
+  // either of /api/weather/current and /api/safety/status refuses, the
+  // panel's verdict is unconfirmed.
   const PANEL_KEYS = ['devices', 'mount', 'camera', 'sequencer', 'guiding',
                       'focuser', 'filter-wheel', 'rotator',
-                      'sequences', 'analytics'];
+                      'sequences', 'analytics', 'weather', 'dome'];
   // How often a panel whose route is failing is re-asked. Matches the WS
   // fallback poll's cadence: the same load, already accepted, and only while
   // something is actually failing.
@@ -221,6 +231,8 @@
     // panel's stale line. See repaintDataState().
     subscribeToDataClock(renderLinkState);
     subscribeToDataClock(renderRunDataState);
+    subscribeToDataClock(renderOpsWeatherDataState);
+    subscribeToDataClock(renderOpsDomeDataState);
     for (const panelKey of PANEL_KEYS) {
       subscribeToDataClock((view) => renderStaleIndicator(panelKey, view));
     }
@@ -1455,7 +1467,14 @@
 
   function checkStaleness() {
     const now = Date.now();
-    const wsSilentMs = state.lastWsMessageAt > 0 ? now - state.lastWsMessageAt : Infinity;
+    // How long the socket has been quiet, or null when it never opened at
+    // all. Null rather than a sentinel: this value is interpolated into an
+    // operator-visible log line below, and `Infinity` reached it verbatim as
+    // "WebSocket silent for Infinitys". A socket with no first message has no
+    // elapsed silence to report, so it gets words instead of arithmetic.
+    const wsSilentMs = state.lastWsMessageAt > 0
+      ? now - state.lastWsMessageAt
+      : null;
 
     // Reachability: ask the server directly rather than inferring health from
     // a silence. Two ways to earn the question — the socket is down, or the
@@ -1487,12 +1506,15 @@
       if (isPanelDataStale('sequences')) fetchOpsSequences();
     }
 
-    // Fallback polling: only when WS has been silent past the threshold.
-    if (api.isConnected && wsSilentMs > WS_FALLBACK_THRESHOLD_MS) {
+    // Fallback polling: when the socket never opened, or when it has been
+    // silent past the threshold.
+    if (api.isConnected &&
+        (wsSilentMs === null || wsSilentMs > WS_FALLBACK_THRESHOLD_MS)) {
       if (!state.wsFallbackPollInterval) {
-        addLogEntry('system',
-          'WebSocket silent for ' + Math.round(wsSilentMs / 1000) +
-          's — falling back to REST polling');
+        addLogEntry('system', wsSilentMs === null
+          ? 'WebSocket never connected — falling back to REST polling'
+          : 'WebSocket silent for ' + Math.round(wsSilentMs / 1000) +
+            's — falling back to REST polling');
         state.wsFallbackPollInterval = setInterval(fetchAllStatus, 5000);
         // Immediate one-shot so the user doesn't wait 5s for the next tick.
         fetchAllStatus();
@@ -1696,8 +1718,17 @@
     try {
       const status = await api.sequencerGetStatus();
       state.sequencerStatus = status;
+      // A 200 that carries no state has not refreshed anything this panel
+      // asserts, so it counts as a refusal for the clock's purposes — the
+      // same treatment a malformed reply already gets, and the same re-ask
+      // cadence. Without this the panel wore no stale line while claiming a
+      // state and a percentage nobody sent.
+      if (sequencerStateOf(status) == null) {
+        markPanelUnconfirmed('sequencer');
+      } else {
+        markPanelFresh('sequencer');
+      }
       renderSequencerPanel();
-      markPanelFresh('sequencer');
     } catch (e) {
       markPanelUnconfirmed('sequencer');
       addLogEntry('error', describeApiError(e, 'Sequencer fetch'));
@@ -3592,6 +3623,24 @@
     set('btn-seq-stop', running || paused || recovering || stopRetry);
   }
 
+  /// The run state a `/api/sequencer/status` reply actually names, or null
+  /// when it names none.
+  ///
+  /// `state` is documented non-null (`SequencerStatus.state` in
+  /// packages/nightshade_core/lib/src/models/backend/sequencer_status.dart),
+  /// so a null, empty or non-string value is a reply that declined to say.
+  /// The panel read `s.state || 'idle'`, which turned exactly that into the
+  /// word "idle" — a parked telescope — beside "0%" and aria-valuenow="0",
+  /// announcing "0 percent" for a figure the server explicitly refused to
+  /// supply. `/run-watch` renders the same wire as UNKNOWN.
+  function sequencerStateOf(status) {
+    if (!status) return null;
+    const raw = status.state;
+    if (typeof raw !== 'string') return null;
+    const named = raw.trim();
+    return named === '' ? null : named;
+  }
+
   // `/api/sequencer/status` reports `progress` as a 0..1 FRACTION — see
   // `SequencerStatus.progress` ("Overall progress (0.0 to 1.0)") in
   // packages/nightshade_core/lib/src/models/backend/sequencer_status.dart,
@@ -3677,11 +3726,21 @@
     }
 
     const s = state.sequencerStatus;
-    updateSequencerButtons(s.state);
+    const runState = sequencerStateOf(s);
+    if (runState == null) {
+      // The reply arrived and named no state. The panel has nothing to assert
+      // and says so on the same surface a dead route gets — the treatment a
+      // malformed reply already received, and the one /run-watch gives this
+      // exact payload.
+      updateSequencerButtons(null);
+      paintRunUnknown();
+      return;
+    }
+    updateSequencerButtons(runState);
 
     if (statusEl) {
-      const badgeClass = getSequencerBadgeClass(s.state);
-      renderBadge(statusEl, s.state || 'idle', badgeClass);
+      const badgeClass = getSequencerBadgeClass(runState);
+      renderBadge(statusEl, runState, badgeClass);
     }
 
     if (nodeEl) nodeEl.textContent = s.currentNodeName || '--';
@@ -4487,13 +4546,74 @@
       ]);
       state.ops.weather = weather;
       state.ops.safety = safety;
+      markPanelFresh('weather');
       renderOpsWeatherPanel();
     } catch (e) {
+      // Recorded, not only logged: this panel's verdict is the one an
+      // operator acts on, so a refusal has to reach the stale line and
+      // silence the verdict — not just print into the event log.
+      markPanelUnconfirmed('weather');
       addLogEntry('error', describeApiError(e, 'Weather/safety fetch'));
+      renderOpsWeatherPanel();
     }
   }
 
+  /// True while the panel wears the unknown surface, so the recovery edge can
+  /// be told from a run of healthy ticks.
+  let weatherUnknownAsserted = false;
+
+  /// Whether the Weather & Safety panel may go on quoting its last reading.
+  /// Same rule as the Run panel's, callable between clock ticks because the
+  /// renderer also fires on weather/safety events.
+  function weatherDataIsStale() {
+    return isServerContactStale(Date.now()) || isPanelDataStale('weather');
+  }
+
+  /// Stop asserting the sky. Every field the panel paints is a claim about
+  /// conditions right now, and "safe to image: yes" is the one an operator
+  /// acts on by leaving the roof open, so all of them fall silent together.
+  function paintOpsWeatherUnknown() {
+    for (const id of ['ops-weather-safe', 'ops-weather-alert-level',
+      'ops-weather-message', 'ops-weather-temp', 'ops-weather-humidity',
+      'ops-weather-clouds', 'ops-weather-wind', 'ops-weather-dew',
+      'ops-safety-monitor-count']) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '--';
+    }
+    const safeEl = document.getElementById('ops-weather-safe');
+    if (safeEl) safeEl.className = 'status-value';
+    const badgeEl = document.getElementById('ops-safety-badge');
+    if (badgeEl) {
+      badgeEl.textContent = 'unknown';
+      badgeEl.className = 'badge badge-error';
+    }
+    // The per-monitor list is the same verdict in another shape: a row
+    // reading "SafetyMonitor / safe" outlives the answer it came from.
+    const monListEl = document.getElementById('ops-safety-monitor-list');
+    if (monListEl) clearElement(monListEl);
+  }
+
+  /// The Weather & Safety panel's own honesty, on the shared clock.
+  function renderOpsWeatherDataState(view) {
+    if (!view.panelStale('weather')) {
+      if (weatherUnknownAsserted) {
+        weatherUnknownAsserted = false;
+        renderOpsWeatherPanel();
+      }
+      return;
+    }
+    weatherUnknownAsserted = true;
+    paintOpsWeatherUnknown();
+  }
+
   function renderOpsWeatherPanel() {
+    // Same gate as the Run panel's: this renderer also fires on weather and
+    // safety events, and a repaint from the cached reading while the route is
+    // refusing would put the old verdict straight back on screen.
+    if (weatherDataIsStale()) {
+      paintOpsWeatherUnknown();
+      return;
+    }
     const w = state.ops.weather;
     const s = state.ops.safety;
 
@@ -4638,13 +4758,57 @@
     }
     try {
       state.ops.domeStatus = await api.domeGetStatus(state.ops.domeDeviceId);
+      markPanelFresh('dome');
       renderOpsDomePanel();
     } catch (e) {
+      markPanelUnconfirmed('dome');
       addLogEntry('error', describeApiError(e, 'Dome status fetch'));
+      renderOpsDomePanel();
     }
   }
 
+  /// True while the Dome panel wears the unknown surface.
+  let domeUnknownAsserted = false;
+
+  /// Whether the Dome panel may go on quoting its last status.
+  function domeDataIsStale() {
+    return isServerContactStale(Date.now()) || isPanelDataStale('dome');
+  }
+
+  /// Stop asserting the dome. "Shutter: open" from a source that has stopped
+  /// answering is the same shape of claim as a green "running" badge, and it
+  /// is the one an operator reads before deciding whether the sky is covered.
+  function paintOpsDomeUnknown() {
+    for (const id of ['ops-dome-shutter', 'ops-dome-az', 'ops-dome-slewing',
+      'ops-dome-sync']) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '--';
+    }
+    const badgeEl = document.getElementById('ops-dome-state-badge');
+    if (badgeEl) {
+      badgeEl.textContent = 'unknown';
+      badgeEl.className = 'badge badge-error';
+    }
+  }
+
+  /// The Dome panel's own honesty, on the shared clock.
+  function renderOpsDomeDataState(view) {
+    if (!view.panelStale('dome')) {
+      if (domeUnknownAsserted) {
+        domeUnknownAsserted = false;
+        renderOpsDomePanel();
+      }
+      return;
+    }
+    domeUnknownAsserted = true;
+    paintOpsDomeUnknown();
+  }
+
   function renderOpsDomePanel() {
+    if (domeDataIsStale()) {
+      paintOpsDomeUnknown();
+      return;
+    }
     const d = state.ops.domeStatus;
     const shutterEl = document.getElementById('ops-dome-shutter');
     const azEl = document.getElementById('ops-dome-az');

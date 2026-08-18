@@ -48,9 +48,11 @@ import '../profiles_provider.dart';
 import '../sequence_provider.dart'
     show
         currentSequenceProvider,
+        recordSequenceStopEvidence,
         sequenceExecutionStateProvider,
         sequenceLaunchInFlightProvider,
-        sequenceProgressProvider;
+        sequenceProgressProvider,
+        sequenceStopEvidenceProvider;
 import '../sequence_stats_provider.dart';
 import '../session_handoff_provider.dart'
     show

@@ -48,6 +48,17 @@ part 'darkroom_controller_parts/_helpers.dart';
 /// practice.
 const int kDarkroomJournalDepth = 100;
 
+/// What to do about a `.nsrecipe` this build will not read.
+///
+/// Every import refusal ends on it, because both ways forward are outside this
+/// screen: a sidecar is written by an export, so a damaged or partial one is
+/// replaced by exporting the recipe again, and any other file is the operator's
+/// to choose. A refusal that named the fault and stopped there left them with a
+/// closed chooser and nothing to try.
+const String kDarkroomImportNextStep =
+    'Export the recipe again from the Darkroom that wrote it, or choose a '
+    'different .nsrecipe file.';
+
 /// Drives one Darkroom scope.
 class DarkroomController extends StateNotifier<DarkroomState> {
   /// Collaborators are resolved once, here, rather than read from [ref] on each
@@ -747,7 +758,8 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       if (!mounted) return;
       state = state.copyWith(
         offerBusy: false,
-        offerError: 'That file could not be read: $error',
+        offerError: 'That file could not be read, so nothing was imported. '
+            '$kDarkroomImportNextStep The reader answered: $error',
       );
       return;
     }
@@ -762,10 +774,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     try {
       imported = decodeDarkroomSidecar(pick.text);
     } on DarkroomRecipeFormatException catch (error) {
+      final detail = error.detail;
       state = state.copyWith(
         offerBusy: false,
+        // The fault in the file's own terms, then what to do about it, and only
+        // then the reader's words — attributed. This refusal used to END on the
+        // Dart JSON parser's fragment ("…: Unexpected character."), which is
+        // about no file the operator chose and offers nothing to try.
         offerError: '${p.basename(pick.path)} was not imported: '
-            '${error.message}.',
+            '${error.message}. $kDarkroomImportNextStep'
+            '${detail == null ? '' : ' $detail'}',
       );
       return;
     }

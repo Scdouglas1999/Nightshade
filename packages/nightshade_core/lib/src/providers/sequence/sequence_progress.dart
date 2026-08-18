@@ -192,7 +192,70 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
   }
 }
 
+/// WHO ended the run in progress, as the last authorship evidence on the wire
+/// named them — null while nothing has named anyone.
+///
+/// The cancel notice the executor emits ("Sequence cancelled") is emitted by
+/// EVERY cancellation path, so it says only THAT a run ended. The rows that say
+/// WHO all land BEFORE it: measured on the release bundle, `Trigger fired: Dawn
+/// Approaching - action: ParkAndAbort` at 11:02:16.638243 and the cancel notice
+/// 100 ms later. Reading the notice alone published "Stopped by request" on
+/// run-watch for a weather/dawn park nobody was awake for.
+///
+/// Cleared when a run starts, so one night's cause can never be attached to the
+/// next one's stop.
+final sequenceStopEvidenceProvider = StateProvider<SequenceStopDecision?>(
+  (ref) => null,
+);
+
+/// The stop authorship a core-typed sequencer event carries, or null when the
+/// event names nobody.
+///
+/// Both producers of the terminal message fold every event through here, so
+/// the DeviceService-driven pump and [SequenceExecutor]'s own handler read one
+/// vocabulary — the same one `sequenceStopDecision` gives the bridge-typed
+/// surfaces.
+SequenceStopDecision? sequenceStopEvidenceOf(NightshadeEvent event) {
+  switch (event.eventType) {
+    case 'TriggerFired':
+      return sequenceStopTriggerDecision(
+        triggerId: event.data['trigger_id'] as String?,
+        triggerName: event.data['trigger_name'] as String?,
+        action: event.data['action'] as String?,
+      );
+    case 'DecisionLogged':
+      final category = event.data['category'];
+      final summary = event.data['summary'];
+      // A row missing either half is a decision this build cannot read, and an
+      // unreadable row names nobody rather than falling through as a blank
+      // category that matches no author.
+      if (category is! String || summary is! String) return null;
+      return sequenceStopDecision(
+        category: category,
+        summary: summary,
+        detailsJson: event.data['details_json'] as String?,
+      );
+    default:
+      return null;
+  }
+}
+
 typedef SequenceProviderReader = T Function<T>(ProviderListenable<T> provider);
+
+/// Fold one event's authorship into [sequenceStopEvidenceProvider].
+///
+/// An event that names nobody leaves the last named author standing: the
+/// cancel-notice lifecycle row arrives after the row that named the cause, and
+/// erasing the cause with it would put the run straight back to claiming
+/// nothing — or, worse, to whatever the reader assumed.
+void recordSequenceStopEvidence(
+  SequenceProviderReader read,
+  NightshadeEvent event,
+) {
+  final decision = sequenceStopEvidenceOf(event);
+  if (decision == null) return;
+  read(sequenceStopEvidenceProvider.notifier).state = decision;
+}
 
 /// True when a local [SequenceExecutor] owns the running sequence, and is
 /// therefore the sole authority on run lifecycle state.
@@ -271,10 +334,17 @@ void applySequencerEventToSequenceProviders(
     event,
   );
 
+  // WHO is ending this run, kept as it arrives — the cancel notice below is
+  // cause-neutral and the rows that name a cause precede it.
+  recordSequenceStopEvidence(read, event);
+
   switch (event.eventType) {
     case 'Started':
     case 'SequenceStarted':
       final sequenceName = data['sequence_name'] as String? ?? 'Unknown';
+      // A new run answers for itself: the previous run's ParkAndAbort must not
+      // be read as the cause of this one's stop.
+      read(sequenceStopEvidenceProvider.notifier).state = null;
       if (executorOwnsRun) {
         progressNotifier.updateProgress(
           message: 'Started sequence: $sequenceName',
@@ -425,14 +495,20 @@ void applySequencerEventToSequenceProviders(
       // the exact trap this batch was chartered on, so the pin
       // `run_stop_classification_producers_test.dart` asserts on both.
       if (isSequenceCancelledNotice(message)) {
+        // WHOSE stop it was comes from the run's own authorship rows, never
+        // from the notice: the notice is identical for an operator Stop and
+        // for a dawn/weather ParkAndAbort, and reading it as the operator's
+        // told a sleeping owner their trigger-parked rig was "Stopped by
+        // request".
+        final stopped = sequenceStoppedMessage(
+          read(sequenceStopEvidenceProvider),
+        );
         developer.log(
           '[$kStopClassificationLogTag] sequence_progress pump: cancellation '
-          'notice treated as a stop, not an error',
+          'notice treated as a stop, not an error ($stopped)',
           name: 'SequenceProgress',
         );
-        progressNotifier.updateProgress(
-          message: kSequenceStoppedByRequestMessage,
-        );
+        progressNotifier.updateProgress(message: stopped);
         break;
       }
       progressNotifier.updateProgress(message: 'Error: $message');
