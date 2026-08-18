@@ -445,6 +445,16 @@ pub enum OpError {
 
 /// Faults the recipe engine reports for a recipe, independent of any one
 /// operation's own failures.
+///
+/// **Every `index` field is the 0-based position in the step list; every
+/// SENTENCE these errors print counts from 1.** The two are deliberately
+/// different. The index is what code indexes with — `steps.remove(index)`,
+/// the per-step verdict join — so it stays the list's own offset. The
+/// sentence is read by the operator, beside an editor whose every other
+/// number is 1-based: the step cards count "1 of 4", the export sheet writes
+/// `step4-stretch` into the exported filename. A refusal that called that
+/// same step "step 3" made the screen contradict itself, so the Display impls
+/// add the one everywhere and nothing else moves.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum RecipeError {
     /// The recipe JSON does not decode.
@@ -462,9 +472,10 @@ pub enum RecipeError {
         found: u32,
     },
     /// No operation is registered under this id and version.
-    #[error("step {index}: no operation registered as {op_id}@{op_version}")]
+    #[error("step {}: no operation registered as {op_id}@{op_version}", .index + 1)]
     UnknownOp {
-        /// Step index in the recipe.
+        /// Step index in the recipe, counted from 0; the sentence counts it
+        /// from 1.
         index: usize,
         /// Operation id requested.
         op_id: String,
@@ -472,9 +483,10 @@ pub enum RecipeError {
         op_version: u32,
     },
     /// The step's parameters failed the operation's own validation.
-    #[error("step {index} ({op_id}@{op_version}) has invalid parameters: {source}")]
+    #[error("step {} ({op_id}@{op_version}) has invalid parameters: {source}", .index + 1)]
     InvalidParams {
-        /// Step index in the recipe.
+        /// Step index in the recipe, counted from 0; the sentence counts it
+        /// from 1.
         index: usize,
         /// Operation id.
         op_id: String,
@@ -485,16 +497,20 @@ pub enum RecipeError {
     },
     /// A linear-stage operation sits after a stretched-stage operation.
     #[error(
-        "step {index} ({op_id}@{op_version}) is a linear-stage operation but step {blocking_index} ({blocking_op_id}) already left the linear stage"
+        "step {} ({op_id}@{op_version}) is a linear-stage operation but step {} ({blocking_op_id}) already left the linear stage",
+        .index + 1,
+        .blocking_index + 1
     )]
     StageOrder {
-        /// Index of the misplaced linear-stage step.
+        /// Index of the misplaced linear-stage step, counted from 0; the
+        /// sentence counts it from 1.
         index: usize,
         /// Operation id of the misplaced step.
         op_id: String,
         /// Operation version of the misplaced step.
         op_version: u32,
-        /// Index of the earliest stretched-stage step.
+        /// Index of the earliest stretched-stage step, counted from 0; the
+        /// sentence counts it from 1.
         blocking_index: usize,
         /// Operation id of that step.
         blocking_op_id: String,
@@ -506,9 +522,10 @@ pub enum RecipeError {
         reason: String,
     },
     /// A render was asked to stop after a step the recipe does not have.
-    #[error("step index {index} is out of range; the recipe's step count is {step_count}")]
+    #[error("step {} is out of range; the recipe's step count is {step_count}", .index + 1)]
     StepIndexOutOfRange {
-        /// The index that was requested.
+        /// The index that was requested, counted from 0; the sentence counts
+        /// it from 1.
         index: usize,
         /// Number of steps in the recipe.
         step_count: usize,
@@ -528,9 +545,10 @@ pub enum RecipeError {
         source: Box<OpError>,
     },
     /// An operation failed while the recipe was rendering.
-    #[error("step {index} failed: {source}")]
+    #[error("step {} failed: {source}", .index + 1)]
     Step {
-        /// Step index in the recipe.
+        /// Step index in the recipe, counted from 0; the sentence counts it
+        /// from 1.
         index: usize,
         /// The operation's fault.
         source: Box<OpError>,

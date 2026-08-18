@@ -23,6 +23,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -43,8 +44,12 @@ class _ScriptedDarkroom implements DarkroomSeam {
   bool validateOk = true;
 
   /// The whole-recipe sentence a refusal carries.
+  ///
+  /// Word for word what `RecipeError::StageOrder` prints, which counts the
+  /// recipe it was handed from 1: the insert makes `[stretch, denoise]`, so
+  /// denoise is step 2 and stretch step 1.
   String validateError =
-      'step 1 (denoise@1) is a linear-stage operation but step 0 (stretch) '
+      'step 2 (denoise@1) is a linear-stage operation but step 1 (stretch) '
       'already left the linear stage';
 
   /// Steps the registry's measured draft of this master carries.
@@ -56,6 +61,10 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// When set, an operation the catalogue publishes with a stage token this
   /// build does not model.
   bool publishUnmodelledOp = false;
+
+  /// When set, the catalogue also publishes `color_calibrate` — the operation
+  /// the engine defines a result for on three channels only.
+  bool publishColorCalibrate = false;
 
   final List<String> validated = [];
   final List<String> previewRecipes = [];
@@ -230,6 +239,14 @@ class _ScriptedDarkroom implements DarkroomSeam {
             'version': 1,
             'stage': 'perceptual',
             'summary': 'Sharpens, in a stage this build does not model.',
+            'params': const <dynamic>[],
+          },
+        if (publishColorCalibrate)
+          {
+            'id': 'color_calibrate',
+            'version': 1,
+            'stage': 'linear',
+            'summary': 'Fits a B−V colour-versus-flux regression.',
             'params': const <dynamic>[],
           },
       ],
@@ -461,9 +478,14 @@ void main() {
     expect(refusal, contains('already left the linear stage'));
     expect(refusal, contains('the step was not added'));
     // Counted from 1 over the stack the insert was asking for, as the refused
-    // move's sentence is — the engine numbers from 0 over what it was handed.
+    // move's sentence is — the engine's own numbers, carried through and told
+    // which arrangement they count.
     expect(refusal, contains('step 2 (denoise@1)'));
     expect(refusal, contains('step 1 (stretch)'));
+    expect(
+      refusal,
+      contains('count the stack the added step would have produced, from 1'),
+    );
 
     // A refused stack never reaches the renderer.
     await pumpDebounces();
@@ -801,7 +823,7 @@ void main() {
         'a stack the engine already refuses disables the control and '
         'says so', (tester) async {
       darkroom.validateOk = false;
-      darkroom.validateError = 'step 0 (crop@1) refuses its parameters: width '
+      darkroom.validateError = 'step 1 (crop@1) refuses its parameters: width '
           'must be at least 1';
       final id = await seedScreenRecipe([_step('crop')]);
       await pump(tester, recipeId: id);
@@ -883,5 +905,129 @@ void main() {
       await drain(tester);
       handle.dispose();
     });
+
+    testWidgets(
+        'the chooser publishes its title, its close and each operation as '
+        'separate nodes', (tester) async {
+      final id = await seedScreenRecipe(const []);
+      await pump(tester, recipeId: id);
+      final handle = tester.ensureSemantics();
+
+      await tester.tap(find.byKey(const ValueKey('darkroom_add_step')));
+      await settleScreen(tester);
+
+      // The whole chooser reached AT-SPI as ONE button named "Add a step /
+      // Close dialog", with the description and every operation nested inside
+      // it: the title was readable only as part of a control's name, and the
+      // control that closes the dialog had no node of its own to activate.
+      String? labelled(String label) {
+        for (final node in _traversal(tester)) {
+          if (node.getSemanticsData().label == label) return label;
+        }
+        return null;
+      }
+
+      final title = _dataLabelled(tester, 'Add a step');
+      expect(title, isNotNull, reason: 'the title has to read as text');
+      expect(title!.flagsCollection.isButton, isFalse);
+
+      final close = _dataLabelled(tester, 'Close dialog');
+      expect(close, isNotNull);
+      expect(close!.flagsCollection.isButton, isTrue);
+      expect(labelled('Close dialog'), isNotNull);
+
+      // And each operation keeps the node it always had.
+      expect(
+        find.bySemanticsLabel(RegExp('^Add Denoise v1 — Linear stage')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Close'));
+      await settleScreen(tester);
+      expect(find.text('Add a step'), findsNothing);
+      handle.dispose();
+      await drain(tester);
+    });
+
+    testWidgets(
+        'a three-channel operation is refused over a mono master before it '
+        'is added', (tester) async {
+      darkroom.publishColorCalibrate = true;
+      final masterId = await IntegratedMastersDao(db).insertMaster(
+        targetId: null,
+        name: 'M31 G',
+        masterFitsPath: _masterPath,
+        status: IntegratedMasterStatus.finalized,
+        accumulationMode: AccumulationMode.batch,
+        channels: 1,
+        width: 64,
+        height: 64,
+        frameCount: 8,
+        totalIntegrationSeconds: 2400,
+        settingsJson: '{}',
+        statsJson: '{}',
+      );
+      final id = await screenRecipes.create(
+        masterId: masterId,
+        baseMasterPath: _masterPath,
+        name: 'Linear',
+        stepsJson: jsonEncode([_step('denoise')]),
+        createdBy: RecipeAuthor.user,
+      );
+      await pump(tester, recipeId: id);
+      await settleScreen(tester);
+      await tester.tap(find.byKey(const ValueKey('darkroom_add_step')));
+      await settleScreen(tester);
+
+      // Listed, never hidden — an operator looking for it has to see what is in
+      // the way — and refused before the press, in the engine's own words. It
+      // used to state its stage rule and its insertion index in full and say
+      // nothing about channels: the step committed, the render came back
+      // "unsupported channel layout", and the picture sat stale until the
+      // operator found the step and removed it.
+      final entry = find.widgetWithText(NightshadeButton, 'Color calibrate');
+      expect(entry, findsOneWidget);
+      expect(tester.widget<NightshadeButton>(entry).onPressed, isNull);
+      expect(
+        find.textContaining('This master has 1 channel and this operation '
+            'runs over a colour master with 3 channels'),
+        findsOneWidget,
+      );
+      // Denoise has no channel precondition, so it is still offered.
+      expect(
+        tester
+            .widget<NightshadeButton>(
+              find.widgetWithText(NightshadeButton, 'Denoise'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      await drain(tester);
+    });
   });
+}
+
+/// Every semantics node in the tree, in the order assistive tech walks it.
+List<SemanticsNode> _traversal(WidgetTester tester) {
+  final nodes = <SemanticsNode>[];
+  void walk(SemanticsNode node) {
+    nodes.add(node);
+    for (final child in node.debugListChildrenInOrder(
+      DebugSemanticsDumpOrder.traversalOrder,
+    )) {
+      walk(child);
+    }
+  }
+
+  walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+  return nodes;
+}
+
+/// The node whose label is exactly [label], or null when none is.
+SemanticsData? _dataLabelled(WidgetTester tester, String label) {
+  for (final node in _traversal(tester)) {
+    final data = node.getSemanticsData();
+    if (data.label == label) return data;
+  }
+  return null;
 }

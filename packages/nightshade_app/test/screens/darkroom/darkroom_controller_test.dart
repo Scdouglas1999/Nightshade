@@ -102,7 +102,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
     return {
       'ok': validateOk && unknown == null,
       'error': unknown != null
-          ? 'step $unknown: no operation registered as '
+          ? 'step ${unknown + 1}: no operation registered as '
               '${_opKey(steps[unknown] as Map<String, dynamic>)}'
           : (validateOk ? null : validateError),
       'steps': [
@@ -151,7 +151,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
     if (unknown != null) {
       throw DarkroomSeamException(
         'renderPreview',
-        'step $unknown: no operation registered as '
+        'step ${unknown + 1}: no operation registered as '
             '${_opKey(steps[unknown] as Map<String, dynamic>)}',
         StateError('unregistered op'),
       );
@@ -980,10 +980,12 @@ void main() {
     );
     final state = await settle(DarkroomScope.recipe(id));
 
-    // The disabled step is left out, so the engine numbers chrono_warp 1 while
-    // the operator counts it third in the panel.
+    // The disabled step is left out, so the engine calls chrono_warp step 2 of
+    // the three it was given while the operator counts it third in the panel.
+    // Both count from 1; they count different lists, which is what the
+    // appended sentence is for.
     expect(state.renderError, contains('chrono_warp@1'));
-    expect(state.renderError, contains('step 1'));
+    expect(state.renderError, contains('step 2'));
     expect(
       state.renderError,
       contains('asked without 1 switched-off step this build cannot run'),
@@ -1251,12 +1253,12 @@ void main() {
       darkroomControllerProvider(scope).notifier,
     );
 
-    // The engine's own sentence, indexing the order it was HANDED from 0:
+    // The engine's own sentence, numbering the order it was HANDED from 1:
     // moving stretch above denoise makes [crop, background_extract, stretch,
-    // denoise], in which denoise is 3 and stretch is 2.
+    // denoise], in which denoise is step 4 and stretch step 3.
     darkroom.validateOk = false;
     darkroom.validateError =
-        'step 3 (denoise@1) is a linear-stage operation but step 2 (stretch) '
+        'step 4 (denoise@1) is a linear-stage operation but step 3 (stretch) '
         'already left the linear stage';
 
     final moved = await controller.reorderStep(3, 2);
@@ -1441,5 +1443,61 @@ void main() {
     expect(offered.preview, isNull);
     // The catalogue is about this build's registry, not about any recipe.
     expect(offered.catalog, isNotNull);
+  });
+
+  test('a malformed step is named the way the editor would number it', () {
+    // The FIRST entry of the array is "step 1" — the same step the cards, the
+    // move buttons and the engine's own refusals all call 1. It read "step 0"
+    // for as long as the message printed the array index it was handed.
+    expect(
+      () =>
+          DarkroomStep.fromJson(const <String, dynamic>{'opId': 123}, index: 0),
+      throwsA(
+        isA<DarkroomRecipeFormatException>().having(
+          (e) => e.message,
+          'message',
+          allOf(
+            contains('step 1 names no operation'),
+            isNot(contains('step 0')),
+          ),
+        ),
+      ),
+    );
+    expect(
+      () => DarkroomStep.fromJson('juststring', index: 1),
+      throwsA(
+        isA<DarkroomRecipeFormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('step 2 is a JSON string'),
+        ),
+      ),
+    );
+    expect(
+      () => DarkroomStep.fromJson(
+        const <String, dynamic>{'opId': 'crop', 'opVersion': 'one'},
+        index: 3,
+      ),
+      throwsA(
+        isA<DarkroomRecipeFormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('step 4 (crop) carries no integer "opVersion"'),
+        ),
+      ),
+    );
+    expect(
+      () => DarkroomStep.fromJson(
+        const <String, dynamic>{'opId': 'crop', 'opVersion': 1},
+        index: 3,
+      ),
+      throwsA(
+        isA<DarkroomRecipeFormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('step 4 (crop) carries no boolean "enabled"'),
+        ),
+      ),
+    );
   });
 }

@@ -56,8 +56,14 @@ class DarkroomScreen extends ConsumerStatefulWidget {
 }
 
 class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
-  String? _lastShownRefusal;
-  String? _lastShownInsertRefusal;
+  /// The attempt number of the refusal this screen has already announced, so a
+  /// rebuild does not toast the same occurrence twice. Zero when there is none.
+  ///
+  /// The attempt, not the sentence: two refusals of the same move for the same
+  /// reason are byte-identical, and deduping on the string swallowed the second
+  /// one. The controller stamps each refusal with the attempt that raised it.
+  int _lastShownRefusal = 0;
+  int _lastShownInsertRefusal = 0;
   String? _lastShownSaveError;
 
   /// The recipe the compare pane draws beside the open one, or null when the
@@ -77,8 +83,8 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       // against the recipe that is no longer open. Keeping it would leave a
       // compare whose labels describe a pairing the operator never asked for.
       _compareRecipeId = null;
-      _lastShownRefusal = null;
-      _lastShownInsertRefusal = null;
+      _lastShownRefusal = 0;
+      _lastShownInsertRefusal = 0;
       _lastShownSaveError = null;
     }
   }
@@ -131,22 +137,25 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     final state = ref.watch(darkroomControllerProvider(widget.scope));
 
     // A refused reorder and a failed write are both things the operator did
-    // that did not take effect, so each is announced once per occurrence. The
-    // dedupe resets when the message clears, so the same refusal on a second
-    // attempt toasts again instead of going quiet.
+    // that did not take effect, so each is announced once per OCCURRENCE — the
+    // attempt the controller stamped on it, not the words it carries. Deduping
+    // on the words made a second press of the same enabled control, refused for
+    // the same reason, produce nothing at all: the sentence matched the one
+    // already shown, so the toast was suppressed and the operator's second
+    // attempt went unacknowledged.
     if (state.reorderRefusal == null) {
-      _lastShownRefusal = null;
-    } else if (state.reorderRefusal != _lastShownRefusal) {
-      _lastShownRefusal = state.reorderRefusal;
+      _lastShownRefusal = 0;
+    } else if (state.reorderRefusalAttempt != _lastShownRefusal) {
+      _lastShownRefusal = state.reorderRefusalAttempt;
       _toast(state.reorderRefusal!, NightshadeAlertSeverity.warning);
     }
     // Announced as well as printed, for the same reason: the chooser closes on
     // the choice, so a refused insert leaves a stack that looks untouched and
     // an alert one panel away from where the operator was looking.
     if (state.insertRefusal == null) {
-      _lastShownInsertRefusal = null;
-    } else if (state.insertRefusal != _lastShownInsertRefusal) {
-      _lastShownInsertRefusal = state.insertRefusal;
+      _lastShownInsertRefusal = 0;
+    } else if (state.insertRefusalAttempt != _lastShownInsertRefusal) {
+      _lastShownInsertRefusal = state.insertRefusalAttempt;
       _toast(state.insertRefusal!, NightshadeAlertSeverity.warning);
     }
     if (state.saveError == null) {

@@ -106,6 +106,13 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// running.
   String? _inFlightRenderId;
 
+  /// How many moves this editor has refused, and how many inserts. They stamp
+  /// the refusal on the state so a repeat of the same refusal is a second
+  /// occurrence rather than the same string arriving twice — see
+  /// [_refuseReorder].
+  int _reorderRefusals = 0;
+  int _insertRefusals = 0;
+
   /// The step lists an undo restores, oldest first.
   final List<List<DarkroomStep>> _undoJournal = [];
 
@@ -333,6 +340,10 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       draftNotes: const [],
       clearDraftNotesError: true,
       clearImportNote: true,
+      // A fact about the master the PREVIOUS recipe rendered. It is re-read for
+      // this one by [_resolvePhotometry] below; carrying the old count across
+      // would let the chooser state a precondition about the wrong pixels.
+      clearMasterChannels: true,
     );
 
     _lastEditKey = null;
@@ -484,6 +495,11 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         );
         return;
       }
+      // The channel count travels with the row this walk already reads: it is
+      // the one master fact the chooser needs before an operation is added, and
+      // reading the row twice for it would be a second query for a number
+      // already in hand.
+      state = state.copyWith(masterChannels: master.channels);
       final wcs = overlayFromMasterWcs(
         crval1: master.wcsCrval1,
         crval2: master.wcsCrval2,
@@ -962,12 +978,10 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     if (state.recipeId == null || state.insertBusy) return false;
     final at = state.insertIndexFor(op);
     if (at == null) {
-      state = state.copyWith(
-        insertRefusal:
-            'The operation registry states ${op.id}@${op.version}\'s stage as '
-            '"${op.stageWire}", which this build does not model, so this '
-            'editor cannot say where in the stack it belongs. Nothing was '
-            'added.',
+      _refuseInsert(
+        'The operation registry states ${op.id}@${op.version}\'s stage as '
+        '"${op.stageWire}", which this build does not model, so this editor '
+        'cannot say where in the stack it belongs. Nothing was added.',
       );
       return false;
     }
@@ -977,7 +991,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     if (!mounted) return false;
     final openingRefusal = opening.refusal;
     if (openingRefusal != null) {
-      state = state.copyWith(insertBusy: false, insertRefusal: openingRefusal);
+      _refuseInsert(openingRefusal);
       return false;
     }
 
@@ -1001,20 +1015,17 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // the chooser closed, the stack unchanged and nothing on screen saying
       // why — the same reason the reorder path catches.
       if (!mounted) return false;
-      state = state.copyWith(
-        insertBusy: false,
-        insertRefusal: 'That step could not be checked with the engine, so it '
-            'was not added: $error',
+      _refuseInsert(
+        'That step could not be checked with the engine, so it was not added: '
+        '$error',
       );
       return false;
     }
     if (!mounted) return false;
     if (verdict == null) {
-      state = state.copyWith(
-        insertBusy: false,
-        insertRefusal:
-            'The engine could not be asked whether that step is legal here, so '
-            'it was not added.',
+      _refuseInsert(
+        'The engine could not be asked whether that step is legal here, so it '
+        'was not added.',
       );
       return false;
     }
@@ -1023,9 +1034,8 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // attach each message to the wrong card — the same reason the reorder
       // path shows the whole-recipe sentence alone.
       final error = verdict.error;
-      state = state.copyWith(
-        insertBusy: false,
-        insertRefusal: error == null
+      _refuseInsert(
+        error == null
             ? 'The engine refused that step without naming a reason. Nothing '
                 'was added, so the stack on screen is unchanged.'
             : _refusalOverCandidate(
@@ -1186,18 +1196,17 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // back with no reason stated anywhere on the screen. The move is refused
       // and the failure is named instead.
       if (!mounted) return false;
-      state = state.copyWith(
-        reorderRefusal: 'That order could not be checked with the engine, so '
-            'the move was not made: $error',
+      _refuseReorder(
+        'That order could not be checked with the engine, so the move was not '
+        'made: $error',
       );
       return false;
     }
     if (!mounted) return false;
     if (verdict == null) {
-      state = state.copyWith(
-        reorderRefusal:
-            'The engine could not be asked whether that order is legal, so the '
-            'move was not made.',
+      _refuseReorder(
+        'The engine could not be asked whether that order is legal, so the '
+        'move was not made.',
       );
       return false;
     }
@@ -1207,8 +1216,8 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // whole-recipe sentence is shown, counted in the order the move would
       // have produced — see [_refusalOverCandidate].
       final error = verdict.error;
-      state = state.copyWith(
-        reorderRefusal: error == null
+      _refuseReorder(
+        error == null
             ? 'The engine refused that order without naming a reason. The move '
                 'was not made, so the stack on screen is unchanged. Try a '
                 'different destination for that step, or switch it off if it '
@@ -1219,6 +1228,32 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     }
     _applyEdit(candidate, verdict: verdict, verdictOf: candidate);
     return true;
+  }
+
+  /// Publish a refused move, stamped with the attempt that raised it.
+  ///
+  /// Every refusal goes through here rather than writing the field directly,
+  /// because the stamp is the whole point: the screen announces one refusal
+  /// once, and it told two occurrences apart by the sentence alone — so a
+  /// second press of the same enabled control, refused for the same reason,
+  /// produced a byte-identical string and said nothing at all. The inline
+  /// alert stayed up, so the reason remained readable, but the operator got no
+  /// acknowledgement that their second attempt had been refused too.
+  void _refuseReorder(String message) {
+    state = state.copyWith(
+      reorderRefusal: message,
+      reorderRefusalAttempt: ++_reorderRefusals,
+    );
+  }
+
+  /// Publish a refused insert, stamped the same way and for the same reason —
+  /// and clearing the busy flag, which every one of these paths must.
+  void _refuseInsert(String message) {
+    state = state.copyWith(
+      insertBusy: false,
+      insertRefusal: message,
+      insertRefusalAttempt: ++_insertRefusals,
+    );
   }
 
   /// Restore the step list as it was before the last edit.
@@ -1303,12 +1338,13 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   static List<Object> _identitiesOf(List<DarkroomStep> steps) =>
       List.unmodifiable([for (final step in steps) step.identity]);
 
-  /// The engine's refusal, counted from 1 in the order the move was asking for.
+  /// The engine's refusal, said over the order the move was asking for.
   ///
-  /// The engine numbers steps from 0 over the recipe it was HANDED — the
-  /// [candidate] order — and every other step list in this app counts from 1
-  /// (the export sheet's does). So each number is re-based, and nothing else
-  /// about it moves.
+  /// The engine's own sentences count steps from 1, the same way this screen's
+  /// cards and the export sheet's filenames do, so the numbers are passed
+  /// through untouched. What the engine cannot say is WHICH arrangement it
+  /// counted, and that is this method's whole job: it numbered the recipe it
+  /// was HANDED — the [candidate] order — not the stack still on screen.
   ///
   /// **Why not re-point them at the cards on screen.** A refused move is not
   /// committed, so the panel still shows the order from BEFORE it, and mapping
@@ -1318,16 +1354,17 @@ class DarkroomController extends StateNotifier<DarkroomState> {
   /// "step 3 (denoise) is a linear-stage operation but step 4 (stretch) already
   /// left the linear stage" — which describes the arrangement the operator is
   /// looking at, and that one is LEGAL. The sentence is about the order that
-  /// was refused, so it counts in that order and says which order that is.
+  /// was refused, so it says which order that is.
   ///
-  /// A number outside the candidate list is left exactly as the engine wrote
-  /// it, and the sentence about counting is added only when at least one number
-  /// was re-based, so nothing here claims a translation it did not make.
+  /// The clarifying sentence is added only when the message actually names a
+  /// step the candidate list has; a refusal about no step in particular, or
+  /// about a number outside that list, gets no claim about counting it never
+  /// made.
   ///
   /// [counted] names the arrangement the numbers count, [undone] what did not
   /// happen, and [nextStep] what to do about it — so the two edits that ask the
   /// engine before they commit, a move and an added step, each report their own
-  /// refusal in their own words while sharing the re-basing.
+  /// refusal in their own words while sharing the framing.
   static String _refusalOverCandidate(
     String message,
     List<DarkroomStep> candidate, {
@@ -1336,22 +1373,15 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     String nextStep = 'Try a different destination for that step, or switch a '
         'step off if it should not run at all.',
   }) {
-    var rebased = false;
-    final rewritten = message.replaceAllMapped(
-      RegExp(r'\bstep (\d+)\b'),
-      (match) {
-        final whole = match.group(0)!;
-        final at = int.tryParse(match.group(1)!);
-        if (at == null || at < 0 || at >= candidate.length) return whole;
-        rebased = true;
-        return 'step ${at + 1}';
-      },
-    );
-    if (!rebased) {
-      return '$rewritten. The stack on screen is unchanged, because $undone. '
+    final namesCandidateStep = RegExp(r'\bstep (\d+)\b')
+        .allMatches(message)
+        .map((match) => int.tryParse(match.group(1)!))
+        .any((at) => at != null && at >= 1 && at <= candidate.length);
+    if (!namesCandidateStep) {
+      return '$message. The stack on screen is unchanged, because $undone. '
           '$nextStep';
     }
-    return '$rewritten. Those step numbers count $counted, from 1 — not the '
+    return '$message. Those step numbers count $counted, from 1 — not the '
         'stack on screen, which is unchanged because $undone. $nextStep';
   }
 
@@ -1522,6 +1552,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       rendering: true,
       cancelRequested: false,
       clearRenderError: true,
+      clearRenderFailure: true,
       clearCancelledPhase: true,
       omittedFromRender: List.unmodifiable(omitted),
     );
@@ -1559,6 +1590,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         ),
         reports: decodeDarkroomStepReports(preview.report),
         reportedSteps: List.unmodifiable(askedIdentities),
+        clearRenderFailure: true,
       );
     } on DarkroomCancelledOutcome catch (cancelled) {
       if (!mounted || generation != _renderGeneration) return;
@@ -1569,6 +1601,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         rendering: false,
         cancelRequested: false,
         cancelledPhase: cancelled.phase,
+        clearRenderFailure: true,
       );
     } on DarkroomSeamException catch (error) {
       if (!mounted || generation != _renderGeneration) return;
@@ -1584,6 +1617,7 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         error.message,
         state.baseMasterPath,
       );
+      final failure = _failureOf(error.message, asked, askedIdentities);
       state = state.copyWith(
         rendering: false,
         cancelRequested: false,
@@ -1592,6 +1626,8 @@ class DarkroomController extends StateNotifier<DarkroomState> {
             : '${error.message}. $nextStep',
         reports: const [],
         reportedSteps: const [],
+        renderFailure: failure,
+        clearRenderFailure: failure == null,
       );
     } finally {
       _renderInFlight = false;
@@ -1603,9 +1639,43 @@ class DarkroomController extends StateNotifier<DarkroomState> {
     }
   }
 
+  /// The step a render failure NAMES, or null when it names none this build can
+  /// join to one.
+  ///
+  /// The engine writes `step N failed: <opId>@<version>: <fault>`, where N
+  /// counts the recipe it was HANDED from 1 — [asked], which is the stack minus
+  /// any switched-off step this build cannot run. Both halves are checked: the
+  /// position has to exist in that list AND the operation at it has to be the
+  /// operation the message names. A message that fails either check attributes
+  /// nothing, because the alternative is badging a step the engine never ran.
+  ///
+  /// [identities] is [asked]'s identity list, so the attribution survives an
+  /// edit that moves the step before the failure reaches a card.
+  static DarkroomRenderFailure? _failureOf(
+    String message,
+    List<DarkroomStep> asked,
+    List<Object> identities,
+  ) {
+    final match = RegExp(r'^step (\d+) failed: ([A-Za-z0-9_]+)@(\d+): (.+)$',
+            dotAll: true)
+        .firstMatch(message);
+    if (match == null) return null;
+    final ordinal = int.tryParse(match.group(1)!);
+    final version = int.tryParse(match.group(3)!);
+    if (ordinal == null || version == null) return null;
+    final at = ordinal - 1;
+    if (at < 0 || at >= asked.length || at >= identities.length) return null;
+    final step = asked[at];
+    if (step.opId != match.group(2) || step.opVersion != version) return null;
+    return DarkroomRenderFailure(
+      stepIdentity: identities[at],
+      reason: match.group(4)!,
+    );
+  }
+
   /// The engine's refusal, plus what it was counting when it numbered a step.
   ///
-  /// A refusal names a step by its index in the recipe the engine was HANDED.
+  /// A refusal counts a step from 1 over the recipe the engine was HANDED.
   /// When that recipe was the stack minus the switched-off steps this build
   /// cannot run, the number the engine wrote is not the number the operator can
   /// count to in the panel — so the difference is stated rather than left for
@@ -1641,6 +1711,8 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         cancelRequested: false,
         renderError: 'The stop request did not reach the render: '
             '${error.message}',
+        // A stop that did not arrive is not a fault of any step's.
+        clearRenderFailure: true,
       );
     }
   }

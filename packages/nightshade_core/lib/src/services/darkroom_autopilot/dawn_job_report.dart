@@ -432,6 +432,43 @@ class DawnMasterReport {
   };
 }
 
+/// What a copy of the night report was written too early to know.
+///
+/// The report is itself one of the delivered artifacts, so the copy delivery
+/// hands to a destination has to exist on disk BEFORE delivery runs — and it
+/// therefore can never contain delivery's own outcome, nor the morning
+/// notification that follows delivery. The rig rewrites its local copy once
+/// both are decided; the copy already in the operator's hands is never
+/// rewritten, because delivery names each artifact once and never overwrites a
+/// name it has already handed over.
+///
+/// So that copy states the gap rather than leaving it to be read out of two
+/// nulls: [blocks] names the report keys it has no outcome for, and [note] is
+/// the sentence the operator reads.
+class DawnReportPending {
+  /// The report's own top-level keys this copy has no outcome for.
+  final List<String> blocks;
+
+  /// Why this copy has none of them, and where the filled-in ones are.
+  final String note;
+
+  const DawnReportPending({required this.blocks, required this.note});
+
+  /// The copy delivery itself ships.
+  static const DawnReportPending beforeDelivery = DawnReportPending(
+    blocks: <String>['delivery', 'notification'],
+    note:
+        'This copy left the rig while delivery was in progress, so it carries '
+        'no delivery or notification outcome; the copy on the rig carries '
+        'both. Everything else here is final — these are the masters the pass '
+        'integrated and the drafts it rendered, and finishedAt is when that '
+        'drafting finished.',
+  );
+
+  /// The pending block as report JSON.
+  Map<String, dynamic> toJson() => {'blocks': blocks, 'note': note};
+}
+
 /// Whether the morning notification was sent, and why.
 class DawnNotificationDecision {
   /// True when the notification reached at least one transport.
@@ -460,10 +497,12 @@ class DawnJobReport {
   /// When the job started, UTC.
   final DateTime startedAt;
 
-  /// When the job finished, UTC.
+  /// When the job finished, UTC — or, on a copy carrying [pending], when the
+  /// drafting this copy reports finished.
   final DateTime finishedAt;
 
-  /// The job's final state, as the row records it.
+  /// The job's final state, as the row records it — or [deliveringState] on a
+  /// copy written while delivery was still running.
   final String state;
 
   /// One entry per master with a linear FITS.
@@ -484,6 +523,10 @@ class DawnJobReport {
   /// Why the job stopped short, or null when it ran to the end.
   final String? failure;
 
+  /// What this copy of the report was written too early to know, or null when
+  /// it knows everything the job produced.
+  final DawnReportPending? pending;
+
   const DawnJobReport({
     required this.jobId,
     required this.kind,
@@ -497,7 +540,20 @@ class DawnJobReport {
     required this.deliveryProblems,
     required this.notification,
     required this.failure,
+    this.pending,
   });
+
+  /// The [state] a copy written while delivery was still running carries.
+  ///
+  /// No `darkroom_jobs` row ever holds this string — the ROW is `running` at
+  /// that instant, and the report is not the row. It exists so the delivered
+  /// artifact does not have to borrow the row's word for a moment the row's
+  /// vocabulary cannot describe: `running` printed beside a `finishedAt` and
+  /// two null outcome blocks reads as a job that stopped without finishing,
+  /// which is the one thing that had not happened. `delivering`, beside
+  /// [pending], reads as what it is — the drafting is over, the copying is
+  /// not.
+  static const String deliveringState = 'delivering';
 
   /// Frames that contributed pixels across every master, counting only the
   /// masters whose row records the number.
@@ -547,7 +603,8 @@ class DawnJobReport {
   ///
   /// The pipeline uses it to rewrite the report as the ending the job row
   /// actually took, so the artifact on disk can never announce a state the row
-  /// never reached.
+  /// never reached. [pending] rides along unchanged: what a copy knows is a
+  /// fact about the copy, not about the ending.
   DawnJobReport withEnding({required String state, String? failure}) =>
       DawnJobReport(
         jobId: jobId,
@@ -562,6 +619,7 @@ class DawnJobReport {
         deliveryProblems: deliveryProblems,
         notification: notification,
         failure: failure ?? this.failure,
+        pending: pending,
       );
 
   /// The notification's title line.
@@ -623,6 +681,11 @@ class DawnJobReport {
     lines.addAll(deliveryProblems);
     final stopped = failure;
     if (stopped != null) lines.add(stopped);
+    // Last, and in the same prose as the rest: a reader who never opens the
+    // JSON keys still learns that this copy's delivery line is missing because
+    // it was written first, not because delivery did nothing.
+    final unknown = pending;
+    if (unknown != null) lines.add(unknown.note);
     return lines.join('\n');
   }
 
@@ -670,6 +733,11 @@ class DawnJobReport {
     'deliveryProblems': deliveryProblems,
     'notification': notification?.toJson(),
     'failure': failure,
+    // Every key above keeps the type it has always had, so a consumer that
+    // reads `state`, `delivery` or `notification` still parses this copy. This
+    // one says which of them are absent because the copy predates them —
+    // absent from the copy, not absent from the night.
+    'pending': pending?.toJson(),
   };
 }
 

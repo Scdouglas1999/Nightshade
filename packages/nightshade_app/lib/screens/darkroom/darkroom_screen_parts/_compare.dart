@@ -72,9 +72,12 @@ class _DarkroomCompareView extends ConsumerStatefulWidget {
 }
 
 class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
-  /// The transform both panes share. Owned here so the two viewers cannot
-  /// disagree about where the operator is looking.
-  final TransformationController _transform = TransformationController();
+  /// The transform both panes share, and the operations the zoom controls
+  /// perform on it. Owned here so the two viewers cannot disagree about where
+  /// the operator is looking.
+  final _DarkroomZoom _zoom = _DarkroomZoom();
+
+  TransformationController get _transform => _zoom.controller;
 
   Timer? _blink;
 
@@ -88,7 +91,30 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
   @override
   void initState() {
     super.initState();
+    // The readout is a number about the transform, and a drag-pan or a pinch
+    // reaches no callback of this widget's — so it listens to the controller,
+    // the same way the single-recipe viewport does.
+    _transform.addListener(_onTransformChanged);
     if (widget.mode == _DarkroomCompareMode.blink) _startBlink();
+  }
+
+  /// Repaint the readout on the next legal frame.
+  ///
+  /// The panes write the initial fit to this controller from inside a layout
+  /// callback; marking this widget dirty there asks for a build during a layout
+  /// already in flight, which release builds drop along with the enclosing
+  /// panel's build scope. See [_DarkroomViewportState._onTransformChanged],
+  /// where the same trap was measured.
+  void _onTransformChanged() {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
   }
 
   @override
@@ -105,7 +131,8 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
   @override
   void dispose() {
     _stopBlink();
-    _transform.dispose();
+    _transform.removeListener(_onTransformChanged);
+    _zoom.dispose();
     super.dispose();
   }
 
@@ -138,7 +165,7 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _controls(colors, bState),
+        _controls(bState),
         Expanded(
           child: widget.mode == _DarkroomCompareMode.sideBySide
               ? _sideBySide(colors, bState)
@@ -148,61 +175,80 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
     );
   }
 
-  Widget _controls(NightshadeColors colors, DarkroomState bState) {
+  /// One control row above both panes: the mode controls this view owns, then
+  /// the SAME zoom controls the single-recipe viewport carries.
+  ///
+  /// Compare used to build its own chrome and drop the toolbar entirely, so the
+  /// comparator had no zoom control, no percentage readout and no way to reach
+  /// 1:1 — the magnification an A/B noise comparison is for — with the mouse
+  /// wheel as the only way to change the view at all. The controls drive the
+  /// one shared transform, so both panes stay locked exactly as the picker
+  /// promises.
+  Widget _controls(DarkroomState bState) {
     final blinkMode = widget.mode == _DarkroomCompareMode.blink;
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceXs,
-      ),
-      child: Wrap(
-        spacing: NightshadeTokens.spaceSm,
-        runSpacing: NightshadeTokens.spaceXs,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          _DarkroomTag(
-            label: blinkMode ? (_showA ? 'Showing A' : 'Showing B') : 'A | B',
-            tooltip: 'A is "${widget.aLabel}" — this editor\'s current stack, '
-                'unsaved edits included. B is "${widget.bLabel}".',
+    // A's render, because A is the stack this editor is showing. When B's
+    // render answered from a different pyramid level, one percentage cannot
+    // describe both sides — and that is said rather than left to be read off a
+    // number that is right about one pane only.
+    final aScale = widget.aState.preview?.scaleFromMaster;
+    final bScale = bState.preview?.scaleFromMaster;
+    return _DarkroomZoomControls(
+      zoom: _zoom,
+      preview: widget.aState.preview,
+      leading: [
+        _DarkroomTag(
+          label: blinkMode ? (_showA ? 'Showing A' : 'Showing B') : 'A | B',
+          tooltip: 'A is "${widget.aLabel}" — this editor\'s current stack, '
+              'unsaved edits included. B is "${widget.bLabel}".',
+        ),
+        if (blinkMode)
+          NightshadeButton(
+            label: _blinking ? 'Pause blink' : 'Resume blink',
+            icon: _blinking ? NightshadeIcons.pause : NightshadeIcons.play,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: () {
+              if (_blinking) {
+                _stopBlink();
+              } else {
+                _startBlink();
+              }
+              setState(() {});
+            },
           ),
-          if (blinkMode)
-            NightshadeButton(
-              label: _blinking ? 'Pause blink' : 'Resume blink',
-              icon: _blinking ? NightshadeIcons.pause : NightshadeIcons.play,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: () {
-                if (_blinking) {
-                  _stopBlink();
-                } else {
-                  _startBlink();
-                }
-                setState(() {});
-              },
-            ),
-          // Blink only. Side by side already has both renders on screen, so
-          // pinning B there changes nothing — and a control that publishes an
-          // on/off state while changing nothing on screen is the shape of every
-          // dead control in this app's history.
-          if (blinkMode) _holdToCompare(),
-          if (bState.rendering)
-            const _DarkroomTag(
-              label: 'B is rendering…',
-              tooltip:
-                  'The B side renders through the same engine as A, one recipe '
-                  'at a time, so it can lag a moment behind.',
-            ),
-          if (bState.renderError != null)
-            _DarkroomTag(
-              label: 'B did not render',
-              tooltip: bState.renderError!,
-            ),
-        ],
-      ),
+        // Blink only. Side by side already has both renders on screen, so
+        // pinning B there changes nothing — and a control that publishes an
+        // on/off state while changing nothing on screen is the shape of every
+        // dead control in this app's history.
+        if (blinkMode) _holdToCompare(),
+      ],
+      trailing: [
+        if (widget.aState.preview?.level != null)
+          _DarkroomTag(
+            label: 'Level ${widget.aState.preview!.level}',
+            tooltip: 'The pyramid level the A side was rendered from. The '
+                'percentage beside it is about A.',
+          ),
+        if (aScale != null && bScale != null && aScale != bScale)
+          _DarkroomTag(
+            label: 'B answered at another level',
+            tooltip: 'The two sides rendered from different pyramid levels, so '
+                'the percentage is about A alone. B is level '
+                '${bState.preview!.level}.',
+          ),
+        if (bState.rendering)
+          const _DarkroomTag(
+            label: 'B is rendering…',
+            tooltip:
+                'The B side renders through the same engine as A, one recipe '
+                'at a time, so it can lag a moment behind.',
+          ),
+        if (bState.renderError != null)
+          _DarkroomTag(
+            label: 'B did not render',
+            tooltip: bState.renderError!,
+          ),
+      ],
     );
   }
 
@@ -295,16 +341,40 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
           ),
         ),
         Expanded(
-          child: ColoredBox(
-            color: colors.background,
-            child: preview == null
-                ? _paneEmpty(state)
-                : _DarkroomImageSurface(
-                    preview: preview,
-                    transform: _transform,
-                    minScale: kDarkroomMinViewerScale,
-                    maxScale: kDarkroomMaxViewerScale,
-                  ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Both panes lay out at the same size, so either one measures the
+              // box the shared zoom operates over; fit and 1:1 both need it.
+              _zoom.box = Size(constraints.maxWidth, constraints.maxHeight);
+              return ColoredBox(
+                color: colors.background,
+                child: preview == null
+                    ? _paneEmpty(state)
+                    // The pane published no semantics node at all: a reader
+                    // walking an A/B compare — the one view whose entire
+                    // purpose is reading a difference between two pictures —
+                    // was never told a picture was there, what it was of, or
+                    // which side it was. The single-recipe viewport's own
+                    // comment records the same defect being fixed there; this
+                    // path still had the pre-fix shape.
+                    : Semantics(
+                        container: true,
+                        image: true,
+                        label: 'Compare pane $side of two. '
+                            '${darkroomPictureLabel(
+                          state,
+                          preview,
+                          name: label,
+                        )}',
+                        child: _DarkroomImageSurface(
+                          preview: preview,
+                          transform: _transform,
+                          minScale: kDarkroomMinViewerScale,
+                          maxScale: kDarkroomMaxViewerScale,
+                        ),
+                      ),
+              );
+            },
           ),
         ),
         if (preview != null)

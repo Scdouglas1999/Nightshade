@@ -566,19 +566,35 @@ class DawnAutopilotService {
     _stopIfCancelled(jobId, 'the night report');
     await _reportProgress(jobId, 0.85, 'Writing the night report');
 
+    // THE COPY DELIVERY ITSELF SHIPS. The night report is one of the delivered
+    // artifacts, so it has to be on disk before delivery runs — which means
+    // this copy can never carry delivery's own outcome, nor the notification
+    // that follows it. It is also the copy the operator keeps: delivery names
+    // each artifact once and never overwrites a name it has handed over, so
+    // the rewrite below reaches the rig's copy and not this one.
+    //
+    // It therefore states the gap instead of implying one. `running` was the
+    // row's word borrowed for a moment the row's vocabulary cannot describe:
+    // printed beside a `finishedAt` and two null outcome blocks it read as a
+    // job that had stopped without finishing — the one thing that had not
+    // happened — while the headline over it announced the drafts as ready.
+    // `delivering` plus `pending` says what is true: the drafting is over,
+    // these are its masters and drafts, the copying is still going, and the
+    // rig's copy carries how it ended.
     var report = DawnJobReport(
       jobId: jobId,
       kind: kind.wire,
       sessionId: sessionId,
       startedAt: startedAt,
       finishedAt: _clock(),
-      state: DarkroomJobState.running.wire,
+      state: DawnJobReport.deliveringState,
       masters: reports,
       withoutFile: set.withoutFile,
       delivery: null,
       deliveryProblems: excluded,
       notification: null,
       failure: null,
+      pending: DawnReportPending.beforeDelivery,
     );
     final reportPath = await _writeReport(baseDirectory, jobId, report);
 
@@ -735,8 +751,10 @@ class DawnAutopilotService {
       );
       rethrow;
     }
-    // Rewrite the report so the delivered copy and the local copy differ only
-    // in that the delivered one was read a moment earlier.
+    // Rewrite the rig's copy with the two outcomes the delivered copy was
+    // written too early to hold. That copy is not rewritten — it left under a
+    // name delivery has already handed over — which is why it names this one
+    // as where its `delivery` and `notification` blocks live.
     final finalPath = await _writeReport(baseDirectory, jobId, report);
 
     return DawnJobOutcome(

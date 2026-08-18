@@ -258,6 +258,17 @@ class _RecordingTransport implements ArtifactTransport {
   Future<void> close() async {}
 }
 
+/// A free-space probe that always reports room.
+///
+/// Only so a real [WatchedFolderTransport] can be used in a test without the
+/// test's verdict depending on how full the machine's temp filesystem is.
+class _AmpleSpace implements FreeSpaceProbe {
+  const _AmpleSpace();
+
+  @override
+  Future<int> freeBytes(String path) async => 1 << 40;
+}
+
 /// A jobs DAO that can refuse a state write a set number of times, the way a
 /// database held by another writer refuses one.
 class _FlakyJobsDao extends DarkroomJobsDao {
@@ -1999,6 +2010,82 @@ void main() {
               as Map<String, dynamic>;
       expect(onDisk['state'], 'failed');
       expect(onDisk['failure'], contains('closing the job row'));
+    },
+  );
+
+  test(
+    'the copy of the report that leaves the rig says what it cannot yet know, '
+    'instead of reading as a job that stopped without finishing',
+    () async {
+      // The real watched-folder transport over a real drop directory, so the
+      // file this reads is the one an operator would find at the destination —
+      // the same comparison the D1 sim-night harness makes.
+      final drop = Directory('${workspace.path}/drop')
+        ..createSync(recursive: true);
+      await DeliveryTargetsDao(db).create(
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.watchedFolder,
+        configJson: jsonEncode({'path': drop.path, 'rigId': 'shed'}),
+        content: ArtifactContent.values.toSet(),
+      );
+      final sessionId = await insertSession();
+      final imageId = await insertSub(sessionId: sessionId);
+      await insertMaster(imageIds: [imageId]);
+
+      final outcome = await buildService(
+        transportFactory: (destination, jobId) => WatchedFolderTransport(
+          destination: destination,
+          jobId: jobId,
+          freeSpace: const _AmpleSpace(),
+        ),
+      ).runDawnForSession(sessionId);
+
+      expect(outcome.state, DarkroomJobState.done);
+      final shipped =
+          jsonDecode(
+                File(
+                  '${drop.path}/shed-job_${outcome.jobId}_report.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+
+      // The lifecycle word is the one that describes the instant it was
+      // written. `running` beside a finishedAt read as a job that had stopped
+      // without finishing.
+      expect(shipped['state'], 'delivering');
+      expect(shipped['state'], isNot('running'));
+      expect(shipped['finishedAt'], isNotNull);
+
+      // The two blocks it cannot hold are named, with where they live.
+      final pending = shipped['pending'] as Map<String, dynamic>;
+      expect(pending['blocks'], ['delivery', 'notification']);
+      expect(pending['note'], contains('delivery was in progress'));
+      expect(pending['note'], contains('the copy on the rig carries both'));
+      expect(shipped['body'], contains('delivery was in progress'));
+
+      // Every pass fact it DOES know still states itself as done, and every
+      // key keeps the type a consumer already reads it at.
+      expect(shipped['draftsRendered'], 1);
+      expect(shipped['headline'], contains('draft is ready'));
+      expect(shipped['delivery'], isNull);
+      expect(shipped['notification'], isNull);
+
+      // The rig's copy is the completed one, and it claims nothing pending.
+      final onRig =
+          jsonDecode(
+                File(
+                  '${output.path}/darkroom/job_${outcome.jobId}_report.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(onRig['state'], 'done');
+      expect(onRig['pending'], isNull);
+      expect(
+        (onRig['delivery'] as Map<String, dynamic>)['delivered'],
+        drop.listSync().length,
+        reason: 'the count it reports is the set that reached the drop',
+      );
+      expect((onRig['notification'] as Map<String, dynamic>)['sent'], isTrue);
     },
   );
 }

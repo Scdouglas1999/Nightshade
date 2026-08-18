@@ -68,7 +68,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
     return {
       'ok': validateOk && unknown == null,
       'error': unknown != null
-          ? 'step $unknown: no operation registered as '
+          ? 'step ${unknown + 1}: no operation registered as '
               '${_opKey(steps[unknown] as Map<String, dynamic>)}'
           : (validateOk ? null : validateError),
       'steps': [
@@ -111,7 +111,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
     if (unknown != null) {
       throw DarkroomSeamException(
         'renderPreview',
-        'step $unknown: no operation registered as '
+        'step ${unknown + 1}: no operation registered as '
             '${_opKey(steps[unknown] as Map<String, dynamic>)}',
         StateError('unregistered op'),
       );
@@ -1035,7 +1035,7 @@ void main() {
     // not sent off to rebuild a master that is perfectly fine.
     darkroom.previewError = DarkroomSeamException(
       'renderPreview',
-      'step 0: background_extract refused sampleSpacing=0',
+      'step 1: background_extract refused sampleSpacing=0',
       StateError('bad parameter'),
     );
     // Through the controller: the failure card above the button has grown by a
@@ -1202,6 +1202,144 @@ void main() {
     expect(data.label, contains('still-linear pixels'));
     expect(data.label, contains('pyramid level 0'));
     handle.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('a second identical refusal is announced again, not swallowed', (
+    tester,
+  ) async {
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('color_calibrate'),
+    ]);
+    final scope = DarkroomScope.recipe(id);
+    final handle = await pump(tester, scope);
+    final controller =
+        handle.container.read(darkroomControllerProvider(scope).notifier);
+
+    darkroom.validateOk = false;
+    await controller.reorderStep(1, 0);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(find.byType(NightshadeToast), findsOneWidget);
+    final first = handle.container.read(darkroomControllerProvider(scope));
+    expect(first.reorderRefusalAttempt, 1);
+
+    // Let the toast expire. The inline alert stays up — the reason is still
+    // readable — which is exactly why the silence was easy to miss.
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+    expect(find.byType(NightshadeToast), findsNothing);
+    expect(find.text('That move was refused'), findsOneWidget);
+
+    // The same move, refused for the same reason, produces a byte-identical
+    // sentence. Deduping on the words swallowed this one entirely, so the
+    // operator's second press was never acknowledged.
+    await controller.reorderStep(1, 0);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    final second = handle.container.read(darkroomControllerProvider(scope));
+    expect(second.reorderRefusal, first.reorderRefusal);
+    expect(second.reorderRefusalAttempt, 2);
+    expect(find.byType(NightshadeToast), findsOneWidget);
+
+    // And the inline alert still clears on the next successful edit.
+    darkroom.validateOk = true;
+    controller.toggleStep(0);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(
+      handle.container.read(darkroomControllerProvider(scope)).reorderRefusal,
+      isNull,
+    );
+    expect(find.text('That move was refused'), findsNothing);
+    await drain(tester);
+  });
+
+  testWidgets('the step the failure NAMES says so; its siblings do not', (
+    tester,
+  ) async {
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('color_calibrate'),
+    ]);
+    final scope = DarkroomScope.recipe(id);
+    // Tall enough for both cards and the Recipe panel's own control.
+    final handle = await pump(tester, scope, size: const Size(1280, 1400));
+
+    // The engine's own sentence, word for word: it names the step by its
+    // position in the recipe it was handed — counted from 1 — and the
+    // operation at that position.
+    darkroom.previewError = DarkroomSeamException(
+      'renderPreview',
+      'step 2 failed: color_calibrate@1: unsupported channel layout: a '
+          '1-channel image, a colour master with 3 channels; combine a '
+          'per-filter mono master first',
+      StateError('unsupported channels'),
+    );
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Render again'));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    final state = handle.container.read(darkroomControllerProvider(scope));
+    expect(state.renderError, isNotNull);
+    expect(state.isFailedStep(1), isTrue);
+    expect(state.isFailedStep(0), isFalse);
+
+    // The failing card says it failed, with the engine's reason and without
+    // the "step N failed" framing — the card IS that step. Its sibling keeps
+    // the honest generic sentence, which is what BOTH cards used to carry.
+    expect(
+      find.textContaining('This step failed the render: unsupported channel '
+          'layout'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'The last render did not finish, so nothing is reported for this step',
+      ),
+      findsOneWidget,
+    );
+    await drain(tester);
+  });
+
+  testWidgets('a failure this build cannot join to a step badges none', (
+    tester,
+  ) async {
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('color_calibrate'),
+    ]);
+    final scope = DarkroomScope.recipe(id);
+    final handle = await pump(tester, scope, size: const Size(1280, 1400));
+
+    // The index is in range, and the operation at it is NOT the one the
+    // message names. Guessing from the number alone would badge a step the
+    // engine never ran, so nothing is attributed.
+    darkroom.previewError = DarkroomSeamException(
+      'renderPreview',
+      'step 1 failed: color_calibrate@1: unsupported channel layout',
+      StateError('mismatched op'),
+    );
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Render again'));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    final state = handle.container.read(darkroomControllerProvider(scope));
+    expect(state.renderError, isNotNull);
+    expect(state.renderFailure, isNull);
+    expect(
+      find.textContaining(
+        'The last render did not finish, so nothing is reported for this step',
+      ),
+      findsNWidgets(2),
+    );
     await drain(tester);
   });
 }

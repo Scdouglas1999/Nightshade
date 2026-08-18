@@ -57,6 +57,34 @@ class DarkroomSiblingDraft {
   }
 }
 
+/// The step a failed render NAMED, and the fault it named for it.
+///
+/// A render that stops names its culprit exactly — "step 3 failed:
+/// color_calibrate@1: unsupported channel layout…" — and the stack showed that
+/// nowhere: the failing step's card carried the same "the last render did not
+/// finish, so nothing is reported for this step" sentence as every step that
+/// merely never ran, so nothing on screen said which one stopped the render.
+///
+/// It is only ever built from a message whose index AND operation both match
+/// the step at that position in the recipe the engine was handed. A message
+/// this build cannot join that way produces none, and every card keeps the
+/// honest generic sentence — a guess about which step failed would be worse
+/// than no attribution at all.
+@immutable
+class DarkroomRenderFailure {
+  /// The [DarkroomStep.identity] of the named step.
+  final Object stepIdentity;
+
+  /// The operation's own fault, in the engine's words, without the "step N
+  /// failed:" framing — the card this lands on IS that step.
+  final String reason;
+
+  const DarkroomRenderFailure({
+    required this.stepIdentity,
+    required this.reason,
+  });
+}
+
 /// What the Darkroom is showing right now.
 ///
 /// The state is rebuilt whole on every change; there is no in-place mutation,
@@ -164,6 +192,12 @@ class DarkroomState {
   /// render succeeded or was cancelled (a cancellation is not a failure).
   final String? renderError;
 
+  /// Which step that failure named, when it named one this build could join to
+  /// a step of the recipe the engine was handed. Null otherwise, including for
+  /// every failure that is not about a step at all — a master that cannot be
+  /// read, a schema refusal, a stop that did not reach the render.
+  final DarkroomRenderFailure? renderFailure;
+
   /// The phase the last cancelled render stopped in, so the screen can say what
   /// the operator's stop actually interrupted. Null when nothing was cancelled.
   final String? cancelledPhase;
@@ -171,6 +205,17 @@ class DarkroomState {
   /// Why the last reorder was refused, in the engine's words. Null when the
   /// last reorder was accepted or none has been attempted.
   final String? reorderRefusal;
+
+  /// Which attempt raised [reorderRefusal], counted from 1. Zero when there is
+  /// no refusal.
+  ///
+  /// The screen announces a refusal once per occurrence, and the only thing
+  /// that told two occurrences apart was the sentence: a second refused move of
+  /// the same step, for the same reason, produced a byte-identical string, so
+  /// the announcement was suppressed and the second press went silent while
+  /// the screen's own comment promised it would speak again. The stamp is what
+  /// makes an identical refusal a second refusal.
+  final int reorderRefusalAttempt;
 
   /// True while an added step is being measured and checked, so a second press
   /// cannot put two copies of one operation into the stack.
@@ -181,6 +226,24 @@ class DarkroomState {
   /// registry's own note for an operation it could not measure from this
   /// master. Null when the last insert was accepted or none has been attempted.
   final String? insertRefusal;
+
+  /// Which attempt raised [insertRefusal], counted from 1. Zero when there is
+  /// none. It exists for the reason [reorderRefusalAttempt] does: the chooser
+  /// closes on the choice, so a second identical refusal that announced nothing
+  /// left a stack that looked untouched and no word about why.
+  final int insertRefusalAttempt;
+
+  /// How many channels the open recipe's linear master has, read from its
+  /// library row. Null when the recipe carries no library row, or before that
+  /// row has been read — in which case nothing states a channel precondition,
+  /// because the count is not known here.
+  ///
+  /// It is a fact about the MASTER, and every operation this build registers
+  /// preserves the channel count, so it is also the count that reaches any step
+  /// the operator adds. That is what lets the chooser refuse a three-channel
+  /// operation over a mono master before it is added, instead of committing the
+  /// step and discovering it in a failed render.
+  final int? masterChannels;
 
   /// Why the field carries no catalogue photometry, when it does not. The
   /// color calibration is skipped with the engine's own reason in that case;
@@ -258,10 +321,14 @@ class DarkroomState {
     this.rendering = false,
     this.cancelRequested = false,
     this.renderError,
+    this.renderFailure,
     this.cancelledPhase,
     this.reorderRefusal,
+    this.reorderRefusalAttempt = 0,
     this.insertBusy = false,
     this.insertRefusal,
+    this.insertRefusalAttempt = 0,
+    this.masterChannels,
     this.photometryNote,
     this.photometryStarCount = 0,
     this.canUndo = false,
@@ -376,6 +443,25 @@ class DarkroomState {
     return null;
   }
 
+  /// True when the last render's failure NAMED the step at [index].
+  ///
+  /// Joined on [DarkroomStep.identity], never on list position, for the reason
+  /// [reportFor] is: the stack can have been edited since the render was asked,
+  /// and a fault attributed to whichever step later took an index is a lie
+  /// about a step the engine never ran.
+  bool isFailedStep(int index) => failureReasonFor(index) != null;
+
+  /// The engine's reason for the step at [index], when that step is the one the
+  /// last render's failure named. Null otherwise.
+  String? failureReasonFor(int index) {
+    final failure = renderFailure;
+    if (failure == null) return null;
+    if (index < 0 || index >= steps.length) return null;
+    return identical(steps[index].identity, failure.stepIdentity)
+        ? failure.reason
+        : null;
+  }
+
   /// True when the step at [index] was left out of the last render request
   /// because it is switched off and this build cannot run it.
   bool isOmittedFromRender(int index) {
@@ -439,13 +525,19 @@ class DarkroomState {
     bool? cancelRequested,
     String? renderError,
     bool clearRenderError = false,
+    DarkroomRenderFailure? renderFailure,
+    bool clearRenderFailure = false,
     String? cancelledPhase,
     bool clearCancelledPhase = false,
     String? reorderRefusal,
+    int? reorderRefusalAttempt,
     bool clearReorderRefusal = false,
     bool? insertBusy,
     String? insertRefusal,
+    int? insertRefusalAttempt,
     bool clearInsertRefusal = false,
+    int? masterChannels,
+    bool clearMasterChannels = false,
     String? photometryNote,
     int? photometryStarCount,
     bool? canUndo,
@@ -486,13 +578,25 @@ class DarkroomState {
       rendering: rendering ?? this.rendering,
       cancelRequested: cancelRequested ?? this.cancelRequested,
       renderError: clearRenderError ? null : (renderError ?? this.renderError),
+      renderFailure:
+          clearRenderFailure ? null : (renderFailure ?? this.renderFailure),
       cancelledPhase:
           clearCancelledPhase ? null : (cancelledPhase ?? this.cancelledPhase),
       reorderRefusal:
           clearReorderRefusal ? null : (reorderRefusal ?? this.reorderRefusal),
+      // The stamp goes with the sentence it is about: cleared with it, so a
+      // stale attempt number can never outlive the refusal it counted.
+      reorderRefusalAttempt: clearReorderRefusal
+          ? 0
+          : (reorderRefusalAttempt ?? this.reorderRefusalAttempt),
       insertBusy: insertBusy ?? this.insertBusy,
       insertRefusal:
           clearInsertRefusal ? null : (insertRefusal ?? this.insertRefusal),
+      insertRefusalAttempt: clearInsertRefusal
+          ? 0
+          : (insertRefusalAttempt ?? this.insertRefusalAttempt),
+      masterChannels:
+          clearMasterChannels ? null : (masterChannels ?? this.masterChannels),
       photometryNote: photometryNote ?? this.photometryNote,
       photometryStarCount: photometryStarCount ?? this.photometryStarCount,
       canUndo: canUndo ?? this.canUndo,

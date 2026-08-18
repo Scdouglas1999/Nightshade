@@ -26,6 +26,229 @@ const double kDarkroomMinViewerScale = 0.05;
 /// Step one press of the zoom buttons takes.
 const double kDarkroomZoomStep = 1.25;
 
+/// What the picture on screen IS, in words.
+///
+/// Every fact is read off the render being painted — its own dimensions, the
+/// domain its samples are in, the pyramid level it came from — and joined to
+/// the branch and the master those pixels belong to. Nothing is read off the
+/// stack as it stands: a render that fails leaves the previous picture up and
+/// clears its step reports, so a label that counted the steps now in the editor
+/// would describe a render that never happened. When the pixels are not the
+/// current stack's, the label says so in the same terms the strip under the
+/// canvas does.
+///
+/// [name] overrides the branch this render belongs to, which is what the
+/// compare panes pass: a pane's own strip names the SIDE and the branch, and
+/// the reader of a two-pane view needs to know which of the two a picture is.
+String darkroomPictureLabel(
+  DarkroomState state,
+  DarkroomPreviewImage preview, {
+  String? name,
+}) {
+  final stage = switch (preview.encoding.sourceDomain) {
+    'linear' => 'still-linear pixels',
+    'stretched' => 'stretched pixels',
+    null => 'pixels whose stage the engine did not name',
+    final String named => 'pixels the engine called "$named"',
+  };
+  final level = preview.level;
+  final from = level == null ? '' : ', rendered from pyramid level $level';
+  final String freshness;
+  if (state.rendering) {
+    freshness = ' A newer render is still running, so these are the previous '
+        'render\'s pixels.';
+  } else if (state.renderError != null) {
+    freshness = ' This is the last render that finished, not the stack as it '
+        'stands.';
+  } else {
+    freshness = '';
+  }
+  return 'Rendered draft of ${name ?? state.recipeName} over '
+      '${p.basename(state.baseMasterPath)}: ${preview.width}×'
+      '${preview.height} ${preview.isColor ? 'colour' : 'monochrome'} '
+      '$stage$from.$freshness';
+}
+
+/// The view transform, and every operation the zoom controls perform on it.
+///
+/// Owned by the widget that lays the picture out — the single-recipe viewport
+/// and the compare view each own one — because fit and 1:1 both need the box
+/// the picture is laid out in, and because a new render must not throw away the
+/// zoom and pan the operator set on the previous one.
+///
+/// Compare hands its ONE instance to both panes, which is what keeps the two
+/// sides locked; the controls therefore drive both from a single row.
+class _DarkroomZoom {
+  final TransformationController controller = TransformationController();
+
+  /// The box the viewer is laid out in, measured in the last layout.
+  Size box = Size.zero;
+
+  /// The viewer's own scale: screen pixels per RENDERED pixel.
+  double get viewerScale => controller.value.getMaxScaleOnAxis();
+
+  /// Screen pixels per MASTER pixel for [preview], or null when the render did
+  /// not state the level it answered at.
+  double? masterScale(DarkroomPreviewImage? preview) {
+    final scale = preview?.scaleFromMaster;
+    if (scale == null) return null;
+    return viewerScale * scale;
+  }
+
+  void fit(DarkroomPreviewImage? preview) {
+    if (preview == null) return;
+    if (box.width <= 0 || box.height <= 0) return;
+    if (preview.width <= 0 || preview.height <= 0) return;
+    final scaleX = box.width / preview.width;
+    final scaleY = box.height / preview.height;
+    final fit = scaleX < scaleY ? scaleX : scaleY;
+    controller.value = Matrix4.identity()
+      ..translateByDouble(
+        (box.width - preview.width * fit) / 2,
+        (box.height - preview.height * fit) / 2,
+        0,
+        1.0,
+      )
+      ..scaleByDouble(fit, fit, 1.0, 1.0);
+  }
+
+  /// One screen pixel per MASTER pixel, as close as the zoom ceiling allows.
+  ///
+  /// A coarse pyramid level cannot reach 1:1 inside the ceiling; the readout
+  /// then shows the scale that was actually reached, so the picture is never
+  /// labelled 100% when it is not.
+  void oneToOne(DarkroomPreviewImage? preview) {
+    final scale = preview?.scaleFromMaster;
+    if (scale == null) return;
+    scaleAboutCentre(1.0 / scale);
+  }
+
+  void zoomBy(double factor) => scaleAboutCentre(viewerScale * factor);
+
+  void scaleAboutCentre(double target) {
+    if (box.width <= 0 || box.height <= 0) return;
+    final current = viewerScale;
+    if (current <= 0) return;
+    final clamped = target.clamp(
+      kDarkroomMinViewerScale,
+      kDarkroomMaxViewerScale,
+    );
+    if (clamped == current) return;
+    final factor = clamped / current;
+    final focalX = box.width / 2;
+    final focalY = box.height / 2;
+    final matrix = Matrix4.identity()
+      ..translateByDouble(focalX, focalY, 0, 1.0)
+      ..scaleByDouble(factor, factor, 1.0, 1.0)
+      ..translateByDouble(-focalX, -focalY, 0, 1.0);
+    controller.value = matrix * controller.value;
+  }
+
+  void dispose() => controller.dispose();
+}
+
+/// The row of zoom controls above the picture, with the readout that says what
+/// its percentage is about.
+///
+/// Shared by the single-recipe viewport and the A/B compare, which used to
+/// build its own pane chrome and so shipped without any of this: compare had no
+/// zoom control, no percentage, and no way to land on 1:1 at all — the one
+/// magnification a noise comparison is for — with the mouse wheel as the only
+/// way to change the view and nothing for a keyboard or assistive tech.
+class _DarkroomZoomControls extends StatelessWidget {
+  final _DarkroomZoom zoom;
+
+  /// The render the numbers describe. Null before the first one lands, which is
+  /// when every control here is disabled.
+  final DarkroomPreviewImage? preview;
+
+  /// Controls the enclosing view adds to the same row, ahead of the zoom
+  /// controls: one bordered row rather than two stacked ones.
+  final List<Widget> leading;
+
+  /// Tags the enclosing view adds after the readout.
+  final List<Widget> trailing;
+
+  const _DarkroomZoomControls({
+    required this.zoom,
+    required this.preview,
+    this.leading = const [],
+    this.trailing = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final hasPreview = preview != null;
+    final masterScale = zoom.masterScale(preview);
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceXs,
+      ),
+      child: Wrap(
+        spacing: NightshadeTokens.spaceXs,
+        runSpacing: NightshadeTokens.spaceXs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ...leading,
+          AccessibleIconButton(
+            icon: NightshadeIcons.remove,
+            label: 'Zoom out',
+            size: NightshadeTokens.iconSm,
+            onPressed:
+                hasPreview ? () => zoom.zoomBy(1 / kDarkroomZoomStep) : null,
+          ),
+          AccessibleIconButton(
+            icon: NightshadeIcons.add,
+            label: 'Zoom in',
+            size: NightshadeTokens.iconSm,
+            onPressed: hasPreview ? () => zoom.zoomBy(kDarkroomZoomStep) : null,
+          ),
+          NightshadeButton(
+            label: 'Fit',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: hasPreview ? () => zoom.fit(preview) : null,
+          ),
+          NightshadeButton(
+            label: '1:1',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: preview?.scaleFromMaster == null
+                ? null
+                : () => zoom.oneToOne(preview),
+          ),
+          Semantics(
+            // Its own node: with the annotation merged into whatever encloses
+            // it, the percentage joined the row's other words into one run and
+            // stopped being a readout anybody could find.
+            container: true,
+            label: masterScale == null
+                ? 'Zoom relative to the master is unknown'
+                : 'Zoom ${(masterScale * 100).round()} percent of the master',
+            child: ExcludeSemantics(
+              child: Text(
+                masterScale == null
+                    ? '—'
+                    : '${(masterScale * 100).round()}% of master',
+                style: NightshadeTypography.monoSm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+          ),
+          ...trailing,
+        ],
+      ),
+    );
+  }
+}
+
 /// The rendered image, and the controls that move the view over it.
 class _DarkroomViewport extends ConsumerStatefulWidget {
   final DarkroomState state;
@@ -43,10 +266,9 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
   /// Owned here, not by [_DarkroomImageSurface], because the fit / 1:1 / zoom
   /// controls drive it — and because a new render must not throw away the zoom
   /// and pan the operator set on the previous one.
-  final TransformationController _transform = TransformationController();
+  final _DarkroomZoom _zoom = _DarkroomZoom();
 
-  /// The box the viewer is laid out in, measured in the last build.
-  Size _viewportSize = Size.zero;
+  TransformationController get _transform => _zoom.controller;
 
   @override
   void initState() {
@@ -57,7 +279,7 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
   @override
   void dispose() {
     _transform.removeListener(_onTransformChanged);
-    _transform.dispose();
+    _zoom.dispose();
     super.dispose();
   }
 
@@ -89,17 +311,6 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
     setState(() {});
   }
 
-  /// The viewer's own scale: screen pixels per RENDERED pixel.
-  double get _viewerScale => _transform.value.getMaxScaleOnAxis();
-
-  /// Screen pixels per MASTER pixel, or null when the render did not state the
-  /// level it answered at.
-  double? get _masterScale {
-    final scale = widget.state.preview?.scaleFromMaster;
-    if (scale == null) return null;
-    return _viewerScale * scale;
-  }
-
   /// Hand the measured scale to readers outside this subtree.
   ///
   /// Deferred to a post-frame callback because it is computed inside `build`
@@ -113,76 +324,34 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
     });
   }
 
-  void _fit() {
-    final preview = widget.state.preview;
-    if (preview == null) return;
-    final size = _viewportSize;
-    if (size.width <= 0 || size.height <= 0) return;
-    if (preview.width <= 0 || preview.height <= 0) return;
-    final scaleX = size.width / preview.width;
-    final scaleY = size.height / preview.height;
-    final fit = scaleX < scaleY ? scaleX : scaleY;
-    _transform.value = Matrix4.identity()
-      ..translateByDouble(
-        (size.width - preview.width * fit) / 2,
-        (size.height - preview.height * fit) / 2,
-        0,
-        1.0,
-      )
-      ..scaleByDouble(fit, fit, 1.0, 1.0);
-  }
-
-  /// One screen pixel per MASTER pixel, as close as the zoom ceiling allows.
-  ///
-  /// A coarse pyramid level cannot reach 1:1 inside the ceiling; the readout
-  /// then shows the scale that was actually reached, so the picture is never
-  /// labelled 100% when it is not.
-  void _oneToOne() {
-    final scale = widget.state.preview?.scaleFromMaster;
-    if (scale == null) return;
-    _scaleAboutCentre(1.0 / scale);
-  }
-
-  void _zoomBy(double factor) => _scaleAboutCentre(_viewerScale * factor);
-
-  void _scaleAboutCentre(double target) {
-    final size = _viewportSize;
-    if (size.width <= 0 || size.height <= 0) return;
-    final current = _viewerScale;
-    if (current <= 0) return;
-    final clamped = target.clamp(
-      kDarkroomMinViewerScale,
-      kDarkroomMaxViewerScale,
-    );
-    if (clamped == current) return;
-    final factor = clamped / current;
-    final focalX = size.width / 2;
-    final focalY = size.height / 2;
-    final matrix = Matrix4.identity()
-      ..translateByDouble(focalX, focalY, 0, 1.0)
-      ..scaleByDouble(factor, factor, 1.0, 1.0)
-      ..translateByDouble(-focalX, -focalY, 0, 1.0);
-    _transform.value = matrix * _transform.value;
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final state = widget.state;
-    final masterScale = _masterScale;
+    final masterScale = _zoom.masterScale(state.preview);
     if (masterScale != null) _publishDisplayScale(masterScale);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _controls(colors, state, masterScale),
+        _DarkroomZoomControls(
+          zoom: _zoom,
+          preview: state.preview,
+          trailing: [
+            if (state.preview?.level != null)
+              _DarkroomTag(
+                label: 'Level ${state.preview!.level}',
+                tooltip:
+                    'The pyramid level this preview was rendered from. Level 0 '
+                    'is the master\'s own pixels; export always renders at full '
+                    'resolution.',
+              ),
+          ],
+        ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              _viewportSize = Size(
-                constraints.maxWidth,
-                constraints.maxHeight,
-              );
+              _zoom.box = Size(constraints.maxWidth, constraints.maxHeight);
               return _canvas(colors, state);
             },
           ),
@@ -190,114 +359,6 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         _encodingStrip(colors, state),
       ],
     );
-  }
-
-  Widget _controls(
-    NightshadeColors colors,
-    DarkroomState state,
-    double? masterScale,
-  ) {
-    final hasPreview = state.preview != null;
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceXs,
-      ),
-      child: Wrap(
-        spacing: NightshadeTokens.spaceXs,
-        runSpacing: NightshadeTokens.spaceXs,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          AccessibleIconButton(
-            icon: NightshadeIcons.remove,
-            label: 'Zoom out',
-            size: NightshadeTokens.iconSm,
-            onPressed: hasPreview ? () => _zoomBy(1 / kDarkroomZoomStep) : null,
-          ),
-          AccessibleIconButton(
-            icon: NightshadeIcons.add,
-            label: 'Zoom in',
-            size: NightshadeTokens.iconSm,
-            onPressed: hasPreview ? () => _zoomBy(kDarkroomZoomStep) : null,
-          ),
-          NightshadeButton(
-            label: 'Fit',
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed: hasPreview ? _fit : null,
-          ),
-          NightshadeButton(
-            label: '1:1',
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed:
-                state.preview?.scaleFromMaster == null ? null : _oneToOne,
-          ),
-          Semantics(
-            label: masterScale == null
-                ? 'Zoom relative to the master is unknown'
-                : 'Zoom ${(masterScale * 100).round()} percent of the master',
-            child: ExcludeSemantics(
-              child: Text(
-                masterScale == null
-                    ? '—'
-                    : '${(masterScale * 100).round()}% of master',
-                style: NightshadeTypography.monoSm.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-          ),
-          if (state.preview?.level != null)
-            _DarkroomTag(
-              label: 'Level ${state.preview!.level}',
-              tooltip:
-                  'The pyramid level this preview was rendered from. Level 0 '
-                  'is the master\'s own pixels; export always renders at full '
-                  'resolution.',
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// What the picture on screen IS, in words.
-  ///
-  /// Every fact is read off the render being painted — its own dimensions, the
-  /// domain its samples are in, the pyramid level it came from — and joined to
-  /// the branch and the master those pixels belong to. Nothing is read off the
-  /// stack as it stands: a render that fails leaves the previous picture up and
-  /// clears its step reports, so a label that counted the steps now in the
-  /// editor would describe a render that never happened. When the pixels are
-  /// not the current stack's, the label says so in the same terms the strip
-  /// under the canvas does.
-  String _pictureLabel(DarkroomState state, DarkroomPreviewImage preview) {
-    final stage = switch (preview.encoding.sourceDomain) {
-      'linear' => 'still-linear pixels',
-      'stretched' => 'stretched pixels',
-      null => 'pixels whose stage the engine did not name',
-      final String named => 'pixels the engine called "$named"',
-    };
-    final level = preview.level;
-    final from = level == null ? '' : ', rendered from pyramid level $level';
-    final String freshness;
-    if (state.rendering) {
-      freshness = ' A newer render is still running, so these are the previous '
-          'render\'s pixels.';
-    } else if (state.renderError != null) {
-      freshness = ' This is the last render that finished, not the stack as it '
-          'stands.';
-    } else {
-      freshness = '';
-    }
-    return 'Rendered draft of ${state.recipeName} over '
-        '${p.basename(state.baseMasterPath)}: ${preview.width}×'
-        '${preview.height} ${preview.isColor ? 'colour' : 'monochrome'} '
-        '$stage$from.$freshness';
   }
 
   Widget _canvas(NightshadeColors colors, DarkroomState state) {
@@ -355,7 +416,7 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
           child: Semantics(
             container: true,
             image: true,
-            label: _pictureLabel(state, preview),
+            label: darkroomPictureLabel(state, preview),
             child: ColoredBox(
               color: colors.background,
               child: _DarkroomImageSurface(
@@ -418,7 +479,7 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
               // pannable either way.
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxHeight: _viewportSize.height / 2,
+                  maxHeight: _zoom.box.height / 2,
                 ),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(NightshadeTokens.spaceSm),

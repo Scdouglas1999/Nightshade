@@ -112,6 +112,26 @@ class _DarkroomAddStepDialog extends StatelessWidget {
       title: 'Add a step',
       icon: NightshadeIcons.add,
       width: 560,
+      // The way out, in the footer — the shape every other dialog on this
+      // screen takes, and the shape that keeps this one readable. Without a
+      // footer the whole dialog collapsed into ONE semantics node: the header's
+      // title and the close button's own annotation merged into the enclosing
+      // node, so AT-SPI published a single button named "Add a step / Close
+      // dialog" with the explanation and every operation nested under it. The
+      // title was readable only as part of a control's name, and the control
+      // that closes the chooser had no node of its own to activate. The export
+      // sheet, the delete confirm and the rename dialog all carry footer
+      // actions and all publish the title as text with "Close dialog" beside
+      // it; this is the same trap `darkroom_screen.dart` documents for the
+      // start offer, at the one host that had no footer.
+      actions: [
+        NightshadeButton(
+          label: 'Close',
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -152,7 +172,7 @@ class _DarkroomAddStepDialog extends StatelessWidget {
         ? 'The registry states this operation\'s stage as "${op.stageWire}", '
             'which this build does not model, so this editor cannot say '
             'whether it belongs before or after the stretch.'
-        : null;
+        : _channelRefusal(op);
     final placement = at == null ? null : _placement(op, at);
     final measured = _measuredNote(op);
     final name = refusal == null
@@ -222,6 +242,30 @@ class _DarkroomAddStepDialog extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  /// Why the engine would refuse [op] over THIS master's pixels, or null when
+  /// it would not — or when the channel count is not known here.
+  ///
+  /// A precondition the chooser can know from the open master is stated before
+  /// the press, never discovered by a failed render: `Color calibrate` was
+  /// offered on a one-channel master with its stage rule and its insertion
+  /// index spelled out in full and no word about channels, the step committed,
+  /// and the next render came back "unsupported channel layout" with the
+  /// picture marked stale until the operator found the step and removed it.
+  ///
+  /// The reason is the engine's own — the `expected` clause of the refusal that
+  /// operation raises — joined to the count read off this master's library row,
+  /// which is the same fact the Recipe panel's draft note states two inches
+  /// away. With no library row there is no count, so nothing is claimed.
+  String? _channelRefusal(DarkroomOpSpec op) {
+    final needs = kDarkroomThreeChannelOps[op.id];
+    if (needs == null) return null;
+    final channels = state.masterChannels;
+    if (channels == null || channels == 3) return null;
+    return 'This master has $channels channel${channels == 1 ? '' : 's'} and '
+        'this operation runs over $needs. Adding it would write a step the '
+        'engine refuses, and the render would stop there.';
   }
 
   /// Where the step lands, named by the step it lands in front of.

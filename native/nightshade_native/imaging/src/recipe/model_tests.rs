@@ -368,3 +368,72 @@ fn the_byte_size_counts_four_bytes_per_sample() {
     assert_eq!(image.byte_size(), 8 * 8 * 3 * 4);
     assert_eq!(image.pixel_count(), 64);
 }
+
+/// The step numbers an operator READS are the same ones the editor shows.
+///
+/// The struct fields stay 0-based — code indexes the step list with them — so
+/// each sentence is checked against the index it was built from, not against
+/// itself. A recipe whose 4th step is unregistered used to be refused with
+/// "step 3", beside step cards that call that same step "4 of 4" and an export
+/// sheet that writes `step4-stretch` into the exported filename.
+#[test]
+fn recipe_faults_number_their_steps_the_way_the_editor_does() {
+    let unknown = RecipeError::UnknownOp {
+        index: 3,
+        op_id: "stretch".to_string(),
+        op_version: 99,
+    };
+    assert_eq!(
+        unknown.to_string(),
+        "step 4: no operation registered as stretch@99"
+    );
+
+    let invalid = RecipeError::InvalidParams {
+        index: 0,
+        op_id: "crop".to_string(),
+        op_version: 1,
+        source: Box::new(OpError::EmptyImage),
+    };
+    assert!(
+        invalid.to_string().starts_with("step 1 (crop@1) "),
+        "{invalid}"
+    );
+
+    let order = RecipeError::StageOrder {
+        index: 3,
+        op_id: "denoise".to_string(),
+        op_version: 1,
+        blocking_index: 2,
+        blocking_op_id: "stretch".to_string(),
+    };
+    assert_eq!(
+        order.to_string(),
+        "step 4 (denoise@1) is a linear-stage operation but step 3 (stretch) \
+         already left the linear stage"
+    );
+
+    let out_of_range = RecipeError::StepIndexOutOfRange {
+        index: 4,
+        step_count: 4,
+    };
+    assert_eq!(
+        out_of_range.to_string(),
+        "step 5 is out of range; the recipe's step count is 4"
+    );
+
+    let failed = RecipeError::Step {
+        index: 1,
+        source: Box::new(OpError::EmptyImage),
+    };
+    assert!(
+        failed.to_string().starts_with("step 2 failed: "),
+        "{failed}"
+    );
+
+    // The fields themselves did not move: they are what `steps.remove(index)`
+    // and the per-step verdict join index with.
+    match unknown {
+        RecipeError::UnknownOp { index, .. } => assert_eq!(index, 3),
+        other => panic!("expected UnknownOp, got {other:?}"),
+    }
+}

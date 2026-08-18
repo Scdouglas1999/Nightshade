@@ -693,6 +693,20 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           title: 'Compare with',
           icon: NightshadeIcons.layers,
           width: 480,
+          // A footer action, for the reason the add-step chooser's own comment
+          // records: a [NightshadeDialog] with none collapses its header into
+          // the enclosing semantics node, and this picker reached AT-SPI as one
+          // button named "Compare with / Close dialog" with the explanation and
+          // the branch buttons nested inside it. Backing out of a chooser also
+          // deserves a control of its own rather than only the header's X.
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+          ],
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,

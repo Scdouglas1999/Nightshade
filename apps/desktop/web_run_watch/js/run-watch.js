@@ -86,8 +86,18 @@ function saveOpts(opts) {
 /// `retryAfterSecs`. Zero means the budget is not exhausted.
 let rateLimitedUntil = 0;
 
-/// Typed refusals raised by [apiFetch]. Callers switch on `error.kind` rather
-/// than on message text.
+/// Typed refusals raised by [apiFetch] and by the snapshot render. Callers
+/// switch on `error.kind` rather than on message text.
+///
+/// The kinds, and what each one says about the link:
+///   'auth_required'   — the desktop no longer accepts this pairing.
+///   'unreachable'     — no answer arrived; the server may be gone.
+///   'rate_limited'    — the server answered, asking us to slow down. Healthy.
+///   'http_error'      — the server answered with a status it named. Healthy.
+///   'unusable_answer' — the server answered and the answer is not a snapshot
+///                       this page can render. The exchange FAILED: nothing
+///                       was learned from it, so it may not reset the
+///                       staleness clock.
 class ApiError extends Error {
   constructor(kind, message, detail) {
     super(message);
@@ -188,7 +198,18 @@ async function apiJson(path, opts) {
       : `${path} ${res.status}: ${body.error || JSON.stringify(body)}`,
       { status: res.status });
   }
-  return res.json();
+  // A 200 whose body will not parse is a failed exchange wearing a success
+  // code. Left as a bare SyntaxError it reached the caller with no `kind`,
+  // which is the one shape the caller has no case for.
+  try {
+    return await res.json();
+  } catch (e) {
+    throw new ApiError(
+      'unusable_answer',
+      `${path} answered ${res.status} with a body that is not JSON`,
+      { status: res.status, cause: e },
+    );
+  }
 }
 
 /// Response body of a control POST, or null when the server sent none. A
@@ -267,6 +288,9 @@ let staleWatchdogTimer = null;
 const SNAPSHOT_STALE_MS = SNAPSHOT_INTERVAL_MS + 5000;
 const STALE_WATCHDOG_MS = 2000;
 
+/// Record an exchange that TAUGHT this page something: a snapshot arrived and
+/// was rendered. Called after the render, never before it — a 200 is not a
+/// snapshot until one has been applied.
 function noteLinkOk() {
   lastSnapshotAt = Date.now();
   linkFailure = null;
@@ -276,11 +300,18 @@ function noteLinkFailure(kind, detail) {
   linkFailure = { kind, detail: detail || '' };
 }
 
+/// Failure kinds after which this page knows nothing current, whatever the
+/// clock says. A refused connection and an answer that is not a snapshot both
+/// leave the screen holding a cache nobody has confirmed; a 429 does not,
+/// because the server that sent it is demonstrably alive and will answer the
+/// next poll.
+const UNVOUCHABLE_FAILURE_KINDS = new Set(['unreachable', 'unusable_answer']);
+
 /// True when this page cannot vouch for what it is showing: either the last
 /// exchange failed outright, or no exchange has succeeded within a poll
 /// interval.
 function isLinkStale() {
-  if (linkFailure && linkFailure.kind === 'unreachable') return true;
+  if (linkFailure && UNVOUCHABLE_FAILURE_KINDS.has(linkFailure.kind)) return true;
   // Nothing answered yet: the first exchange gets one poll interval to land
   // before "still loading" becomes "no contact". A failed first fetch does not
   // wait — it is already caught above.
@@ -342,9 +373,19 @@ function renderLinkState() {
   setConnectionState('disconnected');
 
   const age = lastSnapshotAt === 0 ? null : Date.now() - lastSnapshotAt;
-  const lead = linkFailure && linkFailure.kind === 'unreachable'
-    ? 'Cannot reach the observatory server.'
-    : 'No answer from the observatory server.';
+  const failedKind = linkFailure ? linkFailure.kind : null;
+  // Each lead names what actually happened. "Cannot reach" would be a lie
+  // about a server that answered; "no answer" would be a lie about a body
+  // that arrived and could not be read.
+  let lead;
+  if (failedKind === 'unreachable') {
+    lead = 'Cannot reach the observatory server.';
+  } else if (failedKind === 'unusable_answer') {
+    lead = 'The observatory server answered with something this page cannot '
+      + 'read.';
+  } else {
+    lead = 'No answer from the observatory server.';
+  }
   const since = age == null
     ? ' No update has arrived since this page opened.'
     : ' Last update ' + formatAge(age) + ' ago' +
@@ -516,14 +557,31 @@ function stopPolling() {
   stopStaleWatchdog();
 }
 
+/// Fetch one snapshot and render it, and record what the exchange was worth.
+///
+/// The order is load-bearing. `noteLinkOk()` used to run on the status code,
+/// before the payload had been looked at, so a 200 whose body was `null` reset
+/// the staleness clock and `applySnapshot` then returned on its `if (!data)`
+/// guard having painted nothing: measured against the release bundle, 51 s of
+/// `null` bodies past a 20 s staleness threshold left a green "running" badge,
+/// "30%" and "9 / 30" on screen while the wire read 90% / 27 of 30, with the
+/// connection dot in its connected class and no banner. The link is healthy
+/// only once a well-formed snapshot has been APPLIED, so that is where it is
+/// recorded.
 async function fetchSnapshot() {
   try {
     const data = await apiJson('/api/run-watch/snapshot');
+    applySnapshot(data);
     noteLinkOk();
     setConnectionState('connected');
-    applySnapshot(data);
   } catch (e) {
     if (e.kind === 'auth_required') return;
+    // An answer this page cannot read teaches it nothing, so it counts as a
+    // failed exchange and the degraded surface below says so.
+    if (e.kind === 'unusable_answer') {
+      noteLinkFailure('unusable_answer', e.message);
+      return;
+    }
     // 'unreachable' already recorded the failure inside apiFetch; a
     // rate-limited or HTTP-error answer still proves the server is alive, so
     // only the staleness clock decides those.
@@ -645,9 +703,55 @@ function renderSequencerMessages(sequencer, progress, headline) {
   slot.classList.toggle('hidden', lines.length === 0);
 }
 
+/// Render a snapshot, or refuse it out loud.
+///
+/// Refusal is a typed `unusable_answer`, which [fetchSnapshot] turns into the
+/// same degraded surface a dead daemon produces. Two things earn it:
+///
+///  * a payload that is not a snapshot object at all — `null`, `0`, `false`,
+///    `""`, a bare string, an array. The old guard was `if (!data) return;`,
+///    which swallowed exactly these and left the caller believing the exchange
+///    had succeeded.
+///
+///  * a render that throws. The formatters below no longer throw on a
+///    wrongly-typed field, but the DOM is not this page's to guarantee, and a
+///    throw part-way through leaves the fields above it holding a payload the
+///    ones below never took. That mixture is not a picture of anything, and
+///    nobody was told: the old catch in [fetchSnapshot] inspected `e.kind`
+///    only, so a TypeError was discarded in silence.
 function applySnapshot(data) {
-  if (!data) return;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new ApiError(
+      'unusable_answer',
+      'The snapshot answer is not a snapshot: ' + describeWireValue(data),
+      { received: data },
+    );
+  }
+  try {
+    renderSnapshot(data);
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError(
+      'unusable_answer',
+      'The snapshot could not be rendered: ' + (e && e.message ? e.message : String(e)),
+      { cause: e },
+    );
+  }
+}
 
+/// What arrived, in words, for the refusal message. The value itself is not
+/// interpolated — a hostile body must not reach the screen through an error
+/// string.
+function describeWireValue(v) {
+  if (v === null) return 'it is null';
+  if (v === undefined) return 'there is no body';
+  if (Array.isArray(v)) return 'it is a list';
+  return 'it is a ' + typeof v;
+}
+
+/// Draw one snapshot. Every field on the screen comes from `data` and nothing
+/// else; [applySnapshot] owns what happens when `data` cannot supply one.
+function renderSnapshot(data) {
   // Sequencer state badge
   const sequencer = data.sequencer || {};
   const progress = sequencer.progress || {};
@@ -711,10 +815,11 @@ function applySnapshot(data) {
   }
 
   // Progress
-  if (progress.progressPercent == null) {
+  const fraction = wireNumber(progress.progressPercent);
+  if (fraction == null) {
     paintProgressUnknown();
   } else {
-    const pct = Math.round(progress.progressPercent * 100);
+    const pct = Math.round(fraction * 100);
     $('progress-pct').textContent = pct + '%';
     $('progress-bar').style.width = pct + '%';
     const ariaBar = $('progress-bar-aria');
@@ -723,10 +828,10 @@ function applySnapshot(data) {
       ariaBar.classList.remove('unknown');
     }
   }
-  const framesKnown =
-    progress.completedExposures != null && progress.totalExposures != null;
-  $('progress-frames').textContent = framesKnown
-    ? progress.completedExposures + ' / ' + progress.totalExposures
+  const done = wireNumber(progress.completedExposures);
+  const planned = wireNumber(progress.totalExposures);
+  $('progress-frames').textContent = done != null && planned != null
+    ? done + ' / ' + planned
     : '--';
   // The denominator is null whenever the host does not know the run's planned
   // integration (every native/headless start — see _knownIntegrationDenominator
@@ -774,8 +879,9 @@ function applySnapshot(data) {
   $('guide-ra').textContent = guideConnected ? formatRms(guiding.rmsRa) : '--';
   $('guide-dec').textContent = guideConnected ? formatRms(guiding.rmsDec) : '--';
   $('guide-total').textContent = guideConnected ? formatRms(guiding.rmsTotal) : '--';
-  $('guide-snr').textContent = guideConnected && guiding.snr != null
-    ? guiding.snr.toFixed(1)
+  const snr = wireNumber(guiding.snr);
+  $('guide-snr').textContent = guideConnected && snr != null
+    ? snr.toFixed(1)
     : '--';
 
   // Weather. `dataSource: 'unavailable'` means no weather hardware, no safety
@@ -893,21 +999,47 @@ function formatEventDetail(evt) {
   return parts.join(' · ');
 }
 
-function formatShortNum(n) {
+// ---------------------------------------------------------------------------
+// Formatters
+//
+// Every figure on this page is drawn with arithmetic — a multiply, a
+// Math.floor, a toFixed — and every one of those fields is typed by a wire
+// this page does not control. A field carrying a string took that arithmetic
+// two ways, both measured against the release bundle: `"abc"` through
+// formatRaDec printed `NaNh NaNm NaNs · -NaN° NaN′ NaN″` on the operator's
+// phone, and `"not-a-number".toFixed(1)` threw a TypeError that aborted the
+// rest of the render.
+//
+// So the guard is the type, not just null: a field that is not a finite number
+// carries no reading, and no reading renders as the same `--` a null does.
+// ---------------------------------------------------------------------------
+
+/// The number a wire field carries, or null when it carries something else.
+/// `NaN` and `Infinity` are no more a reading than a string is.
+function wireNumber(v) {
+  return typeof v === 'number' && isFinite(v) ? v : null;
+}
+
+function formatShortNum(rawN) {
+  const n = wireNumber(rawN);
+  if (n == null) return '--';
   if (n === Math.floor(n) && Math.abs(n) < 1000) return String(n);
   return n.toFixed(2);
 }
 
 function formatTimeMs(ms) {
-  if (!ms) return '--';
-  const d = new Date(ms);
+  const t = wireNumber(ms);
+  if (!t) return '--';
+  const d = new Date(t);
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   const ss = String(d.getSeconds()).padStart(2, '0');
   return hh + ':' + mm + ':' + ss;
 }
 
-function formatRaDec(raHours, decDeg) {
+function formatRaDec(rawRaHours, rawDecDeg) {
+  const raHours = wireNumber(rawRaHours);
+  const decDeg = wireNumber(rawDecDeg);
   if (raHours == null || decDeg == null) return '--';
   const raH = Math.floor(raHours);
   const raMfull = (raHours - raH) * 60;
@@ -922,17 +1054,20 @@ function formatRaDec(raHours, decDeg) {
   return `${raH}h ${raM}m ${raS}s · ${sign}${decD}° ${decM}′ ${decS}″`;
 }
 
-function formatDeg(deg) {
+function formatDeg(rawDeg) {
+  const deg = wireNumber(rawDeg);
   if (deg == null) return '--';
   return deg.toFixed(1) + '°';
 }
 
-function formatRms(v) {
+function formatRms(rawV) {
+  const v = wireNumber(rawV);
   if (v == null) return '--';
   return v.toFixed(2) + '″';
 }
 
-function formatDuration(secs) {
+function formatDuration(rawSecs) {
+  const secs = wireNumber(rawSecs);
   if (secs == null) return '--';
   if (secs <= 0) return 'now';
   const h = Math.floor(secs / 3600);

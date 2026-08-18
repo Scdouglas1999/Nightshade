@@ -95,24 +95,31 @@ class DarkroomStep {
   /// Throws [DarkroomRecipeFormatException] when a required key is missing or
   /// carries the wrong type: a step with no `opId` names no operation, and
   /// substituting one would render a recipe the operator never wrote.
+  ///
+  /// [index] is the entry's 0-based position in the array — the caller's own
+  /// loop counter — and every sentence below counts it from 1, the way the
+  /// engine's own refusals do and the way the step cards, the move buttons and
+  /// the export filenames all count. The number the operator reads names the
+  /// same step whichever surface reports the fault.
   factory DarkroomStep.fromJson(Object? raw, {required int index}) {
+    final ordinal = index + 1;
     if (raw is! Map<String, dynamic>) {
       throw DarkroomRecipeFormatException(
-        'step $index is ${darkroomJsonKind(raw)}, and every step is a JSON '
+        'step $ordinal is ${darkroomJsonKind(raw)}, and every step is a JSON '
         'object',
       );
     }
     final opId = raw['opId'];
     if (opId is! String || opId.isEmpty) {
       throw DarkroomRecipeFormatException(
-        'step $index names no operation (its "opId" is ${raw['opId']})',
+        'step $ordinal names no operation (its "opId" is ${raw['opId']})',
       );
     }
     final version = raw['opVersion'];
     if (version is! int) {
       throw DarkroomRecipeFormatException(
-        'step $index ($opId) carries no integer "opVersion", so no registered '
-        'operation version can be matched to it',
+        'step $ordinal ($opId) carries no integer "opVersion", so no '
+        'registered operation version can be matched to it',
       );
     }
     // A step written without the key states nothing about whether it renders,
@@ -121,7 +128,7 @@ class DarkroomStep {
     final enabled = raw['enabled'];
     if (enabled is! bool) {
       throw DarkroomRecipeFormatException(
-        'step $index ($opId) carries no boolean "enabled", so whether it '
+        'step $ordinal ($opId) carries no boolean "enabled", so whether it '
         'renders is unstated',
       );
     }

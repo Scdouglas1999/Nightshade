@@ -1589,4 +1589,228 @@ void main() {
     await settle(tester);
     await drain(tester);
   });
+
+  // ---------------------------------------------------------------------
+  // What compare, its picker and the export sheet publish
+  // ---------------------------------------------------------------------
+
+  /// Every semantics node in the tree, in the order assistive tech walks it.
+  ///
+  /// [SemanticsNode.visitChildren] answers PAINT order, which is not what a
+  /// screen reader follows; the traversal sort is the thing under test here, so
+  /// the walk asks for it by name.
+  List<SemanticsNode> traversal(WidgetTester tester) {
+    final nodes = <SemanticsNode>[];
+    void walk(SemanticsNode node) {
+      nodes.add(node);
+      for (final child in node.debugListChildrenInOrder(
+        DebugSemanticsDumpOrder.traversalOrder,
+      )) {
+        walk(child);
+      }
+    }
+
+    walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    return nodes;
+  }
+
+  /// Where the node whose label contains [text] sits in the traversal walk.
+  int traversalIndexOf(WidgetTester tester, String text) {
+    final nodes = traversal(tester);
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].getSemanticsData().label.contains(text)) return i;
+    }
+    fail('no semantics node carries "$text"');
+  }
+
+  SemanticsData? nodeLabelled(WidgetTester tester, String label) {
+    for (final node in traversal(tester)) {
+      final data = node.getSemanticsData();
+      if (data.label == label) return data;
+    }
+    return null;
+  }
+
+  testWidgets(
+      'the compare picker publishes its title, its close and each '
+      'branch as separate nodes', (tester) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+    final handle = tester.ensureSemantics();
+
+    await tester.tap(find.text('Compare with…'));
+    await settle(tester);
+
+    // The whole dialog reached AT-SPI as ONE button named "Compare with /
+    // Close dialog", with the explanation and the branch button nested inside
+    // it: the title was readable only as part of a control's name, and the one
+    // control that closes the dialog had no node of its own to activate.
+    final close = nodeLabelled(tester, 'Close dialog');
+    expect(close, isNotNull);
+    expect(close!.flagsCollection.isButton, isTrue);
+
+    final title = nodeLabelled(tester, 'Compare with');
+    expect(title, isNotNull, reason: 'the title has to read as text');
+    expect(title!.flagsCollection.isButton, isFalse);
+
+    expect(find.bySemanticsLabel('Warmer'), findsWidgets);
+    handle.dispose();
+    Navigator.of(tester.element(find.text('Compare with'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('each compare pane publishes an image node naming its side', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+    final handle = tester.ensureSemantics();
+    await enterCompare(tester);
+    await decodeFrames(tester);
+    await settle(tester);
+
+    // The single-recipe viewport publishes a rich image node; the two panes
+    // whose whole purpose is reading a difference published none at all, so a
+    // reader walking compare mode was never told a picture was there.
+    final images = [
+      for (final node in traversal(tester))
+        if (node.getSemanticsData().flagsCollection.isImage)
+          node.getSemanticsData().label,
+    ];
+    expect(images, hasLength(2));
+    // Each names the pane it is — the side and the branch — and then carries
+    // the same facts the single view's label does.
+    expect(images[0], startsWith('Compare pane A of two.'));
+    expect(images[0], contains('Rendered draft of Draft over m31_L.fits'));
+    expect(images[0], contains('4×4'));
+    expect(images[1], startsWith('Compare pane B of two.'));
+    expect(images[1], contains('Rendered draft of Warmer over m31_L.fits'));
+    handle.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('compare keeps the zoom controls and the readout', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+    await enterCompare(tester);
+    await decodeFrames(tester);
+    await settle(tester);
+
+    // 1:1 is the magnification an A/B noise comparison is for, and compare
+    // offered no way to reach it: the toolbar was absent from the screen and
+    // from the a11y tree, leaving the wheel as the only zoom at all.
+    expect(find.widgetWithText(NightshadeButton, '1:1'), findsOneWidget);
+    expect(find.widgetWithText(NightshadeButton, 'Fit'), findsOneWidget);
+    expect(find.bySemanticsLabel('Zoom in'), findsOneWidget);
+    expect(find.bySemanticsLabel('Zoom out'), findsOneWidget);
+    expect(find.textContaining('% of master'), findsOneWidget);
+
+    // And the controls drive the transform BOTH panes read, so the two sides
+    // stay locked exactly as the picker promises.
+    final shared = tester
+        .widgetList<InteractiveViewer>(find.byType(InteractiveViewer))
+        .first
+        .transformationController!;
+    final before = shared.value.getMaxScaleOnAxis();
+    await tester.tap(find.widgetWithText(NightshadeButton, '1:1'));
+    await tester.pump();
+    expect(shared.value.getMaxScaleOnAxis(), isNot(before));
+    for (final viewer in tester.widgetList<InteractiveViewer>(
+      find.byType(InteractiveViewer),
+    )) {
+      expect(identical(viewer.transformationController, shared), isTrue);
+    }
+    await drain(tester);
+  });
+
+  // The two cases the Phase D critique measured over AT-SPI as out of order.
+  //
+  // Flutter's own traversal sort is what a `sortKey` or a structural change
+  // could move, and both cases below show it already following visual order —
+  // so these pin the seam this app owns. What the AT-SPI dumps recorded is one
+  // level lower: the Linux bridge APPENDS a semantics node inserted after the
+  // first update to the end of its parent's child list instead of re-sorting,
+  // so exactly the controls that appear on a later state change (the compare
+  // row, the export sheet's step dropdown and auto-stretch switch) read last
+  // there while reading in place here.
+  testWidgets('the compare controls are traversed where they are painted', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+    final handle = tester.ensureSemantics();
+    await enterCompare(tester);
+    await tester.tap(find.widgetWithText(NightshadeChip, 'Blink'));
+    await settle(tester);
+
+    // These four render at the TOP of the screen, above the image. They were
+    // published as the LAST nodes in the tree, after every step card of the
+    // History stack, so a reader met them only after walking the whole editor.
+    final stack = traversalIndexOf(tester, 'Move Background extract');
+    for (final control in const [
+      'Side by side',
+      'Blink',
+      'Pause blink',
+      'Hold to see',
+    ]) {
+      expect(
+        traversalIndexOf(tester, control),
+        lessThan(stack),
+        reason: '"$control" is painted above the History stack',
+      );
+    }
+    handle.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('the export sheet is traversed in the order it is painted', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('crop'), _step('background_extract')]);
+    await pump(tester, root);
+    final handle = tester.ensureSemantics();
+
+    await tester.tap(find.text('Export…'));
+    await settle(tester);
+    await tester.tap(find.bySemanticsLabel(RegExp('^After a step — ')));
+    await settle(tester);
+
+    // The step dropdown renders directly under the Stage segment and above
+    // Format; the auto-stretch switch renders above the closing provenance
+    // paragraph. Both read in that order here.
+    final format = traversalIndexOf(tester, 'Format');
+    expect(traversalIndexOf(tester, '2. Background extract'), lessThan(format));
+    expect(
+      traversalIndexOf(tester, 'Render the 8/16-bit files'),
+      lessThan(traversalIndexOf(tester, 'Every export carries this recipe')),
+    );
+
+    handle.dispose();
+    Navigator.of(tester.element(find.text('Format'))).pop();
+    await settle(tester);
+    await drain(tester);
+  });
 }

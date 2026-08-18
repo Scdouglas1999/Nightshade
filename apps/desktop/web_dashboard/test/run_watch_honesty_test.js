@@ -71,6 +71,7 @@ function loadRunWatch(overrides) {
   const suffix = `
 ;return {
   applySnapshot,
+  fetchSnapshot,
   renderLinkState,
   isLinkStale,
   noteLinkOk,
@@ -1097,4 +1098,214 @@ test('an unread event from any family renders no stringified object', () => {
   assert.ok(!/ImagingEvent\./.test(feed),
     'source text must not reach the operator: ' + feed);
   assert.ok(!/deviceId:/.test(feed), feed);
+});
+
+// ---------------------------------------------------------------------------
+// D4WEB-01 / D4WEB-02 — what the page may call a healthy link
+//
+// Both defects share one root: the exchange was declared successful on the
+// status code, before anything had been learned from the body. Measured
+// against the release bundle with the snapshot answers supplied by CDP:
+//
+//   * 200 with the body `null`, for 51 s past a 20 s staleness threshold, with
+//     the wire advancing 30% -> 90%: badge "running", "30%", "9 / 30", the
+//     connection dot in conn-connected and no banner. The SAME page answers a
+//     dead daemon with badge "unknown", "--" and "Cannot reach the observatory
+//     server…", so the honesty machinery existed and this path went round it.
+//
+//   * a payload whose activeTarget coordinates were strings: the page printed
+//     `NaNh NaNm NaNs · -NaN° NaN′ NaN″`, then `"not-a-number".toFixed(1)`
+//     threw, and every field below the target block — 25% instead of 75%,
+//     5 / 20 instead of 15 / 20, filter L instead of R, SNR 30.0 instead of
+//     12.0 — kept the PREVIOUS payload with nothing said anywhere.
+// ---------------------------------------------------------------------------
+
+/** A fetch stub whose snapshot answers are read off `state.body`. */
+function snapshotServer(state) {
+  return {
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      json: async () => {
+        if (state.throws) throw new SyntaxError('Unexpected token < in JSON');
+        return state.body;
+      },
+    }),
+  };
+}
+
+/** The three things an operator reads at a glance, as the page holds them. */
+function surface(doc) {
+  const banner = doc.getElementById('link-banner');
+  return {
+    badge: doc.getElementById('state-badge').textContent,
+    pct: doc.getElementById('progress-pct').textContent,
+    dot: doc.getElementById('connection-dot').className,
+    banner: banner.classList.contains('hidden') ? '' : banner.textContent,
+  };
+}
+
+test('a 200 whose body is falsy is a failed exchange, not a healthy link',
+  async () => {
+    // Every falsy JSON body a 200 can carry. `null` is the one that was
+    // measured; the others reach the identical `if (!data) return;`.
+    for (const body of [null, 0, false, '']) {
+      const state = { body: runningSnapshot() };
+      const { doc, api } = loadRunWatch(snapshotServer(state));
+
+      await api.fetchSnapshot();
+      assert.equal(surface(doc).badge, 'running',
+        'a well-formed snapshot still paints the run');
+      assert.equal(api.isLinkStale(), false);
+      const healthyAt = api.peek().lastSnapshotAt;
+
+      state.body = body;
+      await api.fetchSnapshot();
+
+      const after = surface(doc);
+      assert.equal(after.badge, 'unknown',
+        `a body of ${JSON.stringify(body)} may not leave "running" asserted`);
+      assert.equal(after.pct, '--',
+        'the figure cannot outlive the exchange that carried it');
+      assert.ok(after.dot.includes('conn-disconnected'),
+        'the dot may not stay green on an answer that said nothing');
+      assert.match(after.banner, /cannot read/,
+        'the operator has to be told the answer was unreadable');
+      assert.doesNotMatch(after.banner, /Cannot reach/,
+        'the server answered — saying it is unreachable would be the '
+        + 'opposite lie');
+      assert.equal(api.peek().lastSnapshotAt, healthyAt,
+        'an exchange that taught the page nothing may not reset the '
+        + 'staleness clock');
+      assert.equal(api.isLinkStale(), true);
+    }
+  });
+
+test('a 200 whose body is not JSON is the same failed exchange', async () => {
+  const state = { body: runningSnapshot() };
+  const { doc, api } = loadRunWatch(snapshotServer(state));
+  await api.fetchSnapshot();
+  assert.equal(api.isLinkStale(), false);
+
+  state.throws = true;
+  await api.fetchSnapshot();
+  assert.equal(api.isLinkStale(), true,
+    'a body that will not parse is not an answer');
+  assert.equal(surface(doc).badge, 'unknown');
+  assert.match(surface(doc).banner, /cannot read/);
+});
+
+test('a payload that is not a snapshot is refused, never swallowed', () => {
+  const { api } = loadRunWatch();
+  for (const body of [null, undefined, 0, false, '', 'running', 42, []]) {
+    assert.throws(
+      () => api.applySnapshot(body),
+      (e) => e.kind === 'unusable_answer',
+      'applySnapshot must refuse ' + JSON.stringify(body ?? null));
+  }
+});
+
+test('a snapshot that arrives after an unreadable answer takes the page back',
+  async () => {
+    const state = { body: null };
+    const { doc, api } = loadRunWatch(snapshotServer(state));
+    await api.fetchSnapshot();
+    assert.equal(surface(doc).badge, 'unknown');
+
+    state.body = runningSnapshot();
+    await api.fetchSnapshot();
+    const after = surface(doc);
+    assert.equal(after.badge, 'running');
+    assert.equal(after.pct, '8%');
+    assert.equal(after.banner, '', 'a link that is answering raises no banner');
+    assert.ok(after.dot.includes('conn-connected'));
+  });
+
+/** The running snapshot with every activeTarget number typed as a string. */
+function poisonedTargetSnapshot() {
+  const snap = runningSnapshot();
+  snap.sequencer.progress.progressPercent = 0.75;
+  snap.sequencer.progress.completedExposures = 9;
+  snap.sequencer.progress.currentFilter = 'R';
+  snap.activeTarget = {
+    unavailable: false, coordinatesKnown: true, message: null,
+    id: 't', name: 'Poisoned Field',
+    raHours: 'abc', decDegrees: 'def', altitudeDeg: 'not-a-number',
+    azimuthDeg: 'ghi', timeToSetSecs: 'soon', timeToTransitSecs: 'later',
+  };
+  snap.guiding = {
+    state: 'Guiding', connected: true,
+    rmsRa: '0.41', rmsDec: 0.38, rmsTotal: 0.56, snr: 'high',
+  };
+  return snap;
+}
+
+test('a wrongly-typed number states no reading rather than painting NaN', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  api.applySnapshot(poisonedTargetSnapshot());
+
+  const read = (id) => doc.getElementById(id).textContent;
+  for (const id of ['target-coords', 'target-alt', 'target-az',
+    'target-time-set', 'target-time-transit', 'guide-ra', 'guide-snr']) {
+    assert.equal(read(id), '--',
+      id + ' carries no number, and no number is not a number to print');
+    assert.ok(!/NaN/.test(read(id)), id + ' printed a literal NaN');
+  }
+  // The name IS a string on the wire and stays readable — only the arithmetic
+  // fields lose their reading.
+  assert.equal(read('target-name'), 'Poisoned Field');
+  assert.equal(read('guide-dec'), '0.38″', 'a well-typed neighbour is unharmed');
+});
+
+test('one poisoned field does not abort the fields under it', () => {
+  const { doc, api } = loadRunWatch();
+  api.noteLinkOk();
+  api.applySnapshot(runningSnapshot());
+  assert.equal(doc.getElementById('progress-pct').textContent, '8%');
+  assert.equal(doc.getElementById('progress-filter').textContent, 'L');
+
+  // The target block runs FIRST. Everything below it must still take this
+  // payload's values rather than staying on the last one.
+  api.applySnapshot(poisonedTargetSnapshot());
+  assert.equal(doc.getElementById('progress-pct').textContent, '75%');
+  assert.equal(doc.getElementById('progress-frames').textContent, '9 / 12');
+  assert.equal(doc.getElementById('progress-filter').textContent, 'R');
+  assert.equal(doc.getElementById('weather-badge').textContent, 'no sensor');
+});
+
+test('a progress percentage that is not a number is unknown, not NaN%', () => {
+  const { doc, api } = loadRunWatch();
+  const snap = runningSnapshot();
+  snap.sequencer.progress.progressPercent = 'lots';
+  snap.sequencer.progress.completedExposures = 'some';
+  api.applySnapshot(snap);
+  assert.equal(doc.getElementById('progress-pct').textContent, '--');
+  assert.equal(doc.getElementById('progress-frames').textContent, '--');
+  assert.equal(doc.getElementById('progress-bar').style.width, '0%');
+  assert.equal(doc.getElementById('progress-bar-aria')
+    .getAttribute('aria-valuenow'), null);
+});
+
+test('a render that throws degrades instead of freezing silently', async () => {
+  // `recentEvents` typed as a string has a truthy `.length` and no `.forEach`,
+  // so the feed block throws part-way through the render. Whatever the shape,
+  // a half-painted page is not a picture of anything.
+  const state = { body: runningSnapshot() };
+  const { doc, api } = loadRunWatch(snapshotServer(state));
+  await api.fetchSnapshot();
+  assert.equal(surface(doc).badge, 'running');
+
+  state.body = runningSnapshot({ recentEvents: 'FrameAccepted' });
+  await api.fetchSnapshot();
+
+  const after = surface(doc);
+  assert.equal(after.badge, 'unknown',
+    'a render that could not finish may not leave the old state asserted');
+  assert.equal(after.pct, '--');
+  assert.ok(after.dot.includes('conn-disconnected'));
+  assert.match(after.banner, /cannot read/);
+  assert.equal(api.isLinkStale(), true);
 });

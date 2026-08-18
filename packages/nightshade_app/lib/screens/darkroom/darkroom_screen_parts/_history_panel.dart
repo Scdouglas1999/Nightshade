@@ -327,7 +327,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               ],
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
-            _outcomeLine(colors, state, step, report, omitted),
+            _outcomeLine(colors, state, step, report, omitted, index),
             if (report?.reason != null) ...[
               const SizedBox(height: NightshadeTokens.spaceXs),
               Text(
@@ -517,6 +517,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     DarkroomStep step,
     DarkroomStepReport? report,
     bool omitted,
+    int index,
   ) {
     final IconData icon;
     final Color tint;
@@ -554,6 +555,15 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
           icon = NightshadeIcons.hidden;
           tint = colors.textMuted;
           label = 'Off, and left out of the render — this build cannot run it';
+        } else if (state.failureReasonFor(index) case final reason?) {
+          // The card of the step the failure NAMED. It used to carry the same
+          // "nothing is reported for this step" sentence as every step that
+          // merely never ran, so the banner named a culprit precisely and the
+          // stack marked none of its four cards — leaving the operator to count
+          // steps against a number the engine wrote about a different list.
+          icon = NightshadeIcons.imageOff;
+          tint = colors.error;
+          label = 'This step failed the render: $reason';
         } else if (state.renderError != null) {
           icon = NightshadeIcons.help;
           tint = colors.textMuted;
