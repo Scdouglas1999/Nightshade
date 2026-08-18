@@ -14,6 +14,42 @@ const Key kDarkroomBranchStripKey = Key('darkroom-branch-strip');
 /// The strip of links to the night's OTHER masters.
 const Key kDarkroomSiblingStripKey = Key('darkroom-sibling-strip');
 
+/// The name offered for a new variant of [parentLabel], with a number when the
+/// plain one is already worn by a sibling.
+///
+/// Two branches with one label are two chips nothing on the bar tells apart, two
+/// identical rows in the compare picker, and a delete refusal that names the
+/// same recipe twice. The suggestion is only a suggestion — the field it lands
+/// in is editable and any name, duplicate ones included, can still be typed.
+///
+/// Compared case-insensitively and on trimmed text, because "Draft variant" and
+/// "draft variant " are the same label to the eye reading the bar.
+String darkroomVariantNameSuggestion(
+  String parentLabel,
+  Iterable<String> siblingLabels,
+) {
+  final taken = {
+    for (final label in siblingLabels) label.trim().toLowerCase(),
+  };
+  final base = '$parentLabel variant';
+  var candidate = base;
+  var suffix = 1;
+  // Each pass names a candidate no earlier pass named, and the labels it has to
+  // clear are finite, so the walk ends on the first free name.
+  while (taken.contains(candidate.toLowerCase())) {
+    suffix++;
+    candidate = '$base $suffix';
+  }
+  return candidate;
+}
+
+/// What the delete confirm was answered with.
+///
+/// Three answers rather than a bool, because a branch with branches of its own
+/// has two truthful destructive choices and neither of them is "delete this row
+/// and find out": [deleteThisOne] is offered only when it can be carried out.
+enum _DarkroomDeleteChoice { keep, deleteThisOne, deleteLine }
+
 /// Who composed a sibling's recipe, in the words its tooltip uses.
 ///
 /// The same three-way distinction the Recipe panel's identity tag makes, so a
@@ -479,7 +515,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
             icon: NightshadeIcons.delete,
             variant: ButtonVariant.destructive,
             size: ButtonSize.small,
-            onPressed: () => _deleteLine(refusal),
+            onPressed: () => _deleteLine(refusal.recipeId),
           ),
           NightshadeButton(
             label: 'Keep them',
@@ -499,8 +535,10 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   Future<void> _promptDuplicate() async {
     final state = ref.read(darkroomBranchControllerProvider(widget.scope));
     final current = state.branchFor(widget.recipeId);
-    final suggested =
-        '${current?.label ?? 'Recipe ${widget.recipeId}'} variant';
+    final suggested = darkroomVariantNameSuggestion(
+      current?.label ?? 'Recipe ${widget.recipeId}',
+      [for (final branch in state.branches) branch.label],
+    );
     final name = await _promptForName(
       title: 'Duplicate as variant',
       body:
@@ -559,7 +597,16 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     final childLabels = [
       for (final id in childIds) state.branchFor(id)?.label ?? 'Recipe $id',
     ];
-    final confirmed = await showDialog<bool>(
+    final hasChildren = childLabels.isNotEmpty;
+    final lineLabel = 'Delete "$label" and its ${childLabels.length} '
+        '${childLabels.length == 1 ? 'branch' : 'branches'}';
+    // A branch with branches of its own cannot be deleted on its own, and this
+    // dialog knows it — it is quoting the very children the engine will refuse
+    // over. Offering "Delete" here made the operator perform a step whose only
+    // possible outcome was a refusal, and only THEN offered the whole line. So
+    // the choice that can actually be carried out is the one on the button,
+    // named in full, and the other one plainly says the branches stay.
+    final choice = await showDialog<_DarkroomDeleteChoice>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => NightshadeDialog(
@@ -571,21 +618,27 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
             label: 'Keep it',
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: () => Navigator.of(dialogContext).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(
+              _DarkroomDeleteChoice.keep,
+            ),
           ),
           NightshadeButton(
-            label: 'Delete',
+            label: hasChildren ? lineLabel : 'Delete',
             icon: NightshadeIcons.delete,
             variant: ButtonVariant.destructive,
             size: ButtonSize.small,
-            onPressed: () => Navigator.of(dialogContext).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(
+              hasChildren
+                  ? _DarkroomDeleteChoice.deleteLine
+                  : _DarkroomDeleteChoice.deleteThisOne,
+            ),
           ),
         ],
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (childLabels.isNotEmpty) ...[
+            if (hasChildren) ...[
               NightshadeAlert(
                 severity: NightshadeAlertSeverity.warning,
                 title: childLabels.length == 1
@@ -598,11 +651,13 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
                     '${childLabels.length == 1 ? 'records' : 'record'} the '
                     'step of "$label" '
                     '${childLabels.length == 1 ? 'it' : 'they'} stopped '
-                    'matching, so this delete will be refused until '
-                    '${childLabels.length == 1 ? 'it goes' : 'they go'} too. '
-                    'Confirming asks for it and the refusal then offers to '
-                    'delete the whole line — nothing is deleted before you '
-                    'choose that.',
+                    'matching, and re-pointing '
+                    '${childLabels.length == 1 ? 'it' : 'them'} at this '
+                    'branch\'s own parent would leave '
+                    '${childLabels.length == 1 ? 'it' : 'them'} rendering a '
+                    'lineage that never happened. So "$label" goes only with '
+                    '${childLabels.length == 1 ? 'it' : 'them'}: '
+                    '${childLabels.length + 1} recipes in all, or none.',
                 compact: true,
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
@@ -619,7 +674,11 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         ),
       ),
     );
-    if (confirmed != true) return;
+    if (choice == _DarkroomDeleteChoice.deleteLine) {
+      await _deleteLine(widget.recipeId);
+      return;
+    }
+    if (choice != _DarkroomDeleteChoice.deleteThisOne) return;
 
     final before = ref.read(darkroomBranchControllerProvider(widget.scope));
     final parentId = before.branchFor(widget.recipeId)?.parentRecipeId;
@@ -654,8 +713,14 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   static int? _firstBranchId(DarkroomBranchState state) =>
       state.branches.isEmpty ? null : state.branches.first.id;
 
-  Future<void> _deleteLine(DarkroomBranchDeleteRefusal refusal) async {
-    final deleted = await _branches.deleteBranchLine(refusal.recipeId);
+  /// Delete [recipeId] and everything descended from it.
+  ///
+  /// Reached two ways, and they are the same act: chosen up front in the
+  /// confirm, which already knows the branch has branches, or from the engine's
+  /// refusal when the family changed under a delete that was legal when it was
+  /// asked for.
+  Future<void> _deleteLine(int recipeId) async {
+    final deleted = await _branches.deleteBranchLine(recipeId);
     if (deleted == null || !mounted || !context.mounted) return;
     // The line can include the open recipe, and there may be no branch left to
     // go to at all — so the editor's controller is retired for the same reason
@@ -725,16 +790,10 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
                   padding: const EdgeInsets.only(
                     bottom: NightshadeTokens.spaceSm,
                   ),
-                  child: NightshadeButton(
-                    label: branch.author == RecipeAuthor.autopilot
-                        ? '${branch.label} — the autopilot draft'
-                        : branch.label,
-                    icon: branch.author == RecipeAuthor.autopilot
-                        ? NightshadeIcons.sparkle
-                        : NightshadeIcons.user,
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: () => Navigator.of(dialogContext).pop(branch.id),
+                  child: _compareOption(
+                    colors,
+                    branch,
+                    () => Navigator.of(dialogContext).pop(branch.id),
                   ),
                 ),
             ],
@@ -744,6 +803,78 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     );
     if (chosen == null) return;
     widget.onCompareWith(chosen);
+  }
+
+  /// One branch to compare against, as a row that LOOKS like a choice.
+  ///
+  /// The picker used to list its options as centred label text inside a hairline
+  /// outline, in a dialog whose only element painted as a control was Cancel:
+  /// the accessible names were right and the eye had nothing to aim at, so the
+  /// obvious click — the middle of the row — did nothing unless it landed on the
+  /// text itself. This is the card the step cards and the rest of the app's rows
+  /// already use: a surface that lifts on hover, the author's glyph, the name
+  /// left-aligned, and a chevron saying the row leads somewhere. The whole card
+  /// takes the tap.
+  Widget _compareOption(
+    NightshadeColors colors,
+    DarkroomBranch branch,
+    VoidCallback choose,
+  ) {
+    final autopilot = branch.author == RecipeAuthor.autopilot;
+    return Semantics(
+      container: true,
+      button: true,
+      label: autopilot ? '${branch.label} — the autopilot draft' : branch.label,
+      excludeSemantics: true,
+      onTap: choose,
+      child: NightshadeCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceMd,
+          vertical: NightshadeTokens.spaceSm,
+        ),
+        onTap: choose,
+        enableHover: true,
+        child: Row(
+          children: [
+            Icon(
+              autopilot ? NightshadeIcons.sparkle : NightshadeIcons.user,
+              size: NightshadeTokens.iconSm,
+              color: colors.textSecondary,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    branch.label,
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  if (autopilot) ...[
+                    const SizedBox(height: NightshadeTokens.spaceXs),
+                    Text(
+                      'the autopilot draft',
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Icon(
+              NightshadeIcons.chevronRight,
+              size: NightshadeTokens.iconSm,
+              color: colors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// A one-field dialog for a branch name.

@@ -568,14 +568,36 @@ class DawnJobReport {
     return rejected == null ? sum : sum + rejected;
   });
 
-  /// Total integration seconds across every master.
+  /// Total integration seconds across every master, drafted or not.
+  ///
+  /// This is what the NIGHT integrated, which is not what the drafts cover —
+  /// see [draftedIntegrationSeconds]. Both are in the JSON, because a master
+  /// that failed to draft was still integrated and its seconds are still real.
   double get integrationSeconds => masters.fold<double>(
     0.0,
     (sum, m) => sum + m.master.totalIntegrationSeconds,
   );
 
+  /// Integration seconds behind the drafts this job actually rendered.
+  ///
+  /// The headline pairs this with [draftsRendered] so its two numbers are
+  /// about the same masters. A total folded over every master and printed
+  /// beside a draft count that excludes one of them made the same night read
+  /// 24 s or 18 s depending only on HOW the fourth master failed: an
+  /// unreadable master stays in [masters] and carries its seconds into the
+  /// total, while a master with no path is diverted to [withoutFile] and
+  /// carries nothing.
+  double get draftedIntegrationSeconds => masters
+      .where((m) => m.hasDraft)
+      .fold<double>(0.0, (sum, m) => sum + m.master.totalIntegrationSeconds);
+
   /// Drafts rendered by this job.
   int get draftsRendered => masters.where((m) => m.hasDraft).length;
+
+  /// Masters this night has that carry no draft, however they failed: read and
+  /// not drafted, or never read because the row names no file.
+  int get _undraftedMasterCount =>
+      masters.where((m) => !m.hasDraft).length + withoutFile.length;
 
   /// True when any master's calibration is something the operator must know
   /// about — the same thing the master FITS records as `CALWARN`.
@@ -628,19 +650,43 @@ class DawnJobReport {
   /// a successful delivery of nothing, which is the cry-wolf shape in reverse:
   /// the operator has to open the report to learn that the headline was about
   /// an empty hand.
+  ///
+  /// The integration total is [draftedIntegrationSeconds] — exactly the drafts
+  /// the same sentence counts — and a master that produced none is named right
+  /// there rather than folded into the total in silence. The night's own total
+  /// stays in [integrationSeconds] and in the body, and the two reconcile:
+  /// drafted seconds plus the clause's seconds are the night's.
   String get headline {
     final target = primaryTargetName;
-    final time = formatDawnIntegration(integrationSeconds);
     if (draftsRendered == 0) {
       return '${target ?? 'Your night'} — no draft was rendered; '
-          '$time integrated';
+          '${formatDawnIntegration(integrationSeconds)} integrated';
     }
-    if (target == null) {
-      return draftsRendered == 1
-          ? 'Your draft is ready — $time integrated'
-          : 'Your $draftsRendered drafts are ready — $time integrated';
-    }
-    return '$target — $time integrated';
+    final time = formatDawnIntegration(draftedIntegrationSeconds);
+    final lead = target == null
+        ? (draftsRendered == 1
+              ? 'Your draft is ready — $time integrated'
+              : 'Your $draftsRendered drafts are ready — $time integrated')
+        : '$target — $time integrated';
+    return '$lead$_undraftedClause';
+  }
+
+  /// What the headline's total leaves out, or an empty string when it leaves
+  /// nothing out.
+  ///
+  /// The seconds it names are the ones this report can account for: a master
+  /// in [withoutFile] has no row of integration to quote, so it is counted as
+  /// a master and no time is invented for it.
+  String get _undraftedClause {
+    final undrafted = _undraftedMasterCount;
+    if (undrafted == 0) return '';
+    final seconds = masters
+        .where((m) => !m.hasDraft)
+        .fold<double>(0.0, (sum, m) => sum + m.master.totalIntegrationSeconds);
+    final subject = undrafted == 1 ? '1 master has' : '$undrafted masters have';
+    if (seconds <= 0) return '; $subject no draft';
+    return '; $subject no draft '
+        '(${formatDawnIntegration(seconds)} more integrated)';
   }
 
   /// The notification's body: what was integrated, what was rejected, what the
@@ -700,6 +746,10 @@ class DawnJobReport {
     'framesUsed': framesUsed,
     'framesRejected': framesRejected,
     'integrationSeconds': integrationSeconds,
+    // The night's total and the drafts' total are different facts, and the
+    // headline quotes the second one. Both are here so a reader never has to
+    // re-derive one from the master list to check the sentence.
+    'draftedIntegrationSeconds': draftedIntegrationSeconds,
     'draftsRendered': draftsRendered,
     'calibrationWarned': calibrationWarned,
     'headline': headline,

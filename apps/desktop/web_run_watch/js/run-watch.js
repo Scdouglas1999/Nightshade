@@ -27,18 +27,68 @@
 const STORAGE_TOKEN_KEY = 'nightshade.runwatch.token';
 const STORAGE_DEVICE_ID_KEY = 'nightshade.runwatch.deviceId';
 const STORAGE_OPTS_KEY = 'nightshade.runwatch.opts';
+/// Whether the token this device holds has ever been ACCEPTED by the desktop.
+/// A pairing exchange mints one that is accepted by construction; a token typed
+/// into the manual box has been accepted by nothing until a request carrying it
+/// comes back 2xx. Persisted so the answer survives a reload — a phone that
+/// watched a whole night on a typed token and then meets a 401 has met a
+/// revocation, not a typo.
+const STORAGE_TOKEN_ACCEPTED_KEY = 'nightshade.runwatch.tokenAccepted';
 
 function getToken() {
   try { return localStorage.getItem(STORAGE_TOKEN_KEY); } catch { return null; }
 }
-function setToken(t) {
+
+/// Store a token and what is known about it.
+///
+/// [accepted] is true when the credential arrives already proven — the pairing
+/// endpoint answered with it — and false for one the operator typed, which the
+/// desktop has not seen yet.
+function setToken(t, accepted) {
+  inMemoryTokenAccepted = Boolean(t) && Boolean(accepted);
+  authRefusalStated = false;
   try {
-    if (t) localStorage.setItem(STORAGE_TOKEN_KEY, t);
-    else localStorage.removeItem(STORAGE_TOKEN_KEY);
+    if (t) {
+      localStorage.setItem(STORAGE_TOKEN_KEY, t);
+      localStorage.setItem(
+        STORAGE_TOKEN_ACCEPTED_KEY, accepted ? 'true' : 'false');
+    } else {
+      localStorage.removeItem(STORAGE_TOKEN_KEY);
+      localStorage.removeItem(STORAGE_TOKEN_ACCEPTED_KEY);
+    }
   } catch { /* private mode — fall back to in-memory */ inMemoryToken = t || null; }
 }
 let inMemoryToken = null;
+let inMemoryTokenAccepted = false;
+/// True once a refusal has torn this credential down and said so.
+///
+/// `bootSession` fires the snapshot, the frame poll and the SSE subscription
+/// together, so a refused credential produces several 401s within a tick. The
+/// first tears the token down; without this guard the ones already in flight
+/// re-decided the sentence from a flag the first had just cleared, and an
+/// accepted-then-revoked pairing ended up described as a token that was never
+/// accepted — measured on the running bundle after a reload.
+let authRefusalStated = false;
 function effectiveToken() { return getToken() || inMemoryToken; }
+
+/// True when the token this device holds has been accepted by the desktop at
+/// least once. Read before the 401/403 copy is chosen: it is the difference
+/// between a pairing that was withdrawn and one that never existed.
+function tokenWasEverAccepted() {
+  try {
+    if (localStorage.getItem(STORAGE_TOKEN_ACCEPTED_KEY) === 'true') return true;
+  } catch { /* private mode — the in-memory answer below is all there is */ }
+  return inMemoryTokenAccepted;
+}
+
+/// Record that the desktop honoured the credential this device is carrying.
+/// Called on the first successful exchange, so a typed token that works stops
+/// being described as unproven from then on.
+function noteTokenAccepted() {
+  if (inMemoryTokenAccepted) return;
+  inMemoryTokenAccepted = true;
+  try { localStorage.setItem(STORAGE_TOKEN_ACCEPTED_KEY, 'true'); } catch { /* in-memory only */ }
+}
 
 function getOrCreateDeviceId() {
   let id;
@@ -162,15 +212,29 @@ async function apiFetch(path, opts) {
     // THE SCREEN, not only into the thrown error — nothing catches
     // 'auth_required' to render it, which is how this landed as a silent
     // logout.
-    setToken(null);
-    showPairScreen(
-      token
-        ? 'This device\'s pairing is no longer accepted — the desktop ' +
-          'rejected it, which happens when the pairing was revoked there or ' +
-          'the profile it belonged to was replaced. Pair again with a fresh ' +
-          'code from the desktop\'s Remote Access screen.'
-        : null,
-    );
+    //
+    // WHICH reason depends on where the credential came from, not on whether
+    // one exists. Keying on `token ?` told a device that had never paired —
+    // one whose operator had just mistyped a token into the manual box — that
+    // its pairing "is no longer accepted… revoked… or the profile it belonged
+    // to was replaced", a diagnosis of an event that never happened, and it
+    // sent them to the desktop for a fresh code they did not need.
+    if (!authRefusalStated) {
+      const wasAccepted = tokenWasEverAccepted();
+      setToken(null);
+      authRefusalStated = true;
+      showPairScreen(
+        !token
+          ? null
+          : wasAccepted
+            ? 'This device\'s pairing is no longer accepted — the desktop ' +
+              'rejected it, which happens when the pairing was revoked there or ' +
+              'the profile it belonged to was replaced. Pair again with a fresh ' +
+              'code from the desktop\'s Remote Access screen.'
+            : 'That token was not accepted — check it against the desktop\'s ' +
+              'Remote Access screen, or pair with a code from the same screen.',
+      );
+    }
     throw new ApiError('auth_required', 'Pairing is no longer accepted');
   }
   if (res.status === 429) {
@@ -185,6 +249,10 @@ async function apiFetch(path, opts) {
   }
   // Any answer at all — including a 4xx/5xx — proves the server is there.
   rateLimitedUntil = 0;
+  // A 2xx carrying this credential is the desktop honouring it. That is the
+  // one moment a typed token stops being unproven, and it is what lets a later
+  // refusal be described as a revocation rather than as a typo.
+  if (token && res.ok) noteTokenAccepted();
   return res;
 }
 
@@ -499,7 +567,9 @@ async function startPairing(code) {
       statusEl.classList.add('error');
       return;
     }
-    setToken(data.sessionToken);
+    // The pairing endpoint minted this token and answered with it, so the
+    // desktop has already accepted it.
+    setToken(data.sessionToken, true);
     statusEl.textContent = 'Paired successfully.';
     statusEl.classList.add('success');
     showMainScreen();
@@ -538,6 +608,12 @@ function bootSession() {
   sessionStartedAt = Date.now();
   linkFailure = null;
   lastKnownState = null;
+  // A new session may be a different rig — a re-pair against another desktop.
+  // Carrying the previous one's events into it would attribute them here.
+  feedEvents = [];
+  feedSeenKeys = new Set();
+  foldedProgressTicks = 0;
+  renderFeed();
   fetchSnapshot();
   openSSE();
   startPolling();
@@ -918,11 +994,24 @@ function renderSnapshot(data) {
     banner.textContent = '';
   }
 
-  // Recent events
-  if (data.recentEvents && data.recentEvents.length) {
-    const feed = $('event-feed');
-    feed.innerHTML = '';
-    data.recentEvents.forEach(e => feed.appendChild(renderEventLi(e)));
+  // Recent events. The server's ring is five deep and, mid-exposure, made
+  // almost entirely of progress ticks — measured on the release bundle, 2 of
+  // the 5 rows it answered with were `Progress` while the stream ran 229 ticks
+  // in 327 events. Overwriting the feed with that ring every 15 s is what
+  // erased the frames and node transitions the stream had delivered, so the
+  // ring is MERGED into the feed's own model, oldest first, and each entry is
+  // judged by the same rule a streamed event is.
+  if (Array.isArray(data.recentEvents)) {
+    for (let i = data.recentEvents.length - 1; i >= 0; i--) {
+      const evt = data.recentEvents[i];
+      // A tick in the ring is not counted into the fold: the fold says how
+      // many updates have arrived SINCE the newest event, and one the poll is
+      // re-reading fifteen seconds later did not arrive now.
+      if (isProgressTickEvent(evt && (evt.eventType || evt.eventName))) continue;
+      noteFeedEvent(evt);
+    }
+  } else if (data.recentEvents && data.recentEvents.length) {
+    throw new TypeError('recentEvents is not a list');
   }
 }
 
@@ -1087,6 +1176,45 @@ function formatDurationSecs(secs) {
 // ---------------------------------------------------------------------------
 // SSE — live event stream
 // ---------------------------------------------------------------------------
+
+/// The discrete event names the feed subscribes to.
+///
+/// EventSource hands a named frame ONLY to a listener registered for that
+/// name, so this list is the feed's reach. Two sources, and nothing invented:
+/// the first block is every non-progress name measured on
+/// /api/run-watch/events across 60 s of one live sim sequence; the second is
+/// the names the page already subscribes to below, plus siblings confirmed
+/// present in the host's own sources. A name absent here can still reach the
+/// feed through the snapshot's recent list, which is the backstop rather than
+/// the path.
+const FEED_EVENT_NAMES = [
+  // Measured on the wire.
+  'ExposureStarted', 'ExposureComplete', 'ExposureCompleted', 'FrameAccepted',
+  'FocuserMoveStarted', 'FocuserMoveCompleted', 'FilterChanging',
+  'FilterChanged', 'NodeStarted', 'NodeCompleted', 'TriggerFired',
+  'DecisionLogged', 'IntegrationBudget', 'UnknownSequencerEvent',
+  // Not seen in that minute, but emitted by this host on other paths.
+  'ExposureFinished', 'ExposureAborted', 'ExposureAdjusted', 'FrameRejected',
+  'ImageSaved', 'SequenceStarted', 'SequencePaused', 'SequenceResumed',
+  'SequenceStopped', 'SequenceFinished', 'Completed', 'SchedulerDecision',
+  'MeridianFlipCompleted', 'GuidingStarted', 'GuidingStopped',
+  'DitherStarted', 'DitherCompleted', 'WeatherAlert',
+  'RecoveryStarted', 'RecoveryCompleted',
+];
+
+/// The tick families, subscribed so they can be COUNTED.
+///
+/// They never take a row — [noteFeedEvent] folds anything
+/// [isProgressTickEvent] recognises — but without a subscription they do not
+/// reach this page at all, and the fold row would then be a mechanism that
+/// only ever fired in its own tests. Counting them is what lets the panel say
+/// "the rig is working, these updates are in the bar" rather than sit silent
+/// through a five-minute exposure.
+const PROGRESS_EVENT_NAMES = [
+  'ExposureProgress', 'Progress',
+  'InstructionProgress', 'InstructionProgressStructured',
+];
+
 function openSSE() {
   closeSSE();
   // EventSource doesn't accept custom headers natively. We pass the
@@ -1112,6 +1240,19 @@ function openSSE() {
   };
   sse.onmessage = (evt) => handleSseMessage(evt);
 
+  // Every frame this server sends carries an `event:` name — measured on the
+  // release bundle: 327 of 327 frames over one live minute — and EventSource
+  // delivers a NAMED frame only to a listener registered for that name.
+  // `onmessage` above therefore never fires here, which is why the feed was
+  // painted solely by the snapshot poll's five-deep `recentEvents` ring, and
+  // why that ring being all progress ticks mid-exposure emptied the panel of
+  // everything that had actually happened.
+  FEED_EVENT_NAMES.concat(PROGRESS_EVENT_NAMES).forEach(name => {
+    sse.addEventListener(name, (evt) => {
+      try { noteFeedEvent(JSON.parse(evt.data)); } catch { /* not our shape */ }
+    });
+  });
+
   // Frame-triggering events — when one arrives, refresh the thumbnail
   // immediately rather than waiting for the 10s fallback.
   ['FrameAccepted', 'FrameRejected', 'ExposureFinished',
@@ -1136,21 +1277,121 @@ function closeSSE() {
   }
 }
 
+/// How many discrete events the feed shows.
+const FEED_ROW_CAP = 5;
+
+/// Whether an event is a progress tick rather than something that happened.
+///
+/// Measured against the release bundle over 60 s of one live sim sequence:
+/// 327 events on /api/run-watch/events, of which ExposureProgress 84,
+/// Progress 53, InstructionProgress 46 and InstructionProgressStructured 46 —
+/// 229 of 327, about four a second. Against a five-row feed that cadence
+/// evicts everything else within a second: sampled every 2 s across 50 s of a
+/// live run, 104 of 125 row slots were ticks and not one of the 25 samples
+/// held a FrameAccepted row or a node transition.
+///
+/// Matched by name so a family the host adds later (`FooProgress`,
+/// `FooProgressStructured`) is folded on arrival rather than after it has
+/// flooded a phone. The figure these carry is not lost — it is the progress
+/// bar above, which is the surface built to show a number moving.
+function isProgressTickEvent(type) {
+  return /Progress/.test(String(type || ''));
+}
+
+/// The discrete events this page is holding, newest first, capped at
+/// [FEED_ROW_CAP]. Owned here rather than read back off the DOM because the
+/// snapshot poll repaints the same list every 15 s, and a list that lives only
+/// in the DOM cannot survive its own repaint.
+let feedEvents = [];
+/// Keys of events already in the feed, so the same one arriving twice — once
+/// on the stream, once in the snapshot's own recent list — is shown once.
+let feedSeenKeys = new Set();
+/// Ticks that have arrived since the newest discrete event. Reset by that
+/// event, so the fold row always describes the gap at the top of the feed.
+let foldedProgressTicks = 0;
+
+function feedEventKey(evt) {
+  return String((evt && evt.timestamp) || '') + '|' +
+    String((evt && (evt.eventType || evt.eventName)) || '');
+}
+
+/// Take one event into the feed's model, or count it as a tick.
+///
+/// Everything that reaches the feed comes through here: the named SSE
+/// listeners, the unnamed-frame handler, and the snapshot's own recent list.
+function noteFeedEvent(evt) {
+  if (!evt || typeof evt !== 'object') return;
+  if (isProgressTickEvent(evt.eventType || evt.eventName)) {
+    foldedProgressTicks += 1;
+    renderFeed();
+    return;
+  }
+  const key = feedEventKey(evt);
+  if (feedSeenKeys.has(key)) return;
+  feedSeenKeys.add(key);
+  // A night is thousands of events long and this set exists only to stop a
+  // double-render; the recent keys are the only ones that can collide.
+  if (feedSeenKeys.size > 500) {
+    feedSeenKeys = new Set(feedEvents.map(feedEventKey).concat([key]));
+  }
+  // Newest first by the server's own clock. The stream and the snapshot ring
+  // both feed this list and they do not arrive in one order, so the order on
+  // screen is the events' own, not the order this page happened to hear them.
+  // Events sharing a millisecond are ordered by arrival, newest above — the
+  // host stamps a whole burst with one timestamp and the later one is later.
+  const ts = Number(evt.timestamp) || 0;
+  let at = 0;
+  while (at < feedEvents.length &&
+         (Number(feedEvents[at].timestamp) || 0) > ts) at++;
+  feedEvents.splice(at, 0, evt);
+  if (feedEvents.length > FEED_ROW_CAP) feedEvents.length = FEED_ROW_CAP;
+  // Only the newest event closes the gap the fold is describing. A ring entry
+  // that lands below the top is older than the ticks counted since.
+  if (feedEvents[0] === evt) foldedProgressTicks = 0;
+  renderFeed();
+}
+
+/// Draw the feed from its model: the discrete events, then — when ticks have
+/// arrived since the newest of them — one row accounting for those.
+///
+/// The fold row is not one of the five. A filter that stayed silent would
+/// leave the panel looking frozen through the busiest part of a run, with no
+/// way to tell "nothing is happening" from "the ticks are hidden".
+function renderFeed() {
+  const feed = $('event-feed');
+  if (!feed) return;
+  feed.innerHTML = '';
+  if (feedEvents.length === 0) {
+    const placeholder = document.createElement('li');
+    placeholder.className = 'empty';
+    placeholder.textContent = 'Waiting for events…';
+    feed.appendChild(placeholder);
+  } else {
+    for (const evt of feedEvents) feed.appendChild(renderEventLi(evt));
+  }
+  if (foldedProgressTicks > 0) {
+    const row = document.createElement('li');
+    // `.empty` is the feed's existing muted style for a row that is commentary
+    // rather than an event; `.event-folded` is what this code finds it by.
+    row.className = 'empty event-folded';
+    row.textContent = foldedProgressTicks === 1
+      ? '1 progress update since — the live figure is in the progress bar above.'
+      : foldedProgressTicks + ' progress updates since — the live figure is in ' +
+        'the progress bar above.';
+    feed.appendChild(row);
+  }
+}
+
 function handleSseMessage(evt) {
   let payload;
   try { payload = JSON.parse(evt.data); }
   catch { return; }
-  // Append to event feed. Cap the visible list at 5 rows.
-  const feed = $('event-feed');
-  if (!feed) return;
-  // Remove placeholder if present.
-  const placeholder = feed.querySelector('.empty');
-  if (placeholder) placeholder.remove();
-  feed.insertBefore(renderEventLi(payload), feed.firstChild);
-  while (feed.children.length > 5) feed.removeChild(feed.lastChild);
+  noteFeedEvent(payload);
 
   // Critical events — surface as a toast (web Push API is opt-in via
-  // settings sheet and lives in registerPushIfEnabled() below).
+  // settings sheet and lives in registerPushIfEnabled() below). Judged on
+  // every payload, folded or not: a severity the server calls critical is not
+  // this page's to suppress on the strength of the event's name.
   if ((payload.severity || '').toLowerCase() === 'critical') {
     const title = (payload.eventType || payload.eventName)
       ? eventTitleText(payload)
@@ -1466,7 +1707,9 @@ window.addEventListener('DOMContentLoaded', () => {
   $('btn-manual-token').addEventListener('click', () => {
     const t = $('manual-token').value.trim();
     if (!t) return;
-    setToken(t);
+    // Typed by hand and shown to nobody yet — the desktop has not accepted it,
+    // and a refusal must not be described as a pairing that was withdrawn.
+    setToken(t, false);
     showMainScreen();
   });
 

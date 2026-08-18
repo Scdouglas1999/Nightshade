@@ -301,6 +301,7 @@ void main() {
     WidgetTester tester, {
     required String location,
     Size size = const Size(1400, 1200),
+    bool remoteClient = false,
   }) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = size;
@@ -324,6 +325,7 @@ void main() {
           sidecarCalls++;
           return sidecarAnswer;
         }),
+        if (remoteClient) remoteClientLaunchProvider.overrideWithValue(true),
       ],
     );
     addTearDown(container.dispose);
@@ -523,13 +525,14 @@ void main() {
 
     await tester.tap(find.text('Delete branch'));
     await settle(tester);
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Delete'));
-    await settle(tester);
 
-    // The RESTRICT refusal, then its own destructive alternative.
-    expect(find.text('That branch has branches of its own'), findsOneWidget);
+    // The confirm names the whole line, because the branch it is about has a
+    // branch of its own and a plain delete of it can only be refused.
     await tester.tap(
-      find.textContaining('Delete "Master · B draft" and its 1 branch'),
+      find.widgetWithText(
+        NightshadeButton,
+        'Delete "Master · B draft" and its 1 branch',
+      ),
     );
     await settle(tester);
 
@@ -781,6 +784,76 @@ void main() {
   });
 
   // -------------------------------------------------------------------
+  // The host-only gate is a screen, not a trap
+  // -------------------------------------------------------------------
+
+  testWidgets('the host-only gate carries the same way out the editor does',
+      (tester) async {
+    // The gate returned its own Scaffold BEFORE the shortcuts wrapper and the
+    // header actions, so the ONE branch whose whole job is to send the operator
+    // elsewhere was the one branch with nowhere to go: no Back in the header,
+    // no action on the empty state, Escape and Alt+Left both dead, and a nav
+    // rail still highlighting the screen they came from.
+    final id = await seedRecipe([_step('denoise')]);
+    final router = await pump(
+      tester,
+      location: '/darkroom?recipe=$id',
+      remoteClient: true,
+    );
+
+    expect(find.text('Open the Darkroom on the imaging host'), findsOneWidget);
+
+    final semantics = tester.ensureSemantics();
+    expect(
+      find.bySemanticsLabel(RegExp('^Back to where the Darkroom was opened')),
+      findsOneWidget,
+    );
+    semantics.dispose();
+    expect(
+      find.byKey(const ValueKey('darkroom_remote_gate_back')),
+      findsOneWidget,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester);
+
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/analytics');
+    await drain(tester);
+  });
+
+  testWidgets('Alt+Left leaves the host-only gate too', (tester) async {
+    final id = await seedRecipe([_step('denoise')]);
+    final router = await pump(
+      tester,
+      location: '/darkroom?recipe=$id',
+      remoteClient: true,
+    );
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await settle(tester);
+
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/analytics');
+    await drain(tester);
+  });
+
+  testWidgets('the gate\'s empty-state action leaves as well', (tester) async {
+    final id = await seedRecipe([_step('denoise')]);
+    final router = await pump(
+      tester,
+      location: '/darkroom?recipe=$id',
+      remoteClient: true,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('darkroom_remote_gate_back')));
+    await settle(tester);
+
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/analytics');
+    await drain(tester);
+  });
+
+  // -------------------------------------------------------------------
   // D2-13 — the delete confirmation names the children up front
   // -------------------------------------------------------------------
 
@@ -809,10 +882,19 @@ void main() {
           'matching'),
       findsOneWidget,
     );
+    // And the act it offers is the one that can be carried out: the whole
+    // line, named in full, rather than a "Delete" whose only outcome is the
+    // engine's refusal.
     expect(
-      find.textContaining('nothing is deleted before you choose that'),
+      find.textContaining('"Draft" goes only with it: 2 recipes in all, or '
+          'none'),
       findsOneWidget,
     );
+    expect(
+      find.widgetWithText(NightshadeButton, 'Delete "Draft" and its 1 branch'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(NightshadeButton, 'Delete'), findsNothing);
     await drain(tester);
   });
 
@@ -832,17 +914,20 @@ void main() {
 
     await tester.tap(find.text('Compare with…'));
     await settle(tester);
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Warmer'));
+    await tester.tap(find.widgetWithText(NightshadeCard, 'Warmer'));
     await settle(tester);
 
     // Both pictures, as before.
-    expect(find.textContaining('A · Draft'), findsOneWidget);
-    expect(find.textContaining('B · Warmer'), findsOneWidget);
+    expect(find.text('A · Draft'), findsOneWidget);
+    expect(find.text('B · Warmer'), findsOneWidget);
     // And the two panels that say what differs, which compare used to remove
     // from the screen and from the accessibility tree entirely.
     expect(find.text('History stack'), findsOneWidget);
     expect(find.text('Denoise'), findsWidgets);
     expect(find.text('Reset to linear'), findsOneWidget);
+    // Each of those panels now names the branch it is showing, so the stack
+    // beside two captioned panes belongs to one of them on screen.
+    expect(find.text('Pane A · Draft'), findsNWidgets(2));
     await drain(tester);
   });
 

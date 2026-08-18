@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/utils/darkroom_navigation.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -208,5 +209,141 @@ void main() {
     expect(target.masterId, isNull);
     expect(
         target.unavailableReason, 'M31 Ha: this master is still accumulating.');
+  });
+
+  // A master card names its row, so it needs no session lookup — but it needs
+  // the same role question, and it was not asking it. The session-level control
+  // refused inline while this one navigated to the host-only Darkroom screen:
+  // two controls, two answers, on the same launch.
+  group('the master-row entry point', () {
+    /// A two-route app whose home carries the control under test. The Darkroom
+    /// route reports the master it was scoped to, so the assertion reads what
+    /// the screen would have opened rather than a router internal.
+    Future<GoRouter> pumpRow(
+      WidgetTester tester,
+      List<Override> overrides,
+    ) async {
+      final router = GoRouter(
+        initialLocation: '/home',
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (context, state) => Scaffold(
+              body: Consumer(
+                builder: (context, ref, _) => TextButton(
+                  onPressed: () => openDarkroomForMasterRow(context, ref, 7),
+                  child: const Text('Darkroom'),
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/darkroom',
+            builder: (context, state) => Scaffold(
+              body:
+                  Text('the editor on ${state.uri.queryParameters['master']}'),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    testWidgets('a host opens the Darkroom on that row', (tester) async {
+      final router = await pumpRow(tester, [
+        backendProvider.overrideWith(
+          (ref) => _PinnedBackend(ref, DisconnectedBackend()),
+        ),
+      ]);
+
+      await tester.tap(find.text('Darkroom'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('the editor on 7'), findsOneWidget);
+      expect(
+        router.routerDelegate.currentConfiguration.last.matchedLocation,
+        '/darkroom',
+      );
+    });
+
+    testWidgets(
+      'a --remote-host client refuses in the same words as every other entry '
+      'point, and does not navigate',
+      (tester) async {
+        final router = await pumpRow(tester, [
+          remoteClientLaunchProvider.overrideWithValue(true),
+          backendProvider.overrideWith(
+            (ref) => _PinnedBackend(ref, DisconnectedBackend()),
+          ),
+        ]);
+
+        await tester.tap(find.text('Darkroom'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(
+          router.routerDelegate.currentConfiguration.uri.toString(),
+          '/home',
+          reason: 'no Darkroom control on a client may land on a gate screen',
+        );
+        expect(find.textContaining('the editor'), findsNothing);
+        expect(find.text(kDarkroomHostOnlyRefusal), findsOneWidget);
+      },
+    );
+
+    testWidgets('a connected client refuses the same way', (tester) async {
+      final router = await pumpRow(tester, [
+        backendProvider.overrideWith(
+          (ref) => _PinnedBackend(ref, _MockNetworkBackend()),
+        ),
+      ]);
+
+      await tester.tap(find.text('Darkroom'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        '/home',
+      );
+      expect(find.text(kDarkroomHostOnlyRefusal), findsOneWidget);
+    });
+
+    testWidgets('the session resolver refuses in exactly those words', (
+      tester,
+    ) async {
+      // One sentence, shared. If these ever drift apart the two entry points
+      // are back to explaining the same machine two different ways.
+      final target = await withRef(
+        tester,
+        [
+          remoteClientLaunchProvider.overrideWithValue(true),
+          backendProvider.overrideWith(
+            (ref) => _PinnedBackend(ref, DisconnectedBackend()),
+          ),
+          dawnMasterResolverProvider.overrideWithValue(
+            _ScriptedResolver(
+              DawnMasterSet(
+                sessionId: 3,
+                masters: [_master(11)],
+                withoutFile: const [],
+              ),
+            ),
+          ),
+        ],
+        (ref) => resolveDarkroomTargetForSession(ref, 3),
+      );
+
+      expect(target.unavailableReason, kDarkroomHostOnlyRefusal);
+    });
   });
 }

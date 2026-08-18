@@ -26,6 +26,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/screens/darkroom/darkroom_branch_controller.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_controller.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -204,6 +205,48 @@ Map<String, dynamic> _step(String opId, {bool enabled = true}) => {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('the variant name a duplicate suggests', () {
+    test('is the plain one while no sibling wears it', () {
+      expect(
+        darkroomVariantNameSuggestion('Draft', const ['Draft']),
+        'Draft variant',
+      );
+    });
+
+    test('numbers past every sibling that already wears one', () {
+      expect(
+        darkroomVariantNameSuggestion(
+          'Draft',
+          const ['Draft', 'Draft variant'],
+        ),
+        'Draft variant 2',
+      );
+      expect(
+        darkroomVariantNameSuggestion(
+          'Draft',
+          const ['Draft', 'Draft variant', 'Draft variant 2'],
+        ),
+        'Draft variant 3',
+      );
+      // A gap is filled rather than stepped over: the number says "not that
+      // one", not "how many there have ever been".
+      expect(
+        darkroomVariantNameSuggestion(
+          'Draft',
+          const ['Draft variant', 'Draft variant 3'],
+        ),
+        'Draft variant 2',
+      );
+    });
+
+    test('reads case and surrounding space the way the bar does', () {
+      expect(
+        darkroomVariantNameSuggestion('Draft', const ['  draft VARIANT ']),
+        'Draft variant 2',
+      );
+    });
+  });
 
   late _ScriptedDarkroom darkroom;
   late NightshadeDatabase db;
@@ -575,6 +618,82 @@ void main() {
     await drain(tester);
   });
 
+  testWidgets('a second variant is suggested a name the first does not wear', (
+    tester,
+  ) async {
+    // Accepting the suggestion twice made two chips labelled "Draft variant",
+    // two identical rows in the compare picker, and a refusal that named the
+    // same recipe twice — nothing on the bar could tell them apart.
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Draft variant',
+    );
+    await pump(tester, root);
+
+    await tester.tap(find.text('Duplicate as variant'));
+    await settle(tester);
+
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+      'Draft variant 2',
+    );
+
+    // And it is still a suggestion: the field takes any name the operator
+    // types over it.
+    await tester.enterText(find.byType(EditableText), 'Cooler');
+    await settle(tester);
+    await tester.tap(find.text('Create variant'));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    final names =
+        (await recipes.listForMaster(_masterPath)).map((r) => r.name).toList();
+    expect(names, containsAll(<String>['Draft', 'Draft variant', 'Cooler']));
+    await drain(tester);
+  });
+
+  testWidgets('a compare option is a row control, not centred text', (
+    tester,
+  ) async {
+    // The picker's options were label text inside a hairline outline, in a
+    // dialog whose only element painted as a control was Cancel: a click at the
+    // row's visual centre of gravity did nothing unless it landed on the text.
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+
+    await tester.tap(find.text('Compare with…'));
+    await settle(tester);
+
+    final option = find.widgetWithText(NightshadeCard, 'Warmer');
+    expect(option, findsOneWidget);
+    expect(tester.widget<NightshadeCard>(option).onTap, isNotNull);
+    // The affordance that says the row leads somewhere.
+    expect(
+      find.descendant(
+        of: option,
+        matching: find.byIcon(NightshadeIcons.chevronRight),
+      ),
+      findsOneWidget,
+    );
+
+    // A press on the row's own surface — off the label, where the eye aims —
+    // chooses that branch.
+    final box = tester.getRect(option);
+    await tester.tapAt(Offset(box.right - 24, box.center.dy));
+    for (var i = 0; i < 15; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(find.text('Stop comparing'), findsOneWidget);
+    await drain(tester);
+  });
+
   testWidgets('deleting a parent explains itself with the branches named', (
     tester,
   ) async {
@@ -588,22 +707,94 @@ void main() {
 
     await tester.tap(find.text('Delete branch'));
     await settle(tester);
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Delete'));
+
+    // The branch that blocks a plain delete is NAMED in the confirm, and the
+    // only destructive button is the act that can actually be carried out. The
+    // dialog used to quote the child count, state that the delete would be
+    // refused, and still put "Delete" under it — one guaranteed failure before
+    // the operator was offered the escalation.
+    expect(find.text('One branch diverges from this one'), findsOneWidget);
+    expect(find.textContaining('Warmer'), findsWidgets);
+    expect(
+      find.widgetWithText(NightshadeButton, 'Delete "Draft" and its 1 branch'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(NightshadeButton, 'Delete'),
+      findsNothing,
+      reason: 'a button whose only outcome is a refusal is not a choice',
+    );
+
+    // Backing out leaves the family exactly as it was.
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Keep it'));
+    await settle(tester);
+    expect(await recipes.listForMaster(_masterPath), hasLength(2));
+    await drain(tester);
+  });
+
+  testWidgets('the confirm\'s own escalation deletes the whole line', (
+    tester,
+  ) async {
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+
+    await tester.tap(find.text('Delete branch'));
+    await settle(tester);
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Delete "Draft" and its 1 branch'),
+    );
     for (var i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 40));
     }
 
+    // Both rows, in one step, with no refusal in between.
+    expect(await recipes.listForMaster(_masterPath), isEmpty);
+    expect(find.text('That branch has branches of its own'), findsNothing);
+    await drain(tester);
+  });
+
+  testWidgets('a delete the engine refuses still offers the whole line', (
+    tester,
+  ) async {
+    // The refusal path survives the confirm's own escalation: a branch can gain
+    // a child between the confirm being drawn and the delete being asked for,
+    // and the engine — not this screen — is what refuses. Driven through the
+    // controller, which is the seam that state arrives on.
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    final router = await pump(tester, root);
+    final context = tester.element(find.byType(DarkroomScreen));
+    final container = ProviderScope.containerOf(context);
+    await container
+        .read(
+          darkroomBranchControllerProvider(
+            DarkroomBranchScope(masterPath: _masterPath, recipeId: root),
+          ).notifier,
+        )
+        .deleteBranch(root);
+    await settle(tester);
+
     expect(find.text('That branch has branches of its own'), findsOneWidget);
-    expect(find.textContaining('Warmer'), findsWidgets);
-    expect(find.textContaining('cannot be deleted while 1 branch'),
-        findsOneWidget);
-    // The refusal offers the one destructive alternative the DAO actually has.
+    expect(
+      find.textContaining('cannot be deleted while 1 branch'),
+      findsOneWidget,
+    );
     expect(
       find.textContaining('Delete "Draft" and its 1 branch'),
       findsOneWidget,
     );
-    // Nothing was deleted.
     expect(await recipes.listForMaster(_masterPath), hasLength(2));
+    expect(router.routerDelegate.currentConfiguration.uri.toString(),
+        '/darkroom?recipe=$root');
     await drain(tester);
   });
 
@@ -614,7 +805,9 @@ void main() {
   Future<void> enterCompare(WidgetTester tester) async {
     await tester.tap(find.text('Compare with…'));
     await settle(tester);
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Warmer'));
+    // The whole row is the control, so the tap lands where the eye aims: the
+    // middle of the card rather than the label inside it.
+    await tester.tap(find.widgetWithText(NightshadeCard, 'Warmer'));
     for (var i = 0; i < 15; i++) {
       await tester.pump(const Duration(milliseconds: 40));
     }
@@ -1696,6 +1889,51 @@ void main() {
     expect(images[0], contains('4×4'));
     expect(images[1], startsWith('Compare pane B of two.'));
     expect(images[1], contains('Rendered draft of Warmer over m31_L.fits'));
+    handle.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('the step panels say whose steps they are while comparing', (
+    tester,
+  ) async {
+    // Compare keeps the Recipe and History panels on screen, but both render
+    // the A recipe and neither said so: a four-step stack sat beside panes
+    // captioned "A · …" and "B · …" belonging, as far as the screen and the
+    // accessibility tree went, to neither — while the picker's own copy
+    // promises "what differs on screen is the interpretation".
+    final root = await seedRecipe([_step('background_extract')]);
+    await recipes.branchFrom(
+      parentRecipeId: root,
+      divergenceIndex: 1,
+      name: 'Warmer',
+    );
+    await pump(tester, root);
+
+    // Nothing to qualify while one recipe is open.
+    const owner = ValueKey('darkroom_compare_owner');
+    expect(find.byKey(owner), findsNothing);
+
+    final handle = tester.ensureSemantics();
+    await enterCompare(tester);
+    await decodeFrames(tester);
+    await settle(tester);
+
+    // One strip per secondary panel — the Recipe panel and the History stack.
+    expect(find.byKey(owner), findsNWidgets(2));
+    expect(find.text('Pane A · Draft'), findsNWidgets(2));
+    expect(
+      find.text('B renders its own recipe and is not edited here.'),
+      findsNWidgets(2),
+    );
+
+    final owners = [
+      for (final node in traversal(tester))
+        if (node.getSemanticsData().label.startsWith('Showing pane A'))
+          node.getSemanticsData().label,
+    ];
+    expect(owners, hasLength(2));
+    expect(owners.first, contains('Showing pane A, Draft.'));
+    expect(owners.first, contains('pane B renders its own recipe'));
     handle.dispose();
     await drain(tester);
   });

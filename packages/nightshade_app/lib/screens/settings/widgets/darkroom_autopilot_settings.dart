@@ -38,6 +38,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -45,7 +46,41 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../utils/user_facing_error.dart';
 import '../../session_review/auto_integration_service.dart';
 import '../delivery_settings.dart';
+import '../settings_screen.dart';
 import 'settings_widgets.dart';
+
+/// Open the Settings section a dependency row names.
+///
+/// Both halves are needed. The route carries the destination, and the request
+/// makes the *event* observable: `/settings` is a keyless page, so navigating to
+/// `/settings?section=delivery` while Settings is already open updates the same
+/// element with an identical location and would otherwise move nothing — which
+/// is exactly the case here, since every one of these links is pressed from
+/// inside Settings.
+void openSettingsSection(BuildContext context, String sectionKey) {
+  SettingsSectionRequest.raise(sectionKey);
+  context.go('/settings?section=$sectionKey');
+}
+
+/// The control that takes a dependency row to the page it names.
+///
+/// The three rows under "What can silence it" each ended in a bare path —
+/// "Settings › Delivery." — on a page whose only interactive node was the
+/// switch: the operator was told exactly which setting could silence tonight's
+/// pass and left to go and find it. The sentence stays; this is the way there.
+Widget openSectionButton({
+  required BuildContext context,
+  required String label,
+  required String sectionKey,
+}) {
+  return NightshadeButton(
+    label: label,
+    icon: LucideIcons.arrowRight,
+    variant: ButtonVariant.outline,
+    size: ButtonSize.small,
+    onPressed: () => openSettingsSection(context, sectionKey),
+  );
+}
 
 /// Whether a finished run drafts itself.
 ///
@@ -233,16 +268,30 @@ class _AutoIntegrateDependencyRow extends ConsumerWidget {
           'happens next, not whether the night is integrated at all. It is '
           'currently $state. Settings › Image Grading › Post-session '
           'integration.',
-      // The colour-coded echo is for the eye scanning the column. A screen
-      // reader has already been told the state by the sentence above, so
-      // publishing the echo as well adds a node named only "off" a column
-      // away from the sentence that explains it.
-      trailing: ExcludeSemantics(
-        child: Text(
-          state,
-          style: NightshadeTypography.labelSm.copyWith(color: color),
-        ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // The colour-coded echo is for the eye scanning the column. A screen
+          // reader has already been told the state by the sentence above, so
+          // publishing the echo as well adds a node named only "off" a column
+          // away from the sentence that explains it.
+          ExcludeSemantics(
+            child: Text(
+              state,
+              style: NightshadeTypography.labelSm.copyWith(color: color),
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          openSectionButton(
+            context: context,
+            label: 'Image Grading',
+            sectionKey: 'image-grading',
+          ),
+        ],
       ),
+      // The state echo and the link do not fit beside a phone-width sentence;
+      // stacked, they sit under it rather than off the edge of the pane.
+      stackOnMobile: true,
       isMobile: isMobile,
     );
   }
@@ -272,10 +321,9 @@ String deliveryDependencyState(AsyncValue<DeliveryDestinations> destinations) {
     return 'No destination is configured here, so tonight\'s files stay on '
         'this machine.';
   }
-  final blocked = read.views
-          .where((view) => _cannotReceive(view.status.kind))
-          .length +
-      read.unreadable.length;
+  final blocked =
+      read.views.where((view) => _cannotReceive(view.status.kind)).length +
+          read.unreadable.length;
   if (blocked == 0) {
     return configured == 1
         ? '1 destination is configured and nothing is standing in its way '
@@ -331,14 +379,18 @@ class _DeliveryDependencyRow extends ConsumerWidget {
     return SettingRow(
       icon: LucideIcons.send,
       title: 'Delivery destinations decide what leaves the rig',
-      subtitle:
-          'The pass hands its masters, drafts and report to Delivery. A '
+      subtitle: 'The pass hands its masters, drafts and report to Delivery. A '
           'destination with nothing selected receives nothing, and a rig with '
           'no destinations keeps everything locally — the drafts are still in '
           'the Darkroom either way. '
           '${deliveryDependencyState(ref.watch(deliveryDestinationsProvider))} '
           'Settings › Delivery.',
-      trailing: const SizedBox.shrink(),
+      trailing: openSectionButton(
+        context: context,
+        label: 'Delivery',
+        sectionKey: 'delivery',
+      ),
+      stackOnMobile: true,
       isMobile: isMobile,
     );
   }
@@ -363,7 +415,12 @@ class _NotificationDependencyRow extends ConsumerWidget {
           'and names the flag rather than sending it another way. '
           '${notificationDependencyState(ref.watch(appSettingsProvider))} '
           'Settings › Notifications.',
-      trailing: const SizedBox.shrink(),
+      trailing: openSectionButton(
+        context: context,
+        label: 'Notifications',
+        sectionKey: 'notifications',
+      ),
+      stackOnMobile: true,
       isLast: true,
       isMobile: isMobile,
     );

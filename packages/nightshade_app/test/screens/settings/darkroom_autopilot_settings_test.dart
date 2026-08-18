@@ -12,10 +12,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/screens/session_review/auto_integration_service.dart';
 import 'package:nightshade_app/screens/settings/delivery_settings.dart';
 import 'package:nightshade_app/screens/settings/settings_catalog.dart';
+import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/darkroom_autopilot_settings.dart';
 import 'package:nightshade_app/screens/settings/widgets/settings_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -174,8 +176,10 @@ void main() {
       expect(notes, contains('cannot be delivered to as it stands'));
       // Both notification gates default on, and the note says so rather than
       // describing what "off" would do.
-      expect(notes, contains('Notifications and the sequence-complete alert '
-          'are both on'));
+      expect(
+          notes,
+          contains('Notifications and the sequence-complete alert '
+              'are both on'));
     });
 
     testWidgets('a rig with no destinations says so, and an off gate is named',
@@ -451,12 +455,112 @@ void main() {
     expect(label, contains('It is currently off.'));
     expect(
       label,
-      endsWith('Settings › Image Grading › Post-session integration.'),
+      contains('Settings › Image Grading › Post-session integration.'),
       reason: 'the sentence carries the state; the visual echo must not '
           'publish a second, unbound copy of it',
     );
+    // One "off" in the whole node: the sentence's, not the echo's as well.
+    expect('off '.allMatches('$label ').length, 1, reason: label);
     // The echo is still on screen for the eye scanning the column.
     expect(find.text('off'), findsOneWidget);
     semantics.dispose();
+  });
+
+  group('each dependency row opens the page it names', () {
+    // The three rows under "What can silence it" named the setting that could
+    // silence tonight's pass and then ended in a bare path — "Settings ›
+    // Delivery." — with no control beside them. A walk of the page found ONE
+    // interactive node on it, the switch; acting on any of the three meant
+    // leaving and hunting for it.
+    const links = [
+      (
+        'Auto-integrate has to be on for any of this to run',
+        'Image Grading',
+        'image-grading'
+      ),
+      (
+        'Delivery destinations decide what leaves the rig',
+        'Delivery',
+        'delivery'
+      ),
+      (
+        'The morning message rides the sequence-complete alerts',
+        'Notifications',
+        'notifications'
+      ),
+    ];
+
+    Future<GoRouter> pumpInRouter(WidgetTester tester) async {
+      final db = mockDatabase();
+      addTearDown(db.close);
+      // Tall enough for the whole page: a control below the fold is not the
+      // subject of this test.
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1280, 1400);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(
+            path: '/settings',
+            builder: (_, __) => const Scaffold(
+              body: DarkroomAutopilotSettings(),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [databaseProvider.overrideWithValue(db)],
+          child: MaterialApp.router(
+            theme: NightshadeTheme.dark,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    testWidgets('the row carries a control named for its destination', (
+      tester,
+    ) async {
+      await pumpInRouter(tester);
+      for (final (_, label, _) in links) {
+        expect(
+          find.widgetWithText(NightshadeButton, label),
+          findsOneWidget,
+          reason: '"$label" is the page this row sends the operator to',
+        );
+      }
+    });
+
+    for (final (title, label, sectionKey) in links) {
+      testWidgets('"$label" goes to the $sectionKey section', (tester) async {
+        SettingsSectionRequest.reset();
+        addTearDown(SettingsSectionRequest.reset);
+        final router = await pumpInRouter(tester);
+
+        final control = find.widgetWithText(NightshadeButton, label);
+        await tester.ensureVisible(control);
+        await tester.pumpAndSettle();
+        await tester.tap(control);
+        await tester.pumpAndSettle();
+
+        // Both halves of the link, because a repeat press from inside Settings
+        // carries an identical route and only the raised request moves the
+        // pane.
+        expect(SettingsSectionRequest.section, sectionKey);
+        expect(
+          router.routerDelegate.currentConfiguration.uri.toString(),
+          '/settings?section=$sectionKey',
+          reason: 'the row titled "$title" names that section',
+        );
+      });
+    }
   });
 }

@@ -6,6 +6,8 @@
 /// the dawn autopilot and the headless delivery endpoints read.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../database/daos/delivery_journal_dao.dart';
@@ -44,17 +46,18 @@ final deliveryServiceProvider = Provider<DeliveryService>((ref) {
 /// The overnight driver for the retry sweep.
 ///
 /// A `Provider` rather than a bootstrap-local object so the GUI and the daemon
-/// arm the same instance the rest of the graph would see. The timer is armed
-/// and torn down by whoever owns the process lifecycle (the embedded API
-/// server) — reading this provider alone starts nothing, because a sweeper that
-/// armed itself on first read would keep sweeping after the server it belongs
-/// to had stopped.
+/// arm the same instance the rest of the graph would see. The timer is armed by
+/// the one seam that runs in every mode owning this journal —
+/// `resumeDarkroomWork` in the desktop bootstrap — and closed with the
+/// container. Reading this provider alone starts nothing, because a sweeper
+/// that armed itself on first read would arm from the settings page that merely
+/// wanted to ask it for a single pass.
 final deliveryRetrySweeperProvider = Provider<DeliveryRetrySweeper>((ref) {
   final sweeper = DeliveryRetrySweeper(
     delivery: ref.watch(deliveryServiceProvider),
     logger: ref.watch(loggingServiceProvider),
   );
-  ref.onDispose(sweeper.stop);
+  ref.onDispose(() => unawaited(sweeper.dispose()));
   return sweeper;
 });
 

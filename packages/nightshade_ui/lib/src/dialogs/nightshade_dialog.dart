@@ -298,19 +298,38 @@ class _Header extends StatelessWidget {
             const SizedBox(width: NightshadeTokens.spaceMd),
           ],
           Expanded(
-            child: Text(
-              title,
-              style: NightshadeTypography.h4.copyWith(
-                color: colors.textPrimary,
+            // A node of its own, because the title is the one thing in this
+            // header that is not a control: with nothing to hold it apart it
+            // merges into whichever node is nearest — the close button, or the
+            // footer's — and the dialog's name is then readable only as part of
+            // a control's name, as one button called "<title> Close dialog".
+            child: Semantics(
+              container: true,
+              child: Text(
+                title,
+                style: NightshadeTypography.h4.copyWith(
+                  color: colors.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
           if (showCloseButton)
+            // ONE node for one control. The annotation named the close control
+            // and the [IconButton] under it published a second, nameless button
+            // as its child, so every dialog in the app — the export sheet, the
+            // branch-delete confirm, all of them, since this is the shared
+            // chrome — offered assistive tech an anonymous button nested inside
+            // "Close dialog". The annotation takes the tap and the state, the
+            // button's own node is excluded, and the container keeps the node
+            // from swallowing anything beside it.
             Semantics(
+              container: true,
               button: true,
               enabled: closeEnabled,
               label: closeButtonSemanticsLabel,
+              excludeSemantics: true,
+              onTap: closeEnabled ? onClose : null,
               child: IconButton(
                 tooltip: closeButtonSemanticsLabel,
                 onPressed: closeEnabled ? onClose : null,
@@ -342,11 +361,19 @@ class _Footer extends StatelessWidget {
         color: colors.surfaceAlt,
         border: Border(top: BorderSide(color: colors.border)),
       ),
-      child: Wrap(
-        alignment: WrapAlignment.end,
-        spacing: NightshadeTokens.spaceSm,
-        runSpacing: NightshadeTokens.spaceSm,
-        children: actions,
+      // The footer is a region of its own for the same reason the title is:
+      // whatever the header leaves unclaimed lands on the surface node, and
+      // with the close button no longer publishing a spare node of its own the
+      // first footer action was landing there — the whole dialog then read as
+      // one button named after it.
+      child: Semantics(
+        container: true,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          spacing: NightshadeTokens.spaceSm,
+          runSpacing: NightshadeTokens.spaceSm,
+          children: actions,
+        ),
       ),
     );
   }

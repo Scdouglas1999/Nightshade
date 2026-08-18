@@ -27,9 +27,54 @@ String darkroomRecipeLocation(int recipeId) => '/darkroom?recipe=$recipeId';
 /// recipe, or offers to compose one when the master has none.
 String darkroomMasterLocation(int masterId) => '/darkroom?master=$masterId';
 
+/// The one sentence every Darkroom entry point refuses a remote client with.
+///
+/// Shared rather than repeated so two controls cannot answer the same question
+/// in two different ways: the session-level "Refine in Darkroom" explained
+/// itself inline while the master card's "Darkroom" navigated into the
+/// host-only screen, and an operator pressing both learned two different things
+/// about the same machine.
+const String kDarkroomHostOnlyRefusal =
+    'The Darkroom works on the imaging host, where the linear masters are '
+    'stored. Open Nightshade there to refine this night.';
+
+/// Why this machine cannot open the Darkroom, or null when it can.
+///
+/// Gated on the client ROLE ([isRemoteClientProvider]), not on the connection:
+/// a desktop launched with `--remote-host` that has not reached its rig is
+/// `Disconnected`, so `backend is NetworkBackend` reads false for the whole
+/// pre-handshake window and after every drop — and during exactly that window
+/// the client owns none of the host's masters.
+String? darkroomHostOnlyRefusal(WidgetRef ref) =>
+    ref.read(isRemoteClientProvider) ? kDarkroomHostOnlyRefusal : null;
+
 /// Push the Darkroom scoped to [masterId].
+///
+/// The raw push. Callers must have asked [darkroomHostOnlyRefusal] — directly
+/// or through [resolveDarkroomTargetForSession] — before reaching it;
+/// [openDarkroomForMasterRow] is the entry point that does both.
 void openDarkroomForMaster(BuildContext context, int masterId) {
   context.push(darkroomMasterLocation(masterId));
+}
+
+/// Open the Darkroom on [masterId] from a control that names the master row
+/// itself, or refuse where the operator pressed.
+///
+/// The master library's "Darkroom" button called [openDarkroomForMaster]
+/// directly, so on a client it navigated into the host-only screen while the
+/// session-level control on the same launch refused inline. One resolver, one
+/// behaviour: no Darkroom control on a client lands on a gate screen.
+void openDarkroomForMasterRow(
+  BuildContext context,
+  WidgetRef ref,
+  int masterId,
+) {
+  final refusal = darkroomHostOnlyRefusal(ref);
+  if (refusal != null) {
+    context.showInfoSnackBar(refusal);
+    return;
+  }
+  openDarkroomForMaster(context, masterId);
 }
 
 /// What a session resolves to for the Darkroom: a master to open, or the
@@ -61,20 +106,15 @@ class DarkroomSessionTarget {
 /// master's pixels live on the imaging host's disk, so a remote client is told
 /// where to open it instead of being handed a path it cannot read.
 ///
-/// The refusal is gated on the client ROLE, the same gate the Darkroom screen
-/// and Delivery settings use. `backendProvider is NetworkBackend` is a
-/// CONNECTION fact: a client launched with `--remote-host` that has not reached
-/// its rig is `Disconnected`, so that test read false and this resolver went on
-/// to read the CLIENT's own masters and open an editor over them.
+/// The refusal is [darkroomHostOnlyRefusal] — the same words, from the same
+/// role question, that every other Darkroom entry point uses.
 Future<DarkroomSessionTarget> resolveDarkroomTargetForSession(
   WidgetRef ref,
   int sessionId,
 ) async {
-  if (ref.read(isRemoteClientProvider)) {
-    return const DarkroomSessionTarget.unavailable(
-      'The Darkroom works on the imaging host, where the linear masters are '
-      'stored. Open Nightshade there to refine this night.',
-    );
+  final refusal = darkroomHostOnlyRefusal(ref);
+  if (refusal != null) {
+    return DarkroomSessionTarget.unavailable(refusal);
   }
 
   final DawnMasterSet set;

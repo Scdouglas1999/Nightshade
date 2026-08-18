@@ -228,147 +228,166 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // gesture.
       key: ObjectKey(step.identity),
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
-      child: NightshadeCard(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Semantics(
-                    label: 'Reorder $title',
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        right: NightshadeTokens.spaceSm,
-                      ),
-                      child: Icon(
-                        NightshadeIcons.move,
-                        size: NightshadeTokens.iconSm,
-                        color: colors.textMuted,
+      // The card's POSITION IN THE STACK, stated to assistive tech rather than
+      // left to be inferred from where the card happens to be painted.
+      //
+      // Without it a reader is walked through the stack in an order that is not
+      // the pipeline's: after a committed reorder, AT-SPI read crop, stretch,
+      // denoise, background extract over a recipe the panel painted — and the
+      // engine ran — as crop, denoise, background extract, stretch.
+      //
+      // Sibling nodes with no sort key are ordered by their RECTANGLES, and
+      // that order reaches the bridge only on a frame where the enclosing list
+      // node is itself dirty (`SemanticsOwner.sendSemanticsUpdate` re-states
+      // `childrenInTraversalOrder` for dirty nodes only), so the last order
+      // assistive tech is handed is whatever geometry said on that frame —
+      // while the cards were still moving, or while the ones off the end of the
+      // viewport were clipped to the same edge. The ordinal is read off the
+      // recipe instead, so every frame states the order the engine will run.
+      child: Semantics(
+        sortKey: OrdinalSortKey(index.toDouble()),
+        child: NightshadeCard(
+          padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ReorderableDragStartListener(
+                    index: index,
+                    child: Semantics(
+                      label: 'Reorder $title',
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          right: NightshadeTokens.spaceSm,
+                        ),
+                        child: Icon(
+                          NightshadeIcons.move,
+                          size: NightshadeTokens.iconSm,
+                          color: colors.textMuted,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                // The drag handle is the only thing that moved a step, and a
-                // press-and-drag cannot be performed from a keyboard or from
-                // assistive tech: the handle publishes a panel with no action,
-                // so a walk of this stack found four "Reorder <op>" panels and
-                // no way to reorder anything. These are the same move, as two
-                // ordinary buttons.
-                _moveButton(
-                  title: title,
-                  index: index,
-                  up: true,
-                  enabled: index > 0,
-                  stepCount: state.steps.length,
-                ),
-                _moveButton(
-                  title: title,
-                  index: index,
-                  up: false,
-                  enabled: index < state.steps.length - 1,
-                  stepCount: state.steps.length,
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: NightshadeTypography.labelStrong.copyWith(
-                          color: step.enabled
-                              ? colors.textPrimary
-                              : colors.textMuted,
-                        ),
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceXs),
-                      Wrap(
-                        spacing: NightshadeTokens.spaceXs,
-                        runSpacing: NightshadeTokens.spaceXs,
-                        children: [
-                          _DarkroomTag(
-                            label: 'v${step.opVersion}',
-                            tooltip:
-                                'The operation version this recipe was written '
-                                'with. A recipe keeps rendering with its own '
-                                'version, so improving an operation never '
-                                'changes an existing recipe.',
-                          ),
-                          if (spec != null)
-                            _DarkroomTag(
-                              label: spec.stage.label,
-                              tooltip: _stageTooltip(spec),
-                            ),
-                        ],
-                      ),
-                    ],
+                  // The drag handle is the only thing that moved a step, and a
+                  // press-and-drag cannot be performed from a keyboard or from
+                  // assistive tech: the handle publishes a panel with no action,
+                  // so a walk of this stack found four "Reorder <op>" panels and
+                  // no way to reorder anything. These are the same move, as two
+                  // ordinary buttons.
+                  _moveButton(
+                    title: title,
+                    index: index,
+                    up: true,
+                    enabled: index > 0,
+                    stepCount: state.steps.length,
                   ),
-                ),
-                // container, not a bare annotation: without a node of its own
-                // the switch's toggle state and tap action are absorbed by the
-                // card's own node, and the whole card — the reorder label, the
-                // title, the version, the outcome line, the paragraph
-                // explaining the unregistered operation — becomes ONE
-                // ~200-character togglable control with no distinct switch.
-                // That happened exactly on the cards that had no second
-                // control to force a split, which is to say on the error case.
-                Semantics(
-                  container: true,
-                  label: '$title enabled',
-                  child: NightshadeSwitch(
-                    value: step.enabled,
-                    compact: true,
-                    onChanged: (_) => widget.onToggle(index),
+                  _moveButton(
+                    title: title,
+                    index: index,
+                    up: false,
+                    enabled: index < state.steps.length - 1,
+                    stepCount: state.steps.length,
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: NightshadeTypography.labelStrong.copyWith(
+                            color: step.enabled
+                                ? colors.textPrimary
+                                : colors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: NightshadeTokens.spaceXs),
+                        Wrap(
+                          spacing: NightshadeTokens.spaceXs,
+                          runSpacing: NightshadeTokens.spaceXs,
+                          children: [
+                            _DarkroomTag(
+                              label: 'v${step.opVersion}',
+                              tooltip:
+                                  'The operation version this recipe was written '
+                                  'with. A recipe keeps rendering with its own '
+                                  'version, so improving an operation never '
+                                  'changes an existing recipe.',
+                            ),
+                            if (spec != null)
+                              _DarkroomTag(
+                                label: spec.stage.label,
+                                tooltip: _stageTooltip(spec),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // container, not a bare annotation: without a node of its own
+                  // the switch's toggle state and tap action are absorbed by the
+                  // card's own node, and the whole card — the reorder label, the
+                  // title, the version, the outcome line, the paragraph
+                  // explaining the unregistered operation — becomes ONE
+                  // ~200-character togglable control with no distinct switch.
+                  // That happened exactly on the cards that had no second
+                  // control to force a split, which is to say on the error case.
+                  Semantics(
+                    container: true,
+                    label: '$title enabled',
+                    child: NightshadeSwitch(
+                      value: step.enabled,
+                      compact: true,
+                      onChanged: (_) => widget.onToggle(index),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              _outcomeLine(colors, state, step, report, omitted, index),
+              if (report?.reason != null) ...[
+                const SizedBox(height: NightshadeTokens.spaceXs),
+                Text(
+                  report!.reason!,
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            _outcomeLine(colors, state, step, report, omitted, index),
-            if (report?.reason != null) ...[
-              const SizedBox(height: NightshadeTokens.spaceXs),
-              Text(
-                report!.reason!,
-                style: NightshadeTypography.bodySm.copyWith(
-                  color: colors.textSecondary,
+              if (issue != null && !issue.isClean) ...[
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                NightshadeAlert(
+                  severity: NightshadeAlertSeverity.error,
+                  message: _issueMessage(step, issue),
+                  compact: true,
                 ),
-              ),
-            ],
-            if (issue != null && !issue.isClean) ...[
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              NightshadeAlert(
-                severity: NightshadeAlertSeverity.error,
-                message: _issueMessage(step, issue),
-                compact: true,
-              ),
-            ],
-            if (spec == null && state.catalog != null) ...[
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                'This build registers no ${step.opId}@${step.opVersion}, so '
-                'its parameters have no documented ranges to draw controls '
-                'from. The stored values are left exactly as they are.',
-                style: NightshadeTypography.bodySm.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            _cardActions(title, spec, expanded, index),
-            if (expanded && spec != null) ...[
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              for (final param in spec.params)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    bottom: NightshadeTokens.spaceMd,
+              ],
+              if (spec == null && state.catalog != null) ...[
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                Text(
+                  'This build registers no ${step.opId}@${step.opVersion}, so '
+                  'its parameters have no documented ranges to draw controls '
+                  'from. The stored values are left exactly as they are.',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
                   ),
-                  child: _paramControl(colors, index, step, param),
                 ),
+              ],
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              _cardActions(title, spec, expanded, index),
+              if (expanded && spec != null) ...[
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                for (final param in spec.params)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: NightshadeTokens.spaceMd,
+                    ),
+                    child: _paramControl(colors, index, step, param),
+                  ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

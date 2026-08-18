@@ -892,6 +892,162 @@ fn export_after_a_step_stops_the_stack_there() {
 }
 
 #[test]
+fn the_exported_history_numbers_steps_from_one() {
+    // Every other surface counts this recipe's steps from 1 — the editor's step
+    // list, the export sheet's own suggested filename, and the validation
+    // sentences in `RecipeError` — so a HISTORY line naming "step 0" is naming
+    // a step the operator cannot find anywhere else.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "numbering-source.fits", 64, 64, 1);
+    let out = dir.path().join("numbering.fits");
+    let recipe = recipe_json(
+        "r-numbering",
+        "master:numbering",
+        json!([
+            crop_step(0, 0, 32, 32, true),
+            {"opId": "denoise", "opVersion": 1, "params": {}, "enabled": true},
+            stretch_step(),
+        ]),
+    );
+
+    api_darkroom_render_export(
+        recipe,
+        json!({
+            "masterPath": master.to_string_lossy(),
+            "stage": {"kind": "final"},
+            "outputs": [{"format": "fits", "path": out.to_string_lossy()}],
+        })
+        .to_string(),
+    )
+    .expect("the export must run");
+
+    let (_, header) = read_fits(&out).expect("export reads");
+    let steps: Vec<&String> = header
+        .history
+        .iter()
+        .filter(|line| line.trim_start().starts_with("step "))
+        .collect();
+    assert_eq!(
+        steps.len(),
+        3,
+        "one readable line per step: {:?}",
+        header.history
+    );
+    assert!(
+        steps[0].contains("step 1: crop@1 applied"),
+        "the first step is step 1: {steps:?}"
+    );
+    assert!(
+        steps[1].contains("step 2: denoise@1 applied"),
+        "the second step is step 2: {steps:?}"
+    );
+    assert!(
+        steps[2].contains("step 3: stretch@1 applied"),
+        "the third step is step 3: {steps:?}"
+    );
+    assert!(
+        !header
+            .history
+            .iter()
+            .any(|line| line.trim_start().starts_with("step 0:")),
+        "no line counts from 0: {:?}",
+        header.history
+    );
+}
+
+#[test]
+fn the_stage_card_keeps_the_request_index_and_translates_it_for_a_reader() {
+    // `NSSTAGE` is the machine token: the same index the caller sent in
+    // `stage.index`, the same index the reply and the sidecar echo. It stays
+    // 0-based so a file written by any build means one thing, and the human
+    // summary line beside it carries the 1-based number the operator sees
+    // everywhere else.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "stage-wire-source.fits", 64, 64, 1);
+    let out = dir.path().join("stage-wire.fits");
+    let recipe = recipe_json(
+        "r-stage-wire",
+        "master:stage-wire",
+        json!([
+            crop_step(0, 0, 32, 32, true),
+            {"opId": "denoise", "opVersion": 1, "params": {}, "enabled": true},
+            stretch_step(),
+        ]),
+    );
+
+    let reply = parse(
+        &api_darkroom_render_export(
+            recipe.clone(),
+            json!({
+                "masterPath": master.to_string_lossy(),
+                "stage": {"kind": "afterStep", "index": 0},
+                "outputs": [{"format": "fits", "path": out.to_string_lossy()}],
+            })
+            .to_string(),
+        )
+        .expect("the export must run"),
+    );
+
+    assert_eq!(reply["stage"], json!({"kind": "afterStep", "index": 0}));
+    let (_, header) = read_fits(&out).expect("export reads");
+    assert_eq!(header.get_string("NSSTAGE"), Some("afterStep:0"));
+    let sidecar = parse(
+        &std::fs::read_to_string(
+            reply["sidecarPath"]
+                .as_str()
+                .expect("a sidecar is written beside the FITS"),
+        )
+        .expect("sidecar reads"),
+    );
+    assert_eq!(sidecar["stage"], json!({"kind": "afterStep", "index": 0}));
+
+    let summary = header
+        .history
+        .iter()
+        .find(|line| line.starts_with("Nightshade Darkroom:"))
+        .unwrap_or_else(|| panic!("no Darkroom summary line: {:?}", header.history));
+    assert!(
+        summary.contains("stage=afterStep:0 (through step 1 of 3)"),
+        "the summary line carries the token and its human reading: {summary:?}"
+    );
+    assert!(
+        header
+            .history
+            .iter()
+            .any(|line| line.contains("step 1: crop@1 applied")),
+        "the step line counts from 1: {:?}",
+        header.history
+    );
+
+    // Both ways: a reader that splits the token off an existing file recovers
+    // the exact request the export ran, and re-running it writes the same card.
+    let token = header.get_string("NSSTAGE").expect("the card is present");
+    let (kind, index) = token.split_once(':').expect("afterStep carries an index");
+    let recovered: usize = index.parse().expect("the token's index is a number");
+    let replay = dir.path().join("stage-wire-replay.fits");
+    let replayed = parse(
+        &api_darkroom_render_export(
+            recipe,
+            json!({
+                "masterPath": master.to_string_lossy(),
+                "stage": {"kind": kind, "index": recovered},
+                "outputs": [{"format": "fits", "path": replay.to_string_lossy()}],
+            })
+            .to_string(),
+        )
+        .expect("the replayed export must run"),
+    );
+    assert_eq!(replayed["stage"], reply["stage"]);
+    let (replayed_pixels, replayed_header) = read_fits(&replay).expect("replay reads");
+    let (original_pixels, _) = read_fits(&out).expect("original reads");
+    assert_eq!(replayed_header.get_string("NSSTAGE"), Some("afterStep:0"));
+    assert_eq!(
+        replayed_pixels.data, original_pixels.data,
+        "the token names the same stage of the same stack"
+    );
+}
+
+#[test]
 fn export_refuses_an_eight_bit_file_of_linear_pixels() {
     let dir = tempfile::tempdir().expect("temp dir");
     let master = write_master(dir.path(), "refuse-source.fits", 64, 64, 1);

@@ -43,6 +43,11 @@
 ///     regardless, which is what keeps the pass that reports a destination's
 ///     standing state — suspended rows, rows awaiting a pull — arriving on a
 ///     cadence an operator can recognise in the log.
+///
+/// **A pass says that it ran.** The journal is the only record a sweep leaves,
+/// and a surface that read it once — the Delivery settings page — went on
+/// stating a failure the sweep had already fixed, because nothing told it the
+/// rows had moved. [passes] is that telling.
 library;
 
 import 'dart:async';
@@ -85,6 +90,28 @@ class DeliveryRetrySweeper {
   /// Guards a whole pass so a slow [sweepOnce] never overlaps the next tick.
   bool _sweeping = false;
 
+  final StreamController<DeliveryRunReport> _passes =
+      StreamController<DeliveryRunReport>.broadcast();
+
+  /// One event per completed pass, carrying what the pass did.
+  ///
+  /// Broadcast, because more than one surface may be open on the journal at
+  /// once (the Delivery settings page and a remote client's tail), and each
+  /// subscribes and cancels on its own schedule.
+  ///
+  /// **Every completed pass emits, not only the ones that wrote a row.** A
+  /// subscriber's question is "has the journal moved since I read it", and the
+  /// report cannot answer that on its own: `retrying` counts both a row an
+  /// attempt was just spent on and a row that turned out not to be due yet, and
+  /// only the first of those wrote anything. Re-reading after a pass that
+  /// changed nothing costs one query; guessing wrong in the other direction is
+  /// the defect this exists to close. A pass that was folded into one already
+  /// in flight emits nothing — it did no work of its own, and the pass it
+  /// folded into emits for both. A pass that failed outright has no report to
+  /// state and emits nothing either; it is logged, the timers stay armed, and
+  /// the next tick's pass is what subscribers hear.
+  Stream<DeliveryRunReport> get passes => _passes.stream;
+
   /// True once [start] has armed the periodic sweep and [stop] has not
   /// cancelled it.
   bool get isRunning => _timer != null;
@@ -116,11 +143,21 @@ class DeliveryRetrySweeper {
   /// Cancel both timers. A pass already in flight runs to its end — it owns
   /// journal rows it must finish writing — and only the scheduling stops.
   /// Idempotent.
+  ///
+  /// [passes] stays open: a stop is a scheduling decision, and the pass still
+  /// running has a result its subscribers are owed. Use [dispose] to close it.
   void stop() {
     _timer?.cancel();
     _timer = null;
     _dueTimer?.cancel();
     _dueTimer = null;
+  }
+
+  /// Stop the timers and close [passes]. Idempotent; the owner of the sweeper
+  /// calls it when the process is done with the journal.
+  Future<void> dispose() async {
+    stop();
+    if (!_passes.isClosed) await _passes.close();
   }
 
   /// Ask the journal whether a row has come due, and sweep only if one has.
@@ -158,6 +195,7 @@ class DeliveryRetrySweeper {
     _sweeping = true;
     try {
       final report = await _delivery.sweepDueRetries();
+      if (!_passes.isClosed) _passes.add(report);
       if (report.destinations.isNotEmpty) {
         _logger.info(
           'Delivery retry sweep: ${report.summary}',

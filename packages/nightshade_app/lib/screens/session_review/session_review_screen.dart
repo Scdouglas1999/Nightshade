@@ -141,14 +141,28 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final backend = ref.watch(backendProvider);
-    if (backend is NetworkBackend) {
+    if (ref.watch(isRemoteClientProvider)) {
       // Session Review owns persisted masters, night reports, culling state,
       // and previews whose paths are local to the imaging host. Instantiating
       // its DAO-backed controller on a remote client would write a second,
       // client-local history after running compute on the host. Keep the
       // boundary explicit until the whole aggregate (including artifact
       // streaming) has a host-authoritative API.
+      //
+      // The client ROLE, not the connection. `backend is NetworkBackend` is a
+      // CONNECTION fact, and a desktop launched with `--remote-host` that has
+      // not reached its rig is `Disconnected` — so that test read false for the
+      // whole pre-handshake window and this whole screen opened over the
+      // client's own database. Every rig-executing control it carries went with
+      // it: "Process now" ran a full Darkroom pass AND its delivery on a client,
+      // writing a `darkroom_jobs` row and nine `delivery_journal` rows into a
+      // database no dawn job on the rig will ever read.
+      //
+      // Gating the surface rather than each button is what closes the class:
+      // the pass, its Stop, the integration and A/B runs, the finishing steps,
+      // the master library's accumulate/finalize/delete, and the Darkroom entry
+      // points are all inside this arm, so a control added later cannot arrive
+      // ungated.
       return Scaffold(
         backgroundColor: colors.background,
         body: const SafeArea(
@@ -236,9 +250,9 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                   // The manual half of the dawn autopilot. Reaching it here is
                   // deliberate: this is the screen an operator is already on
                   // when they decide tonight is worth drafting now rather than
-                  // at dawn. The whole screen is host-only (the remote arm
-                  // above returns before this), so no further backend gate is
-                  // needed.
+                  // at dawn. The whole screen is host-only — the role arm above
+                  // returns before this — so the pass only ever runs on the
+                  // machine that owns the masters it reads.
                   Tooltip(
                     message: sessionId != null
                         ? 'Draft tonight\'s masters in the Darkroom now, '

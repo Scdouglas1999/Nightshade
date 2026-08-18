@@ -60,7 +60,8 @@ function loadRunWatch(overrides) {
     fetchImpl: (overrides && overrides.fetch) || (() => {
       throw new Error('no fetch stub installed');
     }),
-    EventSource: function () { this.close = () => {}; },
+    EventSource: (overrides && overrides.EventSource) ||
+      function () { this.close = () => {}; this.addEventListener = () => {}; },
     setInterval: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
     clearInterval: () => {},
     setTimeout: () => 0,
@@ -79,6 +80,11 @@ function loadRunWatch(overrides) {
   retryAfterSecsFrom,
   apiFetch,
   setToken,
+  tokenWasEverAccepted,
+  handleSseMessage,
+  isProgressTickEvent,
+  openSSE,
+  FEED_EVENT_NAMES,
   showPairScreen,
   sequencerAction,
   formatDurationSecs,
@@ -814,7 +820,9 @@ test('a rejected pairing says what happened and what to do next', async () => {
       text: async () => 'forbidden',
     }),
   });
-  api.setToken('a-token-the-desktop-revoked');
+  // The scenario is a REVOKED pairing, so the token has to be one the desktop
+  // once accepted — which is what the pairing exchange hands back.
+  api.setToken('a-token-the-desktop-revoked', true);
 
   await assert.rejects(
     () => api.apiFetch('/api/run-watch/snapshot'),
@@ -828,6 +836,74 @@ test('a rejected pairing says what happened and what to do next', async () => {
   assert.ok(status.className.includes('error'));
   assert.ok(!doc.getElementById('pair-screen').classList.contains('hidden'));
   assert.ok(doc.getElementById('main-screen').classList.contains('hidden'));
+});
+
+// D4-05. A device that has never paired, whose operator mistyped a token into
+// the manual box, was told its pairing "is no longer accepted — the desktop
+// rejected it, which happens when the pairing was revoked there or the profile
+// it belonged to was replaced" — measured verbatim against the release bundle
+// on a browser whose localStorage had just been cleared. That is a diagnosis
+// of an event that never happened, and it sends the operator to fetch a fresh
+// code for a pairing that never existed.
+test('a token that was never accepted is not called a revoked pairing', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: false, status: 403, statusText: 'Forbidden',
+      headers: new Headers(),
+      json: async () => ({ error: 'forbidden' }),
+      text: async () => 'forbidden',
+    }),
+  });
+  api.setToken('typed-by-hand-never-seen-by-the-desktop', false);
+  assert.equal(api.tokenWasEverAccepted(), false);
+
+  await assert.rejects(
+    () => api.apiFetch('/api/run-watch/snapshot'),
+    (e) => e.kind === 'auth_required',
+  );
+
+  const status = doc.getElementById('pair-status');
+  assert.doesNotMatch(status.textContent, /no longer accepted/,
+    'nothing was withdrawn from a device that was never granted anything');
+  assert.doesNotMatch(status.textContent, /revoked/);
+  assert.match(status.textContent, /was not accepted/);
+  assert.match(status.textContent, /Remote Access/,
+    'say where the right credential is');
+  assert.ok(status.className.includes('error'));
+});
+
+// The same typed token, once the desktop has honoured it, IS a credential that
+// can later be revoked — so a refusal after a working session gets the
+// revocation sentence. The distinction is provenance plus history, not whether
+// a token happens to exist.
+test('a typed token the desktop accepted earns the revoked sentence later', async () => {
+  let refuse = false;
+  const { doc, api } = loadRunWatch({
+    fetch: async () => (refuse
+      ? {
+        ok: false, status: 401, statusText: 'Unauthorized',
+        headers: new Headers(),
+        json: async () => ({ error: 'unauthorized' }),
+        text: async () => 'unauthorized',
+      }
+      : {
+        ok: true, status: 200, headers: new Headers(),
+        json: async () => ({ sequencer: {} }),
+        text: async () => '{}',
+      }),
+  });
+  api.setToken('typed-but-it-worked', false);
+
+  await api.apiFetch('/api/run-watch/snapshot');
+  assert.equal(api.tokenWasEverAccepted(), true,
+    'a 2xx carrying the credential is the desktop honouring it');
+
+  refuse = true;
+  await assert.rejects(
+    () => api.apiFetch('/api/run-watch/snapshot'),
+    (e) => e.kind === 'auth_required',
+  );
+  assert.match(doc.getElementById('pair-status').textContent, /no longer accepted/);
 });
 
 test('a first-run pair screen accuses nothing', () => {
@@ -1308,4 +1384,242 @@ test('a render that throws degrades instead of freezing silently', async () => {
   assert.ok(after.dot.includes('conn-disconnected'));
   assert.match(after.banner, /cannot read/);
   assert.equal(api.isLinkStale(), true);
+});
+
+// ---------------------------------------------------------------------------
+// D4-04 — the Recent-events feed carries events, not a progress read-out
+//
+// Measured against the release bundle during one live sim sequence: 327 events
+// in 60 s on /api/run-watch/events, of which ExposureProgress 84, Progress 53,
+// InstructionProgress 46 and InstructionProgressStructured 46. Sampling the
+// page every 2 s for 50 s of that run, 104 of 125 row slots held a progress
+// tick and not one of the 25 samples showed a FrameAccepted row or a node
+// transition — the five-row cap was spent before anything discrete could be
+// read.
+// ---------------------------------------------------------------------------
+
+/** Push one SSE frame through the page's own handler. */
+function sse(api, payload) {
+  api.handleSseMessage({ data: JSON.stringify(payload) });
+}
+
+function feedTitles(doc) {
+  const rows = doc.getElementById('event-feed').children;
+  const titles = [];
+  for (const li of rows) {
+    if (li.classList.contains('event-folded')) continue;
+    // renderEventLi builds <li><span.event-time><div.event-body><div.event-title>
+    const body = li.children[1];
+    if (body && body.children[0]) titles.push(body.children[0].textContent);
+  }
+  return titles;
+}
+
+function foldRowText(doc) {
+  for (const li of doc.getElementById('event-feed').children) {
+    if (li.classList.contains('event-folded')) return li.textContent;
+  }
+  return null;
+}
+
+test('the progress families the server emits at ~Hz are recognised as ticks', () => {
+  const { api } = loadRunWatch();
+  for (const t of ['ExposureProgress', 'Progress', 'InstructionProgress',
+    'InstructionProgressStructured']) {
+    assert.equal(api.isProgressTickEvent(t), true, t + ' is a progress tick');
+  }
+  for (const t of ['FrameAccepted', 'NodeStarted', 'NodeCompleted',
+    'ExposureCompleted', 'DecisionLogged', 'SchedulerDecision']) {
+    assert.equal(api.isProgressTickEvent(t), false, t + ' is a discrete event');
+  }
+});
+
+test('a burst of progress ticks cannot evict a FrameAccepted row', () => {
+  const { doc, api } = loadRunWatch();
+  sse(api, { eventType: 'FrameAccepted', severity: 'info',
+    timestamp: Date.now(), data: { filter: 'L' } });
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted']);
+
+  // The measured cadence: four ticks a second. Sixty of them is fifteen
+  // seconds of one exposure — under the old rule the row above was gone
+  // after five.
+  for (let i = 0; i < 60; i++) {
+    sse(api, { eventType: 'ExposureProgress', severity: 'info',
+      timestamp: Date.now(), data: { progress: i / 60 } });
+  }
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted'],
+    'the frame the operator is waiting on must survive the ticks');
+});
+
+test('the fold says how many ticks it is holding back', () => {
+  const { doc, api } = loadRunWatch();
+  sse(api, { eventType: 'NodeStarted', severity: 'info', timestamp: Date.now() });
+  assert.equal(foldRowText(doc), null, 'nothing folded yet, nothing claimed');
+
+  sse(api, { eventType: 'ExposureProgress', severity: 'info', timestamp: Date.now() });
+  assert.match(foldRowText(doc), /^1 progress update since/);
+  assert.match(foldRowText(doc), /progress bar/,
+    'say where the figure the fold hides actually lives');
+
+  for (let i = 0; i < 4; i++) {
+    sse(api, { eventType: 'Progress', severity: 'info', timestamp: Date.now() });
+  }
+  assert.match(foldRowText(doc), /^5 progress updates since/);
+
+  // A discrete event closes the gap the fold was describing.
+  sse(api, { eventType: 'FrameAccepted', severity: 'info', timestamp: Date.now() });
+  assert.equal(foldRowText(doc), null);
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted', 'NodeStarted']);
+});
+
+test('the fold row does not consume one of the five discrete slots', () => {
+  const { doc, api } = loadRunWatch();
+  const names = ['NodeStarted', 'ExposureStarted', 'FrameAccepted',
+    'ExposureCompleted', 'DecisionLogged'];
+  for (const n of names) {
+    sse(api, { eventType: n, severity: 'info', timestamp: Date.now() });
+  }
+  sse(api, { eventType: 'ExposureProgress', severity: 'info', timestamp: Date.now() });
+  assert.equal(feedTitles(doc).length, 5,
+    'five events plus a fold row is still five events');
+  assert.ok(foldRowText(doc));
+});
+
+test('a critical event is still surfaced even when its name says progress', () => {
+  const { doc, api } = loadRunWatch();
+  sse(api, { eventType: 'ExposureProgress', severity: 'critical',
+    timestamp: Date.now(), data: { message: 'dome closing' } });
+  const toasts = doc.getElementById('toast-region').children;
+  assert.equal(toasts.length, 1,
+    'a severity the server calls critical is not this page\'s to suppress');
+});
+
+test('the snapshot\'s own recent list is filtered by the same rule', async () => {
+  const state = {
+    body: runningSnapshot({
+      recentEvents: [
+        { eventType: 'Progress', severity: 'info', timestamp: Date.now() },
+        { eventType: 'FrameAccepted', severity: 'info', timestamp: Date.now() },
+        { eventType: 'Progress', severity: 'info', timestamp: Date.now() },
+        { eventType: 'NodeCompleted', severity: 'info', timestamp: Date.now() },
+      ],
+    }),
+  };
+  const { doc, api } = loadRunWatch(snapshotServer(state));
+  await api.fetchSnapshot();
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted', 'NodeCompleted']);
+});
+
+// The refusal is stated ONCE per credential. `bootSession` fires the snapshot,
+// the frame poll and the SSE subscription together, so a refused token
+// produces several 401s within a tick; the first tears the token down, and
+// without a guard the ones already in flight re-read a flag that first one had
+// just cleared. Measured on the running bundle: an accepted-then-revoked
+// pairing was described, after a reload, as a token that had never been
+// accepted — the second 401 overwrote the first one's sentence.
+test('concurrent refusals do not rewrite the first one\'s account', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: false, status: 401, statusText: 'Unauthorized',
+      headers: new Headers(),
+      json: async () => ({ error: 'unauthorized' }),
+      text: async () => 'unauthorized',
+    }),
+  });
+  api.setToken('a-pairing-the-desktop-revoked', true);
+
+  const refusals = [
+    api.apiFetch('/api/run-watch/snapshot'),
+    api.apiFetch('/api/run-watch/frame-thumbnail'),
+    api.apiFetch('/api/run-watch/snapshot'),
+  ];
+  for (const r of refusals) {
+    await assert.rejects(() => r, (e) => e.kind === 'auth_required');
+  }
+  assert.match(doc.getElementById('pair-status').textContent, /no longer accepted/,
+    'the account of what happened is settled by the first refusal, not the last');
+});
+
+// The seam the feed actually rides on. Measured on the release bundle: 327 of
+// 327 frames over one live minute carried an `event:` name, and EventSource
+// hands a named frame ONLY to a listener registered for that name — so
+// `sse.onmessage` never fired at all and the feed was painted solely by the
+// snapshot poll's five-deep `recentEvents` ring. Mid-exposure that ring is
+// progress ticks, which is why 25 consecutive samples of a live run held no
+// FrameAccepted row and no node transition.
+test('the feed is fed by the named frames the server actually sends', async () => {
+  const listeners = {};
+  function FakeEventSource() {
+    this.close = () => {};
+    this.addEventListener = (name, fn) => {
+      (listeners[name] = listeners[name] || []).push(fn);
+    };
+  }
+  const { doc, api } = loadRunWatch({
+    EventSource: FakeEventSource,
+    // refreshFrame rides the same named events; a 404 is its documented
+    // "no image yet" and keeps it quiet.
+    fetch: async () => ({
+      ok: false, status: 404, headers: new Headers(),
+      json: async () => ({}), text: async () => '',
+    }),
+  });
+  api.setToken('a-paired-token', true);
+  api.openSSE();
+
+  for (const name of ['FrameAccepted', 'NodeStarted', 'NodeCompleted',
+    'ExposureCompleted', 'DecisionLogged']) {
+    assert.ok(listeners[name] && listeners[name].length,
+      name + ' must be subscribed or it can never reach the feed');
+  }
+  assert.ok(listeners.ExposureProgress && listeners.ExposureProgress.length,
+    'a tick family unsubscribed is a tick family the fold can never count');
+
+  const deliver = (name, timestamp) => {
+    for (const fn of listeners[name]) {
+      fn({ data: JSON.stringify({ eventType: name, severity: 'info', timestamp }) });
+    }
+  };
+  deliver('NodeStarted', 1000);
+  deliver('FrameAccepted', 2000);
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted', 'NodeStarted'],
+    'the newest discrete event is at the top and the older one survives');
+
+  // The ticks are counted and stated, and they take no row.
+  deliver('ExposureProgress', 2100);
+  deliver('ExposureProgress', 2200);
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted', 'NodeStarted']);
+  assert.match(foldRowText(doc), /^2 progress updates since/);
+});
+
+test('the snapshot ring cannot erase what the stream delivered', async () => {
+  // The ring the server answered with mid-run, verbatim in shape: five deep,
+  // ticks on top. Merging it must not take the frame off the screen.
+  const state = {
+    body: runningSnapshot({
+      recentEvents: [
+        { eventType: 'Progress', severity: 'info', timestamp: 3000 },
+        { eventType: 'Progress', severity: 'info', timestamp: 2900 },
+        { eventType: 'DecisionLogged', severity: 'info', timestamp: 1500 },
+      ],
+    }),
+  };
+  const { doc, api } = loadRunWatch(snapshotServer(state));
+  api.handleSseMessage({ data: JSON.stringify({
+    eventType: 'FrameAccepted', severity: 'info', timestamp: 2000 }) });
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted']);
+
+  await api.fetchSnapshot();
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted', 'DecisionLogged'],
+    'the ring adds what the stream missed; it does not overwrite the feed');
+});
+
+test('an event that arrives twice is shown once', async () => {
+  const frame = { eventType: 'FrameAccepted', severity: 'info', timestamp: 4242 };
+  const state = { body: runningSnapshot({ recentEvents: [frame] }) };
+  const { doc, api } = loadRunWatch(snapshotServer(state));
+  api.handleSseMessage({ data: JSON.stringify(frame) });
+  await api.fetchSnapshot();
+  await api.fetchSnapshot();
+  assert.deepEqual(feedTitles(doc), ['FrameAccepted']);
 });

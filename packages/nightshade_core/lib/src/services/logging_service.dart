@@ -129,6 +129,21 @@ class LogEntry {
   }
 }
 
+/// Base name of the rolling file this service writes its own entries to.
+///
+/// **Why a second file rather than the one the Rust bridge already rolls.**
+/// `apiInitWithLogging(logDirectory:)` hands the log directory to
+/// `tracing_appender::rolling::daily(..., "nightshade.log")`, which keeps its
+/// own buffered handle open on `nightshade.log.YYYY-MM-DD` for the life of the
+/// process. A second writer appending its own buffered lines into that same
+/// file interleaves partial lines with the tracing writer's, and neither side
+/// can be made to hold the other's lock. So the Dart entries get a sibling with
+/// the same directory and the same daily rotation, and every reader of the log
+/// directory — [getLogFiles], [getLogFileInfos], [exportLogs], [clearLogs] and
+/// the headless download endpoint through [isNightshadeLogFileName] — takes
+/// both names.
+const String dartLogFileBaseName = 'nightshade-dart.log';
+
 /// Service for managing application logs
 class LoggingService {
   final Future<Directory> Function() _applicationSupportDirectoryProvider;
@@ -154,6 +169,22 @@ class LoggingService {
   final StreamController<LogEntry> _logEntryController =
       StreamController<LogEntry>.broadcast();
   bool _disposed = false;
+
+  /// Append handle on today's Dart log file, and the `YYYY-MM-DD` stamp it was
+  /// opened for. The stamp is what rotates the file: a line whose day differs
+  /// closes this handle and opens the next day's.
+  RandomAccessFile? _fileHandle;
+  String? _fileHandleDay;
+
+  /// The day a file-write refusal has already been stated for, so a disk that
+  /// stays full says so once per rotation instead of once per line. Writes are
+  /// still attempted every line — a share that comes back must start recording
+  /// again without a restart.
+  String? _refusalStatedFor;
+
+  /// True while a file-write refusal is being logged, so the refusal's own
+  /// entry does not recurse back into the writer that just refused it.
+  bool _statingRefusal = false;
 
   LoggingService({
     Future<Directory> Function()? applicationSupportDirectoryProvider,
@@ -249,6 +280,18 @@ class LoggingService {
   /// Get the current log file path
   String? get currentLogFile => _initialized ? _currentLogFileProvider() : null;
 
+  /// Path of today's Dart log file — the one [log] appends to — or null before
+  /// the data root has been resolved.
+  ///
+  /// Derived from the same UTC day stamp the writer rotates on, so it names the
+  /// file that will be written next even before the first entry has opened it.
+  String? get currentDartLogFile {
+    final directory = _logDirectory;
+    if (directory == null) return null;
+    final day = _dayStamp(DateTime.now());
+    return '$directory${Platform.pathSeparator}$dartLogFileBaseName.$day';
+  }
+
   /// Broadcast stream of new [LogEntry] values. Emits AFTER the
   /// entry has been appended to [_recentLogs] and forwarded to the native
   /// logger, so subscribers see entries in the same order [getRecentLogs]
@@ -286,6 +329,15 @@ class LoggingService {
       _recentLogs.removeAt(0);
     }
 
+    // And on disk. The ring above holds 1000 entries, which one busy sequence
+    // fills in a couple of minutes — so before this, a delivery failure at 04:00
+    // was gone by the time the operator woke up, and the only log file on the
+    // machine carried Rust tracing and nothing else. Written before the stream
+    // fan-out and dart:developer for the same reason the fan-out precedes
+    // dart:developer: the durable record is the one that must not be lost to a
+    // subscriber's or the VM service's behaviour.
+    _appendToFile(entry);
+
     // Fan out to any /api/logs/tail subscribers BEFORE forwarding
     // to dart:developer. Order matters because a subscriber that fails
     // would otherwise prevent the structured logger from getting the
@@ -317,6 +369,77 @@ class LoggingService {
       name: source ?? 'Nightshade',
       level: devLevel,
     );
+  }
+
+  /// Append one entry to today's Dart log file, rotating on the day stamp.
+  ///
+  /// Synchronous and unbuffered by design: `writeStringSync` on an append
+  /// handle is one `write(2)`, so a line is on disk before the call returns and
+  /// a process that is killed at 04:00 still leaves the line that says why. A
+  /// buffered [IOSink] would lose exactly the tail a morning-after diagnosis
+  /// needs.
+  ///
+  /// Never throws. A refused write is a fact about the disk, and raising it out
+  /// of `log()` would take down whatever was merely trying to report something.
+  /// It is stated once per rotation through the ring — which the Log Viewer and
+  /// [exportLogs] both read — and the next line tries the disk again.
+  void _appendToFile(LogEntry entry) {
+    final directory = _logDirectory;
+    // Before initialization resolves the data root there is no directory to
+    // write into. Those entries are in the ring, and the two lines
+    // [_initializeImpl] logs after resolving it are the first on disk.
+    if (directory == null) return;
+    // After [dispose] the handle is closed on purpose; reopening it for a late
+    // entry would leak a descriptor for the rest of the process. The entry is
+    // still in the ring, which is where [exportLogs] reads it — the same trade
+    // the closed [_logEntryController] makes for a late subscriber.
+    if (_disposed) return;
+
+    final day = _dayStamp(entry.timestamp);
+    try {
+      var handle = _fileHandle;
+      if (handle == null || _fileHandleDay != day) {
+        handle?.closeSync();
+        _fileHandle = null;
+        _fileHandleDay = null;
+        handle = File(
+          '$directory${Platform.pathSeparator}$dartLogFileBaseName.$day',
+        ).openSync(mode: FileMode.writeOnlyAppend);
+        _fileHandle = handle;
+        _fileHandleDay = day;
+      }
+      handle.writeStringSync('$entry\n');
+      _refusalStatedFor = null;
+    } catch (e) {
+      _fileHandle = null;
+      _fileHandleDay = null;
+      if (_statingRefusal || _refusalStatedFor == day) return;
+      _refusalStatedFor = day;
+      _statingRefusal = true;
+      try {
+        log(
+          LogLevel.error,
+          'The Dart log file $dartLogFileBaseName.$day in $directory could not '
+          'be written: $e. Dart log entries reach the in-app Log Viewer and the '
+          'log export from memory, but nothing on disk carries them until this '
+          'clears.',
+          source: 'LoggingService',
+        );
+      } finally {
+        _statingRefusal = false;
+      }
+    }
+  }
+
+  /// The `YYYY-MM-DD` stamp that names one day's file.
+  ///
+  /// UTC, because the Rust appender rolls on UTC and a reader holding both
+  /// files open must not find them cut on two different midnights.
+  static String _dayStamp(DateTime when) {
+    final utc = when.toUtc();
+    final month = utc.month.toString().padLeft(2, '0');
+    final day = utc.day.toString().padLeft(2, '0');
+    return '${utc.year}-$month-$day';
   }
 
   /// Convenience methods
@@ -361,7 +484,7 @@ class LoggingService {
       final files = <String>[];
       await for (final entity in dir.list()) {
         if (entity is! File) continue;
-        if (!entity.path.contains('nightshade.log')) continue;
+        if (!_isNightshadeLogFile(entity.path)) continue;
         if (cutoff != null) {
           final modified = await entity.lastModified();
           if (modified.isBefore(cutoff)) continue;
@@ -436,9 +559,11 @@ class LoggingService {
         }
       }
 
-      // The on-disk files hold only the Rust/native tracing output. Append
-      // the in-memory Dart entries (what the in-app Log Viewer shows) so the
-      // export carries the UI/provider log history too.
+      // The files above now carry the Dart entries too, but only from the
+      // moment this process resolved its data root — the entries logged before
+      // that exist nowhere but the ring. Append it so the export is a superset
+      // of both, and so an install whose disk refused the Dart file still
+      // exports what the in-app Log Viewer shows.
       output.writeln('\n=== In-memory Dart log entries ===\n');
       for (final entry in getRecentLogs()) {
         output.writeln(entry.toString());
@@ -470,7 +595,7 @@ class LoggingService {
 
       int totalSize = 0;
       await for (final entity in dir.list()) {
-        if (entity is File && entity.path.contains('nightshade.log')) {
+        if (entity is File && _isNightshadeLogFile(entity.path)) {
           final stat = await entity.stat();
           totalSize += stat.size;
         }
@@ -492,9 +617,11 @@ class LoggingService {
   }
 
   /// Clear all log files. Returns the list of deleted file paths and the
-  /// total bytes freed. The current (active) log file is never deleted —
-  /// removing it would yank the file handle out from under the native
-  /// logger.
+  /// total bytes freed. Neither of the two currently-open files is deleted —
+  /// the native logger's, because removing it would yank the file handle out
+  /// from under the tracing appender, and this service's own
+  /// [dartLogFileBaseName] file, for the same reason: the append handle would
+  /// keep writing into an unlinked inode nobody can read.
   ///
   /// Why a structured return rather than throwing on per-file failure:
   /// the headless POST /api/logs/clear endpoint reports per-file
@@ -521,10 +648,12 @@ class LoggingService {
       }
 
       final currentLog = currentLogFile;
+      final currentDartLog = currentDartLogFile;
       await for (final entity in dir.list()) {
         if (entity is! File) continue;
         if (!_isNightshadeLogFile(entity.path)) continue;
         if (currentLog != null && entity.path == currentLog) continue;
+        if (currentDartLog != null && entity.path == currentDartLog) continue;
 
         try {
           final size = await entity.length();
@@ -561,11 +690,12 @@ class LoggingService {
     );
   }
 
-  /// Whether [path]'s leaf filename matches the Rust tracing
-  /// appender's daily-rolling output naming pattern. We restrict to
-  /// `nightshade.log` (current) or `nightshade.log.YYYY-MM-DD` (rotated)
-  /// so the public file-download endpoint cannot be coerced into
-  /// returning arbitrary files in the logs directory.
+  /// Whether [path]'s leaf filename matches one of the two daily-rolling
+  /// files this install writes — the Rust tracing appender's
+  /// `nightshade.log[.YYYY-MM-DD]` and this service's own
+  /// `nightshade-dart.log.YYYY-MM-DD` — so the public file-download
+  /// endpoint cannot be coerced into returning arbitrary files in the
+  /// logs directory.
   bool _isNightshadeLogFile(String path) {
     final leaf = path.split(Platform.pathSeparator).last;
     return isNightshadeLogFileName(leaf);
@@ -579,14 +709,22 @@ class LoggingService {
     return _logFileNameRegex.hasMatch(name);
   }
 
-  /// Matches the Rust `tracing_appender::rolling::daily(..., "nightshade.log")`
-  /// output: either the bare `nightshade.log` symlink/handle name or a
-  /// rotated `nightshade.log.YYYY-MM-DD` file. Anchored to defeat
+  /// Matches either rolling file in the log directory: the Rust
+  /// `tracing_appender::rolling::daily(..., "nightshade.log")` output — the
+  /// bare `nightshade.log` handle name or a rotated
+  /// `nightshade.log.YYYY-MM-DD` — and this service's own
+  /// `nightshade-dart.log.YYYY-MM-DD` sibling (see [dartLogFileBaseName] for
+  /// why the Dart entries need their own file). Anchored to defeat
   /// path-traversal probes (`..\\nightshade.log` would not match because
   /// the regex is anchored AND the caller pre-strips path separators —
   /// see [_validateLogFilename] in the handler).
+  /// The Dart arm requires the day stamp: unlike the tracing appender, which
+  /// also answers to the bare handle name, this service only ever creates
+  /// `nightshade-dart.log.YYYY-MM-DD`, so a bare `nightshade-dart.log` in the
+  /// directory is somebody else's file.
   static final RegExp _logFileNameRegex = RegExp(
-    r'^nightshade\.log(?:\.\d{4}-\d{2}-\d{2})?$',
+    r'^nightshade(?:\.log(?:\.\d{4}-\d{2}-\d{2})?'
+    r'|-dart\.log\.\d{4}-\d{2}-\d{2})$',
   );
 
   /// Return file-system metadata for every Nightshade log file
@@ -667,6 +805,21 @@ class LoggingService {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    try {
+      _fileHandle?.closeSync();
+    } catch (e) {
+      // The handle is being released on the way out; a close that refuses
+      // changes nothing a caller can act on, and the lines already written are
+      // already on disk (every write is unbuffered). Reported through
+      // dart:developer rather than this service, whose stream is closing.
+      developer.log(
+        'Closing the Dart log file failed: $e',
+        name: 'LoggingService',
+        level: 900,
+      );
+    }
+    _fileHandle = null;
+    _fileHandleDay = null;
     if (!_logEntryController.isClosed) {
       await _logEntryController.close();
     }

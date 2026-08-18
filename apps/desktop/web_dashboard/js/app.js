@@ -460,10 +460,61 @@
   // Connection
   // =========================================================================
 
+  /// What a failed connect means, in words the operator can act on.
+  ///
+  /// The raw error message is the server's own refusal body — a rejected
+  /// bearer pastes `{"error":"Access denied","message":"Invalid authentication
+  /// token"}` — and a JSON fragment is a diagnostic, not an instruction. Each
+  /// branch below names the one thing to do next, and the `kind` is what lets
+  /// the sign-in overlay tell a wrong credential from a server that is simply
+  /// not answering.
+  function describeConnectFailure(e) {
+    const status = e && e.status;
+    if (status === 401 || status === 403) {
+      return {
+        kind: 'rejected',
+        message: 'The desktop rejected this token. Check it against the ' +
+          'desktop’s Remote Access screen, or pair this browser instead.',
+      };
+    }
+    if (e && (e.kind === 'unreachable' || e.kind === 'timeout')) {
+      return {
+        kind: 'unreachable',
+        message: 'No answer from the Nightshade server. Check that it is ' +
+          'running and that this address is right.',
+      };
+    }
+    if (e && e.kind === 'rate_limited') {
+      return {
+        kind: 'rate_limited',
+        message: 'The server is rate-limiting this session — wait ' +
+          (e.retryAfterSecs || 1) + 's and try again.',
+      };
+    }
+    if (e && e.kind === 'unusable_answer') {
+      return {
+        kind: 'unusable_answer',
+        message: 'The server answered without sending anything this page can ' +
+          'read: ' + e.message,
+      };
+    }
+    return {
+      kind: 'failed',
+      message: 'Could not sign in: ' + (e && e.message ? e.message : 'unknown'),
+    };
+  }
+
   /**
    * Run the initial REST handshake with bounded exponential backoff.
    * Three attempts at 250 ms, 1 s, 4 s. WebSocket has its own reconnect logic
    * and is not retried here.
+   *
+   * Returns `{ok: true}` once an AUTHENTICATED request has succeeded, and
+   * `{ok: false, kind, message}` otherwise. The outcome is load-bearing: the
+   * sign-in overlay used to dismiss itself before this function had run, so a
+   * rejected bearer left an operator on a permanently "Disconnected" dashboard
+   * with `#login-status` frozen at "Signing in..." and the only account of the
+   * failure in a toast that expired after three seconds.
    */
   async function handleConnect() {
     const url = normalizeServerUrl(document.getElementById('server-url').value);
@@ -472,15 +523,18 @@
     const deviceId = localStorage.getItem('nightshade_device_id') || generateDeviceId();
 
     if (!url) {
-      showToast('Enter a valid http:// or https:// server URL', 'error');
-      return;
+      const message = 'Enter a valid http:// or https:// server URL';
+      showToast(message, 'error');
+      return { ok: false, kind: 'bad_url', message };
     }
     if (!isSameOriginServerUrl(url)) {
       setConnectionStatus('disconnected');
       updateConnectProgress(0, 0);
       showToast(crossOriginServerMessage(url), 'error');
       addLogEntry('error', crossOriginServerMessage(url));
-      return;
+      return {
+        ok: false, kind: 'cross_origin', message: crossOriginServerMessage(url),
+      };
     }
 
     document.getElementById('server-url').value = url;
@@ -553,13 +607,11 @@
         if (info.authRequired && !token && !api.hasSessionCookie) {
           setConnectionStatus('disconnected');
           updateConnectProgress(0, 0);
-          showToast(
-            info.pairingSupported
-              ? 'Click Pair to set up this browser, or paste a bearer token and click Apply.'
-              : 'Server requires a bearer token. Paste one and click Apply.',
-            'error',
-          );
-          return;
+          const message = info.pairingSupported
+            ? 'Click Pair to set up this browser, or paste a bearer token and click Apply.'
+            : 'Server requires a bearer token. Paste one and click Apply.';
+          showToast(message, 'error');
+          return { ok: false, kind: 'needs_credential', message };
         }
 
         // The first authenticated request is the real connection gate.
@@ -607,20 +659,26 @@
 
         await fetchAllStatus();
         startPolling();
-        return;
+        return { ok: true };
       } catch (e) {
         lastError = e;
         // Why log every attempt: opaque "Connection failed" with no retry trail
         // made transient flaps look like permanent failures.
         addLogEntry('error',
           'Connect attempt ' + (attempt + 1) + '/' + delays.length + ': ' + e.message);
+        // A credential the server has refused will be refused again by the two
+        // remaining attempts, and each retry re-prints the same refusal into
+        // the operator's log. Stop and report it.
+        if (e && (e.status === 401 || e.status === 403)) break;
       }
     }
 
     setConnectionStatus('disconnected');
     updateConnectProgress(0, 0);
     api.setConnectionState(false);
-    showToast('Connection failed: ' + (lastError ? lastError.message : 'unknown'), 'error');
+    const failure = describeConnectFailure(lastError);
+    showToast(failure.message, 'error');
+    return { ok: false, kind: failure.kind, message: failure.message };
   }
 
   function updateConnectProgress(attempt, total) {
@@ -718,7 +776,11 @@
       setPairModalStatus('Paired. Connecting...', 'success');
       closePairModal();
       showToast('Pairing complete', 'success');
-      await handleConnect();
+      // "Pairing complete" is about the code, not about the session. If the
+      // connect that follows is refused, the sign-in form comes back saying
+      // so rather than leaving a success toast over a dead dashboard.
+      const outcome = await handleConnect();
+      if (isCredentialFailure(outcome)) reportLoginFailure(outcome);
     } catch (e) {
       // Map the server's error codes to actionable text.
       let msg = e.message || 'Pairing failed';
@@ -1496,7 +1558,40 @@
     if (e && (e.kind === 'unreachable' || e.kind === 'timeout')) {
       return what + ' failed: no answer from the server';
     }
+    // The server answered and the answer carried nothing this page can read.
+    // Named as its own outcome because it is not a dead server and not a
+    // refusal the server explained — it is a success code over silence, and
+    // the panel that asked is now showing a cache nobody has confirmed.
+    if (e && e.kind === 'unusable_answer') {
+      return what + ' failed: the server answered without sending the data — ' +
+        e.message;
+    }
     return what + ' failed: ' + (e && e.message ? e.message : String(e));
+  }
+
+  /// The list a wire answer names, or a typed refusal when it names none.
+  ///
+  /// A panel may only render a positive empty state — "No devices connected",
+  /// "No captured images yet." — when the server SAID empty, which on this API
+  /// means an answer carrying `field: []`. An answer with no such field said
+  /// nothing about the inventory at all, and `payload.field || []` turned that
+  /// silence into a stated fact: measured against the release bundle, a
+  /// content-free 200 on /api/devices/connected described a rig with four
+  /// connected devices as having none, with nothing anywhere on the page
+  /// saying the read had failed.
+  ///
+  /// The refusal is the same `unusable_answer` the API client raises for an
+  /// empty body, so every caller's existing catch — the stale line, the log
+  /// entry, the failure text on the panel — is the surface it lands on.
+  function requireWireList(payload, field, what) {
+    const list = payload && typeof payload === 'object'
+      ? payload[field] : undefined;
+    if (Array.isArray(list)) return list;
+    throw new NightshadeApiError(
+      'unusable_answer',
+      what + ': the answer carries no "' + field + '" list',
+      { field },
+    );
   }
 
   async function fetchAllStatus() {
@@ -1540,7 +1635,8 @@
   async function fetchDevices() {
     try {
       const result = await api.getConnectedDevices();
-      state.connectedDevices = result.devices || [];
+      state.connectedDevices = requireWireList(
+        result, 'devices', 'Connected devices');
       const previousFilterWheelId = state.filterWheelDeviceId;
 
       // Rebuild the selection from the authoritative inventory. Keeping an
@@ -4095,7 +4191,7 @@
   async function fetchOpsSequences() {
     try {
       const result = await api.sequencerList();
-      state.ops.sequences = (result && result.sequences) || [];
+      state.ops.sequences = requireWireList(result, 'sequences', 'Sequence list');
       markPanelFresh('sequences');
       renderOpsSequencesDropdown();
     } catch (e) {
@@ -4271,7 +4367,8 @@
     }
     try {
       const result = await api.targetsSearch(query);
-      state.ops.catalogResults = (result && result.targets) || [];
+      state.ops.catalogResults = requireWireList(
+        result, 'targets', 'Catalog search');
       renderOpsTargetResults();
     } catch (e) {
       addLogEntry('error', describeApiError(e, 'Catalog search'));
@@ -4680,7 +4777,8 @@
   async function fetchOpsCheckpoints() {
     try {
       const result = await api.sequencerListCheckpoints();
-      state.ops.checkpoints = (result && result.checkpoints) || [];
+      state.ops.checkpoints = requireWireList(
+        result, 'checkpoints', 'Checkpoint list');
       renderOpsCheckpointPanel();
     } catch (e) {
       addLogEntry('error', describeApiError(e, 'Checkpoint fetch'));
@@ -4789,7 +4887,7 @@
         api.profilesGetList(),
         api.profilesGetActive(),
       ]);
-      state.ops.profiles = (list && list.profiles) || [];
+      state.ops.profiles = requireWireList(list, 'profiles', 'Profile list');
       state.ops.activeProfile = active && active.profile ? active.profile : null;
       renderOpsProfilePanel();
     } catch (e) {
@@ -5216,7 +5314,7 @@
       // save target) we surface a clear error rather than silently solving
       // a stale path.
       const recent = await api.imagesGetRecent(1);
-      const images = (recent && recent.images) || [];
+      const images = requireWireList(recent, 'images', 'Recent images');
       if (!images.length) {
         throw new Error(
           'No captured image is available on disk yet — take an exposure first',
@@ -5524,7 +5622,8 @@
         binX: binning || 1,
         binY: binning || 1,
       });
-      state.flatWizard.calibrations = (result && result.results) || [];
+      state.flatWizard.calibrations = requireWireList(
+        result, 'results', 'Flat calibration');
       renderFlatWizardResults();
       const ok = state.flatWizard.calibrations.filter((c) => c.success).length;
       document.getElementById('flat-wizard-progress').textContent =
@@ -5730,7 +5829,7 @@
           binning: parseInt(document.getElementById('mosaic-exp-bin').value, 10) || 1,
         }),
       ]);
-      state.mosaic.panels = (panelsResp && panelsResp.panels) || [];
+      state.mosaic.panels = requireWireList(panelsResp, 'panels', 'Mosaic panels');
       renderMosaicPreview();
       document.getElementById('mosaic-total-panels').textContent =
         state.mosaic.panels.length + ' panels';
@@ -6467,8 +6566,14 @@
     if (status) status.textContent = 'Loading recent images...';
     try {
       const resp = await api.imagesGetAll({ limit: 24 });
-      const items = (resp && (resp.images || resp.items)) || [];
-      gallery.items = Array.isArray(items) ? items : [];
+      // `/api/images` names its listing `images`; `items` is accepted because
+      // an older build of the same route used that name. Neither present means
+      // the answer said nothing about this night's frames, and the branch
+      // below would print "No images captured yet." over it.
+      const named = resp && typeof resp === 'object' &&
+        Array.isArray(resp.items) && !Array.isArray(resp.images)
+        ? 'items' : 'images';
+      gallery.items = requireWireList(resp, named, 'Image listing');
       renderGallery();
       if (status) {
         status.textContent = gallery.items.length === 0
@@ -6480,7 +6585,11 @@
       const badge = document.getElementById('gallery-fresh-badge');
       if (badge) badge.classList.add('hidden-inline');
     } catch (e) {
-      if (status) status.textContent = 'Gallery fetch failed: ' + e.message;
+      // The tiles already on screen stay: they are what the last good read
+      // said, and this line is what says they may no longer be current. What
+      // must not appear here is "No images captured yet." — that sentence is
+      // reserved for an answer that listed zero frames.
+      if (status) status.textContent = describeApiError(e, 'Gallery fetch');
       addLogEntry('error', describeApiError(e, 'Gallery fetch'));
     } finally {
       gallery.loading = false;
@@ -6896,11 +7005,18 @@
       urlInput.value = current;
     }
 
-    // If a token is already present (sessionStorage), just connect.
+    // If a token is already present (sessionStorage), just connect. The
+    // overlay comes back if that token no longer works — a stored credential
+    // the desktop has since refused is the same dead end as a mistyped one,
+    // reached on a reload instead of on a click.
     const existingToken = readStoredToken();
     if (existingToken) {
       hideLoginOverlay();
-      await handleConnect();
+      const outcome = await handleConnect();
+      if (isCredentialFailure(outcome)) {
+        reportLoginFailure(outcome);
+        return;
+      }
       // After connect, drive any route-specific side effects (e.g.
       // if the user landed on #/logs, start the SSE now that we
       // have credentials).
@@ -6924,14 +7040,25 @@
         // No auth needed — auto-connect runs the rest of the
         // bootstrap. The overlay is hidden so the dashboard renders.
         hideLoginOverlay();
-        await handleConnect();
+        const outcome = await handleConnect();
+        if (isCredentialFailure(outcome)) {
+          reportLoginFailure(outcome);
+          return;
+        }
         applyHashRoute();
         return;
       }
       const resumed = await api.tryResumeCookieSession();
       if (resumed) {
         hideLoginOverlay();
-        await handleConnect();
+        // A cookie the server minted can still be refused later — it expires,
+        // and the desktop can drop the bearer bound to it. The form is the way
+        // back from that, and only from that.
+        const outcome = await handleConnect();
+        if (isCredentialFailure(outcome)) {
+          reportLoginFailure(outcome);
+          return;
+        }
         applyHashRoute();
         return;
       }
@@ -6984,9 +7111,53 @@
       statusEl.textContent = 'Signing in...';
       statusEl.className = 'login-status';
     }
+    // The overlay stays up until the connection is known good. Hiding it here
+    // dismissed the only surface that can fix a credential: measured against
+    // the release bundle, a rejected bearer left the dashboard "Disconnected"
+    // with `#login-status` reading "Signing in..." forty seconds later, and
+    // both fallback controls (#btn-apply-token, #btn-pair) zero-size inside a
+    // collapsed <details>.
+    const outcome = await handleConnect();
+    if (!outcome || !outcome.ok) {
+      reportLoginFailure(outcome);
+      return;
+    }
     hideLoginOverlay();
-    await handleConnect();
     applyHashRoute();
+  }
+
+  /// Whether a failed connect is the credential's fault.
+  ///
+  /// The automatic bootstrap paths use this to decide whether to raise the
+  /// sign-in form: a server that did not answer is not asking for a token, and
+  /// putting "Paste a bearer token" in front of that failure would send the
+  /// operator hunting for a credential the server may not even want. Those
+  /// failures are already stated by the link banner and the panels' own stale
+  /// lines. A credential the desktop refused is a different matter — the form
+  /// is the only place it can be replaced.
+  function isCredentialFailure(outcome) {
+    return Boolean(outcome) &&
+      (outcome.kind === 'rejected' || outcome.kind === 'needs_credential');
+  }
+
+  /// Put a failed sign-in back in front of the operator, in words, on the
+  /// form that can act on it.
+  ///
+  /// A credential the desktop refused is also scrubbed from sessionStorage:
+  /// left there it survives a reload, and `bootstrapAuthFlow` hides the
+  /// overlay for any stored token, which is the same dead end reached by a
+  /// different door.
+  function reportLoginFailure(outcome) {
+    const failure = outcome || { kind: 'failed', message: 'Sign-in failed.' };
+    if (failure.kind === 'rejected') {
+      writeStoredToken('', document.getElementById('remember-token').checked);
+    }
+    showLoginOverlay();
+    const statusEl = document.getElementById('login-status');
+    if (statusEl) {
+      statusEl.textContent = failure.message;
+      statusEl.className = 'login-status error';
+    }
   }
 
   function showLoginOverlay() {

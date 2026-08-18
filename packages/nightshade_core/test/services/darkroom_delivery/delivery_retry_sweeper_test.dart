@@ -338,6 +338,78 @@ void main() {
     },
   );
 
+  // Settings > Delivery, left open, kept stating a failure the sweep had
+  // already fixed: the row healed at 04:01:04 and the page still read
+  // "destinationUnreachable ... will retry (1 file owed)" at 04:01:58, and
+  // after leaving the section and coming back. Nothing in the process told the
+  // page the journal had moved. `passes` is that telling, so it has to carry
+  // every pass that ran and nothing that did not.
+  test('a completed pass is announced on passes', () async {
+    final sweeper = build(interval: const Duration(hours: 1));
+    addTearDown(sweeper.dispose);
+
+    final heard = <DeliveryRunReport>[];
+    final subscription = sweeper.passes.listen(heard.add);
+    addTearDown(subscription.cancel);
+
+    await sweeper.sweepOnce();
+    await pumpEventQueue();
+
+    expect(delivery.sweeps, 1);
+    expect(
+      heard,
+      hasLength(1),
+      reason: 'a page reading the journal has no other way to learn it moved',
+    );
+  });
+
+  test('a pass folded into one already in flight announces nothing', () async {
+    final sweeper = build(interval: const Duration(hours: 1));
+    addTearDown(sweeper.dispose);
+
+    final heard = <DeliveryRunReport>[];
+    final subscription = sweeper.passes.listen(heard.add);
+    addTearDown(subscription.cancel);
+
+    final gate = Completer<void>();
+    delivery.gate = gate;
+    final first = sweeper.sweepOnce();
+    await pumpEventQueue();
+
+    // Folded: it did no work of its own and has no report to state.
+    expect(await sweeper.sweepOnce(), isNull);
+
+    delivery.gate = null;
+    gate.complete();
+    await first;
+    await pumpEventQueue();
+
+    expect(
+      heard,
+      hasLength(1),
+      reason: 'one pass ran, so the journal moved once',
+    );
+  });
+
+  test('a pass that failed outright announces nothing', () async {
+    final sweeper = build(interval: const Duration(hours: 1));
+    addTearDown(sweeper.dispose);
+
+    final heard = <DeliveryRunReport>[];
+    final subscription = sweeper.passes.listen(heard.add);
+    addTearDown(subscription.cancel);
+
+    delivery.failWith = StateError('the journal would not open');
+    expect(await sweeper.sweepOnce(), isNull);
+    await pumpEventQueue();
+
+    expect(
+      heard,
+      isEmpty,
+      reason: 'there is no report to state, and the next tick is the retry',
+    );
+  });
+
   test('stop ends the due check as well as the heartbeat', () async {
     final sweeper = build(
       interval: const Duration(hours: 1),

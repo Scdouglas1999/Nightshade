@@ -1168,3 +1168,315 @@ test('a run that has named no target says so rather than guessing', () => {
   assert.equal(doc.getElementById('ops-seq-current-target').textContent, '--',
     'an unknown target is "--", not the nearest string on the page');
 });
+
+// ---------------------------------------------------------------------------
+// W11-E / D4-01 + D4-02 — a positive empty state requires an answer that SAYS
+// empty
+//
+// Measured against the release bundle on a rig with four connected simulator
+// devices and twelve registered frames: a content-free 200 on
+// /api/devices/connected rendered "No devices connected" (0 rows, mount alt
+// "--", no stale line, no toast, no log entry, header "Connected"), and the
+// same body — plus a body of `null` — on /api/images rendered "No captured
+// images yet." with the status line reading "No images captured yet.". The
+// control arms prove the class: a 500 kept the last good tiles and named the
+// failure.
+// ---------------------------------------------------------------------------
+
+class TestApiError extends Error {
+  constructor(kind, message, detail) {
+    super(message);
+    this.kind = kind;
+    this.detail = detail || {};
+  }
+}
+
+function wireList() {
+  return build(
+    ['NightshadeApiError'], [fn('requireWireList')], 'requireWireList',
+  )(TestApiError);
+}
+
+test('a list the answer names is delivered, empty or not', () => {
+  const require_ = wireList();
+  assert.deepEqual(require_({ devices: [] }, 'devices', 'Connected devices'), []);
+  assert.deepEqual(
+    require_({ devices: [{ id: 'sim_camera_1' }] }, 'devices', 'Connected devices'),
+    [{ id: 'sim_camera_1' }]);
+});
+
+test('an answer that names no list is a failed exchange, not an empty one', () => {
+  const require_ = wireList();
+  for (const payload of [{}, { devices: null }, { devices: 'none' }, 'ok', 42]) {
+    assert.throws(
+      () => require_(payload, 'devices', 'Connected devices'),
+      (e) => e.kind === 'unusable_answer' && /no "devices" list/.test(e.message),
+      JSON.stringify(payload) + ' says nothing about the inventory',
+    );
+  }
+});
+
+/** fetchDevices with its collaborators recorded rather than performed. */
+function devicesFetch(answer) {
+  const doc = makeDocument(['devices-list']);
+  const log = [];
+  const marks = [];
+  const state = {
+    connectedDevices: [{ id: 'sim_camera_1', deviceType: 'camera' }],
+    filterWheelDeviceId: null, cameraDeviceId: null, mountDeviceId: null,
+    focuserDeviceId: null, rotatorDeviceId: null,
+    filterWheelPositions: null, filterWheelPositionsDeviceId: null,
+    ops: {},
+  };
+  let rendered = 0;
+  const run = build(
+    ['api', 'state', 'requireWireList', 'NightshadeApiError', 'addLogEntry',
+      'describeApiError', 'renderDevicesPanel', 'markPanelFresh',
+      'markPanelUnconfirmed', 'refreshPanelEnablement',
+      'maybeLoadCameraReadoutModes', 'maybeLoadFilterWheelPositions'],
+    [fn('fetchDevices')],
+    'fetchDevices',
+  )(
+    { getConnectedDevices: async () => {
+      if (answer instanceof Error) throw answer;
+      return answer;
+    } },
+    state,
+    wireList(),
+    TestApiError,
+    (kind, text) => log.push(kind + ': ' + text),
+    build(['x'], [fn('describeApiError')], 'describeApiError')(null),
+    () => { rendered += 1; },
+    (k) => marks.push('fresh:' + k),
+    (k) => marks.push('unconfirmed:' + k),
+    () => {}, () => {}, () => {},
+  );
+  return { run, state, log, marks, rendered: () => rendered };
+}
+
+test('a content-free devices answer never asserts an empty rig', async () => {
+  const h = devicesFetch(new TestApiError(
+    'unusable_answer',
+    'GET /api/devices/connected answered 200 with an empty body',
+    { status: 200 },
+  ));
+  await h.run();
+  assert.deepEqual(h.state.connectedDevices, [{ id: 'sim_camera_1', deviceType: 'camera' }],
+    'the last confirmed inventory stands until something replaces it');
+  assert.deepEqual(h.marks, ['unconfirmed:devices'],
+    'the panel must be marked unconfirmed so its stale line appears');
+  assert.equal(h.rendered(), 0,
+    '"No devices connected" may not be painted from a failed read');
+  assert.match(h.log.join('\n'), /Devices fetch failed/);
+});
+
+test('an answer with no devices list is refused like an empty body', async () => {
+  const h = devicesFetch({ discoveryErrors: {} });
+  await h.run();
+  assert.deepEqual(h.marks, ['unconfirmed:devices']);
+  assert.match(h.log.join('\n'), /no "devices" list/);
+});
+
+test('a devices answer that lists zero devices IS rendered as empty', async () => {
+  const h = devicesFetch({ devices: [] });
+  await h.run();
+  assert.deepEqual(h.state.connectedDevices, []);
+  assert.deepEqual(h.marks, ['fresh:devices']);
+  assert.equal(h.rendered(), 1,
+    'a server that lists zero devices has said the rig is empty');
+});
+
+/** refreshGalleryFromServer with a scripted /api/images answer. */
+function galleryFetch(answer) {
+  const doc = makeDocument(['gallery-grid', 'gallery-status', 'gallery-fresh-badge']);
+  const gallery = { loading: false, items: [{ id: 1 }, { id: 2 }], freshSinceLastView: 3 };
+  const log = [];
+  let rendered = 0;
+  const run = build(
+    ['document', 'api', 'gallery', 'requireWireList', 'NightshadeApiError',
+      'renderGallery', 'addLogEntry', 'describeApiError'],
+    [fn('refreshGalleryFromServer')],
+    'refreshGalleryFromServer',
+  )(
+    doc,
+    { imagesGetAll: async () => {
+      if (answer instanceof Error) throw answer;
+      return answer;
+    } },
+    gallery,
+    wireList(),
+    TestApiError,
+    () => { rendered += 1; },
+    (kind, text) => log.push(kind + ': ' + text),
+    build(['x'], [fn('describeApiError')], 'describeApiError')(null),
+  );
+  return { run, doc, gallery, log, rendered: () => rendered };
+}
+
+test('a content-free images answer never claims the night captured nothing', async () => {
+  const h = galleryFetch(new TestApiError(
+    'unusable_answer', 'GET /api/images answered 200 and the body is null',
+    { status: 200 },
+  ));
+  await h.run();
+  const status = h.doc.getElementById('gallery-status').textContent;
+  assert.doesNotMatch(status, /No images captured yet/,
+    'that sentence is reserved for an answer that listed zero frames');
+  assert.match(status, /Gallery fetch failed/);
+  assert.deepEqual(h.gallery.items, [{ id: 1 }, { id: 2 }],
+    'the tiles from the last good read stay, and the line above says they may be stale');
+  assert.equal(h.rendered(), 0);
+});
+
+test('an images answer naming no list is refused', async () => {
+  const h = galleryFetch({ total: 12 });
+  await h.run();
+  assert.match(h.doc.getElementById('gallery-status').textContent, /no "images" list/);
+});
+
+test('an images answer that lists zero frames IS the empty state', async () => {
+  const h = galleryFetch({ images: [] });
+  await h.run();
+  assert.equal(h.doc.getElementById('gallery-status').textContent,
+    'No images captured yet.');
+  assert.deepEqual(h.gallery.items, []);
+  assert.equal(h.rendered(), 1);
+});
+
+test('the older `items` spelling is still read when it is the one present', async () => {
+  const h = galleryFetch({ items: [{ id: 7 }] });
+  await h.run();
+  assert.deepEqual(h.gallery.items, [{ id: 7 }]);
+  assert.match(h.doc.getElementById('gallery-status').textContent, /1 image shown/);
+});
+
+// ---------------------------------------------------------------------------
+// W11-E / D4-03 — a rejected bearer must not strand the operator
+//
+// Measured against the release bundle: typing a wrong token and pressing Sign
+// in hid the overlay at t+3s, and at t+40s `#login-status` still read
+// "Signing in...", the header read "Disconnected", the only notice had been a
+// toast that expired at ~3s carrying the raw refusal body, and both fallback
+// controls (#btn-apply-token, #btn-pair) measured zero-size inside a collapsed
+// <details>.
+// ---------------------------------------------------------------------------
+
+test('a refused credential is described by what to do, not by its JSON', () => {
+  const describe = build(['x'], [fn('describeConnectFailure')], 'describeConnectFailure')(null);
+  const rejected = describe({
+    kind: 'http_error', status: 403,
+    message: 'GET /api/status failed (403): {"error":"Access denied",' +
+      '"message":"Invalid authentication token"}',
+  });
+  assert.equal(rejected.kind, 'rejected');
+  assert.match(rejected.message, /rejected this token/);
+  assert.match(rejected.message, /Remote Access/);
+  assert.doesNotMatch(rejected.message, /Access denied|\{/,
+    'the server\'s refusal body is a diagnostic, not an instruction');
+
+  assert.equal(describe({ kind: 'unreachable' }).kind, 'unreachable');
+  assert.match(describe({ kind: 'unreachable' }).message, /No answer/);
+  assert.equal(describe({ kind: 'rate_limited', retryAfterSecs: 4 }).kind, 'rate_limited');
+});
+
+/** handleLoginSubmit driven against a scripted handleConnect outcome. */
+function loginSubmit(outcome) {
+  const doc = makeDocument([
+    'login-server-url', 'login-token', 'login-remember', 'login-status',
+    'server-url', 'auth-token', 'remember-token', 'login-overlay',
+  ]);
+  doc.getElementById('login-server-url').value = 'http://127.0.0.1:8214';
+  doc.getElementById('login-token').value = 'WRONG-TOKEN-abc123';
+  doc.getElementById('login-remember').checked = true;
+  doc.getElementById('remember-token').checked = true;
+  doc.getElementById('login-overlay').classList.add('hidden');
+  doc.getElementById('login-overlay').setAttribute('hidden', '');
+  const stored = [];
+  const run = build(
+    ['document', 'normalizeServerUrl', 'isSameOriginServerUrl',
+      'crossOriginServerMessage', 'writeStoredToken', 'handleConnect',
+      'applyHashRoute', 'hideLoginOverlay', 'reportLoginFailure'],
+    [fn('handleLoginSubmit')],
+    'handleLoginSubmit',
+  )(
+    doc,
+    (u) => u,
+    () => true,
+    () => 'cross-origin',
+    (token, remember) => stored.push({ token, remember }),
+    async () => outcome,
+    () => {},
+    () => {
+      doc.getElementById('login-overlay').classList.add('hidden');
+      doc.getElementById('login-overlay').setAttribute('hidden', '');
+    },
+    build(
+      ['document', 'writeStoredToken', 'showLoginOverlay'],
+      [fn('reportLoginFailure')],
+      'reportLoginFailure',
+    )(
+      doc,
+      (token, remember) => stored.push({ token, remember }),
+      () => {
+        doc.getElementById('login-overlay').classList.remove('hidden');
+        doc.getElementById('login-overlay').removeAttribute('hidden');
+      },
+    ),
+  );
+  return { run, doc, stored };
+}
+
+test('a rejected bearer brings the sign-in form back and says why', async () => {
+  const h = loginSubmit({
+    ok: false, kind: 'rejected',
+    message: 'The desktop rejected this token. Check it against the ' +
+      'desktop’s Remote Access screen, or pair this browser instead.',
+  });
+  await h.run();
+
+  const overlay = h.doc.getElementById('login-overlay');
+  assert.ok(!overlay.classList.contains('hidden'),
+    'the only surface that can fix a credential must be on screen');
+  assert.equal(overlay.hasAttribute('hidden'), false);
+  const status = h.doc.getElementById('login-status');
+  assert.match(status.textContent, /rejected this token/);
+  assert.doesNotMatch(status.textContent, /Signing in/,
+    '"Signing in..." over a finished attempt is a state that ended');
+  assert.ok(status.className.includes('error'));
+  assert.deepEqual(h.stored[h.stored.length - 1], { token: '', remember: true },
+    'a credential the desktop refused must not survive a reload');
+});
+
+test('a server that never answered says so, and keeps the token typed', async () => {
+  const h = loginSubmit({
+    ok: false, kind: 'unreachable',
+    message: 'No answer from the Nightshade server. Check that it is running ' +
+      'and that this address is right.',
+  });
+  await h.run();
+  assert.ok(!h.doc.getElementById('login-overlay').classList.contains('hidden'));
+  assert.match(h.doc.getElementById('login-status').textContent, /No answer/);
+  assert.deepEqual(h.stored, [{ token: 'WRONG-TOKEN-abc123', remember: true }],
+    'an unreachable server is no evidence against the token');
+});
+
+test('a connection that succeeds is the only thing that dismisses the overlay', async () => {
+  const h = loginSubmit({ ok: true });
+  await h.run();
+  assert.ok(h.doc.getElementById('login-overlay').classList.contains('hidden'));
+  assert.equal(h.doc.getElementById('login-status').textContent, 'Signing in...');
+});
+
+test('an automatic connect only raises the form for a credential problem', () => {
+  const isCredential = build(
+    ['x'], [fn('isCredentialFailure')], 'isCredentialFailure')(null);
+  assert.equal(isCredential({ ok: false, kind: 'rejected' }), true);
+  assert.equal(isCredential({ ok: false, kind: 'needs_credential' }), true);
+  for (const kind of ['unreachable', 'rate_limited', 'unusable_answer',
+    'cross_origin', 'failed']) {
+    assert.equal(isCredential({ ok: false, kind }), false,
+      'a ' + kind + ' failure is not the token\'s fault, and asking for a ' +
+      'token would send the operator hunting for the wrong thing');
+  }
+  assert.equal(isCredential(undefined), false);
+});

@@ -13,7 +13,7 @@ import 'dart:typed_data';
 import 'dart:ui' show SemanticsAction, SemanticsFlag, Tristate;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart' show SemanticsNode;
+import 'package:flutter/semantics.dart' show OrdinalSortKey, SemanticsNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_controller.dart';
@@ -274,6 +274,48 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
     return handle;
+  }
+
+  /// The step cards in the order assistive tech walks them, by operation.
+  ///
+  /// Each card's own node opens with its drag handle's "Reorder <operation>"
+  /// and then carries the rest of the card's words, so the first line names the
+  /// step the reader is standing on.
+  List<String> stackReadingOrder(WidgetTester tester) {
+    const prefix = 'Reorder ';
+    return [
+      for (final node in tester.semantics.simulatedAccessibilityTraversal())
+        if (node.label.startsWith(prefix))
+          node.label.split('\n').first.substring(prefix.length),
+    ];
+  }
+
+  /// Each step card's operation paired with the ordinal it publishes to
+  /// assistive tech, in the tree's own order.
+  ///
+  /// The ordinal is what pins the reading order to the recipe: siblings with no
+  /// sort key are ordered by their rectangles, and the rectangles are wherever
+  /// the reorder's animation had got to on the last frame the bridge was told
+  /// about.
+  List<(String, double?)> stackSortOrdinals(WidgetTester tester) {
+    const prefix = 'Reorder ';
+    final found = <(String, double?)>[];
+    void visit(SemanticsNode node) {
+      if (node.label.startsWith(prefix)) {
+        final key = node.sortKey;
+        found.add((
+          node.label.split('\n').first.substring(prefix.length),
+          key is OrdinalSortKey ? key.order : null,
+        ));
+      }
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    return found;
   }
 
   /// Pump past every timer the screen arms — the render debounce, the write
@@ -619,6 +661,65 @@ void main() {
       find.textContaining('linear operation cannot run after a stretch'),
       findsWidgets,
     );
+    await drain(tester);
+  });
+
+  testWidgets('a committed reorder moves the card in the reading order too', (
+    tester,
+  ) async {
+    final id = await seedRecipe([
+      _step('crop'),
+      _step('background_extract'),
+      _step('denoise'),
+      _step('stretch'),
+    ]);
+    final scope = DarkroomScope.recipe(id);
+    // Tall enough that every card is laid out: the reading order of cards the
+    // list has not built yet says nothing about the order of the ones it has.
+    final handle = await pump(tester, scope, size: const Size(1400, 1600));
+    final semantics = tester.ensureSemantics();
+
+    expect(stackReadingOrder(tester), [
+      'Crop',
+      'Background extract',
+      'Denoise',
+      'Stretch',
+    ]);
+
+    // The move the engine accepts: denoise above background extract, both
+    // linear-stage operations.
+    await handle.container
+        .read(darkroomControllerProvider(scope).notifier)
+        .reorderStep(2, 1);
+    await tester.pump();
+    await tester.pump();
+
+    final state = handle.container.read(darkroomControllerProvider(scope));
+    expect(state.steps.map((s) => s.opId), [
+      'crop',
+      'denoise',
+      'background_extract',
+      'stretch',
+    ]);
+    // The panel PAINTS the new order; a reader walking the same panel used to
+    // be handed a slot order the move had left behind, which is the only
+    // account of the pipeline a screen reader gets.
+    expect(stackReadingOrder(tester), [
+      'Crop',
+      'Denoise',
+      'Background extract',
+      'Stretch',
+    ]);
+    // And the order is STATED, not inferred from where the cards happen to sit:
+    // the ordinals are the recipe's own positions, so a frame caught mid-move
+    // publishes the same order as the settled one.
+    expect(stackSortOrdinals(tester), [
+      ('Crop', 0.0),
+      ('Denoise', 1.0),
+      ('Background extract', 2.0),
+      ('Stretch', 3.0),
+    ]);
+    semantics.dispose();
     await drain(tester);
   });
 

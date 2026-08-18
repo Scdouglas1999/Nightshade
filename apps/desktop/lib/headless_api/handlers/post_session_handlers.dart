@@ -79,6 +79,54 @@ class PostSessionHandlers {
     );
   }
 
+  /// Encode a decoded request body for the bridge, refusing a number JSON
+  /// cannot carry before the encoder gets to it.
+  ///
+  /// `jsonDecode` turns an overflowing literal like `1e400` into
+  /// `double.infinity`, and `jsonEncode` then throws
+  /// `JsonUnsupportedObjectError`. Inside the job closure that surfaced as a
+  /// FAILED JOB whose whole explanation was "Converting object to an encodable
+  /// object failed: Infinity" — the request itself answered `200 queued`, the
+  /// sentence named neither the field nor the index, and the native guard
+  /// written for exactly this input
+  /// (`post_session/helpers.rs`: "exposuresSec[0] is …, which is not a number
+  /// of seconds") could never run, because the payload never reached the
+  /// bridge.
+  ///
+  /// So the encoding happens HERE, in the request path, where a refusal is a
+  /// typed 400 naming the field by its own JSON path. A body that survives this
+  /// holds only finite numbers, and [jsonEncode] cannot fail on it.
+  String _encodeArgs(Map<String, dynamic> args) {
+    _refuseNonFiniteNumbers(args, '');
+    return jsonEncode(args);
+  }
+
+  /// Walk a decoded JSON body and refuse the first non-finite number, naming
+  /// the path that reaches it (`exposuresSec[0]`, `settings.sigmaHigh`).
+  void _refuseNonFiniteNumbers(Object? value, String path) {
+    if (value is double && !value.isFinite) {
+      final field = path.isEmpty ? 'body' : path;
+      throw BadRequestError(
+        field: field,
+        expected: 'number',
+        message:
+            '$field is $value, which is not a finite number; every numeric '
+            'field must be a finite value',
+      );
+    }
+    if (value is Map) {
+      value.forEach((key, entry) {
+        _refuseNonFiniteNumbers(entry, path.isEmpty ? '$key' : '$path.$key');
+      });
+      return;
+    }
+    if (value is List) {
+      for (var index = 0; index < value.length; index++) {
+        _refuseNonFiniteNumbers(value[index], '$path[$index]');
+      }
+    }
+  }
+
   /// Register [work] as a JobManager job and return the queued-job envelope.
   Future<Response> _startJob(
     String operation,
@@ -120,8 +168,9 @@ class PostSessionHandlers {
   Future<Response> handleIntegrateSession(Request request) async {
     _logInfo('[API] POST /api/post-session/integrate');
     final args = await readJsonObject(request);
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.integrate', () async {
-      final out = await bridge.apiIntegrateSession(argsJson: jsonEncode(args));
+      final out = await bridge.apiIntegrateSession(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -140,8 +189,9 @@ class PostSessionHandlers {
   Future<Response> handleDrizzleIntegrate(Request request) async {
     _logInfo('[API] POST /api/post-session/drizzle');
     final args = await readJsonObject(request);
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.drizzle', () async {
-      final out = await bridge.apiDrizzleIntegrate(argsJson: jsonEncode(args));
+      final out = await bridge.apiDrizzleIntegrate(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -161,8 +211,9 @@ class PostSessionHandlers {
     requireList<dynamic>(args, 'qualities');
     requireList<dynamic>(args, 'weights');
     requireList<dynamic>(args, 'exposuresS');
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.analyze-night', () async {
-      final out = await bridge.apiAnalyzeNight(argsJson: jsonEncode(args));
+      final out = await bridge.apiAnalyzeNight(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -176,8 +227,9 @@ class PostSessionHandlers {
   Future<Response> handleBuildMasterFlat(Request request) async {
     _logInfo('[API] POST /api/post-session/build-master-flat');
     final args = await readJsonObject(request);
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.build-master-flat', () async {
-      final out = await bridge.apiBuildMasterFlat(argsJson: jsonEncode(args));
+      final out = await bridge.apiBuildMasterFlat(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -196,8 +248,9 @@ class PostSessionHandlers {
     requireString(args, 'outputFits');
     requireInt(args, 'channels');
     requireList<dynamic>(args, 'matchedStars');
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.color-calibrate', () async {
-      final out = await bridge.apiColorCalibrate(argsJson: jsonEncode(args));
+      final out = await bridge.apiColorCalibrate(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -213,10 +266,9 @@ class PostSessionHandlers {
     _logInfo('[API] POST /api/post-session/detect-stars');
     final args = await readJsonObject(request);
     requireString(args, 'inputFits');
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.detect-stars', () async {
-      final out = await bridge.apiDetectStarsPhotometry(
-        argsJson: jsonEncode(args),
-      );
+      final out = await bridge.apiDetectStarsPhotometry(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -232,8 +284,9 @@ class PostSessionHandlers {
     final args = await readJsonObject(request);
     requireString(args, 'inputFits');
     requireString(args, 'outputFits');
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.extract-background', () async {
-      final out = await bridge.apiExtractBackground(argsJson: jsonEncode(args));
+      final out = await bridge.apiExtractBackground(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -247,8 +300,9 @@ class PostSessionHandlers {
   Future<Response> handleCombineChannels(Request request) async {
     _logInfo('[API] POST /api/post-session/combine-channels');
     final args = await readJsonObject(request);
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.combine-channels', () async {
-      final out = await bridge.apiCombineChannels(argsJson: jsonEncode(args));
+      final out = await bridge.apiCombineChannels(argsJson: argsJson);
       return _decodeObject(out);
     });
   }
@@ -266,8 +320,9 @@ class PostSessionHandlers {
     _logInfo('[API] POST /api/post-session/master-accumulate');
     final args = await readJsonObject(request);
     requireString(args, 'op');
+    final argsJson = _encodeArgs(args);
     return _startJob('post-session.master-accumulate', () async {
-      final out = await bridge.apiMasterAccumulate(argsJson: jsonEncode(args));
+      final out = await bridge.apiMasterAccumulate(argsJson: argsJson);
       return _decodeObject(out);
     });
   }

@@ -23,6 +23,16 @@
 //! canonical JSON beside the file, so a recipe survives outside the database
 //! even for a raster export.
 //!
+//! # Step numbering in an exported file
+//!
+//! Two numbers appear, and they are not the same number. `NSSTAGE` and the
+//! sidecar's `stage.index` are the machine token: the caller's own 0-based
+//! `stage.index`, unchanged, so a reader can split `afterStep:0` and replay
+//! that exact request. Every sentence a person reads — the `HISTORY` step
+//! lines, the summary line's `(through step 1 of 3)`, a refusal — counts from
+//! 1, matching the editor's step list, the export sheet's suggested filename
+//! and the recipe validator's own sentences.
+//!
 //! # Raster exports
 //!
 //! PNG, JPEG and TIFF are written from the recipe engine's own `F32` pixels,
@@ -93,10 +103,42 @@ impl ExportStage {
     }
 
     /// The wire description carried in the reply and in the `NSSTAGE` card.
+    ///
+    /// `afterStep:N` carries N exactly as the caller sent it in `stage.index`
+    /// — 0-based, the same number the reply and the `.nsrecipe` sidecar echo.
+    /// This is the token's contract: a file written by any build names the
+    /// stage in the vocabulary an export request is made in, so a reader can
+    /// split the token and replay it verbatim. Nothing in the tree parses the
+    /// card back today (the sidecar is what the import path reads), which is
+    /// why the human translation lives beside it in [`Self::as_summary`]
+    /// rather than in the token itself.
     fn as_wire(&self) -> String {
         match self {
             Self::Linear => "linear".to_string(),
             Self::AfterStep(index) => format!("afterStep:{index}"),
+            Self::Final => "final".to_string(),
+        }
+    }
+
+    /// The stage as the `HISTORY` summary line states it: the wire token, plus
+    /// the 1-based step number the operator sees in the editor, the export
+    /// sheet's suggested filename and every validation sentence.
+    fn as_summary(&self, step_count: usize) -> String {
+        match self {
+            Self::AfterStep(index) => format!(
+                "{} (through step {} of {step_count})",
+                self.as_wire(),
+                index + 1
+            ),
+            _ => self.as_wire(),
+        }
+    }
+
+    /// The stage as a refusal sentence names it, in the operator's numbers.
+    fn as_prose(&self) -> String {
+        match self {
+            Self::Linear => "linear".to_string(),
+            Self::AfterStep(index) => format!("step {}", index + 1),
             Self::Final => "final".to_string(),
         }
     }
@@ -167,7 +209,7 @@ pub(crate) fn run_export(recipe_json: &str, args: DarkroomExportArgs) -> Result<
         if !args.screen_transfer {
             return Err(format!(
                 "the {} render is still linear ADU and has no display mapping; export FITS to keep the linear pixels, or set screenTransfer to render the 8/16-bit files through the engine's own auto stretch",
-                stage.as_wire()
+                stage.as_prose()
             ));
         }
         let params = auto_params(&image).map_err(|e| e.to_string())?;
@@ -257,7 +299,7 @@ fn history_lines(
 ) -> Vec<String> {
     let mut lines = vec![format!(
         "Nightshade Darkroom: stage={}, recipe={} ({} step{}), fingerprint={}",
-        stage.as_wire(),
+        stage.as_summary(recipe.steps.len()),
         recipe.id,
         recipe.steps.len(),
         if recipe.steps.len() == 1 { "" } else { "s" },
@@ -284,9 +326,18 @@ fn history_lines(
                     Some(measured) => format!(" measured={measured}"),
                     None => String::new(),
                 };
+                // `step.index` is stored 0-based; the sentence counts from 1,
+                // the way the editor's step list, the export sheet's own
+                // suggested filename and every `RecipeError` sentence do. A
+                // HISTORY line reading "step 0" named a step the operator
+                // could not find on any other surface.
                 lines.push(format!(
                     "  step {}: {}@{} {}{}",
-                    step.index, step.op_id, step.op_version, outcome, measured
+                    step.index + 1,
+                    step.op_id,
+                    step.op_version,
+                    outcome,
+                    measured
                 ));
             }
         }

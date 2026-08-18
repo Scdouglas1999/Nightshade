@@ -50,4 +50,56 @@ void main() {
     expect(find.textContaining('Remote Session Review is unavailable'),
         findsOneWidget);
   });
+
+  testWidgets(
+    'a --remote-host client that has not reached its rig is guarded too, and '
+    'is offered no control that would run a pass on its own database',
+    (tester) async {
+      // The gate read `backend is NetworkBackend` — a CONNECTION fact. A
+      // desktop launched with `--remote-host` is `Disconnected` until its
+      // handshake and again after every drop, so for that whole window this
+      // screen opened over the CLIENT's own database with every rig-executing
+      // control live: pressing "Process now" ran a full Darkroom pass AND its
+      // delivery there, writing a `darkroom_jobs` row and nine
+      // `delivery_journal` rows no dawn job on the rig will ever read.
+      const scope = SessionReviewScope.session(42);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            remoteClientLaunchProvider.overrideWithValue(true),
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, DisconnectedBackend()),
+            ),
+            sessionReviewControllerProvider(scope).overrideWith(
+              (ref) => throw StateError(
+                'The local SessionReviewController must not start on a client',
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const SessionReviewScreen(scope: scope),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('Open Session Review on the imaging host'),
+        findsOneWidget,
+      );
+      // Every rig-executing control this screen carries is inside the arm the
+      // gate returns before, so naming the pass is enough to prove the class:
+      // the Stop, the integration runs, the finishing steps, the master
+      // library's accumulate/finalize/delete and its Darkroom buttons are all
+      // built by the same subtree.
+      expect(
+        find.byKey(const ValueKey('session_review_process_now')),
+        findsNothing,
+      );
+      expect(find.text('Refresh'), findsNothing);
+      expect(find.text('Workbench'), findsNothing);
+    },
+  );
 }

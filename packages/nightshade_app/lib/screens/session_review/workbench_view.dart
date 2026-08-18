@@ -200,7 +200,7 @@ class _LeftColumn extends StatelessWidget {
 
 /// Right column: the master + overlays, the per-sub field-quality maps, the
 /// narrowband mixer, the A/B compare, and the integration-settings form.
-class _RightColumn extends StatelessWidget {
+class _RightColumn extends ConsumerWidget {
   final SessionReviewState state;
   final SessionReviewController controller;
 
@@ -210,7 +210,7 @@ class _RightColumn extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final outcome = state.lastOutcome;
     final master = state.reviewedMaster;
@@ -291,8 +291,11 @@ class _RightColumn extends StatelessWidget {
           onOpen: (m) => _showMasterPreview(context, m),
           // The master row IS the Darkroom's scope: the screen loads that
           // master's newest recipe, or offers to compose one. No session lookup
-          // is needed here because the card already names the row.
-          onOpenInDarkroom: (m) => openDarkroomForMaster(context, m.id),
+          // is needed here because the card already names the row — but the
+          // same role question every other entry point asks still is, so a
+          // machine that cannot open the Darkroom says so here rather than
+          // navigating into the host-only screen.
+          onOpenInDarkroom: (m) => openDarkroomForMasterRow(context, ref, m.id),
           onCreateAccumulating: () async {
             await controller.createAccumulatingMaster();
             await controller.loadSmartData();

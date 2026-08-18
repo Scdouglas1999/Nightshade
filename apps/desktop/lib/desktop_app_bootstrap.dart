@@ -18,19 +18,36 @@ import 'headless_api_server.dart';
 
 const String _logSource = 'DesktopBootstrap';
 
-/// Resume the Darkroom's durable background work at startup: the dawn jobs a
-/// crash left queued, then the delivery rows whose retry came due while the
-/// process was down.
+/// Take up the Darkroom's durable background work: arm the delivery retry
+/// sweep for the life of the process, then catch up the dawn jobs a crash left
+/// queued and the delivery rows whose retry came due while the process was
+/// down.
 ///
 /// Shared by the GUI bootstrap and the headless daemon because the two have the
 /// same obligation — the job rows and the journal rows outlive the process that
 /// wrote them, so whichever mode starts next owes them a pass.
 ///
-/// **Fire-and-forget by construction.** Both passes are long and network-bound
-/// (an SFTP upload of a full linear master over a domestic uplink), and neither
-/// is a precondition for anything else in the bootstrap. Awaiting either here
-/// would hold the "running" banner behind an overnight retry to a host that is
-/// still asleep.
+/// **The sweep belongs to delivery, not to remote access.** It used to be armed
+/// inside [HeadlessApiServer]'s start, which a desktop GUI only reaches when
+/// `web_server_enabled` is on — and that setting is off on a fresh install. So
+/// a GUI with remote access off had no periodic sweep at all, while a stopped
+/// dawn pass told the operator in as many words that "the retry sweep resumes
+/// them": measured against the release bundle, a destination that came back 28
+/// seconds after the startup pass failed still had nothing written to it four
+/// minutes past the row's due time, and the rows only moved on the next launch.
+/// Arming it here makes that sentence true in every mode that owns the journal,
+/// and [DeliveryRetrySweeper.start] is idempotent, so the daemon — which runs
+/// this seam and the API server both — still arms exactly one timer.
+///
+/// **Armed before the catch-up, not after.** The catch-up is network-bound and
+/// can sit for minutes on a host that is still asleep; the ladder for every
+/// other row must not wait behind it.
+///
+/// **Fire-and-forget by construction.** Both catch-up passes are long and
+/// network-bound (an SFTP upload of a full linear master over a domestic
+/// uplink), and neither is a precondition for anything else in the bootstrap.
+/// Awaiting either here would hold the "running" banner behind an overnight
+/// retry to a host that is still asleep.
 ///
 /// **Order is load-bearing.** A drained job hands its artifacts to delivery,
 /// which writes the journal rows the sweep then reads; sweeping first would
@@ -40,6 +57,7 @@ void resumeDarkroomWork({
   required LoggingService logger,
   required String logSource,
 }) {
+  container.read(deliveryRetrySweeperProvider).start();
   unawaited(_resumeDarkroomWork(container, logger, logSource));
 }
 
@@ -88,17 +106,29 @@ Future<void> _resumeDarkroomWork(
   }
 }
 
-/// Start background services for mobile/remote access.
+/// Start the host-owned background services this GUI is responsible for: the
+/// Darkroom's durable work, and the embedded server for mobile/remote access.
 ///
-/// Why this delegates to [HeadlessApiServer]: the GUI and headless mode serve
-/// mobile/web clients from ONE server, so a client sees the same endpoint set
-/// whichever mode is running. The GUI gets the modular handlers, pairing flow,
-/// scoped tokens, and middleware stack for free.
+/// Why the remote half delegates to [HeadlessApiServer]: the GUI and headless
+/// mode serve mobile/web clients from ONE server, so a client sees the same
+/// endpoint set whichever mode is running. The GUI gets the modular handlers,
+/// pairing flow, scoped tokens, and middleware stack for free.
+///
+/// The Darkroom half is started here rather than inside [_runBackgroundServices]
+/// so that it is reached before that function's first `await`. Everything in
+/// there is remote-access plumbing — a token file, a UDP receiver bind — and a
+/// rig whose delivery journal is owed a sweep is owed it whether or not any of
+/// that plumbing answers.
 void startBackgroundServices(
   ProviderContainer container, {
   required String appVersion,
   required int appBuildNumber,
 }) {
+  resumeDarkroomWork(
+    container: container,
+    logger: container.read(loggingServiceProvider),
+    logSource: _logSource,
+  );
   Future.microtask(
     () => _runBackgroundServices(
       container,
@@ -192,17 +222,6 @@ Future<void> _runBackgroundServices(
     // with no UI surface, so it must be read at startup to run. It is a
     // no-op until the user enables discovery in Settings.
     container.read(homeAssistantDiscoveryProvider);
-
-    // Darkroom: pick up the dawn jobs and the delivery rows a previous run
-    // left behind. The GUI is the mode a force-quit is most likely to have
-    // interrupted, so without this the crash-recovery re-queue at DB open
-    // would sit unread until the next night's run-completion coordinator
-    // fired.
-    resumeDarkroomWork(
-      container: container,
-      logger: logger,
-      logSource: _logSource,
-    );
   } catch (e) {
     logger.error(
       'Background services failed to initialise',

@@ -21,6 +21,7 @@ import 'package:file_selector/file_selector.dart' show XTypeGroup;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart' show OrdinalSortKey;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -106,29 +107,32 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       // pre-handshake window and after every drop, so the full editor opened
       // over the client's OWN database — recipes no dawn job on the rig will
       // ever read — while Delivery on the same launch correctly refused.
-      return Scaffold(
-        backgroundColor: colors.background,
-        body: const SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              ScreenHeader(
-                title: 'Darkroom',
-                subtitle: 'Host-only processing',
-                icon: NightshadeIcons.palette,
-              ),
-              Expanded(
-                child: EmptyState(
-                  icon: NightshadeIcons.device,
-                  title: 'Open the Darkroom on the imaging host',
-                  body:
-                      'Linear masters and the recipe engine that renders them '
-                      'live on the imaging computer. Open Nightshade there to '
-                      'adjust, reorder, or export a recipe. Remote Darkroom '
-                      'editing is unavailable in this release.',
-                ),
-              ),
-            ],
+      //
+      // Reached by deep link now that every in-app control refuses first, so it
+      // is a screen an operator lands on with no route in mind — which is why
+      // it takes the same shell as the editor. Returning its own Scaffold here
+      // put it OUTSIDE the shortcuts and the header actions below: no Back, no
+      // action on the empty state, and Escape and Alt+Left both dead, on the
+      // one branch whose whole job is to send the operator somewhere else.
+      return _shell(
+        colors: colors,
+        title: 'Darkroom',
+        subtitle: 'Host-only processing',
+        trailing: _backControl(savePending: false),
+        body: EmptyState(
+          icon: NightshadeIcons.device,
+          title: 'Open the Darkroom on the imaging host',
+          body: 'Linear masters and the recipe engine that renders them live '
+              'on the imaging computer. Open Nightshade there to adjust, '
+              'reorder, or export a recipe. Remote Darkroom editing is '
+              'unavailable in this release.',
+          action: NightshadeButton(
+            key: const ValueKey('darkroom_remote_gate_back'),
+            label: 'Go back',
+            icon: NightshadeIcons.arrowLeft,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: _leave,
           ),
         ),
       );
@@ -165,15 +169,35 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       _toast(state.saveError!, NightshadeAlertSeverity.error);
     }
 
+    return _shell(
+      colors: colors,
+      title: state.hasRecipe ? state.recipeName : 'Darkroom',
+      subtitle: _subtitle(state),
+      trailing: _headerActions(state),
+      body: _body(context, colors, state),
+    );
+  }
+
+  /// The screen every branch of this route renders inside.
+  ///
+  /// The Darkroom is a PUSHED route with no destination of its own on the nav
+  /// rail: the rail keeps highlighting whatever the operator came from, and
+  /// until this binding existed the only way out was to press a different rail
+  /// destination — Escape and Alt+Left both did nothing at all, which reads as
+  /// a broken window rather than as a screen with no back. The rail's claim
+  /// becomes true once leaving returns to what it is pointing at.
+  ///
+  /// Every branch, because a branch that opted out of the shell opted out of
+  /// the whole way-out contract at the same time.
+  Widget _shell({
+    required NightshadeColors colors,
+    required String title,
+    required String subtitle,
+    required Widget trailing,
+    required Widget body,
+  }) {
     return Scaffold(
       backgroundColor: colors.background,
-      // The Darkroom is a PUSHED route with no destination of its own on the
-      // nav rail: the rail keeps highlighting whatever the operator came from,
-      // and until this binding existed the only way out was to press a
-      // different rail destination — Escape and Alt+Left both did nothing at
-      // all, which reads as a broken window rather than as a screen with no
-      // back. The rail's claim becomes true once leaving returns to what it is
-      // pointing at.
       body: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.escape): _leave,
@@ -192,12 +216,12 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
             child: Column(
               children: [
                 ScreenHeader(
-                  title: state.hasRecipe ? state.recipeName : 'Darkroom',
-                  subtitle: _subtitle(state),
+                  title: title,
+                  subtitle: subtitle,
                   icon: NightshadeIcons.palette,
-                  trailing: _headerActions(state),
+                  trailing: trailing,
                 ),
-                Expanded(child: _body(context, colors, state)),
+                Expanded(child: body),
               ],
             ),
           ),
@@ -227,40 +251,47 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     context.go('/analytics?tab=history');
   }
 
-  /// The header's action slot: the way out, and the render control.
-  Widget _headerActions(DarkroomState state) {
-    final render = _headerAction(state);
-    // Stated on the control itself, because it is the state that decides what
-    // leaving does: the pending write is issued by the controller's dispose,
-    // and an operator who cannot see that a write is outstanding has no way to
-    // know whether leaving costs them the edit.
-    final pending = state.savePending
+  /// The way out, in the header.
+  ///
+  /// [savePending] is stated on the control itself, because it is the state
+  /// that decides what leaving does: the pending write is issued by the
+  /// controller's dispose, and an operator who cannot see that a write is
+  /// outstanding has no way to know whether leaving costs them the edit. The
+  /// host-only branch has no controller and therefore nothing outstanding.
+  Widget _backControl({required bool savePending}) {
+    final pending = savePending
         ? 'Back — this edit is still being written to the recipe, and leaving '
             'issues that write'
         : 'Back to where the Darkroom was opened from';
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: true,
+      label: pending,
+      excludeSemantics: true,
+      onTap: _leave,
+      child: Tooltip(
+        message: '$pending. Escape and Alt+Left do the same.',
+        child: NightshadeButton(
+          label: 'Back',
+          icon: NightshadeIcons.arrowLeft,
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          onPressed: _leave,
+        ),
+      ),
+    );
+  }
+
+  /// The header's action slot: the way out, and the render control.
+  Widget _headerActions(DarkroomState state) {
+    final render = _headerAction(state);
     return Wrap(
       spacing: NightshadeTokens.spaceXs,
       runSpacing: NightshadeTokens.spaceXs,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Semantics(
-          container: true,
-          button: true,
-          enabled: true,
-          label: pending,
-          excludeSemantics: true,
-          onTap: _leave,
-          child: Tooltip(
-            message: '$pending. Escape and Alt+Left do the same.',
-            child: NightshadeButton(
-              label: 'Back',
-              icon: NightshadeIcons.arrowLeft,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: _leave,
-            ),
-          ),
-        ),
+        _backControl(savePending: state.savePending),
         // The same boundary the Back control carries, for the same reason. The
         // `CallbackShortcuts` above publishes one focusable node over the whole
         // screen, and every unbounded fragment under it merges in — so in a
@@ -434,6 +465,9 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     DarkroomState state,
   ) {
     final compareId = _compareRecipeId;
+    final aLabel = state.recipeName.isEmpty
+        ? 'Recipe ${state.recipeId}'
+        : state.recipeName;
     Widget primary = _DarkroomViewport(
       state: state,
       onRerender: _controller.refreshRender,
@@ -450,9 +484,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       final other = branches.branchFor(compareId);
       primary = _DarkroomCompareView(
         aState: state,
-        aLabel: state.recipeName.isEmpty
-            ? 'Recipe ${state.recipeId}'
-            : state.recipeName,
+        aLabel: aLabel,
         bRecipeId: compareId,
         bLabel: other?.label ?? 'Recipe $compareId',
         bIsAutopilotDraft: other?.author == RecipeAuthor.autopilot,
@@ -475,28 +507,105 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       primary: primary,
       secondary: [
         AdaptivePanel(
-          title: 'Recipe',
+          title: compareId == null ? 'Recipe' : 'Recipe · A',
           icon: NightshadeIcons.sliders,
-          child: _DarkroomRecipePanel(
-            state: state,
-            onUndo: _controller.undo,
-            onRedo: _controller.redo,
-            onResetToLinear: _controller.resetToLinear,
-            onRerender: _controller.refreshRender,
+          child: _compareOwner(
+            colors,
+            comparing: compareId != null,
+            aLabel: aLabel,
+            child: _DarkroomRecipePanel(
+              state: state,
+              onUndo: _controller.undo,
+              onRedo: _controller.redo,
+              onResetToLinear: _controller.resetToLinear,
+              onRerender: _controller.refreshRender,
+            ),
           ),
         ),
         AdaptivePanel(
-          title: 'History',
+          title: compareId == null ? 'History' : 'History · A',
           icon: NightshadeIcons.layers,
-          child: _DarkroomHistoryPanel(
-            state: state,
-            onToggle: _controller.toggleStep,
-            onParamChanged: _controller.setParam,
-            onRemove: _controller.removeStep,
-            onReorder: _controller.reorderStep,
-            onInsert: _controller.insertStep,
+          child: _compareOwner(
+            colors,
+            comparing: compareId != null,
+            aLabel: aLabel,
+            child: _DarkroomHistoryPanel(
+              state: state,
+              onToggle: _controller.toggleStep,
+              onParamChanged: _controller.setParam,
+              onRemove: _controller.removeStep,
+              onReorder: _controller.reorderStep,
+              onInsert: _controller.insertStep,
+            ),
           ),
         ),
+      ],
+    );
+  }
+
+  /// Name the branch a secondary panel is showing, while a compare is armed.
+  ///
+  /// Both panels render the A recipe — A is the open editor, B is rendered from
+  /// its own row and is not editable here — and while comparing they said so
+  /// nowhere. A stack of four steps sat beside two panes captioned "A · …" and
+  /// "B · …" belonging, as far as anything on screen or in the accessibility
+  /// tree went, to neither: the one question the compare exists to answer had
+  /// an unlabelled answer.
+  ///
+  /// Labelled at this seam because the panel titles do not reach a desktop
+  /// screen reader — [AdaptivePanelLayout] renders them only on the phone
+  /// segments — so the sentence has to be inside the panel body to be read.
+  Widget _compareOwner(
+    NightshadeColors colors, {
+    required bool comparing,
+    required String aLabel,
+    required Widget child,
+  }) {
+    if (!comparing) return child;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          key: const ValueKey('darkroom_compare_owner'),
+          container: true,
+          label: 'Showing pane A, $aLabel. These are pane A\'s steps; pane B '
+              'renders its own recipe and is not edited here.',
+          excludeSemantics: true,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              border: Border(bottom: BorderSide(color: colors.border)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  // "Pane A · …", not the pane's own "A · …" caption: this
+                  // strip is read beside that caption, and repeating it word
+                  // for word would leave the two indistinguishable to anyone
+                  // searching the screen for which one owns the stack.
+                  'Pane A · $aLabel',
+                  style: NightshadeTypography.labelStrongSm.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'B renders its own recipe and is not edited here.',
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(child: child),
       ],
     );
   }

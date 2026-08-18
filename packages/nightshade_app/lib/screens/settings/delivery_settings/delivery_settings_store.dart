@@ -537,13 +537,45 @@ final deliverySettingsStoreProvider = Provider<DeliverySettingsStore>((ref) {
   );
 });
 
+/// Ticks once per completed retry-sweep pass, so a surface reading the journal
+/// can find out that the journal moved.
+///
+/// Deliberately NOT `autoDispose`. The page below invalidates itself on each
+/// tick, and an auto-disposing stream would drop to zero listeners in the gap
+/// between that invalidation and the rebuild that re-listens — which on a
+/// broadcast stream means the pass that arrives in that gap is heard by nobody.
+/// One subscription for the life of the container is the cheaper mistake.
+final deliverySweepPassesProvider = StreamProvider<DeliveryRunReport>((ref) {
+  return ref.watch(deliveryRetrySweeperProvider).passes;
+});
+
 /// Every configured destination with its last run and keyring state, plus the
 /// rows that would not decode.
 ///
 /// Invalidated by every mutation on this page, which is what re-reads the
 /// journal — the status line is a report, never a prediction.
+///
+/// And re-read whenever the retry sweep completes a pass. The sweep writes this
+/// same journal on its own timer, in this same process, with nothing to say so:
+/// a destination that healed at 04:00:45 was delivered to at 04:01:04, and the
+/// page left open in front of the operator still read "destinationUnreachable
+/// … will retry (1 file owed)" at 04:01:58 — and still read it after leaving
+/// the section and coming back, because the settings shell keeps the section
+/// mounted so `autoDispose` never fires either. Listening to the pass tick is
+/// what keeps "a report, never a prediction" true of a report nobody re-asked
+/// for.
+///
+/// The tick invalidates rather than being watched, so a sweep re-reads the page
+/// exactly the way a mutation on it does: `AsyncValue.when` skips its loading
+/// branch for a refresh but not for a reload, so `ref.watch` here would blank
+/// the whole section back to "Reading delivery destinations..." every time the
+/// overnight timer ran a pass.
 final deliveryDestinationsProvider =
     FutureProvider.autoDispose<DeliveryDestinations>((ref) {
+  ref.listen<AsyncValue<DeliveryRunReport>>(
+    deliverySweepPassesProvider,
+    (_, __) => ref.invalidateSelf(),
+  );
   return ref.watch(deliverySettingsStoreProvider).listDestinations();
 });
 

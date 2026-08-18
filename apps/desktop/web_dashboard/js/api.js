@@ -17,6 +17,12 @@
  *                   (rate_limit_middleware `_denyRateLimited`).
  *   'http_error'    any other non-2xx.
  *   'bad_json'      2xx whose body would not parse.
+ *   'unusable_answer'
+ *                   2xx that parsed and carries no answer — an empty body, or
+ *                   a body that is `null`/`0`/`false`/`""`. The exchange
+ *                   FAILED: nothing was learned from it, so no panel may
+ *                   render a positive state off the back of it. Same kind, and
+ *                   the same stance, as web_run_watch/js/run-watch.js.
  */
 class NightshadeApiError extends Error {
   constructor(kind, message, detail) {
@@ -252,9 +258,26 @@ class NightshadeApi {
         { status: resp.status, method, path, body: text },
       );
     }
-    if (!text) return {};
+    // A 2xx carrying nothing is a FAILED exchange wearing a success code.
+    // This used to `return {}`, which handed every caller a well-formed empty
+    // payload: measured against the release bundle, an empty-bodied 200 on
+    // /api/devices/connected made the dashboard state "No devices connected"
+    // over four connected devices — no stale line, no toast, no log entry,
+    // header still reading "Connected" — and the same body on /api/images
+    // produced "No captured images yet." over a night with 12 registered
+    // frames. The sibling client already refuses this shape; this is that
+    // refusal, here.
+    if (!text) {
+      throw new NightshadeApiError(
+        'unusable_answer',
+        method + ' ' + path + ' answered ' + resp.status +
+          ' with an empty body',
+        { status: resp.status, method, path },
+      );
+    }
+    let payload;
     try {
-      return JSON.parse(text);
+      payload = JSON.parse(text);
     } catch (_) {
       throw new NightshadeApiError(
         'bad_json',
@@ -262,6 +285,29 @@ class NightshadeApi {
         { method, path },
       );
     }
+    // `JSON.parse('null')` is well-formed JSON that carries no answer, and so
+    // are `0`, `false` and `""`. A caller handed one of these reads its own
+    // defaults and calls them the server's.
+    if (!payload) {
+      throw new NightshadeApiError(
+        'unusable_answer',
+        method + ' ' + path + ' answered ' + resp.status + ' and ' +
+          NightshadeApi.describeWireValue(payload),
+        { status: resp.status, method, path },
+      );
+    }
+    return payload;
+  }
+
+  /// What a falsy 2xx body was, in words, for the refusal message. Only the
+  /// four values `!payload` admits reach here — JSON carries no `undefined`,
+  /// and a list or an object is truthy. The value is never interpolated: a
+  /// hostile body must not reach the operator's log through an error string.
+  static describeWireValue(v) {
+    if (v === null) return 'the body is null';
+    if (v === '') return 'the body is an empty string';
+    if (v === false) return 'the body is false';
+    return 'the body is the number 0';
   }
 
   async _getWithTimeout(path, timeoutMs) {

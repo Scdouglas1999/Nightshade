@@ -300,12 +300,6 @@ class HeadlessApiServer {
   /// watching. Started in [_startServer], stopped in [_stopServer].
   CollaborativeMosaicPoller? _collabMosaicPoller;
 
-  /// Overnight driver for the Darkroom delivery journal: re-attempts the rows
-  /// whose retry is due, so a destination that comes back online after the dawn
-  /// job finished is used without the operator starting anything. Started in
-  /// [_startServer], stopped in [_stopServer].
-  DeliveryRetrySweeper? _deliveryRetrySweeper;
-
   /// tracks which client currently owns the rig. Destructive
   /// endpoints (sequencer start, mount slew, dome open, ...) require
   /// the caller to be the operator or return 409 with a take-over hint.

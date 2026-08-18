@@ -237,3 +237,75 @@ test('WebSocket heartbeat frames emit activity without becoming app events', asy
   assert.deepEqual(events, []);
   client.disconnectWebSocket();
 });
+
+// ---------------------------------------------------------------------------
+// D4-01 / D4-02 — a 2xx that carries nothing is a FAILED exchange
+//
+// `if (!text) return {}` handed every caller a well-formed empty payload.
+// Measured against the release bundle with four connected simulator devices
+// and twelve registered frames on the wire: an empty-bodied 200 on
+// /api/devices/connected made the dashboard state "No devices connected" with
+// no stale line, no toast and no log entry, header still reading "Connected";
+// the same body — and a body of `null` — on /api/images produced "No captured
+// images yet." over the twelve. The sibling client already refuses this shape.
+// ---------------------------------------------------------------------------
+
+function answeringClient(body, status) {
+  return createClient({
+    fetch: async () => ({
+      ok: (status || 200) < 400,
+      status: status || 200,
+      headers: new Map([['content-type', 'application/json']]),
+      text: async () => body,
+    }),
+  });
+}
+
+test('a 200 with an empty body is refused, never read as an empty payload', async () => {
+  const client = answeringClient('');
+  await assert.rejects(
+    () => client.getConnectedDevices(),
+    (e) => {
+      assert.equal(e.kind, 'unusable_answer');
+      assert.match(e.message, /empty body/);
+      assert.equal(e.detail.status, 200);
+      return true;
+    },
+  );
+});
+
+test('a 200 whose body is JSON null carries no answer either', async () => {
+  const client = answeringClient('null');
+  await assert.rejects(
+    () => client.imagesGetAll({ limit: 24 }),
+    (e) => e.kind === 'unusable_answer' && /body is null/.test(e.message),
+  );
+});
+
+test('the other falsy JSON scalars are refused by the same rule', async () => {
+  for (const body of ['0', 'false', '""']) {
+    const client = answeringClient(body);
+    await assert.rejects(
+      () => client.getStatus(),
+      (e) => e.kind === 'unusable_answer',
+      'body ' + body + ' must not be read as a payload',
+    );
+  }
+});
+
+test('a body that says empty IS an answer, and is delivered as one', async () => {
+  const client = answeringClient('{"devices":[]}');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(await client.getConnectedDevices())),
+    { devices: [] },
+    'a server that lists zero devices has told the dashboard something',
+  );
+});
+
+test('a refusal message never interpolates the body it refused', async () => {
+  const client = answeringClient('""');
+  await assert.rejects(
+    () => client.getStatus(),
+    (e) => !e.message.includes('""') && /empty string/.test(e.message),
+  );
+});

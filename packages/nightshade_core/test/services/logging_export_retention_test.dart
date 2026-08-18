@@ -72,11 +72,29 @@ void main() {
     await writeLogFile('nightshade.log', 'TONIGHT', const Duration(minutes: 5));
 
     final service = buildService();
-    expect(await service.getLogFiles(), hasLength(2));
+    // Named rather than counted, because the service writes a third file into
+    // this directory the moment it initialises: its own daily-rolling
+    // `nightshade-dart.log.<day>`, which is where every Dart entry now lands.
+    // A count assertion would read that arrival as a regression.
+    String leafOf(String path) => path.split(Platform.pathSeparator).last;
+
+    final unbounded = (await service.getLogFiles()).map(leafOf).toList();
     expect(
-      await service.getLogFiles(maxAge: const Duration(hours: 48)),
+      unbounded,
+      containsAll(<String>['nightshade.log.2024-01-01', 'nightshade.log']),
+    );
+    expect(
+      unbounded.where((name) => name.startsWith('nightshade-dart.log')),
       hasLength(1),
     );
+
+    // The 400-day-old rotation is the only file the bound excludes; both
+    // fresh files survive it.
+    final bounded = (await service.getLogFiles(
+      maxAge: const Duration(hours: 48),
+    )).map(leafOf).toList();
+    expect(bounded, isNot(contains('nightshade.log.2024-01-01')));
+    expect(bounded, contains('nightshade.log'));
   });
 
   test('the dump ships only its retention window of logs', () async {
