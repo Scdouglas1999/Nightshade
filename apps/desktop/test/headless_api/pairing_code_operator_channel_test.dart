@@ -266,5 +266,84 @@ void main() {
         isTrue,
       );
     });
+
+    // The client asking for a code has to be able to name a next step that
+    // works on THIS rig. Measured against a headless bundle: the run-watch
+    // pairing wall sent the operator to the desktop app's Remote Access screen
+    // — a screen an appliance does not have — while the code sat in the
+    // owner-only file below, named nowhere. So the answer says WHERE the code
+    // went. It still never says WHAT the code is, and never says which absolute
+    // path it lives at: this endpoint is unauthenticated.
+    test('start reports the channels the code was delivered on', () async {
+      final body = jsonDecode(await (await start()).readAsString()) as Map;
+      final delivery = body['codeDelivery'] as Map;
+
+      expect(delivery['operatorFile'], isTrue);
+      expect(delivery['operatorFileName'], kPairingCodeFileName);
+      expect(delivery['console'], isFalse, reason: 'printing was not opted in');
+
+      // No secret, and no host layout, for an unauthenticated caller.
+      final code = RegExp(r'code=(.+)')
+          .firstMatch(await File(handlers.pairingCodeFilePath!).readAsString())!
+          .group(1)!
+          .trim();
+      final raw = jsonEncode(body);
+      expect(raw, isNot(contains(code)));
+      expect(raw, isNot(contains(tempDir.path)));
+    });
+
+    test('a host started with --pairing-print-codes says so', () async {
+      final printing = PairingHandlers(
+        clearAuthFailures: clearedAuthFailures.add,
+        pairingAttempts: PairingAttemptTracker(),
+        ensurePairingService: () => pairingService,
+        recordPairedSession: (_, __) {},
+        rateLimitClientKey: (_) => 'test-client-printing',
+        pairingPrintCodes: true,
+        pairingMode: () => PairingMode.codeRequired,
+        logger: logger,
+      );
+
+      final response = await printing.handlePairingStart(
+        Request('POST', Uri.parse('http://localhost/api/pairing/start')),
+      );
+      final delivery =
+          (jsonDecode(await response.readAsString()) as Map)['codeDelivery']
+              as Map;
+      expect(delivery['console'], isTrue);
+    });
+
+    /// A rig that could not write the file must not be reported as one that
+    /// did. The client turns `operatorFile: true` into "read it from
+    /// pairing-code.txt", and naming a file nothing wrote is the same defect
+    /// this block exists to close, moved one step along.
+    test('a rig that could not write the file does not claim it did', () async {
+      final blocker = File(
+        '${tempDir.path}${Platform.pathSeparator}not-a-directory',
+      );
+      await blocker.writeAsString('a file where a directory would have to be');
+
+      final blocked = PairingHandlers(
+        clearAuthFailures: clearedAuthFailures.add,
+        pairingAttempts: PairingAttemptTracker(),
+        ensurePairingService: () => pairingService,
+        recordPairedSession: (_, __) {},
+        rateLimitClientKey: (_) => 'test-client-blocked',
+        pairingPrintCodes: false,
+        pairingMode: () => PairingMode.codeRequired,
+        logger: logger,
+        operatorCodeDirectory: '${blocker.path}${Platform.pathSeparator}nested',
+      );
+
+      final response = await blocked.handlePairingStart(
+        Request('POST', Uri.parse('http://localhost/api/pairing/start')),
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      final delivery =
+          (jsonDecode(await response.readAsString()) as Map)['codeDelivery']
+              as Map;
+      expect(delivery['operatorFile'], isFalse);
+      expect(delivery['console'], isFalse);
+    });
   });
 }

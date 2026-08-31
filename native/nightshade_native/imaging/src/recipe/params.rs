@@ -23,7 +23,11 @@ pub struct Params<'a> {
 }
 
 /// The JSON type name of a value, for error messages.
-fn type_name(value: &Value) -> &'static str {
+///
+/// Shared with [`super::model::Recipe::from_json`], so the whole recipe surface
+/// names a payload the same way whether the object it wanted was the recipe or
+/// one operation's parameters.
+pub(super) fn type_name(value: &Value) -> &'static str {
     match value {
         Value::Null => "null",
         Value::Bool(_) => "a boolean",

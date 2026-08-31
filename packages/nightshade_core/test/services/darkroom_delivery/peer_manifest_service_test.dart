@@ -224,6 +224,51 @@ void main() {
     );
   });
 
+  test('a file this desktop already acknowledged is not offered again, and is '
+      'still served on request', () async {
+    // The manifest is what the desktop still has to pull. Every other
+    // transport stops at `delivered` too, and offering an acknowledged file
+    // back told the desktop it still owed a pull it had already made. The
+    // download endpoint is deliberately unchanged: a desktop holding the id
+    // from an earlier manifest can still fetch the bytes and acknowledge them
+    // again.
+    final jobId = await DarkroomJobsDao(db).enqueue();
+    await createPeer('office-pc');
+    final set = await publishSet(jobId, names: ['a.fits', 'b.fits']);
+    await serviceFor().deliverJobArtifacts(set);
+    final pulled = set.artifacts.first;
+
+    await peers.acknowledgePull(
+      jobId: jobId,
+      peerId: 'office-pc',
+      artifactId: artifactIdForPath(pulled.sourcePath),
+      checksum: pulled.checksum,
+    );
+
+    final manifest = await peers.buildManifest(
+      jobId: jobId,
+      peerId: 'office-pc',
+    );
+
+    expect(manifest.entries.map((e) => e.artifactId), [
+      artifactIdForPath(set.artifacts.last.sourcePath),
+    ]);
+    expect(
+      manifest.unavailable,
+      isEmpty,
+      reason: 'nothing went wrong with a file the desktop has',
+    );
+    expect(
+      await peers.resolveArtifact(
+        jobId: jobId,
+        peerId: 'office-pc',
+        artifactId: artifactIdForPath(pulled.sourcePath),
+      ),
+      isNotNull,
+      reason: 'the bytes are still served to a desktop that asks for them',
+    );
+  });
+
   group('resolving an id', () {
     test('finds the file the manifest named', () async {
       final jobId = await DarkroomJobsDao(db).enqueue();

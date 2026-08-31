@@ -6757,6 +6757,17 @@
         scrollToPanel(btn.getAttribute('data-scroll-panel'));
       });
     }
+    // Run-Watch is a sibling page on this same origin, and an operator who has
+    // just signed in here is signed in there too. That handoff rides the two
+    // credentials this file already leaves behind, so it must stay a SAME-TAB
+    // navigation: `nightshade_token` in sessionStorage (the bearer path, which
+    // /run-watch/ adopts in memory for the tab's lifetime and never persists),
+    // and the HttpOnly session cookie (the remember-me path, which
+    // /run-watch/ confirms with GET /api/auth/csrf). Before that contract
+    // existed the link dropped an authenticated operator onto the pairing wall.
+    // Neither credential is put anywhere new for it; changing where this file
+    // stores the bearer means changing DASHBOARD_TAB_TOKEN_KEY in
+    // web_run_watch/js/run-watch.js with it.
     const runWatch = document.getElementById('nav-run-watch');
     if (runWatch) {
       runWatch.addEventListener('click', (e) => {

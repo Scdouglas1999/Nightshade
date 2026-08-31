@@ -171,13 +171,31 @@ impl Recipe {
     /// The schema version is read before the struct is decoded, so a recipe
     /// from a future build reports [`RecipeError::UnsupportedSchemaVersion`]
     /// rather than an unknown-field message.
+    ///
+    /// The payload is checked for being an object first, and each failure is
+    /// named for itself. Reading `schemaVersion` off a [`Value`] answers `None`
+    /// for an array, a string, a number, a boolean and `null` alike — none of
+    /// which has fields at all — so every one of them was reported as a recipe
+    /// missing that field, which is not what the caller sent. A `schemaVersion`
+    /// that is present but is not a whole number is likewise stated as the
+    /// wrong type rather than as an absence.
     pub fn from_json(json: &str) -> Result<Self, RecipeError> {
         let value: Value =
             serde_json::from_str(json).map_err(|e| RecipeError::Decode(e.to_string()))?;
-        let found = value
+        let Value::Object(fields) = &value else {
+            return Err(RecipeError::Decode(format!(
+                "a recipe is a JSON object; this payload is {}",
+                super::params::type_name(&value)
+            )));
+        };
+        let stated = fields
             .get("schemaVersion")
-            .and_then(Value::as_u64)
             .ok_or_else(|| RecipeError::Decode("recipe is missing schemaVersion".to_string()))?;
+        let found = stated.as_u64().ok_or_else(|| {
+            RecipeError::Decode(format!(
+                "recipe schemaVersion must be a whole number; this one states {stated}"
+            ))
+        })?;
         let found = u32::try_from(found)
             .map_err(|_| RecipeError::UnsupportedSchemaVersion { found: u32::MAX })?;
         if found != RECIPE_SCHEMA_VERSION {

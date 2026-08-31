@@ -325,6 +325,122 @@ void main() {
         reason: 'serving bytes is not the same as the bytes arriving',
       );
     });
+
+    test('a re-run does not walk an acknowledged peer row backwards, and does '
+        'not offer the file again', () async {
+      // The power-cut shape: the pass published for a desktop, the desktop
+      // pulled one file and acknowledged it, and then open-time recovery
+      // re-queued the `running` job so the whole pass runs again over the same
+      // artifacts. The acknowledged row used to be upserted back to `retrying`
+      // with its `delivered_at` left set — a row saying both that the file
+      // arrived and that it has not — and the rig went on offering the desktop
+      // a file it had already pulled.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      final targetId = await createWatchedFolder(
+        db,
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.peer,
+      );
+      final journal = DeliveryJournalDao(db);
+      final transport = _ScriptedTransport(
+        kind: ArtifactDestinationKind.peer,
+        disposition: DeliveryDisposition.awaitingPull,
+      );
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: journal,
+        transportFactory: (_, __) => transport,
+      );
+      final set = await artifactSet(names: ['a.fits', 'b.fits']);
+      await service.deliverJobArtifacts(set);
+      final pulled = set.artifacts.first.sourcePath;
+
+      // What `PeerManifestService.acknowledgePull` writes when the desktop
+      // reports the bytes landed.
+      final acknowledged = await journal.markDelivered(
+        targetId: targetId,
+        jobId: 1,
+        filePath: pulled,
+        checksum: set.artifacts.first.checksum,
+        bytes: set.artifacts.first.bytes,
+        now: DateTime.utc(2026, 8, 16, 6),
+      );
+
+      final rerun = await service.deliverJobArtifacts(
+        await artifactSet(names: ['a.fits', 'b.fits']),
+      );
+
+      expect(rerun.alreadyDelivered, 1);
+      expect(rerun.awaitingPull, 1);
+      expect(rerun.retrying, 0);
+      expect(rerun.failed, 0);
+      expect(
+        rerun.summary,
+        'office-pc: 1 already delivered before this pass, 1 awaiting pull',
+      );
+      expect(
+        transport.delivered.where((path) => path == pulled).length,
+        1,
+        reason: 'the file the desktop already has is not published again',
+      );
+
+      final row = (await journal.listForJob(
+        1,
+      )).firstWhere((entry) => entry.filePath == pulled);
+      expect(row.state, DeliveryAttemptState.delivered);
+      expect(row.attempts, acknowledged.attempts);
+      expect(row.deliveredAt, DateTime.utc(2026, 8, 16, 6));
+      expect(
+        await journal.listPendingRetry(),
+        hasLength(1),
+        reason: 'only the file the desktop has not pulled is still owed',
+      );
+    });
+
+    test('a destination that will not open states its cause once, not once '
+        'per file', () async {
+      // The refusal is one fact about the destination, so the morning report
+      // states it one time and says how many files it held up. Every file
+      // still gets its own journal row — that is the sweep's work list — and
+      // per-file causes still list per file.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      await createWatchedFolder(db, name: 'full-drop');
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => _ScriptedTransport(
+          kind: ArtifactDestinationKind.watchedFolder,
+          openFailure: const DeliveryFailure(
+            DeliveryFailureKind.insufficientSpace,
+            '/mnt/nas has 4 MB free; this delivery needs 1.2 GB',
+          ),
+        ),
+      );
+
+      final report = await service.deliverJobArtifacts(
+        await artifactSet(names: ['a.fits', 'b.fits', 'c.fits']),
+      );
+
+      final destination = report.destinations.single;
+      expect(destination.retrying, 3);
+      expect(destination.problems, hasLength(1));
+      expect(
+        destination.problems.single,
+        '3 files were not sent to full-drop: insufficientSpace: /mnt/nas has '
+        '4 MB free; this delivery needs 1.2 GB',
+      );
+      final rows = await DeliveryJournalDao(db).listForJob(1);
+      expect(rows, hasLength(3));
+      expect(
+        rows.every((r) => r.lastError!.contains('insufficientSpace')),
+        isTrue,
+        reason: 'every file still carries the mechanism in its own row',
+      );
+    });
   });
 
   group('the overnight retry sweep', () {

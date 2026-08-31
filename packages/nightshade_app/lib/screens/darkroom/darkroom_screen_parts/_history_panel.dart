@@ -277,19 +277,9 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                   // no way to reorder anything. These are the same move, as two
                   // ordinary buttons.
                   _moveButton(
-                    title: title,
-                    index: index,
-                    up: true,
-                    enabled: index > 0,
-                    stepCount: state.steps.length,
-                  ),
+                      state: state, title: title, index: index, up: true),
                   _moveButton(
-                    title: title,
-                    index: index,
-                    up: false,
-                    enabled: index < state.steps.length - 1,
-                    stepCount: state.steps.length,
-                  ),
+                      state: state, title: title, index: index, up: false),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,19 +394,39 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
   /// makes the two read as different kinds of card. The controller clamps an
   /// out-of-range destination back onto the step's own index, so an enabled
   /// control at an end would be a button that does nothing.
+  ///
+  /// A destination the STAGE RULE forbids disables it the same way, for the
+  /// same reason. Gated on the ends alone, `Move Denoise down` over
+  /// `[Crop, Background extract, Denoise, Stretch]` published itself as live
+  /// for a move whose only destination is past the stretch — the engine
+  /// refused it after the tap, every time, from a control that had advertised
+  /// nothing. [_stageOrderObjection] answers before the press; the controller
+  /// still asks the engine before it commits, so the post-press refusal stays
+  /// as the backstop for everything this build cannot decide from the
+  /// catalogue.
   Widget _moveButton({
+    required DarkroomState state,
     required String title,
     required int index,
     required bool up,
-    required bool enabled,
-    required int stepCount,
   }) {
+    final stepCount = state.steps.length;
     final direction = up ? 'up' : 'down';
     final position = '${index + 1} of $stepCount';
-    final label = enabled
-        ? 'Move $title $direction'
-        : 'Move $title $direction — it is already '
-            '${up ? 'first' : 'last'} in the stack ($position)';
+    final destination = up ? index - 1 : index + 1;
+    final String? reason;
+    if (destination < 0 || destination >= stepCount) {
+      reason =
+          'it is already ${up ? 'first' : 'last'} in the stack ($position)';
+    } else {
+      final objection = _stageOrderObjection(state, index, destination);
+      reason = objection == null
+          ? null
+          : 'the stage rule refuses that order: $objection';
+    }
+    final enabled = reason == null;
+    final label =
+        enabled ? 'Move $title $direction' : 'Move $title $direction — $reason';
     void move() {
       unawaited(widget.onReorder(index, up ? index - 1 : index + 1));
     }
@@ -444,6 +454,57 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       onTap: enabled ? move : null,
       child: button,
     );
+  }
+
+  /// The stage rule's objection to moving the step at [from] to [to], or null
+  /// when it has none — and null as well when this build cannot tell.
+  ///
+  /// Null when the stack as it STANDS already breaks the rule: an order that is
+  /// refused however it is arranged is not this move's doing, and disabling on
+  /// it would take away the very moves that fix it while blaming the control
+  /// for a violation it did not make. The engine's post-commit refusal covers
+  /// that case, as it covers every other reason a `validate` can fail.
+  String? _stageOrderObjection(DarkroomState state, int from, int to) {
+    final steps = state.steps;
+    if (_stageOrderViolation(state, steps) != null) return null;
+    final candidate = List<DarkroomStep>.from(steps);
+    candidate.insert(to, candidate.removeAt(from));
+    return _stageOrderViolation(state, candidate);
+  }
+
+  /// Where [steps] breaks the engine's stage rule, in the words the control
+  /// states, or null when it does not.
+  ///
+  /// This is `recipe/render.rs`'s `validate` loop as the app models it — the
+  /// same rule [DarkroomState.insertIndexFor] places a new step by: walk the
+  /// stack in order, remember the first stretched-stage step, and object to the
+  /// first linear-stage step that comes after it. A step whose operation this
+  /// build does not register, or whose stage the registry names and this build
+  /// does not model, carries no stage into the rule and none is invented for
+  /// it.
+  ///
+  /// The engine stays the authority. This decides what a control ADVERTISES;
+  /// `darkroom_controller`'s reorder path still asks `validate` about the whole
+  /// candidate stack before it commits, and states whatever comes back.
+  ///
+  /// The step numbers count the order they were handed, from 1, the way the
+  /// engine's own sentences and the cards on screen do — so a caller that
+  /// passes a candidate order says so, as `_refusalOverCandidate` does.
+  String? _stageOrderViolation(DarkroomState state, List<DarkroomStep> steps) {
+    int? stretchedAt;
+    for (var i = 0; i < steps.length; i++) {
+      final stage = state.catalog?.specFor(steps[i])?.stage;
+      if (stage == DarkroomOpStage.stretched) {
+        stretchedAt ??= i;
+      } else if (stage == DarkroomOpStage.linear && stretchedAt != null) {
+        return 'step ${i + 1} (${darkroomOpTitle(steps[i].opId)}) would be a '
+            'linear-stage operation running after step ${stretchedAt + 1} '
+            '(${darkroomOpTitle(steps[stretchedAt].opId)}), which has already '
+            'left the linear stage. Those positions count the order the move '
+            'would produce, from 1 — not the stack on screen';
+      }
+    }
+    return null;
   }
 
   /// The row of controls every card carries.

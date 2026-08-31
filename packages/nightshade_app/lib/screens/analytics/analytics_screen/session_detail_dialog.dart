@@ -49,10 +49,18 @@ class _SessionHeaderAction {
   /// Why this machine cannot run the action, or null when it can.
   ///
   /// Non-null disables the control — inline button and menu row alike — and
-  /// becomes its tooltip, so the refusal is readable BEFORE the press. A
-  /// control that looks live and refuses afterwards teaches the operator that
-  /// the app's enabled state means nothing, which is the shape
-  /// `darkroom_navigation.dart` names as the defect it fixed.
+  /// goes into its accessible NAME as well as its tooltip, so the refusal is
+  /// readable BEFORE the press by whoever is reading. A control that looks
+  /// live and refuses afterwards teaches the operator that the app's enabled
+  /// state means nothing, which is the shape `darkroom_navigation.dart` names
+  /// as the defect it fixed.
+  ///
+  /// The name, not the tooltip alone: these buttons are icon-only, so a
+  /// tooltip is the ONLY place a pointer user can read the reason — and the
+  /// only place anybody else cannot. The Linux AT-SPI bridge does not fold
+  /// `SemanticsProperties.tooltip` into the accessible name, so a screen
+  /// reader was handed `Refine on imaging host [DISABLED]` and no reason at
+  /// all. [unavailableControlName] composes the two.
   final String? unavailableReason;
 
   /// Identifies the inline icon button; the menu row carries no key because it
@@ -230,6 +238,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                             onPressed:
                                 action.available ? () => _invoke(action) : null,
                             tooltip: action.unavailableReason ?? action.label,
+                            unavailableReason: action.unavailableReason,
                           )
                       else
                         _headerOverflowMenu(colors, actions),
@@ -405,46 +414,69 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
             value: action,
             // A row this machine cannot run is disabled here as well as inline,
             // so the folded header and the unfolded one publish the same
-            // states. Its label already names where the action lives; the
-            // popup gives no tooltip to hang the full sentence on.
+            // states — and it carries the same reason, in the same two places:
+            // the accessible name, and a tooltip for the pointer. The folded
+            // header used to be the one place the refusal existed nowhere at
+            // all: no tooltip was hung on it, and the row's visible label only
+            // says where the action lives.
             enabled: action.available,
-            child: Row(
-              children: [
-                Icon(
-                  action.icon,
-                  size: NightshadeTokens.iconSm,
-                  color: action.available
-                      ? colors.textSecondary
-                      : colors.textMuted,
-                ),
-                const SizedBox(width: NightshadeTokens.spaceMd),
-                // Flexible, not min-sized: a label that grows by a word must
-                // wrap inside the menu rather than overflow its row.
-                Flexible(
-                  child: Text(
-                    action.label,
-                    style: NightshadeTypography.bodySm.copyWith(
-                      color: action.available
-                          ? colors.textPrimary
-                          : colors.textMuted,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            child: _headerMenuRow(colors, action),
           ),
       ],
     );
   }
 
-  /// One header action: an icon button that publishes [label] as its accessible
-  /// name, disabled when [onPressed] is null.
+  /// One row of the folded header: the action's glyph and name, and — when
+  /// this machine cannot run it — the reason, in the name and in a tooltip.
+  ///
+  /// [PopupMenuItem] wraps its child in `MergeSemantics`, so the annotation
+  /// added here folds into the row's own button node: the name it publishes is
+  /// the composed sentence and the row stays ONE node with the enabled state
+  /// [PopupMenuItem] already states. `excludeSemantics` keeps the visible
+  /// label from being read a second time inside it.
+  Widget _headerMenuRow(NightshadeColors colors, _SessionHeaderAction action) {
+    final reason = action.unavailableReason;
+    final row = Row(
+      children: [
+        Icon(
+          action.icon,
+          size: NightshadeTokens.iconSm,
+          color: action.available ? colors.textSecondary : colors.textMuted,
+        ),
+        const SizedBox(width: NightshadeTokens.spaceMd),
+        // Flexible, not min-sized: a label that grows by a word must wrap
+        // inside the menu rather than overflow its row.
+        Flexible(
+          child: Text(
+            action.label,
+            style: NightshadeTypography.bodySm.copyWith(
+              color: action.available ? colors.textPrimary : colors.textMuted,
+            ),
+          ),
+        ),
+      ],
+    );
+    if (reason == null) return row;
+    return Tooltip(
+      message: reason,
+      child: Semantics(
+        label: unavailableControlName(action.label, reason),
+        excludeSemantics: true,
+        child: row,
+      ),
+    );
+  }
+
+  /// One header action: an icon button that publishes its accessible name,
+  /// disabled when [onPressed] is null.
   ///
   /// [tooltip] is the label for an action that can run and the refusal for one
-  /// that cannot, which is how the reason reaches the operator before the
-  /// press — the same shape the master library's Darkroom button uses.
+  /// that cannot, which is how the reason reaches a POINTER before the press.
+  /// [unavailableReason] is the same sentence again, and it is what reaches
+  /// everybody else: the accessible name becomes `<label> — <reason>` so the
+  /// refusal is in the one string every reader is handed.
   ///
-  /// The name goes on the [Icon], not on a surrounding [Semantics]. A Material
+  /// **An available action names itself on the [Icon].** A Material
   /// [IconButton] wraps itself in `Semantics(container: true, …)`, so an
   /// enclosing `Semantics(label: …)` cannot merge into it: it forms a SECOND
   /// node above the button, and the split publishes a named node with no tap
@@ -454,18 +486,41 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
   /// together. Before this every one of these buttons published an empty name —
   /// seven anonymous buttons in the header, unreachable by name and
   /// indistinguishable from each other to a screen reader.
+  ///
+  /// **An unavailable one is renamed from outside instead**, in the shape
+  /// `_branch_bar.dart`'s disabled Compare already uses: its own container
+  /// node, `enabled: false` stated rather than inferred, and the button's own
+  /// semantics excluded so ONE honest node is published rather than two that
+  /// disagree. The reason cannot ride on `Icon.semanticLabel` here because the
+  /// wrapper has to exclude the icon to keep the name single.
   Widget _headerAction({
     Key? key,
     required IconData icon,
     required String label,
     required VoidCallback? onPressed,
     required String tooltip,
+    String? unavailableReason,
   }) {
-    return IconButton(
-      key: key,
-      icon: Icon(icon, size: 18, semanticLabel: label),
-      onPressed: onPressed,
-      tooltip: tooltip,
+    if (unavailableReason == null) {
+      return IconButton(
+        key: key,
+        icon: Icon(icon, size: 18, semanticLabel: label),
+        onPressed: onPressed,
+        tooltip: tooltip,
+      );
+    }
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: false,
+      label: unavailableControlName(label, unavailableReason),
+      excludeSemantics: true,
+      child: IconButton(
+        key: key,
+        icon: Icon(icon, size: 18),
+        onPressed: onPressed,
+        tooltip: tooltip,
+      ),
     );
   }
 

@@ -60,10 +60,47 @@ fn a_future_schema_version_is_reported_as_unsupported() {
 #[test]
 fn a_missing_schema_version_is_a_decode_error() {
     let json = r#"{"id":"r","baseMasterRef":"m","createdBy":"user","steps":[]}"#;
-    assert!(matches!(
-        Recipe::from_json(json),
-        Err(RecipeError::Decode(_))
-    ));
+    let Err(RecipeError::Decode(message)) = Recipe::from_json(json) else {
+        panic!("an object with no schemaVersion is a decode error");
+    };
+    assert!(message.contains("missing schemaVersion"), "{message}");
+}
+
+#[test]
+fn a_payload_that_is_not_an_object_is_refused_for_what_it_is() {
+    // Every one of these has no fields at all, so reading `schemaVersion` off
+    // it answers `None` — and each used to be reported as a recipe missing
+    // that field rather than as the payload the caller actually sent.
+    for (json, kind) in [
+        ("[]", "an array"),
+        ("[1,2,3]", "an array"),
+        ("null", "null"),
+        ("12345", "a number"),
+        ("\"a string\"", "a string"),
+        ("true", "a boolean"),
+    ] {
+        let Err(RecipeError::Decode(message)) = Recipe::from_json(json) else {
+            panic!("{json} is not a recipe");
+        };
+        assert_eq!(
+            message,
+            format!("a recipe is a JSON object; this payload is {kind}"),
+            "payload {json}"
+        );
+    }
+}
+
+#[test]
+fn a_schema_version_of_the_wrong_type_is_not_reported_as_absent() {
+    let json =
+        r#"{"id":"r","schemaVersion":"1","baseMasterRef":"m","createdBy":"user","steps":[]}"#;
+    let Err(RecipeError::Decode(message)) = Recipe::from_json(json) else {
+        panic!("a string schemaVersion is a decode error");
+    };
+    assert_eq!(
+        message,
+        "recipe schemaVersion must be a whole number; this one states \"1\"",
+    );
 }
 
 #[test]

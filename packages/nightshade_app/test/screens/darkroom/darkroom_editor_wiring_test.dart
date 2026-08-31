@@ -577,7 +577,7 @@ void main() {
     // The drag handle publishes a panel with no action, which is why a keyboard
     // and assistive tech could not move a step at all.
     expect(find.bySemanticsLabel('Move Denoise up'), findsOneWidget);
-    expect(find.bySemanticsLabel('Move Denoise down'), findsOneWidget);
+    expect(find.bySemanticsLabel('Move Crop down'), findsOneWidget);
     // At the ends the control stays, disabled, and says which end it is at —
     // the controller clamps an out-of-range destination back onto the step's
     // own index, so an enabled control there would do nothing.
@@ -589,6 +589,87 @@ void main() {
       find.bySemanticsLabel(RegExp('^Move Stretch down — it is already last')),
       findsOneWidget,
     );
+    semantics.dispose();
+    await drain(tester);
+  });
+
+  testWidgets(
+      'a move the stage rule can only refuse is disabled before the '
+      'press, and says why', (tester) async {
+    // [crop(linear), denoise(linear), stretch(stretched)]. The only place
+    // "down" can put Denoise is past the stretch, and the only place "up" can
+    // put Stretch is ahead of Denoise — the same illegal order both times, and
+    // the rule decides it before anybody reaches for the control.
+    final id = await seedRecipe([
+      _step('crop'),
+      _step('denoise'),
+      _step('stretch', params: {'blackPoint': 0.0}),
+    ]);
+    await pump(tester, location: '/darkroom?recipe=$id');
+
+    final semantics = tester.ensureSemantics();
+
+    // Gated on the ends alone, both of these published themselves as live and
+    // the engine refused them after the tap, every time.
+    expect(find.bySemanticsLabel('Move Denoise down'), findsNothing);
+    expect(find.bySemanticsLabel('Move Stretch up'), findsNothing);
+
+    for (final name in [
+      RegExp('^Move Denoise down — the stage rule refuses that order: '
+          r'step 3 \(Denoise\) would be a linear-stage operation running '
+          r'after step 2 \(Stretch\)'),
+      RegExp('^Move Stretch up — the stage rule refuses that order: '
+          r'step 3 \(Denoise\) would be a linear-stage operation running '
+          r'after step 2 \(Stretch\)'),
+    ]) {
+      expect(find.bySemanticsLabel(name), findsOneWidget);
+    }
+
+    // The refusal is stated as DISABLED, not merely as a control that ignores
+    // the press: the flag is what a screen reader announces.
+    final disabled = <String>[];
+    void walk(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      if (data.label.startsWith('Move Denoise down') &&
+          !data.hasFlag(SemanticsFlag.isEnabled)) {
+        disabled.add(data.label);
+      }
+      node.visitChildren((child) {
+        walk(child);
+        return true;
+      });
+    }
+
+    walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    expect(disabled, hasLength(1));
+
+    // The moves the rule permits are untouched: this closes a control, it does
+    // not freeze the stack.
+    expect(find.bySemanticsLabel('Move Denoise up'), findsOneWidget);
+    expect(find.bySemanticsLabel('Move Crop down'), findsOneWidget);
+
+    semantics.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('a stack the stage rule already refuses keeps its moves live',
+      (tester) async {
+    // [stretch(stretched), crop(linear), denoise(linear)] — refused however it
+    // is arranged, so no move here is the one that broke it. Disabling on that
+    // would blame the control for a violation it did not make AND take away
+    // the moves that fix it; the engine's post-commit refusal is what covers
+    // this case.
+    final id = await seedRecipe([
+      _step('stretch', params: {'blackPoint': 0.0}),
+      _step('crop'),
+      _step('denoise'),
+    ]);
+    await pump(tester, location: '/darkroom?recipe=$id');
+
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('Move Crop up'), findsOneWidget);
+    expect(find.bySemanticsLabel('Move Crop down'), findsOneWidget);
+    expect(find.bySemanticsLabel('Move Denoise up'), findsOneWidget);
     semantics.dispose();
     await drain(tester);
   });

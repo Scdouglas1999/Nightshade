@@ -245,20 +245,27 @@ void main() {
     await tester.tap(find.text('Remote M42'));
     await tester.pumpAndSettle();
 
-    // The refusal is ON the control: the name says where Session Review runs
-    // and the control is disabled, so the operator reads the answer before the
-    // press rather than after it.
+    // The refusal is ON the control, and in the NAME rather than only in the
+    // tooltip: Flutter publishes `tooltip:` as `SemanticsProperties.tooltip`,
+    // which the Linux AT-SPI bridge does not fold into the accessible name, so
+    // a tooltip-only refusal on an icon-only button reaches a pointer and
+    // nobody else. Read off the published node for that reason.
+    final handle = tester.ensureSemantics();
     final reviewButton = find.byKey(const ValueKey('session_detail_review'));
     expect(reviewButton, findsOneWidget);
-    final reviewIcon = tester.widget<Icon>(
-      find.descendant(of: reviewButton, matching: find.byType(Icon)),
+    expect(
+      tester.getSemantics(reviewButton).label,
+      allOf(
+        startsWith('Review on imaging host — '),
+        contains('Session Review works on the imaging host'),
+      ),
     );
-    expect(reviewIcon.semanticLabel, 'Review on imaging host');
     expect(
       tester.widget<IconButton>(reviewButton).tooltip,
       startsWith('Session Review works on the imaging host'),
     );
     expect(tester.widget<IconButton>(reviewButton).onPressed, isNull);
+    handle.dispose();
 
     await tester.ensureVisible(reviewButton);
     await tester.pump();

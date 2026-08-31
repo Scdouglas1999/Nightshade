@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/darkroom_navigation.dart' show unavailableControlName;
+
 /// Lists the persisted [IntegratedMaster]s for the current target and surfaces
 /// the multi-night accumulation actions: open, finalize, add tonight's data,
 /// start a new accumulating master, and delete.
@@ -234,8 +236,8 @@ class _MasterCard extends StatelessWidget {
                       label: 'Darkroom',
                       icon: NightshadeIcons.sliders,
                       onPressed: (busy || !canRefine) ? null : onOpenInDarkroom,
-                      tooltip: refineRefusal ??
-                          'Edit this master\'s recipe in the Darkroom',
+                      tooltip: 'Edit this master\'s recipe in the Darkroom',
+                      unavailableReason: refineRefusal,
                     ),
                     if (accumulating)
                       _MiniButton(
@@ -345,9 +347,20 @@ class _MiniButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool destructive;
 
-  /// Why the control is here, and — when [onPressed] is null — why it is not
-  /// available. A disabled control with no explanation reads as a bug.
+  /// Why the control is here. A disabled control with no explanation reads as
+  /// a bug.
   final String? tooltip;
+
+  /// Why the control cannot run, or null when it can.
+  ///
+  /// Separate from [tooltip] because it goes somewhere else as well: into the
+  /// accessible NAME. Carried as a tooltip alone it reached a pointer and
+  /// nothing else — the Linux AT-SPI bridge does not fold
+  /// `SemanticsProperties.tooltip` into the name, so a screen reader was
+  /// handed `Darkroom [DISABLED]` with no word about why. It is the tooltip
+  /// too, replacing [tooltip], because a refusal is what a hovering operator
+  /// needs to read over a description of what the control would have done.
+  final String? unavailableReason;
 
   const _MiniButton({
     super.key,
@@ -356,6 +369,7 @@ class _MiniButton extends StatelessWidget {
     required this.onPressed,
     this.destructive = false,
     this.tooltip,
+    this.unavailableReason,
   });
 
   @override
@@ -366,7 +380,7 @@ class _MiniButton extends StatelessWidget {
         : destructive
             ? colors.error
             : colors.textSecondary;
-    final message = tooltip;
+    final message = unavailableReason ?? tooltip;
     if (message != null) {
       return Tooltip(message: message, child: _build(colors, fg));
     }
@@ -374,9 +388,20 @@ class _MiniButton extends StatelessWidget {
   }
 
   Widget _build(NightshadeColors colors, Color fg) {
+    final reason = onPressed == null ? unavailableReason : null;
     return Semantics(
+        // A node of its own only when it has to REPLACE what is under it: an
+        // annotation that excludes its child's semantics has nothing left to
+        // merge into, so the renamed refusal needs the container to land on.
+        // An available button keeps merging into the InkWell's own node, which
+        // is what carries its tap.
+        container: reason != null,
         button: true,
         enabled: onPressed != null,
+        // The refusal in the name, and the visible label excluded so the two
+        // do not both land in one node as "Darkroom Darkroom — <reason>".
+        label: reason == null ? null : unavailableControlName(label, reason),
+        excludeSemantics: reason != null,
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),

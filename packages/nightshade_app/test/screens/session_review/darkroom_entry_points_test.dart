@@ -12,6 +12,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/session_review/session_review_controller.dart';
@@ -30,6 +31,26 @@ class _PinnedBackend extends BackendNotifier {
   _PinnedBackend(super.ref, NightshadeBackend backend) : super() {
     state = backend;
   }
+}
+
+/// Every non-empty name in the published semantics tree, read the way the
+/// AT-SPI bridge reads it — off the nodes, not off the widgets that authored
+/// them. `WidgetTester.getSemantics` walks UP from the element it is given, so
+/// it answers with the enclosing card for a node a widget publishes INSIDE
+/// itself; this walks the tree that is actually handed to a screen reader.
+List<String> publishedNames(WidgetTester tester) {
+  final names = <String>[];
+  void walk(SemanticsNode node) {
+    final label = node.getSemanticsData().label;
+    if (label.isNotEmpty) names.add(label);
+    node.visitChildren((child) {
+      walk(child);
+      return true;
+    });
+  }
+
+  walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+  return names;
 }
 
 IntegratedMaster _master({
@@ -203,6 +224,7 @@ void main() {
       );
       await tester.pump();
 
+      final handle = tester.ensureSemantics();
       final button = find.byKey(const ValueKey('master_open_in_darkroom'));
       await tester.tap(button, warnIfMissed: false);
       await tester.pump();
@@ -212,6 +234,24 @@ void main() {
         find.descendant(of: button, matching: find.byType(Tooltip)).first,
       );
       expect(tooltip.message, kDarkroomHostOnlyRefusal);
+
+      // And in the accessible NAME, which is the part a tooltip cannot reach:
+      // Flutter publishes `tooltip:` as `SemanticsProperties.tooltip` and the
+      // Linux AT-SPI bridge does not fold that into the name, so a screen
+      // reader was handed `Darkroom [DISABLED]` with no reason at all.
+      expect(
+        publishedNames(tester),
+        contains(
+          unavailableControlName('Darkroom', kDarkroomHostOnlyRefusal),
+        ),
+      );
+      expect(
+        publishedNames(tester),
+        isNot(contains('Darkroom')),
+        reason: 'the bare name would be a second, quieter answer to the same '
+            'question',
+      );
+      handle.dispose();
     });
 
     testWidgets('the master\'s own gate still wins over the host gate', (
@@ -244,15 +284,20 @@ void main() {
       );
       await tester.pump();
 
+      final handle = tester.ensureSemantics();
+      final button = find.byKey(const ValueKey('master_open_in_darkroom'));
       final tooltip = tester.widget<Tooltip>(
-        find
-            .descendant(
-              of: find.byKey(const ValueKey('master_open_in_darkroom')),
-              matching: find.byType(Tooltip),
-            )
-            .first,
+        find.descendant(of: button, matching: find.byType(Tooltip)).first,
       );
       expect(tooltip.message, contains('no linear FITS'));
+      expect(
+        publishedNames(tester),
+        contains(
+          allOf(startsWith('Darkroom — '), contains('no linear FITS')),
+        ),
+        reason: 'the master\'s own gate is read the same way the host gate is',
+      );
+      handle.dispose();
     });
   });
 

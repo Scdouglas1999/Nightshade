@@ -406,6 +406,20 @@ class PairingHandlers {
         'expiresInSeconds': result.expiresAt
             .difference(DateTime.now())
             .inSeconds,
+        // WHERE the code went, so a client can name a next step that exists on
+        // the rig it is talking to. The run-watch pairing wall used to send a
+        // headless operator to the desktop app's Remote Access screen, which on
+        // an appliance is not there, while the code sat in the file below.
+        //
+        // The code itself, and the absolute path it lives at, stay off this
+        // wire: `/api/pairing/start` is unauthenticated, so the answer names
+        // the delivery channels and nothing an unauthenticated caller could use
+        // to read the secret or to learn the host's directory layout.
+        'codeDelivery': {
+          'operatorFile': codePath != null,
+          'operatorFileName': kPairingCodeFileName,
+          'console': pairingPrintCodes,
+        },
       },
       headers: {requestIdHeader: requestId},
     );

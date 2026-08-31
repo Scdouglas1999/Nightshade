@@ -114,8 +114,13 @@ class PeerPullReport {
       if (failed > 0) '$failed failed',
       if (unavailable.isNotEmpty) '${unavailable.length} not served by the rig',
     ];
+    // "Nothing to pull", not "nothing published": the manifest lists what this
+    // machine is still owed, and a job whose files this desktop has already
+    // pulled and acknowledged is off that list. Claiming the rig published
+    // nothing would be a statement about the night that the manifest, by
+    // design, no longer carries the evidence for.
     return parts.isEmpty
-        ? 'Job $jobId: nothing published for this machine'
+        ? 'Job $jobId: the rig is offering this machine nothing to pull'
         : 'Job $jobId: ${parts.join(', ')}';
   }
 }

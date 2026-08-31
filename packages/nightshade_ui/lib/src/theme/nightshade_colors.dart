@@ -110,17 +110,28 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     textPrimary: Color(0xFF141820),
     textSecondary: Color(0xFF5C6672),
     // WCAG AA: #8A939E was only 3.11:1 on the white surface (2.75:1 on
-    // surfaceAlt) — the worst offender in any palette. #666E79 clears 4.5:1 on
-    // white (5.16), background (4.76) and surfaceAlt (4.55).
-    textMuted: Color(0xFF666E79),
-    // These two are consumed as small STATUS TEXT on white (e.g. an in-progress
-    // "Downloading…" caption), where #2F8F57 scored 4.05:1 and #B87A1E 3.60:1.
-    // Darkened to 4.94:1 each, hue preserved. error (4.66:1 white-on-fill) and
-    // info already passed, so they are unchanged.
-    success: Color(0xFF2A7F4F),
-    warning: Color(0xFF9A6516),
-    error: Color(0xFFC94848),
-    info: Color(0xFF2878A8),
+    // surfaceAlt) — the worst offender in any palette. #666E79 fixed white
+    // (5.16), background (4.76) and surfaceAlt (4.55) but was still 4.19:1 on a
+    // hovered card; #616873 clears the floor on all four (5.62 / 5.19 / 4.96 /
+    // 4.56).
+    textMuted: Color(0xFF616873),
+    // The four status roles are consumed as small STATUS TEXT — the Darkroom
+    // step card's "Applied by the last render", an in-progress "Downloading…"
+    // caption — and they were tuned against `surface` alone, which is the
+    // LIGHTEST thing they land on. On the card (`surfaceAlt`, #EEF1F4) success
+    // measured 4.36:1 sampled off the running app, info 4.27 and error 4.11,
+    // all under the 4.5:1 AA floor for text below 18.66px; on a hovered card
+    // (`surfaceHover`) they were lower again. Darkened, hue and saturation
+    // preserved, until each clears 4.5:1 on every surface in this palette —
+    // #E4E8EC being the one that decides it. `light_contrast_test.dart`
+    // measures all of them so the floor fails a build instead of a review.
+    //
+    // `primary` and `accent` are FILL tokens, paired with `onPrimary` rather
+    // than a surface, and are left where the brand put them.
+    success: Color(0xFF277549),
+    warning: Color(0xFF8F5D14),
+    error: Color(0xFFBC3838),
+    info: Color(0xFF256E99),
   );
 
   /// Create a dark theme with custom accent color

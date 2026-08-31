@@ -57,6 +57,25 @@ class DeliveryJournalDao {
   /// later one, leaving the entry [DeliveryAttemptState.retrying] until an
   /// outcome is recorded. [bytes] updates the recorded size only when given and
   /// positive, so a retry that has not restated the size keeps the known one.
+  ///
+  /// **A `delivered` row is left exactly as it is** and returned untouched: no
+  /// attempt is starting for a file that has already arrived, so nothing about
+  /// the row changes — not its state, not its count, not its `updated_at`. The
+  /// caller reads the returned state and stops there.
+  ///
+  /// The guard is here rather than only at the call site because this write is
+  /// the single door every path goes through — the job's own pass, the
+  /// overnight sweep, and the loop that records a destination that would not
+  /// open — and because a paired desktop's acknowledgement can land in the
+  /// middle of a pass, between the moment the file was selected and this
+  /// write. Without it the upsert set `state = excluded.state`, which is always
+  /// `retrying`, so a re-run of a finished job walked an acknowledged peer row
+  /// backwards from `delivered` to `retrying` while its `delivered_at` stayed
+  /// set — a row saying both that the file arrived and that it has not — and
+  /// the rig then offered the desktop a file it had already pulled.
+  ///
+  /// [requeueForRetry] is the one way back out of `delivered`, because that is
+  /// the operator asking for it.
   Future<DeliveryJournalEntry> recordAttempt({
     required int targetId,
     required int jobId,
@@ -81,7 +100,8 @@ class DeliveryJournalDao {
       'attempts = attempts + 1, '
       'bytes = CASE WHEN excluded.bytes > 0 THEN excluded.bytes ELSE bytes END, '
       'state = excluded.state, '
-      'updated_at = excluded.updated_at',
+      'updated_at = excluded.updated_at '
+      'WHERE delivery_journal.state <> ?',
       [
         targetId,
         jobId,
@@ -90,6 +110,7 @@ class DeliveryJournalDao {
         DeliveryAttemptState.retrying.wire,
         at,
         at,
+        DeliveryAttemptState.delivered.wire,
       ],
     );
     return _require(targetId, jobId, filePath);
@@ -110,6 +131,11 @@ class DeliveryJournalDao {
   /// `attempts` is left EXACTLY where it was on a row that already exists (and
   /// starts at zero on a new one), so the backoff and the budget stay the
   /// schedule the interrupted pass was on.
+  ///
+  /// A `delivered` row is left untouched and returned as it stands, for the
+  /// reason [recordAttempt] gives: a file that already arrived is not owed a
+  /// delivery, and a stop landing on a re-queued job's pass must not turn an
+  /// acknowledged row back into an outstanding one.
   Future<DeliveryJournalEntry> recordStillOwed({
     required int targetId,
     required int jobId,
@@ -135,7 +161,8 @@ class DeliveryJournalDao {
       'state = excluded.state, '
       'last_error = excluded.last_error, '
       'bytes = CASE WHEN excluded.bytes > 0 THEN excluded.bytes ELSE bytes END, '
-      'updated_at = excluded.updated_at',
+      'updated_at = excluded.updated_at '
+      'WHERE delivery_journal.state <> ?',
       [
         targetId,
         jobId,
@@ -145,6 +172,7 @@ class DeliveryJournalDao {
         reason,
         at,
         at,
+        DeliveryAttemptState.delivered.wire,
       ],
     );
     return _require(targetId, jobId, filePath);

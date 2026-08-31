@@ -3,14 +3,21 @@
  *
  * Vanilla JS so the bundle stays tiny. Three concerns:
  *
- *  1. Pairing — first run prompts for the WORD-WORD-NNNN code the desktop
- *     surfaces (e.g. STAR-LYRA-1234, see TokenManager.generatePairingCode),
- *     calls /api/pairing/verify, persists the resulting session token in
- *     localStorage.
+ *  1. Credentials — three, in this order, because a browser already signed in
+ *     to /dashboard/ on this origin must not be asked to authenticate twice:
+ *       - this device's own pairing, in localStorage;
+ *       - the bearer the dashboard left in this TAB's sessionStorage, adopted
+ *         in memory and never persisted here;
+ *       - the HttpOnly session cookie, confirmed by GET /api/auth/csrf and
+ *         carried by the browser itself.
+ *     With none of the three, the pairing wall: request a WORD-WORD-NNNN code
+ *     via /api/pairing/start (which puts it on the rig, never on the wire —
+ *     see PairingHandlers), read it off the rig, /api/pairing/verify.
  *
  *  2. Live data — once authenticated:
- *       - fetch /api/run-watch/snapshot every 15s as a baseline + on
- *         reconnect,
+ *       - fetch /api/run-watch/snapshot every 15s as a baseline, on reconnect,
+ *         and on every frame event so the frame counter keeps step with the
+ *         feed rendered beside it,
  *       - subscribe to /api/run-watch/events (SSE) for the firehose,
  *       - poll /api/run-watch/frame-thumbnail when a FrameAccepted /
  *         ExposureFinished event arrives, plus every 10s as a fallback
@@ -69,7 +76,74 @@ let inMemoryTokenAccepted = false;
 /// accepted-then-revoked pairing ended up described as a token that was never
 /// accepted — measured on the running bundle after a reload.
 let authRefusalStated = false;
-function effectiveToken() { return getToken() || inMemoryToken; }
+function effectiveToken() {
+  return getToken() || inMemoryToken || adoptedBearer;
+}
+
+// ---------------------------------------------------------------------------
+// Credentials this browser is already carrying
+//
+// An operator who signs in on /dashboard/ and taps the dashboard's own
+// Run-Watch link is authenticated to this origin already, and used to land on
+// the pairing wall: measured on the release bundle, the dashboard read
+// "Connected", its bearer sat in this tab's sessionStorage, and this page
+// asked for a pairing code from a screen the rig may not even have. Two
+// credential models that never handed off.
+//
+// So this page reads the two the dashboard actually leaves behind, in the
+// dashboard's own storage and with the dashboard's own lifetime. Neither is
+// copied into this page's localStorage: a bearer the dashboard deliberately
+// keeps in sessionStorage — the operator left "remember me" off — stays there
+// and dies with the tab, and the session cookie stays HttpOnly and unreadable.
+//
+// Nothing here mints, guesses or widens a credential. A browser that has not
+// signed in has no sessionStorage bearer and no session cookie, `GET
+// /api/auth/csrf` answers it 401, and it meets the pairing wall exactly as
+// before; every /api/run-watch/* read still carries a credential the server
+// verifies for itself.
+// ---------------------------------------------------------------------------
+
+/// The key the dashboard keeps its bearer under, for this tab only — see
+/// `setStoredToken` in web_dashboard/js/app.js, which writes sessionStorage and
+/// scrubs the localStorage copy on every write.
+const DASHBOARD_TAB_TOKEN_KEY = 'nightshade_token';
+
+/// A bearer adopted from the dashboard's sessionStorage. Held for this page
+/// load only, so the dashboard's own "do not remember me" keeps meaning what
+/// it says.
+let adoptedBearer = null;
+
+/// The CSRF token bound to the HttpOnly session cookie this browser carries,
+/// when it carries one. In memory only: the cookie is unreadable from JS, and
+/// this token is what proves a write came from this page.
+let sessionCsrfToken = null;
+
+/// Where the credential in use came from: `'paired'`, `'dashboard-tab'` or
+/// `'session-cookie'`. Read when a refusal has to be explained — a withdrawn
+/// pairing, an ended dashboard session and a mistyped token are three different
+/// events and only one of them is worth walking to the rig for.
+let credentialSource = 'paired';
+
+/// The bearer the dashboard left in this tab, or null.
+function dashboardTabBearer() {
+  try {
+    return sessionStorage.getItem(DASHBOARD_TAB_TOKEN_KEY) || null;
+  } catch {
+    // No sessionStorage (private mode, or a host that does not provide one).
+    return null;
+  }
+}
+
+/// Drop every credential this page holds.
+///
+/// Called when the server refuses one: leaving the others in place would
+/// re-fire the same refusal on the next poll under a different name.
+function forgetAllCredentials() {
+  setToken(null);
+  adoptedBearer = null;
+  sessionCsrfToken = null;
+  credentialSource = 'paired';
+}
 
 /// True when the token this device holds has been accepted by the desktop at
 /// least once. Read before the 401/403 copy is chosen: it is the difference
@@ -179,6 +253,36 @@ async function retryAfterSecsFrom(res) {
   return secs == null ? 1 : Math.min(Math.ceil(secs), 300);
 }
 
+/// Why this device is back at the pairing wall, in the operator's own terms.
+///
+/// The credential that was refused decides the sentence. A pairing the desktop
+/// withdrew is worth walking to the rig for; a dashboard session that ended in
+/// this browser is worth signing in again for; a token typed into the box below
+/// is worth re-reading. Keying on `token ?` alone told a device that had only
+/// ever mistyped a token that its pairing "was revoked" — a diagnosis of an
+/// event that never happened.
+///
+/// [credentialSource] is the source in use, [token] the credential that was
+/// refused (null when this device was carrying none), and [wasAccepted] whether
+/// the desktop had ever honoured it.
+function credentialRefusalText(source, token, wasAccepted) {
+  if (source === 'session-cookie') {
+    return 'This browser\'s Nightshade session has ended. Sign in again on the '
+      + 'dashboard, or pair this device with a code.';
+  }
+  if (source === 'dashboard-tab') {
+    return 'The dashboard session this tab was using is no longer accepted. '
+      + 'Sign in again on the dashboard, or pair this device with a code.';
+  }
+  if (!token) return null;
+  return wasAccepted
+    ? 'This device\'s pairing is no longer accepted — the rig rejected it, '
+      + 'which happens when the pairing was revoked there or the profile it '
+      + 'belonged to was replaced. Pair again with a fresh code.'
+    : 'That token was not accepted. Check it against the rig, or pair with a '
+      + 'code instead.';
+}
+
 async function apiFetch(path, opts) {
   opts = opts || {};
   const waiting = rateLimitRemainingSecs();
@@ -191,13 +295,26 @@ async function apiFetch(path, opts) {
   }
   const headers = new Headers(opts.headers || {});
   const token = effectiveToken();
-  if (token) headers.set('Authorization', 'Bearer ' + token);
+  const method = String(opts.method || 'GET').toUpperCase();
+  if (token) {
+    headers.set('Authorization', 'Bearer ' + token);
+  } else if (sessionCsrfToken && method !== 'GET' && method !== 'HEAD') {
+    // Cookie path: the browser attaches the HttpOnly session cookie to these
+    // same-origin requests itself. A write must additionally echo the CSRF
+    // token the server bound to that cookie — that echo is what tells the
+    // server the request came from this page rather than from a site that
+    // tricked the browser into sending the cookie ambient-style.
+    headers.set('X-Nightshade-CSRF', sessionCsrfToken);
+  }
   if (opts.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   let res;
   try {
-    res = await fetch(path, Object.assign({}, opts, { headers }));
+    res = await fetch(path, Object.assign(
+      // Same-origin credentials are stated rather than left to the default so
+      // the cookie path does not depend on which default a browser ships.
+      { credentials: 'same-origin' }, opts, { headers }));
   } catch (e) {
     // A transport failure is the signal that the server is gone. It is the
     // only evidence this page ever gets that a run it is painting as
@@ -220,20 +337,11 @@ async function apiFetch(path, opts) {
     // to was replaced", a diagnosis of an event that never happened, and it
     // sent them to the desktop for a fresh code they did not need.
     if (!authRefusalStated) {
-      const wasAccepted = tokenWasEverAccepted();
-      setToken(null);
+      const reason = credentialRefusalText(
+        credentialSource, token, tokenWasEverAccepted());
+      forgetAllCredentials();
       authRefusalStated = true;
-      showPairScreen(
-        !token
-          ? null
-          : wasAccepted
-            ? 'This device\'s pairing is no longer accepted — the desktop ' +
-              'rejected it, which happens when the pairing was revoked there or ' +
-              'the profile it belonged to was replaced. Pair again with a fresh ' +
-              'code from the desktop\'s Remote Access screen.'
-            : 'That token was not accepted — check it against the desktop\'s ' +
-              'Remote Access screen, or pair with a code from the same screen.',
-      );
+      showPairScreen(reason);
     }
     throw new ApiError('auth_required', 'Pairing is no longer accepted');
   }
@@ -249,10 +357,16 @@ async function apiFetch(path, opts) {
   }
   // Any answer at all — including a 4xx/5xx — proves the server is there.
   rateLimitedUntil = 0;
-  // A 2xx carrying this credential is the desktop honouring it. That is the
-  // one moment a typed token stops being unproven, and it is what lets a later
+  // A 2xx carrying this credential is the rig honouring it. That is the one
+  // moment a typed token stops being unproven, and it is what lets a later
   // refusal be described as a revocation rather than as a typo.
-  if (token && res.ok) noteTokenAccepted();
+  //
+  // Only for THIS device's own credential. A bearer borrowed from the
+  // dashboard's tab has no entry in this page's storage to annotate, and
+  // recording it accepted left an orphan `tokenAccepted: true` behind — a flag
+  // that would later describe a token this device never held as a pairing that
+  // had been withdrawn.
+  if (token && res.ok && credentialSource === 'paired') noteTokenAccepted();
   return res;
 }
 
@@ -510,6 +624,63 @@ function showMainScreen() {
   bootSession();
 }
 
+/// Open on the screen the credentials in this browser justify.
+///
+/// In order: the pairing this device completed for itself; the bearer the
+/// dashboard left in this tab; the HttpOnly session cookie, whose presence only
+/// the server can confirm. The wall is what is left when all three are absent.
+async function resolveCredentialAndShow() {
+  if (getToken() || inMemoryToken) {
+    credentialSource = 'paired';
+  } else if (dashboardTabBearer()) {
+    adoptedBearer = dashboardTabBearer();
+    credentialSource = 'dashboard-tab';
+  } else if (await adoptSessionCookie()) {
+    credentialSource = 'session-cookie';
+  } else {
+    showPairScreen();
+    return;
+  }
+  showMainScreen();
+  applyWakeLockOption();
+}
+
+/// Ask the server whether this browser is carrying a live session cookie.
+///
+/// The cookie is HttpOnly, so its presence is not a question JS can answer for
+/// itself: `GET /api/auth/csrf` answers 200 with the bound CSRF token when
+/// there is a session and 401 when there is not. Deliberately not routed
+/// through [apiFetch] — a 401 here is the ordinary answer for a browser that
+/// has never signed in, and apiFetch would turn it into a refusal notice about
+/// a credential this device never had.
+async function adoptSessionCookie() {
+  try {
+    const res = await fetch('/api/auth/csrf', { credentials: 'same-origin' });
+    if (!res.ok) return false;
+    const body = await res.json();
+    const csrf = body && typeof body.csrfToken === 'string' ? body.csrfToken : '';
+    if (!csrf) return false;
+    sessionCsrfToken = csrf;
+    return true;
+  } catch {
+    // No answer at all. The pairing wall is the honest landing: this page
+    // cannot show a run it cannot read.
+    return false;
+  }
+}
+
+/// Revoke the HttpOnly session cookie this browser is signed in with.
+///
+/// The cookie is the whole browser's credential, not this tab's, so the caller
+/// has to say out loud that the dashboard goes with it.
+async function endSessionCookie() {
+  try {
+    await apiFetch('/api/auth/logout', { method: 'POST', body: '{}' });
+  } catch {
+    // Best-effort: the credential is dropped client-side either way below.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pairing flow
 // ---------------------------------------------------------------------------
@@ -520,10 +691,10 @@ function showMainScreen() {
 function pairingErrorText(data, status) {
   const raw = String((data && (data.error || data.message)) || '');
   if (raw.includes('invalid_pairing_code')) {
-    return 'Pairing code is not recognised. Check the code on the desktop.';
+    return 'Pairing code is not recognised. Check it against the rig.';
   }
   if (raw.includes('pairing_code_expired')) {
-    return 'Pairing code expired. Request a new one on the desktop.';
+    return 'Pairing code expired. Request a new one.';
   }
   if (raw.includes('pairing_code_already_used')) {
     return 'That code has already been claimed. Request a new one.';
@@ -534,6 +705,81 @@ function pairingErrorText(data, status) {
   return raw || 'Pairing failed.';
 }
 
+/// Where the code this request just made actually went, from the server's own
+/// answer.
+///
+/// The code itself is never in that answer — it never leaves the rig — so this
+/// sentence is the whole of what the page can tell the operator, and it has to
+/// name a place that exists on the rig it is talking to. `codeDelivery` reports
+/// whether the owner-only file was written (it can fail: an appliance with no
+/// resolvable support directory writes nothing) and whether the host was
+/// started with console printing on.
+function codeDeliveryText(data) {
+  const delivery = data && typeof data.codeDelivery === 'object'
+    ? data.codeDelivery : null;
+  if (!delivery) {
+    // A server that does not report where it put the code. Naming a place on
+    // its behalf would be a guess, so the standing copy below the button —
+    // which names every place this project's hosts use — is what stands.
+    return 'Read it on the rig, as described below.';
+  }
+  const places = [];
+  if (delivery.operatorFile) {
+    const name = typeof delivery.operatorFileName === 'string' &&
+      delivery.operatorFileName ? delivery.operatorFileName : 'pairing-code.txt';
+    places.push(name + ' in the rig\'s Nightshade support folder');
+  }
+  if (delivery.console) places.push('the rig\'s console output');
+  if (places.length === 0) {
+    return 'The rig could not put it anywhere readable. Restart the host with '
+      + '--pairing-print-codes, or read the token off the host and use the '
+      + 'manual box below.';
+  }
+  return 'Read it from ' + places.join(', or ') + '.';
+}
+
+/// Ask the rig to make a pairing code.
+///
+/// The wall used to have no such control at all: it named a code source and
+/// offered nothing that caused a code to exist, which on a headless appliance
+/// left the operator with no reachable next step.
+async function requestPairingCode() {
+  const statusEl = $('pair-status');
+  const btn = $('btn-request-code');
+  statusEl.className = 'pair-status';
+  statusEl.textContent = 'Asking the rig for a code…';
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/pairing/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: '{}',
+    });
+    let data = null;
+    try { data = await res.json(); } catch { /* refusal without a JSON body */ }
+    if (!res.ok) {
+      statusEl.textContent = pairingErrorText(data, res.status);
+      statusEl.classList.add('error');
+      return;
+    }
+    const secs = wireNumber(data && data.expiresInSeconds);
+    const window = secs == null
+      ? 'It expires shortly.'
+      : 'It expires in about ' + Math.max(1, Math.round(secs / 60)) + ' min.';
+    statusEl.textContent =
+      'A code is now waiting on the rig. ' + codeDeliveryText(data) + ' ' +
+      window;
+    statusEl.classList.add('info');
+  } catch (e) {
+    statusEl.textContent = 'Could not reach the rig to ask for a code: ' +
+      (e && e.message ? e.message : String(e));
+    statusEl.classList.add('error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function startPairing(code) {
   const trimmed = (code || '').trim();
   const statusEl = $('pair-status');
@@ -542,7 +788,7 @@ async function startPairing(code) {
   // digits. Keep this in step with the dashboard's pair-modal guard.
   if (!/^[A-Za-z0-9-]{6,32}$/.test(trimmed)) {
     statusEl.textContent =
-      'Enter the pairing code from the desktop (like STAR-LYRA-1234).';
+      'Enter the pairing code from the rig (like STAR-LYRA-1234).';
     statusEl.classList.add('error');
     return;
   }
@@ -562,14 +808,35 @@ async function startPairing(code) {
       body,
     });
     const data = await res.json();
-    if (!res.ok || !data.sessionToken) {
+    // The field is `token` — that is what `handlePairingVerify` answers with
+    // and what the dashboard's own pair modal reads. Reading `sessionToken`
+    // (the server's INTERNAL name for it, never a wire name) meant a pairing
+    // the server had just completed was reported to the operator as "Pairing
+    // failed." and the minted token thrown away: driven end-to-end against the
+    // release bundle with a code read out of the rig's own pairing-code.txt,
+    // the exchange answered 200 with a control-scoped token and this screen
+    // stayed on the wall.
+    const minted = data && typeof data.token === 'string' ? data.token : '';
+    if (!res.ok) {
       statusEl.textContent = pairingErrorText(data, res.status);
       statusEl.classList.add('error');
       return;
     }
-    // The pairing endpoint minted this token and answered with it, so the
-    // desktop has already accepted it.
-    setToken(data.sessionToken, true);
+    if (!minted) {
+      // A 2xx with no token is not a pairing, and it is not the operator's
+      // typing either — say which of the two happened.
+      statusEl.textContent = 'The rig accepted the code but sent no token back. '
+        + 'Request a fresh code and try again.';
+      statusEl.classList.add('error');
+      return;
+    }
+    // The pairing endpoint minted this token and answered with it, so the rig
+    // has already accepted it. It is this device's own credential from here on,
+    // whatever it was watching with before.
+    setToken(minted, true);
+    adoptedBearer = null;
+    sessionCsrfToken = null;
+    credentialSource = 'paired';
     statusEl.textContent = 'Paired successfully.';
     statusEl.classList.add('success');
     showMainScreen();
@@ -613,7 +880,16 @@ function bootSession() {
   feedEvents = [];
   feedSeenKeys = new Set();
   foldedProgressTicks = 0;
+  // The frame counter is a reading of the previous session's run; carrying it
+  // — or the feed frame number it is compared against — into this one would
+  // describe this rig with the last one's numbers.
+  frameCounterText = '--';
+  frameCounterDone = null;
+  frameCounterReadSeq = nextOrderingTick();
+  lastFrameEventSeq = 0;
+  feedNewestFrameNumber = null;
   renderFeed();
+  renderFrameCounter();
   fetchSnapshot();
   openSSE();
   startPolling();
@@ -667,6 +943,96 @@ async function fetchSnapshot() {
   } finally {
     renderLinkState();
   }
+}
+
+// ---------------------------------------------------------------------------
+// The frame counter, and the feed it sits beside
+//
+// The counter is snapshot data on a 15 s poll; the feed under it is the SSE
+// stream, live. Only sequence-level transitions used to re-poll the snapshot,
+// so a frame event moved the feed and left the counter where it was: measured
+// on the release bundle over one 25-frame run, the page read "22 / 25" with
+// "ExposureCompleted frame: 24" rendered directly beneath it and the wire
+// agreeing with the feed, and nothing on screen distinguished that moment from
+// an agreeing one.
+//
+// So the counter now advances on the same events the feed does, and while it
+// has not yet caught up it says so rather than presenting a figure the page's
+// own feed contradicts.
+// ---------------------------------------------------------------------------
+
+/// The frame-bearing events. One of these means a frame has landed, which is
+/// both a new thumbnail and a new count, so one list drives both. Wiring them
+/// to different halves of this page is what let the count fall behind the
+/// picture.
+const FRAME_EVENT_NAMES = [
+  'FrameAccepted', 'FrameRejected', 'ExposureFinished', 'ExposureCompleted',
+  'ImageSaved',
+];
+
+/// Smallest gap between two event-driven snapshot refreshes. A frame lands with
+/// several of these names at once (FrameAccepted and ExposureCompleted share a
+/// millisecond on the wire), and the server budgets 60 reads/s across every tab
+/// the operator has open, so the burst is collapsed into one re-read.
+const FRAME_SNAPSHOT_COALESCE_MS = 1000;
+
+/// A monotonic tick stamped on both the snapshot render and each frame event,
+/// so the two can be ordered. `Date.now()` cannot order them: a frame event
+/// arriving in the same millisecond a snapshot rendered compared EQUAL, and the
+/// counter went on presenting a figure the feed had already outrun — the exact
+/// defect, one millisecond wide.
+let orderingTick = 0;
+function nextOrderingTick() { return ++orderingTick; }
+
+/// The counter as the last snapshot reported it, and the tick it was read at.
+let frameCounterText = '--';
+let frameCounterDone = null;
+let frameCounterReadSeq = 0;
+/// The tick of the newest frame event the feed has taken, and the frame number
+/// it carried when it carried one.
+let lastFrameEventSeq = 0;
+let feedNewestFrameNumber = null;
+/// True while a coalesced snapshot re-read is already scheduled.
+let frameSnapshotPending = false;
+
+/// Draw the frame counter, saying plainly when the feed has moved past it.
+///
+/// Two ways the page can know it is behind, and it takes either: the feed
+/// carries a frame number above the counter's own (provable from what is on
+/// screen), or a frame event has arrived since the counter was read (true even
+/// when the event carried no number).
+function renderFrameCounter() {
+  const el = $('progress-frames');
+  if (!el) return;
+  // A counter nobody has read cannot be behind. "-- · updating" is a staleness
+  // claim about a figure that is not on the screen — measured with the snapshot
+  // endpoint answering 500 while the stream still delivered frames. `--` says
+  // the whole of what is known, and the link banner says why.
+  const known = frameCounterText !== '--';
+  const outrunByNumber = feedNewestFrameNumber != null &&
+    frameCounterDone != null && feedNewestFrameNumber > frameCounterDone;
+  const outrunByArrival = lastFrameEventSeq > frameCounterReadSeq;
+  el.textContent = (known && (outrunByNumber || outrunByArrival))
+    ? frameCounterText + ' · updating'
+    : frameCounterText;
+}
+
+/// Take a frame event: mark the counter as outrun and schedule the re-read that
+/// will catch it up.
+function noteFrameEvent(evt) {
+  lastFrameEventSeq = nextOrderingTick();
+  const frame = wireNumber(evt && evt.data && evt.data.frame);
+  if (frame != null &&
+      (feedNewestFrameNumber == null || frame > feedNewestFrameNumber)) {
+    feedNewestFrameNumber = frame;
+  }
+  renderFrameCounter();
+  if (frameSnapshotPending) return;
+  frameSnapshotPending = true;
+  setTimeout(() => {
+    frameSnapshotPending = false;
+    fetchSnapshot();
+  }, FRAME_SNAPSHOT_COALESCE_MS);
 }
 
 /// Wire states in which the run is OVER. `sequencer.state` is the only field
@@ -906,9 +1272,12 @@ function renderSnapshot(data) {
   }
   const done = wireNumber(progress.completedExposures);
   const planned = wireNumber(progress.totalExposures);
-  $('progress-frames').textContent = done != null && planned != null
+  frameCounterText = done != null && planned != null
     ? done + ' / ' + planned
     : '--';
+  frameCounterDone = done;
+  frameCounterReadSeq = nextOrderingTick();
+  renderFrameCounter();
   // The denominator is null whenever the host does not know the run's planned
   // integration (every native/headless start — see _knownIntegrationDenominator
   // in run_watch_handlers.dart). "24s / 0s" claimed a total the run had already
@@ -919,14 +1288,20 @@ function renderSnapshot(data) {
   $('progress-node').textContent = progress.currentNodeName || sequencer.currentNodeName || '--';
   $('progress-filter').textContent = progress.currentFilter || '--';
 
-  // Equipment
+  // Equipment. An ABSENT list is not an empty one: `data.devices || []` folded
+  // "the snapshot said nothing about equipment" into "nothing is connected" and
+  // printed that as a positive claim, measured with four simulator devices
+  // genuinely connected and every sibling field on the same screen reading
+  // `--`. Guiding, weather and progress all tell a reading from an absence, so
+  // equipment does too — `--` for unknown, the sentence only for a list the
+  // server actually sent and that was actually empty.
   const list = $('equipment-list');
   list.innerHTML = '';
-  const devices = data.devices || [];
-  if (devices.length === 0) {
+  const devices = Array.isArray(data.devices) ? data.devices : null;
+  if (devices == null || devices.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'empty';
-    empty.textContent = 'No connected devices';
+    empty.textContent = devices == null ? '--' : 'No connected devices';
     list.appendChild(empty);
   } else {
     devices.forEach(d => {
@@ -1217,12 +1592,20 @@ const PROGRESS_EVENT_NAMES = [
 
 function openSSE() {
   closeSSE();
-  // EventSource doesn't accept custom headers natively. We pass the
-  // bearer token via the access_token query param; the server's
-  // pairing flow already issued it to localStorage.
+  // EventSource doesn't accept custom headers natively. A bearer therefore
+  // rides the `access_token` query param, which the server's auth middleware
+  // accepts on this GET-only endpoint alone. A cookie session needs no carrier:
+  // the browser attaches the HttpOnly cookie to this same-origin subscription
+  // itself.
   const token = effectiveToken();
-  if (!token) return;
-  const url = '/api/run-watch/events?access_token=' + encodeURIComponent(token);
+  let url;
+  if (token) {
+    url = '/api/run-watch/events?access_token=' + encodeURIComponent(token);
+  } else if (sessionCsrfToken) {
+    url = '/api/run-watch/events';
+  } else {
+    return;
+  }
   try {
     sse = new EventSource(url, { withCredentials: false });
   } catch (e) {
@@ -1253,11 +1636,16 @@ function openSSE() {
     });
   });
 
-  // Frame-triggering events — when one arrives, refresh the thumbnail
-  // immediately rather than waiting for the 10s fallback.
-  ['FrameAccepted', 'FrameRejected', 'ExposureFinished',
-    'ExposureCompleted', 'ImageSaved'].forEach(name => {
-    sse.addEventListener(name, () => refreshFrame());
+  // Frame events — refresh the thumbnail immediately rather than waiting for
+  // the 10s fallback, and re-read the snapshot so the frame counter advances on
+  // the same events the feed beside it does.
+  FRAME_EVENT_NAMES.forEach(name => {
+    sse.addEventListener(name, (evt) => {
+      refreshFrame();
+      let payload = null;
+      try { payload = JSON.parse(evt.data); } catch { /* not our shape */ }
+      noteFrameEvent(payload);
+    });
   });
 
   // Sequencer state transitions — fetch a fresh snapshot so the
@@ -1700,6 +2088,10 @@ async function applyPushOption() {
 // ---------------------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
   // Pairing screen wiring
+  const btnRequestCode = $('btn-request-code');
+  if (btnRequestCode) {
+    btnRequestCode.addEventListener('click', () => requestPairingCode());
+  }
   $('btn-pair').addEventListener('click', () => startPairing($('pair-code').value));
   $('pair-code').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') startPairing($('pair-code').value);
@@ -1707,9 +2099,12 @@ window.addEventListener('DOMContentLoaded', () => {
   $('btn-manual-token').addEventListener('click', () => {
     const t = $('manual-token').value.trim();
     if (!t) return;
-    // Typed by hand and shown to nobody yet — the desktop has not accepted it,
-    // and a refusal must not be described as a pairing that was withdrawn.
+    // Typed by hand and shown to nobody yet — the rig has not accepted it, and
+    // a refusal must not be described as a pairing that was withdrawn.
     setToken(t, false);
+    adoptedBearer = null;
+    sessionCsrfToken = null;
+    credentialSource = 'paired';
     showMainScreen();
   });
 
@@ -1779,12 +2174,26 @@ window.addEventListener('DOMContentLoaded', () => {
     applyPushOption();
   });
   $('btn-logout').addEventListener('click', () => {
-    setToken(null);
-    // Named too, so the same screen never appears without an account of how
-    // this device got back to it.
+    // What "forget this device" costs depends on which credential is being
+    // forgotten. A session cookie belongs to the whole browser, so signing out
+    // of it signs the dashboard out too, and that is said rather than
+    // discovered. A bearer borrowed from the dashboard's tab was never this
+    // device's to keep in the first place.
+    const source = credentialSource;
+    if (source === 'session-cookie') endSessionCookie();
+    forgetAllCredentials();
+    // Named, so the same screen never appears without an account of how this
+    // device got back to it.
     showPairScreen(
-      'Signed out on this device. Pair again with a code from the desktop\'s '
-      + 'Remote Access screen when you want it back.',
+      source === 'session-cookie'
+        ? 'Signed out of this browser\'s Nightshade session — the dashboard in '
+          + 'this browser is signed out too. Pair with a code, or sign in again '
+          + 'on the dashboard.'
+        : source === 'dashboard-tab'
+          ? 'Stopped using the dashboard\'s session in this tab. Pair this '
+            + 'device with a code to keep watching after the tab closes.'
+          : 'Signed out on this device. Pair again with a code when you want it '
+            + 'back.',
       'info',
     );
   });
@@ -1801,13 +2210,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // not carry a tick for a capability it has lost.
   refreshCapabilityToggles();
 
-  // Decide which screen to show.
-  if (effectiveToken()) {
-    showMainScreen();
-    applyWakeLockOption();
-  } else {
-    showPairScreen();
-  }
+  // Decide which screen to show, from the credentials this browser holds.
+  resolveCredentialAndShow();
 
   // Re-apply wake-lock when the tab comes back to the foreground —
   // browsers drop the lock when the page is hidden.

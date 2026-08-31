@@ -93,6 +93,14 @@ class PeerManifestService {
   /// gone or the rig's own sweep already recorded it terminal. Both readings
   /// name the same file to the desktop, so a pull that ran before the sweep
   /// and one that ran after it report the same night.
+  ///
+  /// A file this desktop already ACKNOWLEDGED is not offered either. The
+  /// manifest is the list of what is still owed, and every other transport
+  /// stops at `delivered` too. It is not listed as unavailable, because
+  /// nothing about it went wrong and the desktop is the machine that told the
+  /// rig it landed. The download endpoint still serves it — [resolveArtifact]
+  /// reads every row of the job — so a desktop holding the id from an earlier
+  /// manifest can still fetch the bytes again and acknowledge them again.
   Future<DeliveryManifest> buildManifest({
     required int jobId,
     required String peerId,
@@ -106,6 +114,7 @@ class PeerManifestService {
     for (final row in await _journal.listForJob(jobId)) {
       final naming = namings[row.targetId];
       if (naming == null) continue;
+      if (row.state == DeliveryAttemptState.delivered) continue;
       if (row.state == DeliveryAttemptState.failed) {
         // Terminal on the rig: nothing here will offer it again, so it is not
         // an entry. It is still one of this job's published files, and the

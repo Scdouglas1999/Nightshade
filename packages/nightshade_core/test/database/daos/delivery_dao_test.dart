@@ -357,6 +357,66 @@ void main() {
       expect(delivered.state.isTerminal, isTrue);
     });
 
+    test('an attempt is never started on a row that already arrived', () async {
+      await journal.recordAttempt(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        bytes: 4096,
+        now: DateTime.utc(2026, 8, 16, 5),
+      );
+      final delivered = await journal.markDelivered(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        checksum: 'sha256:abc123',
+        now: DateTime.utc(2026, 8, 16, 6, 12),
+      );
+
+      // What a re-queued job's second pass does to every file it selected,
+      // and what a paired desktop's acknowledgement lands in the middle of.
+      final again = await journal.recordAttempt(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        bytes: 4096,
+        now: DateTime.utc(2026, 8, 16, 7),
+      );
+
+      expect(again.state, DeliveryAttemptState.delivered);
+      expect(again.attempts, delivered.attempts);
+      expect(again.deliveredAt, DateTime.utc(2026, 8, 16, 6, 12));
+      expect(
+        again.updatedAt,
+        DateTime.utc(2026, 8, 16, 6, 12),
+        reason: 'nothing about a delivered row changes, not even its clock',
+      );
+      expect(await journal.listPendingRetry(), isEmpty);
+
+      // The same for the stop path: a file that already arrived is not one the
+      // stop left owed.
+      final owed = await journal.recordStillOwed(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        reason: 'Delivery was stopped before this file was sent',
+        now: DateTime.utc(2026, 8, 16, 7, 30),
+      );
+      expect(owed.state, DeliveryAttemptState.delivered);
+      expect(owed.deliveredAt, DateTime.utc(2026, 8, 16, 6, 12));
+      expect(owed.lastError, isNull);
+
+      // The operator asking for another go is the one way back out.
+      final requeued = await journal.requeueForRetry(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        now: DateTime.utc(2026, 8, 16, 8),
+      );
+      expect(requeued.state, DeliveryAttemptState.retrying);
+      expect(requeued.attempts, 0);
+    });
+
     test('a spent delivery fails with its last reason', () async {
       await journal.recordAttempt(
         targetId: targetId,

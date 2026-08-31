@@ -49,10 +49,27 @@
         <h1 class="brand-name">NIGHTSHADE</h1>
         <p class="brand-tag">Run-Watch</p>
       </div>
+      <!-- The code never travels over the network — POST /api/pairing/start
+           answers with an expiry and nothing else — so this copy has to name a
+           place on the rig where it really lands. Naming only the desktop app's
+           Remote Access screen named a step a headless appliance cannot
+           perform: measured against a headless bundle with no GUI anywhere on
+           the machine, the wall sent the operator to a screen that does not
+           exist while the code sat in an owner-only pairing-code.txt nothing
+           here mentioned. Both places are named, and the button below is what
+           makes a code exist to be read. -->
       <p class="pair-help">
-        Open the Nightshade desktop app's Remote Access screen and read the
-        pairing code (it looks like STAR-LYRA-1234). It expires after about
-        5 minutes; just request a fresh one if it does.
+        A pairing code is made on the rig and never sent over the network. Ask
+        for one, read it there, and type it in here. It expires after about
+        5 minutes; just ask again if it does.
+      </p>
+      <button id="btn-request-code" class="btn btn-block">Request a pairing code</button>
+      <p id="pair-code-source" class="pair-help">
+        A desktop rig shows the code on its Remote Access screen. A headless rig
+        has no screen: it writes the code to an owner-only
+        <span class="mono">pairing-code.txt</span> in its Nightshade support
+        folder, and prints it to the console when it was started with
+        <span class="mono">--pairing-print-codes</span>.
       </p>
       <label class="pair-label" for="pair-code">Pairing code</label>
       <input
@@ -71,7 +88,7 @@
       <p id="pair-status" class="pair-status" aria-live="polite"></p>
       <details class="pair-advanced">
         <summary>Manual token</summary>
-        <p class="muted">If your desktop's Remote Access screen shows a bearer token directly, paste it here:</p>
+        <p class="muted">If the rig shows a bearer token directly — the desktop's Remote Access screen, or the <span class="mono">--auth-token</span> a headless host was started with — paste it here:</p>
         <input id="manual-token" class="pair-input" type="password" placeholder="Bearer token" autocomplete="off" spellcheck="false" />
         <button id="btn-manual-token" class="btn btn-block">Use token</button>
       </details>
@@ -211,8 +228,15 @@
         <div class="card-header">
           <h2 id="equip-h" class="card-title">Equipment</h2>
         </div>
+        <!-- Shipped state: `--`, the same "nothing has been read yet" the
+             guiding, weather and progress fields ship. "No connected devices"
+             here was a positive claim of absence made before any snapshot had
+             arrived, and it survived every failed read — a rig with four
+             devices connected showed it for as long as the snapshot endpoint
+             kept answering 500. renderSnapshot writes the sentence only for a
+             device list the server actually sent. -->
         <div id="equipment-list" class="equipment-list">
-          <div class="empty">No connected devices</div>
+          <div class="empty">--</div>
         </div>
       </section>
 

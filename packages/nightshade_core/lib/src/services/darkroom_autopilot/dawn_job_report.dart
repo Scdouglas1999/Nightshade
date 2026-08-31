@@ -810,6 +810,10 @@ class DawnJobReport {
         : {
             'summary': delivery!.summary,
             'delivered': delivery!.delivered,
+            // Apart from `delivered`, which is what this pass sent. These are
+            // files an earlier pass had already delivered, so a re-queued job
+            // does not read as a night that lost them.
+            'alreadyDelivered': delivery!.alreadyDelivered,
             'awaitingPull': delivery!.awaitingPull,
             'retrying': delivery!.retrying,
             // Apart from `retrying`, which is files an attempt was spent on.

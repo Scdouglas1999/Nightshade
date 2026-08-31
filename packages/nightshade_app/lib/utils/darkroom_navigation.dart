@@ -48,6 +48,23 @@ const String kDarkroomHostOnlyRefusal =
 String? darkroomHostOnlyRefusal(WidgetRef ref) =>
     ref.read(isRemoteClientProvider) ? kDarkroomHostOnlyRefusal : null;
 
+/// The accessible NAME for a control [label] that is disabled for [reason].
+///
+/// The refusal has to be IN the name. Flutter's `tooltip:` publishes
+/// `SemanticsProperties.tooltip`, and the Linux AT-SPI bridge does not fold
+/// that into the accessible name, so a reason carried only by a tooltip
+/// reaches a pointer and nothing else: the session dialog's Darkroom action
+/// read `Refine on imaging host [DISABLED]` to a screen reader while the hover
+/// tooltip carried the whole sentence, and the header buttons are icon-only,
+/// so there was no visible reason either. The tooltip stays — it is what a
+/// mouse user gets — and the same words go in the name for everyone else.
+///
+/// The em dash is the separator the rest of this build already uses for the
+/// same job (`Compare — <reason>`, `Move Crop up — it is already first in the
+/// stack (1 of 4)`), so the whole app states a refusal one way.
+String unavailableControlName(String label, String reason) =>
+    '$label — $reason';
+
 /// [darkroomHostOnlyRefusal] for a control that is being BUILT rather than
 /// pressed: the same answer, watched so the control follows the role.
 ///

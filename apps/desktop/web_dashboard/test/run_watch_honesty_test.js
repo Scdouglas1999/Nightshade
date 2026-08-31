@@ -26,7 +26,8 @@ const IDS = [
   'equipment-list', 'guide-state', 'guide-ra', 'guide-dec', 'guide-total',
   'guide-snr', 'weather-badge', 'weather-message', 'event-feed', 'toast-region',
   'seq-message',
-  'pair-screen', 'main-screen', 'pair-status',
+  'pair-screen', 'main-screen', 'pair-status', 'btn-request-code',
+  'pair-code-source',
   'opt-wake-lock', 'opt-wake-lock-row', 'opt-wake-lock-note',
   'opt-push', 'opt-push-row', 'opt-push-note',
   'btn-pause', 'btn-resume', 'btn-skip', 'btn-stop', 'btn-reset',
@@ -40,6 +41,9 @@ const IDS = [
 function loadRunWatch(overrides) {
   const doc = makeDocument(IDS);
   const timers = [];
+  /// One-shot callbacks the page has deferred. Captured rather than dropped so
+  /// a test can run the coalesced snapshot re-read a frame event schedules.
+  const deferred = [];
   const sandbox = {
     // `window` and `navigator` carry the capability surface the settings sheet
     // feature-tests, so a test can hand the page the origin it is pretending
@@ -55,6 +59,15 @@ function loadRunWatch(overrides) {
       setItem(k, v) { this._m.set(k, String(v)); },
       removeItem(k) { this._m.delete(k); },
     },
+    // The dashboard's own per-tab store. run-watch reads the bearer the
+    // dashboard leaves here rather than asking an already-signed-in operator to
+    // pair again, so a test can hand it the state a real tab would be in.
+    sessionStorage: {
+      _m: new Map((overrides && overrides.sessionStorage) || []),
+      getItem(k) { return this._m.has(k) ? this._m.get(k) : null; },
+      setItem(k, v) { this._m.set(k, String(v)); },
+      removeItem(k) { this._m.delete(k); },
+    },
     navigator: Object.assign(
       { userAgent: 'node-test' }, (overrides && overrides.navigator) || {}),
     fetchImpl: (overrides && overrides.fetch) || (() => {
@@ -64,7 +77,7 @@ function loadRunWatch(overrides) {
       function () { this.close = () => {}; this.addEventListener = () => {}; },
     setInterval: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
     clearInterval: () => {},
-    setTimeout: () => 0,
+    setTimeout: (fn, ms) => { deferred.push({ fn, ms }); return deferred.length; },
     Headers: globalThis.Headers,
     console: { warn() {}, log() {} },
   };
@@ -88,6 +101,19 @@ function loadRunWatch(overrides) {
   showPairScreen,
   sequencerAction,
   formatDurationSecs,
+  resolveCredentialAndShow,
+  adoptSessionCookie,
+  credentialRefusalText,
+  codeDeliveryText,
+  requestPairingCode,
+  startPairing,
+  renderSnapshot,
+  renderFrameCounter,
+  noteFrameEvent,
+  peekCredential: () => ({
+    adoptedBearer, sessionCsrfToken, credentialSource,
+    effective: effectiveToken(),
+  }),
   wakeLockSupport,
   notificationSupport,
   refreshCapabilityToggles,
@@ -106,16 +132,18 @@ function loadRunWatch(overrides) {
 
   // eslint-disable-next-line no-new-func
   const factory = new Function(
-    'window', 'document', 'localStorage', 'navigator', 'fetch', 'EventSource',
-    'setInterval', 'clearInterval', 'setTimeout', 'Headers', 'console',
+    'window', 'document', 'localStorage', 'sessionStorage', 'navigator',
+    'fetch', 'EventSource', 'setInterval', 'clearInterval', 'setTimeout',
+    'Headers', 'console',
     SOURCE + suffix,
   );
   const api = factory(
-    sandbox.window, sandbox.document, sandbox.localStorage, sandbox.navigator,
+    sandbox.window, sandbox.document, sandbox.localStorage,
+    sandbox.sessionStorage, sandbox.navigator,
     sandbox.fetchImpl, sandbox.EventSource, sandbox.setInterval,
     sandbox.clearInterval, sandbox.setTimeout, sandbox.Headers, sandbox.console,
   );
-  return { doc, api, timers };
+  return { doc, api, timers, deferred, sandbox };
 }
 
 /** A snapshot shaped like a live headless run of the D1 sim sequence. */
@@ -867,8 +895,10 @@ test('a token that was never accepted is not called a revoked pairing', async ()
     'nothing was withdrawn from a device that was never granted anything');
   assert.doesNotMatch(status.textContent, /revoked/);
   assert.match(status.textContent, /was not accepted/);
-  assert.match(status.textContent, /Remote Access/,
-    'say where the right credential is');
+  assert.match(status.textContent, /rig/,
+    'say where the right credential is — the rig, which may have no GUI');
+  assert.doesNotMatch(status.textContent, /Remote Access/,
+    'a headless rig has no Remote Access screen to check against');
   assert.ok(status.className.includes('error'));
 });
 
@@ -1622,4 +1652,352 @@ test('an event that arrives twice is shown once', async () => {
   await api.fetchSnapshot();
   await api.fetchSnapshot();
   assert.deepEqual(feedTitles(doc), ['FrameAccepted']);
+});
+
+// ---------------------------------------------------------------------------
+// W16-C — the counter, the absence, the handoff and the wall
+//
+// Four measurements against the release bundle on a headless rig, all four of
+// them the page saying something its own screen or its own server contradicts.
+// ---------------------------------------------------------------------------
+
+/** The frame counter exactly as the operator reads it. */
+function frameCounter(doc) {
+  return doc.getElementById('progress-frames').textContent;
+}
+
+/** A snapshot whose progress block reports `done` of `planned` frames. */
+function snapshotAtFrame(done, planned) {
+  const snap = runningSnapshot();
+  snap.sequencer.progress.completedExposures = done;
+  snap.sequencer.progress.totalExposures = planned;
+  return snap;
+}
+
+// D4-WEB-01. Measured over one 25-frame run: the page read "22 / 25" with
+// "ExposureCompleted frame: 24" rendered directly beneath it and
+// /api/run-watch/snapshot agreeing with the feed, because only sequence-level
+// transitions re-polled the snapshot while frame events went to the thumbnail
+// alone. No badge, no styling and no "last updated" distinguished that screen
+// from an agreeing one.
+test('a frame event the feed took marks the counter beside it as behind', () => {
+  const { doc, api } = loadRunWatch();
+  api.renderSnapshot(snapshotAtFrame(22, 25));
+  assert.equal(frameCounter(doc), '22 / 25');
+
+  api.noteFrameEvent({
+    eventType: 'ExposureCompleted', timestamp: 1, data: { frame: 24, total: 25 },
+  });
+  assert.equal(frameCounter(doc), '22 / 25 · updating',
+    'the page may not print a figure its own feed has already outrun');
+});
+
+test('the counter stops saying it is behind once the snapshot catches up', () => {
+  const { doc, api } = loadRunWatch();
+  api.renderSnapshot(snapshotAtFrame(22, 25));
+  api.noteFrameEvent({
+    eventType: 'FrameAccepted', timestamp: 1, data: { frame: 24, total: 25 },
+  });
+  assert.equal(frameCounter(doc), '22 / 25 · updating');
+
+  api.renderSnapshot(snapshotAtFrame(24, 25));
+  assert.equal(frameCounter(doc), '24 / 25');
+});
+
+test('a frame event schedules the re-read that catches the counter up', async () => {
+  const state = { body: snapshotAtFrame(24, 25) };
+  const { doc, api, deferred } = loadRunWatch(snapshotServer(state));
+  api.renderSnapshot(snapshotAtFrame(22, 25));
+
+  // A frame lands under several names in the same millisecond on the wire.
+  api.noteFrameEvent({ eventType: 'FrameAccepted', timestamp: 1, data: { frame: 23 } });
+  api.noteFrameEvent({ eventType: 'ExposureCompleted', timestamp: 1, data: { frame: 23 } });
+  api.noteFrameEvent({ eventType: 'ImageSaved', timestamp: 1, data: {} });
+  assert.equal(deferred.length, 1,
+    'one burst of names for one frame earns one re-read, not three');
+
+  deferred[0].fn();
+  // The re-read is a fetch chain; let its microtasks settle before reading.
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(frameCounter(doc), '24 / 25',
+    'the counter advances on the events the feed does');
+});
+
+// A frame event carrying no frame number still means the counter is behind:
+// the arrival is the evidence when the payload has none.
+test('a numberless frame event still marks the counter as behind', () => {
+  const { doc, api } = loadRunWatch();
+  api.renderSnapshot(snapshotAtFrame(22, 25));
+  api.noteFrameEvent({ eventType: 'ImageSaved', timestamp: 1, data: {} });
+  assert.equal(frameCounter(doc), '22 / 25 · updating');
+});
+
+// D4-WEB-02. Measured with four simulator devices genuinely connected and the
+// snapshot endpoint answering 500 to every read: EQUIPMENT read "No connected
+// devices" while GUIDING, WEATHER, PROGRESS, FRAMES and FILTER all read "--".
+// The shipped placeholder was the false claim, and it survived every failed
+// read.
+test('the shipped equipment placeholder claims nothing about the rig', () => {
+  const html = fs.readFileSync(path.join(RUN_WATCH, 'index.html'), 'utf8');
+  const block = html.slice(html.indexOf('id="equipment-list"'));
+  const shipped = block.slice(0, block.indexOf('</div>', block.indexOf('class="empty"')));
+  assert.doesNotMatch(shipped, /No connected devices/,
+    'a page that has read nothing may not assert an empty rig');
+  assert.match(shipped, /--/,
+    'the unknown surface the sibling fields ship');
+});
+
+test('an absent device list is unknown, never an empty rig', () => {
+  const { doc, api } = loadRunWatch();
+  const snap = runningSnapshot();
+  delete snap.devices;
+  api.applySnapshot(snap);
+  assert.equal(doc.getElementById('equipment-list').children[0].textContent, '--',
+    'nothing was said about equipment, so nothing is claimed about it');
+});
+
+test('a device list the server sent and that is empty says so', () => {
+  const { doc, api } = loadRunWatch();
+  api.applySnapshot(runningSnapshot({ devices: [] }));
+  assert.equal(
+    doc.getElementById('equipment-list').children[0].textContent,
+    'No connected devices',
+    'an empty list IS a reading, and the page keeps saying it');
+});
+
+test('a device list the server sent renders its rows', () => {
+  const { doc, api } = loadRunWatch();
+  api.applySnapshot(runningSnapshot({
+    devices: [{ name: 'Simulator camera 1', type: 'camera' }],
+  }));
+  const rows = doc.getElementById('equipment-list').children;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].children[0].textContent, 'Simulator camera 1');
+});
+
+// ---------------------------------------------------------------------------
+// D4-WEB-03 — an operator authenticated to the dashboard is authenticated here
+//
+// Measured: the dashboard read "Connected" with its bearer in this tab's
+// sessionStorage, and its own Run-Watch link landed on the pairing wall.
+// ---------------------------------------------------------------------------
+
+test('the bearer the dashboard left in this tab is used, not re-requested', async () => {
+  const { doc, api } = loadRunWatch({
+    sessionStorage: [['nightshade_token', 'dashboard-bearer']],
+    fetch: async () => ({
+      ok: true, status: 200, headers: new Headers(),
+      json: async () => runningSnapshot(),
+    }),
+  });
+  await api.resolveCredentialAndShow();
+  assert.ok(doc.getElementById('pair-screen').classList.contains('hidden'),
+    'an operator who signed in seconds ago is not asked to pair');
+  const cred = api.peekCredential();
+  assert.equal(cred.effective, 'dashboard-bearer');
+  assert.equal(cred.credentialSource, 'dashboard-tab');
+});
+
+test('a borrowed dashboard bearer is never persisted to this page storage', async () => {
+  const { api, sandbox } = loadRunWatch({
+    sessionStorage: [['nightshade_token', 'dashboard-bearer']],
+    fetch: async () => ({
+      ok: true, status: 200, headers: new Headers(),
+      json: async () => runningSnapshot(),
+    }),
+  });
+  await api.resolveCredentialAndShow();
+  assert.equal(sandbox.localStorage.getItem('nightshade.runwatch.token'), null,
+    'the dashboard chose sessionStorage; this page does not overrule that');
+  assert.equal(
+    sandbox.localStorage.getItem('nightshade.runwatch.tokenAccepted'), null);
+});
+
+test('an HttpOnly session the server confirms opens the run, with no bearer', async () => {
+  const seen = [];
+  const { doc, api } = loadRunWatch({
+    fetch: async (path, opts) => {
+      seen.push({ path, opts });
+      if (path === '/api/auth/csrf') {
+        return {
+          ok: true, status: 200, headers: new Headers(),
+          json: async () => ({ csrfToken: 'csrf-abc', expiresInSeconds: 900 }),
+        };
+      }
+      return {
+        ok: true, status: 200, headers: new Headers(),
+        json: async () => runningSnapshot(),
+      };
+    },
+  });
+  await api.resolveCredentialAndShow();
+  assert.ok(doc.getElementById('pair-screen').classList.contains('hidden'));
+  const cred = api.peekCredential();
+  assert.equal(cred.credentialSource, 'session-cookie');
+  assert.ok(!cred.effective, 'the cookie is HttpOnly — there is no bearer to hold');
+
+  // A write on the cookie path must echo the CSRF token the server bound to it.
+  await api.apiFetch('/api/sequencer/pause', { method: 'POST' });
+  const write = seen[seen.length - 1];
+  assert.equal(write.opts.headers.get('X-Nightshade-CSRF'), 'csrf-abc');
+  assert.equal(write.opts.headers.get('Authorization'), null);
+  assert.equal(write.opts.credentials, 'same-origin');
+});
+
+// The refusal that matters: nothing above widens what an unauthenticated
+// browser can reach. With no pairing, no dashboard bearer and no session, the
+// server answers 401 and the wall is what is left.
+test('a browser that has signed in nowhere still meets the pairing wall', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: false, status: 401, statusText: 'Unauthorized',
+      headers: new Headers(),
+      json: async () => ({ error: 'no_session' }),
+      text: async () => 'no_session',
+    }),
+  });
+  await api.resolveCredentialAndShow();
+  assert.ok(!doc.getElementById('pair-screen').classList.contains('hidden'));
+  assert.ok(doc.getElementById('main-screen').classList.contains('hidden'));
+  assert.equal(api.peekCredential().effective, null,
+    'no credential was invented to get past the wall');
+});
+
+test('an ended dashboard session is not described as a revoked pairing', () => {
+  assert.match(
+    api_credentialRefusal('session-cookie', null, false),
+    /session has ended/);
+  assert.doesNotMatch(
+    api_credentialRefusal('session-cookie', null, false), /pairing.*revoked/);
+  assert.match(
+    api_credentialRefusal('dashboard-tab', 'borrowed', false),
+    /dashboard session/);
+  assert.match(
+    api_credentialRefusal('paired', 'mine', true), /pairing is no longer accepted/);
+});
+
+/** Reads the refusal sentence out of a freshly loaded page. */
+function api_credentialRefusal(source, token, wasAccepted) {
+  const { api } = loadRunWatch();
+  return api.credentialRefusalText(source, token, wasAccepted);
+}
+
+// ---------------------------------------------------------------------------
+// D4-WEB-04 — the wall names a step the rig it is running on can perform
+//
+// Measured on a headless bundle with no GUI anywhere on the machine: the wall
+// said "Open the Nightshade desktop app's Remote Access screen", offered no
+// control that causes a code to exist, and the code the server does make sat in
+// an owner-only pairing-code.txt this page named nowhere.
+// ---------------------------------------------------------------------------
+
+test('the wall names a code source a headless rig actually has', () => {
+  const html = fs.readFileSync(path.join(RUN_WATCH, 'index.html'), 'utf8');
+  const wall = html.slice(html.indexOf('id="pair-screen"'),
+    html.indexOf('id="main-screen"'));
+  assert.match(wall, /pairing-code\.txt/,
+    'the file a headless rig writes the code to');
+  assert.match(wall, /--pairing-print-codes/,
+    'the flag that puts it on a headless console');
+  assert.match(wall, /id="btn-request-code"/,
+    'naming a source without a way to make a code is still a dead end');
+});
+
+test('the request button reports where the rig actually put the code', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: true, status: 200, headers: new Headers(),
+      json: async () => ({
+        expiresAt: '2026-08-31T15:50:49Z',
+        expiresInSeconds: 299,
+        codeDelivery: {
+          operatorFile: true,
+          operatorFileName: 'pairing-code.txt',
+          console: false,
+        },
+      }),
+    }),
+  });
+  await api.requestPairingCode();
+  const status = doc.getElementById('pair-status').textContent;
+  assert.match(status, /pairing-code\.txt/);
+  assert.doesNotMatch(status, /console/,
+    'this host was not started with printing on; do not send them to a console');
+  assert.match(status, /5 min/);
+});
+
+test('a rig that could not deliver the code says so instead of naming a file', () => {
+  const { api } = loadRunWatch();
+  const text = api.codeDeliveryText({
+    codeDelivery: { operatorFile: false, operatorFileName: 'pairing-code.txt', console: false },
+  });
+  assert.match(text, /could not put it anywhere readable/);
+  assert.doesNotMatch(text, /Read it from/,
+    'naming a file the rig failed to write is the same defect in a new place');
+});
+
+test('a console-printing host is named as such', () => {
+  const { api } = loadRunWatch();
+  const text = api.codeDeliveryText({
+    codeDelivery: { operatorFile: true, operatorFileName: 'pairing-code.txt', console: true },
+  });
+  assert.match(text, /pairing-code\.txt/);
+  assert.match(text, /console output/);
+});
+
+// The wall's own Pair button, driven end-to-end against the release bundle with
+// a code read out of the rig's pairing-code.txt: the server answered 200 with
+// {"token": "...", "tokenScope": "control"} and this screen said "Pairing
+// failed." and threw the token away. It was reading `sessionToken`, which is
+// the server's internal name for the field and has never been on the wire.
+test('the token the server actually mints is the one the page keeps', async () => {
+  const { doc, api, sandbox } = loadRunWatch({
+    fetch: async () => ({
+      ok: true, status: 200, headers: new Headers(),
+      json: async () => ({
+        token: 'minted-by-the-rig',
+        tokenScope: 'control',
+        expiresAt: '2027-08-31T16:03:35Z',
+      }),
+    }),
+  });
+  await api.startPairing('MOON-NOVA-9664');
+
+  assert.equal(
+    sandbox.localStorage.getItem('nightshade.runwatch.token'),
+    'minted-by-the-rig');
+  assert.equal(api.tokenWasEverAccepted(), true,
+    'the pairing endpoint minted it, so it is accepted by construction');
+  assert.match(doc.getElementById('pair-status').textContent, /Paired successfully/);
+  assert.ok(doc.getElementById('pair-screen').classList.contains('hidden'));
+});
+
+test('a 2xx that carries no token is not blamed on the operator typing', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: true, status: 200, headers: new Headers(),
+      json: async () => ({ tokenScope: 'control' }),
+    }),
+  });
+  await api.startPairing('MOON-NOVA-9664');
+  const status = doc.getElementById('pair-status').textContent;
+  assert.match(status, /sent no token back/);
+  assert.doesNotMatch(status, /not recognised/,
+    'the code was accepted; do not tell them to re-read it');
+  assert.ok(!doc.getElementById('pair-screen').classList.contains('hidden'));
+});
+
+// A counter with no figure on it cannot be behind. Measured with the snapshot
+// endpoint answering 500 while the SSE stream still delivered frames: the
+// counter read "-- · updating", a staleness claim about a number that was not
+// on the screen.
+test('an unknown frame counter is not decorated with a staleness cue', () => {
+  const { doc, api } = loadRunWatch();
+  const snap = runningSnapshot();
+  snap.sequencer.progress.completedExposures = null;
+  snap.sequencer.progress.totalExposures = null;
+  api.renderSnapshot(snap);
+  api.noteFrameEvent({ eventType: 'FrameAccepted', timestamp: 1, data: { frame: 4 } });
+  assert.equal(frameCounter(doc), '--',
+    'there is no figure here for the feed to have outrun');
 });

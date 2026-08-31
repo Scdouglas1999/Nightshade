@@ -57,6 +57,16 @@ class DeliveryDestinationReport {
   /// Files that arrived and verified on this pass.
   final int delivered;
 
+  /// Files an earlier pass already delivered, which this pass left alone.
+  ///
+  /// Kept apart from [delivered]: that count is work this pass did, and this
+  /// one is work it found already done. A job whose row is re-queued after a
+  /// power cut runs its whole delivery pass again over the same artifacts, and
+  /// the files that already arrived are not sent again, not counted as an
+  /// attempt, and — for a paired desktop that acknowledged its pull — not
+  /// offered back to it.
+  final int alreadyDelivered;
+
   /// Files published for a paired desktop that has not pulled them yet.
   final int awaitingPull;
 
@@ -109,6 +119,7 @@ class DeliveryDestinationReport {
     required this.retrying,
     required this.failed,
     required this.problems,
+    this.alreadyDelivered = 0,
     this.stoppedPending = 0,
     this.suspended = 0,
     this.unjournalled = 0,
@@ -118,6 +129,7 @@ class DeliveryDestinationReport {
   /// Total files this destination was asked to take on this pass.
   int get attempted =>
       delivered +
+      alreadyDelivered +
       awaitingPull +
       retrying +
       stoppedPending +
@@ -132,6 +144,8 @@ class DeliveryDestinationReport {
     }
     final parts = <String>[
       if (delivered > 0) '$delivered delivered',
+      if (alreadyDelivered > 0)
+        '$alreadyDelivered already delivered before this pass',
       if (awaitingPull > 0) '$awaitingPull awaiting pull',
       if (retrying > 0) '$retrying retrying',
       if (stoppedPending > 0)
@@ -168,6 +182,10 @@ class DeliveryRunReport {
 
   /// Files that arrived and verified.
   int get delivered => destinations.fold<int>(0, (sum, d) => sum + d.delivered);
+
+  /// Files an earlier pass had already delivered.
+  int get alreadyDelivered =>
+      destinations.fold<int>(0, (sum, d) => sum + d.alreadyDelivered);
 
   /// Files published for a peer that has not pulled them yet.
   int get awaitingPull =>
@@ -529,16 +547,13 @@ class DeliveryService {
     } catch (error, stack) {
       final failure = _asFailure(error, destination);
       _log(failure, destination, stack);
-      for (final file in files) {
-        await _recordOutcome(
-          targetId: targetId,
-          jobId: jobId,
-          filePath: file.sourcePath,
-          bytes: file.bytes,
-          failure: failure,
-          tally: tally,
-        );
-      }
+      await _destinationRefused(
+        targetId: targetId,
+        jobId: jobId,
+        files: files,
+        failure: failure,
+        tally: tally,
+      );
       await _closeQuietly(transport, tally);
       return tally.build();
     }
@@ -738,16 +753,13 @@ class DeliveryService {
     } catch (error, stack) {
       final failure = _asFailure(error, destination);
       _log(failure, destination, stack);
-      for (final file in files) {
-        await _recordOutcome(
-          targetId: targetId,
-          jobId: jobId,
-          filePath: file.sourcePath,
-          bytes: file.bytes,
-          failure: failure,
-          tally: tally,
-        );
-      }
+      await _destinationRefused(
+        targetId: targetId,
+        jobId: jobId,
+        files: files,
+        failure: failure,
+        tally: tally,
+      );
       await _closeQuietly(transport, tally);
       return;
     }
@@ -801,6 +813,16 @@ class DeliveryService {
         stack: stack,
         tally: tally,
       );
+      return;
+    }
+
+    // This file already arrived, so this pass does not send it again. The
+    // journal refused to start an attempt on the row and handed it back as it
+    // stands; a re-queued job runs its whole pass over the same artifacts, and
+    // a paired desktop can acknowledge its pull at any moment — including
+    // between the moment this pass selected the file and this write.
+    if (attempt.state == DeliveryAttemptState.delivered) {
+      tally.alreadyDelivered++;
       return;
     }
 
@@ -869,7 +891,7 @@ class DeliveryService {
     required _Tally tally,
   }) async {
     try {
-      await _journalWrite(
+      final owed = await _journalWrite(
         () => _journal.recordStillOwed(
           targetId: targetId,
           jobId: jobId,
@@ -881,6 +903,13 @@ class DeliveryService {
           now: _clock(),
         ),
       );
+      // A file that already arrived is not owed one. The journal left the row
+      // alone, so this pass counts it for what it is rather than adding it to
+      // the work the stop left outstanding.
+      if (owed.state == DeliveryAttemptState.delivered) {
+        tally.alreadyDelivered++;
+        return;
+      }
       tally.stoppedPending++;
     } catch (error, stack) {
       _journalWriteRefused(
@@ -894,18 +923,71 @@ class DeliveryService {
     }
   }
 
-  /// Count an attempt for one file and record why it failed.
+  /// Record a destination-level refusal against every file it stopped, and
+  /// state the cause once.
+  ///
+  /// The transport would not open, so this is ONE fact about the destination
+  /// rather than one fact per file. Every file still gets its own journal row —
+  /// that is what the sweep works from — but the sentence goes in the report a
+  /// single time, naming how many files it held up. Fanned out per file it
+  /// wrote the same words into the morning report once per artifact — nine
+  /// byte-identical lines for one unopenable folder on a four-master night,
+  /// and more than that on a real one. Per-file causes are unaffected: they
+  /// name their own file and still list one by one.
+  Future<void> _destinationRefused({
+    required int targetId,
+    required int jobId,
+    required List<DeliveryFile> files,
+    required DeliveryFailure failure,
+    required _Tally tally,
+  }) async {
+    var stopped = 0;
+    for (final file in files) {
+      final recorded = await _recordOutcome(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file.sourcePath,
+        bytes: file.bytes,
+        failure: failure,
+        tally: tally,
+        stateProblem: false,
+      );
+      if (recorded) stopped++;
+    }
+    // Nothing was held up: every file this destination was handed had already
+    // arrived on an earlier pass, and a file that is already there was not
+    // stopped by a transport that would not open.
+    if (stopped == 0) return;
+    tally.problems.add(
+      '$stopped file${stopped == 1 ? '' : 's'} '
+      '${stopped == 1 ? 'was' : 'were'} not sent to ${tally.destination.name}: '
+      '${failure.journalText}',
+    );
+  }
+
+  /// Count an attempt for one file and record why it failed. Returns whether
+  /// an outcome was recorded for it.
   ///
   /// The attempt is counted even when the whole destination failed to open:
   /// the budget is per file per destination, and a file whose attempts never
   /// increment is a file that retries until the end of time.
-  Future<void> _recordOutcome({
+  ///
+  /// False for a file that already arrived — the journal refuses to start an
+  /// attempt on a delivered row, and writing a failure over it would take a
+  /// file the operator has back off them — and for a file whose journal write
+  /// was refused, which [_journalWriteRefused] has already stated.
+  ///
+  /// [stateProblem] false leaves the sentence to the caller, which is how a
+  /// destination-level cause is stated once for the destination rather than
+  /// once per file.
+  Future<bool> _recordOutcome({
     required int targetId,
     required int jobId,
     required String filePath,
     required int bytes,
     required DeliveryFailure failure,
     required _Tally tally,
+    bool stateProblem = true,
   }) async {
     final DeliveryJournalEntry attempt;
     try {
@@ -927,7 +1009,11 @@ class DeliveryService {
         stack: stack,
         tally: tally,
       );
-      return;
+      return false;
+    }
+    if (attempt.state == DeliveryAttemptState.delivered) {
+      tally.alreadyDelivered++;
+      return false;
     }
     await _recordJournalOutcome(
       targetId: targetId,
@@ -936,7 +1022,9 @@ class DeliveryService {
       attempts: attempt.attempts,
       failure: failure,
       tally: tally,
+      stateProblem: stateProblem,
     );
+    return true;
   }
 
   Future<void> _recordJournalOutcome({
@@ -946,6 +1034,7 @@ class DeliveryService {
     required int attempts,
     required DeliveryFailure failure,
     required _Tally tally,
+    bool stateProblem = true,
   }) async {
     final exhausted = _policy.isExhausted(attempts);
     final terminal = !failure.retryable || exhausted;
@@ -988,7 +1077,7 @@ class DeliveryService {
         tally: tally,
       );
     }
-    tally.problems.add(text);
+    if (stateProblem) tally.problems.add(text);
   }
 
   /// Perform one journal write, asking again a bounded number of times.
@@ -1092,6 +1181,7 @@ class _Tally {
   final int targetId;
 
   int delivered = 0;
+  int alreadyDelivered = 0;
   int awaitingPull = 0;
   int retrying = 0;
   int stoppedPending = 0;
@@ -1107,6 +1197,7 @@ class _Tally {
     name: destination.name,
     kind: destination.kind,
     delivered: delivered,
+    alreadyDelivered: alreadyDelivered,
     awaitingPull: awaitingPull,
     retrying: retrying,
     stoppedPending: stoppedPending,
