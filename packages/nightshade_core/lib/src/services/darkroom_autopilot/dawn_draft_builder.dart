@@ -9,8 +9,11 @@
 /// Three policies live on top of what the registry returns:
 ///
 ///  * **Nothing that renders nothing.** A step whose parameters are the
-///    identity at its defaults (`saturation`, `curves`) is left out: it would
-///    show in the history stack, change no pixel, and read as broken.
+///    identity is left out: it would show in the history stack, change no
+///    pixel, and read as broken. Two shapes qualify — an operation that is the
+///    identity at its defaults (`saturation`, `curves`), and a `crop` whose
+///    measured rectangle is the whole master, which is what the registry
+///    returns whenever the registered frames cover every pixel.
 ///  * **One background retry.** A dense field can leave the background lattice
 ///    with too few star-free samples to fit a surface. The draft retries once
 ///    at half the sample spacing, which doubles the lattice density per axis;
@@ -76,7 +79,60 @@ const List<String> kStretchMeasuredParams = [
 
 /// Operations whose defaults are the identity transform, so a draft that
 /// carried them would list a step that changes nothing.
+///
+/// `crop` is not here because its parameters are MEASURED rather than
+/// defaulted: whether it is the identity depends on the rectangle the registry
+/// returned for this master, which is what [darkroomCropIsIdentity] answers.
 const Set<String> kIdentityAtDefaults = {'saturation', 'curves'};
+
+/// True when [params] is a crop rectangle covering the whole
+/// [width]×[height] master, so the step trims nothing.
+///
+/// `crop@1`'s auto rectangle is the largest area every registered frame covers.
+/// A stack whose frames all landed on the same pixels — an undithered night,
+/// and every simulated master — leaves that rectangle equal to the frame, and
+/// the draft then carried `{x: 0, y: 0, width: W, height: H}` over a W×H
+/// master: a step card reading "Applied by the last render" over an operation
+/// that moved no pixel.
+///
+/// False for a rectangle this cannot read — a missing corner, a non-numeric
+/// edge, a master whose dimensions are unknown. An unreadable rectangle is not
+/// PROVEN to be the identity, and dropping a step on a guess would remove a
+/// crop the registry meant.
+bool darkroomCropIsIdentity(
+  Object? params, {
+  required int width,
+  required int height,
+}) {
+  if (params is! Map) return false;
+  if (width <= 0 || height <= 0) return false;
+  final x = _asPixels(params['x']);
+  final y = _asPixels(params['y']);
+  final w = _asPixels(params['width']);
+  final h = _asPixels(params['height']);
+  if (x == null || y == null || w == null || h == null) return false;
+  return x == 0 && y == 0 && w == width && h == height;
+}
+
+/// The sentence a draft records for a crop it left out because the rectangle
+/// covers the whole master.
+///
+/// Shared by the dawn pass and the editor's own "Draft for me" so the two
+/// paths give one account of the same decision.
+String darkroomIdentityCropReason(int width, int height) =>
+    'the crop rectangle measured over this master is the whole '
+    '$width×$height frame, so it trims nothing: a draft carrying it would '
+    'list a step that changes no pixel. Add a crop by hand to trim an edge.';
+
+/// One crop edge as whole pixels, or null when it is not a finite number.
+int? _asPixels(Object? value) {
+  if (value is int) return value;
+  if (value is double) {
+    if (!value.isFinite || value != value.roundToDouble()) return null;
+    return value.toInt();
+  }
+  return null;
+}
 
 /// The order a draft's steps are written in.
 ///
@@ -244,7 +300,7 @@ class DawnDraftBuilder {
       for (final step in rawSteps)
         if (step is Map<String, dynamic>) Map<String, dynamic>.from(step),
     ];
-    steps = _dropIdentitySteps(steps, notes);
+    steps = _dropIdentitySteps(steps, notes, master);
     final background = await _retryBackgroundExtract(
       master: master,
       recipeId: recipeId,
@@ -326,10 +382,16 @@ class DawnDraftBuilder {
     }
   }
 
-  /// Drop the steps whose defaults are the identity transform.
+  /// Drop the steps that render nothing over [master].
+  ///
+  /// Two shapes: an operation that is the identity at its defaults, and a crop
+  /// whose measured rectangle is the whole frame. Both leave a note, because a
+  /// draft that silently carries four steps where the registry decided about
+  /// five is a draft that hides one of its own decisions.
   static List<Map<String, dynamic>> _dropIdentitySteps(
     List<Map<String, dynamic>> steps,
     List<DawnDraftNote> notes,
+    DawnMaster master,
   ) {
     final kept = <Map<String, dynamic>>[];
     for (final step in steps) {
@@ -343,6 +405,21 @@ class DawnDraftBuilder {
                 'at its defaults this operation is the identity transform, so '
                 'a first draft carrying it would list a step that changes no '
                 'pixel',
+          ),
+        );
+        continue;
+      }
+      if (opId == 'crop' &&
+          darkroomCropIsIdentity(
+            step['params'],
+            width: master.width,
+            height: master.height,
+          )) {
+        notes.add(
+          DawnDraftNote(
+            opId: 'crop',
+            outcome: 'omitted',
+            reason: darkroomIdentityCropReason(master.width, master.height),
           ),
         );
         continue;

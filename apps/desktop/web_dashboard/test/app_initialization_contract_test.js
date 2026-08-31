@@ -256,11 +256,21 @@ test('gallery thumbnail failures keep the card and label the placeholder', () =>
   assert.ok(render, 'renderGallery must exist');
   assert.match(render[0], /img\.onerror = \(\) => markGalleryThumbUnavailable\(img\)/);
 
+  // The parameter list is deliberately NOT pinned: the camera panel shares
+  // this loader (and its two auth paths) while labelling failures in its own
+  // markup, so the signature grew an optional `onUnavailable`. What must hold
+  // is the CONTRACT — a failed thumbnail is labelled through a marker that
+  // defaults to the gallery's own, and the element is never hidden.
   const loader = source.match(
-    /async function loadGalleryThumbnail\(img, imageId, opts\) \{[\s\S]*?\n  \}/,
+    /async function loadGalleryThumbnail\([^)]*\) \{[\s\S]*?\n  \}/,
   );
   assert.ok(loader, 'loadGalleryThumbnail must exist');
-  assert.match(loader[0], /markGalleryThumbUnavailable\(img, e\.message\)/);
+  assert.match(
+    loader[0],
+    /const markUnavailable = onUnavailable \|\| markGalleryThumbUnavailable/,
+    'the default labeller must still be the gallery helper',
+  );
+  assert.match(loader[0], /markUnavailable\(img, e\.message\)/);
   assert.doesNotMatch(loader[0], /img\.style\.display = 'none'/);
 
   // The placeholder needs real styling, otherwise the card collapses again.

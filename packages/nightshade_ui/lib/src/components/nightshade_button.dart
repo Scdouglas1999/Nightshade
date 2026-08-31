@@ -48,6 +48,11 @@ class NightshadeButton extends StatefulWidget {
 const double _focusRingOffset = 2.0;
 const double _focusRingWidth = 2.0;
 
+/// Stroke width of the red-night destructive ring, in logical pixels. Heavier
+/// than the 1px every other bordered variant uses, because here the border is
+/// carrying the meaning a fill colour carries in the other themes.
+const double _dangerOutlineWidth = 2.0;
+
 class _NightshadeButtonState extends State<NightshadeButton>
     with SingleTickerProviderStateMixin {
   bool _isHovered = false;
@@ -170,6 +175,10 @@ class _NightshadeButtonState extends State<NightshadeButton>
     final Color foregroundColor;
     final Color borderColor;
     Color? flatColor;
+    // Stroke weight is a channel, not decoration: the red-night destructive
+    // face below is separated from the primary by having no fill and a heavy
+    // ring, so the ring has to be thick enough to read as deliberate.
+    var borderWidth = 1.0;
 
     switch (widget.variant) {
       case ButtonVariant.primary:
@@ -180,12 +189,20 @@ class _NightshadeButtonState extends State<NightshadeButton>
           isDisabled: isDisabled,
         );
       case ButtonVariant.destructive:
-        (flatColor, foregroundColor, borderColor) = _buildFilled(
-          colors.error,
-          colors,
-          colorScheme.onError,
-          isDisabled: isDisabled,
-        );
+        if (colors.isRedNight) {
+          (flatColor, foregroundColor, borderColor) = _buildDangerOutline(
+            colors,
+            isDisabled: isDisabled,
+          );
+          if (!isDisabled) borderWidth = _dangerOutlineWidth;
+        } else {
+          (flatColor, foregroundColor, borderColor) = _buildFilled(
+            colors.error,
+            colors,
+            colorScheme.onError,
+            isDisabled: isDisabled,
+          );
+        }
       case ButtonVariant.outline:
         flatColor = _isHovered && !isDisabled
             ? colors.primary.withValues(alpha: 0.08)
@@ -302,7 +319,10 @@ class _NightshadeButtonState extends State<NightshadeButton>
                     decoration: BoxDecoration(
                       color: flatColor,
                       borderRadius: NightshadeTokens.borderRadiusSm,
-                      border: Border.all(color: borderColor),
+                      border: Border.all(
+                        color: borderColor,
+                        width: borderWidth,
+                      ),
                     ),
                     child: Padding(
                       padding: _padding,
@@ -373,6 +393,58 @@ class _NightshadeButtonState extends State<NightshadeButton>
         ),
       ),
     );
+  }
+
+  /// The destructive face under red night: no fill, a heavy `error` ring, and
+  /// an `error` label — instead of the solid `error` fill every other theme
+  /// gives it.
+  ///
+  /// Red night is monochrome by construction; the Appearance page says so in
+  /// as many words ("Red night is monochrome red, so the accent has no effect
+  /// while it is selected"), and `primary` #DC2626 and `error` #EF5350 are
+  /// therefore two shades of one hue rather than two hues. Measured on the
+  /// release bundle, the delivery destination editor put Delete rgb(239,83,80)
+  /// beside Save rgb(220,38,38): two adjacent, equally-weighted solid-red
+  /// slabs, with the channel that normally carries "this one deletes" already
+  /// spent on the mode itself. Every other destructive-next-to-primary pair in
+  /// the app — the flat wizard's actions, the sequence card dialogs, the
+  /// pairing screen, ~65 call sites — collided the same way, which is why the
+  /// repair is here in the component and not at any one of them.
+  ///
+  /// FILL WEIGHT is the channel still free, so under red night exactly one of
+  /// the pair is filled: the primary. The destructive is the hollow one inside
+  /// the ring, and the icon and the word still say which it is.
+  ///
+  /// `error` stays the foreground rather than deferring to `textPrimary`: it
+  /// measures 4.81:1 at worst across the whole red-night surface ladder
+  /// (5.95 on `background` down to 4.81 on `surfaceOverlay`), so it clears the
+  /// 4.5:1 floor the palette holds its text to on every surface a button can
+  /// sit on, and it keeps the ring and its label the same colour.
+  (Color?, Color, Color) _buildDangerOutline(
+    NightshadeColors colors, {
+    required bool isDisabled,
+  }) {
+    if (isDisabled) {
+      return (colors.surfaceAlt, colors.textMuted, colors.border);
+    }
+    // Hover and press wash the interior instead of filling it: the fill stays
+    // recognisably absent at every interaction state, because that absence is
+    // what tells the two buttons apart.
+    if (_isPressed) {
+      return (
+        colors.error.withValues(alpha: 0.22),
+        colors.error,
+        _lightenColor(colors.error, 0.08),
+      );
+    }
+    if (_isHovered) {
+      return (
+        colors.error.withValues(alpha: 0.12),
+        colors.error,
+        _lightenColor(colors.error, 0.04),
+      );
+    }
+    return (Colors.transparent, colors.error, colors.error);
   }
 
   (Color?, Color, Color) _buildFilled(

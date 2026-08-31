@@ -2670,3 +2670,125 @@ test('a gallery row states an exposure only when one was sent', () => {
   assert.doesNotMatch(meta({ id: 3, filter: 'L', exposureTime: '120' }), /120s/);
   assert.match(meta({ id: 4, filter: 'L', exposureTime: 120 }), /120s/);
 });
+
+// ---------------------------------------------------------------------------
+// D4-03 — the camera panel's empty live preview
+// ---------------------------------------------------------------------------
+
+/** Every string a rendered subtree carries, joined. */
+function textOf(el) {
+  const parts = el.textContent ? [el.textContent] : [];
+  for (const child of el.children) parts.push(textOf(child));
+  return parts.join(' ').trim();
+}
+
+/** The REAL renderEmptyLivePreview over a given fallback state. */
+function emptyPreview(fallback) {
+  const doc = makeDocument(['image-preview']);
+  const thumbs = [];
+  const reads = [];
+  const render = build(
+    ['document', 'previewFallback', 'formatGalleryMeta', 'galleryRejection',
+      'loadGalleryThumbnail', 'loadPreviewFallback'],
+    [fn('createImagePlaceholder'), fn('replaceWithPreviewPlaceholder'),
+      fn('renderEmptyLivePreview')],
+    'renderEmptyLivePreview',
+  )(
+    doc,
+    fallback,
+    build([], [fn('wireNumber'), fn('formatGalleryMeta')],
+      'formatGalleryMeta')(),
+    build([], [fn('galleryRejection')], 'galleryRejection')(),
+    (img, id, opts) => { thumbs.push({ id, opts }); },
+    () => { reads.push('library'); },
+  );
+  const container = doc.getElementById('image-preview');
+  container.setAttribute('aria-label', 'Most recent exposure preview');
+  render(container);
+  return {
+    container,
+    text: textOf(container),
+    label: container.getAttribute('aria-label'),
+    thumbs,
+    reads,
+  };
+}
+
+// `/api/camera/last-image/jpeg` serves an in-memory buffer that a relaunched
+// server has none of. Printing "No image captured yet" over its 404 put an
+// absolute on the same screen whose gallery said "14 images — 2 rejected",
+// measured against a rig restarted on its own database.
+test('an empty buffer over a stocked library shows the library frame', () => {
+  const { text, thumbs } = emptyPreview({
+    status: 'read',
+    item: { id: 14, filter: 'L', exposureTime: 120, isAccepted: true,
+      createdAt: '2026-08-31T13:59:12Z' },
+    error: '',
+  });
+  assert.deepEqual(thumbs.map((t) => t.id), ['14']);
+  assert.match(text, /Last capture in the library/);
+  assert.match(text, /no exposure since it started/);
+  assert.doesNotMatch(text, /No image captured yet/);
+});
+
+test('a rejected last capture is labelled as one', () => {
+  const { text } = emptyPreview({
+    status: 'read',
+    item: { id: 9, filter: 'L', isAccepted: false,
+      rejectionReason: 'star count 43 below minimum 100000' },
+    error: '',
+  });
+  assert.match(text, /rejected by the grader/);
+});
+
+test('"nothing captured" is said only when the library is empty too', () => {
+  const { text, thumbs } = emptyPreview(
+    { status: 'read', item: null, error: '' });
+  assert.deepEqual(thumbs, []);
+  assert.match(text, /No image captured yet/);
+  assert.match(text, /the image library is empty too/);
+});
+
+test('an unreadable library is not reported as an empty one', () => {
+  const { text } = emptyPreview(
+    { status: 'unreadable', item: null, error: 'Image library: 503' });
+  assert.match(text, /could not be read/);
+  assert.match(text, /Image library: 503/);
+  assert.doesNotMatch(text, /No image captured yet/);
+  assert.doesNotMatch(text, /library is empty/);
+});
+
+test('an unread fallback asks the library exactly once per render', () => {
+  const { text, reads } = emptyPreview(
+    { status: 'unread', item: null, error: '' });
+  assert.deepEqual(reads, ['library']);
+  assert.match(text, /Looking for the last capture/);
+  assert.doesNotMatch(text, /No image captured yet/);
+});
+
+// The pre-connection markup made the same absolute claim before any fetch had
+// run, so it is not there to be read either.
+// The container is `role="img"`, so its aria-label REPLACES the caption for a
+// screen reader. Every branch's sentence has to be there too, or the panel is
+// honest only to people who can see it.
+test('the panel says the same thing to assistive tech', () => {
+  const shown = emptyPreview({
+    status: 'read',
+    item: { id: 14, filter: 'L', isAccepted: true },
+    error: '',
+  });
+  assert.equal(shown.label, shown.text);
+
+  const empty = emptyPreview({ status: 'read', item: null, error: '' });
+  assert.equal(empty.label, empty.text);
+  assert.notEqual(empty.label, 'Most recent exposure preview');
+
+  const broken = emptyPreview(
+    { status: 'unreadable', item: null, error: 'Image library: 503' });
+  assert.match(broken.label, /could not be read/);
+});
+
+test('the static camera placeholder claims nothing about the night', () => {
+  assert.doesNotMatch(HTML, /No image captured yet/);
+  assert.match(HTML, /Preview not loaded yet/);
+});

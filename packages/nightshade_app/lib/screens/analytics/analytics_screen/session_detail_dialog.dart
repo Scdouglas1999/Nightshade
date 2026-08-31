@@ -15,6 +15,17 @@ const double _kSessionHeaderActionExtent = 48;
 /// exists to do.
 const double _kSessionHeaderTitleMinWidth = 180;
 
+/// The one sentence this dialog's Session Review actions refuse a remote client
+/// with.
+///
+/// The same fact the screen itself states when it is reached by deep link
+/// ("Open Session Review on the imaging host"), said on the control instead of
+/// on the far side of a navigation.
+const String _kSessionReviewHostOnlyRefusal =
+    'Session Review works on the imaging host, where the full-resolution subs '
+    'and the integrated masters are stored. Open Nightshade there to review '
+    'this night.';
+
 /// One session-dialog header action: what it is called, what it does, and the
 /// glyph that stands for it.
 ///
@@ -27,6 +38,7 @@ class _SessionHeaderAction {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.unavailableReason,
     this.buttonKey,
   });
 
@@ -34,9 +46,21 @@ class _SessionHeaderAction {
   final String label;
   final VoidCallback onPressed;
 
+  /// Why this machine cannot run the action, or null when it can.
+  ///
+  /// Non-null disables the control — inline button and menu row alike — and
+  /// becomes its tooltip, so the refusal is readable BEFORE the press. A
+  /// control that looks live and refuses afterwards teaches the operator that
+  /// the app's enabled state means nothing, which is the shape
+  /// `darkroom_navigation.dart` names as the defect it fixed.
+  final String? unavailableReason;
+
   /// Identifies the inline icon button; the menu row carries no key because it
   /// only exists while the menu is open.
   final Key? buttonKey;
+
+  /// True when the action can run on this machine.
+  bool get available => unavailableReason == null;
 }
 
 /// What the culling decided about a session's LIGHT frames.
@@ -112,9 +136,26 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final imagesAsyncValue = ref.watch(dbSessionImagesProvider(session.id));
-    final isRemote = ref.watch(backendProvider) is NetworkBackend;
+    // The client ROLE, not the connection. `backend is NetworkBackend` is a
+    // CONNECTION fact: a desktop launched with `--remote-host` that has not
+    // reached its rig is `Disconnected`, so that test read false for the whole
+    // pre-handshake window and after every drop — and during exactly that
+    // window this dialog kept its host-capable labels, "Refine in Darkroom"
+    // explained itself only after the press, and "Review & Integrate" did not
+    // refuse at all: it popped the dialog and landed the operator on the
+    // Session Review host-only wall. Both actions ask the same question every
+    // other Darkroom entry point asks, in the words
+    // `darkroom_navigation.dart` shares.
+    final darkroomRefusal = watchDarkroomHostOnlyRefusal(ref);
+    final reviewRefusal = ref.watch(isRemoteClientProvider)
+        ? _kSessionReviewHostOnlyRefusal
+        : null;
     final l10n = context.l10n;
-    final actions = _headerActions(isRemote: isRemote, l10n: l10n);
+    final actions = _headerActions(
+      darkroomRefusal: darkroomRefusal,
+      reviewRefusal: reviewRefusal,
+      l10n: l10n,
+    );
     final refusal = _refusal;
 
     return Dialog(
@@ -186,7 +227,9 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                             key: action.buttonKey,
                             icon: action.icon,
                             label: action.label,
-                            onPressed: () => _invoke(action),
+                            onPressed:
+                                action.available ? () => _invoke(action) : null,
+                            tooltip: action.unavailableReason ?? action.label,
                           )
                       else
                         _headerOverflowMenu(colors, actions),
@@ -195,6 +238,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                         icon: LucideIcons.x,
                         label: l10n.text('commonClose'),
                         onPressed: () => Navigator.of(context).pop(),
+                        tooltip: l10n.text('commonClose'),
                       ),
                     ],
                   );
@@ -258,7 +302,8 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
   /// `mounted` check on this State guards the context it uses on the far side
   /// of that await.
   List<_SessionHeaderAction> _headerActions({
-    required bool isRemote,
+    required String? darkroomRefusal,
+    required String? reviewRefusal,
     required NightshadeLocalizations l10n,
   }) {
     return [
@@ -266,12 +311,11 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
       _SessionHeaderAction(
         buttonKey: const ValueKey('session_detail_review'),
         icon: LucideIcons.sparkles,
-        label: isRemote ? 'Review on imaging host' : 'Review & Integrate',
+        label: reviewRefusal == null
+            ? 'Review & Integrate'
+            : 'Review on imaging host',
+        unavailableReason: reviewRefusal,
         onPressed: () {
-          if (isRemote) {
-            _refuse('Session Review is available on the imaging host.');
-            return;
-          }
           Navigator.of(context).pop();
           context.push('/session-review?session=${session.id}');
         },
@@ -282,7 +326,10 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
       _SessionHeaderAction(
         buttonKey: const ValueKey('session_detail_darkroom'),
         icon: LucideIcons.sliders,
-        label: isRemote ? 'Refine on imaging host' : 'Refine in Darkroom',
+        label: darkroomRefusal == null
+            ? 'Refine in Darkroom'
+            : 'Refine on imaging host',
+        unavailableReason: darkroomRefusal,
         onPressed: () async {
           // Resolve BEFORE dismissing: a session with no master must leave the
           // dialog up to carry the explanation, and only a resolved master
@@ -356,12 +403,19 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
         for (final action in actions)
           PopupMenuItem<_SessionHeaderAction>(
             value: action,
+            // A row this machine cannot run is disabled here as well as inline,
+            // so the folded header and the unfolded one publish the same
+            // states. Its label already names where the action lives; the
+            // popup gives no tooltip to hang the full sentence on.
+            enabled: action.available,
             child: Row(
               children: [
                 Icon(
                   action.icon,
                   size: NightshadeTokens.iconSm,
-                  color: colors.textSecondary,
+                  color: action.available
+                      ? colors.textSecondary
+                      : colors.textMuted,
                 ),
                 const SizedBox(width: NightshadeTokens.spaceMd),
                 // Flexible, not min-sized: a label that grows by a word must
@@ -370,7 +424,9 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                   child: Text(
                     action.label,
                     style: NightshadeTypography.bodySm.copyWith(
-                      color: colors.textPrimary,
+                      color: action.available
+                          ? colors.textPrimary
+                          : colors.textMuted,
                     ),
                   ),
                 ),
@@ -382,7 +438,11 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
   }
 
   /// One header action: an icon button that publishes [label] as its accessible
-  /// name.
+  /// name, disabled when [onPressed] is null.
+  ///
+  /// [tooltip] is the label for an action that can run and the refusal for one
+  /// that cannot, which is how the reason reaches the operator before the
+  /// press — the same shape the master library's Darkroom button uses.
   ///
   /// The name goes on the [Icon], not on a surrounding [Semantics]. A Material
   /// [IconButton] wraps itself in `Semantics(container: true, …)`, so an
@@ -398,13 +458,14 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
     Key? key,
     required IconData icon,
     required String label,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
+    required String tooltip,
   }) {
     return IconButton(
       key: key,
       icon: Icon(icon, size: 18, semanticLabel: label),
       onPressed: onPressed,
-      tooltip: label,
+      tooltip: tooltip,
     );
   }
 

@@ -245,18 +245,30 @@ void main() {
     await tester.tap(find.text('Remote M42'));
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Review on imaging host'), findsOneWidget);
-    expect(find.byTooltip('Review & Integrate'), findsNothing);
-
+    // The refusal is ON the control: the name says where Session Review runs
+    // and the control is disabled, so the operator reads the answer before the
+    // press rather than after it.
     final reviewButton = find.byKey(const ValueKey('session_detail_review'));
+    expect(reviewButton, findsOneWidget);
+    final reviewIcon = tester.widget<Icon>(
+      find.descendant(of: reviewButton, matching: find.byType(Icon)),
+    );
+    expect(reviewIcon.semanticLabel, 'Review on imaging host');
+    expect(
+      tester.widget<IconButton>(reviewButton).tooltip,
+      startsWith('Session Review works on the imaging host'),
+    );
+    expect(tester.widget<IconButton>(reviewButton).onPressed, isNull);
+
     await tester.ensureVisible(reviewButton);
     await tester.pump();
-    await tester.tap(reviewButton);
+    await tester.tap(reviewButton, warnIfMissed: false);
     await tester.pump();
 
     expect(
-      find.text('Session Review is available on the imaging host.'),
+      reviewButton,
       findsOneWidget,
+      reason: 'the dialog stays up; a disabled action navigates nowhere',
     );
 
     await settleProviderTeardown(tester);

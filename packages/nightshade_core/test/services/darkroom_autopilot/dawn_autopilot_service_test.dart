@@ -13,7 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show UpdateKind, Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -2305,13 +2305,13 @@ void main() {
       ).runDawnForSession(sessionId);
 
       expect(outcome.state, DarkroomJobState.done);
+      // The delivered copy is named for the PASS that wrote it, and the rig
+      // keeps its own copy under the job's name; they are two files.
+      final shippedFile = File(
+        '${drop.path}/shed-job_${outcome.jobId}_pass1_report.json',
+      );
       final shipped =
-          jsonDecode(
-                File(
-                  '${drop.path}/shed-job_${outcome.jobId}_report.json',
-                ).readAsStringSync(),
-              )
-              as Map<String, dynamic>;
+          jsonDecode(shippedFile.readAsStringSync()) as Map<String, dynamic>;
 
       // The lifecycle word is the one that describes the instant it was
       // written. `running` beside a finishedAt read as a job that had stopped
@@ -2350,8 +2350,120 @@ void main() {
         reason: 'the count it reports is the set that reached the drop',
       );
       expect((onRig['notification'] as Map<String, dynamic>)['sent'], isTrue);
+
+      // The copy delivery took is never rewritten: its source on the rig still
+      // holds the exact bytes that landed, which is what lets the retry sweep
+      // re-read it and what makes a second delivery of it verify as
+      // already-there rather than as a conflict.
+      expect(
+        File(
+          '${output.path}/darkroom/job_${outcome.jobId}_pass1_report.json',
+        ).readAsBytesSync(),
+        shippedFile.readAsBytesSync(),
+      );
     },
   );
+
+  test('a pass re-run after a crash delivers its own night report instead of '
+      'colliding with the previous pass at one shared name', () async {
+    // Real transport over a real drop directory: the refusal being tested —
+    // `destinationConflict` on a name the destination already holds with
+    // different bytes — is the transport's, not a fake's.
+    final drop = Directory('${workspace.path}/drop')
+      ..createSync(recursive: true);
+    await DeliveryTargetsDao(db).create(
+      name: 'office-pc',
+      kind: ArtifactDestinationKind.watchedFolder,
+      configJson: jsonEncode({'path': drop.path, 'rigId': 'shed'}),
+      content: ArtifactContent.values.toSet(),
+    );
+    final sessionId = await insertSession();
+    final imageId = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [imageId]);
+    DawnAutopilotService withRealTransport() => buildService(
+      transportFactory: (destination, jobId) => WatchedFolderTransport(
+        destination: destination,
+        jobId: jobId,
+        freeSpace: const _AmpleSpace(),
+      ),
+    );
+
+    final first = await withRealTransport().runDawnForSession(sessionId);
+    expect(first.state, DarkroomJobState.done);
+
+    // What a rig losing power leaves behind, and what the open-time
+    // recovery (`_recoverInterruptedDarkroomJobs`) does with it: the row is
+    // put back to `queued` for the next start's drainQueue to pick up.
+    await db.customUpdate(
+      'UPDATE darkroom_jobs SET state = ?, started_at = NULL, '
+      'finished_at = NULL WHERE id = ?',
+      variables: [
+        Variable<String>(DarkroomJobState.queued.wire),
+        Variable<int>(first.jobId),
+      ],
+      updateKind: UpdateKind.update,
+    );
+
+    final resumed = await withRealTransport().drainQueue();
+    expect(resumed.map((o) => o.jobId), [first.jobId]);
+    expect(resumed.single.state, DarkroomJobState.done);
+
+    // The whole point: the re-run's report LANDED. Under one name per job
+    // this row went `failed` with `destinationConflict` — terminal, so no
+    // sweep and no retry could ever clear it, and the morning report said a
+    // file had not arrived that never could.
+    final journal = await DeliveryJournalDao(db).listForJob(first.jobId);
+    final reports = journal
+        .where((row) => row.filePath.endsWith('_report.json'))
+        .toList();
+    expect(reports, hasLength(2));
+    expect(
+      reports.map((row) => row.state),
+      everyElement(DeliveryAttemptState.delivered),
+    );
+    expect(
+      reports.map((row) => row.filePath),
+      containsAll([
+        '${output.path}/darkroom/job_${first.jobId}_pass1_report.json',
+        '${output.path}/darkroom/job_${first.jobId}_pass2_report.json',
+      ]),
+    );
+
+    // Both passes' copies are at the destination, each once, and the second
+    // pass's is the one the resumed run wrote.
+    expect(
+      File(
+        '${drop.path}/shed-job_${first.jobId}_pass1_report.json',
+      ).existsSync(),
+      isTrue,
+    );
+    final secondShipped =
+        jsonDecode(
+              File(
+                '${drop.path}/shed-job_${first.jobId}_pass2_report.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    expect(secondShipped['jobId'], first.jobId);
+    expect(secondShipped['state'], 'delivering');
+
+    // The rig's own copy keeps the job's name and is the CURRENT account of
+    // it — the resumed pass's, complete with its delivery outcome.
+    expect(
+      resumed.single.reportPath,
+      '${output.path}/darkroom/job_${first.jobId}_report.json',
+    );
+    final onRig =
+        jsonDecode(File(resumed.single.reportPath!).readAsStringSync())
+            as Map<String, dynamic>;
+    expect(onRig['state'], 'done');
+    expect(onRig['deliveryProblems'], isEmpty);
+    expect(
+      (onRig['delivery'] as Map<String, dynamic>)['failed'],
+      0,
+      reason: 'nothing about the resumed pass was refused',
+    );
+  });
 
   // The one-pass-at-a-time rule used to belong to `drainQueue`'s loop, so it
   // held only for the rows that loop owned: `runDawnForSession` and

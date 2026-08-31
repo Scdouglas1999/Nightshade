@@ -200,22 +200,21 @@ for f in $(Q "SELECT file_path FROM delivery_journal WHERE state='delivered';");
   hits=$(find "$DROP" -maxdepth 1 -type f -name "*${bn}" | wc -l)
   dropfile=$(find "$DROP" -maxdepth 1 -type f -name "*${bn}" | head -1)
   if [ "$hits" = "1" ] && [ -f "$dropfile" ]; then
-    case "$bn" in
-      *_report.json)
-        # The report is written pre-delivery and updated post-delivery with the
-        # delivery outcome, so the delivered copy is the earlier version by
-        # design. Assert both parse and describe the same job instead.
-        SAME=$(python3 -c "import json;a=json.load(open('$f'));b=json.load(open('$dropfile'));print('yes' if a.get('jobId',a.get('job_id'))==b.get('jobId',b.get('job_id')) else 'no')" 2>/dev/null)
-        [ "$SAME" = "yes" ] || { MISS=$((MISS+1)); say "  report job-id mismatch or unparseable: $bn"; }
-        ;;
-      *)
-        A=$(sha256sum "$f" | cut -d' ' -f1); Bc=$(sha256sum "$dropfile" | cut -d' ' -f1)
-        [ "$A" = "$Bc" ] || { MISS=$((MISS+1)); say "  checksum mismatch: $bn"; }
-        ;;
-    esac
+    # EVERY delivered file, the night report included. The report used to be
+    # exempted here: it was written once before delivery and again after, at
+    # one name, so its source no longer held the bytes that left. It is now
+    # written once per pass under that pass's own name and never rewritten, so
+    # the source is still what landed — which is also what lets a retry re-read
+    # it and a re-run verify it as already-there.
+    A=$(sha256sum "$f" | cut -d' ' -f1); Bc=$(sha256sum "$dropfile" | cut -d' ' -f1)
+    [ "$A" = "$Bc" ] || { MISS=$((MISS+1)); say "  checksum mismatch: $bn"; }
   else MISS=$((MISS+1)); say "  missing in drop: $bn"; fi
 done
 [ "$MISS" -eq 0 ] && ok "all delivered files present + checksum-identical in drop" || bad "$MISS delivery mismatches"
+PASSREPORT=$(Q "SELECT count(*) FROM delivery_journal WHERE state='delivered' AND file_path LIKE '%job_${JOB}_pass1_report.json';")
+[ "${PASSREPORT:-0}" -eq 1 ] \
+  && ok "the delivered night report is named for the pass that wrote it" \
+  || bad "no delivered job_${JOB}_pass1_report.json row (found $PASSREPORT)"
 WCS=$(python3 - "$OUT" <<'EOF'
 import glob, sys
 fs = sorted(glob.glob(sys.argv[1] + "/**/*.fits", recursive=True))
@@ -304,6 +303,37 @@ RJ=$(find "$OUT" -type d -name 'Reject' -exec sh -c 'ls "$1" | wc -l' _ {} \; 2>
 # their frames demanded 100,000 stars.
 sqlite3 "$DBDIR/nightshade.db" "DELETE FROM app_settings WHERE key IN ('image_grading_star_count_min','image_grading_max_consecutive_rejects');" \
   && say "  grading probe thresholds restored to defaults"
+
+say "=== phase 7c: a crash-resumed pass can still deliver its night report ==="
+# The window a rig loses power in: the pass has already delivered, and the row
+# has not been closed yet. Open-time recovery re-queues the `running` row and
+# drainQueue re-runs the whole pass — which used to meet the FIRST pass's night
+# report sitting at the destination under the same name with different bytes.
+# `destinationConflict` is terminal, so the report could never land and the
+# morning report said a file had not arrived that never could.
+stopapp
+sqlite3 "$DBDIR/nightshade.db" "UPDATE darkroom_jobs SET state='running', finished_at=NULL WHERE id=$JOB;" \
+  && ok "job $JOB left running, the way a power cut leaves it" || bad "could not stage the crash"
+launch || exit 1
+RESUMED=""
+for i in $(seq 1 90); do
+  sleep 2
+  RESUMED=$(Q "SELECT state FROM darkroom_jobs WHERE id=$JOB;")
+  case "$RESUMED" in done|failed|cancelled) break;; esac
+done
+[ "$RESUMED" = "done" ] && ok "the re-queued pass ran to done" || bad "resumed job state='$RESUMED'"
+REPORTROWS=$(Q "SELECT count(*) FROM delivery_journal WHERE job_id=$JOB AND file_path LIKE '%_report.json';")
+REPORTBAD=$(Q "SELECT count(*) FROM delivery_journal WHERE job_id=$JOB AND file_path LIKE '%_report.json' AND state<>'delivered';")
+Q "SELECT file_path,state,attempts,ifnull(last_error,'') FROM delivery_journal WHERE job_id=$JOB AND file_path LIKE '%_report.json';" | sed 's/^/[d1]   report row: /'
+if [ "${REPORTROWS:-0}" -eq 2 ] && [ "${REPORTBAD:-1}" -eq 0 ]; then
+  ok "both passes' reports delivered — no destinationConflict on the re-run"
+else
+  bad "$REPORTROWS report rows, $REPORTBAD not delivered"
+fi
+DROPREPORTS=$(find "$DROP" -maxdepth 1 -type f -name "*job_${JOB}_pass*_report.json" | wc -l)
+[ "${DROPREPORTS:-0}" -eq 2 ] \
+  && ok "the drop holds one report per pass" \
+  || bad "drop holds $DROPREPORTS per-pass reports"
 
 say "=== phase 8: teardown ==="
 stopapp

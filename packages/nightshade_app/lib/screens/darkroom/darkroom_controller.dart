@@ -595,7 +595,15 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         'baseMasterRef': offer.masterFitsPath,
       });
       if (!mounted) return;
-      steps = decodeDarkroomDraft(reply);
+      // A crop measured as the whole master trims nothing, so the draft states
+      // that decision instead of carrying a step whose card would read
+      // "Applied by the last render" over an operation that moved no pixel.
+      final drafted = darkroomDropIdentityCrop(
+        decodeDarkroomDraft(reply),
+        width: offer.width,
+        height: offer.height,
+      );
+      steps = drafted.steps;
       // The registry decides about more operations than it ends up carrying,
       // and records why it left each of the others out. Until this call the
       // notes reached the night report on disk and nothing else: the offer
@@ -603,7 +611,16 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       // master got a four-step stack that never said the colour step was
       // omitted, let alone why. The account is completed with the operations it
       // DID carry, so the row records that the registry composed this stack.
-      notes = darkroomComposedAccount(steps, decodeDarkroomDraftNotes(reply));
+      final cropReason = drafted.omittedCropReason;
+      notes = darkroomComposedAccount(steps, [
+        ...decodeDarkroomDraftNotes(reply),
+        if (cropReason != null)
+          RecipeDraftNote(
+            opId: 'crop',
+            outcome: 'omitted',
+            reason: cropReason,
+          ),
+      ]);
     } on DarkroomCancelledOutcome catch (cancelled) {
       if (!mounted) return;
       state = state.copyWith(
@@ -638,9 +655,23 @@ class DarkroomController extends StateNotifier<DarkroomState> {
       targetId: offer.targetId,
       masterFitsPath: offer.masterFitsPath,
       steps: steps,
-      name: 'Draft',
+      name: _draftName(offer.masterName),
       draftNotes: notes,
     );
+  }
+
+  /// The name a drafted recipe carries: the master it was drafted over, the way
+  /// the dawn autopilot names its own.
+  ///
+  /// A bare "Draft" named nothing. The branch chip, the compare picker, the
+  /// export sheet and the viewport's image semantics all print the recipe name,
+  /// so a screen reader heard "Rendered draft of Draft" and a library of them
+  /// read as one repeated word. The branch bar drops the master prefix when the
+  /// name already opens with it, which is why this reads "Master · L draft"
+  /// rather than "Master · L · Master · L draft".
+  static String _draftName(String masterName) {
+    final name = masterName.trim();
+    return name.isEmpty ? 'Draft' : '$name draft';
   }
 
   /// Write a new recipe row over one master's pixels and open it.

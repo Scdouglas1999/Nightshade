@@ -46,6 +46,13 @@ const Set<String> publicApiPaths = {
 /// the root itself or a child of it, mirroring the `'/dashboard'`,
 /// `'/dashboard/'`, `'/dashboard/<path|.*>'` triples in
 /// `routes/static_file_routes.dart`.
+///
+/// The exemption is over a whole subtree, so the handler behind it — not this
+/// set — decides what the subtree actually contains: `StaticFileHandlers`
+/// serves only the pages' own asset extensions and refuses everything else,
+/// because a whole-subtree exemption over an unfiltered directory served the
+/// shipped `web_dashboard/README.md` to anyone who asked. Widening what those
+/// handlers serve widens the unauthenticated surface by exactly as much.
 const Set<String> publicApiPathRoots = {'/dashboard', '/run-watch'};
 
 /// Whether [path] is served without authentication.

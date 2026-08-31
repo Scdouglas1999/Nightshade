@@ -809,6 +809,26 @@ body {
   padding: var(--space-xl);
 }
 
+/* The library fallback: the newest captured frame, shown when this server
+   process has no live preview buffer. The container is a centring flex row,
+   so the image and its label need their own column. */
+.image-preview-library {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 100%;
+  padding: var(--space-sm);
+}
+
+.image-preview-library-caption {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  word-break: break-word;
+}
+
 /* JPEG + raw progressive badge (matches mobile _RawPreviewBadge) */
 .preview-badge {
   display: none;

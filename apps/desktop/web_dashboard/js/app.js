@@ -2292,6 +2292,10 @@
   async function fetchLastImage() {
     if (!state.cameraDeviceId) return;
     cancelRawBackgroundFetch();
+    // A fresh look at the live buffer earns a fresh look at the library: this
+    // is the one place the fallback's cached row (or its read failure) goes
+    // stale, which is what keeps a re-render from issuing requests.
+    previewFallback.status = 'unread';
     const captureGeneration = state.rawLoadGeneration;
     setImagePreviewLoading(true);
     try {
@@ -3409,6 +3413,121 @@
   // Rendering: Camera Panel
   // =========================================================================
 
+  // The live preview is a PER-PROCESS fact. `/api/camera/last-image/jpeg`
+  // serves the driver's in-memory buffer, which holds the last exposure taken
+  // since the server started and is empty again after a relaunch — while the
+  // frames themselves are on disk and listed by `/api/images`. The panel used
+  // to print "No image captured yet" over that 404, an absolute measured on
+  // the same screen whose gallery said "14 images — 2 rejected". So when the
+  // buffer is empty the panel reads the library's newest row and shows THAT,
+  // labelled for what it is, and only says nothing was captured when the
+  // library is empty too.
+  //
+  // Read at most once per empty streak: `fetchLastImage` puts it back to
+  // 'unread', so the retry cadence is the panel's own (connect, every
+  // exposure-complete event, the no-event fallback timer) and a re-render
+  // never issues a request.
+  const previewFallback = {
+    status: 'unread', // 'unread' | 'reading' | 'read' | 'unreadable'
+    item: null,
+    error: '',
+  };
+
+  async function loadPreviewFallback() {
+    if (previewFallback.status !== 'unread') return;
+    previewFallback.status = 'reading';
+    try {
+      const resp = await api.imagesGetAll({ limit: 1 });
+      // Same two spellings the gallery accepts, for the same reason.
+      const named = resp && typeof resp === 'object' &&
+        Array.isArray(resp.items) && !Array.isArray(resp.images)
+        ? 'items' : 'images';
+      const rows = requireWireList(resp, named, 'Image listing');
+      previewFallback.item = rows.length ? rows[0] : null;
+      previewFallback.error = '';
+      previewFallback.status = 'read';
+    } catch (e) {
+      // The library could not be read, which is NOT the same fact as the
+      // library being empty; the panel says so rather than falling back to
+      // "nothing was captured".
+      previewFallback.item = null;
+      previewFallback.error = describeApiError(e, 'Image library');
+      previewFallback.status = 'unreadable';
+      addLogEntry('error', previewFallback.error);
+    }
+    await renderImagePreview();
+  }
+
+  // What the camera panel shows when this server process has no live preview.
+  //
+  // Every branch states its sentence twice: once as text in the panel, and
+  // once as the container's aria-label, because `role="img"` makes the label
+  // the only thing a screen reader hears.
+  function renderEmptyLivePreview(container) {
+    const noPreview = 'No live preview: this server has taken no exposure ' +
+      'since it started.';
+    const say = (sentence) => {
+      container.setAttribute('aria-label', sentence);
+      return sentence;
+    };
+
+    if (previewFallback.status === 'read' && previewFallback.item) {
+      const item = previewFallback.item;
+      const wrap = document.createElement('div');
+      wrap.className = 'image-preview-library';
+      const meta = formatGalleryMeta(item);
+      const rejection = galleryRejection(item);
+      const id = String(item.id ?? item.imageId ?? '');
+      if (id) {
+        const img = document.createElement('img');
+        img.alt = 'Last capture in the library: ' + meta;
+        img.onerror = () => replaceWithPreviewPlaceholder(img);
+        loadGalleryThumbnail(
+          img, id, { maxWidth: 1024, quality: 85 },
+          replaceWithPreviewPlaceholder,
+        );
+        wrap.appendChild(img);
+      }
+      const caption = document.createElement('div');
+      caption.className = 'image-preview-library-caption';
+      caption.textContent = say('Last capture in the library — ' + meta +
+        (rejection ? ' (rejected by the grader)' : '') + '. ' + noPreview);
+      wrap.appendChild(caption);
+      container.appendChild(wrap);
+      return;
+    }
+
+    if (previewFallback.status === 'read') {
+      container.appendChild(createImagePlaceholder(say(
+        'No image captured yet: this server has taken no exposure since it ' +
+        'started, and the image library is empty too.',
+      )));
+      return;
+    }
+
+    if (previewFallback.status === 'unreadable') {
+      container.appendChild(createImagePlaceholder(say(
+        noPreview + ' The image library could not be read, so what it holds ' +
+        'is unknown (' + previewFallback.error + ').',
+      )));
+      return;
+    }
+
+    container.appendChild(createImagePlaceholder(say(
+      noPreview + ' Looking for the last capture in the image library…',
+    )));
+    void loadPreviewFallback();
+  }
+
+  // A library thumbnail that will not load keeps the slot and says so, in the
+  // camera panel's own placeholder rather than the gallery's card-sized one.
+  function replaceWithPreviewPlaceholder(img, reason) {
+    if (!img || !img.parentNode) return;
+    const placeholder = createImagePlaceholder('Preview unavailable');
+    if (reason) placeholder.title = String(reason);
+    img.parentNode.replaceChild(placeholder, img);
+  }
+
   async function renderImagePreview() {
     const container = document.getElementById('image-preview');
     const statsContainer = document.getElementById('image-stats');
@@ -3424,8 +3543,13 @@
     }
     clearElement(statsContainer);
 
+    // The container is `role="img"`, so its aria-label REPLACES everything
+    // inside it for assistive tech — a caption painted into it is not read.
+    // Whatever this render decides the panel is showing has to be said here.
+    container.setAttribute('aria-label', 'Most recent exposure preview');
+
     if (!state.lastImage) {
-      container.appendChild(createImagePlaceholder('No image captured yet'));
+      renderEmptyLivePreview(container);
       updatePreviewBadge();
       return;
     }
@@ -7060,7 +7184,11 @@
     gallery.thumbnailObjectUrls.clear();
   }
 
-  async function loadGalleryThumbnail(img, imageId, opts) {
+  /// [onUnavailable] is how a caller outside the grid labels a thumbnail that
+  /// will not load — the camera panel's library fallback shares this loader
+  /// (and its two auth paths) but not the gallery card's markup.
+  async function loadGalleryThumbnail(img, imageId, opts, onUnavailable) {
+    const markUnavailable = onUnavailable || markGalleryThumbUnavailable;
     if (!api.usesHeaderAuth) {
       img.src = api.imageThumbnailUrl(imageId, opts);
       return;
@@ -7072,7 +7200,7 @@
       gallery.thumbnailObjectUrls.add(url);
       img.src = url;
     } catch (e) {
-      markGalleryThumbUnavailable(img, e.message);
+      markUnavailable(img, e.message);
       addLogEntry(
         'error',
         'Gallery thumbnail ' + imageId + ' failed: ' + e.message,

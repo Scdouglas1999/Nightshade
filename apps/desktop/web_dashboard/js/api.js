@@ -18,11 +18,14 @@
  *   'http_error'    any other non-2xx.
  *   'bad_json'      2xx whose body would not parse.
  *   'unusable_answer'
- *                   2xx that parsed and carries no answer — an empty body, or
- *                   a body that is `null`/`0`/`false`/`""`. The exchange
- *                   FAILED: nothing was learned from it, so no panel may
- *                   render a positive state off the back of it. Same kind, and
- *                   the same stance, as web_run_watch/js/run-watch.js.
+ *                   2xx that parsed and carries no answer this client can
+ *                   read — an empty body, or a body that is not a JSON object
+ *                   (`null`/`0`/`false`/`""`, a list, a bare string or number).
+ *                   Every route here answers with an object and every caller
+ *                   reads named fields off it, so the rest is the wrong SHAPE.
+ *                   The exchange FAILED: nothing was learned from it, so no
+ *                   panel may render a positive state off the back of it. Same
+ *                   kind, and the same stance, as web_run_watch/js/run-watch.js.
  */
 class NightshadeApiError extends Error {
   constructor(kind, message, detail) {
@@ -285,10 +288,22 @@ class NightshadeApi {
         { method, path },
       );
     }
-    // `JSON.parse('null')` is well-formed JSON that carries no answer, and so
-    // are `0`, `false` and `""`. A caller handed one of these reads its own
-    // defaults and calls them the server's.
-    if (!payload) {
+    // The answer has to be the SHAPE the caller expects. Every route this
+    // client calls answers with a JSON object and every caller reads named
+    // fields off it, so anything else is unusable — not only the four falsy
+    // values `JSON.parse` can produce (`null`, `0`, `false`, `""`), but a list
+    // or a bare string/number/boolean, which has no fields to read at all.
+    // Both end the same way: the caller falls through to its own defaults and
+    // presents them as the server's. The falsy half used to be the whole
+    // guard, and measured against the release bundle a 200 on `/api/info`
+    // carrying `[1,2,3]` — identically `"hello"`, `42`, `true` — logged
+    // `Connected to undefined vundefined`, left the header pill reading
+    // "Connected", and dropped the Auth chip entirely, because
+    // `info.authRequired` was `undefined` and the needs-credential branch
+    // never fired. The sibling client refuses the whole set already
+    // (`web_run_watch/js/run-watch.js` `applySnapshot`); this is that refusal,
+    // here.
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       throw new NightshadeApiError(
         'unusable_answer',
         method + ' ' + path + ' answered ' + resp.status + ' and ' +
@@ -299,15 +314,18 @@ class NightshadeApi {
     return payload;
   }
 
-  /// What a falsy 2xx body was, in words, for the refusal message. Only the
-  /// four values `!payload` admits reach here — JSON carries no `undefined`,
-  /// and a list or an object is truthy. The value is never interpolated: a
-  /// hostile body must not reach the operator's log through an error string.
+  /// What a 2xx body that is not a JSON object was, in words, for the refusal
+  /// message. JSON carries no `undefined`, so every value reaching here came
+  /// off the wire. The value itself is never interpolated: a hostile body must
+  /// not reach the operator's log through an error string.
   static describeWireValue(v) {
     if (v === null) return 'the body is null';
+    if (Array.isArray(v)) return 'the body is a list';
     if (v === '') return 'the body is an empty string';
-    if (v === false) return 'the body is false';
-    return 'the body is the number 0';
+    if (typeof v === 'string') return 'the body is a string';
+    if (typeof v === 'boolean') return 'the body is the boolean ' + v;
+    if (typeof v === 'number') return 'the body is a number';
+    return 'the body is a ' + typeof v;
   }
 
   async _getWithTimeout(path, timeoutMs) {

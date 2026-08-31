@@ -321,4 +321,152 @@ void main() {
       expect(jobManager.length, 1);
     });
   });
+
+  // The last hole in the same seam: a wrong-length list and a negative entry
+  // were refused by the request, but a wrong-TYPED one was not. `serde` refuses
+  // it while decoding the args struct — inside the bridge call, after the id
+  // has been minted — so `"exposuresSec":{"a":1}` answered `200 queued` and
+  // only turned out refused on a later poll, as `invalid type: map, expected a
+  // sequence at line 1 column 214`. Measured against the running host on
+  // 2026-08-31; the arity and value cases answered 400 in the same session.
+  group('exposuresSec type', () {
+    String integrateWith(String lights, String exposures) =>
+        '{"runId":"x","lightPaths":$lights,"exposuresSec":$exposures,'
+        '"calibration":{},"settings":{},'
+        '"output":{"masterFitsPath":"/tmp/o.fits"}}';
+
+    test('integrate refuses a map where the list belongs', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith('["/tmp/a.fits"]', '{"a":1}'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'exposuresSec');
+      expect(body['code'], 'invalid_request');
+      expect(
+        body['message'],
+        'exposuresSec is a JSON object, not a list of exposure seconds; '
+        'supply one entry per light frame, or omit exposuresSec entirely',
+      );
+      expect(jobManager.length, 0, reason: 'no job id is minted');
+    });
+
+    test('an explicit null is refused, not read as omitted', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith('["/tmp/a.fits"]', 'null'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'exposuresSec');
+      expect(body['message'], contains('exposuresSec is null, not a list'));
+      expect(
+        jobManager.length,
+        0,
+        reason:
+            'the struct default fills only an ABSENT field; an explicit null '
+            'is what the deserializer refuses',
+      );
+    });
+
+    test('a string entry is named by its index', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith('["/tmp/a.fits","/tmp/b.fits"]', '[60.0,"60"]'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'exposuresSec[1]');
+      expect(
+        body['message'],
+        'exposuresSec[1] is the string "60", which is not a number of '
+        'seconds; every entry must be a finite value >= 0',
+      );
+      expect(jobManager.length, 0);
+    });
+
+    test('master-accumulate add refuses the same types', () async {
+      final mapped = await translateHandlerErrors(
+        handlers.handleMasterAccumulate(
+          post(
+            '/api/post-session/master-accumulate',
+            '{"op":"add","sidecarPath":"/tmp/m.nsm",'
+                '"lightPaths":["/tmp/a.fits"],"exposuresSec":{"a":1},'
+                '"calibration":{},"settings":{}}',
+          ),
+        ),
+      );
+      expect(mapped.statusCode, HttpStatus.badRequest);
+      expect(
+        (jsonDecode(await mapped.readAsString()) as Map)['field'],
+        'exposuresSec',
+      );
+
+      final booleanEntry = await translateHandlerErrors(
+        handlers.handleMasterAccumulate(
+          post(
+            '/api/post-session/master-accumulate',
+            '{"op":"add","sidecarPath":"/tmp/m.nsm",'
+                '"lightPaths":["/tmp/a.fits"],"exposuresSec":[true],'
+                '"calibration":{},"settings":{}}',
+          ),
+        ),
+      );
+      expect(booleanEntry.statusCode, HttpStatus.badRequest);
+      expect(
+        (jsonDecode(await booleanEntry.readAsString()) as Map)['message'],
+        contains('exposuresSec[0] is the boolean true'),
+      );
+      expect(jobManager.length, 0);
+    });
+
+    // The scope stays exactly the guard's: an op that never reads the field is
+    // still not second-guessed, and an empty list is still the documented
+    // "no exposure metadata" shape.
+    test('a non-add op carrying a mistyped list is left alone', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleMasterAccumulate(
+          post(
+            '/api/post-session/master-accumulate',
+            '{"op":"info","sidecarPath":"/tmp/m.nsm",'
+                '"lightPaths":["/tmp/a.fits"],"exposuresSec":{"a":1},'
+                '"calibration":{},"settings":{}}',
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(jobManager.length, 1);
+    });
+
+    test('an empty list still queues its job', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleIntegrateSession(
+          post(
+            '/api/post-session/integrate',
+            integrateWith('["/tmp/a.fits"]', '[]'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(jobManager.length, 1);
+    });
+  });
 }

@@ -822,14 +822,22 @@ class _DarkroomStartOfferView extends StatelessWidget {
               ),
               const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
+                // The crop is stated as conditional because it is: the registry
+                // measures the area every registered frame covers, and over a
+                // stack whose frames all cover the same pixels that area is the
+                // whole master, so the draft leaves the crop out and says so.
+                // Promising "a crop off the registration edge" outright named a
+                // step the draft does not always carry, and the operator read
+                // the promise before the draft existed to contradict it.
                 'The operation registry measures this master and proposes a '
-                'first stack — a crop off the registration edge, a background '
-                'fit, denoise, ${offer.isColor ? 'a colour calibration' : ''
+                'first stack — a background fit, denoise, '
+                '${offer.isColor ? 'a colour calibration' : ''
                     'no colour calibration, because the fit needs three '
                     'channels and this master has '
-                    '${offer.channels}'}, and a stretch. Every step arrives '
-                'adjustable, and the draft states anything else it left out '
-                'and why.',
+                    '${offer.channels}'}, and a stretch. A crop joins them when '
+                'the registration left an edge to trim, and is left out when '
+                'the frames cover the whole master. Every step arrives '
+                'adjustable, and the draft states what it left out and why.',
                 style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textSecondary,
                 ),

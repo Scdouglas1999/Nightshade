@@ -22,6 +22,13 @@
 /// **Delivery never fails the job.** A destination that is unreachable at 4am
 /// is a line in the morning report and a row in the journal; the masters and
 /// the draft are already on the rig's own disk.
+///
+/// **A night report belongs to a pass, not to a job.** The copy handed to
+/// delivery is named for the pass that wrote it and is never rewritten, so a
+/// re-run after a crash delivers its own report instead of colliding with the
+/// previous pass's copy at a shared name. The rig keeps a second copy under the
+/// job's own name, and that is the one carrying the delivery and notification
+/// outcomes the delivered copy was written too early to hold.
 library;
 
 import 'dart:async';
@@ -60,7 +67,12 @@ class DawnJobOutcome {
   /// composed.
   final DawnJobReport? report;
 
-  /// Absolute path of the written night report, or null when none was written.
+  /// Absolute path of the night report the rig keeps, or null when none was
+  /// written.
+  ///
+  /// This is the copy carrying the delivery and notification outcomes, not the
+  /// per-pass copy delivery took — those are two files by design, and only
+  /// this one is rewritten when a second pass runs.
   final String? reportPath;
 
   /// Why the job failed, or null when it did not.
@@ -483,8 +495,13 @@ class DawnAutopilotService {
     // session is a spent attempt like any other: `queued` may only become
     // `running` or `cancelled`, and a failure that never ran would have to
     // pretend the job was never picked up.
+    //
+    // `markRunning` increments `attempts` and hands the row back, so its
+    // reading is this pass's number — 1 for a job's first execution, 2 for the
+    // one the crash recovery re-queued after a dead process left it `running`.
+    // [_passReportName] names the report by it.
     final startedAt = _clock();
-    await _jobs.markRunning(jobId, now: startedAt);
+    final running = await _jobs.markRunning(jobId, now: startedAt);
 
     _stage[jobId] = 'reading the job row';
     final sessionId = job.sessionId;
@@ -508,6 +525,7 @@ class DawnAutopilotService {
         kind: job.kind,
         sessionId: sessionId,
         startedAt: startedAt,
+        pass: running.attempts,
       );
     } on _DawnCancelled catch (stop) {
       final cancelled = await _jobs.markCancelled(
@@ -679,6 +697,7 @@ class DawnAutopilotService {
     required DarkroomJobKind kind,
     required int sessionId,
     required DateTime startedAt,
+    required int pass,
   }) async {
     final renderId = renderIdFor(jobId);
     _stopIfCancelled(jobId, 'the master lookup');
@@ -747,12 +766,13 @@ class DawnAutopilotService {
     _stopIfCancelled(jobId, 'the night report');
     await _reportProgress(jobId, 0.85, 'Writing the night report');
 
-    // THE COPY DELIVERY ITSELF SHIPS. The night report is one of the delivered
-    // artifacts, so it has to be on disk before delivery runs — which means
-    // this copy can never carry delivery's own outcome, nor the notification
-    // that follows it. It is also the copy the operator keeps: delivery names
-    // each artifact once and never overwrites a name it has handed over, so
-    // the rewrite below reaches the rig's copy and not this one.
+    // THE COPY DELIVERY ITSELF SHIPS, UNDER THIS PASS'S OWN NAME. The night
+    // report is one of the delivered artifacts, so it has to be on disk before
+    // delivery runs — which means this copy can never carry delivery's own
+    // outcome, nor the notification that follows it. The rig's copy
+    // ([_rigReportName]) carries both, and is a different file: this one is
+    // never rewritten, because delivery reads it again on every retry and
+    // verifies what landed against the checksum it took from these bytes.
     //
     // It therefore states the gap instead of implying one. `running` was the
     // row's word borrowed for a moment the row's vocabulary cannot describe:
@@ -777,7 +797,11 @@ class DawnAutopilotService {
       failure: null,
       pending: DawnReportPending.beforeDelivery,
     );
-    final reportPath = await _writeReport(baseDirectory, jobId, report);
+    final reportPath = await _writeReport(
+      baseDirectory,
+      _passReportName(jobId, pass),
+      report,
+    );
 
     _stopIfCancelled(jobId, 'delivery');
     await _reportProgress(jobId, 0.9, 'Delivering the night');
@@ -822,7 +846,7 @@ class DawnAutopilotService {
       );
       final stoppedPath = await _writeReport(
         baseDirectory,
-        jobId,
+        _rigReportName(jobId),
         stoppedReport,
       );
       final cancelled = await _jobs.markCancelled(
@@ -925,7 +949,7 @@ class DawnAutopilotService {
     } catch (error) {
       await _writeReport(
         baseDirectory,
-        jobId,
+        _rigReportName(jobId),
         report.withEnding(
           state: DarkroomJobState.failed.wire,
           failure: _failureSentence('closing the job row', error),
@@ -933,11 +957,16 @@ class DawnAutopilotService {
       );
       rethrow;
     }
-    // Rewrite the rig's copy with the two outcomes the delivered copy was
-    // written too early to hold. That copy is not rewritten — it left under a
-    // name delivery has already handed over — which is why it names this one
-    // as where its `delivery` and `notification` blocks live.
-    final finalPath = await _writeReport(baseDirectory, jobId, report);
+    // The rig's copy, carrying the two outcomes the delivered copy was written
+    // too early to hold. It is a different file from the one delivery took,
+    // and delivery is never handed this name — which is why the delivered copy
+    // can name this one as where its `delivery` and `notification` blocks live
+    // without the two ever fighting over one set of bytes.
+    final finalPath = await _writeReport(
+      baseDirectory,
+      _rigReportName(jobId),
+      report,
+    );
 
     return DawnJobOutcome(
       jobId: jobId,
@@ -1515,14 +1544,48 @@ class DawnAutopilotService {
     }
   }
 
-  /// Write the night report beside the drafts, returning its path or null when
-  /// the disk refused it.
+  /// The name of the report copy the rig keeps: the job's own record, carrying
+  /// the delivery and notification outcomes, and the file every reader that
+  /// asks "what did job N do" opens.
+  ///
+  /// Delivery is never handed this name. A second pass over the same job
+  /// rewrites it, which is what makes it the CURRENT account of job N rather
+  /// than the first one's.
+  static String _rigReportName(int jobId) => 'job_${jobId}_report.json';
+
+  /// The name of the report copy one pass hands to delivery.
+  ///
+  /// **The report describes a pass, so the pass is its identity.** A watched
+  /// folder or an SFTP incoming directory copies and never overwrites: an
+  /// artifact whose bytes differ from a file already sitting at its delivered
+  /// name is refused with [DeliveryFailureKind.destinationConflict], which no
+  /// retry can clear. Every other artifact survives a re-run because its bytes
+  /// are stable — the same master FITS, the same draft JPEG, re-verified as
+  /// already-there. A report cannot be: it carries this pass's clocks and this
+  /// pass's render, so a second pass's report is never the first's bytes.
+  ///
+  /// One name per JOB therefore left a crash-resumed pass unable to deliver
+  /// its report at all. A dead process leaves the row `running`, the open-time
+  /// recovery re-queues it, [drainQueue] re-runs it — and the re-run's report
+  /// met the first pass's copy at the destination, went terminal, and the
+  /// morning report then said a file had not arrived that never could.
+  ///
+  /// One name per PASS is the identity the file actually has, and it is a name
+  /// the destination has not been handed. A folder that holds two of them held
+  /// two passes; the numbering says which is which. The `_report.json` suffix
+  /// is kept so a downstream script matching `job_*_report.json` still sees
+  /// them.
+  static String _passReportName(int jobId, int pass) =>
+      'job_${jobId}_pass${pass}_report.json';
+
+  /// Write a night report as [fileName] beside the drafts, returning its path
+  /// or null when the disk refused it.
   Future<String?> _writeReport(
     String directory,
-    int jobId,
+    String fileName,
     DawnJobReport report,
   ) async {
-    final path = p.join(directory, 'job_${jobId}_report.json');
+    final path = p.join(directory, fileName);
     try {
       await File(path).writeAsString(
         const JsonEncoder.withIndent('  ').convert(report.toJson()),
@@ -1532,7 +1595,7 @@ class DawnAutopilotService {
       _logger?.warning(
         'The night report could not be written',
         source: 'DawnAutopilotService',
-        fields: {'jobId': jobId, 'path': path, 'error': error.message},
+        fields: {'jobId': report.jobId, 'path': path, 'error': error.message},
       );
       return null;
     }

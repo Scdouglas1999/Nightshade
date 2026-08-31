@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/device_handlers.dart';
+import 'package:nightshade_desktop/headless_api/validation.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
@@ -29,6 +30,28 @@ class _CancelledExposureBackend implements DeviceBackend {
     // This is the exact wrapper emitted by the live NetworkBackend after the
     // native camera reports an operator abort.
     throw const bridge.NightshadeError.operationFailed('Exposure cancelled');
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// A driver with nothing in its live-preview buffer.
+///
+/// Both shapes a real one produces are here: the null answer, and the zero-arg
+/// `noImageAvailable` the FFI backend raises. [raise] also lets a test send an
+/// unrelated failure through the same call, to prove only the empty-buffer case
+/// is repainted as an empty preview.
+class _EmptyPreviewBackend implements DeviceBackend {
+  _EmptyPreviewBackend({this.raise});
+
+  final Object? raise;
+
+  @override
+  Future<CapturedImageResult?> cameraGetLastImage(String deviceId) async {
+    final error = raise;
+    if (error != null) throw error;
+    return null;
   }
 
   @override
@@ -503,6 +526,95 @@ void main() {
         }
       },
     );
+
+    // What is empty is THIS PROCESS's preview buffer, not the night. Measured
+    // on a rig relaunched against its own database: this endpoint answered
+    // "No image is available yet — capture an exposure first" while
+    // `/api/images` listed 14 captures from the same evening, and the web
+    // dashboard printed that absolute over its own gallery of them.
+    group('an empty live preview says which emptiness it is', () {
+      // Through the REAL error translator, not the test helper's collapse-to-
+      // 500: what is being pinned is which errors this handler answers itself
+      // and which it lets the translator's status table describe.
+      Future<Response> lastImageJpeg({Object? raise}) async {
+        container.dispose();
+        container = ProviderContainer(
+          overrides: [
+            loggingServiceProvider.overrideWithValue(logger),
+            databaseProvider.overrideWithValue(db),
+            deviceBackendProvider.overrideWithValue(
+              _EmptyPreviewBackend(raise: raise),
+            ),
+          ],
+        );
+        handlers = DeviceHandlers(container);
+        final translated = errorTranslationMiddleware(
+          logError: (_, {fields}) {},
+          requestIdFor: (_) => 'test-request-id',
+        )(handlers.handleCameraGetLastImageJpeg);
+        return translated(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/camera/last-image/jpeg?deviceId=cam-1',
+            ),
+          ),
+        );
+      }
+
+      Future<void> expectScopedRefusal(Response response) async {
+        expect(response.statusCode, HttpStatus.notFound);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'no_live_preview');
+        expect(
+          body['scope'],
+          'process',
+          reason: 'the machine-readable half of the same fact',
+        );
+        expect(body['library'], '/api/images');
+        expect(body['message'], contains('in this server process'));
+        expect(
+          body['message'],
+          contains('/api/images'),
+          reason: 'a client that has frames to show is told where they are',
+        );
+        // The two absolutes this replaced, in the words they were measured in.
+        expect(
+          body['message'],
+          isNot(contains('No image has been captured yet')),
+        );
+        expect(body['message'], isNot(contains('capture an exposure first')));
+      }
+
+      test('a null buffer answers a scoped 404', () async {
+        await expectScopedRefusal(await lastImageJpeg());
+      });
+
+      test("the driver's own noImageAvailable answers the same", () async {
+        await expectScopedRefusal(
+          await lastImageJpeg(
+            raise: const bridge.NightshadeError.noImageAvailable(),
+          ),
+        );
+      });
+
+      test(
+        'any other backend failure keeps its own status and words',
+        () async {
+          final response = await lastImageJpeg(
+            raise: const bridge.NightshadeError.notConnected('cam-1'),
+          );
+
+          expect(
+            response.statusCode,
+            HttpStatus.conflict,
+            reason: 'a disconnected camera is not an empty preview',
+          );
+          final body = jsonDecode(await response.readAsString()) as Map;
+          expect(body['message'], contains('not connected'));
+        },
+      );
+    });
 
     test('last image jpeg missing deviceId returns bad request', () async {
       final response = await translateHandlerErrors(

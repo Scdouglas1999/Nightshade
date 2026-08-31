@@ -309,3 +309,98 @@ test('a refusal message never interpolates the body it refused', async () => {
     (e) => !e.message.includes('""') && /empty string/.test(e.message),
   );
 });
+
+// ---------------------------------------------------------------------------
+// A 2xx whose body is TRUTHY but is not an object is the same failed exchange.
+//
+// The falsy-only guard let a list or a bare scalar through as a payload.
+// Measured against the release bundle with a single CDP interceptor on
+// /api/info and everything else genuinely live: a 200 carrying `[1,2,3]` —
+// identically `"hello"`, `42` and `true` — logged
+// `SYSTEM  Connected to undefined vundefined` into the operator's Event Log,
+// left the header pill reading "Connected", and dropped the "Auth" chip the
+// control run showed, because `info.authRequired` was `undefined` and the
+// needs-credential branch never fired.
+// ---------------------------------------------------------------------------
+
+test('a 200 whose body is a JSON list is refused, not read as a payload',
+  async () => {
+    const client = answeringClient('[1,2,3]');
+    await assert.rejects(
+      () => client.getInfo(),
+      (e) => {
+        assert.equal(e.kind, 'unusable_answer');
+        assert.match(e.message, /body is a list/);
+        assert.equal(e.detail.status, 200);
+        return true;
+      },
+    );
+  });
+
+test('an empty JSON list is refused too — a list is not an object',
+  async () => {
+    const client = answeringClient('[]');
+    await assert.rejects(
+      () => client.getConnectedDevices(),
+      (e) => e.kind === 'unusable_answer' && /body is a list/.test(e.message),
+      'an empty list has no "devices" field and must not stand in for one',
+    );
+  });
+
+test('the truthy JSON scalars are refused by the same rule', async () => {
+  const cases = [
+    ['"hello"', /body is a string/],
+    ['42', /body is a number/],
+    ['true', /body is the boolean true/],
+    ['-1.5', /body is a number/],
+  ];
+  for (const [body, pattern] of cases) {
+    const client = answeringClient(body);
+    await assert.rejects(
+      () => client.getInfo(),
+      (e) => e.kind === 'unusable_answer' && pattern.test(e.message),
+      'body ' + body + ' must not be read as a payload',
+    );
+  }
+});
+
+test('a refusal message never interpolates a truthy non-object body',
+  async () => {
+    const client = answeringClient('"sudo rm -rf /"');
+    await assert.rejects(
+      () => client.getInfo(),
+      (e) => !e.message.includes('sudo') && /body is a string/.test(e.message),
+    );
+  });
+
+test('every wrapper method routes through the same shape guard', async () => {
+  // The guard lives in `_request`, so `_get`/`_post`/`_put`/`_delete` and
+  // `_getWithTimeout` all inherit it — one method per wrapper proves the
+  // whole surface, and `connect()` covers the timeout path that reads
+  // /api/info during the handshake.
+  const client = answeringClient('[1,2,3]');
+  const calls = [
+    ['_get',    () => client.getStatus()],
+    ['_post',   () => client.sequencerStart()],
+    ['_put',    () => client.targetsUpdate('t1', { name: 'M31' })],
+    ['_delete', () => client._delete('/api/targets/t1')],
+    ['_getWithTimeout', () => client._getWithTimeout('/api/info', 1000)],
+  ];
+  for (const [wrapper, call] of calls) {
+    await assert.rejects(
+      call,
+      (e) => e.kind === 'unusable_answer',
+      wrapper + ' must refuse a non-object answer like every other caller',
+    );
+  }
+});
+
+test('an object body is still delivered untouched', async () => {
+  const client = answeringClient(
+    '{"name":"Nightshade Headless","version":"6.2.0","authRequired":true}',
+  );
+  const info = JSON.parse(JSON.stringify(await client.getInfo()));
+  assert.equal(info.name, 'Nightshade Headless');
+  assert.equal(info.version, '6.2.0');
+  assert.equal(info.authRequired, true);
+});

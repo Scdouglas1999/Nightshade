@@ -770,6 +770,102 @@ void main() {
     expect(stored, hasLength(1));
     expect(stored.single.masterId, masterId);
     expect(stored.single.targetId, targetId);
+    expect(
+      stored.single.name,
+      'M31 L draft',
+      reason: 'the recipe is named after the master it is drafted over, the '
+          'way the dawn autopilot names its own — a bare "Draft" read back as '
+          '"Rendered draft of Draft" in the viewport semantics',
+    );
+  });
+
+  /// Insert one finalized master and return its row id.
+  Future<int> seedMaster({
+    required int width,
+    required int height,
+    String name = 'Master · B',
+  }) {
+    return IntegratedMastersDao(db).insertMaster(
+      targetId: null,
+      name: name,
+      masterFitsPath: _masterPath,
+      status: IntegratedMasterStatus.finalized,
+      accumulationMode: AccumulationMode.batch,
+      channels: 1,
+      width: width,
+      height: height,
+      frameCount: 12,
+      totalIntegrationSeconds: 3600,
+      settingsJson: '{}',
+      statsJson: '{}',
+    );
+  }
+
+  test('a drafted crop over the whole master is left out, with the reason',
+      () async {
+    final masterId = await seedMaster(width: 1920, height: 1080);
+    final scope = DarkroomScope.master(masterId);
+    await settle(scope);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+
+    // What the registry returns for a stack whose frames all cover the same
+    // pixels: the largest fully-covered rectangle IS the frame.
+    darkroom.draftSteps = [
+      _step('crop', params: {'x': 0, 'y': 0, 'width': 1920, 'height': 1080}),
+      _step('stretch'),
+    ];
+    await controller.draftForMe();
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(
+      controller.state.steps.map((s) => s.opId),
+      ['stretch'],
+      reason: 'a crop that trims nothing would list a step that changes no '
+          'pixel',
+    );
+    final note = controller.state.draftNotes.singleWhere(
+      (n) => n.opId == 'crop',
+    );
+    expect(note.outcome, 'omitted');
+    expect(note.reason, contains('whole 1920×1080 frame'));
+    final stored = await recipes.listForMaster(_masterPath);
+    expect(
+      jsonDecode(stored.single.stepsJson),
+      hasLength(1),
+      reason: 'the row carries what the editor shows',
+    );
+  });
+
+  test('a drafted crop that trims an edge is carried', () async {
+    final masterId = await seedMaster(width: 1920, height: 1080);
+    final scope = DarkroomScope.master(masterId);
+    await settle(scope);
+    final controller = container.read(
+      darkroomControllerProvider(scope).notifier,
+    );
+
+    darkroom.draftSteps = [
+      _step('crop', params: {'x': 8, 'y': 6, 'width': 1900, 'height': 1060}),
+      _step('stretch'),
+    ];
+    await controller.draftForMe();
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(controller.state.steps.map((s) => s.opId), ['crop', 'stretch']);
+    expect(
+      controller.state.steps.first.params,
+      {'x': 8, 'y': 6, 'width': 1900, 'height': 1060},
+    );
+    expect(
+      controller.state.draftNotes.singleWhere((n) => n.opId == 'crop').outcome,
+      'included',
+    );
   });
 
   test('start from linear creates an empty user recipe', () async {

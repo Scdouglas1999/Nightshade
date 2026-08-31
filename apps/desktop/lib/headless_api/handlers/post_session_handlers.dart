@@ -139,21 +139,46 @@ class PostSessionHandlers {
   /// that the request's inputs were shaped right; two exposures for three
   /// lights never were.
   ///
-  /// The sentences are the native ones verbatim, in the native ORDER (arity
-  /// first, then per-entry values), so the operator who reads this 400 and the
-  /// operator who reads the job error read the same words.
+  /// The value sentences are the native ones verbatim, in the native ORDER
+  /// (shape, then arity, then per-entry values), so the operator who reads this
+  /// 400 and the operator who reads the job error read the same words.
   ///
-  /// Scope matches the guard's own: nothing is claimed about a body whose
-  /// `exposuresSec` is absent or is not a list, and the arity half is skipped
-  /// when [lightsField] carries no list either — those shapes are the bridge's
-  /// own deserializer to name, and inventing a second sentence for them here
-  /// would make the two surfaces disagree.
+  /// **The type faults are refused here too, in this surface's own words.** An
+  /// `exposuresSec` that is a map, a string, `null`, or a list holding a
+  /// string never reaches `exposures_per_light` at all: `serde` refuses it
+  /// while decoding the args struct, which happens inside the bridge call and
+  /// therefore after the id has been minted and returned. Those bodies used to
+  /// answer `200 {"status":"queued"}` and turn out refused only on a later
+  /// `/api/jobs/{id}` poll, with `invalid type: map, expected a sequence at
+  /// line 1 column 214` for an explanation — a deserializer's note about a byte
+  /// offset, naming neither the field nor the entry. There is no native
+  /// sentence to copy for these, so the ones below are this handler's own, in
+  /// the guard's vocabulary: the field, the index, what arrived, and what the
+  /// entry has to be.
+  ///
+  /// Scope matches the guard's own in the two places the bridge genuinely
+  /// accepts anything: an ABSENT `exposuresSec` is the documented "unknown"
+  /// (`#[serde(default)]` fills an empty vector, reported as 0 s), an empty
+  /// list means the same, and the arity half is skipped when [lightsField]
+  /// carries no list to count against — that shape is the deserializer's own
+  /// to name.
   void _refuseExposuresSec(
     Map<String, dynamic> args, {
     required String lightsField,
   }) {
+    if (!args.containsKey('exposuresSec')) return;
     final exposures = args['exposuresSec'];
-    if (exposures is! List || exposures.isEmpty) return;
+    if (exposures is! List) {
+      throw BadRequestError(
+        field: 'exposuresSec',
+        expected: 'list of numbers',
+        message:
+            'exposuresSec is ${_jsonValueName(exposures)}, not a list of '
+            'exposure seconds; supply one entry per light frame, or omit '
+            'exposuresSec entirely',
+      );
+    }
+    if (exposures.isEmpty) return;
     final lights = args[lightsField];
     if (lights is List && exposures.length != lights.length) {
       throw BadRequestError(
@@ -167,10 +192,20 @@ class PostSessionHandlers {
     }
     for (var index = 0; index < exposures.length; index++) {
       final seconds = exposures[index];
+      if (seconds is! num) {
+        throw BadRequestError(
+          field: 'exposuresSec[$index]',
+          expected: 'number',
+          message:
+              'exposuresSec[$index] is ${_jsonValueName(seconds)}, which is '
+              'not a number of seconds; every entry must be a finite value '
+              '>= 0',
+        );
+      }
       // A non-finite entry is named by [_refuseNonFiniteNumbers] for what it
       // is, which is what the bridge says about it too — `-Infinity` is not a
       // negative exposure, it is not a number of seconds at all.
-      if (seconds is num && seconds.isFinite && seconds < 0) {
+      if (seconds.isFinite && seconds < 0) {
         throw BadRequestError(
           field: 'exposuresSec[$index]',
           expected: 'number',
@@ -180,6 +215,22 @@ class PostSessionHandlers {
         );
       }
     }
+  }
+
+  /// What a decoded JSON value IS, in the words a refusal prints.
+  ///
+  /// The scalars carry their value as well as their kind — "the string
+  /// \"60\"" is the half of `exposuresSec: ["60"]` an operator has to see to
+  /// fix it, and it is what `serde` names too. The last arm is a map: the body
+  /// came from [readJsonObject], so `jsonDecode` produced it, and null, bool,
+  /// num, String and List are already answered above.
+  static String _jsonValueName(Object? value) {
+    if (value == null) return 'null';
+    if (value is bool) return 'the boolean $value';
+    if (value is num) return 'the number $value';
+    if (value is String) return 'the string "$value"';
+    if (value is List) return 'a list';
+    return 'a JSON object';
   }
 
   /// Register [work] as a JobManager job and return the queued-job envelope.

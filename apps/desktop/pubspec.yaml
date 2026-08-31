@@ -117,7 +117,16 @@ flutter:
   # at runtime via rootBundle — they do NOT need to be re-declared here.
 
   assets:
-    - web_dashboard/
+    # Desktop control dashboard SPA, served from /dashboard. Listed FILE BY
+    # FILE for the directory root rather than as `web_dashboard/`: a bare
+    # directory entry copies everything sitting in it, which shipped
+    # `web_dashboard/README.md` — 16KB of internal developer documentation of
+    # the credential architecture — into every release bundle, where the
+    # unauthenticated /dashboard prefix served it on request. The subdirectory
+    # entries below stay as directories; `css/` and `js/` hold nothing but the
+    # SPA's own assets. Developer material (README.md, test/, tools/) is not
+    # part of the shipped product and must not be added here.
+    - web_dashboard/index.html
     - web_dashboard/css/
     - web_dashboard/js/
     # phone/tablet Run-Watch SPA. Files are served from

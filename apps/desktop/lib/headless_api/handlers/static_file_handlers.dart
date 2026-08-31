@@ -14,6 +14,11 @@
 /// shipped installer behave the same way. Directory traversal is
 /// blocked via [_normalizeRelative] + a post-resolve symlink check.
 ///
+/// Both prefixes are served WITHOUT a credential, so what they expose is not
+/// "whatever is in the directory" but the pages' own asset kinds: [_mimeTypes]
+/// is the allowlist and anything outside it is refused before the disk is
+/// touched.
+///
 /// The bundled run-watch service worker (`sw.js`) gets a longer
 /// `Service-Worker-Allowed: /run-watch/` response header so it can
 /// claim the parent scope cleanly during registration; every other
@@ -29,9 +34,21 @@ import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
 
-/// Maps file extensions to the response `content-type` value. Anything
-/// not in the table is served as `application/octet-stream` so a
-/// browser does not sniff content out of a binary blob.
+/// Maps file extensions to the response `content-type` value.
+///
+/// The table is also the ALLOWLIST for both static surfaces: a path whose
+/// extension is not a key here is not an asset of these pages and is refused,
+/// rather than served as `application/octet-stream`. Both prefixes are exempt
+/// from the bearer-token middleware — `auth/public_paths.dart` lists
+/// `/dashboard` and `/run-watch` as whole-subtree roots so the pages can load
+/// before the user holds any token — which made every file the bundler
+/// happened to copy into the SPA directory readable with no credential:
+/// `GET /dashboard/README.md` answered 200 with 16KB of internal developer
+/// documentation describing the bearer-to-cookie upgrade, the pairing
+/// endpoints, the SSE query-string token and the `NIGHTSHADE_REQUIRE_AUTH`
+/// escape hatch. The public prefix now serves only the kinds of file the
+/// pages themselves request. The packaging side of the same repair is in
+/// `apps/desktop/pubspec.yaml`, which no longer ships the README at all.
 const _mimeTypes = <String, String>{
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -63,13 +80,19 @@ const _staticFileSecurityHeaders = {
   'referrer-policy': 'no-referrer',
 };
 
-/// Resolve the MIME type for [filePath] by extension lookup. Defaults to
-/// `application/octet-stream` for unknown extensions so a misnamed file
-/// isn't served as a sniff-able executable.
-String _mimeFor(String filePath) {
+/// Resolve the MIME type for [filePath] by extension lookup, or null when the
+/// extension is not one these pages serve. Null is a refusal, not a fallback:
+/// see [_mimeTypes] for why an unknown extension may not be handed out as
+/// `application/octet-stream`.
+String? _mimeFor(String filePath) {
   final ext = p.extension(filePath).toLowerCase();
-  return _mimeTypes[ext] ?? 'application/octet-stream';
+  return _mimeTypes[ext];
 }
+
+/// The served extensions, sorted, for the refusal body. Naming them keeps the
+/// answer actionable — an asset that legitimately belongs to a page and is
+/// being refused is a packaging bug, and this says which side to look at.
+final String _servedExtensions = (_mimeTypes.keys.toList()..sort()).join(' ');
 
 /// HTTP handlers for the bundled `/dashboard` and `/run-watch` SPAs.
 ///
@@ -182,14 +205,28 @@ class StaticFileHandlers {
   }
 
   /// Common file-serving path used by both static surfaces. Walks
-  /// (a) the SPA root resolver, (b) a file-exists check, (c) a
-  /// post-symlink-resolution containment check, and (d) the appropriate
-  /// cache/security-header bundle.
+  /// (a) the served-extension allowlist, (b) the SPA root resolver, (c) a
+  /// file-exists check, (d) a post-symlink-resolution containment check, and
+  /// (e) the appropriate cache/security-header bundle.
   Future<Response> _serveFile(
     Directory? rootDir,
     String relativePath, {
     required String surface,
   }) async {
+    // The allowlist is checked FIRST, before anything touches the disk, so the
+    // answer for a path outside the page's asset kinds does not depend on
+    // whether such a file happens to be lying in the bundle — no existence
+    // oracle, and no read at all for a path this surface will not serve.
+    final contentType = _mimeFor(relativePath);
+    if (contentType == null) {
+      return jsonNotFound({
+        'error': 'Not an asset of this page: $relativePath',
+        'message':
+            'The /$surface prefix is served without a credential and carries '
+            'only the page\'s own assets. It serves these extensions: '
+            '$_servedExtensions.',
+      });
+    }
     if (rootDir == null) {
       _logWarning('[$surface] static directory not found');
       return jsonNotFound({
@@ -234,7 +271,7 @@ class StaticFileHandlers {
 
     return contentResponse(
       bytes,
-      contentType: _mimeFor(filePath),
+      contentType: contentType,
       headers: {
         'cache-control': cacheControl,
         if (isServiceWorker) 'service-worker-allowed': '/run-watch/',

@@ -382,6 +382,26 @@ extension CameraDeviceHandlers on DeviceHandlers {
     });
   }
 
+  /// The route that lists the frames already written to disk, named by the
+  /// empty-preview answer so a client has somewhere to go.
+  static const String kCapturedImageLibraryRoute = '/api/images';
+
+  /// The body of an empty-live-preview 404, scoped to what is actually empty.
+  ///
+  /// `scope: process` is the machine-readable half: the buffer belongs to this
+  /// server process, so a client can tell "this rig has never exposed" apart
+  /// from "this rig was restarted since it did" without parsing English.
+  static Map<String, Object?> _emptyPreviewBody(String deviceId) => {
+    'error': 'no_live_preview',
+    'scope': 'process',
+    'library': kCapturedImageLibraryRoute,
+    'message':
+        'No live preview for $deviceId in this server process — the preview '
+        'buffer holds the last exposure taken since the server started, and '
+        'no exposure has run yet. Frames already captured are listed by '
+        '$kCapturedImageLibraryRoute.',
+  };
+
   /// GET /api/camera/last-image
   ///
   /// Preferred remote wire format: `?format=jpeg` or
@@ -460,6 +480,17 @@ extension CameraDeviceHandlers on DeviceHandlers {
   ///
   /// Returns the host-authoritative stretched display buffer as JPEG.
   /// Metadata (stats, histogram, source dimensions) travels in `x-image-meta`.
+  ///
+  /// **The 404 is about this server process, not about the night.** What backs
+  /// this endpoint is the driver's in-memory last-frame buffer, which is empty
+  /// until an exposure runs and is gone when the process restarts. Both empty
+  /// answers — the null and the driver's own `noImageAvailable` — said "No
+  /// image has been captured yet" / "capture an exposure first", which a client
+  /// printed verbatim over a library holding a full night's frames: measured on
+  /// a rig relaunched against the same database, this 404 and a gallery of 14
+  /// captures from the same evening were on one screen. They now say which
+  /// emptiness this is and name [kCapturedImageLibraryRoute], where the frames
+  /// already on disk are listed.
   Future<Response> handleCameraGetLastImageJpeg(Request request) async {
     final query = request.url.queryParameters;
     final deviceId = (query['deviceId'] ?? '').trim();
@@ -480,13 +511,26 @@ extension CameraDeviceHandlers on DeviceHandlers {
     final quality = optionalQueryInt(query, 'quality', min: 1, max: 100) ?? 85;
 
     final backend = container.read(deviceBackendProvider);
-    final image = await backend.cameraGetLastImage(deviceId);
+    // A driver with nothing buffered may answer null or raise
+    // `noImageAvailable`; both are the same fact and get the same sentence.
+    // Only that one variant is caught — every other backend error stays on the
+    // error translator's path, so "not connected" and "driver timed out" keep
+    // their own status and their own words instead of being repainted as an
+    // empty preview.
+    CapturedImageResult? image;
+    try {
+      image = await backend.cameraGetLastImage(deviceId);
+    } on bridge_error.NightshadeError catch (error) {
+      final isEmptyBuffer = error.maybeMap(
+        noImageAvailable: (_) => true,
+        orElse: () => false,
+      );
+      if (!isEmptyBuffer) rethrow;
+      image = null;
+    }
 
     if (image == null) {
-      return jsonNotFound({
-        'error': 'no_image',
-        'message': 'No image has been captured yet on this camera.',
-      });
+      return jsonNotFound(_emptyPreviewBody(deviceId));
     }
 
     final encoded = await encodeCapturedImageDisplayBufferToJpeg(
