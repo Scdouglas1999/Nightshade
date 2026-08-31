@@ -43,6 +43,9 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// Every `renderExport` args map, in call order.
   final List<Map<String, dynamic>> exportArgs = [];
 
+  /// Every `renderExport` recipe payload, in the same order.
+  final List<String> exportRecipes = [];
+
   /// Every `cancel` args map, in call order.
   final List<Map<String, dynamic>> cancelArgs = [];
 
@@ -56,6 +59,16 @@ class _ScriptedDarkroom implements DarkroomSeam {
   /// longer on disk fails every render rather than the first.
   Object? previewFailure;
 
+  /// The engine's whole-recipe refusal while set, blamed on [invalidStep].
+  ///
+  /// The engine validates a recipe as a whole before it touches a pixel, so a
+  /// refusal here is what every surface that replays the stack — the render,
+  /// and the export's replaying stages — comes back with.
+  String? validationError;
+
+  /// Which step index [validationError] is about.
+  int invalidStep = 0;
+
   @override
   Future<Map<String, dynamic>> validate({
     required String recipeJson,
@@ -63,12 +76,18 @@ class _ScriptedDarkroom implements DarkroomSeam {
   }) async {
     final steps =
         (jsonDecode(recipeJson) as Map<String, dynamic>)['steps'] as List;
+    final error = validationError;
     return {
-      'ok': true,
-      'error': null,
+      'ok': error == null,
+      'error': error,
       'steps': [
         for (var i = 0; i < steps.length; i++)
-          {'index': i, 'registered': true, 'valid': true},
+          {
+            'index': i,
+            'registered': true,
+            'valid': error == null || i != invalidStep,
+            if (error != null && i == invalidStep) 'error': error,
+          },
       ],
     };
   }
@@ -126,6 +145,7 @@ class _ScriptedDarkroom implements DarkroomSeam {
     required Map<String, dynamic> args,
   }) async {
     exportArgs.add(args);
+    exportRecipes.add(recipeJson);
     final hold = holdExport;
     if (hold != null) {
       holdExport = null;
@@ -1202,6 +1222,135 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Written'), findsNothing);
+    await drain(tester);
+  });
+
+  // The engine's own sentence, copied from the release bundle refusing a
+  // `whitePoint` set below the step's `blackPoint`.
+  const refusal = 'step 2 (stretch@1) has invalid parameters: stretch@1: '
+      "parameter 'whitePoint' = 100 is outside (529.75, 1000000000000]";
+
+  testWidgets(
+      'a refused stack says so before the press and still exports the linear '
+      'master', (tester) async {
+    final handle = tester.ensureSemantics();
+    darkroom.validationError = refusal;
+    darkroom.invalidStep = 1;
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    // The stages that would REPLAY the refused stack are refused with it, on
+    // screen and in the accessible name — the shape this sheet already uses for
+    // a raster of a linear stage.
+    expect(
+      find.text(
+        'This stack does not validate, so only the linear master can be '
+        'written',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining(refusal), findsWidgets);
+    for (final stage in ['Final', 'After a step']) {
+      final chip = tester.widget<NightshadeChip>(
+        find.widgetWithText(NightshadeChip, stage),
+      );
+      expect(chip.enabled, isFalse, reason: '$stage must be refused');
+      final data = tester
+          .getSemantics(find.widgetWithText(NightshadeChip, stage))
+          .getSemanticsData();
+      expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+      expect(data.hasFlag(SemanticsFlag.isEnabled), isFalse);
+      expect(data.hasAction(SemanticsAction.tap), isFalse);
+      expect(data.label, startsWith(stage));
+      expect(data.label, contains(refusal));
+    }
+
+    // The linear stage is genuinely available, so it is available: it replays
+    // nothing, and the sheet opens on it rather than on a disabled chip.
+    final linear = tester
+        .getSemantics(find.widgetWithText(NightshadeChip, 'Linear master'))
+        .getSemanticsData();
+    expect(linear.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    expect(linear.hasFlag(SemanticsFlag.isSelected), isTrue);
+    expect(
+      find.text(
+        'The master\'s own pixels, untouched. The recipe rides along as '
+        'provenance and is recorded as not applied.',
+      ),
+      findsOneWidget,
+    );
+
+    // And it exports: the refused step never reaches the pixels, and the recipe
+    // travels with the file exactly as that caption promises.
+    await tester.tap(find.text('Export'));
+    await settle(tester);
+    expect(darkroom.exportArgs, hasLength(1));
+    final args = darkroom.exportArgs.single;
+    expect((args['stage'] as Map)['kind'], 'linear');
+    expect(args['sidecarPath'], '/tmp/nightshade-test/out.fits.nsrecipe');
+    // The recipe rides along as provenance, refused step included: the export
+    // sends the stack whole rather than quietly dropping what the engine
+    // objected to.
+    final sent =
+        (jsonDecode(darkroom.exportRecipes.single) as Map<String, dynamic>);
+    expect((sent['steps'] as List), hasLength(2));
+    expect(find.text('Written'), findsOneWidget);
+
+    await drain(tester);
+    handle.dispose();
+  });
+
+  testWidgets(
+      'a failed export clears its progress and its Stop with the '
+      'failure', (tester) async {
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    final held = Completer<void>();
+    darkroom.holdExport = held;
+    darkroom.exportFailure = const DarkroomSeamException(
+      'renderExport',
+      refusal,
+      refusal,
+    );
+    await tester.tap(find.text('Export'));
+    await tester.pump();
+    await tester.pump();
+
+    // The render really is in the engine, and the sheet says so.
+    expect(
+      find.textContaining('Rendering the final stack at full resolution'),
+      findsOneWidget,
+    );
+    expect(find.text('Stop'), findsOneWidget);
+
+    held.complete();
+    await settle(tester);
+
+    // The failure is up — and the sheet behind it is idle. It used to keep the
+    // progress line, the bar and a live Stop until the dialog was dismissed:
+    // two contradictory claims about one export in one frame.
+    expect(find.text('Export failed'), findsOneWidget);
+    expect(find.textContaining('Rendering the'), findsNothing);
+    expect(find.text('Stop'), findsNothing);
+    expect(find.byType(NightshadeProgressBar), findsNothing);
+    expect(find.text('Written'), findsNothing);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ErrorDialog),
+        matching: find.text('Close'),
+      ),
+    );
+    await settle(tester);
     await drain(tester);
   });
 

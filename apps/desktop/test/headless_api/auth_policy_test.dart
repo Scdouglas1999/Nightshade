@@ -376,4 +376,121 @@ void main() {
       expect(readOnly.coarseScope, HeadlessTokenScope.view);
     });
   });
+
+  group('scope denial body', () {
+    test('never asserts the requirement is met while denying', () {
+      // A fine-grained view grant that does not name `system` is refused
+      // /api/run-watch/snapshot. Its coarse projection is `view` and the
+      // route's coarse requirement is `view`, so the back-compat pair used to
+      // read requiredScope=view beside tokenScope=view — the two fields a
+      // human reads first, both agreeing, on a refusal.
+      final grant = HeadlessAuthGrant.parseSpec('camera:view,mount:view')!;
+      final body = HeadlessAuthPolicy.scopeDenialBody(
+        grant: grant,
+        method: 'GET',
+        path: '/api/run-watch/snapshot',
+      );
+
+      expect(body['requiredResource'], 'system');
+      expect(body['requiredLevel'], 'view');
+      expect(body['tokenLevel'], 'none');
+      expect(body.containsKey('requiredScope'), isFalse);
+      expect(body.containsKey('tokenScope'), isFalse);
+    });
+
+    test('emits the coarse pair when it explains the refusal', () {
+      final grant = HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.view);
+      final body = HeadlessAuthPolicy.scopeDenialBody(
+        grant: grant,
+        method: 'POST',
+        path: '/api/sequencer/pause',
+      );
+
+      expect(body['requiredScope'], 'control');
+      expect(body['tokenScope'], 'view');
+      expect(body['requiredResource'], 'sequencer');
+      expect(body['requiredLevel'], 'control');
+      expect(body['tokenLevel'], 'view');
+    });
+
+    test('the message names what is held and what is required', () {
+      final grant = HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.view);
+      final body = HeadlessAuthPolicy.scopeDenialBody(
+        grant: grant,
+        method: 'POST',
+        path: '/api/sequencer/pause',
+      );
+      final message = body['message'] as String;
+
+      // The leading clause is the wire contract paired clients match on.
+      expect(message, startsWith('Token scope is not permitted'));
+      expect(message, contains('holds view on sequencer'));
+      expect(message, contains('control is required'));
+      expect(body['error'], 'Access denied');
+    });
+
+    test('an admin-only route reports admin as the requirement', () {
+      final grant = HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control);
+      final body = HeadlessAuthPolicy.scopeDenialBody(
+        grant: grant,
+        method: 'GET',
+        path: '/api/pairing/active',
+      );
+
+      expect(body['requiredLevel'], 'admin');
+      expect(body['tokenLevel'], 'control');
+      expect(body['requiredScope'], 'admin');
+      expect(body['tokenScope'], 'control');
+    });
+
+    test('every coarse pair it emits reads as a refusal on its own', () {
+      // Sweep the grants and routes the appliance actually mints and gates:
+      // wherever the body still carries the coarse pair, the pair must rank
+      // as a genuine shortfall rather than as two equal words.
+      final grants = <HeadlessAuthGrant>[
+        HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.view),
+        HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control),
+        HeadlessAuthGrant.parseSpec('camera:view,mount:view')!,
+        HeadlessAuthGrant.parseSpec('camera:control')!,
+        HeadlessAuthGrant.parseSpec('sequencer:view')!,
+      ];
+      const routes = <(String, String)>[
+        ('GET', '/api/status'),
+        ('GET', '/api/settings'),
+        ('GET', '/api/run-watch/snapshot'),
+        ('POST', '/api/sequencer/pause'),
+        ('POST', '/api/mount/slew'),
+        ('GET', '/api/pairing/active'),
+        ('DELETE', '/api/backup/1'),
+      ];
+      const rank = {'view': 0, 'control': 1, 'admin': 2};
+
+      for (final grant in grants) {
+        for (final (method, path) in routes) {
+          if (HeadlessAuthPolicy.permits(
+            grant: grant,
+            method: method,
+            path: path,
+          )) {
+            continue;
+          }
+          final body = HeadlessAuthPolicy.scopeDenialBody(
+            grant: grant,
+            method: method,
+            path: path,
+          );
+          if (!body.containsKey('requiredScope')) continue;
+          final required = rank[body['requiredScope']]!;
+          final held = rank[body['tokenScope']]!;
+          expect(
+            held,
+            lessThan(required),
+            reason:
+                '$method $path emitted requiredScope=${body['requiredScope']} '
+                'beside tokenScope=${body['tokenScope']} on a refusal',
+          );
+        }
+      }
+    });
+  });
 }

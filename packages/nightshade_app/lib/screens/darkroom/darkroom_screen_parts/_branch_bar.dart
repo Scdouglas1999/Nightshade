@@ -966,8 +966,29 @@ class _DarkroomNameDialog extends StatefulWidget {
 }
 
 class _DarkroomNameDialogState extends State<_DarkroomNameDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initial,
+  /// The suggestion arrives SELECTED, because the field arrives focused.
+  ///
+  /// A controller built from `text:` alone leaves the caret collapsed at the
+  /// end of that text. With `autofocus: true` the first keystroke therefore
+  /// landed AFTER the suggestion instead of replacing it: measured against the
+  /// release bundle, "Duplicate as variant" proposed "Master · B draft
+  /// variant", the operator typed "Harder stretch" without touching the field,
+  /// and the branch was created — in the recipes table and on the branch bar —
+  /// as "Master · B draft variantHarder stretch".
+  ///
+  /// A name this dialog proposed is a proposal, and a selected proposal is how
+  /// the platform states that: typing replaces it, and one arrow key or a click
+  /// keeps it. The GTK save dialog one screen along in this same flow opens the
+  /// same way, on the same suggestion.
+  late final TextEditingController _controller =
+      TextEditingController.fromValue(
+    TextEditingValue(
+      text: widget.initial,
+      selection: TextSelection(
+        baseOffset: 0,
+        extentOffset: widget.initial.length,
+      ),
+    ),
   );
 
   @override

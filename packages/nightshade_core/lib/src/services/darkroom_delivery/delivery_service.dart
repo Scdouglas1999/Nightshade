@@ -374,7 +374,8 @@ class DeliveryService {
   /// the NORMAL state between the dawn job and the operator's morning, so
   /// counting it made [hasDueRetries] permanently true — one unpulled file
   /// drove a full sweep and an INFO report every 30 seconds, for as long as
-  /// nobody woke the desktop up.
+  /// nobody woke the desktop up. The one thing that arm CAN change is asked
+  /// separately, by [hasLostPublication].
   ///
   /// A switched-off destination's files stay `retrying` for as long as the
   /// switch is off — the sweep states them and skips them without touching the
@@ -404,13 +405,70 @@ class DeliveryService {
     return earliest;
   }
 
-  /// Whether any journal row is due another attempt right now.
+  /// Whether a published peer artifact is no longer on the rig.
+  ///
+  /// The peer arm's other question, and the reason the sweeper's short cadence
+  /// reaches [_sweepPublications] at all. [earliestRetryDueAt] is about the
+  /// retry ladder and stays one indexed SELECT; this one asks the rig's own
+  /// disk, because "the file left the rig" is a filesystem fact and no journal
+  /// column carries it. It is the SAME question the sweep arm asks —
+  /// [DeliveryFile.confirmOnRig] — so a row that answers "due" here is a row
+  /// that pass will actually move.
+  ///
+  /// **This cannot become the permanent sweep loop wave 14 removed.** That
+  /// loop was an unpulled-but-present file answering "due" on every check for
+  /// ever, because the pass it woke left the row exactly as it found it. The
+  /// only outcome this question wakes a pass for is a source the rig has lost,
+  /// and [confirmOnRig] can only fail with `sourceMissing` or
+  /// `permissionDenied` — both non-retryable, so [_recordJournalOutcome] writes
+  /// the row `failed` on that first pass. A failed row is not in
+  /// [DeliveryJournalDao.listPendingRetry], so the same file cannot answer
+  /// "due" twice. A file that is still there answers false, at the cost of one
+  /// `stat`.
+  ///
+  /// Cost is bounded by the rows a peer is actually owed, and the first miss
+  /// ends the walk: the answer is already yes. Suspended destinations are
+  /// excluded for the same reason [earliestRetryDueAt] excludes them — the
+  /// sweep returns before the peer arm on a destination whose switch is off,
+  /// so waking for one changes nothing.
+  ///
+  /// Throws what the journal or the destination read throws, exactly as
+  /// [earliestRetryDueAt] does. A filesystem answer is never a throw: it is
+  /// the answer.
+  Future<bool> hasLostPublication() async {
+    final pending = await _journal.listPendingRetry();
+    if (pending.isEmpty) return false;
+    final peers = <int>{
+      for (final destination in (await _targets.readEnabled()).destinations)
+        if (destination.id != null &&
+            destination.kind == ArtifactDestinationKind.peer)
+          destination.id!,
+    };
+    if (peers.isEmpty) return false;
+    for (final entry in pending) {
+      if (!peers.contains(entry.targetId)) continue;
+      try {
+        await DeliveryFile.confirmOnRig(entry.filePath);
+      } on DeliveryFailure {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Whether the sweep has work to do right now: a journal row whose retry is
+  /// due, or a published peer artifact the rig has lost.
   ///
   /// The question [DeliveryRetrySweeper]'s short cadence actually asks; see
   /// [earliestRetryDueAt] for why it throws rather than reporting.
+  ///
+  /// The ladder is asked first because it is the cheaper question — one
+  /// indexed SELECT — and an already-due row makes the peer walk's `stat`s
+  /// unnecessary.
   Future<bool> hasDueRetries() async {
     final due = await earliestRetryDueAt();
-    return due != null && !_clock().toUtc().isBefore(due);
+    if (due != null && !_clock().toUtc().isBefore(due)) return true;
+    return hasLostPublication();
   }
 
   /// Re-attempt every journal row that is due, across every job.

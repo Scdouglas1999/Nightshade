@@ -257,8 +257,9 @@ test('the settings panel reads the keys the API actually emits', async () => {
     'settings-latitude', 'settings-longitude', 'settings-elevation',
   ]);
   const refresh = build(
-    ['document', 'api', 'addLogEntry'],
-    [fn('wireNumber'), fn('refreshSettingsPanel')],
+    ['document', 'api', 'addLogEntry', 'settingsPanelHint'],
+    [konst('SETTINGS_VALUE_IDS'), fn('clearSettingsWithheld'),
+      fn('wireNumber'), fn('refreshSettingsPanel')],
     'refreshSettingsPanel',
   )(
     doc,
@@ -276,6 +277,7 @@ test('the settings panel reads the keys the API actually emits', async () => {
       }),
     },
     () => { throw new Error('the happy path must not log an error'); },
+    null,
   );
   await refresh();
 
@@ -1447,7 +1449,11 @@ test('the older `items` spelling is still read when it is the one present', asyn
 // ---------------------------------------------------------------------------
 
 test('a refused credential is described by what to do, not by its JSON', () => {
-  const describe = build(['x'], [fn('describeConnectFailure')], 'describeConnectFailure')(null);
+  const describe = build(
+    ['x'],
+    [fn('describeScopeRefusal'), fn('describeConnectFailure')],
+    'describeConnectFailure',
+  )(null);
   const rejected = describe({
     kind: 'http_error', status: 403,
     message: 'GET /api/status failed (403): {"error":"Access denied",' +
@@ -2820,4 +2826,197 @@ test('the panel says the same thing to assistive tech', () => {
 test('the static camera placeholder claims nothing about the night', () => {
   assert.doesNotMatch(HTML, /No image captured yet/);
   assert.match(HTML, /Preview not loaded yet/);
+});
+
+// ---------------------------------------------------------------------------
+// W19-A / D4-02, D4-03, D4-06 — a refusal the operator can read
+//
+// Measured against the release bundle with a read-only token on a live run:
+// pressing Pause posted /api/sequencer/pause, took a 403 naming
+// sequencer:control, and left the button enabled with no title, no Event Log
+// line, and a toast that pasted the wire body verbatim and then faded. Signing
+// in with a fine-grained view token that the rig accepts and honours produced
+// "The desktop rejected this token. Check it against the desktop's Remote
+// Access screen" — advice that cannot fix a scope problem, for a token that
+// was not rejected. And the Settings panel, refused a control-scope read,
+// rendered Observer / Save path / Latitude / Longitude / Elevation as "--",
+// which reads as an unconfigured host rather than a withheld one.
+// ---------------------------------------------------------------------------
+
+/** The 403 body the rig sends when it names the capability it refused on. */
+function scopeDeniedBody(resource, requiredLevel, tokenLevel) {
+  return JSON.stringify({
+    error: 'Access denied',
+    message: 'Token scope is not permitted for this endpoint: this credential '
+      + 'holds ' + tokenLevel + ' on ' + resource + ', and ' + requiredLevel
+      + ' is required.',
+    requiredResource: resource,
+    requiredLevel,
+    tokenLevel,
+  });
+}
+
+test('the client tells a scope refusal from a credential the rig will not take', () => {
+  const context = vm.createContext({ JSON: globalThis.JSON, console });
+  vm.runInContext(API + '\n;globalThis.__cls = NightshadeApi._scopeRefusalFrom;', context);
+  const classify = context.__cls;
+
+  // Field by field: the classifier's object comes out of the vm realm, so a
+  // structural compare against a literal built here is never reference-equal.
+  const named = classify(403, scopeDeniedBody('sequencer', 'control', 'view'));
+  assert.equal(named.resource, 'sequencer');
+  assert.equal(named.requiredLevel, 'control');
+  assert.equal(named.tokenLevel, 'view');
+
+  // The rig answers an unknown bearer with 403 as well. That one names no
+  // capability, and treating it as a scope refusal would leave a revoked
+  // device carrying a dead token.
+  assert.equal(classify(403, JSON.stringify({
+    error: 'Access denied', message: 'Invalid authentication token',
+  })), null);
+  assert.equal(classify(401, JSON.stringify({ error: 'Authentication required' })), null);
+  assert.equal(classify(403, 'not json'), null);
+});
+
+test('a 403 naming a capability arrives as a typed scope refusal', async () => {
+  const api = loadApi(async () => new Response(
+    scopeDeniedBody('sequencer', 'control', 'view'),
+    { status: 403, headers: { 'content-type': 'application/json' } },
+  ));
+  api.configure('http://127.0.0.1:8210', 'a-read-only-token', 'dev');
+  await assert.rejects(
+    () => api.sequencerPause(),
+    (e) => e.kind === 'scope_denied'
+      && e.status === 403
+      && e.detail.resource === 'sequencer'
+      && e.detail.requiredLevel === 'control'
+      && e.detail.tokenLevel === 'view',
+  );
+});
+
+test('sign-in copy states the server\'s own reason, not one word for two failures', () => {
+  const describe = build(
+    ['x'],
+    [fn('describeScopeRefusal'), fn('describeConnectFailure')],
+    'describeConnectFailure',
+  )(null);
+
+  const scoped = describe({
+    kind: 'scope_denied', status: 403,
+    detail: { resource: 'info', requiredLevel: 'view', tokenLevel: 'none' },
+  });
+  assert.equal(scoped.kind, 'insufficient_scope');
+  assert.match(scoped.message, /view access to info/);
+  assert.match(scoped.message, /no access to info/);
+  assert.match(scoped.message, /info:view/,
+    'name the spec to ask for — re-pairing with the same one reproduces this');
+  assert.doesNotMatch(scoped.message, /rejected this token/,
+    'the token was not rejected; it was accepted and is short of scope');
+
+  // A credential the rig will not take is still the other sentence.
+  const rejected = describe({ kind: 'http_error', status: 401, message: 'x' });
+  assert.equal(rejected.kind, 'rejected');
+  assert.match(rejected.message, /did not accept this credential/);
+});
+
+/** The real reportSeqFailure over recorders. */
+function seqFailureReporter(doc) {
+  const toasts = [];
+  const log = [];
+  const report = build(
+    ['document', 'showToast', 'addLogEntry', 'describeApiError', 'refusedControls'],
+    [fn('describeScopeRefusal'), fn('noteControlRefused'), fn('reportSeqFailure')],
+    'reportSeqFailure',
+  )(
+    doc,
+    (m, kind) => toasts.push({ message: m, kind }),
+    (kind, text) => log.push(kind + ': ' + text),
+    (e, what) => what + ' failed: ' + (e && e.message),
+    new Map(),
+  );
+  return { report, toasts, log };
+}
+
+test('a refused control names its refusal on the control, in a toast and in the log', () => {
+  const doc = makeDocument(['btn-seq-pause']);
+  const { report, toasts, log } = seqFailureReporter(doc);
+
+  report('btn-seq-pause', {
+    kind: 'scope_denied', status: 403,
+    detail: { resource: 'sequencer', requiredLevel: 'control', tokenLevel: 'view' },
+  }, 'Pause');
+
+  const btn = doc.getElementById('btn-seq-pause');
+  assert.equal(btn.disabled, true,
+    'a control this credential cannot use may not stay live and do nothing');
+  assert.match(btn.title, /control access to sequencer/);
+  assert.equal(btn.getAttribute('aria-disabled'), 'true');
+
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0].message, /control access to sequencer/);
+  assert.doesNotMatch(toasts[0].message, /\{|Access denied/,
+    'the wire body is a diagnostic, not a sentence for the operator');
+  assert.equal(toasts[0].kind, 'error');
+
+  assert.equal(log.length, 1,
+    'a toast fades; "I pressed Pause and nothing happened" needs a record');
+  assert.match(log[0], /Pause refused/);
+});
+
+test('the next status poll does not hand a refused control back', () => {
+  const doc = makeDocument([
+    'btn-seq-start', 'btn-seq-pause', 'btn-seq-resume', 'btn-seq-stop',
+  ]);
+  const refused = new Map([['btn-seq-pause', 'Pause needs control access to sequencer.']]);
+  const update = build(
+    ['document', 'refusedControls'],
+    [fn('updateSequencerButtons')],
+    'updateSequencerButtons',
+  )(doc, refused);
+
+  update('running');
+  assert.equal(doc.getElementById('btn-seq-pause').disabled, true);
+  assert.match(doc.getElementById('btn-seq-pause').title, /control access to sequencer/);
+  assert.equal(doc.getElementById('btn-seq-stop').disabled, false,
+    'only the refused control is held down');
+});
+
+test('a settings read the credential cannot make is named, not painted as unknown', async () => {
+  const ids = [
+    'settings-observer-name', 'settings-save-path', 'settings-plate-solver',
+    'settings-latitude', 'settings-longitude', 'settings-elevation',
+  ];
+  const doc = makeDocument(ids);
+  for (const id of ids) doc.getElementById(id).textContent = '--';
+  const log = [];
+  const refusal = {
+    kind: 'scope_denied', status: 403,
+    detail: { resource: 'system', requiredLevel: 'control', tokenLevel: 'view' },
+  };
+  const refresh = build(
+    ['document', 'api', 'addLogEntry', 'describeApiError', 'settingsPanelHint'],
+    [konst('SETTINGS_VALUE_IDS'), fn('describeScopeRefusal'),
+      fn('saySettingsWithheld'), fn('clearSettingsWithheld'), fn('wireNumber'),
+      fn('refreshSettingsPanel')],
+    'refreshSettingsPanel',
+  )(
+    doc,
+    {
+      isConnected: true,
+      getSettings: async () => { throw refusal; },
+      getLocation: async () => { throw refusal; },
+    },
+    (kind, text) => log.push(kind + ': ' + text),
+    (e, what) => what + ' refused',
+    null,
+  );
+
+  await refresh();
+
+  for (const id of ids) {
+    assert.equal(doc.getElementById(id).textContent, 'not permitted',
+      id + ' read "--", which describes an unconfigured host, not a withheld one');
+    assert.match(doc.getElementById(id).title, /control access to system/);
+  }
+  assert.equal(log.length, 1);
 });

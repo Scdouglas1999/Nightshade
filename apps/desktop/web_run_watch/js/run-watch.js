@@ -54,6 +54,7 @@ function getToken() {
 function setToken(t, accepted) {
   inMemoryTokenAccepted = Boolean(t) && Boolean(accepted);
   authRefusalStated = false;
+  clearControlRefusals();
   try {
     if (t) {
       localStorage.setItem(STORAGE_TOKEN_KEY, t);
@@ -143,6 +144,7 @@ function forgetAllCredentials() {
   adoptedBearer = null;
   sessionCsrfToken = null;
   credentialSource = 'paired';
+  clearControlRefusals();
 }
 
 /// True when the token this device holds has been accepted by the desktop at
@@ -215,6 +217,9 @@ let rateLimitedUntil = 0;
 ///
 /// The kinds, and what each one says about the link:
 ///   'auth_required'   — the desktop no longer accepts this pairing.
+///   'scope_denied'    — the desktop DOES accept this pairing and will not let
+///                       it do this. A different event from 'auth_required',
+///                       and the credential survives it.
 ///   'unreachable'     — no answer arrived; the server may be gone.
 ///   'rate_limited'    — the server answered, asking us to slow down. Healthy.
 ///   'http_error'      — the server answered with a status it named. Healthy.
@@ -283,6 +288,62 @@ function credentialRefusalText(source, token, wasAccepted) {
       + 'code instead.';
 }
 
+/// What the rig's refusal actually was — a credential it will not accept, or a
+/// credential it accepts and will not let do this.
+///
+/// These are two different events and this page must not treat them alike. A
+/// 401 says the credential was not accepted at all: the pairing was withdrawn,
+/// the browser session ended, the token was mistyped, and the only way forward
+/// is a new credential. A scope refusal says the opposite — the credential IS
+/// accepted, and this particular action is above what it holds. Deleting a
+/// working credential and ejecting the viewer from a live run over a button
+/// they were never entitled to press is destroying something that works to
+/// report something that never happened.
+///
+/// The status alone does not settle it: the rig answers an unknown bearer with
+/// 403 as well (`auth_middleware`'s "Invalid authentication token"). What
+/// distinguishes a scope refusal is that it NAMES the requirement it refused
+/// on — `requiredResource` + `requiredLevel`, from
+/// `HeadlessAuthPolicy.scopeDenialBody` — so that is what is keyed on here.
+/// Every other 401/403, named or not, is still a credential this rig will not
+/// accept, and is still torn down.
+///
+/// Returns the parsed refusal detail for a scope refusal, or null.
+async function scopeRefusalDetail(res) {
+  if (res.status !== 403) return null;
+  let body;
+  try { body = await res.clone().json(); } catch { return null; }
+  if (!body || typeof body !== 'object') return null;
+  const resource = body.requiredResource;
+  const requiredLevel = body.requiredLevel;
+  if (typeof resource !== 'string' || !resource) return null;
+  if (typeof requiredLevel !== 'string' || !requiredLevel) return null;
+  const tokenLevel = typeof body.tokenLevel === 'string' ? body.tokenLevel : null;
+  return { resource, requiredLevel, tokenLevel, status: res.status };
+}
+
+/// The rig's own account of a scope refusal, in the operator's terms.
+///
+/// Every clause comes off the wire: the resource the endpoint guards, the
+/// level it demands, and the level this credential holds on it. Nothing here
+/// guesses at a level the server did not state — an older rig that sends no
+/// `tokenLevel` gets a sentence that simply omits it.
+function scopeRefusalText(label, detail) {
+  const held = detail.tokenLevel === 'none'
+    ? 'no access to ' + detail.resource
+    : detail.tokenLevel
+      ? detail.tokenLevel + ' access to ' + detail.resource
+      : null;
+  const opening = held
+    ? 'This device has ' + held + '.'
+    : 'This device is not permitted here.';
+  return label + ' needs ' + detail.requiredLevel + ' access to '
+    + detail.resource + '. ' + opening
+    + ' Pair this device again asking for '
+    + detail.resource + ':' + detail.requiredLevel
+    + ' to use it. The pairing you have still works for watching.';
+}
+
 async function apiFetch(path, opts) {
   opts = opts || {};
   const waiting = rateLimitRemainingSecs();
@@ -325,6 +386,21 @@ async function apiFetch(path, opts) {
     });
   }
   if (res.status === 401 || res.status === 403) {
+    // A scope refusal is NOT a revoked pairing — see [scopeRefusalDetail].
+    // The credential stays exactly where it is, the viewer stays on the run,
+    // and the caller is handed the rig's own account of what it lacked.
+    const scope = await scopeRefusalDetail(res);
+    if (scope) {
+      // The rig honoured this credential enough to tell us what it is short
+      // of, which is the same proof of acceptance a 2xx is.
+      if (token && credentialSource === 'paired') noteTokenAccepted();
+      rateLimitedUntil = 0;
+      throw new ApiError(
+        'scope_denied',
+        'This device is not permitted to do that',
+        scope,
+      );
+    }
     // Tokens can be revoked desktop-side; force re-pair. The reason goes ON
     // THE SCREEN, not only into the thrown error — nothing catches
     // 'auth_required' to render it, which is how this landed as a silent
@@ -487,7 +563,9 @@ function noteLinkFailure(kind, detail) {
 /// leave the screen holding a cache nobody has confirmed; a 429 does not,
 /// because the server that sent it is demonstrably alive and will answer the
 /// next poll.
-const UNVOUCHABLE_FAILURE_KINDS = new Set(['unreachable', 'unusable_answer']);
+const UNVOUCHABLE_FAILURE_KINDS = new Set([
+  'unreachable', 'unusable_answer', 'scope_denied',
+]);
 
 /// True when this page cannot vouch for what it is showing: either the last
 /// exchange failed outright, or no exchange has succeeded within a poll
@@ -565,6 +643,11 @@ function renderLinkState() {
   } else if (failedKind === 'unusable_answer') {
     lead = 'The observatory server answered with something this page cannot '
       + 'read.';
+  } else if (failedKind === 'scope_denied') {
+    // The server is demonstrably there and this credential is demonstrably
+    // accepted, so neither "cannot reach" nor "no answer" would be true. The
+    // refusal itself is the lead, in the server's own terms.
+    lead = linkFailure.detail;
   } else {
     lead = 'No answer from the observatory server.';
   }
@@ -928,6 +1011,15 @@ async function fetchSnapshot() {
     setConnectionState('connected');
   } catch (e) {
     if (e.kind === 'auth_required') return;
+    // A credential the rig accepts but will not let read the run leaves this
+    // page knowing nothing current — the same position an unreadable answer
+    // leaves it in — so it counts as a failed exchange and the banner names
+    // the refusal rather than blaming the link.
+    if (e.kind === 'scope_denied') {
+      noteLinkFailure(
+        'scope_denied', scopeRefusalText('Watching this run', e.detail));
+      return;
+    }
     // An answer this page cannot read teaches it nothing, so it counts as a
     // failed exchange and the degraded surface below says so.
     if (e.kind === 'unusable_answer') {
@@ -1082,11 +1174,70 @@ function reportedSequencerState(progress, sequencer) {
 ///
 /// Reset stays available in every state on purpose: it is the way out of a
 /// wedged executor, and it does the thing it says on an idle one.
+/// Controls the rig has refused for the credential this device is carrying,
+/// keyed by button id, holding the sentence that refusal produced.
+///
+/// A read-only pairing renders the same control cluster as a control-scope
+/// one, so before this the buttons stayed live and each press posted a request
+/// the rig had already refused once. A control this credential cannot use is
+/// disabled and carries its reason, so the refusal is on the control rather
+/// than only in a toast that has since faded.
+const refusedControls = new Map();
+
+/// Which control drives which endpoint, so a refusal lands on the button that
+/// caused it.
+const CONTROL_BUTTON_FOR_PATH = {
+  '/api/sequencer/pause': 'btn-pause',
+  '/api/sequencer/resume': 'btn-resume',
+  '/api/sequencer/skip': 'btn-skip',
+  '/api/sequencer/stop': 'btn-stop',
+  '/api/sequencer/reset': 'btn-reset',
+  '/api/sequencer/checkpoint/resume': 'btn-checkpoint-resume',
+  '/api/sequencer/checkpoint/discard': 'btn-checkpoint-discard',
+  '/api/phd2/dither': 'btn-guide-dither',
+};
+
+/// Record that the rig refused [path] for this credential and put the reason
+/// on the control that posts to it.
+function noteControlRefused(path, sentence) {
+  const id = CONTROL_BUTTON_FOR_PATH[path];
+  if (!id) return;
+  refusedControls.set(id, sentence);
+  const el = $(id);
+  if (!el) return;
+  el.disabled = true;
+  el.title = sentence;
+  el.setAttribute('aria-disabled', 'true');
+}
+
+/// Forget every recorded refusal. Called whenever the credential changes: a
+/// different pairing may hold more than the last one did, and carrying the old
+/// pairing's refusals forward would disable controls the new one can use.
+function clearControlRefusals() {
+  for (const id of refusedControls.keys()) {
+    const el = $(id);
+    if (el) {
+      el.title = '';
+      el.removeAttribute('aria-disabled');
+    }
+  }
+  refusedControls.clear();
+}
+
 function updateRunControls(state) {
   const s = String(state || '').toLowerCase().replace(/[_\s]/g, '');
   const set = (id, enabled) => {
     const el = $(id);
-    if (el) el.disabled = !enabled;
+    if (!el) return;
+    // A control the rig has already refused for this credential stays
+    // refused, whatever the run state would otherwise admit.
+    const refusal = refusedControls.get(id);
+    if (refusal) {
+      el.disabled = true;
+      el.title = refusal;
+      return;
+    }
+    el.disabled = !enabled;
   };
   const running = s === 'running' || s === 'executing';
   const paused = s === 'paused';
@@ -1975,6 +2126,13 @@ async function refreshFrame() {
     }
   } catch (e) {
     if (e.kind === 'auth_required') return;
+    // A frame this credential is not permitted to read is a refusal with a
+    // reason, not an absence. Leaving the static "no frame yet" placeholder up
+    // would report an empty buffer on a rig that has frames.
+    if (e.kind === 'scope_denied') {
+      sayNoFrame(scopeRefusalText('Seeing the latest frame', e.detail));
+      return;
+    }
     // A rate-limited or unreachable server is already stated by the link
     // banner; the placeholder simply remains.
     if (e.kind === 'rate_limited' || e.kind === 'unreachable') {
@@ -2033,6 +2191,15 @@ async function sequencerAction(path, label, body) {
     fetchSnapshot();
   } catch (e) {
     if (e.kind === 'auth_required') return;
+    if (e.kind === 'scope_denied') {
+      // The rig refused the ACTION, not the credential. Say so on the control
+      // and in a toast, and leave the control disabled with its reason so the
+      // next press cannot be a silent no-op either.
+      const sentence = scopeRefusalText(label, e.detail);
+      noteControlRefused(path, sentence);
+      toast(sentence, 'warning');
+      return;
+    }
     if (e.kind === 'rate_limited') {
       toast(
         `${label} not sent — server is rate-limiting this device. ` +

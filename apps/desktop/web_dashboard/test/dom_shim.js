@@ -101,6 +101,10 @@ class Document {
   getElementById(id) { return this._byId.get(id) || null; }
   createElement(tag) { return new Element(tag, this); }
   addEventListener() {}
+  // No selector engine here: a surface that looks up an element by CSS
+  // selector gets the same "not present" answer it would get on a page where
+  // that element is missing, which every caller has to survive anyway.
+  querySelector() { return null; }
   querySelectorAll() { return []; }
 }
 

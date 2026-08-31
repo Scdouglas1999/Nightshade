@@ -18,8 +18,9 @@
 ///     written to the operator's `pairing-code.txt` + (optionally) printed to
 ///     stdout when [pairingPrintCodes] is true.
 ///   * `POST /api/pairing/verify` — exchange a typed code for a session
-///     token. Successful verify mints a `control`-scoped token by
-///     default; `admin` is opt-in only via `requestedScope=admin`.
+///     token. Successful verify mints a `control`-scoped token when the
+///     client names no scope; a named `requestedScope` is minted as asked,
+///     so `view` yields read-only and `admin` stays opt-in.
 ///   * `GET /api/pairing/active` — admin-only diagnostic listing of
 ///     unused, unexpired pairing codes (so a headless operator on a
 ///     paired admin client can retrieve a code without watching
@@ -599,9 +600,11 @@ class PairingHandlers {
   /// token.
   ///
   /// Body: `{code, deviceId?, deviceName?, deviceType?, requestedScope?}`.
-  /// Defaults to `control` scope (imaging + devices); `admin` is opt-in
-  /// via `requestedScope=admin` so a scanned QR or LAN pairing cannot
-  /// silently gain backup/filesystem privileges.
+  /// Defaults to `control` scope (imaging + devices) when `requestedScope` is
+  /// absent; `admin` is opt-in via `requestedScope=admin` so a scanned QR or
+  /// LAN pairing cannot silently gain backup/filesystem privileges. Every
+  /// scope that IS named is minted as asked — see [_resolveRequestedGrant] —
+  /// so `requestedScope=view` yields a read-only token and never widens.
   Future<Response> handlePairingVerify(Request request) async {
     final requestId = requestIdFrom(request);
     final clientKey = rateLimitClientKey(request);
@@ -646,6 +649,22 @@ class PairingHandlers {
     final requestedScopeRaw =
         optionalString(payload, 'requestedScope', maxLength: 256) ?? 'control';
     final requestedGrant = _resolveRequestedGrant(requestedScopeRaw);
+    if (requestedGrant == null) {
+      _logWarning(
+        '[PAIR][$requestId] verify refused - unparseable requestedScope',
+      );
+      return jsonBadRequest(
+        {
+          'error': 'invalid_requested_scope',
+          'message':
+              'requestedScope is not a scope this server knows. Use "view", '
+              '"control", "admin", or a resource list such as '
+              '"camera:control,mount:view".',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
+    }
 
     final service = ensurePairingService();
     final result = await service.verifyPairing(
@@ -714,24 +733,26 @@ class PairingHandlers {
     }
   }
 
-  /// Resolve the client-requested scope spec to the grant the pairing actually
-  /// receives. The default is `control` (imaging + devices); `admin` is opt-in
-  /// only so a scanned QR or LAN pairing cannot silently gain
-  /// backup/filesystem privileges. A coarse `view`/`control` request resolves
-  /// to the `control` grant; a fine-grained spec (`camera:control,mount:view`)
-  /// is honoured verbatim.
-  HeadlessAuthGrant _resolveRequestedGrant(String requestedScopeRaw) {
-    final parsed = HeadlessAuthGrant.parseSpec(requestedScopeRaw);
-    if (parsed == null) {
-      return HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control);
-    }
-    if (parsed.isAdmin) {
-      return HeadlessAuthGrant.admin();
-    }
-    final spec = parsed.toSpec();
-    if (spec == 'view' || spec == 'control') {
-      return HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control);
-    }
-    return parsed;
-  }
+  /// Resolve the client-requested scope spec to the grant the pairing
+  /// receives, honouring every documented name as written: `view` mints a
+  /// read-only grant, `control` the imaging + devices grant, `admin` the
+  /// everything grant, and a fine-grained spec (`camera:control,mount:view`)
+  /// is honoured verbatim. The default when the field is absent stays
+  /// `control`, so a client that names no scope pairs exactly as before.
+  ///
+  /// `view` used to resolve to the `control` grant alongside `control`, which
+  /// made the documented read-only request unreachable through pairing: a
+  /// browser that asked for read-only was handed imaging control. Nothing in
+  /// this tree asked for it — `apps/mobile` sends `control` or `admin`, and
+  /// `remote_pairing_client` defaults to `control` — so honouring `view` takes
+  /// nothing away from any current caller and stops the one coarse name that
+  /// did not mean what it said.
+  ///
+  /// A spec this server cannot parse is REFUSED by the caller rather than
+  /// resolved to a default: falling back to `control` handed a client that had
+  /// asked for something narrower (and misspelt it) the widest non-admin grant
+  /// there is. Returns null on that spec so [handlePairingVerify] can answer
+  /// 400 and the client can retry with a name the server knows.
+  HeadlessAuthGrant? _resolveRequestedGrant(String requestedScopeRaw) =>
+      HeadlessAuthGrant.parseSpec(requestedScopeRaw);
 }

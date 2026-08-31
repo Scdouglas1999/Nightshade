@@ -629,6 +629,12 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         reports: state.reports,
         catalogStars: _controller.catalogStars,
         baseMasterFailure: masterFailure,
+        // The engine's verdict on the recipe as stored — the same steps this
+        // sheet sends. `recipeError`, not `blockingRecipeError`: the panel's
+        // sentence is scoped to the steps a RENDER replays, and the render
+        // leaves out a switched-off step this build cannot run, while an export
+        // sends the stack whole and is refused by it.
+        recipeRefusal: state.recipeError,
       ),
     );
   }

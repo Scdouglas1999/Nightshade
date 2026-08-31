@@ -185,6 +185,13 @@ enum _DarkroomStageDomain {
 /// both positions, and the sentence beside it changes to say which way it is
 /// set. Hiding it once it was on left the sheet indistinguishable from a stage
 /// that was genuinely stretched, with no way back except re-tapping the stage.
+///
+/// **A stack the engine refuses is refused here BEFORE the press**, in the same
+/// shape: the stages that would replay it are disabled and carry the engine's
+/// own sentence, and the sheet opens on the linear stage, which replays nothing
+/// and writes the master's own pixels. Every chip stayed live over a stack the
+/// recipe panel was already calling invalid, so the operator committed to the
+/// press, named a file in a save chooser, and only then read "Export failed".
 class _DarkroomExportSheet extends ConsumerStatefulWidget {
   final int recipeId;
   final String recipeName;
@@ -208,6 +215,16 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
   /// operator through a save chooser for a render that will refuse.
   final String? baseMasterFailure;
 
+  /// The engine's verdict on the recipe as a whole, or null when it validates.
+  ///
+  /// The same sentence the recipe panel puts on screen and the Add step button
+  /// carries in its accessible name — from the same `validate` call over the
+  /// same steps this sheet would send. A stage that REPLAYS the stack comes
+  /// back refused by it, so those stages say so before the press rather than
+  /// after a save chooser has been answered. The linear stage replays nothing
+  /// and stays available.
+  final String? recipeRefusal;
+
   const _DarkroomExportSheet({
     required this.recipeId,
     required this.recipeName,
@@ -218,6 +235,7 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
     required this.reports,
     required this.catalogStars,
     required this.baseMasterFailure,
+    required this.recipeRefusal,
   });
 
   /// Show the sheet over [context].
@@ -242,6 +260,7 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
     required List<DarkroomStepReport> reports,
     required List<Map<String, dynamic>> catalogStars,
     required String? baseMasterFailure,
+    required String? recipeRefusal,
   }) {
     return showAdaptiveModal<void>(
       context: context,
@@ -258,6 +277,7 @@ class _DarkroomExportSheet extends ConsumerStatefulWidget {
         reports: reports,
         catalogStars: catalogStars,
         baseMasterFailure: baseMasterFailure,
+        recipeRefusal: recipeRefusal,
       ),
     );
   }
@@ -333,6 +353,20 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// neither is answered by another stage, format or destination.
   String? get _masterFailure =>
       _exportMasterFailure ?? widget.baseMasterFailure;
+
+  @override
+  void initState() {
+    super.initState();
+    // The sheet opens on a stage that is genuinely available. "Final" is the
+    // default because it is what an export usually means, but a stack the
+    // engine refuses refuses every stage that replays it — and opening on a
+    // disabled chip, with Export off, is the same cry-wolf shape one screen
+    // further on. The linear stage writes the master's own pixels and replays
+    // nothing, so it is the one stage a refused stack leaves standing.
+    if (widget.recipeRefusal != null) {
+      _stageKind = _DarkroomExportStageKind.linear;
+    }
+  }
 
   /// Escape closes the sheet, unless an export is inside the engine.
   ///
@@ -504,7 +538,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// and drops `Semantics(hint:)`, so a disabled control whose only explanation
   /// is a hint announces as a bare, dead "Export".
   Widget _exportButton(bool rasterAllowed) {
-    final blocked = _masterFailure;
+    final blocked = _masterFailure ?? _stageBlocked();
     final enabled = !_exporting && blocked == null && _canExport(rasterAllowed);
     final button = NightshadeButton(
       label: 'Export',
@@ -628,8 +662,8 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   }
 
   Widget _stagePicker(NightshadeColors colors) {
-    final refusal = _afterStepRefusal();
-    final hasSteps = refusal == null;
+    final replayRefusal = _replayRefusal();
+    final afterStepRefusal = _afterStepRefusal();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -653,32 +687,42 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
             ),
             _optionChip(
               label: 'After a step',
-              reason: refusal ??
+              reason: afterStepRefusal ??
                   'Replay the stack through one step and write what it '
                       'produced.',
               selected: _stageKind == _DarkroomExportStageKind.afterStep,
-              enabled: hasSteps,
+              enabled: afterStepRefusal == null,
               onTap: () => _setStage(_DarkroomExportStageKind.afterStep),
             ),
             _optionChip(
               label: 'Final',
-              reason: 'Write every enabled step, at the master\'s full '
-                  'resolution.',
+              reason: replayRefusal ??
+                  'Write every enabled step, at the master\'s full resolution.',
               selected: _stageKind == _DarkroomExportStageKind.finalStack,
+              enabled: replayRefusal == null,
               onTap: () => _setStage(_DarkroomExportStageKind.finalStack),
             ),
           ],
         ),
-        if (refusal != null) ...[
+        // On screen, not only in the chip's name: a hover states nothing on a
+        // touch screen, and the format picker's own refusal has read this way
+        // since it shipped. The stage picker is the one that had no
+        // equivalent.
+        if (replayRefusal != null) ...[
           const SizedBox(height: NightshadeTokens.spaceSm),
-          // On screen, not only in the chip's name: a hover states nothing on a
-          // touch screen, and the format picker's own refusal has read this way
-          // since it shipped. The stage picker is the one that had no
-          // equivalent.
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.warning,
+            title: 'This stack does not validate, so only the linear master '
+                'can be written',
+            message: replayRefusal,
+            compact: true,
+          ),
+        ] else if (afterStepRefusal != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceSm),
           NightshadeAlert(
             severity: NightshadeAlertSeverity.info,
             title: '"After a step" is unavailable for this recipe',
-            message: refusal,
+            message: afterStepRefusal,
             compact: true,
           ),
         ],
@@ -852,11 +896,30 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     }
   }
 
+  /// Why a stage that REPLAYS the stack cannot be chosen, or null when the
+  /// engine accepts the recipe.
+  ///
+  /// The engine validates the whole recipe before it touches a pixel, so a
+  /// stage that replays it is refused by the same fault the recipe panel is
+  /// already naming. The sentence is the engine's own, quoted rather than
+  /// paraphrased, so this sheet and that panel cannot drift.
+  ///
+  /// The linear stage is deliberately not covered: it replays nothing, and the
+  /// recipe rides along with it as provenance.
+  String? _replayRefusal() {
+    final error = widget.recipeRefusal;
+    if (error == null) return null;
+    return 'The engine refuses this stack as it stands, so replaying it would '
+        'be refused with it: $error';
+  }
+
   /// Why the `afterStep` stage cannot be chosen, or null when it can.
   ///
   /// One sentence, read by the chip's accessible name AND by the alert under
   /// the picker, so the two can never drift into stating different reasons.
   String? _afterStepRefusal() {
+    final replay = _replayRefusal();
+    if (replay != null) return replay;
     if (widget.steps.isNotEmpty) return null;
     return 'This recipe carries no steps, so there is no step to stop after. '
         'Add one, or export the linear master.';
@@ -881,6 +944,8 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
         return 'The stack replayed from the start through the chosen step. '
             'Steps below it are not applied.';
       case _DarkroomExportStageKind.finalStack:
+        final refusal = _replayRefusal();
+        if (refusal != null) return refusal;
         if (total == 0) {
           return 'This recipe carries no steps, so the final stage applies '
               'nothing: it writes the master\'s own pixels at full resolution.';
@@ -1027,12 +1092,30 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   }
 
   bool _canExport(bool rasterAllowed) {
+    if (_stageBlocked() != null) return false;
     if (_stageKind == _DarkroomExportStageKind.afterStep &&
         _afterStep == null) {
       return false;
     }
     if (_format.isRaster && !rasterAllowed) return false;
     return true;
+  }
+
+  /// Why the CHOSEN stage cannot be exported, or null when it can.
+  ///
+  /// The chips for a refused stack are disabled, so this only answers for a
+  /// selection that was made before the refusal was known. It is what the
+  /// Export button carries in its accessible name, so a greyed button is never
+  /// a bare "Export".
+  String? _stageBlocked() {
+    switch (_stageKind) {
+      case _DarkroomExportStageKind.linear:
+        return null;
+      case _DarkroomExportStageKind.afterStep:
+        return _afterStepRefusal();
+      case _DarkroomExportStageKind.finalStack:
+        return _replayRefusal();
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -1152,7 +1235,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
         },
       );
       if (!mounted) return;
-      setState(() => _result = _describeReply(reply, outputPath));
+      _settle(() => _result = _describeReply(reply, outputPath));
       if (!context.mounted) return;
       NightshadeToastHelper.show(
         context: context,
@@ -1168,7 +1251,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       if (!mounted) return;
       // The engine honours a stop before it writes, so a stopped export leaves
       // no half-written file behind.
-      setState(
+      _settle(
         () => _stopped =
             'The export was stopped during ${cancelled.phase}. No file was '
                 'written.',
@@ -1180,17 +1263,32 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       if (!mounted) return;
       await _reportFailure('$error');
     } finally {
+      // Every outcome above has already settled the sheet; this catches the
+      // paths that produced none — a save chooser the operator cancelled, and
+      // a sheet that was disposed mid-export.
       _renderId = null;
-      if (mounted) {
-        setState(() {
-          _phase = null;
-          _cancelRequested = false;
-          // The refusal named a render that is no longer running; leaving it on
-          // screen would state something untrue about the sheet.
-          _dismissRefused = null;
-        });
-      }
+      if (mounted && _phase != null) _settle(() {});
     }
+  }
+
+  /// Publish an outcome and retire the running state in ONE frame.
+  ///
+  /// The sheet must never paint an outcome over its own progress bar. Clearing
+  /// the phase in a `finally` looked equivalent and was not: the failure path
+  /// AWAITS its error dialog, so "Export failed" was read over a live
+  /// "Rendering the linear master at full resolution…", a filled progress bar
+  /// and a working Stop button — two contradictory claims about one operation
+  /// in one frame, for as long as the operator took to press Close.
+  void _settle(VoidCallback outcome) {
+    _renderId = null;
+    setState(() {
+      outcome();
+      _phase = null;
+      _cancelRequested = false;
+      // The refusal named a render that is no longer running; leaving it on
+      // screen would state something untrue about the sheet.
+      _dismissRefused = null;
+    });
   }
 
   Future<void> _reportFailure(String raw) async {
@@ -1208,10 +1306,15 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
       failure.message,
       widget.baseMasterPath,
     );
-    if (masterNextStep != null && mounted) {
-      setState(
-        () => _exportMasterFailure = '${failure.message}. $masterNextStep',
-      );
+    // Settled BEFORE the dialog, never after it: the dialog is awaited, and a
+    // sheet still claiming to be rendering underneath it contradicts the
+    // failure the operator is reading.
+    if (mounted) {
+      _settle(() {
+        if (masterNextStep != null) {
+          _exportMasterFailure = '${failure.message}. $masterNextStep';
+        }
+      });
     }
 
     final nextStep = masterNextStep ?? failure.nextStep;

@@ -310,10 +310,19 @@ String requiredAuthScopeNameForEndpoint({
   // `adminOnlyPathPrefixes`) breaks all of that for every default-scope
   // pairing: the phone shows "Guiding defaults unavailable: Access denied"
   // and silently serializes fallback defaults into sequences it starts.
-  // GET serves the curated
-  // `exportRemoteSettings()` wire model (no credentials), so read is
-  // control-scope; every mutation stays admin. The Home Assistant
-  // sub-route carries a bearer token and stays admin for ALL methods.
+  // Reading host settings is a CONTROL-level capability, not a view-level
+  // one, and the payload is why: `exportRemoteSettings()` carries the
+  // operator's Discord webhook URL, their Pushover key and user, the update
+  // server URL, and absolute host filesystem paths (image output, ASTAP,
+  // reject folder). A webhook URL is a bearer credential in its own right, so
+  // a read-only viewer — the phone by the bed, a shared run-watch link — has
+  // no business reading this. Control is the floor, not the ceiling: every
+  // mutation stays admin, and the Home Assistant sub-route carries a bearer
+  // token and stays admin for ALL methods.
+  //
+  // A view-scope client that asks anyway gets the standard scope refusal
+  // naming `settings`-behind-`system:control`, and the dashboard states it in
+  // the panel rather than painting the values as unknown.
   if (normalizedPath.startsWith('/api/settings')) {
     if (normalizedPath.startsWith('/api/settings/home-assistant')) {
       return 'admin';

@@ -480,9 +480,54 @@
   /// branch below names the one thing to do next, and the `kind` is what lets
   /// the sign-in overlay tell a wrong credential from a server that is simply
   /// not answering.
+  /// The refusal a scope-denied answer carries, as a sentence.
+  ///
+  /// Every clause comes off the wire — the resource the endpoint guards, the
+  /// level it demands, and the level this credential holds on it (from
+  /// `HeadlessAuthPolicy.scopeDenialBody`). Nothing here guesses at a level the
+  /// server did not state: an answer carrying no `tokenLevel` gets a sentence
+  /// that omits it rather than one that assumes `none`.
+  function describeScopeRefusal(e, what) {
+    const d = (e && e.detail) || {};
+    const resource = d.resource || 'this feature';
+    const held = d.tokenLevel === 'none'
+      ? 'This browser’s credential has no access to ' + resource + '.'
+      : d.tokenLevel
+        ? 'This browser’s credential has ' + d.tokenLevel + ' access to ' +
+          resource + '.'
+        : '';
+    return what + ' needs ' + (d.requiredLevel || 'more') + ' access to ' +
+      resource + '. ' + (held ? held + ' ' : '') +
+      'Pair this browser again asking for ' + resource + ':' +
+      (d.requiredLevel || 'control') + ' to use it.';
+  }
+
   function describeConnectFailure(e) {
     const status = e && e.status;
-    if (status === 401 || status === 403) {
+    // A scope refusal and a rejected credential are different events with
+    // different fixes, and collapsing them into one "rejected" sentence sent
+    // an operator holding a perfectly valid read-only token to the Remote
+    // Access screen to check a token that was never the problem. Re-pairing
+    // with the same spec reproduces a scope refusal exactly; only asking for
+    // more scope clears it, so the copy has to say which one happened.
+    if (e && e.kind === 'scope_denied') {
+      return {
+        kind: 'insufficient_scope',
+        message: 'This browser is signed in, and the dashboard needs more ' +
+          'than it holds. ' + describeScopeRefusal(e, 'The dashboard'),
+      };
+    }
+    if (status === 401) {
+      return {
+        kind: 'rejected',
+        message: 'The desktop did not accept this credential. Check the token ' +
+          'against the desktop’s Remote Access screen, or pair this browser ' +
+          'instead.',
+      };
+    }
+    if (status === 403) {
+      // A 403 that named no capability is the middleware's unknown-bearer
+      // answer, which is a credential problem after all.
       return {
         kind: 'rejected',
         message: 'The desktop rejected this token. Check it against the ' +
@@ -565,6 +610,10 @@
 
     api.configure(url, token, deviceId);
     api.setConnectionState(false);
+    // A different credential may hold more than the last one did, so the
+    // refusals recorded against the old one must not keep its controls
+    // disabled.
+    clearControlRefusals();
 
     // If a session cookie is still alive from a previous visit, asking the
     // server for the CSRF token is what tells JS "you
@@ -1618,6 +1667,12 @@
     if (e && (e.kind === 'unreachable' || e.kind === 'timeout')) {
       return what + ' failed: no answer from the server';
     }
+    // A refusal the server explained. Its own words, not its JSON: the log
+    // panel used to carry the whole 403 body, which reads as a product fault
+    // rather than as the scope decision it is.
+    if (e && e.kind === 'scope_denied') {
+      return what + ' refused: ' + describeScopeRefusal(e, what);
+    }
     // The server answered and the answer carried nothing this page can read.
     // Named as its own outcome because it is not a dead server and not a
     // refusal the server explained — it is a success code over silence, and
@@ -2503,13 +2558,64 @@
   // Sequencer Controls
   // =========================================================================
 
+  /// Controls this credential has been refused, keyed by button id, holding
+  /// the sentence the refusal produced.
+  ///
+  /// A read-only session renders the same control cluster a control-scope one
+  /// does, so before this every press posted a request the rig had already
+  /// refused once, the failure went out as a toast that faded, and the button
+  /// stayed live. A control this credential cannot use is disabled and carries
+  /// its reason, which is a thing the operator can still read a minute later.
+  const refusedControls = new Map();
+
+  /// Forget every recorded refusal, and take the reason off the controls that
+  /// carried it. Called when the credential changes.
+  function clearControlRefusals() {
+    for (const id of refusedControls.keys()) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.title = '';
+        el.removeAttribute('aria-disabled');
+      }
+    }
+    refusedControls.clear();
+  }
+
+  /// Record a refusal on the control that caused it, and say it out loud once.
+  ///
+  /// The Event Log gets the line as well as the toast: a toast is gone in
+  /// seconds, and "I pressed Pause and nothing happened" needs a record that
+  /// outlives it.
+  function noteControlRefused(buttonId, e, what) {
+    const sentence = describeScopeRefusal(e, what);
+    refusedControls.set(buttonId, sentence);
+    const el = document.getElementById(buttonId);
+    if (el) {
+      el.disabled = true;
+      el.title = sentence;
+      el.setAttribute('aria-disabled', 'true');
+    }
+    showToast(sentence, 'error');
+    addLogEntry('error', what + ' refused: ' + sentence);
+  }
+
+  /// Report a failed sequencer command. A scope refusal is named on its
+  /// control; everything else keeps the toast it always had.
+  function reportSeqFailure(buttonId, e, what) {
+    if (e && e.kind === 'scope_denied') {
+      noteControlRefused(buttonId, e, what);
+      return;
+    }
+    showToast(what + ' failed: ' + describeApiError(e, what), 'error');
+  }
+
   async function handleSeqStart() {
     try {
       await api.sequencerStart();
       addLogEntry('sequencer', 'Sequence started');
       showToast('Sequence started');
     } catch (e) {
-      showToast('Start failed: ' + e.message, 'error');
+      reportSeqFailure('btn-seq-start', e, 'Start');
     }
   }
 
@@ -2524,7 +2630,7 @@
         addLogEntry('sequencer', 'Sequence stopped');
       }
     } catch (e) {
-      showToast('Stop failed: ' + e.message, 'error');
+      reportSeqFailure('btn-seq-stop', e, 'Stop');
     }
   }
 
@@ -2533,7 +2639,7 @@
       await api.sequencerPause();
       addLogEntry('sequencer', 'Sequence paused');
     } catch (e) {
-      showToast('Pause failed: ' + e.message, 'error');
+      reportSeqFailure('btn-seq-pause', e, 'Pause');
     }
   }
 
@@ -2542,7 +2648,7 @@
       await api.sequencerResume();
       addLogEntry('sequencer', 'Sequence resumed');
     } catch (e) {
-      showToast('Resume failed: ' + e.message, 'error');
+      reportSeqFailure('btn-seq-resume', e, 'Resume');
     }
   }
 
@@ -3842,7 +3948,17 @@
     const s = String(stateStr || 'idle').toLowerCase().replace(/[_\s]/g, '');
     const set = (id, enabled) => {
       const el = document.getElementById(id);
-      if (el) el.disabled = !enabled;
+      if (!el) return;
+      // A control the rig has already refused for this credential stays
+      // refused, whatever the run state would otherwise admit — the next
+      // status poll used to hand it straight back.
+      const refusal = refusedControls.get(id);
+      if (refusal) {
+        el.disabled = true;
+        el.title = refusal;
+        return;
+      }
+      el.disabled = !enabled;
     };
     const running = s === 'running' || s === 'executing';
     const paused = s === 'paused';
@@ -6864,6 +6980,50 @@
     if (btn) btn.addEventListener('click', () => refreshSettingsPanel());
   }
 
+  /// The settings panel's own hint line, as index.html ships it. Kept so the
+  /// panel can go back to describing itself once a read succeeds.
+  let settingsPanelHint = null;
+
+  /// Rows the settings panel fills from the host. Named once so a refusal can
+  /// mark every one of them without the list drifting.
+  const SETTINGS_VALUE_IDS = [
+    'settings-observer-name', 'settings-save-path', 'settings-plate-solver',
+    'settings-latitude', 'settings-longitude', 'settings-elevation',
+  ];
+
+  /// Say who refused the settings read, and why, IN the panel.
+  ///
+  /// Reading host settings is control-scope on the appliance — the payload
+  /// carries the operator's Discord webhook, Pushover key and host filesystem
+  /// paths (see `path_classification.dart`) — so a read-only session is
+  /// refused it by design. The panel used to answer that by leaving every row
+  /// at "--", which reads as "this host has no observer, no save path, no
+  /// coordinates" on a fully configured rig; the reason existed only as one
+  /// line buried in the Event Log.
+  function saySettingsWithheld(sentence) {
+    for (const id of SETTINGS_VALUE_IDS) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.textContent = 'not permitted';
+      el.title = sentence;
+    }
+    const hint = document.querySelector('#panel-settings .panel-hint');
+    if (hint) {
+      if (settingsPanelHint === null) settingsPanelHint = hint.textContent;
+      hint.textContent = sentence;
+    }
+  }
+
+  /// Take a previous refusal off the panel before painting real values.
+  function clearSettingsWithheld() {
+    for (const id of SETTINGS_VALUE_IDS) {
+      const el = document.getElementById(id);
+      if (el) el.title = '';
+    }
+    const hint = document.querySelector('#panel-settings .panel-hint');
+    if (hint && settingsPanelHint !== null) hint.textContent = settingsPanelHint;
+  }
+
   async function refreshSettingsPanel() {
     if (!api.isConnected) return;
     const setEl = (id, text) => {
@@ -6875,6 +7035,7 @@
         api.getSettings(),
         api.getLocation(),
       ]);
+      clearSettingsWithheld();
       const settings = settingsResp && settingsResp.settings;
       const loc = locResp && locResp.location;
       // Key names come from what GET /api/settings and GET
@@ -6904,6 +7065,9 @@
         setEl('settings-elevation', '--');
       }
     } catch (e) {
+      if (e && e.kind === 'scope_denied') {
+        saySettingsWithheld(describeScopeRefusal(e, 'Reading host settings'));
+      }
       addLogEntry('error', describeApiError(e, 'Settings fetch'));
     }
   }
@@ -7715,9 +7879,17 @@
   /// failures are already stated by the link banner and the panels' own stale
   /// lines. A credential the desktop refused is a different matter — the form
   /// is the only place it can be replaced.
+  ///
+  /// A credential the desktop ACCEPTED and that is short of scope belongs here
+  /// too: the dashboard cannot run on it, the form is where a wider pairing is
+  /// started, and leaving it out raised the overlay with an empty status line —
+  /// a sign-in that failed and said nothing. It is NOT scrubbed, though; see
+  /// [reportLoginFailure].
   function isCredentialFailure(outcome) {
     return Boolean(outcome) &&
-      (outcome.kind === 'rejected' || outcome.kind === 'needs_credential');
+      (outcome.kind === 'rejected' ||
+        outcome.kind === 'insufficient_scope' ||
+        outcome.kind === 'needs_credential');
   }
 
   /// Put a failed sign-in back in front of the operator, in words, on the
@@ -7727,6 +7899,10 @@
   /// left there it survives a reload, and `bootstrapAuthFlow` hides the
   /// overlay for any stored token, which is the same dead end reached by a
   /// different door.
+  ///
+  /// A credential that is merely short of scope is NOT scrubbed. The desktop
+  /// accepted it; it still works for everything it does hold, and throwing it
+  /// away would make the operator re-pair to get back to where they were.
   function reportLoginFailure(outcome) {
     const failure = outcome || { kind: 'failed', message: 'Sign-in failed.' };
     if (failure.kind === 'rejected') {

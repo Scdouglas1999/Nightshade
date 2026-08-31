@@ -12,6 +12,7 @@
 // The due check is what makes the documented 1 m / 3 m / 9 m real.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/daos/delivery_journal_dao.dart';
 import 'package:nightshade_core/src/database/daos/delivery_targets_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
+import 'package:path/path.dart' as p;
 
 /// A delivery service whose sweep is counted and can be held open.
 class _CountingDelivery extends DeliveryService {
@@ -75,14 +77,21 @@ void main() {
   late _CountingDelivery delivery;
   late LoggingService logger;
 
+  /// Where the cases about published peer files put those files. The peer arm
+  /// reads the rig's own disk, so its two states — the file is there, the file
+  /// is gone — need a real path either way.
+  late Directory tempDir;
+
   setUp(() {
     db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     delivery = _CountingDelivery(db);
     logger = LoggingService();
+    tempDir = Directory.systemTemp.createTempSync('ns_delivery_sweeper_');
   });
 
   tearDown(() async {
     await db.close();
+    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
   DeliveryRetrySweeper build({Duration? interval, Duration? dueCheck}) =>
@@ -277,6 +286,11 @@ void main() {
       // identical INFO lines in 3 1/2 minutes, with the row untouched throughout
       // (`attempts` 1, `updated_at` unchanged). That is the ordinary state
       // between the dawn job and the operator's morning.
+      //
+      // The published file is REALLY on disk here, because that is the case
+      // this claim is about: the rig still holds what it published and owes
+      // nothing. A published file that has LEFT the rig is the opposite case
+      // and the test below it.
       final jobId = await DarkroomJobsDao(db).enqueue();
       final targetId = await DeliveryTargetsDao(db).create(
         name: 'peer-office',
@@ -284,10 +298,12 @@ void main() {
         configJson: '{"peerId":"office-pc"}',
         content: const {ArtifactContent.draftRender},
       );
+      final published = File(p.join(tempDir.path, 'draft.png'))
+        ..writeAsStringSync('draft-bytes');
       await DeliveryJournalDao(db).recordAttempt(
         targetId: targetId,
         jobId: jobId,
-        filePath: '/tmp/does-not-need-to-exist/draft.png',
+        filePath: published.path,
         bytes: 1024,
       );
 
@@ -334,6 +350,90 @@ void main() {
         reason:
             'the short cadence has nothing to wake for; the next move is a '
             'pull by the desktop',
+      );
+    },
+  );
+
+  test(
+    'a published file that left the rig wakes the check, and only once',
+    () async {
+      // The other half of the same claim, and the defect the half above it
+      // caused: because no peer row could ever be due, the 30-second check
+      // never reached the publication arm at all. Measured against the release
+      // bundle on port 8143 — a published draft moved off disk stayed
+      // `retrying` with a null error for the whole 200 seconds it was polled,
+      // while the manifest endpoint was already refusing to serve it
+      // (`sourceMissing`) and the download answered 404. Only the 15-minute
+      // heartbeat, or a restart, moved it.
+      //
+      // Once is the whole point. The pass this wakes writes the row `failed`
+      // — `sourceMissing` is not retryable — and a failed row is not pending,
+      // so it cannot answer "due" again. That is why this is not the permanent
+      // loop the case above forbids.
+      final jobId = await DarkroomJobsDao(db).enqueue();
+      final targetId = await DeliveryTargetsDao(db).create(
+        name: 'peer-office',
+        kind: ArtifactDestinationKind.peer,
+        configJson: '{"peerId":"office-pc"}',
+        content: const {ArtifactContent.draftRender},
+      );
+      final published = File(p.join(tempDir.path, 'gone.png'))
+        ..writeAsStringSync('draft-bytes');
+      await DeliveryJournalDao(db).recordAttempt(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: published.path,
+        bytes: 1024,
+      );
+      published.deleteSync();
+
+      final real = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) =>
+            throw StateError('the peer arm builds no transport'),
+      );
+      final sweeper = DeliveryRetrySweeper(
+        delivery: real,
+        logger: logger,
+        interval: const Duration(hours: 1),
+        dueCheckInterval: const Duration(milliseconds: 10),
+      );
+      addTearDown(sweeper.stop);
+
+      expect(await real.hasDueRetries(), isTrue);
+
+      sweeper.start();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      sweeper.stop();
+
+      final row = (await DeliveryJournalDao(db).listForJob(jobId)).single;
+      expect(row.state, DeliveryAttemptState.failed);
+      expect(row.lastError, contains('sourceMissing'));
+      expect(
+        row.lastError,
+        contains('never pulled it'),
+        reason: 'the sentence names whose fact this is: the file left the rig',
+      );
+      expect(
+        row.attempts,
+        1,
+        reason: 'reading the rig\'s own disk is not a publication attempt',
+      );
+
+      expect(
+        await real.hasDueRetries(),
+        isFalse,
+        reason: 'a terminal row is not pending, so it cannot ask again',
+      );
+      final passes = logger
+          .getRecentLogs()
+          .where((entry) => entry.message.contains('Delivery retry sweep:'))
+          .toList();
+      expect(
+        passes,
+        hasLength(1),
+        reason: 'twelve ticks in that window, and exactly one pass to run',
       );
     },
   );

@@ -6,7 +6,9 @@
 //! * `linear` — the master's own pixels, untouched. The recipe is *recorded* as
 //!   provenance and explicitly marked as not applied, because a linear master
 //!   that claimed an interpretation it never ran would be as untrue as a step
-//!   that reports success while changing nothing.
+//!   that reports success while changing nothing. It follows that no step can
+//!   refuse this stage: a recipe that is provenance here rather than a program
+//!   is written as it stands, and only the master itself has to be readable.
 //! * `afterStep N` — the stack replayed through step `N`. This is how a
 //!   "post-gradient master" or a "starless master" is materialised: rendered on
 //!   demand, never stored as a default checkpoint.
@@ -47,7 +49,7 @@ use std::sync::Arc;
 
 use nightshade_imaging::recipe::ops::stretch::{auto_params, StretchV1};
 use nightshade_imaging::recipe::{
-    canonical_json, fingerprint_hex, validate, DarkroomOp, OpImage, OpRegistry, OpStage, Recipe,
+    canonical_json, fingerprint_hex, DarkroomOp, OpImage, OpRegistry, OpStage, Recipe,
     RenderOptions, RenderReport, StepOutcome, RECIPE_SCHEMA_VERSION,
 };
 use nightshade_imaging::{write_jpeg, write_png, write_tiff, FitsHeader, ImageData, PixelType};
@@ -167,10 +169,18 @@ pub(crate) fn run_export(recipe_json: &str, args: DarkroomExportArgs) -> Result<
     let (ctx, catalog_stars) = build_context(&base, 0, &token, &args.catalog_stars);
 
     let (image, report, report_value) = match stage {
-        ExportStage::Linear => {
-            validate(&recipe, registry).map_err(|e| e.to_string())?;
-            (Arc::clone(&base), None, empty_report_json(0))
-        }
+        // No `validate` here: the linear stage writes the master's own pixels
+        // and replays not one step, so a step's parameters cannot refuse it. A
+        // whole-recipe check ran here anyway, and one out-of-range stretch
+        // parameter — a step this stage explicitly records as NOT applied —
+        // refused an export of pixels that stretch never touches. The recipe
+        // still rides along exactly as the caption promises: the HISTORY cards,
+        // the canonical payload and the sidecar below are written from the
+        // recipe as it stands, faults and all, because that is what provenance
+        // means. What this stage does need is checked already — the master is
+        // read by `load_pyramid` above, and `parse_recipe` refuses a schema
+        // version this build cannot carry.
+        ExportStage::Linear => (Arc::clone(&base), None, empty_report_json(0)),
         ExportStage::AfterStep(index) => {
             let output = run_render(
                 &recipe,

@@ -115,6 +115,9 @@ function loadRunWatch(overrides) {
   FEED_EVENT_NAMES,
   showPairScreen,
   sequencerAction,
+  scopeRefusalText,
+  updateRunControls,
+  peekRefusedControls: () => new Map(refusedControls),
   formatDurationSecs,
   resolveCredentialAndShow,
   adoptSessionCookie,
@@ -2306,4 +2309,138 @@ test('the strings the server does send still reach the screen', () => {
   assert.equal(doc.getElementById('seq-name').textContent, 'D1 Simulated Field');
   assert.equal(doc.getElementById('target-name').textContent,
     'D1 Simulated Field');
+});
+
+// ---------------------------------------------------------------------------
+// W19-A / D4-01 — a scope 403 is not a revoked pairing
+//
+// Measured against the release bundle on a live run: a viewer holding a valid
+// read-only token pressed Pause once, the rig answered 403 naming
+// sequencer:control, and the page hid the run, wrote "This device's pairing is
+// no longer accepted — the rig rejected it, which happens when the pairing was
+// revoked there…", and emptied localStorage. Nothing had been revoked: the
+// same token answered 200 on /api/run-watch/snapshot a second later. The
+// viewer lost a working credential and a live night over a button they were
+// never entitled to press.
+// ---------------------------------------------------------------------------
+
+/** A 403 that names the capability it refused on, as the rig sends it. */
+function scopeDenied(resource, requiredLevel, tokenLevel) {
+  const body = {
+    error: 'Access denied',
+    message: 'Token scope is not permitted for this endpoint: this credential '
+      + 'holds ' + tokenLevel + ' on ' + resource + ', and ' + requiredLevel
+      + ' is required.',
+    requiredResource: resource,
+    requiredLevel,
+    tokenLevel,
+  };
+  const res = {
+    ok: false, status: 403, statusText: 'Forbidden',
+    headers: new Headers(),
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  };
+  res.clone = () => res;
+  return res;
+}
+
+test('a scope refusal keeps the credential and the viewer on the run', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => scopeDenied('sequencer', 'control', 'view'),
+  });
+  api.setToken('a-valid-read-only-token', true);
+  doc.getElementById('main-screen').classList.remove('hidden');
+  doc.getElementById('pair-screen').classList.add('hidden');
+
+  await assert.rejects(
+    () => api.apiFetch('/api/sequencer/pause', { method: 'POST' }),
+    (e) => e.kind === 'scope_denied',
+  );
+
+  assert.equal(api.peekCredential().effective, 'a-valid-read-only-token',
+    'the rig accepted this credential — refusing one action does not revoke it');
+  assert.ok(doc.getElementById('pair-screen').classList.contains('hidden'),
+    'a viewer is not ejected from a live run by a button they cannot press');
+  assert.ok(!doc.getElementById('main-screen').classList.contains('hidden'));
+  assert.equal(doc.getElementById('pair-status').textContent, '',
+    'nothing was revoked, so nothing may say it was');
+});
+
+test('a 401 still tears the credential down and says why', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => ({
+      ok: false, status: 401, statusText: 'Unauthorized',
+      headers: new Headers(),
+      json: async () => ({ error: 'Authentication required' }),
+      text: async () => 'unauthorized',
+    }),
+  });
+  api.setToken('a-token-the-rig-stopped-accepting', true);
+
+  await assert.rejects(
+    () => api.apiFetch('/api/run-watch/snapshot'),
+    (e) => e.kind === 'auth_required',
+  );
+  assert.equal(api.peekCredential().effective, null);
+  assert.match(doc.getElementById('pair-status').textContent, /no longer accepted/);
+});
+
+test('a 403 that names no capability is still a credential refusal', async () => {
+  // The rig answers an unknown bearer with 403 too, so keeping every 403 would
+  // strand a genuinely revoked device holding a dead token forever.
+  const res = {
+    ok: false, status: 403, statusText: 'Forbidden',
+    headers: new Headers(),
+    json: async () => ({
+      error: 'Access denied', message: 'Invalid authentication token',
+    }),
+    text: async () => 'denied',
+  };
+  res.clone = () => res;
+  const { doc, api } = loadRunWatch({ fetch: async () => res });
+  api.setToken('a-token-the-rig-does-not-know', true);
+
+  await assert.rejects(
+    () => api.apiFetch('/api/run-watch/snapshot'),
+    (e) => e.kind === 'auth_required',
+  );
+  assert.equal(api.peekCredential().effective, null);
+  assert.ok(!doc.getElementById('pair-screen').classList.contains('hidden'));
+});
+
+test('a refused control names its refusal on the control and in a toast', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: async () => scopeDenied('sequencer', 'control', 'view'),
+  });
+  api.setToken('a-valid-read-only-token', true);
+
+  await api.sequencerAction('/api/sequencer/pause', 'Pause');
+
+  const btn = doc.getElementById('btn-pause');
+  assert.equal(btn.disabled, true,
+    'a control this credential cannot use may not stay live and do nothing');
+  assert.match(btn.title, /control access to sequencer/);
+  assert.match(btn.title, /view access to sequencer/,
+    'say what this device does hold, not only what it lacks');
+
+  const toastText = doc.getElementById('toast-region').children
+    .map((c) => c.textContent).join(' ');
+  assert.match(toastText, /control access to sequencer/);
+  assert.doesNotMatch(toastText, /\{|Access denied/,
+    'the wire body is a diagnostic, not a sentence for the operator');
+
+  // And the next status poll must not hand the button straight back.
+  api.updateRunControls('running');
+  assert.equal(doc.getElementById('btn-pause').disabled, true);
+});
+
+test('the refusal sentence never invents a level the rig did not state', () => {
+  const { api } = loadRunWatch();
+  const text = api.scopeRefusalText('Pause', {
+    resource: 'sequencer', requiredLevel: 'control', tokenLevel: null,
+  });
+  assert.match(text, /control access to sequencer/);
+  assert.doesNotMatch(text, /no access|view access/,
+    'an answer that named no tokenLevel gets a sentence without one');
 });

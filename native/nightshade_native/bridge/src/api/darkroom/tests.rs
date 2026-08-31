@@ -870,6 +870,99 @@ fn export_of_the_linear_stage_writes_the_masters_own_pixels() {
 }
 
 #[test]
+fn the_linear_stage_exports_a_master_whose_recipe_the_engine_refuses() {
+    // Measured against the release bundle: a `whitePoint` below the step's own
+    // `blackPoint` refused a LINEAR export — the stage that replays nothing and
+    // records the recipe as not applied. A step this stage does not apply
+    // cannot refuse the master's own pixels. The recipe still travels with the
+    // file, faults and all, because that is what provenance is.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "refused-source.fits", 64, 64, 1);
+    let out = dir.path().join("refused-linear.fits");
+    let recipe = recipe_json(
+        "r-refused",
+        "master:refused",
+        json!([{
+            "opId": "stretch",
+            "opVersion": 1,
+            "params": {"blackPoint": 800.0, "whitePoint": 100.0, "d": 1.5},
+            "enabled": true,
+        }]),
+    );
+
+    // The stack really is refused — the stages that replay it say so, in the
+    // engine's own sentence. Without this the test would pass just as happily
+    // over a recipe nothing objected to.
+    let refusal = api_darkroom_render_export(
+        recipe.clone(),
+        json!({
+            "masterPath": master.to_string_lossy(),
+            "stage": {"kind": "final"},
+            "outputs": [{"format": "fits", "path": dir.path().join("refused-final.fits").to_string_lossy()}],
+        })
+        .to_string(),
+    )
+    .expect_err("the final stage replays the step, so the step refuses it");
+    assert!(
+        refusal.contains("whitePoint"),
+        "the replaying stage must be refused by the step itself: {refusal}"
+    );
+    assert!(
+        !dir.path().join("refused-final.fits").exists(),
+        "a refused export writes nothing"
+    );
+
+    let reply = parse(
+        &api_darkroom_render_export(
+            recipe.clone(),
+            json!({
+                "masterPath": master.to_string_lossy(),
+                "stage": {"kind": "linear"},
+                "outputs": [{"format": "fits", "path": out.to_string_lossy()}],
+            })
+            .to_string(),
+        )
+        .expect("the linear stage writes the master's own pixels"),
+    );
+
+    assert_eq!(reply["stage"]["kind"], json!("linear"));
+    assert_eq!(reply["report"]["steps"], json!([]));
+
+    let (source, _) = read_fits(&master).expect("master reads");
+    let (written, header) = read_fits(&out).expect("export reads");
+    assert_eq!(written.data, source.data, "linear export is a passthrough");
+    assert!(
+        header
+            .history
+            .iter()
+            .any(|line| line.contains("Linear master passthrough")),
+        "the export says no step ran: {:?}",
+        header.history
+    );
+    // The refused recipe rides along as provenance, in the file and beside it.
+    let expected = canonical_json(&parse(&recipe));
+    assert_eq!(
+        recipe_from_history(&header.history)
+            .expect("the refused recipe is carried in the HISTORY payload"),
+        expected,
+        "the recipe travels as it stands, not as the engine wishes it were"
+    );
+    let sidecar = parse(
+        &std::fs::read_to_string(
+            reply["sidecarPath"]
+                .as_str()
+                .expect("a sidecar is written beside the FITS"),
+        )
+        .expect("sidecar reads"),
+    );
+    assert_eq!(
+        sidecar["canonicalRecipe"].as_str(),
+        Some(expected.as_str()),
+        "the sidecar carries the same recipe the file does"
+    );
+}
+
+#[test]
 fn export_after_a_step_stops_the_stack_there() {
     let dir = tempfile::tempdir().expect("temp dir");
     let master = write_master(dir.path(), "stage-source.fits", 64, 64, 1);

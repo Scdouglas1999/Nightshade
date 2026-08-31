@@ -300,8 +300,13 @@ void main() {
       );
 
       expect(response.statusCode, HttpStatus.forbidden);
+      // A genuine coarse shortfall: the pair ranks as a refusal on its own
+      // terms, so the back-compat fields stay.
       expect(response.body['requiredScope'], 'control');
       expect(response.body['tokenScope'], 'view');
+      expect(response.body['requiredResource'], 'camera');
+      expect(response.body['requiredLevel'], 'control');
+      expect(response.body['tokenLevel'], 'view');
     });
 
     test('rejects control tokens on admin endpoints', () async {
@@ -606,9 +611,19 @@ void main() {
       expect(response.statusCode, HttpStatus.forbidden);
       expect(response.body['requiredResource'], 'mount');
       expect(response.body['requiredLevel'], 'control');
-      // back-compat coarse fields remain populated.
-      expect(response.body['requiredScope'], 'control');
-      expect(response.body['tokenScope'], 'control');
+      // What this credential holds on the resource it was refused for is the
+      // fact that explains the refusal.
+      expect(response.body['tokenLevel'], 'view');
+      // The back-compat coarse pair is NOT emitted here, and that is the
+      // point: `camera:control,mount:view` projects to the coarse scope
+      // `control`, and the route's coarse requirement is `control`, so the
+      // pair used to read requiredScope=control beside tokenScope=control —
+      // the body asserting the requirement was satisfied on a refusal. A pair
+      // that does not explain the outcome is left out rather than printed as
+      // a contradiction; the coarse-shortfall case keeps it (see 'rejects
+      // view tokens on control endpoints').
+      expect(response.body.containsKey('requiredScope'), isFalse);
+      expect(response.body.containsKey('tokenScope'), isFalse);
     });
   });
 }

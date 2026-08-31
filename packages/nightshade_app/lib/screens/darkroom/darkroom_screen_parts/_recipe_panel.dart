@@ -91,6 +91,35 @@ class _DarkroomCollapsibleAlertState extends State<_DarkroomCollapsibleAlert> {
     return '${text.substring(0, boundary)}…';
   }
 
+  /// Open or close the account, and when opening, bring it into the panel's
+  /// view.
+  ///
+  /// The alert grows where it stands, and this panel's viewport is a few
+  /// hundred pixels: measured on the release bundle 2026-08-31, opening "the
+  /// draft's omissions" left the first paragraph sliced mid-word at the scroll
+  /// edge, the second paragraph entirely below it, and pushed the Render block
+  /// that HAD been visible out of sight — an operator pressing "Show more" was
+  /// shown less. The scroll runs after the frame that lays the expanded alert
+  /// out, because only then does the viewport know how tall this is now, and it
+  /// aligns the alert's top with the panel's so as much of the newly revealed
+  /// text as fits is on screen.
+  ///
+  /// Closing scrolls nothing: the alert shrinks back to where it was, and the
+  /// reader is already looking at it.
+  void _toggle() {
+    setState(() => _expanded = !_expanded);
+    if (!_expanded) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final collapsed = _collapsed(widget.message);
@@ -107,7 +136,7 @@ class _DarkroomCollapsibleAlertState extends State<_DarkroomCollapsibleAlert> {
               label: _expanded
                   ? 'Show less about ${widget.disclosureObject}'
                   : 'Show more about ${widget.disclosureObject}',
-              onPressed: () => setState(() => _expanded = !_expanded),
+              onPressed: _toggle,
               child: NightshadeButton(
                 label: _expanded ? 'Show less' : 'Show more',
                 icon: _expanded
@@ -115,7 +144,7 @@ class _DarkroomCollapsibleAlertState extends State<_DarkroomCollapsibleAlert> {
                     : NightshadeIcons.chevronDown,
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
-                onPressed: () => setState(() => _expanded = !_expanded),
+                onPressed: _toggle,
               ),
             ),
     );
@@ -150,12 +179,93 @@ class _DarkroomRecipePanel extends StatefulWidget {
   State<_DarkroomRecipePanel> createState() => _DarkroomRecipePanelState();
 }
 
+/// How far the fade at a scroll edge reaches, as a fraction of the viewport.
+///
+/// Short enough that it never dims a whole line into unreadability, long enough
+/// that the line at the edge visibly trails off rather than ending in a clean
+/// cut a reader takes for the end of the text.
+const double _kRecipePanelFadeFraction = 0.055;
+
+/// Which edges of a scroll region have content behind them.
+///
+/// Taken from the metrics rather than from the controller so the same reading
+/// serves a scroll and a metrics-only change alike — the content GROWING when a
+/// disclosure opens is the second kind, and it is the one the panel most needs
+/// to follow. A region with nothing off-screen answers false to both: a fade
+/// there would claim there is more to read when there is not.
+///
+/// Half a pixel of slack, because a viewport and its content agreeing exactly
+/// is a floating-point coincidence, not a promise.
+({bool above, bool below}) darkroomScrollEdges(ScrollMetrics metrics) {
+  if (!metrics.hasPixels || !metrics.hasContentDimensions) {
+    return (above: false, below: false);
+  }
+  return (
+    above: metrics.extentBefore > 0.5,
+    below: metrics.extentAfter > 0.5,
+  );
+}
+
+/// The mask that fades whichever edge of the recipe panel has more behind it.
+///
+/// Alpha only — the panel is painted over whatever the surface behind it is, so
+/// the fade dims the text into that surface rather than into an invented
+/// colour.
+LinearGradient darkroomRecipePanelEdgeMask({
+  required bool above,
+  required bool below,
+}) {
+  const opaque = Color(0xFF000000);
+  const clear = Color(0x00000000);
+  return LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      above ? clear : opaque,
+      opaque,
+      opaque,
+      below ? clear : opaque,
+    ],
+    stops: const [
+      0.0,
+      _kRecipePanelFadeFraction,
+      1.0 - _kRecipePanelFadeFraction,
+      1.0,
+    ],
+  );
+}
+
 class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
   /// Owned here because an always-visible scrollbar needs the controller its
   /// scroll view uses; there is no ambient one in a side panel.
   final ScrollController _scroll = ScrollController();
 
+  /// Whether the region holds content past its top and bottom edges.
+  ///
+  /// The panel's only cue that it scrolled was a 2-pixel scrollbar thumb, so a
+  /// paragraph sliced clean through the glyphs at the fold read as broken
+  /// rendering rather than as text that continues. These drive a fade at
+  /// whichever edge has more behind it: a line that dims out is a line the
+  /// reader knows to scroll for.
+  bool _moreAbove = false;
+  bool _moreBelow = false;
+
   DarkroomState get state => widget.state;
+
+  /// Take the edge flags from [metrics], and rebuild only when they moved.
+  ///
+  /// Called for scrolls AND for metric changes that no scroll caused — the
+  /// content growing when a disclosure opens is exactly that, and it is the
+  /// case the fade most needs to follow.
+  void _readEdges(ScrollMetrics metrics) {
+    if (!mounted) return;
+    final edges = darkroomScrollEdges(metrics);
+    if (edges.above == _moreAbove && edges.below == _moreBelow) return;
+    setState(() {
+      _moreAbove = edges.above;
+      _moreBelow = edges.below;
+    });
+  }
 
   @override
   void dispose() {
@@ -179,55 +289,81 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
           child: SectionHeader(title: 'Recipe'),
         ),
         Expanded(
-          child: Scrollbar(
-            controller: _scroll,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _scroll,
-              padding: const EdgeInsets.fromLTRB(
-                NightshadeTokens.spaceMd,
-                NightshadeTokens.spaceMd,
-                NightshadeTokens.spaceLg,
-                NightshadeTokens.spaceLg,
-              ),
-              // Ordered by what has to be readable without scrolling: the
-              // controls, then the account of the last render (its status and
-              // the reason a step did NOT run). The base master and the two
-              // paragraphs about it are reference — true, worth keeping, and
-              // the right thing to put below the fold, since they were what
-              // pushed the skip reason off the bottom of the card.
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _editActions(colors),
-                  const SizedBox(height: NightshadeTokens.spaceLg),
-                  // Above the render account and far above the reference
-                  // material: both of these say what this recipe IS — what the
-                  // registry decided to leave out of it, and what file it was
-                  // read from — and neither is inferable from the stack.
-                  ..._provenance(),
-                  _renderStatus(colors),
-                  // Both halves of the photometry account — the stars there
-                  // are, and the reason there are none — belong to one step. A
-                  // stack that does not carry that step is not waiting on a
-                  // catalogue for anything, so neither half is stated.
-                  if (state.hasColorCalibrateStep &&
-                      state.photometryStarCount > 0) ...[
-                    const SizedBox(height: NightshadeTokens.spaceMd),
-                    Text(
-                      '${state.photometryStarCount} catalogue stars are lent '
-                      'to the color calibration on every render. It solves '
-                      'the balance from them each time rather than storing '
-                      'fitted channel scales, so a coarse preview level can '
-                      'detect too few stars and record the step as skipped.',
-                      style: NightshadeTypography.captionSm.copyWith(
-                        color: colors.textSecondary,
-                      ),
+          child: NotificationListener<ScrollMetricsNotification>(
+            onNotification: (notification) {
+              _readEdges(notification.metrics);
+              return false;
+            },
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                _readEdges(notification.metrics);
+                return false;
+              },
+              child: Scrollbar(
+                controller: _scroll,
+                thumbVisibility: true,
+                // The mask is inside the scrollbar so the fade dims the text
+                // and not the thumb — the thumb is the other half of the same
+                // message.
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (bounds) => darkroomRecipePanelEdgeMask(
+                    above: _moreAbove,
+                    below: _moreBelow,
+                  ).createShader(bounds),
+                  child: SingleChildScrollView(
+                    controller: _scroll,
+                    padding: const EdgeInsets.fromLTRB(
+                      NightshadeTokens.spaceMd,
+                      NightshadeTokens.spaceMd,
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceLg,
                     ),
-                  ],
-                  const SizedBox(height: NightshadeTokens.spaceLg),
-                  _identity(colors),
-                ],
+                    // Ordered by what has to be readable without scrolling: the
+                    // controls, then the account of the last render (its status
+                    // and the reason a step did NOT run). The base master and
+                    // the two paragraphs about it are reference — true, worth
+                    // keeping, and the right thing to put below the fold, since
+                    // they were what pushed the skip reason off the bottom of
+                    // the card.
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _editActions(colors),
+                        const SizedBox(height: NightshadeTokens.spaceLg),
+                        // Above the render account and far above the reference
+                        // material: both of these say what this recipe IS —
+                        // what the registry decided to leave out of it, and
+                        // what file it was read from — and neither is
+                        // inferable from the stack.
+                        ..._provenance(),
+                        _renderStatus(colors),
+                        // Both halves of the photometry account — the stars
+                        // there are, and the reason there are none — belong to
+                        // one step. A stack that does not carry that step is
+                        // not waiting on a catalogue for anything, so neither
+                        // half is stated.
+                        if (state.hasColorCalibrateStep &&
+                            state.photometryStarCount > 0) ...[
+                          const SizedBox(height: NightshadeTokens.spaceMd),
+                          Text(
+                            '${state.photometryStarCount} catalogue stars are '
+                            'lent to the color calibration on every render. It '
+                            'solves the balance from them each time rather '
+                            'than storing fitted channel scales, so a coarse '
+                            'preview level can detect too few stars and record '
+                            'the step as skipped.',
+                            style: NightshadeTypography.captionSm.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: NightshadeTokens.spaceLg),
+                        _identity(colors),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

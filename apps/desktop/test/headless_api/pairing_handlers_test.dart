@@ -144,6 +144,113 @@ void main() {
       expect(slew.body['requiredLevel'], 'control');
     });
 
+    // The one that must never regress: a pairing request for read-only has to
+    // yield read-only. `view` used to resolve to the `control` grant alongside
+    // `control`, so a browser that asked to watch was handed imaging control
+    // and the disclosure sat in a `tokenScope` field no caller reads.
+    test('a view request mints a view grant, never control', () async {
+      final start = await pairingService.startPairing();
+
+      final verify = await _request(
+        client,
+        baseUri,
+        '/api/pairing/verify',
+        method: 'POST',
+        body: {
+          'code': start.code,
+          'deviceId': 'viewer-browser',
+          'deviceName': 'Viewer',
+          'deviceType': 'browser',
+          'requestedScope': 'view',
+        },
+      );
+
+      expect(verify.statusCode, HttpStatus.ok);
+      expect(verify.body['tokenScope'], 'view');
+      expect(verify.body['tokenScope'], isNot('control'));
+      final token = verify.body['token'] as String;
+
+      // It reads: the auth gate lets the read through. The test container
+      // wires no sequencer service, so the handler behind the gate answers
+      // 500 — what is under test here is that the refusal is not the gate's.
+      final read = await _request(
+        client,
+        baseUri,
+        '/api/sequencer/status',
+        token: token,
+      );
+      expect(read.statusCode, isNot(HttpStatus.forbidden));
+
+      // It does not command. Two different resources, so this is the grant's
+      // level and not one endpoint's quirk.
+      final pause = await _request(
+        client,
+        baseUri,
+        '/api/sequencer/pause',
+        method: 'POST',
+        token: token,
+        body: const {},
+      );
+      expect(pause.statusCode, HttpStatus.forbidden);
+      expect(pause.body['requiredResource'], 'sequencer');
+      expect(pause.body['requiredLevel'], 'control');
+      expect(pause.body['tokenLevel'], 'view');
+
+      final slew = await _request(
+        client,
+        baseUri,
+        '/api/mount/slew',
+        method: 'POST',
+        token: token,
+        body: {'ra': 1.0, 'dec': 1.0},
+      );
+      expect(slew.statusCode, HttpStatus.forbidden);
+    });
+
+    test('an omitted requestedScope still pairs at control', () async {
+      final start = await pairingService.startPairing();
+      final verify = await _request(
+        client,
+        baseUri,
+        '/api/pairing/verify',
+        method: 'POST',
+        body: {
+          'code': start.code,
+          'deviceId': 'default-phone',
+          'deviceName': 'Default Phone',
+          'deviceType': 'mobile',
+        },
+      );
+      expect(verify.statusCode, HttpStatus.ok);
+      expect(verify.body['tokenScope'], 'control');
+    });
+
+    test(
+      'a requestedScope the server cannot parse is refused, not widened',
+      () async {
+        final start = await pairingService.startPairing();
+        final verify = await _request(
+          client,
+          baseUri,
+          '/api/pairing/verify',
+          method: 'POST',
+          body: {
+            'code': start.code,
+            'deviceId': 'typo-phone',
+            'deviceName': 'Typo Phone',
+            'deviceType': 'mobile',
+            'requestedScope': 'camera:viewe',
+          },
+        );
+        // The old fallback handed this the full control grant — the widest
+        // non-admin reach there is — for a misspelt request that had asked for
+        // less than that.
+        expect(verify.statusCode, HttpStatus.badRequest);
+        expect(verify.body['error'], 'invalid_requested_scope');
+        expect(verify.body.containsKey('token'), isFalse);
+      },
+    );
+
     test('info advertises fingerprint', () async {
       final response = await _request(client, baseUri, '/api/info');
 

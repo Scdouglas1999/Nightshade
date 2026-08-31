@@ -253,6 +253,9 @@ String _formatSizeLabel(double? arcmin) {
   return "${arcmin.toStringAsFixed(1)}'";
 }
 
+/// The altitude a target is at RIGHT NOW — which is an angle measured from the
+/// observer's own site, so with no site set there is no altitude to filter on
+/// and the chip says so instead of opening a slider.
 class _MinAltitudeControl extends ConsumerWidget {
   final NightshadeColors colors;
   final double? value;
@@ -264,12 +267,14 @@ class _MinAltitudeControl extends ConsumerWidget {
     final active = value != null;
     final label =
         active ? 'Alt now ≥ ${value!.toStringAsFixed(0)}°' : 'Alt now: any';
+    final siteUnset = plannerSiteUnset(ref.watch(appObserverLocationProvider));
 
     return _ControlChip(
       colors: colors,
       icon: LucideIcons.mountain,
       label: label,
       active: active,
+      unavailableReason: siteUnset ? kPlannerSiteFilterRefusal : null,
       onTap: () async {
         // Why: derive a sensible default from the user's horizon profile so
         // first-time users land on something that matches their site.
@@ -307,6 +312,10 @@ class _MinAltitudeControl extends ConsumerWidget {
   }
 }
 
+/// The separation between a target and the moon, as the candidate's own
+/// visibility record measures it — from the observing site, like the altitude
+/// beside it. No site, no separation, so the chip carries the reason rather
+/// than a live slider.
 class _MoonSeparationControl extends ConsumerWidget {
   final NightshadeColors colors;
   final double? value;
@@ -317,12 +326,14 @@ class _MoonSeparationControl extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final active = value != null;
     final label = active ? 'Moon ≥ ${value!.toStringAsFixed(0)}°' : 'Moon: any';
+    final siteUnset = plannerSiteUnset(ref.watch(appObserverLocationProvider));
 
     return _ControlChip(
       colors: colors,
       icon: LucideIcons.moon,
       label: label,
       active: active,
+      unavailableReason: siteUnset ? kPlannerSiteFilterRefusal : null,
       onTap: () async {
         final result = await _showAngleSlider(
           context: context,
@@ -422,44 +433,63 @@ class _ControlChip extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
+  /// Why this filter cannot be applied, or null when it can.
+  ///
+  /// A chip with a reason is dead on the row: no tap, no sheet, and the reason
+  /// rides on the accessible NAME as well as on the tooltip — the convention
+  /// [unavailableControlName] documents, because the Linux AT-SPI bridge drops
+  /// `tooltip:` and a reason only a pointer can reach is no reason at all.
+  final String? unavailableReason;
+
   const _ControlChip({
     required this.colors,
     required this.icon,
     required this.label,
     required this.active,
     required this.onTap,
+    this.unavailableReason,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bg = active
+    final reason = unavailableReason;
+    final unavailable = reason != null;
+    // A filter that cannot be applied is drawn as the row's dead weight: no
+    // tint, no active border, muted text — the same reading its accessible name
+    // gives.
+    final bg = active && !unavailable
         ? NightshadeDecorations.tintedBadge(
             colors.primary,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
           ).color
         : colors.surfaceAlt;
-    final border =
-        active ? colors.primary.withValues(alpha: 0.5) : colors.border;
-    final fg = active ? colors.primary : colors.textSecondary;
+    final border = active && !unavailable
+        ? colors.primary.withValues(alpha: 0.5)
+        : colors.border;
+    final fg = unavailable
+        ? colors.textMuted
+        : active
+            ? colors.primary
+            : colors.textSecondary;
 
     // Declare the chip. A bare `InkWell` publishes a focusable node that never
     // sets isEnabled, and nothing in the subtree carries the on/off state
     // either, so a screen-reader user is told the filter row is dead and is
     // never told which filters are applied.
-    return Semantics(
+    final chip = Semantics(
       container: true,
       button: true,
-      enabled: true,
+      enabled: !unavailable,
       selected: active,
-      label: label,
-      onTap: onTap,
+      label: unavailable ? unavailableControlName(label, reason) : label,
+      onTap: unavailable ? null : onTap,
       child: InkWell(
         // The wrapper above is the accessible node; without this the
         // InkWell publishes a second, unflagged one and AT still reads
         // the control as disabled. Verified on the running app.
         excludeFromSemantics: true,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-        onTap: onTap,
+        onTap: unavailable ? null : onTap,
         child: Container(
           height: 32,
           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -484,6 +514,9 @@ class _ControlChip extends StatelessWidget {
         ),
       ),
     );
+    // The tooltip is what a mouse user gets; the same words are in the name
+    // above for everyone else.
+    return unavailable ? Tooltip(message: reason, child: chip) : chip;
   }
 }
 
@@ -578,6 +611,21 @@ Future<double?> _showAngleSlider({
     return value;
   });
 }
+
+/// Test-only seam exposing the two filter chips that need an observing site.
+///
+/// Same rationale as [showAngleSliderForTest]: they are private widgets inside
+/// a `part` file, and pumping the whole `PlannerScreen` runs a 1 s periodic sky
+/// clock that never settles. Both are built unset, which is the state a fresh
+/// install shows them in. Nothing in production calls this.
+@visibleForTesting
+Widget plannerSiteFilterChipsForTest(NightshadeColors colors) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _MinAltitudeControl(colors: colors, value: null),
+        _MoonSeparationControl(colors: colors, value: null),
+      ],
+    );
 
 /// Test-only seam exposing the shared angle-filter sheet.
 ///

@@ -474,6 +474,56 @@ class HeadlessAuthPolicy {
     return grant.permits(requiredCapabilityFor(method: method, path: path));
   }
 
+  /// The body of a scope refusal, derived from the SAME grant and endpoint the
+  /// refusal was decided on so it can never describe a different decision.
+  ///
+  /// `requiredResource` + `requiredLevel` name what the endpoint demands, and
+  /// `tokenLevel` names what the presented credential actually holds on that
+  /// resource — the one fact that explains the refusal.
+  ///
+  /// The coarse pair (`requiredScope`/`tokenScope`) is the back-compat bridge
+  /// and is emitted ONLY when it reads as a refusal on its own terms. A
+  /// fine-grained grant projects to `view` under [HeadlessAuthGrant.coarseScope]
+  /// however few resources it names, so on a view-level route the body used to
+  /// carry `requiredScope: view` beside `tokenScope: view` — the two fields a
+  /// human reads first, asserting the requirement was met while denying it.
+  /// When the coarse projection does not account for the outcome those fields
+  /// are left out rather than printed as a contradiction.
+  ///
+  /// `error` and the leading clause of `message` are the wire contract paired
+  /// clients already match on to tell a scope refusal from any other denial
+  /// (`rig_catalog_settings._describeFailure`), so both keep their exact text.
+  static Map<String, Object?> scopeDenialBody({
+    required HeadlessAuthGrant grant,
+    required String method,
+    required String path,
+  }) {
+    final capability = requiredCapabilityFor(method: method, path: path);
+    final requiredScope = requiredScopeFor(method: method, path: path);
+    final resourceName = headlessResourceName(capability.resource);
+    final requiredLevelName = capability.adminOnly
+        ? 'admin'
+        : headlessAccessLevelName(capability.level);
+    final heldLevelName = grant.isAdmin
+        ? 'admin'
+        : headlessAccessLevelName(grant.levelFor(capability.resource));
+    final body = <String, Object?>{
+      'error': 'Access denied',
+      'message':
+          'Token scope is not permitted for this endpoint: this credential '
+          'holds $heldLevelName on $resourceName, and $requiredLevelName is '
+          'required.',
+      'requiredResource': resourceName,
+      'requiredLevel': requiredLevelName,
+      'tokenLevel': heldLevelName,
+    };
+    if (_rank(grant.coarseScope) < _rank(requiredScope)) {
+      body['requiredScope'] = headlessTokenScopeName(requiredScope);
+      body['tokenScope'] = headlessTokenScopeName(grant.coarseScope);
+    }
+    return body;
+  }
+
   static int _rank(HeadlessTokenScope scope) {
     switch (scope) {
       case HeadlessTokenScope.view:

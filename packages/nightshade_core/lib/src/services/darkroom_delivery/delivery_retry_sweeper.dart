@@ -30,15 +30,18 @@
 /// timer that decides *how often to sweep*:
 ///
 ///   * the **due check** runs every [dueCheckInterval] (30 s by default, half
-///     the policy's shortest rung) and asks the journal one indexed question —
-///     is anything due? It sweeps only when the answer is yes, so a quiet
-///     night costs one SELECT every 30 seconds and writes nothing to the log.
-///     "Due" means a row a sweep would actually re-attempt: rows held by a
-///     switched-off destination, and rows a paired desktop has not pulled yet,
-///     are the standing state the heartbeat reports, not work this rig owes —
-///     see [DeliveryService.earliestRetryDueAt]. Counting an unpulled peer file
-///     made every night with one turn this check into a full sweep and one INFO
-///     line every 30 seconds until the desktop woke up.
+///     the policy's shortest rung) and asks whether a sweep has anything to do
+///     — one indexed SELECT over the journal, plus a `stat` per file a paired
+///     desktop has not pulled. It sweeps only when the answer is yes, so a
+///     quiet night writes nothing to the log. "Due" means work a sweep would
+///     actually DO: rows held by a switched-off destination, and published
+///     files the rig still holds, are the standing state the heartbeat reports,
+///     not work this rig owes — see [DeliveryService.earliestRetryDueAt].
+///     Counting an unpulled peer file made every night with one turn this check
+///     into a full sweep and one INFO line every 30 seconds until the desktop
+///     woke up. A published file that has LEFT the rig is the exception, and
+///     [DeliveryService.hasLostPublication] is where that is asked: the pass it
+///     wakes takes the row terminal, so it cannot ask twice.
 ///   * the **heartbeat** runs every [interval] (15 minutes) and sweeps
 ///     regardless, which is what keeps the pass that reports a destination's
 ///     standing state — suspended rows, rows awaiting a pull — arriving on a
@@ -89,6 +92,15 @@ class DeliveryRetrySweeper {
 
   /// Guards a whole pass so a slow [sweepOnce] never overlaps the next tick.
   bool _sweeping = false;
+
+  /// Guards the due check itself.
+  ///
+  /// The check reads the journal AND `stat`s the files a paired desktop has
+  /// not pulled, so on a capture directory that lives on a network mount it can
+  /// outlast its own 30-second tick. Without this latch each tick would start
+  /// another walk over the same rows behind the one already blocked, and a
+  /// hung mount would answer them all at once.
+  bool _checkingDue = false;
 
   final StreamController<DeliveryRunReport> _passes =
       StreamController<DeliveryRunReport>.broadcast();
@@ -160,17 +172,20 @@ class DeliveryRetrySweeper {
     if (!_passes.isClosed) await _passes.close();
   }
 
-  /// Ask the journal whether a row has come due, and sweep only if one has.
+  /// Ask whether a sweep has work, and sweep only if it has.
   ///
   /// This is what makes the policy's 1 m / 3 m / 9 m ladder real: the answer
-  /// costs one SELECT, so it can be asked far more often than a sweep — which
-  /// re-reads every source file and opens a transport — could be run.
+  /// costs one SELECT and a `stat` per unpulled file, so it can be asked far
+  /// more often than a sweep — which re-reads every source file in full and
+  /// opens a transport — could be run.
   ///
-  /// A pass already in flight owns the rows this one would look at, so the
-  /// journal is not even read; the running pass is the answer.
+  /// A pass already in flight owns the rows this one would look at, so nothing
+  /// is read at all; the running pass is the answer. A check already in flight
+  /// is likewise left to finish rather than doubled.
   Future<DeliveryRunReport?> sweepIfDue() async {
-    if (_sweeping) return null;
+    if (_sweeping || _checkingDue) return null;
     final bool due;
+    _checkingDue = true;
     try {
       due = await _delivery.hasDueRetries();
     } on Object catch (error, stack) {
@@ -183,6 +198,8 @@ class DeliveryRetrySweeper {
         fields: {'stack': '$stack'},
       );
       return null;
+    } finally {
+      _checkingDue = false;
     }
     if (!due) return null;
     return sweepOnce();

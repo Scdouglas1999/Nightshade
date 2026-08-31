@@ -18,6 +18,7 @@ import '../constellation/constellation_screen.dart';
 import '../collaborative_sky/collaborative_sky_screen.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/authority_bound_dialog.dart';
+import '../../utils/darkroom_navigation.dart' show unavailableControlName;
 import '../../utils/plan_tonight_sequencer_helper.dart';
 import '../../widgets/touch_target_floor.dart';
 import 'widgets/progress_tab_content.dart';
@@ -108,6 +109,31 @@ PlannerTab? plannerTabFromQuery(String? value) {
 /// when the user taps "Load more" or scrolls to the bottom.
 const int _kPlannerPageSize = 25;
 
+/// Why a filter measured from the observing site cannot be used yet.
+///
+/// The words the disabled chips carry, in the same clause form the rest of the
+/// app uses for a refusal ("Compare — it needs a second branch"), so
+/// [unavailableControlName] can put them straight in the accessible name.
+const String kPlannerSiteFilterRefusal =
+    'it is measured from your observing site, and no site is set — add your '
+    'latitude and longitude in Settings';
+
+/// Whether no observing site is configured.
+///
+/// One predicate, read by the Recommendation tab's body (which answers
+/// "Location not configured") and by the filter chips that need a site. They
+/// disagreed: on a fresh install the body said the planner could not run while
+/// "Alt now" and "Moon" above it opened live sliders and applied limits the
+/// suggestion pipeline had no site to evaluate. A screen states one thing about
+/// itself, so both read this.
+///
+/// (0, 0) counts as unset, which is also what [appObserverLocationProvider]
+/// answers null for. Stating it here as well means a caller holding a raw
+/// settings row — rather than that provider's already-folded answer — gets the
+/// same reading, and the two cannot drift apart.
+bool plannerSiteUnset(LocationSettings? location) =>
+    location == null || (location.latitude == 0.0 && location.longitude == 0.0);
+
 /// FutureProvider that produces tonight's optimization plan from the
 /// unfiltered suggestion pool. The primary recommendation is "best of
 /// everything tonight" so it never disappears when the user narrows filters.
@@ -120,8 +146,7 @@ final _plannerOptimizationProvider =
   // appObserverLocation only emits when latitude/longitude actually change, so
   // unrelated settings churn does not thrash the tab.
   final location = ref.watch(appObserverLocationProvider);
-  if (location == null ||
-      (location.latitude == 0.0 && location.longitude == 0.0)) {
+  if (plannerSiteUnset(location)) {
     throw StateError(
       'Observing location is not configured. '
       'Set your latitude and longitude in Settings before using the planner.',

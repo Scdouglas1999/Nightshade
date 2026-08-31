@@ -999,6 +999,101 @@ void main() {
       );
     });
 
+    test('a published file the rig has lost IS a due row, once', () async {
+      // The peer arm can change exactly one thing about a published row: take
+      // it terminal when the rig no longer holds the file. Nothing told the
+      // short cadence about it, so the row said "waiting for the desktop to
+      // pull" for up to fifteen minutes while the manifest endpoint had already
+      // stopped offering it — measured against the release bundle, 200 seconds
+      // of polling with `state=retrying, attempts=1, last_error=NULL`.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      await createWatchedFolder(
+        db,
+        name: 'peer-office',
+        kind: ArtifactDestinationKind.peer,
+      );
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => _ScriptedTransport(
+          kind: ArtifactDestinationKind.peer,
+          disposition: DeliveryDisposition.awaitingPull,
+        ),
+      );
+      await service.deliverJobArtifacts(await artifactSet());
+
+      expect(
+        await service.hasDueRetries(),
+        isFalse,
+        reason: 'the rig still holds it, so there is nothing to wake for',
+      );
+
+      await File(p.join(source.path, 'M31_Ha_master.fits')).delete();
+
+      expect(
+        await service.hasDueRetries(),
+        isTrue,
+        reason: 'the file left the rig; that is this rig\'s own fact to state',
+      );
+
+      await service.sweepDueRetries();
+
+      final row = (await DeliveryJournalDao(db).listForJob(1)).single;
+      expect(row.state, DeliveryAttemptState.failed);
+      expect(row.lastError, contains('sourceMissing'));
+      expect(
+        row.attempts,
+        1,
+        reason: 'the sweep read the disk; it did not offer the file again',
+      );
+      expect(
+        await service.hasDueRetries(),
+        isFalse,
+        reason:
+            'a failed row is not pending, so this question can be answered '
+            'yes at most once per file — which is what keeps it from being '
+            'the permanent sweep loop counting awaiting-pull rows was',
+      );
+    });
+
+    test('a suspended peer\'s lost file is not a due row', () async {
+      // Off is off. The sweep returns before the peer arm on a switched-off
+      // destination, so waking for one of its rows would run a pass that
+      // touches nothing — the shape of the loop, with a missing file as the
+      // excuse.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      final targetId = await createWatchedFolder(
+        db,
+        name: 'peer-office',
+        kind: ArtifactDestinationKind.peer,
+      );
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => _ScriptedTransport(
+          kind: ArtifactDestinationKind.peer,
+          disposition: DeliveryDisposition.awaitingPull,
+        ),
+      );
+      await service.deliverJobArtifacts(await artifactSet());
+      await DeliveryTargetsDao(db).update(targetId, enabled: false);
+      await File(p.join(source.path, 'M31_Ha_master.fits')).delete();
+
+      expect(await service.hasDueRetries(), isFalse);
+
+      await DeliveryTargetsDao(db).update(targetId, enabled: true);
+
+      expect(
+        await service.hasDueRetries(),
+        isTrue,
+        reason: 'switching it back on is what makes the row the rig\'s again',
+      );
+    });
+
     test(
       'a genuinely due row still wakes the check past an unpulled peer',
       () async {

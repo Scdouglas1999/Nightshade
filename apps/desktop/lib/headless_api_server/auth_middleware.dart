@@ -318,22 +318,16 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
             'resource=${headlessResourceName(requiredCapability.resource)} '
             'level=${headlessAccessLevelName(requiredCapability.level)}',
           );
+          // The body is built from the grant and the endpoint that decided the
+          // refusal, in HeadlessAuthPolicy, so it cannot drift from the
+          // decision — see [HeadlessAuthPolicy.scopeDenialBody] for why the
+          // coarse pair is conditional.
           return jsonForbidden(
-            {
-              'error': 'Access denied',
-              'message': 'Token scope is not permitted for this endpoint',
-              // back-compat coarse fields (existing clients key off these).
-              'requiredScope': headlessTokenScopeName(requiredScope),
-              'tokenScope': headlessTokenScopeName(tokenGrant.coarseScope),
-              // fine-grained detail so a scoped client can see exactly which
-              // resource/level it lacked.
-              'requiredResource': headlessResourceName(
-                requiredCapability.resource,
-              ),
-              'requiredLevel': requiredCapability.adminOnly
-                  ? 'admin'
-                  : headlessAccessLevelName(requiredCapability.level),
-            },
+            HeadlessAuthPolicy.scopeDenialBody(
+              grant: tokenGrant,
+              method: request.method,
+              path: path,
+            ),
             headers: {HeadlessApiServer._requestIdHeader: requestId},
           );
         }

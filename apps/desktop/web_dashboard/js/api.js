@@ -15,7 +15,17 @@
  *   'timeout'       the request was aborted at _requestTimeoutMs.
  *   'rate_limited'  429. `retryAfterSecs` is the server's own window
  *                   (rate_limit_middleware `_denyRateLimited`).
- *   'http_error'    any other non-2xx.
+ *   'scope_denied'  403 that NAMES the capability it refused on
+ *                   (`requiredResource` + `requiredLevel`, from
+ *                   `HeadlessAuthPolicy.scopeDenialBody`). The credential was
+ *                   ACCEPTED and is not permitted here — a different event
+ *                   from one the server would not accept at all, and the
+ *                   difference decides whether the operator should re-pair or
+ *                   pair with more scope. `detail` carries the server's own
+ *                   `resource`/`requiredLevel`/`tokenLevel` so a caller can
+ *                   state the reason instead of pasting the JSON.
+ *   'http_error'    any other non-2xx, including a 401 and any 403 that named
+ *                   no capability (an unknown bearer answers that way).
  *   'bad_json'      2xx whose body would not parse.
  *   'unusable_answer'
  *                   2xx that parsed and carries no answer this client can
@@ -95,6 +105,34 @@ class NightshadeApi {
    * `retryAfterSecs` first, then the `retry-after` header, then one second.
    * Clamped so a hostile or buggy value cannot park the dashboard for hours.
    */
+  /**
+   * The capability a 403 refused on, or null when the answer named none.
+   *
+   * 401 and 403 are two different events. 401 says the credential was not
+   * accepted; 403 says it WAS accepted and is not permitted here. The status
+   * alone does not separate them on this API, because the middleware also
+   * answers an unknown bearer with 403 ("Invalid authentication token"), so
+   * what is keyed on is the body NAMING the requirement it refused on —
+   * `requiredResource` + `requiredLevel`, which only the scope refusal sends.
+   * Every other 4xx stays a plain `http_error`, so a genuinely bad credential
+   * is still treated as one.
+   */
+  static _scopeRefusalFrom(status, text) {
+    if (status !== 403 || !text) return null;
+    let body;
+    try { body = JSON.parse(text); } catch (_) { return null; }
+    if (!body || typeof body !== 'object') return null;
+    const resource = body.requiredResource;
+    const requiredLevel = body.requiredLevel;
+    if (typeof resource !== 'string' || !resource) return null;
+    if (typeof requiredLevel !== 'string' || !requiredLevel) return null;
+    return {
+      resource,
+      requiredLevel,
+      tokenLevel: typeof body.tokenLevel === 'string' ? body.tokenLevel : null,
+    };
+  }
+
   static _retryAfterSecsFrom(res, text) {
     let secs = null;
     try {
@@ -255,6 +293,14 @@ class NightshadeApi {
     }
     this._rateLimitedUntil = 0;
     if (!resp.ok) {
+      const scope = NightshadeApi._scopeRefusalFrom(resp.status, text);
+      if (scope) {
+        throw new NightshadeApiError(
+          'scope_denied',
+          method + ' ' + path + ' is not permitted for this credential',
+          Object.assign({ status: resp.status, method, path }, scope),
+        );
+      }
       throw new NightshadeApiError(
         'http_error',
         method + ' ' + path + ' failed (' + resp.status + '): ' + text,
