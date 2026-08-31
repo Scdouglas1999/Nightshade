@@ -11,6 +11,7 @@ import '../job_manager.dart';
 import '../response_helpers.dart';
 import '../utils/device_type_parser.dart';
 import '../validation.dart';
+import 'frame_measurement_headers.dart';
 
 part 'device_handlers/connection_lifecycle.dart';
 part 'device_handlers/camera_handlers.dart';

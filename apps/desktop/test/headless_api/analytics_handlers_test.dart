@@ -500,6 +500,216 @@ void main() {
       expect(kept['rejectedLights'], 0);
     });
 
+    // D3-DP-1. The same all-rejected night, read four ways at one moment:
+    // `/api/sessions`, `/api/sessions/<id>` and the export answered
+    // `avgHfr: null` while `/api/sessions/<id>/stats` answered 2.4608, because
+    // the stats endpoint recomputed its own mean over every `captured_images`
+    // row instead of reading the column the other three ship. One session, one
+    // field, two rules. `avgHfr` is now the accepted-frames figure everywhere,
+    // it says so, and the all-frames diagnostic keeps its own name.
+    test(
+      'every session surface answers the HFR question the same way',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+        final testContainer = ProviderContainer(
+          overrides: [databaseProvider.overrideWithValue(database)],
+        );
+        addTearDown(testContainer.dispose);
+        final testHandlers = AnalyticsHandlers(testContainer);
+
+        // A night in which every light was culled: no accepted frame, so the
+        // running average was never advanced and the column is NULL — while the
+        // rows themselves all carry an HFR.
+        final sessionId = await database
+            .into(database.imagingSessions)
+            .insert(
+              ImagingSessionsCompanion.insert(
+                name: const Value('all rejected'),
+                startTime: DateTime.utc(2026, 8, 31),
+                totalExposures: const Value(12),
+                successfulExposures: const Value(12),
+              ),
+            );
+        for (var i = 0; i < 12; i++) {
+          await database
+              .into(database.capturedImages)
+              .insert(
+                CapturedImagesCompanion.insert(
+                  filePath: '/l/rej$i.fits',
+                  fileName: 'rej$i.fits',
+                  frameType: const Value('light'),
+                  exposureDuration: 2.0,
+                  capturedAt: DateTime.utc(2026, 8, 31),
+                  sessionId: Value(sessionId),
+                  isAccepted: const Value(false),
+                  hfr: Value(2.4 + i * 0.01),
+                ),
+              );
+        }
+        // A dark carrying an HFR: a calibration frame's star measurement is not
+        // a focus reading and must not reach either figure.
+        await database
+            .into(database.capturedImages)
+            .insert(
+              CapturedImagesCompanion.insert(
+                filePath: '/l/dark.fits',
+                fileName: 'dark.fits',
+                frameType: const Value('dark'),
+                exposureDuration: 2.0,
+                capturedAt: DateTime.utc(2026, 8, 31),
+                sessionId: Value(sessionId),
+                isAccepted: const Value(true),
+                hfr: const Value(9.9),
+              ),
+            );
+
+        Future<Map<String, Object?>> read(
+          Future<Response> response,
+          String envelope, {
+          int? pick,
+        }) async {
+          final body = jsonDecode(await (await response).readAsString()) as Map;
+          if (pick == null) {
+            return (body[envelope] as Map).cast<String, Object?>();
+          }
+          return (body[envelope] as List)
+              .cast<Map<String, Object?>>()
+              .firstWhere((row) => row['id'] == pick);
+        }
+
+        final surfaces = <String, Map<String, Object?>>{
+          '/api/sessions': await read(
+            testHandlers.handleGetAllSessions(
+              Request('GET', Uri.parse('http://localhost/api/sessions')),
+            ),
+            'sessions',
+            pick: sessionId,
+          ),
+          '/api/sessions/<id>': await read(
+            testHandlers.handleGetSessionById(
+              Request(
+                'GET',
+                Uri.parse('http://localhost/api/sessions/$sessionId'),
+              ),
+              '$sessionId',
+            ),
+            'session',
+          ),
+          '/api/sessions/<id>/stats': await read(
+            testHandlers.handleGetSessionStats(
+              Request(
+                'GET',
+                Uri.parse('http://localhost/api/sessions/$sessionId/stats'),
+              ),
+              '$sessionId',
+            ),
+            'stats',
+          ),
+        };
+
+        for (final entry in surfaces.entries) {
+          expect(
+            entry.value['avgHfr'],
+            isNull,
+            reason:
+                '${entry.key}: no frame survived, so there is no accepted-frame '
+                'HFR — and "null" and "a number" cannot both be right',
+          );
+          expect(
+            entry.value['avgHfrBasis'],
+            'accepted-frames',
+            reason: '${entry.key} states the rule beside the figure',
+          );
+        }
+
+        // The diagnostic an all-rejected night actually needs, under its own
+        // name: was it focus, or was it cloud?
+        final stats = surfaces['/api/sessions/<id>/stats']!;
+        expect(
+          stats['avgHfrAllLightsCount'],
+          12,
+          reason: 'the dark is excluded',
+        );
+        expect(
+          (stats['avgHfrAllLights'] as num).toDouble(),
+          closeTo(2.455, 0.001),
+        );
+      },
+    );
+
+    test('an accepted night reports one HFR on every surface', () async {
+      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final testContainer = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(database)],
+      );
+      addTearDown(testContainer.dispose);
+      final testHandlers = AnalyticsHandlers(testContainer);
+
+      final sessionId = await database
+          .into(database.imagingSessions)
+          .insert(
+            ImagingSessionsCompanion.insert(
+              startTime: DateTime.utc(2026, 8, 31),
+              totalExposures: const Value(2),
+              successfulExposures: const Value(2),
+              avgHfr: const Value(2.4882195647459127),
+            ),
+          );
+      for (final hfr in const [2.48, 2.50]) {
+        await database
+            .into(database.capturedImages)
+            .insert(
+              CapturedImagesCompanion.insert(
+                filePath: '/l/ok$hfr.fits',
+                fileName: 'ok$hfr.fits',
+                frameType: const Value('light'),
+                exposureDuration: 2.0,
+                capturedAt: DateTime.utc(2026, 8, 31),
+                sessionId: Value(sessionId),
+                isAccepted: const Value(true),
+                hfr: Value(hfr),
+              ),
+            );
+      }
+
+      final listed =
+          ((jsonDecode(
+                        await (await testHandlers.handleGetAllSessions(
+                          Request(
+                            'GET',
+                            Uri.parse('http://localhost/api/sessions'),
+                          ),
+                        )).readAsString(),
+                      )
+                      as Map)['sessions']
+                  as List)
+              .cast<Map<String, Object?>>()
+              .firstWhere((row) => row['id'] == sessionId);
+      final stats =
+          (jsonDecode(
+                    await (await testHandlers.handleGetSessionStats(
+                      Request(
+                        'GET',
+                        Uri.parse(
+                          'http://localhost/api/sessions/$sessionId/stats',
+                        ),
+                      ),
+                      '$sessionId',
+                    )).readAsString(),
+                  )
+                  as Map)['stats']
+              as Map;
+
+      expect(
+        stats['avgHfr'],
+        listed['avgHfr'],
+        reason: 'one night, one number, to the last digit',
+      );
+      expect(stats['avgHfr'], 2.4882195647459127);
+    });
+
     test(
       'a session with no frames on record claims no accepted lights',
       () async {

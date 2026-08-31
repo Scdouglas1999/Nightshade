@@ -46,6 +46,52 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
   /// Which cards have their parameter controls open, by position in the stack.
   final Set<int> _expanded = <int>{};
 
+  /// Bumped every time the stack's ORDER changes, and carried in every card's
+  /// key so that an order change rebuilds all of them rather than only the ones
+  /// that moved.
+  ///
+  /// Measured on the release bundle 2026-08-31: `ReorderableListView` builds its
+  /// items through a `SliverChildBuilderDelegate`, which cannot adopt a
+  /// locally-keyed element at a new index — so a move re-inflates the cards that
+  /// changed position and leaves the ones that did not. Their accessibility
+  /// nodes follow: the moved cards get new node ids, the unmoved ones keep
+  /// theirs. Flutter publishes the correct traversal order either way, but the
+  /// Linux AT-SPI bridge keeps the child nodes it already holds where they are
+  /// and appends the new ones after them — so moving the first
+  /// step of `[Background extract, Denoise, Stretch]` down published
+  /// `Stretch, Denoise, Background extract`: the one card that survived the
+  /// rebuild, first, then the two that were rebuilt. A reader was walked
+  /// through the pipeline in an order that contradicted both the picture and
+  /// the "1 of 3" each card states.
+  ///
+  /// With the generation in the key no card survives an order change, so the
+  /// bridge has nothing to keep in place and builds the list in the order it
+  /// was handed. A parameter edit does not touch the order and so does not
+  /// touch the generation — the card keeps its element, and with it the drag
+  /// recognizer of whichever slider is being held.
+  int _orderGeneration = 0;
+
+  @override
+  void didUpdateWidget(covariant _DarkroomHistoryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameOrder(oldWidget.state.steps, widget.state.steps)) {
+      _orderGeneration++;
+    }
+  }
+
+  /// Whether the two stacks are the same steps in the same places.
+  ///
+  /// Compared by IDENTITY, which is what the card keys join on: an edit that
+  /// rewrites a step's parameters produces a new immutable value carrying the
+  /// same identity, and that is not an order change.
+  static bool _sameOrder(List<DarkroomStep> before, List<DarkroomStep> after) {
+    if (before.length != after.length) return false;
+    for (var i = 0; i < before.length; i++) {
+      if (!identical(before[i].identity, after[i].identity)) return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -226,7 +272,10 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // recognizer of whichever slider was being held: a slider took the value
       // under the pointer when it went down and then ignored the rest of the
       // gesture.
-      key: ObjectKey(step.identity),
+      //
+      // The generation rides alongside it so that an ORDER change re-keys every
+      // card at once; [_orderGeneration] says why the reading order needs that.
+      key: ValueKey((_orderGeneration, step.identity)),
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       // The card's POSITION IN THE STACK, stated to assistive tech rather than
       // left to be inferred from where the card happens to be painted.
@@ -431,28 +480,28 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       unawaited(widget.onReorder(index, up ? index - 1 : index + 1));
     }
 
-    final button = IconButton(
+    // The name goes on the ICON, not on a Semantics wrapper around the button.
+    // `IconButton` publishes its own node — role, enabled state, focusability
+    // and the tap — and a wrapper that excludes it publishes a NAMED node that
+    // is not the one the keyboard lands on: measured on the release bundle
+    // 2026-08-31, `button: 'Move Denoise up'` carried `enabled` and no
+    // `focusable`, and a Tab walk of one step card stopped on unnamed panels
+    // for both move buttons while only the enable toggle announced itself.
+    // `Icon.semanticLabel` is a child fragment, so it merges INTO the button's
+    // own node and the whole control is one named, focusable, tappable node.
+    // The tooltip stays for the pointer; it reaches assistive tech as the
+    // node's description rather than as its name.
+    return IconButton(
       icon: Icon(
         up ? NightshadeIcons.arrowUp : NightshadeIcons.arrowDown,
         size: NightshadeTokens.iconSm,
+        semanticLabel: label,
       ),
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
       padding: EdgeInsets.zero,
       tooltip: label,
       onPressed: enabled ? move : null,
-    );
-    // Its own node with the enabled flag STATED: an IconButton with a null
-    // callback publishes no enabled state of its own, which the AT-SPI bridge
-    // reports as a live button that does nothing when pressed.
-    return Semantics(
-      container: true,
-      button: true,
-      enabled: enabled,
-      label: label,
-      excludeSemantics: true,
-      onTap: enabled ? move : null,
-      child: button,
     );
   }
 
@@ -532,15 +581,11 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       runSpacing: NightshadeTokens.spaceXs,
       children: [
         if (hasParams) _expandToggle(title, expanded, index),
-        Semantics(
-          container: true,
-          button: true,
-          enabled: true,
+        _DarkroomNamedControl(
           // Qualified, because a screen reader reads this card's controls in a
           // list of identical ones: four bare "Remove" buttons name no step.
           label: 'Remove $title',
-          excludeSemantics: true,
-          onTap: () => widget.onRemove(index),
+          onPressed: () => widget.onRemove(index),
           child: NightshadeButton(
             label: 'Remove',
             icon: NightshadeIcons.delete,
@@ -718,13 +763,9 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             _expanded.add(index);
           }
         });
-    return Semantics(
-      container: true,
-      button: true,
-      enabled: true,
+    return _DarkroomNamedControl(
       label: expanded ? 'Hide $title parameters' : '$title parameters',
-      excludeSemantics: true,
-      onTap: toggle,
+      onPressed: toggle,
       child: NightshadeButton(
         label: expanded ? 'Hide parameters' : 'Parameters',
         icon:
@@ -812,17 +853,13 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                     'parameter back to the operation.',
               )
             else if (spec.defaultValue != null)
-              Semantics(
-                container: true,
-                button: true,
-                enabled: true,
+              _DarkroomNamedControl(
                 // Qualified for the same reason "Remove" is: a card with four
                 // parameters publishes four sibling nodes, and "Use default"
                 // said three words that name none of them. Reading order is
                 // not a name.
                 label: 'Use default for ${spec.displayName}',
-                excludeSemantics: true,
-                onTap: () => widget.onParamChanged(index, spec.name, null),
+                onPressed: () => widget.onParamChanged(index, spec.name, null),
                 child: NightshadeButton(
                   label: 'Use default',
                   variant: ButtonVariant.ghost,
@@ -885,7 +922,19 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // own slider semantics use.
       final step =
           divisions != null && divisions > 0 ? span / divisions : span / 10;
-      final reading = _darkroomNumberReading(clamped, isInteger: isInteger);
+      // The THUMB is clamped, because the Material slider refuses a position
+      // outside its own track. The READING is not: the recipe holds whatever
+      // was typed into the Exact field, the engine refuses the step for it by
+      // name and number, and a slider announcing the clamp reports a value the
+      // engine never received. Measured on the release bundle 2026-08-31: with
+      // `scaleCount` = 500 stored and the card reading "denoise@1: parameter
+      // 'scaleCount' = 500 is outside [1, 6]", the slider announced 6.
+      final reading = _darkroomNumberReading(value, isInteger: isInteger);
+      final outOfRange = value < min || value > max;
+      final announced = outOfRange
+          ? '$reading — outside the accepted range, so the render refuses this '
+              'step'
+          : reading;
       return Row(
         children: [
           Expanded(
@@ -911,8 +960,11 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             // carry them.
             child: MergeSemantics(
               child: Semantics(
-                label: '${_rangeLabel(spec)} — $reading',
-                value: reading,
+                label: '${_rangeLabel(spec)} — $announced',
+                value: announced,
+                // Where a nudge LANDS, which is measured from the thumb: an
+                // increase from an out-of-range value moves to the end of the
+                // track the engine accepts, not to 501.
                 increasedValue: _darkroomNumberReading(
                   (clamped + step).clamp(min, max),
                   isInteger: isInteger,
@@ -1115,6 +1167,112 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     }
     return 'accepts ${_darkroomNumberReading(min)} … '
         '${_darkroomNumberReading(max)}';
+  }
+}
+
+/// A design-system button under a name of this screen's choosing, published on
+/// the SAME node the keyboard lands on.
+///
+/// Every control on a step card sits beside three identical ones, so its name
+/// has to say which step or which parameter it acts on while the word on screen
+/// stays short. The way that used to be done — `Semantics(label: …,
+/// excludeSemantics: true)` around a [NightshadeButton] — publishes a correctly
+/// named button that is NOT focusable: the focusable flag and the focus action
+/// live on the button's own node, inside the subtree the exclusion drops.
+/// Measured on the release bundle 2026-08-31, `button: 'Remove Denoise'` came
+/// back as `['enabled', 'sensitive', 'showing']` with no `focusable`, and a Tab
+/// walk of one step card stopped on four unnamed panels — reorder, parameters,
+/// remove, use-default — while only the enable toggle, which is built as one
+/// node, announced itself.
+///
+/// Dropping the exclusion is not the repair: [NightshadeButton] publishes its
+/// own `label` AND the visible `Text` of that label, so merging announces
+/// "Remove Denoise / Remove / Remove". (A bare button already reads its name
+/// twice: the live tree carries `Duplicate as variant\nDuplicate as variant`.)
+///
+/// So the button keeps its own focus node — and with it its keyboard
+/// activation and its focus ring — and this widget names the node that mirrors
+/// it. The [Focus] here requests nothing of its own: it reports when the
+/// control it wraps holds the focus, so the published `focused` flag is the
+/// control's real state rather than an assertion, and [SemanticsProperties.
+/// onFocus] hands assistive tech the same move by putting the focus on the
+/// button's own node.
+class _DarkroomNamedControl extends StatefulWidget {
+  /// The name assistive tech reads for the whole control.
+  final String label;
+
+  /// What a press does. Null renders — and publishes — a disabled control.
+  final VoidCallback? onPressed;
+
+  /// The design-system control this names, drawn and operated as it always is.
+  final Widget child;
+
+  const _DarkroomNamedControl({
+    required this.label,
+    required this.onPressed,
+    required this.child,
+  });
+
+  @override
+  State<_DarkroomNamedControl> createState() => _DarkroomNamedControlState();
+}
+
+class _DarkroomNamedControlState extends State<_DarkroomNamedControl> {
+  /// Watches the control's focus without competing for it: `canRequestFocus`
+  /// false and `skipTraversal` true keep this node out of the tab order, so the
+  /// control below still has exactly one stop.
+  late final FocusNode _watcher = FocusNode(
+    canRequestFocus: false,
+    skipTraversal: true,
+    debugLabel: 'darkroom named control: ${widget.label}',
+  );
+
+  bool _focused = false;
+
+  @override
+  void dispose() {
+    _watcher.dispose();
+    super.dispose();
+  }
+
+  /// Puts the keyboard focus on the control this names.
+  ///
+  /// The focus goes to the control's OWN node — the one that activates on Enter
+  /// and draws the focus ring — rather than to a node of this widget's, so a
+  /// screen reader moving focus here leaves the app in the same state a Tab
+  /// press would.
+  void _takeFocus() {
+    final reachable = _watcher.traversalDescendants;
+    if (reachable.isNotEmpty) reachable.first.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: enabled,
+      // Stated only while true. An explicit `false` reaches the Linux bridge as
+      // a focusable disabled control, which is not what any other disabled
+      // control in this app reports.
+      focusable: enabled ? true : null,
+      focused: _focused ? true : null,
+      label: widget.label,
+      onTap: widget.onPressed,
+      onFocus: enabled ? _takeFocus : null,
+      child: Focus(
+        focusNode: _watcher,
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (has) {
+          if (mounted && has != _focused) setState(() => _focused = has);
+        },
+        // The button's own annotation is dropped so that the node above carries
+        // one name instead of three.
+        child: ExcludeSemantics(child: widget.child),
+      ),
+    );
   }
 }
 

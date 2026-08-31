@@ -320,7 +320,16 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
   /// increments in both cases (the capture itself succeeded).
   ///
   /// HFR is averaged only over accepted frames so the session's quality
-  /// metric is not skewed by subs we have already thrown away.
+  /// metric is not skewed by subs we have already thrown away. That rule is
+  /// the app-wide definition of `avgHfr`, not a local choice: [SessionState.avgHfr] is
+  /// checkpointed onto `imaging_sessions.avg_hfr`, and `/api/sessions`,
+  /// `/api/sessions/<id>`, `/api/sessions/<id>/stats` and the session export
+  /// all ship that one column. A night whose every light was rejected has no
+  /// accepted sample, so `avgHfr` is null everywhere — the endpoint that used
+  /// to recompute its own mean over the rejected rows made that one night
+  /// report null on three surfaces and 2.46 on the fourth. The all-lights mean
+  /// is a different question and travels under its own name
+  /// (`avgHfrAllLights`).
   void recordExposureComplete({
     required double exposureTime,
     double? hfr,

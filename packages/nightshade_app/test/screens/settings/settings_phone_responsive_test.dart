@@ -13,8 +13,11 @@
 //   * tapping a category pushes the full-screen detail pane (and the list is
 //     gone), then Back returns to the list.
 
+import 'dart:ui' show SemanticsAction, SemanticsFlag;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart' show SemanticsNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -251,5 +254,68 @@ void main() {
       reason: 'the row reached ${painted.right} of a ${width}px window, so its '
           'trailing corner is off screen',
     );
+  });
+
+  // At phone width these rows are the ONLY route into a settings section —
+  // there is no sidebar behind them — and measured on the release bundle
+  // 2026-08-31 every one of them reached AT-SPI as
+  // `panel: 'Delivery' -> ['focusable', 'showing', 'visible']`: no button role,
+  // no enabled state, while the identical desktop entry came back
+  // `button: 'Delivery' -> ['enabled', 'focusable', 'sensitive', 'showing']`
+  // and the leaf row under it ("Delivery destinations") was already correct.
+  testWidgets('every phone settings row publishes a live button', (
+    tester,
+  ) async {
+    await pumpAppScreen(
+      tester,
+      const SettingsScreen(),
+      size: const Size(430, 900),
+      extraOverrides: _stubSettings(),
+    );
+    final semantics = tester.ensureSemantics();
+
+    /// The node the platform is handed under exactly [label].
+    SemanticsNode? published(String label) {
+      SemanticsNode? found;
+      void visit(SemanticsNode node) {
+        if (found == null && node.label == label) found = node;
+        node.visitChildren((child) {
+          visit(child);
+          return true;
+        });
+      }
+
+      visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+      return found;
+    }
+
+    await tester.enterText(find.byType(TextField).first, 'delivery');
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+    for (final label in ['Delivery', 'Darkroom autopilot']) {
+      final node = published(label);
+      expect(node, isNotNull, reason: 'no node is published under "$label"');
+      final data = node!.getSemanticsData();
+      expect(data.hasFlag(SemanticsFlag.isButton), isTrue,
+          reason: '"$label" is the only route to that section and publishes '
+              'no button role');
+      expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue,
+          reason: '"$label" states neither enabled nor disabled');
+      expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue, reason: label);
+      expect(data.hasAction(SemanticsAction.tap), isTrue, reason: label);
+    }
+
+    // The group headers of the unsearched list carry the same contract, plus
+    // whether they are open.
+    await tester.enterText(find.byType(TextField).first, '');
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    final header = published('GENERAL');
+    expect(header, isNotNull);
+    final headerData = header!.getSemanticsData();
+    expect(headerData.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(headerData.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    expect(headerData.hasFlag(SemanticsFlag.hasExpandedState), isTrue);
+
+    semantics.dispose();
   });
 }

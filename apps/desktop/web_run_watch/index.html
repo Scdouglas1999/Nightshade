@@ -147,7 +147,13 @@
         </div>
         <div class="frame-wrap" id="frame-wrap">
           <img id="frame-img" class="frame-img hidden" alt="Most recent captured frame" />
-          <div id="frame-placeholder" class="frame-placeholder">No frame captured yet</div>
+          <!-- Starting text only: the page has not asked the server yet, so it
+               cannot claim anything about the rig. This used to read "No frame
+               captured yet" and STAYED there through every 404, asserting that
+               nothing had ever been captured on a rig holding 26 frames. Every
+               later state is written by refreshFrame() from the server's own
+               typed body. -->
+          <div id="frame-placeholder" class="frame-placeholder">Asking the server for the last frame…</div>
           <span id="frame-loading-badge" class="frame-loading-badge" role="status" aria-live="polite" hidden>
             <span class="spinner" aria-hidden="true"></span>
             Updating…

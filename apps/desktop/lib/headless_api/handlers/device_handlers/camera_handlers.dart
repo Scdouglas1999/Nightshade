@@ -559,7 +559,12 @@ extension CameraDeviceHandlers on DeviceHandlers {
         'x-image-meta': encoded.metaHeaderValue,
         'x-frame-timestamp': timestamp,
         'x-frame-exposure-secs': image.exposureTime.toString(),
-        if (image.stats.hfr != null) 'x-frame-hfr': image.stats.hfr!.toString(),
+        // The HFR and the name of the measurement travel together — see
+        // [kFrameHfrBasisHeader] for why an unqualified number here misleads.
+        if (image.stats.hfr != null) ...{
+          'x-frame-hfr': image.stats.hfr!.toString(),
+          kFrameHfrBasisHeader: kFrameHfrBasisLivePreview,
+        },
         'x-frame-star-count': image.stats.starCount.toString(),
       },
     );

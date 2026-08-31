@@ -31,16 +31,30 @@ const int kDarkroomDraftNoteCollapsedChars = 100;
 /// the control cannot be scrolled away from the text it discloses; they share a
 /// viewport because they share a box. It costs the message column the button's
 /// width, which is less than the row the button used to occupy underneath.
+///
+/// The disclosure NAMES WHAT IT OPENS. This panel shows more than one of these
+/// at once — an autopilot draft over a one-channel master carries both "The
+/// draft left 2 operations out" and "The integration recorded 5 calibration
+/// warnings" — and measured on the release bundle 2026-08-31 both published
+/// `button: 'Show more'`, side by side, with nothing to tell a reader which
+/// account each one completes. The word on screen stays "Show more", because it
+/// sits inside the alert whose text it continues; [disclosureObject] is what
+/// assistive tech reads instead, the way "Remove Denoise" and "Use default for
+/// Stretch intensity" are read elsewhere on this screen.
 class _DarkroomCollapsibleAlert extends StatefulWidget {
   const _DarkroomCollapsibleAlert({
     required this.message,
     required this.severity,
+    required this.disclosureObject,
     this.title,
   });
 
   final String? title;
   final String message;
   final NightshadeAlertSeverity severity;
+
+  /// What the expander opens, named as an object: "the draft's omissions".
+  final String disclosureObject;
 
   @override
   State<_DarkroomCollapsibleAlert> createState() =>
@@ -89,14 +103,20 @@ class _DarkroomCollapsibleAlertState extends State<_DarkroomCollapsibleAlert> {
       compact: true,
       action: collapsed == null
           ? null
-          : NightshadeButton(
-              label: _expanded ? 'Show less' : 'Show more',
-              icon: _expanded
-                  ? NightshadeIcons.chevronUp
-                  : NightshadeIcons.chevronDown,
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
+          : _DarkroomNamedControl(
+              label: _expanded
+                  ? 'Show less about ${widget.disclosureObject}'
+                  : 'Show more about ${widget.disclosureObject}',
               onPressed: () => setState(() => _expanded = !_expanded),
+              child: NightshadeButton(
+                label: _expanded ? 'Show less' : 'Show more',
+                icon: _expanded
+                    ? NightshadeIcons.chevronUp
+                    : NightshadeIcons.chevronDown,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => setState(() => _expanded = !_expanded),
+              ),
             ),
     );
   }
@@ -246,6 +266,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         _DarkroomCollapsibleAlert(
           severity: NightshadeAlertSeverity.info,
           title: _draftNotesTitle(notes),
+          disclosureObject: "the draft's omissions",
           message: [
             for (final note in notes) darkroomDraftNoteSentence(note),
           ].join('\n\n'),
@@ -412,6 +433,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
               ? 'The integration recorded a calibration warning'
               : 'The integration recorded ${warnings.length} calibration '
                   'warnings',
+          disclosureObject: 'the calibration warnings',
           message: warnings.join('\n\n'),
         ),
       ],
@@ -508,6 +530,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
           _DarkroomCollapsibleAlert(
             severity: NightshadeAlertSeverity.error,
             title: 'The render did not finish',
+            disclosureObject: 'why the render did not finish',
             message: error,
           ),
         );

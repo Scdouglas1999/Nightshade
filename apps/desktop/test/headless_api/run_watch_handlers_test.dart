@@ -10,8 +10,10 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/run_watch_handlers.dart';
+import 'package:nightshade_desktop/headless_api/validation.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
@@ -354,5 +356,218 @@ void main() {
       expect(payload.contains('FrameAccepted'), isTrue);
       expect(payload.contains('abc-123'), isTrue);
     });
+
+    // D4-1. Measured on the release bundle relaunched against its own
+    // database: `/api/images` listed 26 captures from that evening, sim_camera_1
+    // was connected, and this endpoint answered "No image is available yet —
+    // capture an exposure first". Run-Watch printed that as "No frame captured
+    // yet". `/api/camera/last-image/jpeg` already answered the same emptiness
+    // with the process-scoped wording; the phone's endpoint now does too.
+    group('an empty preview buffer says which emptiness it is', () {
+      // Through the REAL error translator, so what is pinned is which failures
+      // this handler answers itself and which it hands to the status table.
+      Future<Response> thumbnail({Object? raise}) async {
+        container.dispose();
+        container = ProviderContainer(
+          overrides: [
+            deviceBackendProvider.overrideWithValue(
+              _PreviewBackend(raise: raise),
+            ),
+          ],
+        );
+        handlers = RunWatchHandlers(
+          container: container,
+          eventBroadcast: ctrl.stream,
+        );
+        final translated = errorTranslationMiddleware(
+          logError: (_, {fields}) {},
+          requestIdFor: (_) => 'test-request-id',
+        )(handlers.handleFrameThumbnail);
+        return translated(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/run-watch/frame-thumbnail'),
+          ),
+        );
+      }
+
+      Future<void> expectScopedRefusal(Response response) async {
+        expect(response.statusCode, HttpStatus.notFound);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'no_live_preview');
+        expect(
+          body['scope'],
+          'process',
+          reason: 'the machine-readable half of the same fact',
+        );
+        expect(body['library'], '/api/images');
+        expect(body['message'], contains('in this server process'));
+        expect(
+          body['message'],
+          contains('/api/images'),
+          reason: 'the phone is told where the frames it does have are listed',
+        );
+        // The two absolutes this replaced, in the words they were measured in.
+        expect(
+          body['message'],
+          isNot(contains('No image has been captured yet')),
+        );
+        expect(body['message'], isNot(contains('capture an exposure first')));
+      }
+
+      test('a null buffer answers a scoped 404', () async {
+        await expectScopedRefusal(await thumbnail());
+      });
+
+      test("the driver's own noImageAvailable answers the same", () async {
+        await expectScopedRefusal(
+          await thumbnail(
+            raise: const bridge.NightshadeError.noImageAvailable(),
+          ),
+        );
+      });
+
+      test(
+        'any other backend failure keeps its own status and words',
+        () async {
+          final response = await thumbnail(
+            raise: const bridge.NightshadeError.notConnected('cam-1'),
+          );
+          expect(
+            response.statusCode,
+            HttpStatus.conflict,
+            reason: 'a disconnected camera is not an empty preview',
+          );
+          final body = jsonDecode(await response.readAsString()) as Map;
+          expect(body['message'], contains('not connected'));
+        },
+      );
+    });
+
+    // D4-2. One frame carries two HFRs: this header (the median of the
+    // brightest half of the detected stars) and `captured_images.hfr` (the
+    // mean over every detected star), which is what the session report and the
+    // reject threshold read. Joined on timestamp with an identical star count,
+    // three consecutive sim frames read 2.0032 / 2.0139 / 2.0368 here against
+    // 2.4770 / 2.4732 / 2.4807 in the library. The number therefore travels
+    // with the name of its measurement.
+    test('the frame HFR header names which measurement it carries', () async {
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          deviceBackendProvider.overrideWithValue(
+            _PreviewBackend(image: _bufferedFrame(hfr: 2.0032)),
+          ),
+        ],
+      );
+      handlers = RunWatchHandlers(
+        container: container,
+        eventBroadcast: ctrl.stream,
+      );
+
+      final response = await translateHandlerErrors(
+        handlers.handleFrameThumbnail(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/run-watch/frame-thumbnail'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.headers['x-frame-hfr'], '2.0032');
+      expect(
+        response.headers['x-frame-hfr-basis'],
+        'live-preview-median-brightest-half',
+        reason:
+            'an unqualified HFR here is what an operator sets a reject '
+            'threshold from, and it is not the graded scale',
+      );
+    });
+
+    test('a frame with no measured HFR carries no basis either', () async {
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          deviceBackendProvider.overrideWithValue(
+            _PreviewBackend(image: _bufferedFrame()),
+          ),
+        ],
+      );
+      handlers = RunWatchHandlers(
+        container: container,
+        eventBroadcast: ctrl.stream,
+      );
+
+      final response = await translateHandlerErrors(
+        handlers.handleFrameThumbnail(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/run-watch/frame-thumbnail'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.headers.containsKey('x-frame-hfr'), isFalse);
+      expect(
+        response.headers.containsKey('x-frame-hfr-basis'),
+        isFalse,
+        reason: 'naming a measurement that was never taken invents one',
+      );
+    });
   });
+}
+
+/// A 2x2 RGBA frame in the preview buffer, with whatever stats a test needs.
+CapturedImageResult _bufferedFrame({double? hfr}) => CapturedImageResult(
+  width: 2,
+  height: 2,
+  displayData: List<int>.filled(2 * 2 * 4, 255),
+  histogram: List<int>.filled(256, 0),
+  stats: ImageStatsResult(
+    min: 0,
+    max: 65535,
+    mean: 625,
+    median: 622,
+    stdDev: 83,
+    hfr: hfr,
+    starCount: 43,
+  ),
+  exposureTime: 2.0,
+  timestamp: '2026-08-31T17:53:20',
+);
+
+/// A rig with a camera connected and a preview buffer under test control.
+///
+/// [raise] sends a failure through `cameraGetLastImage` so a test can prove
+/// only the empty-buffer case is repainted as an empty preview; with neither
+/// [raise] nor [image] the buffer answers the null a real driver answers.
+class _PreviewBackend implements DeviceBackend {
+  _PreviewBackend({this.raise, this.image});
+
+  final Object? raise;
+  final CapturedImageResult? image;
+
+  @override
+  Future<List<DeviceInfo>> getConnectedDevices() async => const [
+    DeviceInfo(
+      id: 'cam-1',
+      name: 'Camera 1',
+      deviceType: DeviceType.camera,
+      driverType: DriverType.simulator,
+      description: 'test camera',
+      driverVersion: '1.0',
+    ),
+  ];
+
+  @override
+  Future<CapturedImageResult?> cameraGetLastImage(String deviceId) async {
+    final error = raise;
+    if (error != null) throw error;
+    return image;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

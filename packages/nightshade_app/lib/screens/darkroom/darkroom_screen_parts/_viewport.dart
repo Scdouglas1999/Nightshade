@@ -161,6 +161,30 @@ class _DarkroomZoom {
   void dispose() => controller.dispose();
 }
 
+/// Why a render that landed still cannot be put at one screen pixel per master
+/// pixel.
+const String kDarkroomOneToOneNeedsLevel =
+    'this render did not say which pyramid level it answered at, so one screen '
+    'pixel per master pixel cannot be worked out';
+
+/// Why the single-recipe viewport has no pixels to zoom, in the same terms the
+/// canvas below states it.
+///
+/// Only asked when there is no preview, and the order matches the canvas's own
+/// branches so the row and the picture never give two accounts of one state.
+String _darkroomNoRenderReason(DarkroomState state) {
+  if (state.rendering) {
+    return 'the first render over this master is still running';
+  }
+  if (state.renderError != null) {
+    return 'the render did not finish, so there are no pixels to zoom';
+  }
+  if (state.cancelledPhase != null) {
+    return 'the render was stopped, so there are no pixels to zoom';
+  }
+  return 'nothing has rendered over this master yet';
+}
+
 /// The row of zoom controls above the picture, with the readout that says what
 /// its percentage is about.
 ///
@@ -169,12 +193,34 @@ class _DarkroomZoom {
 /// zoom control, no percentage, and no way to land on 1:1 at all — the one
 /// magnification a noise comparison is for — with the mouse wheel as the only
 /// way to change the view and nothing for a keyboard or assistive tech.
+///
+/// **A disabled control here states why.** All four went dead together on a
+/// null preview and published nothing but the dimming: in compare that left
+/// four dead buttons over a picture the wheel still zoomed, and in the single
+/// viewport it left them dead with the reason only in the canvas below. The
+/// refusal now rides on the accessible NAME through [unavailableControlName],
+/// the seam the Compare button and the master library's Darkroom button already
+/// use, because the Linux AT-SPI bridge folds neither `tooltip` nor `hint` into
+/// the name.
 class _DarkroomZoomControls extends StatelessWidget {
   final _DarkroomZoom zoom;
 
-  /// The render the numbers describe. Null before the first one lands, which is
-  /// when every control here is disabled.
+  /// The render these controls operate over and the readout describes.
+  ///
+  /// Not necessarily the enclosing view's own render: compare hands over
+  /// whichever of its two panes has pixels, because one transform moves both
+  /// and a pane that failed to render cannot take the zoom away from a pane
+  /// that has a picture.
   final DarkroomPreviewImage? preview;
+
+  /// Why there is nothing to zoom. Read only when [preview] is null, and
+  /// required so no caller can disable this row without saying why.
+  final String noRenderReason;
+
+  /// The side [preview] came from, when the enclosing view holds more than one
+  /// and the numbers are not about the side it would otherwise be showing.
+  /// Null in the single-recipe viewport, which has one render only.
+  final String? measuredOn;
 
   /// Controls the enclosing view adds to the same row, ahead of the zoom
   /// controls: one bordered row rather than two stacked ones.
@@ -186,6 +232,8 @@ class _DarkroomZoomControls extends StatelessWidget {
   const _DarkroomZoomControls({
     required this.zoom,
     required this.preview,
+    required this.noRenderReason,
+    this.measuredOn,
     this.leading = const [],
     this.trailing = const [],
   });
@@ -193,8 +241,18 @@ class _DarkroomZoomControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final hasPreview = preview != null;
+    final preview = this.preview;
     final masterScale = zoom.masterScale(preview);
+    // Null means live. One reason for the three controls that only need
+    // pixels; 1:1 needs the level as well, and refuses in its own words when
+    // the pixels are there and the level is not.
+    final String? dead = preview == null ? noRenderReason : null;
+    final String? oneToOneDead = preview == null
+        ? noRenderReason
+        : preview.scaleFromMaster == null
+            ? kDarkroomOneToOneNeedsLevel
+            : null;
+    final on = measuredOn == null ? '' : ', measured on pane $measuredOn';
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -210,46 +268,40 @@ class _DarkroomZoomControls extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           ...leading,
-          AccessibleIconButton(
-            icon: NightshadeIcons.remove,
-            label: 'Zoom out',
-            size: NightshadeTokens.iconSm,
-            onPressed:
-                hasPreview ? () => zoom.zoomBy(1 / kDarkroomZoomStep) : null,
+          _iconControl(
+            NightshadeIcons.remove,
+            'Zoom out',
+            dead,
+            () => zoom.zoomBy(1 / kDarkroomZoomStep),
           ),
-          AccessibleIconButton(
-            icon: NightshadeIcons.add,
-            label: 'Zoom in',
-            size: NightshadeTokens.iconSm,
-            onPressed: hasPreview ? () => zoom.zoomBy(kDarkroomZoomStep) : null,
+          _iconControl(
+            NightshadeIcons.add,
+            'Zoom in',
+            dead,
+            () => zoom.zoomBy(kDarkroomZoomStep),
           ),
-          NightshadeButton(
-            label: 'Fit',
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed: hasPreview ? () => zoom.fit(preview) : null,
-          ),
-          NightshadeButton(
-            label: '1:1',
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed: preview?.scaleFromMaster == null
-                ? null
-                : () => zoom.oneToOne(preview),
-          ),
+          _labelControl('Fit', dead, () => zoom.fit(preview)),
+          _labelControl('1:1', oneToOneDead, () => zoom.oneToOne(preview)),
           Semantics(
             // Its own node: with the annotation merged into whatever encloses
             // it, the percentage joined the row's other words into one run and
             // stopped being a readout anybody could find.
             container: true,
-            label: masterScale == null
-                ? 'Zoom relative to the master is unknown'
-                : 'Zoom ${(masterScale * 100).round()} percent of the master',
+            label: switch ((dead, masterScale)) {
+              // No pixels: the readout says the same thing the four controls
+              // say, rather than "unknown" over a row whose refusal is a
+              // different sentence.
+              (final String reason, _) => 'Zoom is unavailable — $reason',
+              (null, null) => 'Zoom relative to the master is unknown',
+              (null, final double scale) =>
+                'Zoom ${(scale * 100).round()} percent of the master$on',
+            },
             child: ExcludeSemantics(
               child: Text(
                 masterScale == null
                     ? '—'
-                    : '${(masterScale * 100).round()}% of master',
+                    : '${(masterScale * 100).round()}% of master'
+                        '${measuredOn == null ? '' : ' · $measuredOn'}',
                 style: NightshadeTypography.monoSm.copyWith(
                   color: colors.textSecondary,
                 ),
@@ -258,6 +310,50 @@ class _DarkroomZoomControls extends StatelessWidget {
           ),
           ...trailing,
         ],
+      ),
+    );
+  }
+
+  /// One icon control, disabled with [reason] in its name when it has one.
+  Widget _iconControl(
+    IconData icon,
+    String label,
+    String? reason,
+    VoidCallback onPressed,
+  ) {
+    return AccessibleIconButton(
+      icon: icon,
+      label: reason == null ? label : unavailableControlName(label, reason),
+      // The pointer's copy of the same sentence; null falls back to the label,
+      // which is what a live control wants.
+      tooltip: reason,
+      size: NightshadeTokens.iconSm,
+      onPressed: reason == null ? onPressed : null,
+    );
+  }
+
+  /// One labelled control, disabled with [reason] in its name when it has one.
+  ///
+  /// The refusal cannot go in [NightshadeButton.label] — that string is painted
+  /// — so the disabled branch publishes its own node and excludes the button's,
+  /// the shape `_branch_bar.dart` uses for the Compare button.
+  Widget _labelControl(String label, String? reason, VoidCallback onPressed) {
+    final button = NightshadeButton(
+      label: label,
+      variant: ButtonVariant.outline,
+      size: ButtonSize.small,
+      onPressed: reason == null ? onPressed : null,
+    );
+    if (reason == null) return button;
+    return Tooltip(
+      message: reason,
+      child: Semantics(
+        container: true,
+        button: true,
+        enabled: false,
+        label: unavailableControlName(label, reason),
+        excludeSemantics: true,
+        child: button,
       ),
     );
   }
@@ -351,6 +447,7 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         _DarkroomZoomControls(
           zoom: _zoom,
           preview: state.preview,
+          noRenderReason: _darkroomNoRenderReason(state),
           trailing: [
             if (state.preview?.level != null)
               _DarkroomTag(

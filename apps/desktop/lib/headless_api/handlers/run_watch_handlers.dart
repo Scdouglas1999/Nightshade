@@ -36,12 +36,14 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_error;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../display_buffer_jpeg.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
+import 'frame_measurement_headers.dart';
 
 /// Handlers for the Run-Watch web monitoring surface.
 ///
@@ -579,6 +581,26 @@ class RunWatchHandlers {
 
   // Frame thumbnail (JPEG)
 
+  /// Where the frames already on disk are listed, named in the empty-buffer
+  /// body so a client can say what the rig actually holds.
+  static const String kFrameLibraryRoute = '/api/images';
+
+  /// The typed body for "this server process has no buffered frame".
+  ///
+  /// Same shape and same scope word as
+  /// `CameraDeviceHandlers._emptyPreviewBody`, so the phone and the dashboard
+  /// answer one question with one sentence.
+  static Map<String, Object?> _emptyLivePreviewBody(String deviceId) => {
+    'error': 'no_live_preview',
+    'scope': 'process',
+    'library': kFrameLibraryRoute,
+    'message':
+        'No live preview for $deviceId in this server process — the preview '
+        'buffer holds the last exposure taken since the server started, and '
+        'no exposure has run yet. Frames already captured are listed by '
+        '$kFrameLibraryRoute.',
+  };
+
   /// GET /api/run-watch/frame-thumbnail
   ///
   /// Returns the most recent captured frame as a JPEG. Inputs are pulled
@@ -594,6 +616,15 @@ class RunWatchHandlers {
   ///   maxWidth  — optional. Downscales the JPEG. Default 1024 to keep
   ///               the payload phone-friendly.
   ///   quality   — optional JPEG quality 1..100, default 75.
+  ///
+  /// The empty-buffer 404 is a PER-PROCESS fact, and it says so. The buffer
+  /// holds the last exposure taken since this server started and is empty
+  /// again after a relaunch, while the frames themselves are on disk and
+  /// listed by [kFrameLibraryRoute]. This endpoint used to answer "No image
+  /// has been captured yet on this camera" — an absolute, returned by a rig
+  /// whose library held 26 frames — and Run-Watch printed it as "No frame
+  /// captured yet". `/api/camera/last-image/jpeg` already answered the same
+  /// emptiness with the process-scoped wording; both now do.
   Future<Response> handleFrameThumbnail(Request request) async {
     final query = request.url.queryParameters;
     final maxWidth =
@@ -628,25 +659,28 @@ class RunWatchHandlers {
       });
     }
 
+    // A driver with nothing buffered answers either null or `noImageAvailable`;
+    // both are the same fact and earn the same process-scoped sentence. Only
+    // that one variant is caught — every other backend failure goes on to
+    // `errorTranslationMiddleware`, which keeps its own status and its own
+    // words. Repainting all of them as a 404 "Failed to fetch last image" told
+    // the phone a disconnected camera and a driver timeout were the same thing
+    // as an empty buffer, and shipped the freezed constructor form as the
+    // reason.
     CapturedImageResult? image;
     try {
       image = await backend.cameraGetLastImage(deviceId);
-    } catch (e) {
-      _logWarning('frame-thumbnail: cameraGetLastImage($deviceId) failed: $e');
-      return jsonNotFound({
-        'error': 'image_unavailable',
-        // `$e` here shipped the freezed constructor form to the client
-        // ("Failed to fetch last image: NightshadeError.noImageAvailable()",
-        // observed live). See [describeBackendError].
-        'message': 'Failed to fetch last image: ${describeBackendError(e)}',
-      });
+    } on bridge_error.NightshadeError catch (error) {
+      final isEmptyBuffer = error.maybeMap(
+        noImageAvailable: (_) => true,
+        orElse: () => false,
+      );
+      if (!isEmptyBuffer) rethrow;
+      image = null;
     }
 
     if (image == null) {
-      return jsonNotFound({
-        'error': 'no_image',
-        'message': 'No image has been captured yet on this camera.',
-      });
+      return jsonNotFound(_emptyLivePreviewBody(deviceId));
     }
 
     final encoded = await encodeCapturedImageDisplayBufferToJpeg(
@@ -676,7 +710,12 @@ class RunWatchHandlers {
         'cache-control': 'no-store, no-cache, must-revalidate',
         'x-frame-timestamp': timestamp,
         'x-frame-exposure-secs': image.exposureTime.toString(),
-        if (image.stats.hfr != null) 'x-frame-hfr': image.stats.hfr!.toString(),
+        // The HFR and the name of the measurement travel together — see
+        // [kFrameHfrBasisHeader] for why an unqualified number here misleads.
+        if (image.stats.hfr != null) ...{
+          'x-frame-hfr': image.stats.hfr!.toString(),
+          kFrameHfrBasisHeader: kFrameHfrBasisLivePreview,
+        },
         'x-frame-star-count': image.stats.starCount.toString(),
       },
     );

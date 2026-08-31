@@ -1817,6 +1817,58 @@ function setFrameLoading(loading) {
   if (badge) badge.hidden = !loading;
 }
 
+/// Put a sentence where the frame would be, and say it twice: once as the
+/// placeholder's text and once as the card's aria-label, because a screen
+/// reader that lands on the frame region hears only the label.
+function sayNoFrame(sentence) {
+  const placeholder = $('frame-placeholder');
+  const img = $('frame-img');
+  const wrap = $('frame-wrap');
+  if (placeholder) {
+    placeholder.textContent = sentence;
+    placeholder.classList.remove('hidden');
+  }
+  // The stale JPEG must go with the sentence. Leaving it painted under
+  // "no live preview" is the same lie in a different medium.
+  if (img) {
+    img.classList.add('hidden');
+    img.removeAttribute('src');
+  }
+  if (lastFrameBlobUrl) {
+    URL.revokeObjectURL(lastFrameBlobUrl);
+    lastFrameBlobUrl = null;
+  }
+  if (wrap) wrap.setAttribute('aria-label', sentence);
+}
+
+/// The server's own words for a refused frame, or an honest description of a
+/// refusal that carried none.
+///
+/// The empty-buffer 404 is a PER-PROCESS fact and the body says so
+/// (`error: no_live_preview`, `scope: process`, plus the library route). This
+/// page used to discard that body entirely and leave index.html's static "No
+/// frame captured yet" standing — an absolute about the whole rig, rendered by
+/// a server whose library held 26 frames. The sibling dashboard read the same
+/// wire correctly; now both do.
+async function frameRefusalText(res) {
+  let body = null;
+  try {
+    body = await res.json();
+  } catch (e) {
+    body = null;
+  }
+  const message = body && typeof body.message === 'string' ? body.message : '';
+  if (message) {
+    if (body.scope === 'process' && body.library) {
+      return message + ' (Ask ' + body.library + ' what this rig holds.)';
+    }
+    return message;
+  }
+  // No typed body: report the status rather than inventing a cause for it.
+  return 'The server refused the last frame (HTTP ' + res.status +
+    ') and sent no reason.';
+}
+
 async function refreshFrame() {
   if (frameBusy) return;
   frameBusy = true;
@@ -1824,27 +1876,52 @@ async function refreshFrame() {
   try {
     const res = await apiFetch('/api/run-watch/frame-thumbnail?maxWidth=1024&quality=75');
     if (!res.ok) {
-      // 404 = no image yet; just leave the placeholder. Anything else
-      // (5xx, etc.) is a transient — silent retry on next tick.
+      sayNoFrame(await frameRefusalText(res));
+      $('frame-meta').textContent = '--';
       return;
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const img = $('frame-img');
     const placeholder = $('frame-placeholder');
+    const wrap = $('frame-wrap');
     img.src = url;
     img.classList.remove('hidden');
     placeholder.classList.add('hidden');
+    if (wrap) wrap.removeAttribute('aria-label');
     if (lastFrameBlobUrl) URL.revokeObjectURL(lastFrameBlobUrl);
     lastFrameBlobUrl = url;
 
     // Meta (timestamp + HFR) from custom response headers.
+    //
+    // The HFR is LABELLED, because it is not the number the session report,
+    // the reject threshold or the Analytics "Mean HFR" show for the same
+    // frame: this one is the live-preview measurement (the median of the
+    // brightest half of the detected stars), the graded one is the mean over
+    // every detected star, and on the sim rig they differ by 8-19%. An
+    // operator who sets a reject threshold from an unlabelled 2.00 here is
+    // calibrating against the wrong scale. The server names its measurement on
+    // `x-frame-hfr-basis`; an older server that sends no name gets no label
+    // rather than a guessed one.
     const ts = res.headers.get('x-frame-timestamp');
     const hfr = res.headers.get('x-frame-hfr');
+    const basis = res.headers.get('x-frame-hfr-basis');
     const meta = [];
     if (ts) meta.push(formatTimeMs(Date.parse(ts) || Date.now()));
-    if (hfr) meta.push('HFR ' + Number(hfr).toFixed(2));
-    $('frame-meta').textContent = meta.join(' · ');
+    if (hfr) {
+      meta.push('HFR ' + Number(hfr).toFixed(2) +
+        (basis === 'live-preview-median-brightest-half' ? ' (preview)' : ''));
+    }
+    const metaEl = $('frame-meta');
+    metaEl.textContent = meta.join(' · ');
+    if (hfr && basis === 'live-preview-median-brightest-half') {
+      metaEl.title = 'Live-preview HFR: the median of the brightest half of ' +
+        'the stars detected in this frame. The graded HFR the session report ' +
+        'and the reject threshold use is measured differently (the mean over ' +
+        'every detected star) and reads higher.';
+    } else {
+      metaEl.title = '';
+    }
   } catch (e) {
     if (e.kind === 'auth_required') return;
     // A rate-limited or unreachable server is already stated by the link

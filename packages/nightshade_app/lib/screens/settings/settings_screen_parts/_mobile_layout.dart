@@ -202,6 +202,29 @@ class _MobileGroupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Same statement the desktop sidebar's group header makes, because it is
+    // the same control: a button, live, and open or closed. A bare InkWell
+    // publishes a tappable node with no role and no enabled state, which the
+    // AT-SPI bridge reports as an inert panel — measured on the release bundle
+    // 2026-08-31, every row of this list came back
+    // `panel: 'GENERAL' -> ['focusable', 'showing', 'visible']` at 430px while
+    // the identical desktop entry came back
+    // `button: 'GENERAL' -> ['enabled', 'focusable', 'sensitive', 'showing']`.
+    // At this width these rows are the ONLY route into Delivery and Darkroom
+    // autopilot.
+    return MergeSemantics(
+      child: Semantics(
+        // Semantics publishes isEnabled only when this field is given; omitting
+        // it makes assistive tech announce a live control as disabled.
+        enabled: true,
+        button: true,
+        expanded: expanded,
+        child: _row(),
+      ),
+    );
+  }
+
+  Widget _row() {
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -258,6 +281,21 @@ class _MobileSectionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A settings section is a CONTROL, and this row is the only way to reach
+    // one at phone width. See [_MobileGroupHeader] for what a bare InkWell
+    // publishes and what the same entry publishes on the desktop sidebar.
+    return MergeSemantics(
+      child: Semantics(
+        // Semantics publishes isEnabled only when this field is given; omitting
+        // it makes assistive tech announce a live control as disabled.
+        enabled: true,
+        button: true,
+        child: _row(),
+      ),
+    );
+  }
+
+  Widget _row() {
     return InkWell(
       onTap: onTap,
       child: Container(

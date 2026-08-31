@@ -25,6 +25,15 @@ class SessionGrading {
   final int rejected;
 }
 
+/// What `avgHfr` measures, shipped beside every `avgHfr` this file emits.
+///
+/// One name for one rule: `imaging_sessions.avg_hfr` is the running mean over
+/// the frames the grader ACCEPTED — see
+/// `SessionStateNotifier.recordExposureComplete`, which owns that rule. A night
+/// whose every light was rejected therefore has no accepted sample and honestly
+/// reports `null` — on every endpoint, not on three of four.
+const String _kAvgHfrBasis = 'accepted-frames';
+
 /// Handlers for session management and analytics
 class AnalyticsHandlers {
   final ProviderContainer container;
@@ -405,6 +414,24 @@ class AnalyticsHandlers {
 
   // Get session stats
 
+  /// `GET /api/sessions/<id>/stats`
+  ///
+  /// `avgHfr` here is the SAME number `/api/sessions`, `/api/sessions/<id>` and
+  /// the session export report: the stored `imaging_sessions.avg_hfr`, which is
+  /// the running mean over ACCEPTED frames only (see
+  /// `SessionStateNotifier.recordExposureComplete` for the rule and why
+  /// rejected subs are kept out of it). This endpoint used to answer its own
+  /// question —
+  /// the mean over every `captured_images` row that carried an HFR, rejects and
+  /// calibration frames included — so a night in which every light was rejected
+  /// reported `avgHfr: null` on three surfaces and a real number here, for one
+  /// session read at one moment.
+  ///
+  /// The all-lights mean is still worth having: it is the diagnostic that
+  /// answers "was it focus or was it cloud?", which is the question an
+  /// all-rejected night raises. So it is reported too — as
+  /// `avgHfrAllLights`, a DIFFERENT question with its own name and its own
+  /// sample count, never as a second value for `avgHfr`.
   Future<Response> handleGetSessionStats(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id/stats');
     final sessionId = _parsePathId(id, 'id');
@@ -428,8 +455,11 @@ class AnalyticsHandlers {
     int darkCount = 0;
     int flatCount = 0;
     int biasCount = 0;
-    double totalHfr = 0;
-    int hfrCount = 0;
+    // The all-lights HFR diagnostic (see the doc comment): every light frame
+    // that carried a measurement, accepted or rejected. Calibration frames are
+    // excluded because a dark's HFR is not a focus reading.
+    double totalLightHfr = 0;
+    int lightHfrCount = 0;
     final filterCounts = <String, int>{};
 
     for (final img in images) {
@@ -448,9 +478,9 @@ class AnalyticsHandlers {
           break;
       }
 
-      if (img.hfr != null) {
-        totalHfr += img.hfr!;
-        hfrCount++;
+      if (img.hfr != null && img.frameType == 'light') {
+        totalLightHfr += img.hfr!;
+        lightHfrCount++;
       }
 
       if (img.filter != null) {
@@ -466,7 +496,12 @@ class AnalyticsHandlers {
         "totalIntegrationSecs": session.totalIntegrationSecs,
         "acceptedLights": grading.accepted,
         "rejectedLights": grading.rejected,
-        "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : session.avgHfr,
+        "avgHfr": session.avgHfr,
+        "avgHfrBasis": _kAvgHfrBasis,
+        "avgHfrAllLights": lightHfrCount > 0
+            ? totalLightHfr / lightHfrCount
+            : null,
+        "avgHfrAllLightsCount": lightHfrCount,
         "avgGuidingRms": session.avgGuidingRms,
         "autofocusCount": session.autofocusCount,
         "frameBreakdown": {
@@ -712,6 +747,10 @@ class AnalyticsHandlers {
       'rejectedLights': grading.rejected,
       'totalIntegrationSecs': session.totalIntegrationSecs,
       'avgHfr': session.avgHfr,
+      // The rule travels with the figure, on every surface that ships it, so a
+      // client rendering "Mean HFR --" for an all-rejected night can say WHY it
+      // is empty instead of leaving the operator to guess.
+      'avgHfrBasis': _kAvgHfrBasis,
       'avgGuidingRms': session.avgGuidingRms,
       'autofocusCount': session.autofocusCount,
       'avgTemperature': session.avgTemperature,

@@ -23,6 +23,8 @@ const IDS = [
   'target-time-set', 'target-time-transit',
   'progress-pct', 'progress-bar', 'progress-bar-aria', 'progress-frames',
   'progress-integration', 'progress-node', 'progress-filter',
+  'frame-meta', 'frame-img', 'frame-placeholder', 'frame-wrap',
+  'frame-loading-badge',
   'equipment-list', 'guide-state', 'guide-ra', 'guide-dec', 'guide-total',
   'guide-snr', 'weather-badge', 'weather-message', 'event-feed', 'toast-region',
   'seq-message',
@@ -80,6 +82,19 @@ function loadRunWatch(overrides) {
     setTimeout: (fn, ms) => { deferred.push({ fn, ms }); return deferred.length; },
     Headers: globalThis.Headers,
     console: { warn() {}, log() {} },
+    // The frame card hands blobs to the <img> through object URLs. Counting
+    // the create/revoke pairs is how a test proves the page dropped the stale
+    // JPEG when the server stopped answering with one.
+    URL: {
+      _live: new Set(),
+      _n: 0,
+      createObjectURL(blob) {
+        const u = 'blob:frame-' + (++this._n);
+        this._live.add(u);
+        return u;
+      },
+      revokeObjectURL(u) { this._live.delete(u); },
+    },
   };
 
   const suffix = `
@@ -110,6 +125,7 @@ function loadRunWatch(overrides) {
   renderSnapshot,
   renderFrameCounter,
   noteFrameEvent,
+  refreshFrame,
   peekCredential: () => ({
     adoptedBearer, sessionCsrfToken, credentialSource,
     effective: effectiveToken(),
@@ -134,7 +150,7 @@ function loadRunWatch(overrides) {
   const factory = new Function(
     'window', 'document', 'localStorage', 'sessionStorage', 'navigator',
     'fetch', 'EventSource', 'setInterval', 'clearInterval', 'setTimeout',
-    'Headers', 'console',
+    'Headers', 'console', 'URL',
     SOURCE + suffix,
   );
   const api = factory(
@@ -142,6 +158,7 @@ function loadRunWatch(overrides) {
     sandbox.sessionStorage, sandbox.navigator,
     sandbox.fetchImpl, sandbox.EventSource, sandbox.setInterval,
     sandbox.clearInterval, sandbox.setTimeout, sandbox.Headers, sandbox.console,
+    sandbox.URL,
   );
   return { doc, api, timers, deferred, sandbox };
 }
@@ -2000,4 +2017,179 @@ test('an unknown frame counter is not decorated with a staleness cue', () => {
   api.noteFrameEvent({ eventType: 'FrameAccepted', timestamp: 1, data: { frame: 4 } });
   assert.equal(frameCounter(doc), '--',
     'there is no figure here for the feed to have outrun');
+});
+
+// ---------------------------------------------------------------------------
+// The LAST FRAME card
+// ---------------------------------------------------------------------------
+// D4-1. Measured on the release bundle: a rig whose library held 26 frames and
+// whose sim camera was connected answered `/api/run-watch/frame-thumbnail` 404
+// (the driver's in-memory buffer is empty after a relaunch), and this card
+// rendered "No frame captured yet" — an absolute about the whole rig, from a
+// page that had been told only about one process's buffer. The sibling
+// dashboard read the same wire correctly. `refreshFrame` discarded the typed
+// body with `if (!res.ok) return;` and index.html's static string simply stood.
+
+/** The 404 the server sends when this process has buffered no exposure. */
+function emptyBufferBody() {
+  return {
+    error: 'no_live_preview',
+    scope: 'process',
+    library: '/api/images',
+    message: 'No live preview for sim_camera_1 in this server process — the ' +
+      'preview buffer holds the last exposure taken since the server ' +
+      'started, and no exposure has run yet. Frames already captured are ' +
+      'listed by /api/images.',
+  };
+}
+
+function refusal(status, body) {
+  return async () => ({
+    ok: false,
+    status,
+    headers: new Headers(),
+    json: async () => {
+      if (body === undefined) throw new Error('not JSON');
+      return body;
+    },
+    text: async () => '',
+  });
+}
+
+/** A 200 carrying a JPEG and the frame headers the server stamps on it. */
+function servedFrame(headers) {
+  return async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers(headers),
+    blob: async () => ({ size: 1024 }),
+  });
+}
+
+/** Seed the placeholder with the exact string index.html ships. */
+function shippedPlaceholder(doc) {
+  const html = fs.readFileSync(path.join(RUN_WATCH, 'index.html'), 'utf8');
+  const m = html.match(/id="frame-placeholder"[^>]*>([^<]*)</);
+  assert.ok(m, 'index.html must still carry a #frame-placeholder');
+  doc.getElementById('frame-placeholder').textContent = m[1];
+  return m[1];
+}
+
+test('an empty preview buffer is a fact about this process, not about the rig',
+  async () => {
+    const { doc, api } = loadRunWatch({
+      fetch: refusal(404, emptyBufferBody()),
+    });
+    shippedPlaceholder(doc);
+    api.setToken('a-paired-token', true);
+    await api.refreshFrame();
+
+    const said = doc.getElementById('frame-placeholder').textContent;
+    assert.match(said, /since the server started/,
+      'the emptiness is scoped to this process, which is the fact the ' +
+      'server sent');
+    assert.doesNotMatch(said, /No frame captured yet/,
+      'a rig holding 26 frames may not be told nothing was ever captured');
+    assert.match(said, /\/api\/images/,
+      'the operator is pointed at what the rig actually holds');
+    assert.equal(doc.getElementById('frame-wrap').getAttribute('aria-label'),
+      said, 'the sentence reaches a screen reader too, not only the sighted ' +
+      'reader');
+    assert.ok(!doc.getElementById('frame-placeholder').classList
+      .contains('hidden'));
+  });
+
+test('the shipped frame placeholder claims nothing before the server answers',
+  () => {
+    const html = fs.readFileSync(path.join(RUN_WATCH, 'index.html'), 'utf8');
+    const m = html.match(/id="frame-placeholder"[^>]*>([^<]*)</);
+    assert.ok(m, 'index.html must still carry a #frame-placeholder');
+    assert.doesNotMatch(m[1], /No frame captured yet/,
+      'a page that has asked nothing may not assert an empty rig');
+  });
+
+test('a refusal that carries no reason is reported as one, not as an empty rig',
+  async () => {
+    const { doc, api } = loadRunWatch({ fetch: refusal(503, undefined) });
+    shippedPlaceholder(doc);
+    api.setToken('a-paired-token', true);
+    await api.refreshFrame();
+
+    const said = doc.getElementById('frame-placeholder').textContent;
+    assert.match(said, /HTTP 503/,
+      'the status is the only evidence there is, so it is what gets stated');
+    assert.match(said, /sent no reason/);
+    assert.doesNotMatch(said, /captured/,
+      'nothing was learned about what the rig has captured');
+  });
+
+test('a frame that stops being served is taken off the screen with its caption',
+  async () => {
+    let serving = true;
+    const { doc, api, sandbox } = loadRunWatch({
+      fetch: (path) => (serving
+        ? servedFrame({
+          'x-frame-timestamp': '2026-08-31T17:53:20.000Z',
+          'x-frame-hfr': '2.0032',
+          'x-frame-hfr-basis': 'live-preview-median-brightest-half',
+        })()
+        : refusal(404, emptyBufferBody())()),
+    });
+    api.setToken('a-paired-token', true);
+    await api.refreshFrame();
+    assert.ok(!doc.getElementById('frame-img').classList.contains('hidden'),
+      'the served frame is on screen');
+    assert.equal(sandbox.URL._live.size, 1);
+
+    serving = false;
+    await api.refreshFrame();
+    assert.ok(doc.getElementById('frame-img').classList.contains('hidden'),
+      'a stale JPEG under "no live preview" is the same lie in another medium');
+    assert.equal(doc.getElementById('frame-img').getAttribute('src'), null);
+    assert.equal(doc.getElementById('frame-meta').textContent, '--',
+      'the caption of a frame that is no longer shown goes with it');
+    assert.equal(sandbox.URL._live.size, 0, 'the object URL is released');
+  });
+
+// D4-2. One physical frame carries two HFRs: the live-preview measurement on
+// `x-frame-hfr` (the median of the brightest half of the detected stars) and
+// the graded measurement in `captured_images.hfr` (the mean over every
+// detected star), which is what the session report and the reject threshold
+// read. Joined on timestamp with an identical star count, three consecutive
+// sim frames read preview 2.0032 / 2.0139 / 2.0368 against library 2.4770 /
+// 2.4732 / 2.4807. Neither surface said which it was showing.
+test('the preview HFR says which measurement it is', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: servedFrame({
+      'x-frame-timestamp': '2026-08-31T17:53:20.000Z',
+      'x-frame-hfr': '2.0032',
+      'x-frame-hfr-basis': 'live-preview-median-brightest-half',
+    }),
+  });
+  api.setToken('a-paired-token', true);
+  await api.refreshFrame();
+
+  const meta = doc.getElementById('frame-meta');
+  assert.match(meta.textContent, /HFR 2\.00 \(preview\)/,
+    'an unlabelled 2.00 is what an operator sets a reject threshold from');
+  assert.match(meta.title, /median of the brightest half/);
+  assert.match(meta.title, /mean over every detected star/,
+    'the other measurement is named, so the two numbers can be reconciled');
+});
+
+test('an HFR the server did not name is not given a name', async () => {
+  const { doc, api } = loadRunWatch({
+    fetch: servedFrame({
+      'x-frame-timestamp': '2026-08-31T17:53:20.000Z',
+      'x-frame-hfr': '2.0032',
+    }),
+  });
+  api.setToken('a-paired-token', true);
+  await api.refreshFrame();
+
+  const meta = doc.getElementById('frame-meta');
+  assert.match(meta.textContent, /HFR 2\.00/);
+  assert.doesNotMatch(meta.textContent, /preview/,
+    'an older server sent no basis, so the page guesses none');
+  assert.equal(meta.title, '');
 });

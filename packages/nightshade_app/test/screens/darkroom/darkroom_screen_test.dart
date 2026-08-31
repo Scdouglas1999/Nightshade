@@ -14,6 +14,7 @@ import 'dart:ui' show SemanticsAction, SemanticsFlag, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show OrdinalSortKey, SemanticsNode;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/darkroom/darkroom_controller.dart';
@@ -307,6 +308,63 @@ void main() {
           node.label.split('\n').first.substring(prefix.length),
           key is OrdinalSortKey ? key.order : null,
         ));
+      }
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    return found;
+  }
+
+  /// The step cards' semantics node ids, in the tree's own order.
+  ///
+  /// Identity, not order: what this is for is proving that an order change
+  /// leaves NO card holding the node it had before.
+  List<int> stackNodeIds(WidgetTester tester) {
+    const prefix = 'Reorder ';
+    final found = <int>[];
+    void visit(SemanticsNode node) {
+      if (node.label.startsWith(prefix)) found.add(node.id);
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    return found;
+  }
+
+  /// The node the platform is handed under exactly [label], or null.
+  ///
+  /// Read off the published tree rather than off a widget: a control can carry
+  /// the right properties in the widget tree and still publish them on a node
+  /// that is not the one assistive tech lands on, which is the defect this
+  /// file's step-card controls had.
+  SemanticsNode? publishedNode(WidgetTester tester, String label) {
+    SemanticsNode? found;
+    void visit(SemanticsNode node) {
+      if (found == null && node.label == label) found = node;
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+    return found;
+  }
+
+  /// The label on the node that currently reports the keyboard focus.
+  String? focusedLabel(WidgetTester tester) {
+    String? found;
+    void visit(SemanticsNode node) {
+      if (found == null &&
+          node.getSemanticsData().hasFlag(SemanticsFlag.isFocused)) {
+        found = node.label;
       }
       node.visitChildren((child) {
         visit(child);
@@ -690,6 +748,7 @@ void main() {
       'Denoise',
       'Stretch',
     ]);
+    final idsBefore = stackNodeIds(tester).toSet();
 
     // The move the engine accepts: denoise above background extract, both
     // linear-stage operations.
@@ -724,6 +783,22 @@ void main() {
       ('Background extract', 2.0),
       ('Stretch', 3.0),
     ]);
+    // And the order the framework publishes is the order the PLATFORM ends up
+    // with. Measured on the release bundle 2026-08-31: a move re-inflates only
+    // the cards whose index changed, so the untouched card keeps its
+    // accessibility node while the moved ones get new ones — and the Linux
+    // AT-SPI bridge leaves the node it already holds where it is and appends
+    // the new ones after it. Moving the first of three steps down published
+    // "Stretch, Denoise, Background extract" over a stack the panel painted,
+    // and the engine ran, as "Denoise, Background extract, Stretch". No card
+    // may survive an order change for the bridge to strand.
+    final idsAfter = stackNodeIds(tester).toSet();
+    expect(
+      idsAfter.intersection(idsBefore),
+      isEmpty,
+      reason: 'a step card kept its accessibility node across a reorder, which '
+          'is what leaves the platform holding the old reading order',
+    );
     semantics.dispose();
     await drain(tester);
   });
@@ -955,6 +1030,97 @@ void main() {
     expect(find.text('Color calibration has no catalogue stars'), findsNothing);
   });
 
+  testWidgets('every step-card control publishes its name on ONE operable node',
+      (tester) async {
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('color_calibrate'),
+    ]);
+    await pump(tester, DarkroomScope.recipe(id), size: const Size(1280, 1400));
+    final semantics = tester.ensureSemantics();
+
+    // Measured on the release bundle 2026-08-31: each of these came back
+    // `['enabled', 'sensitive', 'showing']` with NO `focusable`, because the
+    // name was published on a wrapper that excluded the node owning the focus.
+    // A keyboard walk of one step card therefore stopped on unnamed panels for
+    // the two move buttons, the parameters expander and remove, while only the
+    // enable toggle — which is built as one node — announced itself.
+    for (final label in [
+      'Move Background extract down',
+      'Background extract parameters',
+      'Remove Background extract',
+      'Background extract enabled',
+    ]) {
+      final node = publishedNode(tester, label);
+      expect(node, isNotNull, reason: 'no node is published under "$label"');
+      final data = node!.getSemanticsData();
+      expect(
+        data.hasFlag(SemanticsFlag.isFocusable),
+        isTrue,
+        reason: '"$label" names a node the keyboard cannot land on',
+      );
+      expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue,
+          reason: '"$label" states neither enabled nor disabled');
+      expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue, reason: label);
+      expect(data.hasAction(SemanticsAction.tap), isTrue, reason: label);
+    }
+
+    // A control the stack's ends refuse still names itself, and still states
+    // that it is disabled rather than going quiet.
+    final upNode = publishedNode(
+      tester,
+      'Move Background extract up — it is already first in the stack (1 of 2)',
+    );
+    expect(upNode, isNotNull);
+    final upData = upNode!.getSemanticsData();
+    expect(upData.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+    expect(upData.hasFlag(SemanticsFlag.isEnabled), isFalse);
+    expect(upData.hasAction(SemanticsAction.tap), isFalse);
+
+    semantics.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('Tab lands on the named step-card controls, not on panels',
+      (tester) async {
+    // Two steps, so at least one move button is live: a stack of one has both
+    // its ends refused, and a disabled control is correctly outside the tab
+    // order.
+    final id = await seedRecipe([
+      _step('background_extract'),
+      _step('color_calibrate'),
+    ]);
+    await pump(tester, DarkroomScope.recipe(id), size: const Size(1280, 1400));
+    final semantics = tester.ensureSemantics();
+
+    // Walk the whole screen and collect what each stop CALLS ITSELF. The
+    // failure this pins is not "focus never arrives" — it did — but "focus
+    // arrives on a node with no name", which is what a screen-reader user is
+    // read out.
+    final reached = <String>{};
+    for (var press = 0; press < 60; press++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final label = focusedLabel(tester);
+      if (label != null && label.isNotEmpty) reached.add(label);
+    }
+    for (final label in [
+      'Move Background extract down',
+      'Background extract parameters',
+      'Remove Background extract',
+      'Background extract enabled',
+    ]) {
+      expect(
+        reached,
+        contains(label),
+        reason: 'Tab never landed on a node named "$label"',
+      );
+    }
+
+    semantics.dispose();
+    await drain(tester);
+  });
+
   testWidgets('every step card names its own controls to a screen reader', (
     tester,
   ) async {
@@ -1001,6 +1167,33 @@ void main() {
     final data = node.getSemanticsData();
     expect(data.hasAction(SemanticsAction.increase), isTrue);
     expect(data.hasAction(SemanticsAction.decrease), isTrue);
+    semantics.dispose();
+    await drain(tester);
+  });
+
+  testWidgets('a slider announces the value the recipe HOLDS, not the clamp',
+      (tester) async {
+    // sampleSpacing accepts 8…1024 in this registry; the recipe holds 5000,
+    // which the engine refuses by name and number on the card beside it.
+    final id = await seedRecipe([
+      _step('background_extract', params: {'sampleSpacing': 5000.0}),
+    ]);
+    await pump(tester, DarkroomScope.recipe(id), size: const Size(1280, 1400));
+    await tester.tap(find.text('Parameters'));
+    await tester.pump();
+
+    final semantics = tester.ensureSemantics();
+    final node = tester.getSemantics(find.byType(NightshadeSlider));
+    // Measured on the release bundle 2026-08-31: with `scaleCount` = 500
+    // stored and the card reading "parameter 'scaleCount' = 500 is outside
+    // [1, 6]", the slider announced 6 — the position the Material slider is
+    // pinned to, which is a number the engine never received.
+    expect(node.value, contains('5000'));
+    expect(node.label, contains('5000'));
+    expect(node.value, contains('outside the accepted range'));
+    // The thumb stays inside the track the widget accepts.
+    expect(tester.widget<NightshadeSlider>(find.byType(NightshadeSlider)).value,
+        1024.0);
     semantics.dispose();
     await drain(tester);
   });
@@ -1239,6 +1432,57 @@ void main() {
       ),
       findsOneWidget,
     );
+    await drain(tester);
+  });
+
+  testWidgets('each disclosure on the panel names what IT opens',
+      (tester) async {
+    const reason =
+        'this master has 1 channel(s) and the colour fit needs three, so this '
+        'draft covers the one channel it was given; to calibrate colour, '
+        'combine the per-filter masters into a single three-channel master and '
+        'draft that composite';
+    // The second long account on the same panel: a render that refused, in the
+    // engine's own words. (The third caller is the calibration-warnings card,
+    // which needs a master-library row to speak.)
+    darkroom.previewError = DarkroomSeamException(
+      'renderPreview',
+      "cannot read '$_masterPath': No such file or directory (os error 2); "
+          'point the recipe at the master it was drafted over, or re-integrate '
+          'this night and draft the master that comes out of it',
+      StateError('missing master'),
+    );
+    final id = await RecipesDao(db).create(
+      baseMasterPath: _masterPath,
+      name: 'Draft',
+      stepsJson: jsonEncode([_step('background_extract')]),
+      createdBy: RecipeAuthor.autopilot,
+      draftNotes: const [
+        RecipeDraftNote(
+          opId: 'color_calibrate',
+          outcome: 'omitted',
+          reason: reason,
+        ),
+      ],
+    );
+    await pump(tester, DarkroomScope.recipe(id), size: const Size(1400, 1600));
+
+    final semantics = tester.ensureSemantics();
+    // Measured on the release bundle 2026-08-31: two cards on this panel both
+    // published `button: 'Show more'`, side by side, so a reader had reading
+    // order and nothing else to tell one account from the other. The word on
+    // screen stays "Show more" — it sits inside the alert whose sentence it
+    // continues.
+    expect(
+      publishedNode(tester, "Show more about the draft's omissions"),
+      isNotNull,
+    );
+    expect(
+      publishedNode(tester, 'Show more about why the render did not finish'),
+      isNotNull,
+    );
+    expect(publishedNode(tester, 'Show more'), isNull);
+    semantics.dispose();
     await drain(tester);
   });
 

@@ -7,6 +7,20 @@ part of '../darkroom_screen.dart';
 /// mechanical.
 const Duration kDarkroomBlinkInterval = Duration(milliseconds: 700);
 
+/// The two sides of a compare, in the one letter every label on this view names
+/// them by.
+const String _kDarkroomCompareSideA = 'A';
+const String _kDarkroomCompareSideB = 'B';
+
+/// Why the compare row's zoom controls are unavailable.
+///
+/// It takes BOTH panes failing. One transform moves both viewers, so a single
+/// pane that did not render leaves the other one's pixels there to be zoomed —
+/// which is what the compare picker promises when it says zoom and pan stay
+/// locked together.
+const String kDarkroomCompareNeitherPaneRendered =
+    'neither pane has a finished render to zoom';
+
 /// How the compare pane draws its two recipes.
 enum _DarkroomCompareMode {
   /// Both renders at once, side by side on a wide screen and stacked on a
@@ -184,17 +198,33 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
   /// wheel as the only way to change the view at all. The controls drive the
   /// one shared transform, so both panes stay locked exactly as the picker
   /// promises.
+  ///
+  /// **One pane's failure does not take the zoom away from the other.** The row
+  /// was handed A's render alone, so a branch whose stack does not validate —
+  /// an out-of-range parameter is enough — left all four controls dead over a
+  /// B pane that was still drawing a picture and still zooming under the mouse
+  /// wheel, seconds after the picker promised zoom and pan stay locked
+  /// together. There is one transform and it moves whatever has pixels, so the
+  /// controls operate over whichever pane has a render and the readout names
+  /// the side it measured. Dead controls are kept for the case that is really
+  /// dead — neither pane rendered — and then they say so.
   Widget _controls(DarkroomState bState) {
     final blinkMode = widget.mode == _DarkroomCompareMode.blink;
-    // A's render, because A is the stack this editor is showing. When B's
-    // render answered from a different pyramid level, one percentage cannot
-    // describe both sides — and that is said rather than left to be read off a
-    // number that is right about one pane only.
+    // A's render when A has one, because A is the stack this editor is showing.
+    // When B's render answered from a different pyramid level, one percentage
+    // cannot describe both sides — and that is said rather than left to be read
+    // off a number that is right about one pane only.
     final aScale = widget.aState.preview?.scaleFromMaster;
     final bScale = bState.preview?.scaleFromMaster;
+    final zoomed = widget.aState.preview ?? bState.preview;
+    final measuredOn = widget.aState.preview == null && zoomed != null
+        ? _kDarkroomCompareSideB
+        : null;
     return _DarkroomZoomControls(
       zoom: _zoom,
-      preview: widget.aState.preview,
+      preview: zoomed,
+      measuredOn: measuredOn,
+      noRenderReason: kDarkroomCompareNeitherPaneRendered,
       leading: [
         _DarkroomTag(
           label: blinkMode ? (_showA ? 'Showing A' : 'Showing B') : 'A | B',
@@ -223,11 +253,15 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
         if (blinkMode) _holdToCompare(),
       ],
       trailing: [
-        if (widget.aState.preview?.level != null)
+        if (zoomed?.level != null)
           _DarkroomTag(
-            label: 'Level ${widget.aState.preview!.level}',
-            tooltip: 'The pyramid level the A side was rendered from. The '
-                'percentage beside it is about A.',
+            label: 'Level ${zoomed!.level}',
+            tooltip: measuredOn == null
+                ? 'The pyramid level the A side was rendered from. The '
+                    'percentage beside it is about A.'
+                : 'The pyramid level the $measuredOn side was rendered from. A '
+                    'has no finished render, so the percentage beside it is '
+                    'about $measuredOn.',
           ),
         if (aScale != null && bScale != null && aScale != bScale)
           _DarkroomTag(
@@ -269,8 +303,8 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
 
   Widget _sideBySide(NightshadeColors colors, DarkroomState bState) {
     final panes = [
-      _pane(colors, widget.aLabel, 'A', widget.aState),
-      _pane(colors, widget.bLabel, 'B', bState),
+      _pane(colors, widget.aLabel, _kDarkroomCompareSideA, widget.aState),
+      _pane(colors, widget.bLabel, _kDarkroomCompareSideB, bState),
     ];
     // A phone reflows into a stack rather than shrinking both panes into
     // thumbnails: two 180-pixel-wide renders compare nothing.
@@ -309,8 +343,8 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
       index: _showA ? 0 : 1,
       sizing: StackFit.expand,
       children: [
-        _pane(colors, widget.aLabel, 'A', widget.aState),
-        _pane(colors, widget.bLabel, 'B', bState),
+        _pane(colors, widget.aLabel, _kDarkroomCompareSideA, widget.aState),
+        _pane(colors, widget.bLabel, _kDarkroomCompareSideB, bState),
       ],
     );
   }
