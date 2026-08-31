@@ -2564,6 +2564,119 @@ void main() {
   // caller has already handed to the gate is sitting there in plain sight
   // while it waits its turn. Taking it would run one job twice — two
   // executors over one row, one cancellation id between them.
+  // An orderly host shutdown mid-pass. The row must come back to the queue
+  // with its start returned, so restarting the service during a dawn pass
+  // costs nothing: three restarts used to burn all three attempts and fail the
+  // night's job outright.
+  test('an orderly shutdown hands a running pass back to the queue', () async {
+    final sessionId = await insertSession();
+    final image = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [image], filter: 'L');
+
+    final service = buildService();
+    final parked = Completer<void>();
+    final release = Completer<void>();
+    darkroom.beforeRegistry = () async {
+      if (parked.isCompleted) return;
+      parked.complete();
+      await release.future;
+    };
+
+    final pass = service.runDawnForSession(sessionId);
+    await parked.future;
+    final jobs = DarkroomJobsDao(db);
+    final mid = (await jobs.listByState(DarkroomJobState.running)).single;
+    expect(mid.attempts, 1);
+
+    final released = await service.releaseRunningJobsForShutdown();
+    expect(released, [mid.id]);
+
+    final handedBack = await jobs.getById(mid.id!);
+    expect(handedBack!.state, DarkroomJobState.queued);
+    expect(handedBack.attempts, 0, reason: 'a polite stop spends no attempt');
+    expect(handedBack.startedAt, isNull);
+    expect(handedBack.note, contains('orderly shutdown'));
+
+    // The executor still in flight discovers the row moved and returns without
+    // writing over the hand-back.
+    release.complete();
+    final outcome = await pass;
+    expect(outcome.succeeded, isFalse);
+    final after = await jobs.getById(mid.id!);
+    expect(after!.state, DarkroomJobState.queued);
+    expect(after.attempts, 0);
+  });
+
+  // The sweep reads the queue once. A pass whose `markRunning` commits just
+  // after that read would be left `running` for the crash recovery to charge —
+  // which is what three restarts against a freshly-drained queue actually did.
+  test('a pass that starts as the host stops is handed back too', () async {
+    final sessionId = await insertSession();
+    final image = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [image], filter: 'L');
+
+    final service = buildService();
+    // The stop lands with the queue still empty of running rows.
+    expect(await service.releaseRunningJobsForShutdown(), isEmpty);
+
+    final outcome = await service.runDawnForSession(sessionId);
+    expect(outcome.succeeded, isFalse);
+
+    final row = await DarkroomJobsDao(db).getById(outcome.jobId);
+    expect(row!.state, DarkroomJobState.queued);
+    expect(row.attempts, 0, reason: 'a start the stop cancelled is not spent');
+    expect(row.startedAt, isNull);
+  });
+
+  test(
+    'a drain that meets a stop leaves the queue for the next start',
+    () async {
+      final firstNight = await insertSession();
+      final firstImage = await insertSub(sessionId: firstNight);
+      await insertMaster(imageIds: [firstImage], filter: 'L');
+      final secondNight = await insertSession();
+      final secondImage = await insertSub(sessionId: secondNight);
+      await insertMaster(
+        imageIds: [secondImage],
+        filter: 'Ha',
+        path: '${workspace.path}/M42_Ha_master.fits',
+      );
+
+      final jobs = DarkroomJobsDao(db);
+      final firstJob = await jobs.enqueue(sessionId: firstNight);
+      final secondJob = await jobs.enqueue(sessionId: secondNight);
+
+      final service = buildService();
+      await service.releaseRunningJobsForShutdown();
+      expect(await service.drainQueue(), isEmpty);
+
+      for (final id in [firstJob, secondJob]) {
+        final row = await jobs.getById(id);
+        expect(row!.state, DarkroomJobState.queued);
+        expect(row.attempts, 0, reason: 'the stop spent nobody\'s start');
+      }
+    },
+  );
+
+  test('an orderly shutdown with no pass running writes nothing', () async {
+    final sessionId = await insertSession();
+    final image = await insertSub(sessionId: sessionId);
+    await insertMaster(imageIds: [image], filter: 'L');
+
+    final outcome = await buildService().runDawnForSession(sessionId);
+    expect(outcome.succeeded, isTrue);
+
+    // A separate service stands for the next launch's host, stopping with a
+    // queue that holds only a finished pass.
+    expect(await buildService().releaseRunningJobsForShutdown(), isEmpty);
+    final row = await DarkroomJobsDao(db).getById(outcome.jobId);
+    expect(
+      row!.state,
+      DarkroomJobState.done,
+      reason: 'a finished pass is not re-queued by a later shutdown',
+    );
+  });
+
   test('the drain leaves alone a job already waiting on the gate', () async {
     final lastNight = await insertSession();
     final imageA = await insertSub(sessionId: lastNight);

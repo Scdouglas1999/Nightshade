@@ -177,39 +177,85 @@ fn base_cache() -> MutexGuard<'static, BaseCache> {
     }
 }
 
+/// A cause an operator can read, guaranteed non-empty and free of bytes that do
+/// not survive the trip.
+///
+/// Every failure here crosses the FFI as a Rust `String` and lands in the night
+/// report as the sentence that says why a master produced no draft. A cause
+/// carrying a NUL byte — what a torn write leaves in a FITS header — does not
+/// survive that crossing: the whole string arrives empty and the report tells
+/// the operator a master failed without telling them why. Control bytes are
+/// escaped rather than dropped, so the cause stays both readable and true, and
+/// a cause that carries no text at all is named as carrying none rather than
+/// passed on blank.
+pub(crate) fn readable_cause(cause: impl std::fmt::Display) -> String {
+    let text = cause.to_string();
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        let code = ch as u32;
+        if code < 0x20 || code == 0x7f {
+            out.push_str(&format!("\\x{code:02x}"));
+        } else {
+            out.push(ch);
+        }
+    }
+    if out.trim().is_empty() {
+        return "the underlying error carried no message".to_string();
+    }
+    out
+}
+
 /// The file identity a cached pyramid is valid for: modification time and
 /// length.
 fn file_identity(path: &Path) -> Result<String, String> {
-    let meta =
-        std::fs::metadata(path).map_err(|e| format!("cannot read '{}': {e}", path.display()))?;
+    let meta = std::fs::metadata(path)
+        .map_err(|e| format!("cannot read '{}': {}", path.display(), readable_cause(e)))?;
     let modified = meta
         .modified()
         .map_err(|e| {
             format!(
-                "cannot read the modification time of '{}': {e}",
-                path.display()
+                "cannot read the modification time of '{}': {}",
+                path.display(),
+                readable_cause(e)
             )
         })?
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| {
             format!(
-                "the modification time of '{}' predates the epoch: {e}",
-                path.display()
+                "the modification time of '{}' predates the epoch: {}",
+                path.display(),
+                readable_cause(e)
             )
         })?;
     Ok(format!("{}|{}", modified.as_nanos(), meta.len()))
+}
+
+/// A master's pyramid together with the identity of the bytes it was built from.
+///
+/// The identity travels with the pyramid because the step-boundary key needs it:
+/// keyed on the recipe's `baseMasterRef` alone, two renders of one recipe over
+/// two different masters of the same geometry share a cache entry, and the
+/// second request is served the first master's pixels under its own path. The
+/// path *and* the file identity are both in the string, so neither a different
+/// master nor the same path rewritten can be mistaken for a boundary already
+/// computed.
+pub(crate) struct LoadedMaster {
+    /// The pyramid built from the master.
+    pub(crate) pyramid: Arc<ImagePyramid>,
+    /// The path read, its modification time and its length.
+    pub(crate) identity: String,
 }
 
 /// The pyramid for the master at `path`, reading and building it on a miss.
 ///
 /// The cache is keyed by path and validated against the file's modification time
 /// and length. A file that changed under a path invalidates far more than this
-/// cache: the engine's step-boundary key trusts the recipe's `baseMasterRef`, so
-/// a changed base clears the whole render cache rather than risk serving one
-/// master's boundary for another's pixels.
-pub(crate) fn base_pyramid(path: &Path) -> Result<Arc<ImagePyramid>, String> {
+/// cache: a changed base clears the whole render cache as well, so no boundary
+/// computed from the old bytes survives under a key the new bytes could reach.
+pub(crate) fn base_pyramid(path: &Path) -> Result<LoadedMaster, String> {
     let identity = file_identity(path)?;
     let key = path.to_string_lossy().to_string();
+    let render_identity = format!("{key}|{identity}");
 
     let stale = {
         let mut cache = base_cache();
@@ -218,7 +264,10 @@ pub(crate) fn base_pyramid(path: &Path) -> Result<Arc<ImagePyramid>, String> {
         match cache.entries.get_mut(&key) {
             Some(entry) if entry.identity == identity => {
                 entry.last_used = tick;
-                return Ok(Arc::clone(&entry.pyramid));
+                return Ok(LoadedMaster {
+                    pyramid: Arc::clone(&entry.pyramid),
+                    identity: render_identity,
+                });
             }
             Some(_) => {
                 if let Some(entry) = cache.entries.remove(&key) {
@@ -237,14 +286,25 @@ pub(crate) fn base_pyramid(path: &Path) -> Result<Arc<ImagePyramid>, String> {
         render_cache().clear();
     }
 
-    let (image_data, header) =
-        read_fits(path).map_err(|e| format!("cannot read '{}' as FITS: {e}", path.display()))?;
-    let base = OpImage::from_image_data(&image_data, header)
-        .map_err(|e| format!("'{}' is not renderable: {e}", path.display()))?;
+    let (image_data, header) = read_fits(path).map_err(|e| {
+        format!(
+            "cannot read '{}' as FITS: {}",
+            path.display(),
+            readable_cause(e)
+        )
+    })?;
+    let base = OpImage::from_image_data(&image_data, header).map_err(|e| {
+        format!(
+            "'{}' is not renderable: {}",
+            path.display(),
+            readable_cause(e)
+        )
+    })?;
     let pyramid = Arc::new(ImagePyramid::build(Arc::new(base)).map_err(|e| {
         format!(
-            "cannot build a preview pyramid for '{}': {e}",
-            path.display()
+            "cannot build a preview pyramid for '{}': {}",
+            path.display(),
+            readable_cause(e)
         )
     })?);
 
@@ -268,7 +328,10 @@ pub(crate) fn base_pyramid(path: &Path) -> Result<Arc<ImagePyramid>, String> {
         cache.used_bytes = cache.used_bytes.saturating_add(bytes);
         cache.evict_to_capacity();
     }
-    Ok(pyramid)
+    Ok(LoadedMaster {
+        pyramid,
+        identity: render_identity,
+    })
 }
 
 // ---------------------------------------------------------------------------

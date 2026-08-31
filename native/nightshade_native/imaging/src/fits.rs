@@ -725,9 +725,9 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
         }
 
         if !is_valid_keyword(keyword) && keyword != "COMMENT" && keyword != "HISTORY" {
-            return Err(FitsError::InvalidFormat(format!(
-                "Invalid FITS keyword: {}",
-                keyword
+            return Err(FitsError::InvalidFormat(invalid_keyword_message(
+                &buffer[..8],
+                total_records,
             )));
         }
 
@@ -832,6 +832,36 @@ fn split_value_and_comment(s: &str) -> (&str, Option<&str>) {
         }
     }
     (s.trim(), None)
+}
+
+/// Name what sits in the keyword field of a record that holds no valid keyword.
+///
+/// The eight raw bytes never go into the message verbatim. A torn write or a
+/// lost extent leaves NUL bytes where a card belongs, and a message carrying
+/// those NULs dies on the way out: it crosses the FFI as a C string and arrives
+/// empty, so the operator is told a master failed and given no reason at all.
+/// Every byte outside printable ASCII is escaped here, so the cause stays
+/// readable from the reader to the night report.
+///
+/// An all-NUL field is named rather than shown as eight escapes, because that
+/// field is not a mangled keyword — it is the signature of a file whose header
+/// was never written.
+fn invalid_keyword_message(field: &[u8], record_number: usize) -> String {
+    if field.iter().all(|&byte| byte == 0) {
+        return format!(
+            "record {record_number} holds NUL bytes where a FITS keyword belongs, \
+             so this is not a FITS header"
+        );
+    }
+    let mut shown = String::with_capacity(field.len());
+    for &byte in field {
+        if (0x20..0x7f).contains(&byte) {
+            shown.push(byte as char);
+        } else {
+            shown.push_str(&format!("\\x{byte:02x}"));
+        }
+    }
+    format!("Invalid FITS keyword in record {record_number}: \"{shown}\"")
 }
 
 fn is_valid_keyword(keyword: &str) -> bool {
@@ -3618,6 +3648,54 @@ mod tests {
 
         let err = read_header(&mut Cursor::new(bytes)).unwrap_err();
         assert!(matches!(err, FitsError::InvalidFormat(_)));
+        let sentence = err.to_string();
+        assert!(
+            sentence.contains("BAD*KEY"),
+            "the message names the keyword it rejected: {sentence}"
+        );
+    }
+
+    /// A master whose header is NUL bytes — what a torn write or a lost extent
+    /// leaves behind — has to fail with a sentence an operator can read.
+    ///
+    /// The message crosses the FFI as a C string on its way to the night report,
+    /// so a single NUL in it costs the whole reason: the report then says a
+    /// master produced no draft and says nothing about why.
+    #[test]
+    fn test_read_header_names_a_nul_header_without_carrying_the_nuls() {
+        let err = read_header(&mut Cursor::new(vec![0u8; 2880])).unwrap_err();
+        let sentence = err.to_string();
+
+        assert!(!sentence.is_empty(), "the failure states a cause");
+        assert!(
+            !sentence.contains('\0'),
+            "no NUL survives into the message: {sentence:?}"
+        );
+        assert!(
+            sentence.contains("NUL") && sentence.contains("not a FITS header"),
+            "the message names what it found: {sentence}"
+        );
+    }
+
+    /// A header of other unprintable bytes is escaped rather than quoted raw, so
+    /// the eight bytes are still reported and the sentence still survives.
+    #[test]
+    fn test_read_header_escapes_unprintable_keyword_bytes() {
+        let mut bytes = vec![b' '; 2880];
+        bytes[..8].copy_from_slice(&[0x01, 0x02, b'A', 0x00, 0xff, b'B', 0x7f, 0x1b]);
+
+        let err = read_header(&mut Cursor::new(bytes)).unwrap_err();
+        let sentence = err.to_string();
+
+        assert!(!sentence.contains('\0'), "no NUL survives: {sentence:?}");
+        assert!(
+            sentence.contains("\\x01") && sentence.contains("\\x00") && sentence.contains("\\xff"),
+            "each unprintable byte is shown escaped: {sentence}"
+        );
+        assert!(
+            sentence.contains('A') && sentence.contains('B'),
+            "the printable bytes are shown as themselves: {sentence}"
+        );
     }
 
     #[test]

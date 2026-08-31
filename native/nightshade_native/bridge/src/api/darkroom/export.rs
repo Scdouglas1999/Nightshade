@@ -162,8 +162,8 @@ pub(crate) fn run_export(recipe_json: &str, args: DarkroomExportArgs) -> Result<
     }
 
     let token = RenderCancelToken::register(&args.render_id)?;
-    let pyramid = load_pyramid(&args.master_path, &token)?;
-    let base = Arc::clone(pyramid.base());
+    let master = load_pyramid(&args.master_path, &token)?;
+    let base = Arc::clone(master.pyramid.base());
     let (ctx, catalog_stars) = build_context(&base, 0, &token, &args.catalog_stars);
 
     let (image, report, report_value) = match stage {
@@ -176,14 +176,22 @@ pub(crate) fn run_export(recipe_json: &str, args: DarkroomExportArgs) -> Result<
                 &recipe,
                 &base,
                 &ctx,
-                RenderOptions::full().stopping_after(index),
+                RenderOptions::full()
+                    .stopping_after(index)
+                    .over_master(master.identity.as_str()),
                 &token,
             )?;
             let value = report_json(&output.report);
             (Arc::clone(&output.image), Some(output.report), value)
         }
         ExportStage::Final => {
-            let output = run_render(&recipe, &base, &ctx, RenderOptions::full(), &token)?;
+            let output = run_render(
+                &recipe,
+                &base,
+                &ctx,
+                RenderOptions::full().over_master(master.identity.as_str()),
+                &token,
+            )?;
             let value = report_json(&output.report);
             (Arc::clone(&output.image), Some(output.report), value)
         }
@@ -264,7 +272,7 @@ pub(crate) fn run_export(recipe_json: &str, args: DarkroomExportArgs) -> Result<
         "stage": stage.as_json(),
         "masterPath": args.master_path,
         "renderId": token.render_id(),
-        "base": level_json(&pyramid, 0, &base),
+        "base": level_json(&master.pyramid, 0, &base),
         "report": report_value,
         "recipeFingerprint": fingerprint,
         "recipeSchemaVersion": RECIPE_SCHEMA_VERSION,

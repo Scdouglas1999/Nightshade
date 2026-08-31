@@ -23,17 +23,46 @@ class _MockImagesDao extends Mock implements ImagesDao {}
 
 class _MockIntegratedMastersDao extends Mock implements IntegratedMastersDao {}
 
-/// A session whose frames were never folded into a master.
-class _NoMastersResolver extends DawnMasterResolver {
-  _NoMastersResolver()
+/// A night that has a master when the header is BUILT and none by the time the
+/// operator presses.
+///
+/// The refusal itself now lives on the control — a night with no master is
+/// disabled with its reason before anybody reaches for it, and that rule is
+/// pinned in `session_detail_darkroom_test.dart`. What is left for the
+/// after-press path is exactly this: the window between the read the control
+/// was drawn from and the press, which a deleted master or a re-run
+/// integration can change. That is the case this file drives, because it is
+/// the only remaining way an inline refusal is produced.
+class _VanishingMasterResolver extends DawnMasterResolver {
+  _VanishingMasterResolver()
       : super(images: _MockImagesDao(), masters: _MockIntegratedMastersDao());
 
+  int calls = 0;
+
   @override
-  Future<DawnMasterSet> resolve(int sessionId) async => DawnMasterSet(
-        sessionId: sessionId,
-        masters: const [],
-        withoutFile: const [],
-      );
+  Future<DawnMasterSet> resolve(int sessionId) async {
+    final first = calls++ == 0;
+    return DawnMasterSet(
+      sessionId: sessionId,
+      masters: first
+          ? const [
+              DawnMaster(
+                masterId: 9,
+                targetId: 1,
+                name: 'M31 Ha',
+                filter: 'Ha',
+                masterFitsPath: '/masters/m31_ha.fits',
+                channels: 1,
+                width: 4000,
+                height: 3000,
+                frameCount: 40,
+                totalIntegrationSeconds: 12000,
+              ),
+            ]
+          : const [],
+      withoutFile: const [],
+    );
+  }
 }
 
 class _PinnedBackend extends BackendNotifier {
@@ -85,7 +114,8 @@ void main() {
           backendProvider.overrideWith(
             (ref) => _PinnedBackend(ref, DisconnectedBackend()),
           ),
-          dawnMasterResolverProvider.overrideWithValue(_NoMastersResolver()),
+          dawnMasterResolverProvider
+              .overrideWithValue(_VanishingMasterResolver()),
           // The Session Report action opens a dialog over this one and watches
           // this. Scripted so the tap reaches no database: what is under test
           // is what the press does to the alert BELOW the report, not the
@@ -160,7 +190,10 @@ void main() {
       findsNWidgets(7),
       reason: 'six actions plus the close button',
     );
-    expect(find.byTooltip('Refine in Darkroom'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('session_detail_darkroom')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('at phone width the cluster folds and the tree follows it', (
@@ -236,6 +269,24 @@ void main() {
       find.byType(Dialog),
       findsOneWidget,
       reason: 'the dialog stays up to carry the explanation',
+    );
+
+    // And the control catches up with the sentence under it. Left as it was,
+    // the header would go on offering an action the alert beneath it has just
+    // said cannot run — two claims about one night on one screen.
+    expect(
+      tester
+          .widget<IconButton>(
+              find.byKey(const ValueKey('session_detail_darkroom')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+              find.byKey(const ValueKey('session_detail_darkroom')))
+          .tooltip,
+      reason,
     );
 
     // It is dismissible, and dismissing it leaves the dialog behind.

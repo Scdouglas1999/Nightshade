@@ -37,7 +37,7 @@ use serde_json::{json, Value};
 
 use super::args::{CancelledRender, CatalogStarArgs};
 use super::catalog::SuppliedCatalog;
-use super::state::{base_pyramid, registry, render_cache, RenderCancelToken};
+use super::state::{base_pyramid, registry, render_cache, LoadedMaster, RenderCancelToken};
 
 /// How a render's samples become 8-bit RGBA.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,11 +82,16 @@ pub(crate) fn parse_recipe(recipe_json: &str) -> Result<Recipe, String> {
     Recipe::from_json(recipe_json).map_err(|e| e.to_string())
 }
 
-/// The pyramid for `master_path`, honouring cancellation around the read.
+/// The master at `master_path` — its pyramid and the identity of the bytes read
+/// — honouring cancellation around the read.
+///
+/// The identity travels back to the caller because the render it is about to
+/// run has to key its step boundaries on the master it actually read, not on the
+/// `baseMasterRef` the recipe was authored with.
 pub(crate) fn load_pyramid(
     master_path: &str,
     token: &RenderCancelToken,
-) -> Result<Arc<ImagePyramid>, String> {
+) -> Result<LoadedMaster, String> {
     let path = master_path.trim();
     if path.is_empty() {
         return Err("masterPath is required to render".to_string());
@@ -94,11 +99,11 @@ pub(crate) fn load_pyramid(
     if token.is_cancelled() {
         return Err(CancelledRender::err(token.render_id(), "read"));
     }
-    let pyramid = base_pyramid(std::path::Path::new(path))?;
+    let master = base_pyramid(std::path::Path::new(path))?;
     if token.is_cancelled() {
         return Err(CancelledRender::err(token.render_id(), "pyramid"));
     }
-    Ok(pyramid)
+    Ok(master)
 }
 
 /// The pyramid level a request resolves to.

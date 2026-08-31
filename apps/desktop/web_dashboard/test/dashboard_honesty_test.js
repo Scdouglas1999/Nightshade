@@ -214,6 +214,35 @@ test('a real sensor reporting unsafe still reads unsafe', () => {
   assert.equal(doc.getElementById('ops-safety-badge').textContent, 'unsafe');
 });
 
+// D4W-1. Arm weather safety on a box with no weather hardware and no reachable
+// forecast and the provider falls to fail_closed: /api/safety/status answers
+// isSafe:false with dataSource 'unavailable', monitorsConnected 0 and
+// failModeWarning "No weather data sources available". Answering the sensor
+// question first turned that decision into "no sensor / no source" — a neutral
+// absence where the rig had refused to image.
+test('a fail-closed refusal outranks the no-sensor reading', () => {
+  const doc = weatherPanel(
+    {
+      safeToImage: false, alertLevel: 'clear', dataSource: 'unavailable',
+      message: 'No weather data sources available',
+    },
+    {
+      isSafe: false, monitorsConnected: 0, monitors: [],
+      dataSource: 'unavailable',
+      failModeWarning: 'No weather data sources available',
+    },
+  );
+  const safe = doc.getElementById('ops-weather-safe');
+  assert.equal(safe.textContent, 'no');
+  assert.ok(safe.className.includes('error'),
+    'a refusal is not a warning about missing hardware');
+  const badge = doc.getElementById('ops-safety-badge');
+  assert.equal(badge.textContent, 'unsafe');
+  assert.ok(badge.className.includes('badge-error'));
+  assert.equal(doc.getElementById('ops-weather-message').textContent,
+    'No weather data sources available');
+});
+
 // ---------------------------------------------------------------------------
 // D4-04 — settings panel reads only keys the API emits
 // ---------------------------------------------------------------------------

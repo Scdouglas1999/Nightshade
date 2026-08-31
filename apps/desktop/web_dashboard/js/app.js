@@ -4908,24 +4908,36 @@
     // server still fills in `safeToImage: true` / `alertLevel: 'clear'`, and
     // rendering those verbatim gave an appliance with no sensors a green
     // "yes / clear / safe" — an affirmative safety verdict drawn from nothing.
-    // Answer the sensor question before showing any verdict.
+    // Answer the sensor question before showing any AFFIRMATIVE verdict.
     const sourced = w != null && w.dataSource != null &&
       w.dataSource !== 'unavailable';
     const monitored = s != null && (
       (typeof s.monitorsConnected === 'number' && s.monitorsConnected > 0) ||
       (s.dataSource != null && s.dataSource !== 'unavailable'));
 
+    // A refusal outranks the sensor question. `safeToImage: false` /
+    // `isSafe: false` is the rig deciding not to image, and a fail-closed
+    // policy decides exactly that when there is nothing to read — so the
+    // refusal arrives WITH `dataSource: 'unavailable'` and zero monitors.
+    // Rendering that as "no sensor" turns a decision into an absence.
+    const weatherRefused = w != null && w.safeToImage === false;
+    const safetyRefused = s != null && s.isSafe === false;
+
     if (safeEl) {
       if (w == null) {
         safeEl.textContent = '--';
         safeEl.className = 'status-value';
+      } else if (weatherRefused) {
+        // Why it refused is the Message row's job; that this IS a refusal is
+        // this row's, and it says so whether or not anything was measured.
+        safeEl.textContent = 'no';
+        safeEl.className = 'status-value error';
       } else if (!sourced) {
         safeEl.textContent = 'no sensor';
         safeEl.className = 'status-value warn';
       } else {
-        safeEl.textContent = w.safeToImage ? 'yes' : 'no';
-        safeEl.className = 'status-value '
-          + (w.safeToImage ? 'good' : 'error');
+        safeEl.textContent = 'yes';
+        safeEl.className = 'status-value good';
       }
     }
     if (alertEl) {
@@ -4936,9 +4948,11 @@
     if (msgEl) {
       msgEl.textContent = w == null
         ? '--'
-        : (sourced
-            ? (w.message || '--')
-            : (w.message || 'No weather source configured.'));
+        : weatherRefused
+          ? (w.message || 'Not safe to image; the safety check gave no reason.')
+          : (sourced
+              ? (w.message || '--')
+              : (w.message || 'No weather source configured.'));
     }
 
     // Telemetry from /api/weather/current — null when no hardware device.
@@ -4952,6 +4966,13 @@
       if (s == null) {
         badgeEl.textContent = '--';
         badgeEl.className = 'badge badge-idle';
+      } else if (safetyRefused) {
+        // A refusal is checked before the source question, because fail-closed
+        // safety refuses BECAUSE nothing could be read: `isSafe: false` with
+        // zero monitors and dataSource 'unavailable' is the rig saying it will
+        // not image, and 'no source' would report that decision as an absence.
+        badgeEl.textContent = 'unsafe';
+        badgeEl.className = 'badge badge-error';
       } else if (!monitored && !sourced) {
         // `isSafe: true` with zero monitors and dataSource 'unavailable' is
         // the fail-honest case: nothing has looked at the sky. The server

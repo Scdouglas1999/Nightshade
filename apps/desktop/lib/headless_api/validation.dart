@@ -318,6 +318,80 @@ Map<String, Object?> fieldReport(
   };
 }
 
+/// The settings object a settings POST should read, from either shape a client
+/// can reasonably send.
+///
+/// Several settings GETs on this API answer `{"settings": {...}}`. Reading one
+/// and posting it straight back is the obvious client move — and a handler that
+/// only reads the top level stores nothing from that body while answering 200.
+/// `POST /api/weather/settings` did exactly that: the round trip of its own GET
+/// silently disarmed weather safety for a whole night.
+///
+/// So both shapes are accepted: the envelope its own GET emits, and the flat
+/// body older clients send. A body carrying BOTH — a `settings` object AND a
+/// top-level key this endpoint understands — is refused, because it holds two
+/// answers for one field and no rule picks between them honestly.
+///
+/// Throws [BadRequestError] naming `settings` when the envelope is present but
+/// is not a JSON object.
+Map<String, dynamic> settingsBody(
+  Map<String, dynamic> payload,
+  Set<String> understood,
+) {
+  if (!payload.containsKey('settings')) return payload;
+  final nested = payload['settings'];
+  if (nested is! Map<String, dynamic>) {
+    throw BadRequestError(
+      field: 'settings',
+      expected: 'json_object',
+      message: 'The settings envelope must be a JSON object',
+    );
+  }
+  final alsoAtTopLevel = payload.keys.where(understood.contains).toList()
+    ..sort();
+  if (alsoAtTopLevel.isNotEmpty) {
+    throw BadRequestError(
+      field: 'settings',
+      expected: 'json_object',
+      message:
+          'This body carries a settings envelope and the top-level fields '
+          '${alsoAtTopLevel.join(', ')}. Send one or the other, not both.',
+    );
+  }
+  return nested;
+}
+
+/// Refuse a settings write that would store nothing, naming what was sent.
+///
+/// A write that changed nothing must never answer "updated". Call this after
+/// [settingsBody] and before touching the store; [readOnly] names keys a GET
+/// echoes back that are not settings (a row `id`), so round-tripping a GET
+/// document is not mistaken for a misspelling.
+///
+/// Returns the understood keys, sorted — the honest `applied` list for the
+/// response.
+List<String> requireSettingsFields(
+  Map<String, dynamic> body,
+  Set<String> understood, {
+  Set<String> readOnly = const {},
+}) {
+  final applied = body.keys.where(understood.contains).toList()..sort();
+  if (applied.isNotEmpty) return applied;
+  final sent = body.keys.where((k) => !readOnly.contains(k)).toList()..sort();
+  throw BadRequestError(
+    field: 'settings',
+    expected: understood.isEmpty
+        ? 'settings_field'
+        : (understood.toList()..sort()).join('|'),
+    message: sent.isEmpty
+        ? 'This request names no setting to change. Accepted fields: '
+              '${(understood.toList()..sort()).join(', ')}.'
+        : 'None of the fields sent is a setting this endpoint stores: '
+              '${sent.join(', ')}. Accepted fields: '
+              '${(understood.toList()..sort()).join(', ')}.',
+  );
+}
+
 /// Reads an optional JSON-object body. An absent or whitespace-only body maps
 /// to an empty object; a supplied body is held to the same strict contract as
 /// [readJsonObject]. This is for POST endpoints whose entire payload is

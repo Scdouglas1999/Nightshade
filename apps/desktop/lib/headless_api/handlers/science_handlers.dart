@@ -82,7 +82,10 @@ class ScienceHandlers {
   Future<Response> handleUpdateScienceSettings(Request request) async {
     _logInfo('[API] POST /api/science/settings');
     final payload = await readJsonObject(request);
-    final rawSettings = optionalObject(payload, 'settings') ?? const {};
+    // The GET answers `{"settings": {...}}` and that envelope is the shape to
+    // post back; a flat body of `science.*` keys is read the same way rather
+    // than silently storing nothing and answering "updated".
+    final rawSettings = optionalObject(payload, 'settings') ?? payload;
     // The schema accepts heterogeneous value types from clients (strings,
     // numbers, booleans), coerced to canonical string form for storage. A null
     // value is an explicit caller error and gets a structured 400.
@@ -105,6 +108,13 @@ class ScienceHandlers {
       }
       settings[entry.key] = value.toString();
     }
+    if (settings.isEmpty) {
+      throw BadRequestError(
+        field: 'settings',
+        expected: 'science.* setting key',
+        message: 'This request names no science setting to change',
+      );
+    }
     await container.read(settingsDaoProvider).setSettings(settings);
     if (settings[ScienceCameraAutoConfig.autoManagedKey]?.toLowerCase() ==
         'true') {
@@ -115,7 +125,7 @@ class ScienceHandlers {
           .read(scienceCameraAutoConfigProvider)
           .maybeSync(reason: 'remote setting re-enabled', force: true);
     }
-    return jsonOk({'status': 'updated'});
+    return jsonOk({'status': 'updated', 'applied': settings.keys.toList()});
   }
 
   /// Raw Smart Night planning values that are intentionally outside the main
@@ -137,7 +147,9 @@ class ScienceHandlers {
   Future<Response> handleUpdateSmartNightSettings(Request request) async {
     _logInfo('[API] POST /api/smart-night/settings');
     final payload = await readJsonObject(request);
-    final rawSettings = optionalObject(payload, 'settings') ?? const {};
+    // Same round-trip rule as the science settings above: the GET's envelope
+    // and a flat body of `smart_night.*` keys are both read.
+    final rawSettings = optionalObject(payload, 'settings') ?? payload;
     final settings = <String, String>{};
     for (final entry in rawSettings.entries) {
       if (!entry.key.startsWith('smart_night.')) {
@@ -159,8 +171,15 @@ class ScienceHandlers {
       }
       settings[entry.key] = value.toString();
     }
+    if (settings.isEmpty) {
+      throw BadRequestError(
+        field: 'settings',
+        expected: 'smart_night.* setting key',
+        message: 'This request names no Smart Night setting to change',
+      );
+    }
     await container.read(settingsDaoProvider).setSettings(settings);
-    return jsonOk({'status': 'updated'});
+    return jsonOk({'status': 'updated', 'applied': settings.keys.toList()});
   }
 
   Future<Response> handleGetSessionConfig(

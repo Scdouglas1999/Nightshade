@@ -32,6 +32,49 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
+/// A resolver that answers with a scripted set instead of reading a database.
+///
+/// The real one is overridden rather than the provider that wraps it, so these
+/// tests run the same resolution the control and the press both go through.
+class _ScriptedResolver implements DawnMasterResolver {
+  _ScriptedResolver(this.set, {this.delay});
+
+  final DawnMasterSet set;
+
+  /// How long the read takes. Non-null holds the control in the state it is in
+  /// while the masters are being read, which is its own answer.
+  final Duration? delay;
+
+  @override
+  Future<DawnMasterSet> resolve(int sessionId) async {
+    final wait = delay;
+    if (wait != null) await Future<void>.delayed(wait);
+    return set;
+  }
+}
+
+DawnMasterSet _oneMaster() => const DawnMasterSet(
+      sessionId: 5,
+      masters: [
+        DawnMaster(
+          masterId: 9,
+          targetId: 1,
+          name: 'M31 Ha',
+          filter: 'Ha',
+          masterFitsPath: '/masters/m31_ha.fits',
+          channels: 1,
+          width: 4000,
+          height: 3000,
+          frameCount: 40,
+          totalIntegrationSeconds: 12000,
+        ),
+      ],
+      withoutFile: [],
+    );
+
+DawnMasterSet _noMaster() =>
+    const DawnMasterSet(sessionId: 5, masters: [], withoutFile: []);
+
 class _PinnedBackend extends BackendNotifier {
   _PinnedBackend(super.ref, NightshadeBackend backend) : super() {
     state = backend;
@@ -60,6 +103,8 @@ void main() {
     required NightshadeBackend backend,
     bool launchedAsRemoteClient = false,
     Size size = const Size(1400, 900),
+    DawnMasterResolver? resolver,
+    int pumps = 8,
   }) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = size;
@@ -99,6 +144,9 @@ void main() {
           ).overrideWith(
               (ref) => Stream<List<DbCapturedImage>>.value(const [])),
           tutorialProvider.overrideWith((ref) => _TutorialsDisabledNotifier()),
+          dawnMasterResolverProvider.overrideWithValue(
+            resolver ?? _ScriptedResolver(_oneMaster()),
+          ),
         ],
         child: const MaterialApp(
           home:
@@ -110,7 +158,7 @@ void main() {
 
     await tester.tap(find.text('Night A - M31'));
     // pump, not pumpAndSettle: the thumbnail futures never go idle locally.
-    for (var i = 0; i < 8; i++) {
+    for (var i = 0; i < pumps; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
   }
@@ -286,6 +334,94 @@ void main() {
       findsOneWidget,
       reason: 'a disabled action leaves the dialog up rather than navigating',
     );
+    handle.dispose();
+  });
+
+  // The ROLE was answered on the control; the MASTER was answered only inside
+  // the tap handler. Measured on a night whose two frames were both rejected:
+  // the tree read `button: Refine in Darkroom` at full contrast with no
+  // [DISABLED] and no reason anywhere, and the sentence explaining that there
+  // is nothing to open arrived after the press. One predicate short of the
+  // shape this dialog's remote refusal already has.
+  testWidgets('a night with no master refuses on the control, not after it',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await openDialog(
+      tester,
+      backend: DisconnectedBackend(),
+      resolver: _ScriptedResolver(_noMaster()),
+    );
+
+    const reason = 'This session has no integrated master yet. Integrate it '
+        'in Session Review first, then refine it here.';
+    final darkroom = find.byKey(const ValueKey('session_detail_darkroom'));
+    expect(
+      publishedNameOf(tester, darkroom),
+      unavailableControlName('Refine in Darkroom', reason),
+      reason: 'the label keeps its own name — this machine IS the host, the '
+          'night simply has nothing to open',
+    );
+    expect(tester.widget<IconButton>(darkroom).onPressed, isNull);
+    expect(tester.widget<IconButton>(darkroom).tooltip, reason);
+
+    final data = tester.getSemantics(darkroom).getSemanticsData();
+    expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+    expect(data.hasFlag(SemanticsFlag.isEnabled), isFalse);
+
+    // Review & Integrate is the way OUT of this state, so it stays live.
+    expect(
+      tester
+          .widget<IconButton>(
+              find.byKey(const ValueKey('session_detail_review')))
+          .onPressed,
+      isNotNull,
+    );
+    handle.dispose();
+  });
+
+  testWidgets('a night whose masters are still being read is not offered yet',
+      (tester) async {
+    // "Not yet known" is not "available": a control enabled on the way to an
+    // answer is live for exactly as long as it takes to press it wrongly.
+    final handle = tester.ensureSemantics();
+    await openDialog(
+      tester,
+      backend: DisconnectedBackend(),
+      resolver: _ScriptedResolver(
+        _oneMaster(),
+        delay: const Duration(seconds: 5),
+      ),
+      pumps: 2,
+    );
+
+    final darkroom = find.byKey(const ValueKey('session_detail_darkroom'));
+    expect(
+      publishedNameOf(tester, darkroom),
+      unavailableControlName(
+        'Refine in Darkroom',
+        kDarkroomMastersReadingReason,
+      ),
+    );
+    expect(tester.widget<IconButton>(darkroom).onPressed, isNull);
+
+    // And it comes live on its own once the read lands.
+    await tester.pump(const Duration(seconds: 6));
+    expect(publishedNameOf(tester, darkroom), 'Refine in Darkroom');
+    expect(tester.widget<IconButton>(darkroom).onPressed, isNotNull);
+    handle.dispose();
+  });
+
+  testWidgets('a night with a master keeps a live control', (tester) async {
+    final handle = tester.ensureSemantics();
+    await openDialog(
+      tester,
+      backend: DisconnectedBackend(),
+      resolver: _ScriptedResolver(_oneMaster()),
+    );
+
+    final darkroom = find.byKey(const ValueKey('session_detail_darkroom'));
+    expect(publishedNameOf(tester, darkroom), 'Refine in Darkroom');
+    expect(tester.widget<IconButton>(darkroom).onPressed, isNotNull);
     handle.dispose();
   });
 }

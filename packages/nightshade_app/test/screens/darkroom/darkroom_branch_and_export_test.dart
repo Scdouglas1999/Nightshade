@@ -2209,4 +2209,55 @@ void main() {
     handle.dispose();
     await drain(tester);
   });
+
+  // D2-6, from the release bundle: the autopilot names its recipes
+  // `Master · <filter> draft`, and the Save dialog opened pre-filled with
+  // `Master_·_B_draft-final.fits`. That name is written to this disk, to a
+  // `.nsrecipe` sidecar beside it, and from there to a watched folder or an
+  // SFTP target — four filesystems and a wire, none of them this app's. Every
+  // name the autopilot itself writes in the same directory is ASCII.
+  testWidgets('the proposed file name is portable ASCII', (tester) async {
+    final root = await seedRecipe(
+      [_step('background_extract')],
+      name: 'Master · B draft',
+    );
+    await pump(tester, root);
+    await openExport(tester);
+
+    await tester.tap(find.text('Export'));
+    await settle(tester);
+
+    expect(pickerCalls, hasLength(1));
+    final proposed = pickerCalls.single['suggestedName'] as String;
+    expect(proposed, 'Master_B_draft-final.fits');
+    expect(
+      proposed.codeUnits.every((u) => u >= 0x20 && u < 0x7f),
+      isTrue,
+      reason: 'the name goes onto three more filesystems after this one',
+    );
+    // And the recipe keeps the name it was given: the label in the app is not
+    // rewritten to suit a file system.
+    expect(find.text('Master · B draft'), findsWidgets);
+    await drain(tester);
+  });
+
+  testWidgets('a name with nothing portable in it falls back to the id',
+      (tester) async {
+    final root = await seedRecipe(
+      [_step('background_extract')],
+      name: '· · ·',
+    );
+    await pump(tester, root);
+    await openExport(tester);
+
+    await tester.tap(find.text('Export'));
+    await settle(tester);
+
+    expect(
+      pickerCalls.single['suggestedName'],
+      'recipe-$root-final.fits',
+      reason: 'a file called "_" names nothing',
+    );
+    await drain(tester);
+  });
 }

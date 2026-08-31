@@ -1136,7 +1136,7 @@ function renderSequencerMessages(sequencer, progress, headline) {
   const seen = new Set();
   const lines = [];
   for (const raw of [sequencer.message, progress.message]) {
-    const text = typeof raw === 'string' ? raw.trim() : '';
+    const text = wireString(raw);
     if (!text || text === headline || seen.has(text)) continue;
     seen.add(text);
     lines.push(text);
@@ -1215,9 +1215,15 @@ function renderSnapshot(data) {
   // 'Idle' there — the run may well still be going. With nothing named and a
   // state that is not idle either (a cancelled run keeps no current node),
   // the state word itself is the only true thing left to show.
+  //
+  // Every candidate is a wire STRING, so every candidate is read as one: a
+  // `currentTarget` of `42` printed "42" as the run's headline, and a
+  // `currentNodeName` object printed "[object Object]" there. A field that is
+  // not a string carries no name, and the next candidate — ending in the state
+  // word, which this page owns — is what the operator gets instead.
   const headline =
-    progress.currentTarget || sequencer.currentNodeName ||
-    (unknown ? (progress.message || 'Status unavailable')
+    wireString(progress.currentTarget) || wireString(sequencer.currentNodeName) ||
+    (unknown ? (wireString(progress.message) || 'Status unavailable')
              : state.charAt(0).toUpperCase() + state.slice(1));
   $('seq-name').textContent = headline;
 
@@ -1235,12 +1241,14 @@ function renderSnapshot(data) {
   const target = data.activeTarget;
   if (target) {
     const placed = target.coordinatesKnown !== false;
+    const targetMessage = wireString(target.message);
+    const filter = wireString(progress.currentFilter);
     $('target-state').textContent = target.unavailable
-      ? (target.message || 'Target unavailable')
+      ? (targetMessage || 'Target unavailable')
       : (!placed
-          ? (target.message || 'Coordinates unavailable')
-          : (progress.currentFilter ? ('filter: ' + progress.currentFilter) : ''));
-    $('target-name').textContent = target.name || '--';
+          ? (targetMessage || 'Coordinates unavailable')
+          : (filter ? ('filter: ' + filter) : ''));
+    $('target-name').textContent = wireString(target.name) || '--';
     $('target-coords').textContent = formatRaDec(target.raHours, target.decDegrees);
     $('target-alt').textContent = formatDeg(target.altitudeDeg);
     $('target-az').textContent = formatDeg(target.azimuthDeg);
@@ -1285,8 +1293,9 @@ function renderSnapshot(data) {
   $('progress-integration').textContent =
     formatDurationSecs(progress.completedIntegrationSecs) + ' / ' +
     formatDurationSecs(progress.totalIntegrationSecs);
-  $('progress-node').textContent = progress.currentNodeName || sequencer.currentNodeName || '--';
-  $('progress-filter').textContent = progress.currentFilter || '--';
+  $('progress-node').textContent =
+    wireString(progress.currentNodeName) || wireString(sequencer.currentNodeName) || '--';
+  $('progress-filter').textContent = wireString(progress.currentFilter) || '--';
 
   // Equipment. An ABSENT list is not an empty one: `data.devices || []` folded
   // "the snapshot said nothing about equipment" into "nothing is connected" and
@@ -1335,16 +1344,36 @@ function renderSnapshot(data) {
     ? snr.toFixed(1)
     : '--';
 
-  // Weather. `dataSource: 'unavailable'` means no weather hardware, no safety
-  // monitor and no API source — nothing has looked at the sky. A run of green
-  // "clear"/"safe" out of that is the fail-honest rule's exact prohibition, so
-  // the sensor question is answered before the verdict is drawn.
+  // Weather. Two different absences share one payload and must not share one
+  // rendering:
+  //
+  //   `safeToImage: false` is a VERDICT — the rig has decided not to image.
+  //     It is reachable with `dataSource: 'unavailable'`, because a fail-closed
+  //     safety policy refuses precisely when nothing could be read. A refusal
+  //     is the one reading that may never soften into a neutral, so it is
+  //     answered first, whatever the data source says.
+  //
+  //   `dataSource: 'unavailable'` with no refusal is NO VERDICT — no weather
+  //     hardware, no safety monitor, no API source, and nothing asking. A run
+  //     of green "clear"/"safe" out of that is the fail-honest rule's exact
+  //     prohibition, so the sensor question is answered before any green.
   const weather = data.weather || {};
   const wbadge = $('weather-badge');
   const weatherSourced =
     weather.dataSource != null && weather.dataSource !== 'unavailable';
+  const weatherRefused = weather.safeToImage === false;
   wbadge.className = 'badge';
-  if (!weatherSourced) {
+  if (weatherRefused) {
+    // The level qualifies the refusal; it never replaces the word for it. An
+    // unsourced fail-closed refusal carries `alertLevel: 'clear'`, which read
+    // alone is the opposite of what the rig decided.
+    const level = weather.alertLevel;
+    wbadge.textContent =
+      weatherSourced && level && level !== 'clear' && level !== 'unsafe'
+        ? 'unsafe · ' + level
+        : 'unsafe';
+    wbadge.classList.add('badge-error');
+  } else if (!weatherSourced) {
     wbadge.textContent = 'no sensor';
     wbadge.classList.add('badge-idle');
   } else {
@@ -1354,9 +1383,11 @@ function renderSnapshot(data) {
     else if (weather.alertLevel === 'unsafe' || weather.alertLevel === 'critical') wbadge.classList.add('badge-error');
     else wbadge.classList.add('badge-idle');
   }
-  $('weather-message').textContent = weatherSourced
-    ? (weather.message || '--')
-    : (weather.message || 'No weather source configured.');
+  $('weather-message').textContent = weatherRefused
+    ? (weather.message || 'Not safe to image; the safety check gave no reason.')
+    : weatherSourced
+      ? (weather.message || '--')
+      : (weather.message || 'No weather source configured.');
 
   // Recovery banner
   const banner = $('recovery-banner');
@@ -1482,6 +1513,26 @@ function formatEventDetail(evt) {
 /// `NaN` and `Infinity` are no more a reading than a string is.
 function wireNumber(v) {
   return typeof v === 'number' && isFinite(v) ? v : null;
+}
+
+/// The text a wire field carries, or null when it carries something else.
+///
+/// The string sibling of [wireNumber], and it was the one wire type with no
+/// guard. `textContent = progress.currentFilter || '--'` hands the DOM whatever
+/// arrived, and the DOM stringifies it: with `currentFilter` an object — one
+/// field of one real snapshot changed, everything else untouched — the filter
+/// slot on the operator's phone read `[object Object]`, and the active-target
+/// line read `filter: [object Object]`. That is not a reading, and a page that
+/// guards its numbers and its lists has no business printing it.
+///
+/// Empty and blank are not readings either: `''` reaching a field would paint a
+/// blank where `--` says "nothing known", and a name of spaces is the same
+/// absence with different bytes. The value is returned TRIMMED, which is what
+/// the messages block already did with the two fields it reads.
+function wireString(v) {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t === '' ? null : t;
 }
 
 function formatShortNum(rawN) {

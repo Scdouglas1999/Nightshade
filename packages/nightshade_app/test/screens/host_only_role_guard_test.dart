@@ -44,6 +44,8 @@ const _hostOnlyEntryPoints = <String>[
   'openDarkroomForMasterRow',
   'openDarkroomForSession',
   'resolveDarkroomTargetForSession',
+  'darkroomSessionTargetProvider',
+  'watchDarkroomSessionRefusal',
   'darkroomMasterLocation',
   'darkroomRecipeLocation',
   'kDarkroomHostOnlyRefusal',

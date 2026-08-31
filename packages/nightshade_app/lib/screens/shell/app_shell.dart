@@ -43,6 +43,28 @@ import 'app_shell_stub.dart' if (dart.library.io) 'app_shell_desktop.dart'
 part 'app_shell_parts/_startup_checkpoint.dart';
 part 'app_shell_parts/_mobile_settings_bar.dart';
 
+/// The location of the route on top of the navigator — the screen the operator
+/// is looking at.
+///
+/// The top-level match list is not the answer. `context.push` of a route that
+/// lives inside this ShellRoute folds the pushed match *into* the existing
+/// shell match, so the top-level list still ends with the shell, and the
+/// shell's own `matchedLocation` is the rail route the push started from.
+/// Reading it lights Analytics while the Darkroom is up — the exact claim
+/// [_AppShellState._getCurrentIndex] documents as wrong. `lastOrNull` descends
+/// through the shell to the leaf match, so a pushed `/darkroom` answers
+/// `/darkroom`, the rail lights nothing, and the current-screen provider names
+/// the screen that is actually painted.
+///
+/// An empty match list means the router has resolved nothing yet, which is the
+/// state before the first frame; the shell's own start route answers for it.
+@visibleForTesting
+String topRouteLocation(GoRouter router) {
+  return router
+          .routerDelegate.currentConfiguration.lastOrNull?.matchedLocation ??
+      '/dashboard';
+}
+
 class AppShell extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -332,12 +354,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   String _getCurrentLocation(BuildContext context) {
     try {
-      final router = GoRouter.of(context);
-      final matches = router.routerDelegate.currentConfiguration.matches;
-      if (matches.isEmpty) {
-        return '/dashboard';
-      }
-      return matches.last.matchedLocation;
+      return topRouteLocation(GoRouter.of(context));
     } catch (_) {
       return '/dashboard';
     }

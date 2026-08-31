@@ -1051,18 +1051,40 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     return 'step${index + 1}-${widget.steps[index].opId}';
   }
 
+  /// [name] folded to the characters a file name carries anywhere.
+  ///
+  /// The proposed name goes into a Save dialog, onto this disk, into a
+  /// `.nsrecipe` sidecar beside it, and from there onto a watched folder or an
+  /// SFTP target — four filesystems and a wire, none of them this app's. The
+  /// autopilot names its recipes `Master · <filter> draft`, and U+00B7 was
+  /// carried straight through: the chooser opened on `Master_·_B_draft-final`
+  /// and that is the name that left the rig, while every name the autopilot
+  /// itself writes in the same directory is ASCII.
+  ///
+  /// Only the FILE NAME is folded. The recipe keeps the name the operator and
+  /// the autopilot gave it — that name is the label in the app, and rewriting
+  /// it to suit a filesystem would be the tail wagging the dog.
+  ///
+  /// A run of non-portable characters becomes ONE underscore rather than one
+  /// each, so `Master · B` reads as `Master_B` instead of `Master___B`, and
+  /// leading and trailing runs are dropped. A name with nothing portable left
+  /// in it — a recipe titled in a non-Latin script — returns empty, and the
+  /// caller falls back to the recipe's id rather than proposing a file called
+  /// `_`.
+  static String _asciiFileNameSlug(String name) {
+    final folded = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+    return folded.replaceAll(RegExp(r'^_+|_+$'), '');
+  }
+
   String _suggestedFileName() {
     final stage = switch (_stageKind) {
       _DarkroomExportStageKind.linear => 'linear',
       _DarkroomExportStageKind.afterStep => _afterStepSlug(),
       _DarkroomExportStageKind.finalStack => 'final',
     };
-    final base = sanitizeExportFileName(
-      widget.recipeName.isEmpty
-          ? 'recipe-${widget.recipeId}'
-          : widget.recipeName,
-    ).replaceAll(' ', '_');
-    return '$base-$stage.${_format.extensions.first}';
+    final base = _asciiFileNameSlug(widget.recipeName);
+    return '${base.isEmpty ? 'recipe-${widget.recipeId}' : base}'
+        '-$stage.${_format.extensions.first}';
   }
 
   Future<void> _export() async {

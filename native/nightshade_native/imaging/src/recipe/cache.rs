@@ -34,16 +34,34 @@ pub struct CacheKey(String);
 
 impl CacheKey {
     /// The key for the boundary after applying steps `0..=upto` of `recipe` to
-    /// `base` under `ctx`.
+    /// `base` under `ctx`, where `base_identity` names the master the caller
+    /// actually read.
     ///
     /// The base's geometry is part of the key: a preview level and a full render
     /// share a `baseMasterRef`, and mixing their caches would serve a
     /// half-resolution image to a full-resolution export.
-    pub fn for_prefix(recipe: &Recipe, base: &OpImage, ctx: &OpContext, upto: usize) -> Self {
+    ///
+    /// `base_identity` is part of it for the same reason at one remove. A
+    /// recipe's `baseMasterRef` says which master it was *authored* on, not
+    /// which one this render is reading, and nothing stops a caller replaying a
+    /// recipe over another master: two masters of the same geometry would then
+    /// share every boundary, and the second request would be served the first
+    /// master's pixels under its own path. Both are in the key, so a render is
+    /// resumed only from a boundary computed over the same recipe lineage *and*
+    /// the same bytes. A caller that names no master supplies an empty identity,
+    /// which keys distinctly from every caller that names one.
+    pub fn for_prefix(
+        recipe: &Recipe,
+        base_identity: &str,
+        base: &OpImage,
+        ctx: &OpContext,
+        upto: usize,
+    ) -> Self {
         Self(format!(
-            "v{}|{}|{}x{}x{}|{}|{}",
+            "v{}|{}|{}|{}x{}x{}|{}|{}",
             super::model::RECIPE_SCHEMA_VERSION,
             recipe.base_master_ref,
+            base_identity,
             base.width(),
             base.height(),
             base.channels(),

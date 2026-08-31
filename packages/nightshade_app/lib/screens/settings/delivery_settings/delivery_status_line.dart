@@ -364,9 +364,14 @@ class DeliveryStatusLine {
 
   static String _files(int count) => count == 1 ? '1 file' : '$count files';
 
-  /// Byte counts as the morning report writes them.
+  /// A journal byte total in the unit it is actually divided into.
+  ///
+  /// The step is 1024, so the suffixes are the binary ones. Printed as `MB`
+  /// this understated a real delivery: the D1 night's ten delivered files sum
+  /// to 34,641,423 bytes — 34.6 MB — and the card read "33.0 MB", which is the
+  /// mebibyte count wearing the megabyte's name.
   static String _bytes(int bytes) {
-    const units = <String>['B', 'KB', 'MB', 'GB', 'TB'];
+    const units = <String>['B', 'KiB', 'MiB', 'GiB', 'TiB'];
     var value = bytes.toDouble();
     var unit = 0;
     while (value >= 1024 && unit < units.length - 1) {

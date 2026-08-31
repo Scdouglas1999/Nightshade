@@ -21,12 +21,11 @@
 use nightshade_imaging::recipe::ops::crop::auto_rect;
 use nightshade_imaging::recipe::ops::stretch::auto_params;
 use nightshade_imaging::recipe::{
-    render, ImagePyramid, OpContext, OpImage, Recipe, RecipeAuthor, RecipeError, RecipeStep,
-    RenderOptions,
+    render, OpContext, OpImage, Recipe, RecipeAuthor, RecipeError, RecipeStep, RenderOptions,
 };
 use serde_json::{json, Map, Value};
 
-use super::state::{registry, render_cache};
+use super::state::{registry, render_cache, LoadedMaster};
 
 /// The JSON type of a parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -713,7 +712,7 @@ pub(crate) fn doc_for(id: &str, version: u32) -> Option<&'static OpDoc> {
 /// dynamic range the full render will.
 const DRAFT_MEASURE_MAX_DIMENSION: u32 = 1024;
 
-/// A first-draft recipe for `pyramid`'s master, plus the measurements behind it.
+/// A first-draft recipe for `master`, plus the measurements behind it.
 ///
 /// The draft is the autopilot's opening interpretation: trim the registration
 /// edge, flatten the background, shrink the noise, calibrate colour when the
@@ -721,11 +720,11 @@ const DRAFT_MEASURE_MAX_DIMENSION: u32 = 1024;
 /// Every step that cannot be drafted is left out and the reason is recorded —
 /// a draft never carries a step whose parameters were guessed.
 pub(crate) fn draft_for_master(
-    pyramid: &ImagePyramid,
+    master: &LoadedMaster,
     recipe_id: &str,
     base_master_ref: &str,
 ) -> Result<Value, String> {
-    let base = pyramid.base();
+    let base = master.pyramid.base();
     let mut notes: Vec<Value> = Vec::new();
     let mut steps: Vec<RecipeStep> = Vec::new();
 
@@ -770,9 +769,11 @@ pub(crate) fn draft_for_master(
         }));
     }
 
-    let measure_level = pyramid.level_for_max_dimension(DRAFT_MEASURE_MAX_DIMENSION);
+    let measure_level = master
+        .pyramid
+        .level_for_max_dimension(DRAFT_MEASURE_MAX_DIMENSION);
     let (measured, mut steps) = measure_linear_prefix(
-        pyramid,
+        master,
         measure_level,
         recipe_id,
         base_master_ref,
@@ -839,14 +840,15 @@ pub(crate) fn draft_for_master(
 /// a step that fails the first time the editor renders it. The loop terminates
 /// because every pass either returns or removes one step.
 fn measure_linear_prefix(
-    pyramid: &ImagePyramid,
+    master: &LoadedMaster,
     level: u32,
     recipe_id: &str,
     base_master_ref: &str,
     mut steps: Vec<RecipeStep>,
     notes: &mut Vec<Value>,
 ) -> Result<(OpImage, Vec<RecipeStep>), String> {
-    let base = pyramid
+    let base = master
+        .pyramid
         .level(level)
         .ok_or_else(|| format!("pyramid level {level} is out of range while drafting"))?;
     let ops = registry()?;
@@ -873,7 +875,9 @@ fn measure_linear_prefix(
                 ops,
                 &mut cache,
                 &ctx,
-                RenderOptions::full().at_level(level),
+                RenderOptions::full()
+                    .at_level(level)
+                    .over_master(master.identity.as_str()),
             )
         };
         match outcome {

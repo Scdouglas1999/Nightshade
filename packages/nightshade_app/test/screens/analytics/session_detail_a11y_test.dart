@@ -41,6 +41,33 @@ class _NoopTutorialProgressDao implements TutorialProgressDao {
       );
 }
 
+/// A night that HAS a master, so all seven controls are live.
+///
+/// The Darkroom action is disabled with its reason on a night with nothing to
+/// open — that rule has its own file. This one is about what a live control
+/// publishes, so it is given a live one.
+class _OneMasterResolver implements DawnMasterResolver {
+  @override
+  Future<DawnMasterSet> resolve(int sessionId) async => DawnMasterSet(
+        sessionId: sessionId,
+        masters: const [
+          DawnMaster(
+            masterId: 9,
+            targetId: 1,
+            name: 'M31 Ha',
+            filter: 'Ha',
+            masterFitsPath: '/masters/m31_ha.fits',
+            channels: 1,
+            width: 4000,
+            height: 3000,
+            frameCount: 40,
+            totalIntegrationSeconds: 12000,
+          ),
+        ],
+        withoutFile: const [],
+      );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -83,6 +110,7 @@ void main() {
             (ref) => Stream<List<DbCapturedImage>>.value(const []),
           ),
           tutorialProvider.overrideWith((ref) => _TutorialsDisabledNotifier()),
+          dawnMasterResolverProvider.overrideWithValue(_OneMasterResolver()),
         ],
         child: const MaterialApp(
           home: Scaffold(

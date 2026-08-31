@@ -177,6 +177,22 @@ void main(List<String> args) async {
   }
 
   List<ShutdownStep> buildTeardownSteps() => [
+    // First, while the container and its database are still up: hand any
+    // running Darkroom pass back to the queue. A row left `running` by this
+    // exit is read at the next open as a process that DIED, which re-queues it
+    // and charges one of its three starts — so three ordinary restarts during
+    // a dawn pass failed the night's job outright. An orderly stop is not a
+    // crash, and this is where the row learns the difference.
+    (
+      name: 'Darkroom pass hand-back',
+      action: () async {
+        final activeContainer = container;
+        if (activeContainer == null) return;
+        await activeContainer
+            .read(dawnAutopilotServiceProvider)
+            .releaseRunningJobsForShutdown();
+      },
+    ),
     (
       name: 'disk watchdog subscription',
       action: () async => diskWatchdogSubscription?.cancel(),

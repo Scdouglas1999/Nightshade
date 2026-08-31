@@ -272,6 +272,42 @@ class DarkroomJobsDao {
     });
   }
 
+  /// Hand a running job back to the queue because THIS process is stopping on
+  /// purpose, and give back the start it took. Returns the job as it now
+  /// stands.
+  ///
+  /// `attempts` counts starts that were spent — a start that ended in a crash,
+  /// or in a finished pass. An orderly stop spends nothing: the same work is
+  /// picked up from the same place by the next launch. So the increment
+  /// [markRunning] made is returned here, and three ordinary service restarts
+  /// during a pass can no longer exhaust [kDarkroomJobMaxAttempts] and fail the
+  /// night's job. A crash still cannot reach this — it leaves the row
+  /// `running` for the open-time recovery, which does charge the attempt.
+  ///
+  /// `progress` is left where the pass reached, so the next attempt's note can
+  /// say how far the interrupted one got.
+  Future<DarkroomJob> releaseForOrderlyStop(int id, {String? note}) {
+    return retryWhileSqliteBusy(() async {
+      final current = await _require(id);
+      if (current.state != DarkroomJobState.running) {
+        throw DarkroomJobNotRunningException(id, current.state);
+      }
+      await _db.customUpdate(
+        'UPDATE darkroom_jobs SET state = ?, started_at = NULL, '
+        'attempts = MAX(attempts - 1, 0), note = COALESCE(?, note) '
+        'WHERE id = ? AND state = ?',
+        variables: [
+          Variable<String>(DarkroomJobState.queued.wire),
+          Variable<String>(note),
+          Variable<int>(id),
+          Variable<String>(DarkroomJobState.running.wire),
+        ],
+        updateKind: UpdateKind.update,
+      );
+      return _reread(id);
+    });
+  }
+
   /// Delete a job by id. Its `delivery_journal` rows cascade. Returns the
   /// number of rows changed.
   Future<int> deleteJob(int id) {

@@ -154,12 +154,21 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
     // Session Review host-only wall. Both actions ask the same question every
     // other Darkroom entry point asks, in the words
     // `darkroom_navigation.dart` shares.
-    final darkroomRefusal = watchDarkroomHostOnlyRefusal(ref);
+    //
+    // The Darkroom action asks BOTH of its questions here: the role, and
+    // whether this night has a master to open at all. The second used to be
+    // asked only inside the tap handler, so a session whose frames were all
+    // rejected drew "Refine in Darkroom" live and answered "this session has no
+    // integrated master yet" after the press — the same cry-wolf shape the role
+    // refusal was moved onto the control to end.
+    final darkroomHostRefusal = watchDarkroomHostOnlyRefusal(ref);
+    final darkroomRefusal = watchDarkroomSessionRefusal(ref, session.id);
     final reviewRefusal = ref.watch(isRemoteClientProvider)
         ? _kSessionReviewHostOnlyRefusal
         : null;
     final l10n = context.l10n;
     final actions = _headerActions(
+      darkroomHostRefusal: darkroomHostRefusal,
       darkroomRefusal: darkroomRefusal,
       reviewRefusal: reviewRefusal,
       l10n: l10n,
@@ -311,6 +320,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
   /// `mounted` check on this State guards the context it uses on the far side
   /// of that await.
   List<_SessionHeaderAction> _headerActions({
+    required String? darkroomHostRefusal,
     required String? darkroomRefusal,
     required String? reviewRefusal,
     required NightshadeLocalizations l10n,
@@ -329,20 +339,26 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
           context.push('/session-review?session=${session.id}');
         },
       ),
-      // Open the night's linear master in the Darkroom. Resolves the session's
-      // masters first so a session that was never integrated says so instead of
-      // opening an editor with nothing in it.
+      // Open the night's linear master in the Darkroom. Both refusals are
+      // already on the control; the resolve below is what a press acts on.
+      //
+      // The LABEL follows the role alone. "Refine on imaging host" names where
+      // the action lives, which is true of a client and false of a night this
+      // machine simply never integrated — that night's control keeps its own
+      // name and carries the reason.
       _SessionHeaderAction(
         buttonKey: const ValueKey('session_detail_darkroom'),
         icon: LucideIcons.sliders,
-        label: darkroomRefusal == null
+        label: darkroomHostRefusal == null
             ? 'Refine in Darkroom'
             : 'Refine on imaging host',
         unavailableReason: darkroomRefusal,
         onPressed: () async {
-          // Resolve BEFORE dismissing: a session with no master must leave the
-          // dialog up to carry the explanation, and only a resolved master
-          // earns the pop.
+          // Resolve BEFORE dismissing, and resolve again rather than trusting
+          // the answer the control was built with: the two are separated by
+          // however long the dialog stood open, and only a master that is
+          // there NOW earns the pop. A session that lost its master in that
+          // window leaves the dialog up to carry the explanation.
           final target = await resolveDarkroomTargetForSession(
             ref,
             session.id,
@@ -350,6 +366,10 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
           if (!mounted) return;
           final masterId = target.masterId;
           if (masterId == null) {
+            // The control was built on an older read of the same night, so it
+            // is re-read here: the sentence and the control it sits under must
+            // not disagree about whether there is a master.
+            ref.invalidate(darkroomSessionTargetProvider(session.id));
             _refuse(target.unavailableReason!);
             return;
           }

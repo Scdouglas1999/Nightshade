@@ -39,7 +39,20 @@ impl Lcg {
 /// A synthetic linear master: a pedestal, Gaussian-ish noise and a lattice of
 /// round stars, in `F32` ADU, carrying a complete CD-only WCS.
 fn write_master(dir: &Path, name: &str, width: u32, height: u32, channels: u32) -> PathBuf {
-    let mut rng = Lcg(0x51ED_2701_C0FF_EE01);
+    write_master_seeded(dir, name, width, height, channels, 0x51ED_2701_C0FF_EE01)
+}
+
+/// The same master under a different noise seed: the geometry, the header and
+/// the star lattice match, and every sample differs.
+fn write_master_seeded(
+    dir: &Path,
+    name: &str,
+    width: u32,
+    height: u32,
+    channels: u32,
+    seed: u64,
+) -> PathBuf {
+    let mut rng = Lcg(seed);
     let pedestal = 1000.0_f32;
     let mut data = vec![0.0_f32; (width * height * channels) as usize];
     for sample in data.iter_mut() {
@@ -1436,4 +1449,151 @@ fn a_drafted_recipe_renders_over_its_own_master() {
         "every skip carries its reason: {report}"
     );
     assert_eq!(report["encoding"]["sourceDomain"], json!("stretched"));
+}
+
+// ---------------------------------------------------------------------------
+// A failure an operator can read, and a cache that cannot confuse two masters
+// ---------------------------------------------------------------------------
+
+/// Write a file of the given length holding nothing but NUL bytes — what a torn
+/// write or a lost extent leaves where a master used to be.
+fn write_nul_file(dir: &Path, name: &str, len: usize) -> PathBuf {
+    let path = dir.join(name);
+    std::fs::write(&path, vec![0u8; len]).expect("the corrupt master must write");
+    path
+}
+
+/// Every Darkroom entry point states why a corrupt master failed.
+///
+/// A blank reason is the failure mode this guards: the night report tells the
+/// operator no draft came out and that the report says why, and then says
+/// nothing. The reason travels out of here as a Rust `String` that becomes a C
+/// string, so a single NUL byte in it costs the whole sentence.
+#[test]
+fn a_corrupt_master_fails_with_a_reason_an_operator_can_read() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_nul_file(dir.path(), "all-nul.fits", 2880 * 4);
+    let path = master.to_string_lossy().to_string();
+    let recipe = recipe_json("nul-master", &path, json!([stretch_step()]));
+    let context = json!({"masterPath": path, "maxDimension": 256}).to_string();
+
+    let failures = vec![
+        (
+            "validate",
+            api_darkroom_validate(recipe.clone(), context.clone()).err(),
+        ),
+        (
+            "renderPreview",
+            api_darkroom_render_preview(recipe, context)
+                .err()
+                .map(|e| e.to_string()),
+        ),
+        (
+            "registry",
+            api_darkroom_registry(json!({"masterPath": path}).to_string()).err(),
+        ),
+    ];
+
+    for (entry_point, failure) in failures {
+        let reason = failure.unwrap_or_else(|| panic!("{entry_point} must fail on a NUL master"));
+        assert!(
+            !reason.trim().is_empty(),
+            "{entry_point} states a cause rather than failing blank"
+        );
+        assert!(
+            !reason.contains('\0'),
+            "{entry_point} carries no NUL into the reason: {reason:?}"
+        );
+        assert!(
+            reason.contains(&path),
+            "{entry_point} names the master it could not read: {reason}"
+        );
+        assert!(
+            reason.contains("NUL") && reason.contains("not a FITS header"),
+            "{entry_point} names what it found: {reason}"
+        );
+    }
+}
+
+/// One recipe replayed over two masters returns each master's own pixels.
+///
+/// The step-boundary cache is process-global and keyed per render. Keyed on the
+/// recipe's `baseMasterRef` alone, the second request — same recipe id, same
+/// ref, a different `masterPath` of the same geometry — hits the first master's
+/// boundary and is served the first master's pixels while the reply names the
+/// second master's path.
+#[test]
+fn one_recipe_over_two_masters_renders_each_masters_pixels() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let first = write_master(dir.path(), "shared-a.fits", 256, 256, 1);
+    let second = write_master_seeded(
+        dir.path(),
+        "shared-b.fits",
+        256,
+        256,
+        1,
+        0x0BAD_F00D_1234_5678,
+    );
+    let first_path = first.to_string_lossy().to_string();
+    let second_path = second.to_string_lossy().to_string();
+
+    // Ground truth: two distinct recipe ids, so no cache entry can be shared.
+    let truth_a = api_darkroom_render_preview(
+        recipe_json("truth-a", &first_path, json!([stretch_step()])),
+        json!({"masterPath": first_path, "maxDimension": 128}).to_string(),
+    )
+    .expect("the first master must render");
+    let truth_b = api_darkroom_render_preview(
+        recipe_json("truth-b", &second_path, json!([stretch_step()])),
+        json!({"masterPath": second_path, "maxDimension": 128}).to_string(),
+    )
+    .expect("the second master must render");
+    assert_ne!(
+        truth_a.rgba, truth_b.rgba,
+        "the two masters must genuinely differ for this test to mean anything"
+    );
+
+    // One recipe, whose ref names the first master, rendered over both.
+    let shared = recipe_json("shared-id", &first_path, json!([stretch_step()]));
+    let over_first = api_darkroom_render_preview(
+        shared.clone(),
+        json!({"masterPath": first_path, "maxDimension": 128}).to_string(),
+    )
+    .expect("the shared recipe must render over the first master");
+    let over_second = api_darkroom_render_preview(
+        shared,
+        json!({"masterPath": second_path, "maxDimension": 128}).to_string(),
+    )
+    .expect("the shared recipe must render over the second master");
+
+    assert_eq!(
+        over_first.rgba, truth_a.rgba,
+        "the first request renders the master it named"
+    );
+    assert_eq!(
+        over_second.rgba, truth_b.rgba,
+        "the second request renders the master it named, not the cached first one"
+    );
+}
+
+/// The reason guard itself: nothing blank, and nothing unprintable, ever leaves
+/// here.
+#[test]
+fn a_cause_is_never_blank_and_never_carries_control_bytes() {
+    use super::state::readable_cause;
+
+    assert_eq!(
+        readable_cause(""),
+        "the underlying error carried no message",
+        "an error with no text is named as having none rather than passed on blank"
+    );
+    assert_eq!(
+        readable_cause("   "),
+        "the underlying error carried no message"
+    );
+    assert_eq!(
+        readable_cause("Invalid FITS keyword: \0\0\0"),
+        "Invalid FITS keyword: \\x00\\x00\\x00"
+    );
+    assert_eq!(readable_cause("no such file"), "no such file");
 }

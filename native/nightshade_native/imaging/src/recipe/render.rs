@@ -120,7 +120,7 @@ pub struct RenderOutput {
 }
 
 /// What a render is asked for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RenderOptions {
     /// Pyramid level; `0` is full resolution.
     pub level: u32,
@@ -128,10 +128,19 @@ pub struct RenderOptions {
     /// This is how a stage master ("after step N") is materialised without
     /// storing one.
     pub stop_after: Option<usize>,
+    /// How the caller identifies the master these base pixels came from.
+    ///
+    /// The step-boundary key carries it, because `Recipe::base_master_ref` names
+    /// the master a recipe was authored on rather than the one this render is
+    /// reading. Without it, replaying one recipe over a second master of the
+    /// same geometry hits the first master's boundaries and returns the first
+    /// master's pixels. A caller with no master to name leaves it empty, which
+    /// keys distinctly from every caller that names one.
+    pub base_identity: String,
 }
 
 impl RenderOptions {
-    /// Full resolution, whole stack.
+    /// Full resolution, whole stack, no master named.
     pub fn full() -> Self {
         Self::default()
     }
@@ -145,6 +154,12 @@ impl RenderOptions {
     /// The same options at pyramid level `level`.
     pub fn at_level(mut self, level: u32) -> Self {
         self.level = level;
+        self
+    }
+
+    /// The same options naming the master the base pixels were read from.
+    pub fn over_master(mut self, identity: impl Into<String>) -> Self {
+        self.base_identity = identity.into();
         self
     }
 }
@@ -285,7 +300,7 @@ pub fn render(
     let mut reports: Vec<StepReport> = Vec::new();
     let mut resume_at = 0usize;
     for index in (0..=last).rev() {
-        let key = CacheKey::for_prefix(recipe, base, &ctx, index);
+        let key = CacheKey::for_prefix(recipe, &opts.base_identity, base, &ctx, index);
         match cache.get(&key) {
             Some((cached_image, cached_reports)) if cached_reports.len() == index + 1 => {
                 hits += 1;
@@ -350,7 +365,7 @@ pub fn render(
                 })
             }
         }
-        let key = CacheKey::for_prefix(recipe, base, &ctx, index);
+        let key = CacheKey::for_prefix(recipe, &opts.base_identity, base, &ctx, index);
         cache.insert(key, Arc::clone(&image), Arc::new(reports.clone()));
     }
 

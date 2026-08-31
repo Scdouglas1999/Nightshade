@@ -9,8 +9,13 @@
 // destination that never received the night.
 //
 // What these pin: a failed pass and a stopped pass are stated on the session
-// they belong to, with the row's own sentence; a pass that ran to the end says
-// nothing extra, because its drafts ARE the report.
+// they belong to, with the row's own sentence — and so is a pass that ran to
+// the END, because on the desktop nothing else states one. Measured on a
+// completed D1 night (one `done` job, four autopilot recipes, four rendered
+// drafts, nine delivered files): the Dashboard, the status bar and this screen
+// mentioned none of it, and the morning notification's deep link is routed by
+// the phone alone. The only way to those drafts was an unlabelled icon in an
+// Analytics session dialog.
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -96,6 +101,7 @@ void main() {
 
   final banner =
       find.byKey(const ValueKey('session_review_darkroom_pass_banner'));
+  final done = find.byKey(const ValueKey('session_review_darkroom_pass_done'));
 
   testWidgets('a failed dawn pass is stated on the session it ran on', (
     tester,
@@ -265,13 +271,76 @@ void main() {
     expect(message, contains('It has been started 2 times already.'));
   });
 
-  testWidgets('a pass that ran to the end adds nothing', (tester) async {
+  testWidgets('a pass that ran to the end states it and routes to the drafts',
+      (tester) async {
     when(() => jobs.listForSession(1))
         .thenAnswer((_) async => [_job(DarkroomJobState.done)]);
 
     await pumpNarrative(tester);
 
-    expect(banner, findsNothing);
+    expect(banner, findsNothing, reason: 'a completed pass is not a warning');
+    expect(done, findsOneWidget);
+    final widget = tester.widget<NightshadeAlert>(done);
+    expect(widget.severity, NightshadeAlertSeverity.success);
+    expect(widget.message, contains('ran to the end'));
+    expect(
+      widget.message,
+      contains('Open the Darkroom'),
+      reason: 'the drafts had no route from any desktop surface',
+    );
+    expect(
+      widget.message,
+      isNot(contains('drafts ready')),
+      reason: 'the row carries no count, so the banner states none',
+    );
+    expect(
+      find.byKey(const ValueKey('session_review_darkroom_pass_open')),
+      findsOneWidget,
+      reason: 'naming the drafts without a way to them is the same silence',
+    );
+  });
+
+  testWidgets('a completed pass names the hour its row recorded',
+      (tester) async {
+    when(() => jobs.listForSession(1))
+        .thenAnswer((_) async => [_job(DarkroomJobState.done)]);
+
+    await pumpNarrative(tester);
+
+    // The row's `finishedAt` is 05:40 UTC; the sentence carries whatever that
+    // is where the operator is standing, so the assertion is derived the same
+    // way rather than hard-coding one machine's zone.
+    final local = DateTime.utc(2026, 8, 16, 5, 40).toLocal();
+    final hhmm = '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+    expect(tester.widget<NightshadeAlert>(done).message, contains(hhmm));
+  });
+
+  testWidgets('a completed pass with no session offers no route',
+      (tester) async {
+    // A job queued outside a session has no night to open, and a control that
+    // navigated anyway would land on somebody else's masters.
+    when(() => jobs.listForSession(1)).thenAnswer(
+      (_) async => [
+        DarkroomJob(
+          id: 44,
+          kind: DarkroomJobKind.manual,
+          state: DarkroomJobState.done,
+          progress: 1.0,
+          attempts: 1,
+          createdAt: DateTime.utc(2026, 8, 16, 6),
+          finishedAt: DateTime.utc(2026, 8, 16, 6, 5),
+        ),
+      ],
+    );
+
+    await pumpNarrative(tester);
+
+    expect(done, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('session_review_darkroom_pass_open')),
+      findsNothing,
+    );
   });
 
   testWidgets('a session with no pass adds nothing', (tester) async {
@@ -307,6 +376,7 @@ void main() {
       reason: 'the re-run is the operator\'s answer to the failure, and it '
           'succeeded',
     );
+    expect(done, findsOneWidget, reason: 'and the re-run states its own end');
   });
 }
 

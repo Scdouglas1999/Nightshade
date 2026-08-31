@@ -372,6 +372,62 @@ test('no weather source never renders an affirmative verdict', () => {
     'a real sensor reporting clear may read green');
 });
 
+// D4W-1. A fail-closed safety policy refuses BECAUSE nothing could be read, so
+// the refusal arrives with dataSource 'unavailable' — the same payload shape as
+// "no sensor". The badge answered the sensor question first and printed a
+// neutral grey "no sensor"; the word "unsafe" appeared nowhere on the page
+// while the rig had decided not to image.
+test('a fail-closed refusal reads as unsafe, not as an absence', () => {
+  const { doc, api } = loadRunWatch();
+  const snap = runningSnapshot();
+  snap.weather = {
+    safeToImage: false, alertLevel: 'clear', dataSource: 'unavailable',
+    message: 'No weather data sources available', lastEvaluation: null,
+  };
+  api.applySnapshot(snap);
+
+  const badge = doc.getElementById('weather-badge');
+  assert.equal(badge.textContent, 'unsafe');
+  assert.ok(badge.classList.contains('badge-error'),
+    'a refusal must not wear the idle class');
+  assert.ok(!badge.classList.contains('badge-idle'));
+  assert.equal(doc.getElementById('weather-message').textContent,
+    'No weather data sources available');
+});
+
+test('a refusal from a real sensor keeps the level it was given', () => {
+  const { doc, api } = loadRunWatch();
+  const badge = doc.getElementById('weather-badge');
+
+  const measured = runningSnapshot();
+  measured.weather = {
+    safeToImage: false, alertLevel: 'unsafe', dataSource: 'hardware',
+    message: 'Rain', lastEvaluation: null,
+  };
+  api.applySnapshot(measured);
+  assert.equal(badge.textContent, 'unsafe');
+  assert.ok(badge.classList.contains('badge-error'));
+
+  const escalated = runningSnapshot();
+  escalated.weather = {
+    safeToImage: false, alertLevel: 'critical', dataSource: 'hardware',
+    message: 'Hail', lastEvaluation: null,
+  };
+  api.applySnapshot(escalated);
+  assert.equal(badge.textContent, 'unsafe · critical');
+  assert.ok(badge.classList.contains('badge-error'));
+
+  // A warning the rig is still imaging through is not a refusal.
+  const warned = runningSnapshot();
+  warned.weather = {
+    safeToImage: true, alertLevel: 'warning', dataSource: 'hardware',
+    message: 'Cloud approaching', lastEvaluation: null,
+  };
+  api.applySnapshot(warned);
+  assert.equal(badge.textContent, 'warning');
+  assert.ok(badge.classList.contains('badge-running'));
+});
+
 // D4-09. `POST /api/sequencer/stop` answers 200 with wasRunning:false and
 // "No sequence was running; nothing to stop." when there is nothing to stop.
 test('a control reports the server refusal instead of a success toast', async () => {
@@ -2192,4 +2248,62 @@ test('an HFR the server did not name is not given a name', async () => {
   assert.doesNotMatch(meta.textContent, /preview/,
     'an older server sent no basis, so the page guesses none');
   assert.equal(meta.title, '');
+});
+
+// D4W-3. Numbers on this page are guarded by `wireNumber` and lists throw a
+// TypeError; strings were the one wire type with no guard at all, and the DOM
+// stringifies whatever it is handed. Reproduced against the release bundle in
+// a real browser with ONE field of a real snapshot changed — `currentFilter`
+// from "L" to `{name:"L"}` — which put the literal text "[object Object]" in
+// the filter slot and in the active-target line.
+test('a filter that is not a string is not a filter', () => {
+  const { doc, api } = loadRunWatch();
+  const snapshot = runningSnapshot();
+  snapshot.sequencer.progress.currentFilter = { name: 'L' };
+  snapshot.activeTarget.coordinatesKnown = true;
+  snapshot.activeTarget.raHours = 0.712;
+  snapshot.activeTarget.decDegrees = 41.27;
+  api.applySnapshot(snapshot);
+
+  assert.equal(doc.getElementById('progress-filter').textContent, '--',
+    'the slot reads "[object Object]" the moment the value is passed through');
+  assert.equal(doc.getElementById('target-state').textContent, '',
+    'and the target line concatenates the same object into a sentence');
+});
+
+test('a name that is not a string leaves the field unnamed', () => {
+  const { doc, api } = loadRunWatch();
+  const snapshot = runningSnapshot();
+  snapshot.sequencer.progress.currentTarget = 42;
+  snapshot.sequencer.currentNodeName = { a: 1 };
+  snapshot.sequencer.progress.currentNodeName = ['a'];
+  snapshot.activeTarget.name = ['a'];
+  api.applySnapshot(snapshot);
+
+  assert.equal(doc.getElementById('target-name').textContent, '--');
+  assert.equal(doc.getElementById('progress-node').textContent, '--');
+  assert.equal(doc.getElementById('seq-name').textContent, 'Running',
+    'with no candidate carrying a name, the headline falls to the state word '
+    + 'this page owns rather than printing "42"');
+});
+
+test('a blank string is an absence, not a reading', () => {
+  const { doc, api } = loadRunWatch();
+  const snapshot = runningSnapshot();
+  snapshot.sequencer.progress.currentFilter = '   ';
+  api.applySnapshot(snapshot);
+
+  assert.equal(doc.getElementById('progress-filter').textContent, '--',
+    'a field of spaces painted a blank where "--" says nothing is known');
+});
+
+test('the strings the server does send still reach the screen', () => {
+  const { doc, api } = loadRunWatch();
+  api.applySnapshot(runningSnapshot());
+
+  assert.equal(doc.getElementById('progress-filter').textContent, 'L');
+  assert.equal(doc.getElementById('progress-node').textContent, 'Exposure L');
+  assert.equal(doc.getElementById('seq-name').textContent, 'D1 Simulated Field');
+  assert.equal(doc.getElementById('target-name').textContent,
+    'D1 Simulated Field');
 });

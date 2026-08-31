@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// States a Darkroom pass that finished BADLY.
+import '../../../utils/darkroom_navigation.dart';
+
+/// States what a Darkroom pass did with this night.
 ///
 /// The Darkroom pass is what turns a night's masters into drafts, a night
 /// report and a delivery. When it runs at dawn nobody is standing at the
@@ -13,10 +18,19 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// not happened, and the operator's first sign of it was a destination that
 /// never received the night.
 ///
-/// Renders nothing for a pass that ran to the end or is still running: `done`
-/// is already visible as the drafts and the report themselves, and a running
-/// pass has the screen's own progress strip. Only an ending the operator has
-/// to act on gets a banner.
+/// Renders nothing for a pass that is still running — that one has the screen's
+/// own progress strip.
+///
+/// A pass that ran to the END gets a line too, and that is not decoration. The
+/// dawn pass finishes while nobody is at the machine and its only durable
+/// account is its `darkroom_jobs` row: measured against a completed D1 night —
+/// one `done` job, four autopilot recipes, four rendered drafts, nine delivered
+/// files — the Dashboard, the status bar and this screen said NOTHING about any
+/// of it, and the only way to the drafts was an unlabelled icon in an Analytics
+/// session dialog. The morning notification's `darkroom_draft:` deep link is
+/// routed by the phone alone, so on the desktop the pass had no surface at all.
+/// This is that surface: the ending, in the place the operator opens to look at
+/// the night, with the way to what it made.
 ///
 /// A `queued` pass DOES get one, because that is what a night still owed its
 /// drafts looks like on this screen. The autopilot queues and runs in one
@@ -56,8 +70,9 @@ class DarkroomPassBanner extends StatelessWidget {
         severity = NightshadeAlertSeverity.warning;
       case DarkroomJobState.queued:
         return _QueuedPass(pass: pass);
-      case DarkroomJobState.running:
       case DarkroomJobState.done:
+        return _CompletedPass(pass: pass);
+      case DarkroomJobState.running:
         return const SizedBox.shrink();
     }
 
@@ -111,6 +126,60 @@ class DarkroomPassBanner extends StatelessWidget {
       '.!?'.contains(note[note.length - 1])
           ? note
           : 'It was $note when it stopped.';
+}
+
+/// The pass that ran to the end, and the way to what it made.
+///
+/// The desktop's post-pass surface. It states the ONE thing the `done` row
+/// warrants — every stage ran — and then hands over to the Darkroom, which
+/// counts the night's masters and their recipes from the rows themselves. A
+/// number invented here ("4 drafts ready") would be a second answer to a
+/// question the Darkroom already answers from the data.
+///
+/// A row with no session cannot be routed anywhere: a job queued outside a
+/// session has no night to open, and a control that navigated anyway would
+/// land the operator on somebody else's masters. It keeps the sentence and
+/// drops the action.
+class _CompletedPass extends ConsumerWidget {
+  const _CompletedPass({required this.pass});
+
+  final DarkroomJob pass;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionId = pass.sessionId;
+    // The row's own clock, in the reader's zone. `finishedAt` is written with
+    // the terminal state, so a `done` row without one is a row a migration
+    // filled in — the sentence stands without the time rather than naming an
+    // hour nothing recorded.
+    final finished = pass.finishedAt;
+    final when = finished == null
+        ? ''
+        : ' at ${DateFormat('HH:mm').format(finished.toLocal())}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
+      child: NightshadeAlert(
+        key: const ValueKey('session_review_darkroom_pass_done'),
+        severity: NightshadeAlertSeverity.success,
+        message: 'The Darkroom pass for this night ran to the end$when — the '
+            'drafting, the night report, the delivery and the morning message '
+            'are all behind it. Open the Darkroom to see what it made of this '
+            'night\'s masters.',
+        action: sessionId == null
+            ? null
+            : NightshadeButton(
+                key: const ValueKey('session_review_darkroom_pass_open'),
+                label: 'Open the Darkroom',
+                icon: LucideIcons.sliders,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () =>
+                    openDarkroomForSession(context, ref, sessionId),
+              ),
+      ),
+    );
+  }
 }
 
 /// The night whose drafts, night report, delivery and morning message are still

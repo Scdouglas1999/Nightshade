@@ -216,6 +216,26 @@ class WeatherHandlers {
 
   // Get weather settings
 
+  /// The writable weather settings, by the names both the GET and the POST
+  /// use. [handleUpdateSettings] refuses a body naming none of them.
+  static const Set<String> _writableSettings = {
+    'preferredProvider',
+    'refreshIntervalSeconds',
+    'triggerDistanceKm',
+    'leadTimeMinutes',
+    'cloudDensityThreshold',
+    'weatherSafetyEnabled',
+    'maxHumidityPercent',
+    'maxWindSpeedKph',
+    'maxCloudCoverPercent',
+    'autoParkEnabled',
+    'autoResumeEnabled',
+  };
+
+  /// Keys the GET echoes that are not settings. A client posting the GET
+  /// document back sends `id`; it changes nothing and is not a misspelling.
+  static const Set<String> _readOnlySettings = {'id'};
+
   Future<Response> handleGetSettings(Request request) async {
     _logInfo('[API] GET /api/weather/settings');
     final database = container.read(databaseProvider);
@@ -243,9 +263,20 @@ class WeatherHandlers {
 
   Future<Response> handleUpdateSettings(Request request) async {
     _logInfo('[API] POST /api/weather/settings');
+    // The GET above answers `{"settings": {...}}`, so that document is a shape
+    // this endpoint must accept; the flat body older clients send stays
+    // accepted too. Weather safety is armed through here, and a write that
+    // stored nothing while answering "updated" left rigs unguarded overnight,
+    // so a body naming no writable setting is refused instead.
     final payload = await readJsonObject(request);
+    final body = settingsBody(payload, _writableSettings);
+    final applied = requireSettingsFields(
+      body,
+      _writableSettings,
+      readOnly: _readOnlySettings,
+    );
     final database = container.read(databaseProvider);
-    final preferredProvider = optionalString(payload, 'preferredProvider');
+    final preferredProvider = optionalString(body, 'preferredProvider');
     if (preferredProvider != null &&
         !RadarProviderType.values.any(
           (provider) =>
@@ -261,50 +292,45 @@ class WeatherHandlers {
     await database.weatherSettingsDao.updateSettings(
       preferredProvider: preferredProvider,
       refreshIntervalSeconds: optionalInt(
-        payload,
+        body,
         'refreshIntervalSeconds',
         min: 30,
         max: 3600,
       ),
       triggerDistanceKm: optionalDouble(
-        payload,
+        body,
         'triggerDistanceKm',
         min: 1,
         max: 500,
       ),
-      leadTimeMinutes: optionalInt(
-        payload,
-        'leadTimeMinutes',
-        min: 1,
-        max: 180,
-      ),
+      leadTimeMinutes: optionalInt(body, 'leadTimeMinutes', min: 1, max: 180),
       cloudDensityThreshold: optionalDouble(
-        payload,
+        body,
         'cloudDensityThreshold',
         min: 0,
         max: 100,
       ),
-      weatherSafetyEnabled: optionalBool(payload, 'weatherSafetyEnabled'),
+      weatherSafetyEnabled: optionalBool(body, 'weatherSafetyEnabled'),
       maxHumidityPercent: optionalDouble(
-        payload,
+        body,
         'maxHumidityPercent',
         min: 0,
         max: 100,
       ),
       maxWindSpeedKph: optionalDouble(
-        payload,
+        body,
         'maxWindSpeedKph',
         min: 0,
         max: 150,
       ),
       maxCloudCoverPercent: optionalDouble(
-        payload,
+        body,
         'maxCloudCoverPercent',
         min: 0,
         max: 100,
       ),
-      autoParkEnabled: optionalBool(payload, 'autoParkEnabled'),
-      autoResumeEnabled: optionalBool(payload, 'autoResumeEnabled'),
+      autoParkEnabled: optionalBool(body, 'autoParkEnabled'),
+      autoResumeEnabled: optionalBool(body, 'autoResumeEnabled'),
     );
 
     // The safety verdict is runtime policy, not just persisted preferences.
@@ -318,7 +344,46 @@ class WeatherHandlers {
       await container.read(weatherSafetyProvider.notifier).evaluateNow();
     }
 
-    return jsonOk({"status": "updated"});
+    // Answer with the row as it now stands, not a word. "updated" alone is
+    // unfalsifiable — the client that armed weather safety and got it back had
+    // no way to see the toggle had not moved. `applied` names the fields this
+    // request actually stored; `ignored` names the rest, so a misspelling is
+    // visible without a second GET.
+    final stored = await database.weatherSettingsDao.getOrCreateSettings();
+    final ignored =
+        body.keys
+            .where(
+              (k) =>
+                  !_writableSettings.contains(k) &&
+                  !_readOnlySettings.contains(k),
+            )
+            .toList()
+          ..sort();
+    return jsonOk({
+      "status": "updated",
+      "applied": applied,
+      if (ignored.isNotEmpty) ...{
+        "ignored": ignored,
+        "warning":
+            'These fields are not weather settings and were not applied: '
+            '${ignored.join(', ')}. Accepted fields: '
+            '${(_writableSettings.toList()..sort()).join(', ')}.',
+      },
+      "settings": {
+        "id": stored.id,
+        "preferredProvider": stored.preferredProvider,
+        "refreshIntervalSeconds": stored.refreshIntervalSeconds,
+        "triggerDistanceKm": stored.triggerDistanceKm,
+        "leadTimeMinutes": stored.leadTimeMinutes,
+        "cloudDensityThreshold": stored.cloudDensityThreshold,
+        "weatherSafetyEnabled": stored.weatherSafetyEnabled,
+        "maxHumidityPercent": stored.maxHumidityPercent,
+        "maxWindSpeedKph": stored.maxWindSpeedKph,
+        "maxCloudCoverPercent": stored.maxCloudCoverPercent,
+        "autoParkEnabled": stored.autoParkEnabled,
+        "autoResumeEnabled": stored.autoResumeEnabled,
+      },
+    });
   }
 
   // Check safe imaging conditions

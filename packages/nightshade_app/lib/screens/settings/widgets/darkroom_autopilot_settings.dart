@@ -85,13 +85,20 @@ Widget openSectionButton({
 /// Whether a finished run drafts itself.
 ///
 /// Delegates to [AutoIntegrationService.isDarkroomAutoDraftEnabled] rather than
-/// reading the row here: "absent means on, only the literal string `false`
-/// turns it off, and an unreadable store reports on" is a contract with exactly
-/// one definition, and a settings page that reimplemented it would be the
-/// second one.
+/// reading the row here: "an explicit value is read back as written, an absent
+/// one follows auto-integrate, and an unreadable store reports on" is a
+/// contract with exactly one definition, and a settings page that reimplemented
+/// it would be the second one.
+///
+/// [autoIntegrationEnabledProvider] is watched for its CHANGES, not its value —
+/// the value is the service's to read. An untouched switch answers through the
+/// prerequisite, so the row this page draws has to be re-read when the
+/// prerequisite is written; without it, turning auto-integrate on one section
+/// away left this switch sitting at `off` for a pass that would now run.
 final darkroomAutoDraftEnabledProvider = FutureProvider.autoDispose<bool>((
   ref,
 ) async {
+  ref.watch(autoIntegrationEnabledProvider);
   return ref.watch(autoIntegrationServiceProvider).isDarkroomAutoDraftEnabled();
 });
 

@@ -229,12 +229,13 @@ void main() {
     });
   });
 
-  testWidgets('the switch shows on for a row nobody has written', (
-    tester,
-  ) async {
-    // Absent means ON — the pass reads the same absence the same way
-    // (`isDarkroomAutoDraftEnabled`), so a switch showing "off" here would be
-    // describing a night that is about to draft itself.
+  // D2-4. A fresh install drew this switch [ON] one row above "Auto-integrate
+  // has to be on for any of this to run ... It is currently off" — a headline
+  // feature reading as armed on a rig where its own page says the pass cannot
+  // run. Absent now follows the prerequisite, so the switch states what the
+  // pass would actually do.
+  testWidgets('a fresh install shows the switch off, with its reason beside it',
+      (tester) async {
     final db = mockDatabase();
     addTearDown(db.close);
     final handle = await pumpAppScreen(
@@ -249,12 +250,43 @@ void main() {
       isNull,
       reason: 'the case is a row that was never written',
     );
+    expect(
+      await SettingsDao(db).getSetting(kAutoIntegrateSettingKey),
+      isNull,
+      reason: 'and a prerequisite nobody has opted into',
+    );
     final control = tester.widget<NightshadeSwitch>(
       find.byKey(const ValueKey('darkroom-auto-draft-switch')),
     );
-    expect(control.value, isTrue);
+    expect(control.value, isFalse);
     expect(
       handle.container.read(darkroomAutoDraftEnabledProvider).valueOrNull,
+      isFalse,
+    );
+  });
+
+  testWidgets('an untouched switch is on once the prerequisite is', (
+    tester,
+  ) async {
+    // The other half of the same rule: a rig that integrates all night and
+    // then declines to draft is the surprising behaviour, so the absent row
+    // answers ON the moment there is something for it to act on.
+    final db = mockDatabase();
+    addTearDown(db.close);
+    await SettingsDao(db).setSetting(kAutoIntegrateSettingKey, 'true');
+    await pumpAppScreen(
+      tester,
+      const DarkroomAutopilotSettings(),
+      database: db,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<NightshadeSwitch>(
+            find.byKey(const ValueKey('darkroom-auto-draft-switch')),
+          )
+          .value,
       isTrue,
     );
   });
@@ -264,6 +296,9 @@ void main() {
   ) async {
     final db = mockDatabase();
     addTearDown(db.close);
+    // Started from the armed state, which is where a rig that has opted into
+    // automatic integration begins.
+    await SettingsDao(db).setSetting(kAutoIntegrateSettingKey, 'true');
     await pumpAppScreen(
       tester,
       const DarkroomAutopilotSettings(),

@@ -599,4 +599,45 @@ void main() {
     expect(line.kind, DeliveryStatusKind.delivered);
     expect(line.sentence, isNot(contains('directory')));
   });
+
+  // D2-5, from the release bundle: the D1 night's ten delivered files sum to
+  // 34,641,423 bytes and the card read "Delivered 15:07, 10 files, 33.0 MB."
+  // 33.0 is the MEBIbyte count; 34.6 is the megabyte one. The divisor is 1024,
+  // so the suffix has to be the one that means 1024.
+  test('a byte total is labelled with the unit it was divided into', () {
+    final line = DeliveryStatusLine.of(
+      DeliveryDestinationView(
+        destination: watchedFolder(),
+        journal: [
+          for (var i = 0; i < 10; i++)
+            DeliveryJournalEntry(
+              id: i,
+              targetId: 9,
+              jobId: 1,
+              filePath: '/captures/darkroom/file_$i.fits',
+              // 3,464,142 x 10 = 34,641,420, within a rounding step of the
+              // measured total and made of ten equal files for legibility.
+              bytes: 3464142,
+              checksum: 'abc',
+              state: DeliveryAttemptState.delivered,
+              attempts: 1,
+              lastError: null,
+              createdAt: now,
+              updatedAt: now,
+              deliveredAt: now,
+            ),
+        ],
+        secret: StoredSecretState.absent,
+        folder: WatchedFolderState.present,
+      ),
+    );
+
+    expect(line.kind, DeliveryStatusKind.delivered);
+    expect(line.sentence, contains('33.0 MiB'));
+    expect(
+      line.sentence,
+      isNot(contains('MB')),
+      reason: '34,641,420 bytes is 34.6 MB, and this card prints 33.0',
+    );
+  });
 }

@@ -388,7 +388,9 @@ void main() {
       );
 
       expect(find.textContaining('Delivered '), findsOneWidget);
-      expect(find.textContaining('2 files, 1.9 GB'), findsOneWidget);
+      // GiB, not GB: the formatter divides by 1024, and it now labels the
+      // unit it actually computes.
+      expect(find.textContaining('2 files, 1.9 GiB'), findsOneWidget);
       expect(
         find.textContaining('attic-nas is unreachable — will retry'),
         findsOneWidget,
@@ -571,7 +573,7 @@ void main() {
     (tester) async {
       // The wave-7 shape, read off the release bundle: `case8-strand` held
       // four of job 4's drafts `failed` with destinationConflict and four of
-      // job 5's `delivered`. The row read "Delivered 17:55, 4 files, 1.4 MB."
+      // job 5's `delivered`. The row read "Delivered 17:55, 4 files, 1.4 MiB."
       // in green, said nothing about the four, and offered no way to retry
       // them — while nothing on the rig was ever going to look at them again.
       _swallowKnownOverflows();

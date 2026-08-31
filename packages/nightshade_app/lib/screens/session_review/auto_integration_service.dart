@@ -15,12 +15,26 @@ const String kAutoIntegrateSettingKey = 'post_session.auto_integrate';
 /// after the masters exist: compose a first-draft recipe per master, render the
 /// draft, write the night report, deliver it, and send the morning message.
 ///
-/// **Absent means on.** Automatic integration is already an explicit opt-in
-/// (`kAutoIntegrateSettingKey`), and the draft is the half of that opt-in the
-/// operator actually looks at in the morning; a rig that integrates all night
-/// and then declines to draft would be the surprising behaviour. Only the
-/// literal string `false` turns it off, so an unreadable value leaves the
-/// feature on rather than silently disabling the headline of the release.
+/// **Absent means whatever [kAutoIntegrateSettingKey] is set to.** The draft is
+/// the half of the integration opt-in the operator actually looks at in the
+/// morning, so a rig that integrates all night and then declines to draft would
+/// be the surprising behaviour — but a FRESH install has not opted in, and a
+/// plain "absent means on" put the master switch on the Darkroom autopilot page
+/// in the `[ON]` position on a machine whose own next row read "Auto-integrate
+/// has to be on for any of this to run … It is currently off". A headline
+/// feature cannot ship armed on a rig where its stated prerequisite ships off.
+///
+/// The prerequisite is what stays off — automatic integration writes masters
+/// and burns an hour of CPU at the end of every run, which is the operator's
+/// call to make, not a default to flip on their behalf. So the switch is the
+/// one that follows: off until there is something for it to act on, on the
+/// moment there is.
+///
+/// Only the value of an ABSENT row is coupled. An explicit `true` or `false` is
+/// the operator's own decision and is read back exactly, so nothing they set
+/// here is quietly overridden by a setting on another page — and an install
+/// that has been drafting on the old default keeps drafting, because it is
+/// drafting precisely when auto-integration is on.
 const String kDarkroomAutoDraftSettingKey = 'darkroom.auto_draft';
 
 /// Result of an auto-integration attempt, surfaced to the run-completion host so
@@ -616,16 +630,23 @@ class AutoIntegrationService {
 
   /// Whether a finished run drafts itself.
   ///
-  /// Absent means on — see [kDarkroomAutoDraftSettingKey]. Only the literal
-  /// string `false` turns it off, and a settings store that cannot be read at
-  /// all leaves the feature on for the same reason, with the storage failure
-  /// logged so the answer is never a quiet guess.
+  /// An explicit value is the operator's own and is read back as written; an
+  /// ABSENT row follows [kAutoIntegrateSettingKey], which is the setting that
+  /// decides whether there will be a master to draft at all. A fresh install
+  /// therefore reports this off, because that is what the pass will do there.
+  ///
+  /// A settings store that cannot be read at all reports ON, because that is
+  /// what the pass itself will do with the same unreadable row — the switch
+  /// must not show `off` for a feature that is about to run — with the storage
+  /// failure logged so the answer is never a quiet guess.
   Future<bool> isDarkroomAutoDraftEnabled() async {
     try {
       final raw = await _ref
           .read(settingsDaoProvider)
           .getSetting(kDarkroomAutoDraftSettingKey);
-      return raw != 'false';
+      if (raw == 'false') return false;
+      if (raw == 'true') return true;
+      return _isEnabled();
     } catch (error) {
       _ref.read(loggingServiceProvider).warning(
         'The Darkroom auto-draft setting could not be read; reporting it as on',

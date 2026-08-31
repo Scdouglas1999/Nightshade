@@ -208,6 +208,88 @@ void main() {
     );
   });
 
+  // An orderly stop is not a crash. Left `running`, a row a SIGTERM walked
+  // away from is charged an attempt by the open-time recovery, so three
+  // ordinary restarts during a dawn pass exhausted the three starts and failed
+  // the night's job.
+  test('an orderly stop re-queues the job and gives the start back', () async {
+    final id = await dao.enqueue();
+    await dao.markRunning(id, now: DateTime.utc(2026, 8, 31, 5));
+    await dao.updateProgress(id, 0.35, note: 'Drafting Master L');
+
+    final job = await dao.releaseForOrderlyStop(id, note: 'Stopping the host');
+    expect(job.state, DarkroomJobState.queued);
+    expect(job.attempts, 0, reason: 'the start it took is handed back');
+    expect(job.startedAt, isNull);
+    expect(job.note, 'Stopping the host');
+    expect(
+      job.progress,
+      0.35,
+      reason: 'the next attempt can say how far the interrupted one got',
+    );
+  });
+
+  test('orderly stops never exhaust the attempt limit', () async {
+    final id = await dao.enqueue();
+    for (var restart = 0; restart < kDarkroomJobMaxAttempts + 2; restart++) {
+      final running = await dao.markRunning(id);
+      expect(running.attempts, 1, reason: 'every polite restart is the first');
+      await dao.releaseForOrderlyStop(id);
+    }
+
+    final job = await dao.markRunning(id);
+    expect(job.attempts, 1);
+    expect(job.state, DarkroomJobState.running);
+    await dao.markDone(id);
+    expect((await dao.getById(id))!.state, DarkroomJobState.done);
+  });
+
+  test('only a running job can be released to an orderly stop', () async {
+    final queued = await dao.enqueue();
+    await expectLater(
+      dao.releaseForOrderlyStop(queued),
+      throwsA(
+        isA<DarkroomJobNotRunningException>().having(
+          (e) => e.state,
+          'state',
+          DarkroomJobState.queued,
+        ),
+      ),
+    );
+
+    final finished = await dao.enqueue();
+    await dao.markRunning(finished);
+    await dao.markDone(finished);
+    await expectLater(
+      dao.releaseForOrderlyStop(finished),
+      throwsA(isA<DarkroomJobNotRunningException>()),
+      reason: 'a finished pass must not be re-queued by a later shutdown',
+    );
+    expect((await dao.getById(finished))!.state, DarkroomJobState.done);
+
+    await expectLater(
+      dao.releaseForOrderlyStop(4242),
+      throwsA(isA<DarkroomJobMissingException>()),
+    );
+  });
+
+  test('the executor learns its job was released, at its next write', () async {
+    final id = await dao.enqueue();
+    await dao.markRunning(id);
+    await dao.releaseForOrderlyStop(id);
+
+    await expectLater(
+      dao.updateProgress(id, 0.9),
+      throwsA(isA<DarkroomJobNotRunningException>()),
+    );
+    await expectLater(
+      dao.markDone(id),
+      throwsA(isA<DarkroomJobTransitionException>()),
+      reason: 'a released row must not be finished by the executor that left',
+    );
+    expect((await dao.getById(id))!.state, DarkroomJobState.queued);
+  });
+
   test('jobs are scoped to a session and cascade with it', () async {
     final sessionId = await seedSession();
     final otherSession = await seedSession();

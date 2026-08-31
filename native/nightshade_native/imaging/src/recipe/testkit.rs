@@ -570,10 +570,10 @@ pub(crate) fn assert_deterministic(
     opts: RenderOptions,
 ) -> Result<RenderOutput, RecipeError> {
     let mut cold_a = RenderCache::unbounded();
-    let first = render(recipe, base, registry, &mut cold_a, ctx, opts)?;
+    let first = render(recipe, base, registry, &mut cold_a, ctx, opts.clone())?;
 
     let mut cold_b = RenderCache::unbounded();
-    let second = render(recipe, base, registry, &mut cold_b, ctx, opts)?;
+    let second = render(recipe, base, registry, &mut cold_b, ctx, opts.clone())?;
     assert_pixels_identical(&first.image, &second.image, "repeated cold render");
     assert_wcs_identical(&first.image, &second.image, "repeated cold render");
     assert_eq!(
@@ -581,7 +581,7 @@ pub(crate) fn assert_deterministic(
         "repeated cold render: step reports differ"
     );
 
-    let warm = render(recipe, base, registry, &mut cold_a, ctx, opts)?;
+    let warm = render(recipe, base, registry, &mut cold_a, ctx, opts.clone())?;
     assert_pixels_identical(&first.image, &warm.image, "warm cache render");
     assert_wcs_identical(&first.image, &warm.image, "warm cache render");
     assert_eq!(
@@ -589,7 +589,7 @@ pub(crate) fn assert_deterministic(
         "warm cache render: step reports differ"
     );
 
-    let warm_again = render(recipe, base, registry, &mut cold_a, ctx, opts)?;
+    let warm_again = render(recipe, base, registry, &mut cold_a, ctx, opts.clone())?;
     assert_pixels_identical(&first.image, &warm_again.image, "second warm render");
 
     let mut off = RenderCache::disabled();

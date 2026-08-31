@@ -185,4 +185,157 @@ void main() {
       expect((body['currentAlert'] as Map)['distanceKm'], isNull);
     });
   });
+
+  // POST /api/weather/settings used to read only the top level of the body,
+  // so the `{"settings": {...}}` document its own GET answers stored nothing —
+  // and still replied {"status":"updated"}. That is how a rig can be told
+  // weather safety is on and image all night unguarded.
+  group('WeatherHandlers settings round trip', () {
+    late ProviderContainer container;
+    late WeatherHandlers handlers;
+
+    setUp(() {
+      container = createHeadlessTestContainer();
+      handlers = WeatherHandlers(container);
+    });
+
+    tearDown(() {
+      container.dispose();
+    });
+
+    Future<Response> post(Object body) => translateHandlerErrors(
+      handlers.handleUpdateSettings(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/weather/settings'),
+          body: jsonEncode(body),
+        ),
+      ),
+    );
+
+    Future<Map<String, dynamic>> readSettings() async {
+      final response = await translateHandlerErrors(
+        handlers.handleGetSettings(
+          Request('GET', Uri.parse('http://localhost/api/weather/settings')),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      return (body['settings'] as Map).cast<String, dynamic>();
+    }
+
+    test('the GET document posted back is stored', () async {
+      final before = await readSettings();
+      expect(before['weatherSafetyEnabled'], isFalse);
+
+      final response = await post({
+        'settings': {'maxWindSpeedKph': 44.5, 'weatherSafetyEnabled': true},
+      });
+      expect(response.statusCode, HttpStatus.ok);
+
+      final after = await readSettings();
+      expect(after['maxWindSpeedKph'], 44.5);
+      expect(after['weatherSafetyEnabled'], isTrue);
+    });
+
+    test('a whole GET document round-trips, `id` and all', () async {
+      await post({'maxWindSpeedKph': 51.0});
+      final document = await readSettings();
+      expect(document.containsKey('id'), isTrue);
+
+      final response = await post({
+        'settings': {...document, 'maxCloudCoverPercent': 42.0},
+      });
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(
+        body['ignored'],
+        isNull,
+        reason: 'the row id the GET echoes is not a misspelled setting',
+      );
+
+      final after = await readSettings();
+      expect(after['maxCloudCoverPercent'], 42.0);
+      expect(after['maxWindSpeedKph'], 51.0);
+    });
+
+    test('the flat body older clients send still works', () async {
+      final response = await post({
+        'maxWindSpeedKph': 55.5,
+        'weatherSafetyEnabled': true,
+      });
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['applied'], ['maxWindSpeedKph', 'weatherSafetyEnabled']);
+
+      final after = await readSettings();
+      expect(after['maxWindSpeedKph'], 55.5);
+      expect(after['weatherSafetyEnabled'], isTrue);
+    });
+
+    test('the response carries the row as it now stands', () async {
+      final response = await post({'weatherSafetyEnabled': true});
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['status'], 'updated');
+      expect((body['settings'] as Map)['weatherSafetyEnabled'], isTrue);
+    });
+
+    test('a body naming no setting is refused, not blessed', () async {
+      final response = await post({'totallyMadeUpKey': 123});
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'settings');
+      expect(body['message'], contains('totallyMadeUpKey'));
+
+      final after = await readSettings();
+      expect(after['weatherSafetyEnabled'], isFalse);
+    });
+
+    test('an empty settings envelope is refused', () async {
+      final response = await post({'settings': <String, Object?>{}});
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'settings');
+    });
+
+    test('a non-object settings envelope is refused by name', () async {
+      final response = await post({'settings': 'on'});
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'settings');
+      expect(body['expected'], 'json_object');
+    });
+
+    test('a body holding both shapes is refused rather than guessed', () async {
+      final response = await post({
+        'maxWindSpeedKph': 20.0,
+        'settings': {'maxWindSpeedKph': 90.0},
+      });
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'settings');
+      expect(body['message'], contains('maxWindSpeedKph'));
+
+      final after = await readSettings();
+      expect(after['maxWindSpeedKph'], 30.0, reason: 'neither answer applied');
+    });
+
+    test(
+      'an unknown field alongside a real one is named, not silent',
+      () async {
+        final response = await post({
+          'maxWindSpeedKph': 33.0,
+          'maxWindSpeedKmh': 99.0,
+        });
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['applied'], ['maxWindSpeedKph']);
+        expect(body['ignored'], ['maxWindSpeedKmh']);
+        expect(body['warning'], contains('maxWindSpeedKmh'));
+
+        final after = await readSettings();
+        expect(after['maxWindSpeedKph'], 33.0);
+      },
+    );
+  });
 }

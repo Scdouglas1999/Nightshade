@@ -178,6 +178,17 @@ class DawnAutopilotService {
   /// while it sits in the queue table waiting for the gate.
   final Set<int> _submitted = <int>{};
 
+  /// Set once the host has begun an orderly shutdown, and never cleared — the
+  /// process is on its way out.
+  ///
+  /// It closes the race between a pass STARTING and the teardown looking for
+  /// passes to hand back: `markRunning` is one UPDATE, so a job could commit
+  /// its start just after [releaseRunningJobsForShutdown] read the queue, and
+  /// the row would be left `running` for the crash recovery to charge. With
+  /// this flag [runJob] refuses to take a row once the stop has begun, and
+  /// hands back a row it took in the same instant.
+  bool _stopping = false;
+
   /// How many times a state-mark write is retried after a refusal before the
   /// failure is let out.
   static const int _markRetryAttempts = 5;
@@ -404,6 +415,9 @@ class DawnAutopilotService {
     final outcomes = <DawnJobOutcome>[];
     final tried = <int>{};
     while (true) {
+      // The host is leaving; the rest of the queue waits for the next start
+      // rather than each row taking a start it cannot use.
+      if (_stopping) break;
       int? next;
       for (final job in await _jobs.listByState(DarkroomJobState.queued)) {
         final id = job.id;
@@ -430,6 +444,95 @@ class DawnAutopilotService {
       }
     }
     return outcomes;
+  }
+
+  /// Hand every job this process is running back to the queue because the host
+  /// is shutting down on purpose. Returns the ids released.
+  ///
+  /// An orderly stop is not a crash, and the durable row is the only thing that
+  /// can tell them apart at the next open. Left `running`, a row a SIGTERM
+  /// walked away from is indistinguishable from one a kill -9 abandoned: the
+  /// open-time recovery re-queues it and charges the attempt, so three ordinary
+  /// service restarts during a dawn pass burned all three starts and FAILED the
+  /// night's job — no drafts, no report, no delivery, and nothing to retry.
+  ///
+  /// So teardown calls this before the process exits. The row goes back to
+  /// `queued` with the start returned, which the next launch drains and runs
+  /// from the beginning of the pass. It does not wait for the render: the host
+  /// is leaving, and the pass has no partial state worth saving. The executor
+  /// still in flight discovers the row moved at its next progress write and
+  /// returns without writing over this ([DarkroomJobNotRunningException]).
+  ///
+  /// Never throws — teardown runs on the way out and one refused row must not
+  /// stop the rest of the shutdown. A row that could not be released stays
+  /// `running` for the crash recovery, which is the pre-existing behaviour.
+  Future<List<int>> releaseRunningJobsForShutdown() async {
+    // Before the queue is read, so nothing new takes a row behind this pass.
+    _stopping = true;
+    final released = <int>[];
+    List<DarkroomJob> running;
+    try {
+      running = await _jobs.listByState(DarkroomJobState.running);
+    } catch (error) {
+      _logger?.warning(
+        'The Darkroom queue could not be read during shutdown; any running '
+        'job is left for the next start to recover',
+        source: 'DawnAutopilotService',
+        fields: {'error': '$error'},
+      );
+      return released;
+    }
+    for (final job in running) {
+      final id = job.id;
+      if (id == null) continue;
+      if (await _releaseForShutdown(id, attemptsBefore: job.attempts) != null) {
+        released.add(id);
+      }
+    }
+    return released;
+  }
+
+  /// Hand [jobId] back to the queue for an orderly stop, or answer null when
+  /// the row was not this executor's to hand back.
+  ///
+  /// Null covers the benign race as well as a genuine refusal: the sweep and
+  /// [runJob]'s post-start check can both reach the same row, and the second
+  /// one finds it already `queued`. Only an unexpected refusal is logged as a
+  /// warning; the row it could not move stays `running` for the crash
+  /// recovery, which is the pre-existing behaviour.
+  Future<DarkroomJob?> _releaseForShutdown(
+    int jobId, {
+    int? attemptsBefore,
+  }) async {
+    try {
+      final handedBack = await _jobs.releaseForOrderlyStop(
+        jobId,
+        note:
+            'Re-queued by an orderly shutdown while the pass was running. '
+            'The start it took is given back, so stopping Nightshade does '
+            'not count against the retry limit.',
+      );
+      _logger?.info(
+        'The Darkroom pass was handed back to the queue for an orderly stop',
+        source: 'DawnAutopilotService',
+        fields: {
+          'jobId': jobId,
+          if (attemptsBefore != null) 'attemptsBefore': attemptsBefore,
+        },
+      );
+      return handedBack;
+    } on DarkroomJobNotRunningException {
+      // Already handed back, or already finished. Either way nothing is owed.
+      return null;
+    } catch (error) {
+      _logger?.warning(
+        'The Darkroom pass could not be handed back during shutdown; it is '
+        'left for the next start to recover',
+        source: 'DawnAutopilotService',
+        fields: {'jobId': jobId, 'error': '$error'},
+      );
+      return null;
+    }
   }
 
   /// Ask [jobId] to stop.
@@ -476,6 +579,17 @@ class DawnAutopilotService {
   Future<DawnJobOutcome> runJob(int jobId) async {
     final job = await _jobs.getById(jobId);
     if (job == null) throw DarkroomJobMissingException(jobId);
+    if (_stopping) {
+      // The host is leaving. Taking the row now would spend a start on a pass
+      // that cannot run, and leave it `running` for the crash recovery.
+      return DawnJobOutcome(
+        jobId: jobId,
+        state: job.state,
+        report: null,
+        reportPath: null,
+        failure: 'The host is shutting down; this pass was not started.',
+      );
+    }
     if (_cancelRequested.contains(jobId)) {
       final cancelled = await _jobs.markCancelled(
         jobId,
@@ -502,6 +616,21 @@ class DawnAutopilotService {
     // [_passReportName] names the report by it.
     final startedAt = _clock();
     final running = await _jobs.markRunning(jobId, now: startedAt);
+
+    // The stop can land in the instant between the check above and this write.
+    // The teardown's sweep would then have read the queue before this row said
+    // `running`, and nothing else would ever hand it back — so the start is
+    // returned here instead, by whichever of the two got there second.
+    if (_stopping) {
+      final handedBack = await _releaseForShutdown(jobId);
+      return DawnJobOutcome(
+        jobId: jobId,
+        state: handedBack?.state ?? running.state,
+        report: null,
+        reportPath: null,
+        failure: 'The host is shutting down; this pass was not started.',
+      );
+    }
 
     _stage[jobId] = 'reading the job row';
     final sessionId = job.sessionId;

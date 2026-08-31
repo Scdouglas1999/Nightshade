@@ -146,18 +146,88 @@ class DarkroomSessionTarget {
 ///
 /// The refusal is [darkroomHostOnlyRefusal] — the same words, from the same
 /// role question, that every other Darkroom entry point uses.
+///
+/// This is the AFTER-PRESS form, for a deep link and for the moment of the tap.
+/// A control that is being BUILT asks [watchDarkroomSessionRefusal] instead, so
+/// the same answer is on it before anybody reaches for it.
 Future<DarkroomSessionTarget> resolveDarkroomTargetForSession(
   WidgetRef ref,
   int sessionId,
-) async {
-  final refusal = darkroomHostOnlyRefusal(ref);
+) {
+  return _resolveDarkroomTarget(
+    refusal: darkroomHostOnlyRefusal(ref),
+    resolver: ref.read(dawnMasterResolverProvider),
+    sessionId: sessionId,
+  );
+}
+
+/// [resolveDarkroomTargetForSession] for a control being built.
+///
+/// One provider so the answer painted on the control and the answer the press
+/// acts on come from the same resolution, and `autoDispose` so a night that has
+/// since been integrated is re-read the next time a control asks rather than
+/// carrying a stale refusal for the life of the process.
+final darkroomSessionTargetProvider = FutureProvider.autoDispose
+    .family<DarkroomSessionTarget, int>((ref, sessionId) {
+  return _resolveDarkroomTarget(
+    refusal:
+        ref.watch(isRemoteClientProvider) ? kDarkroomHostOnlyRefusal : null,
+    resolver: ref.watch(dawnMasterResolverProvider),
+    sessionId: sessionId,
+  );
+});
+
+/// What a session-scoped Darkroom control says instead of opening, or null when
+/// it can open.
+///
+/// Both predicates, on the control, before the press. The ROLE half was already
+/// answered here by [watchDarkroomHostOnlyRefusal]; the MASTER half was asked
+/// only inside the tap handler, so on a night that was never integrated the
+/// control was drawn live — full contrast, focusable, nothing in the
+/// accessibility tree saying otherwise — and the sentence explaining that there
+/// is nothing to open arrived after the operator had committed to the press.
+/// That is the cry-wolf shape this library exists to name, one predicate short.
+///
+/// The role is answered FIRST and short-circuits: a client owns none of the
+/// host's masters, so reading its own database to find out would answer a
+/// question about the wrong machine.
+///
+/// While the read is in flight the control is disabled and says so. "Not yet
+/// known" is not "available": a control enabled on the way to an answer is
+/// live for exactly as long as it would take to press it wrongly.
+String? watchDarkroomSessionRefusal(WidgetRef ref, int sessionId) {
+  final role = watchDarkroomHostOnlyRefusal(ref);
+  if (role != null) return role;
+  return switch (ref.watch(darkroomSessionTargetProvider(sessionId))) {
+    AsyncData(:final value) => value.unavailableReason,
+    AsyncError(:final error) =>
+      'This session\'s masters could not be read: $error',
+    _ => kDarkroomMastersReadingReason,
+  };
+}
+
+/// What a session-scoped Darkroom control reads while its masters are being
+/// read.
+const String kDarkroomMastersReadingReason =
+    'Reading this night\'s masters — the Darkroom opens as soon as they '
+    'answer.';
+
+/// The one resolution both entry points run.
+///
+/// Written once so the control's disabled reason and the sentence a press
+/// produces cannot drift into two different accounts of the same night.
+Future<DarkroomSessionTarget> _resolveDarkroomTarget({
+  required String? refusal,
+  required DawnMasterResolver resolver,
+  required int sessionId,
+}) async {
   if (refusal != null) {
     return DarkroomSessionTarget.unavailable(refusal);
   }
 
   final DawnMasterSet set;
   try {
-    set = await ref.read(dawnMasterResolverProvider).resolve(sessionId);
+    set = await resolver.resolve(sessionId);
   } catch (error) {
     return DarkroomSessionTarget.unavailable(
       'This session\'s masters could not be read: $error',

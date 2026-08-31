@@ -120,15 +120,15 @@ pub fn api_darkroom_validate(recipe_json: String, context_json: String) -> Resul
 
     if !context.master_path.trim().is_empty() {
         let token = RenderCancelToken::register("")?;
-        let pyramid = load_pyramid(&context.master_path, &token)?;
-        let base = pyramid.base();
+        let master = load_pyramid(&context.master_path, &token)?;
+        let base = master.pyramid.base();
         reply["base"] = json!({
             "path": context.master_path,
             "width": base.width(),
             "height": base.height(),
             "channels": base.channels(),
             "hasWcs": base.wcs().is_some(),
-            "levelCount": pyramid.level_count(),
+            "levelCount": master.pyramid.level_count(),
         });
         reply["geometryChecked"] = json!(true);
         reply["findings"] = json!(geometry_findings(&recipe, base.width(), base.height()));
@@ -217,15 +217,18 @@ pub fn api_darkroom_render_preview(
     let recipe = parse_recipe(&recipe_json)?;
 
     let token = RenderCancelToken::register(&context.render_id)?;
-    let pyramid = load_pyramid(&context.master_path, &token)?;
-    let level = resolve_level(&pyramid, context.level, context.max_dimension)?;
-    let base = pyramid
+    let master = load_pyramid(&context.master_path, &token)?;
+    let level = resolve_level(&master.pyramid, context.level, context.max_dimension)?;
+    let base = master
+        .pyramid
         .level(level)
         .ok_or_else(|| format!("pyramid level {level} is out of range for this master"))?
         .clone();
 
     let (ctx, catalog_stars) = build_context(&base, level, &token, &context.catalog_stars);
-    let mut options = RenderOptions::full().at_level(level);
+    let mut options = RenderOptions::full()
+        .at_level(level)
+        .over_master(master.identity.as_str());
     if let Some(stop_after) = context.stop_after {
         options = options.stopping_after(stop_after);
     }
@@ -250,7 +253,7 @@ pub fn api_darkroom_render_preview(
         "cancellable": !token.render_id().is_empty(),
         "stopAfter": context.stop_after,
         "catalogStars": catalog_stars,
-        "level": level_json(&pyramid, level, &base),
+        "level": level_json(&master.pyramid, level, &base),
         "encoding": encoded.description,
         "report": report_json(&output.report),
         "cache": cache_state,
@@ -319,14 +322,14 @@ pub fn api_darkroom_registry(args_json: String) -> Result<String, String> {
 
     if !args.master_path.trim().is_empty() {
         let token = RenderCancelToken::register("")?;
-        let pyramid = load_pyramid(&args.master_path, &token)?;
+        let master = load_pyramid(&args.master_path, &token)?;
         let base_master_ref = if args.base_master_ref.trim().is_empty() {
             args.master_path.clone()
         } else {
             args.base_master_ref.clone()
         };
-        reply["draft"] = draft_for_master(&pyramid, &args.recipe_id, &base_master_ref)?;
-        reply["base"] = level_json(&pyramid, 0, pyramid.base());
+        reply["draft"] = draft_for_master(&master, &args.recipe_id, &base_master_ref)?;
+        reply["base"] = level_json(&master.pyramid, 0, master.pyramid.base());
     }
 
     serde_json::to_string(&reply).map_err(|e| format!("failed to encode result: {e}"))

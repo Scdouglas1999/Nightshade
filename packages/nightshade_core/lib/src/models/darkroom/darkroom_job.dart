@@ -33,9 +33,16 @@ const int kDarkroomJobMaxAttempts = 3;
 ///   done / failed / cancelled -> (terminal)
 /// ```
 ///
-/// `running -> queued` is the crash-recovery edge only: a row still marked
-/// `running` when the database opens belongs to a process that died, and the
-/// open-time recovery re-queues it. Nothing else may take that edge.
+/// `running -> queued` is the interruption edge, and only these two take it:
+///
+///   - the open-time crash recovery, for a row still marked `running` when the
+///     database opens — that belongs to a process that died, and the re-queue
+///     charges the attempt it spent;
+///   - an orderly shutdown, through `DarkroomJobsDao.releaseForOrderlyStop`,
+///     which hands the row back BEFORE the process exits and returns the start
+///     it took, because a polite stop spends no attempt.
+///
+/// Nothing else may take that edge.
 enum DarkroomJobState {
   /// Waiting for the coordinator to pick it up.
   queued,

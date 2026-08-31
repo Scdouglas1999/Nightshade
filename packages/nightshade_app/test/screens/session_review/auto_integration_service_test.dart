@@ -630,4 +630,43 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(recording.calls, isEmpty);
   });
+
+  // D2-4. A fresh install shipped "Draft, deliver and report at dawn" reading
+  // [ON] on the Darkroom autopilot page while the row directly beneath it read
+  // "Auto-integrate has to be on for any of this to run ... It is currently
+  // off". Absent-means-on was the reason: the row nobody has written answered
+  // on for a machine where the pass could not run at all. The absent value now
+  // follows the prerequisite; an explicit value is still the operator's.
+  group('the absent Darkroom draft row follows its prerequisite', () {
+    Future<bool> read() => container
+        .read(autoIntegrationServiceProvider)
+        .isDarkroomAutoDraftEnabled();
+
+    test('a fresh install reports it off, because the pass cannot run',
+        () async {
+      expect(await db.settingsDao.getSetting(kAutoIntegrateSettingKey), isNull);
+      expect(await db.settingsDao.getSetting(kDarkroomAutoDraftSettingKey),
+          isNull);
+      expect(await read(), isFalse);
+    });
+
+    test('turning the prerequisite on arms the untouched switch', () async {
+      await enableAutoIntegrate();
+      expect(await read(), isTrue,
+          reason: 'a rig that integrates all night and then declines to draft '
+              'is the surprising behaviour this default exists to avoid');
+    });
+
+    test('an explicit value is read back as written, either way', () async {
+      await db.settingsDao.setSetting(kDarkroomAutoDraftSettingKey, 'false');
+      await enableAutoIntegrate();
+      expect(await read(), isFalse,
+          reason: 'the operator turned it off; another page must not turn it '
+              'back on');
+
+      await db.settingsDao.setSetting(kAutoIntegrateSettingKey, 'false');
+      await db.settingsDao.setSetting(kDarkroomAutoDraftSettingKey, 'true');
+      expect(await read(), isTrue);
+    });
+  });
 }
