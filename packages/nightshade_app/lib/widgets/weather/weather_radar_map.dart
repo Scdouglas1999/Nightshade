@@ -1,5 +1,9 @@
+import 'dart:io' show IOException;
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/retry.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -73,6 +77,28 @@ class WeatherRadarMap extends ConsumerStatefulWidget {
 class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
   late MapController _mapController;
 
+  /// Tile fetcher that retries a dropped CONNECTION, not just a 503.
+  ///
+  /// flutter_map already defaults to a `RetryClient`, which reads like this is
+  /// handled — but `package:http`'s default only retries a RESPONSE whose
+  /// status is 503, and never an exception. The failures actually seen against
+  /// mesonet's WMS are `ClientException: Connection closed while receiving
+  /// data` under a burst of tile requests: no response, no status, nothing the
+  /// default rule can match. Each one left a permanent hole in the imagery,
+  /// because `EvictErrorTileStrategy.dispose` removes the tile and nothing
+  /// ever asks again.
+  ///
+  /// One client for the whole map, built once: a client per rebuild would drop
+  /// its connection pool on every frame.
+  late final http.BaseClient _tileClient = RetryClient(
+    http.Client(),
+    retries: 3,
+    when: (response) => response.statusCode >= 500,
+    whenError: (error, _) =>
+        error is http.ClientException || error is IOException,
+    delay: (attempt) => Duration(milliseconds: 200 * (attempt + 1)),
+  );
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +108,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
   @override
   void dispose() {
     _mapController.dispose();
+    _tileClient.close();
     super.dispose();
   }
 
@@ -175,7 +202,19 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
     );
 
     if (frame.tileType == RadarTileType.wms) {
-      // WMS tile layer for NOAA/GOES satellite and similar services
+      // WMS tile layer for NOAA/GOES satellite and similar services.
+      //
+      // NOT retinaMode. It reads like the lever that would ask the server for
+      // more pixels, and for a WMS layer it is the opposite: flutter_map
+      // resolves it to RetinaMode.simulation (tile_layer.dart:340 — server
+      // mode requires a urlTemplate carrying `{r}`, which WMS has no room
+      // for), which drops maxNativeZoom by one and scales each tile up 2x.
+      // Measured live: the request stayed width=256&height=256 while every
+      // tile came back one zoom coarser and painted at double size, so the
+      // imagery got blockier. The server DOES hold more detail — an identical
+      // bbox rendered at 1024px differs from the 256px render in 7% of
+      // pixels — but reaching it needs a bigger width/height on the request
+      // itself, not this flag.
       return TileLayer(
         wmsOptions: WMSTileLayerOptions(
           baseUrl: frame.tileUrlTemplate,
@@ -186,7 +225,19 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
           crs: const Epsg3857(), // Web Mercator
           otherParameters: frame.wmsAdditionalOptions ?? {},
         ),
+        // Stop asking the server for detail the instrument never had. GOES
+        // CONUS IR is 4 km per pixel, which in Web Mercator at this latitude
+        // is native around zoom 5 (4149 m/px) and already 2x upsampled at
+        // zoom 6. This map opens at zoom 9 (259 m/px) for a 30 km alert
+        // radius — SIXTEEN times finer than the data exists — and the server
+        // answers by nearest-neighbour upsampling, which is where the hard
+        // rectangular blocks come from. Capped here, flutter_map requests the
+        // coarsest honest tile and scales it smoothly instead: the imagery
+        // gets soft, which is what 4 km data honestly looks like up close,
+        // rather than sharp-edged blocks that imply a resolution nobody has.
+        maxNativeZoom: 6,
         tileBounds: tileBounds,
+        tileProvider: NetworkTileProvider(httpClient: _tileClient),
         evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
         tileBuilder: (context, tileWidget, tile) {
           return _buildEnhancedTile(tileWidget, opacity, contrast);
@@ -202,6 +253,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
         // placeholder tiles at the closer default map zooms.
         maxNativeZoom: 7,
         tileBounds: tileBounds,
+        tileProvider: NetworkTileProvider(httpClient: _tileClient),
         evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
         tileBuilder: (context, tileWidget, tile) {
           return _buildEnhancedTile(tileWidget, opacity, contrast);
@@ -268,6 +320,28 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
             widget.contrastLevel,
           ),
         ],
+
+        // Place names and boundaries, ABOVE the weather.
+        //
+        // Esri splits its canvas basemaps in two: "Base" is the ground alone —
+        // no towns, no roads, no state lines — and "Reference" carries every
+        // label. Shipping only the Base left the map underneath the clouds
+        // showing nothing identifiable, so an operator could not tell what
+        // part of the world the weather was over.
+        //
+        // It goes ON TOP of the radar deliberately. Underneath it would be
+        // dimmed by the base layer's 0.6 and then covered by the radar's
+        // opacity — about 18% of its brightness would survive, which is how
+        // the labels were effectively invisible. Above the imagery they stay
+        // readable at any radar opacity, which is the way weather maps
+        // conventionally stack.
+        TileLayer(
+          urlTemplate:
+              'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/'
+              'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+          userAgentPackageName: 'com.nightshade.app',
+          retinaMode: RetinaMode.isHighDensity(context),
+        ),
 
         // Alert radius circle
         CircleLayer(
