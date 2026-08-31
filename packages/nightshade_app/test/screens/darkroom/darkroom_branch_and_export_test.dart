@@ -1984,12 +1984,20 @@ void main() {
     await decodeFrames(tester);
     await settle(tester);
 
-    // One strip per secondary panel — the Recipe panel and the History stack.
-    expect(find.byKey(owner), findsNWidgets(2));
-    expect(find.text('Pane A · Draft'), findsNWidgets(2));
+    // One strip per VISIBLE SURFACE, which at this width is one: the desktop
+    // split stacks the Recipe panel and the History stack in a single column.
+    // Building the strip into each panel's body drew it twice, one above the
+    // other, and published two identical nodes to a screen reader — which this
+    // test used to pin as `findsNWidgets(2)`, mistaking a per-panel wrapper for
+    // a per-surface heading. It is handed to the layout's own header slot now,
+    // because the layout is the only thing that knows how many surfaces there
+    // are: the phone's segmented view still gets its strip over whichever panel
+    // is selected.
+    expect(find.byKey(owner), findsOneWidget);
+    expect(find.text('Pane A · Draft'), findsOneWidget);
     expect(
       find.text('B renders its own recipe and is not edited here.'),
-      findsNWidgets(2),
+      findsOneWidget,
     );
 
     final owners = [
@@ -1997,7 +2005,7 @@ void main() {
         if (node.getSemanticsData().label.startsWith('Showing pane A'))
           node.getSemanticsData().label,
     ];
-    expect(owners, hasLength(2));
+    expect(owners, hasLength(1));
     expect(owners.first, contains('Showing pane A, Draft.'));
     expect(owners.first, contains('pane B renders its own recipe'));
     handle.dispose();

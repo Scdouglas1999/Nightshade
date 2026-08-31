@@ -176,7 +176,7 @@ class TitleBar extends ConsumerWidget {
 class _TitleBarButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _TitleBarButton({
     super.key,
@@ -188,15 +188,23 @@ class _TitleBarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final isEnabled = onPressed != null;
 
     // Named and typed for assistive tech. An InkWell contributes a tap ACTION
     // but no role and no name, and a Tooltip contributes a tooltip rather than
     // a label — so the whole icon group, the Settings gear included, was absent
     // from the accessibility tree, which made Settings unreachable without
     // sight of the four unlabelled glyphs.
+    //
+    // `enabled` is the other half of that. A button node with no enabled state
+    // resolves none, and the AT-SPI bridge publishes ENABLED only for a node
+    // that resolves one — so Orca read the app's own Settings and profile
+    // shortcuts as unavailable while a click on either of them navigated.
     final button = Semantics(
       button: true,
       label: tooltip,
+      enabled: isEnabled,
+      focusable: isEnabled,
       child: InkWell(
         onTap: onPressed,
         borderRadius: NightshadeTokens.borderRadiusInline4,
@@ -205,7 +213,7 @@ class _TitleBarButton extends StatelessWidget {
           child: Icon(
             icon,
             size: NightshadeTokens.iconSm,
-            color: colors.textSecondary,
+            color: isEnabled ? colors.textSecondary : colors.textMuted,
           ),
         ),
       ),
@@ -261,7 +269,7 @@ class WindowControls extends StatelessWidget {
 class _WindowButton extends StatefulWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Color hoverColor;
   final bool isClose;
 
@@ -284,13 +292,20 @@ class _WindowButtonState extends State<_WindowButton> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final onError = Theme.of(context).colorScheme.onError;
+    final isEnabled = widget.onPressed != null;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
+      // Minimize, maximize and close are the window's own controls and they
+      // published no enabled state, so assistive tech announced all three as
+      // unavailable — on the one bar an operator reaches for when the window is
+      // in their way. See [_TitleBarButton] for why the field is what decides.
       child: Semantics(
         button: true,
         label: widget.label,
+        enabled: isEnabled,
+        focusable: isEnabled,
         child: GestureDetector(
           onTap: widget.onPressed,
           child: Container(
@@ -300,8 +315,11 @@ class _WindowButtonState extends State<_WindowButton> {
             child: Icon(
               widget.icon,
               size: 14,
-              color:
-                  _isHovered && widget.isClose ? onError : colors.textSecondary,
+              color: !isEnabled
+                  ? colors.textMuted
+                  : (_isHovered && widget.isClose
+                      ? onError
+                      : colors.textSecondary),
             ),
           ),
         ),

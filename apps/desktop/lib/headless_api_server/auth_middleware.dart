@@ -34,9 +34,12 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
         // pairing/discovery/dashboard bootstrap surface so the appliance can be
         // onboarded, while every privileged endpoint requires a bearer token
         // and returns 401 until a token is configured or a device pairs.
-        if (allowUnauthenticated &&
-            _effectiveAuthTokensByValue.isEmpty &&
-            _pairedSessionTokens.isEmpty) {
+        // This flag is an explicit operator override, so persisted pairing
+        // sessions must not silently re-enable authentication after startup.
+        // The startup banner promises that every endpoint is open when the
+        // override is present; keep the middleware consistent with that
+        // contract regardless of configured or restored tokens.
+        if (allowUnauthenticated) {
           return innerHandler(request);
         }
 

@@ -11,6 +11,7 @@ import 'integrity_check.dart' as integrity;
 import 'integrity_check.dart'
     show DatabaseRecoveryMarker, QuarantinedDatabaseCheck;
 import 'integration_stage_marker.dart';
+import 'session_orphan_sweep.dart';
 import 'single_instance_lock.dart';
 import 'sqlite_busy.dart';
 import 'tables/equipment_profiles.dart';

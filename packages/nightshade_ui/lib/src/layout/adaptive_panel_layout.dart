@@ -71,6 +71,25 @@ class AdaptivePanelLayout extends StatefulWidget {
   /// One or two collapsible side panels.
   final List<AdaptivePanel> secondary;
 
+  /// A strip drawn ONCE above whichever secondary panels are on screen, or null
+  /// when the panels need no shared heading.
+  ///
+  /// It exists because "above the panels" is a different number of places on
+  /// each layout, and only this widget knows which. The Darkroom's compare
+  /// banner — the strip that names which of the two branches the Recipe and
+  /// History stacks belong to — was built into each panel's body instead, so on
+  /// desktop, where [_secondaryColumn] stacks both panels in ONE visible
+  /// column, the same sentence was drawn twice, one above the other, and
+  /// published twice to assistive tech. On a phone the segments show one panel
+  /// at a time and it read correctly, which is why it survived: the duplicate
+  /// exists only on the layout the editor is actually used on.
+  ///
+  /// Rendered above the stacked column on desktop and tablet, above the
+  /// SELECTED panel on the segmented phone layout (never above the primary
+  /// segment, which is not a secondary surface), and once at the top of the
+  /// phone bottom sheet. One header per surface the operator can see.
+  final Widget? secondaryHeader;
+
   /// Phone collapse strategy (default: [PhonePanelStrategy.bottomSheet]).
   final PhonePanelStrategy phoneStrategy;
 
@@ -106,6 +125,7 @@ class AdaptivePanelLayout extends StatefulWidget {
     super.key,
     required this.primary,
     required this.secondary,
+    this.secondaryHeader,
     this.phoneStrategy = PhonePanelStrategy.bottomSheet,
     this.panelSide = PanelSide.end,
     this.initialPanelWidth = 320,
@@ -201,6 +221,11 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
 
   Widget _secondaryColumn() {
     final children = <Widget>[];
+    // One header over the whole column: this is the single surface both panels
+    // are stacked on, so one is what the operator sees and one is what
+    // assistive tech reads.
+    final header = widget.secondaryHeader;
+    if (header != null) children.add(header);
     for (var i = 0; i < widget.secondary.length; i++) {
       if (i > 0) {
         children.add(const SizedBox(height: NightshadeTokens.spaceSm));
@@ -348,6 +373,7 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
                   onTap: _keepPhoneSheetOpen,
                   child: _PhoneSheet(
                     panels: widget.secondary,
+                    header: widget.secondaryHeader,
                     onClose: () => setState(() => _sheetOpen = false),
                   ),
                 ),
@@ -379,9 +405,21 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
     ];
     final selected = _segment.clamp(0, segments.length - 1);
 
+    final header = widget.secondaryHeader;
+    // Above the SELECTED secondary panel and nothing else. The primary segment
+    // is not a secondary surface, and only one secondary segment is ever on
+    // screen, so this is one header per visible surface here too.
     final Widget body = selected == 0
         ? widget.primary
-        : widget.secondary[selected - 1].child;
+        : (header == null
+              ? widget.secondary[selected - 1].child
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    header,
+                    Expanded(child: widget.secondary[selected - 1].child),
+                  ],
+                ));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -519,9 +557,17 @@ class _SheetHandleButton extends StatelessWidget {
 
 class _PhoneSheet extends StatelessWidget {
   final List<AdaptivePanel> panels;
+
+  /// The strip drawn once at the top of the sheet — the sheet IS one visible
+  /// surface, however many panels it stacks inside it.
+  final Widget? header;
   final VoidCallback onClose;
 
-  const _PhoneSheet({required this.panels, required this.onClose});
+  const _PhoneSheet({
+    required this.panels,
+    required this.header,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -568,6 +614,10 @@ class _PhoneSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (header != null) ...[
+                      header!,
+                      const SizedBox(height: NightshadeTokens.spaceSm),
+                    ],
                     for (var i = 0; i < panels.length; i++) ...[
                       if (i > 0)
                         const SizedBox(height: NightshadeTokens.spaceLg),

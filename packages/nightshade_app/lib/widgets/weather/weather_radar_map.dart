@@ -196,6 +196,11 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
       // Standard XYZ tile layer for RainViewer and similar services
       return TileLayer(
         urlTemplate: frame.tileUrlTemplate,
+        // RainViewer only serves native tiles through zoom 7. Keep the map
+        // itself zoomable and let flutter_map scale the zoom-7 radar tiles
+        // instead of requesting the provider's "Zoom Level Not Supported"
+        // placeholder tiles at the closer default map zooms.
+        maxNativeZoom: 7,
         tileBounds: tileBounds,
         evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
         tileBuilder: (context, tileWidget, tile) {

@@ -1155,9 +1155,8 @@ impl DeviceManager {
                     return Err(format!("INDI client not connected for {}", server_key));
                 };
 
-                client
-                    .write()
-                    .await
+                let mut locked_client = client.write().await;
+                locked_client
                     .disconnect_device(&device_name)
                     .await
                     .map_err(|e| {
@@ -1166,6 +1165,21 @@ impl DeviceManager {
                             device_name, server_key, e
                         )
                     })?;
+
+                // The command has only been written at this point. Wait for
+                // the driver's CONNECTION readback before allowing another
+                // backend to claim the same hardware; otherwise its connect
+                // can be undone milliseconds later by this pending disconnect.
+                let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+                while locked_client.is_device_connected(&device_name).await {
+                    if tokio::time::Instant::now() >= deadline {
+                        return Err(format!(
+                            "Timed out waiting for INDI device {} to confirm disconnection",
+                            device_name
+                        ));
+                    }
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
             }
             DriverType::Simulator => {
                 // Flip the matching `simulation.rs` singleton's `connected`

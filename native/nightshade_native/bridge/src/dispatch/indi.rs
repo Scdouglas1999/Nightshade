@@ -13,6 +13,26 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
+/// Whether a CONNECTION readback proves that it was produced after the
+/// command we just sent.  Merely finding CONNECT=On in the cache is not enough:
+/// during an Alpaca -> INDI handover that value can belong to the displaced
+/// client, whose pending disconnect may arrive a moment later and undo the new
+/// connection.
+fn fresh_connected_readback(
+    before_command_ms: Option<u64>,
+    after_command_ms: Option<u64>,
+    connected: bool,
+) -> bool {
+    if !connected {
+        return false;
+    }
+    match (before_command_ms, after_command_ms) {
+        (None, Some(_)) => true,
+        (Some(before), Some(after)) => after > before,
+        _ => false,
+    }
+}
+
 /// Heuristically classify an INDI device from its property list. Returned to
 /// the discovery helpers as a `DeviceType`, or `None` if no match is found.
 pub(crate) fn infer_indi_device_type_from_properties(
@@ -251,8 +271,51 @@ impl DeviceManager {
             }
         }
 
-        // Connect to the specific device
+        // Capture the last CONNECTION vector before writing.  A cached On
+        // from the backend being displaced must not count as confirmation of
+        // this command.
+        let connection_update_before = locked_client
+            .get_property_last_update_ms(&device_name, "CONNECTION")
+            .await;
+
+        // Connect to the specific device.
         locked_client.connect_device(&device_name).await?;
+
+        // INDI switch writes are asynchronous: `send_command` returning only
+        // means the XML reached the socket. Do not publish a connected device
+        // until the driver confirms CONNECTION.CONNECT=On, otherwise a rapid
+        // cross-backend handover can race the previous disconnect.  Reassert
+        // CONNECT while waiting: some Alpaca bridges acknowledge their own
+        // disconnect before the shared INDI driver's Off vector arrives.  A
+        // later idempotent CONNECT then deterministically wins that ordering.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        let mut last_connect_write = tokio::time::Instant::now();
+        loop {
+            let connected = locked_client.is_device_connected(&device_name).await;
+            let connection_update_after = locked_client
+                .get_property_last_update_ms(&device_name, "CONNECTION")
+                .await;
+            if fresh_connected_readback(
+                connection_update_before,
+                connection_update_after,
+                connected,
+            ) {
+                break;
+            }
+
+            if tokio::time::Instant::now() >= deadline {
+                return Err(format!(
+                    "Timed out waiting for INDI device {} to confirm a fresh connection readback",
+                    device_name
+                ));
+            }
+
+            if last_connect_write.elapsed() >= Duration::from_millis(250) {
+                locked_client.connect_device(&device_name).await?;
+                last_connect_write = tokio::time::Instant::now();
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
 
         tracing::info!(
             "Connected to INDI device: {} at {}",
@@ -620,6 +683,15 @@ impl DeviceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn connected_readback_must_be_newer_than_the_connect_command() {
+        assert!(!fresh_connected_readback(Some(100), Some(100), true));
+        assert!(!fresh_connected_readback(Some(100), Some(101), false));
+        assert!(fresh_connected_readback(Some(100), Some(101), true));
+        assert!(fresh_connected_readback(None, Some(1), true));
+        assert!(!fresh_connected_readback(None, None, true));
+    }
 
     #[test]
     fn infer_indi_name_driver_prefers_mount_over_embedded_camera_word() {

@@ -3,16 +3,38 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// Insert a session row directly, bypassing [SessionsDao.startSession]'s
-/// one-active-session guard.
+/// Insert the row a process killed mid-session leaves behind, as the boot sweep
+/// leaves it: `interrupted`, with an end time.
 ///
-/// Two rows with status 'active' can no longer be produced through the front
-/// door: `startSession` refuses while one is live, and that invariant has its
-/// own passing test. The state is still real, though — a process killed
-/// mid-session (a crash, a 3am power cut) leaves its row 'active', and that
-/// residue is exactly what `findIncompleteSessionsForRecovery` exists to offer
-/// back to the operator. Constructing it directly reproduces what actually
-/// happens; calling `startSession` twice reproduces something that never does.
+/// That residue is what `findIncompleteSessionsForRecovery` exists to offer
+/// back to the operator. It reads `interrupted` rather than `active` because
+/// the sweep in `beforeOpen` closes an abandoned row at every open — it has to,
+/// or the row refuses every later `startSession` and detaches every later
+/// night's frames — so `active` now only ever means a session a live executor
+/// is driving.
+///
+/// Constructed directly, because calling `startSession` twice reproduces
+/// something that never happens.
+Future<int> _insertInterruptedSession(
+  SessionsDao dao, {
+  required String name,
+  int? targetId,
+}) {
+  return dao.createSession(
+    ImagingSessionsCompanion.insert(
+      startTime: DateTime.now(),
+      name: Value(name),
+      targetId: Value(targetId),
+      status: const Value(kInterruptedSessionStatus),
+    ),
+  );
+}
+
+/// Insert the row as a DEAD PROCESS left it — still `active`, never swept.
+///
+/// The state the sweep and the start-path close both exist to resolve: a
+/// database opened before either existed, or a run in this process that failed
+/// after opening its session and could not finalize it.
 Future<int> _insertStaleActiveSession(
   SessionsDao dao, {
   required String name,
@@ -115,6 +137,40 @@ void main() {
       );
     });
 
+    // The half of the fix that does not wait for a relaunch. A run that failed
+    // after opening its row, or a database opened before the boot sweep
+    // existed, leaves an `active` row with nothing driving it — and
+    // `SessionsDao.startSession` refuses while one stands. Both start paths
+    // (the executor's `_startSessionRow`, the headless `load -> start`
+    // pre-flight) treat that refusal as "this run has no session row" and
+    // capture the whole night with `session_id` NULL, so the session-end hooks
+    // never fire. Tonight's session opens instead, and last night's is closed
+    // by the same rule the boot sweep uses.
+    test(
+      'startSession closes a row nothing is driving and opens its own',
+      () async {
+        final stranded = await _insertStaleActiveSession(
+          sessionsDao,
+          name: 'Night the daemon was killed during',
+        );
+
+        final tonight = await sessionService.startSession(name: 'Tonight');
+
+        expect(tonight, isNot(stranded));
+        expect(sessionService.currentSessionId, equals(tonight));
+        final opened = await sessionsDao.getSessionById(tonight);
+        expect(opened!.status, equals('active'));
+
+        final closed = await sessionsDao.getSessionById(stranded);
+        expect(closed!.status, equals(kInterruptedSessionStatus));
+        expect(closed.endTime, isNotNull);
+        expect(closed.notes, contains('a new sequence started'));
+        // One live row, so `GET /api/sessions/active` cannot answer with the
+        // dead run's frozen counters while this one captures.
+        expect(await sessionsDao.getActiveSessions(), hasLength(1));
+      },
+    );
+
     test('endSession finalizes session with completed status', () async {
       final sessionId = await sessionService.startSession(name: 'Test Session');
 
@@ -214,36 +270,68 @@ void main() {
       expect(session.avgHfr, equals(2.3));
     });
 
-    test(
-      'updateSessionProgress triggers checkpoint after image threshold',
-      () async {
-        const config = SessionCheckpointConfig(
-          checkpointImageInterval: 3,
-          checkpointTimeInterval: Duration(
-            hours: 1,
-          ), // Long time to avoid time-based trigger
+    // The row is what `GET /api/sessions/active` serves, and the same endpoint
+    // counts accepted/rejected live off `captured_images`. Holding the
+    // exposure counters back until a five-image threshold published a session
+    // that claimed nothing had been captured beside a grading pair that said
+    // four frames had — so every frame writes.
+    test('every progress update advances the durable counters', () async {
+      // A time interval far longer than the test can run, so nothing here
+      // passes because a timer happened to fire.
+      sessionService.updateConfig(
+        const SessionCheckpointConfig(
+          checkpointTimeInterval: Duration(hours: 1),
           enabled: true,
-        );
-        sessionService.updateConfig(config);
+        ),
+      );
 
-        final sessionId = await sessionService.startSession(
-          name: 'Test Session',
-        );
+      final sessionId = await sessionService.startSession(name: 'Test Session');
 
-        // First update - no checkpoint
+      for (var frame = 1; frame <= 3; frame++) {
         await sessionService.updateSessionProgress(
           SessionStats(
-            completedExposures: 1,
+            completedExposures: frame,
             failedExposures: 0,
-            totalIntegrationSecs: 30.0,
+            totalIntegrationSecs: 30.0 * frame,
             lastUpdated: DateTime.now(),
           ),
         );
 
-        var session = await sessionsDao.getSessionById(sessionId);
-        expect(session!.successfulExposures, equals(0)); // Not checkpointed yet
+        final session = await sessionsDao.getSessionById(sessionId);
+        expect(session!.successfulExposures, equals(frame));
+        expect(session.totalExposures, equals(frame));
+        expect(session.totalIntegrationSecs, equals(30.0 * frame));
+      }
+    });
 
-        // Second update - no checkpoint
+    test('a failed exposure is persisted the moment it is reported', () async {
+      final sessionId = await sessionService.startSession(name: 'Test Session');
+
+      await sessionService.updateSessionProgress(
+        SessionStats(
+          completedExposures: 1,
+          failedExposures: 1,
+          totalIntegrationSecs: 30.0,
+          lastUpdated: DateTime.now(),
+        ),
+      );
+
+      final session = await sessionsDao.getSessionById(sessionId);
+      expect(session!.failedExposures, equals(1));
+      expect(session.successfulExposures, equals(1));
+      expect(session.totalExposures, equals(2));
+    });
+
+    test(
+      'disabled checkpointing leaves the row untouched until the end',
+      () async {
+        sessionService.updateConfig(
+          const SessionCheckpointConfig(enabled: false),
+        );
+
+        final sessionId = await sessionService.startSession(
+          name: 'Test Session',
+        );
         await sessionService.updateSessionProgress(
           SessionStats(
             completedExposures: 2,
@@ -253,43 +341,29 @@ void main() {
           ),
         );
 
-        session = await sessionsDao.getSessionById(sessionId);
-        expect(
-          session!.successfulExposures,
-          equals(0),
-        ); // Still not checkpointed
+        var session = await sessionsDao.getSessionById(sessionId);
+        expect(session!.successfulExposures, equals(0));
 
-        // Third update - should trigger checkpoint
-        await sessionService.updateSessionProgress(
-          SessionStats(
-            completedExposures: 3,
-            failedExposures: 0,
-            totalIntegrationSecs: 90.0,
-            lastUpdated: DateTime.now(),
-          ),
-        );
+        await sessionService.endSession();
 
         session = await sessionsDao.getSessionById(sessionId);
-        expect(session!.successfulExposures, equals(3)); // Now checkpointed
-        expect(session.totalIntegrationSecs, equals(90.0));
+        expect(session!.successfulExposures, equals(2));
+        expect(session.totalIntegrationSecs, equals(60.0));
       },
     );
 
     test('checkpoint configuration can be updated', () async {
-      expect(sessionService.config.checkpointImageInterval, equals(5));
       expect(
         sessionService.config.checkpointTimeInterval,
         equals(const Duration(minutes: 5)),
       );
 
       const newConfig = SessionCheckpointConfig(
-        checkpointImageInterval: 10,
         checkpointTimeInterval: Duration(minutes: 10),
         enabled: true,
       );
       sessionService.updateConfig(newConfig);
 
-      expect(sessionService.config.checkpointImageInterval, equals(10));
       expect(
         sessionService.config.checkpointTimeInterval,
         equals(const Duration(minutes: 10)),
@@ -307,38 +381,43 @@ void main() {
       );
     });
 
-    test('findIncompleteSessionsForRecovery finds active sessions', () async {
-      // Finish the completed session BEFORE opening the active one: only one
-      // session may be active at a time, so the order matters even though the
-      // end state does not.
-      final completedId = await sessionsDao.startSession(
-        name: 'Completed Session',
-        targetId: 2,
-      );
-      await sessionsDao.updateSessionStats(
-        completedId,
-        successfulExposures: 10,
-      );
-      await sessionsDao.endSession(completedId, status: 'completed');
+    test(
+      'findIncompleteSessionsForRecovery finds the interrupted night',
+      () async {
+        final completedId = await sessionsDao.startSession(
+          name: 'Completed Session',
+          targetId: 2,
+        );
+        await sessionsDao.updateSessionStats(
+          completedId,
+          successfulExposures: 10,
+        );
+        await sessionsDao.endSession(completedId, status: 'completed');
 
-      // Create active session
-      final activeId = await sessionsDao.startSession(
-        name: 'Active Session',
-        targetId: 1,
-      );
+        // The night a process abandoned, as the boot sweep leaves it. A row that
+        // still read `active` would be a live run, and a live run is not
+        // something to offer a recovery from.
+        final interruptedId = await _insertInterruptedSession(
+          sessionsDao,
+          name: 'Interrupted Session',
+          targetId: 1,
+        );
 
-      // Find incomplete sessions
-      final incompleteSessions = await sessionService
-          .findIncompleteSessionsForRecovery();
+        final incompleteSessions = await sessionService
+            .findIncompleteSessionsForRecovery();
 
-      expect(incompleteSessions.length, equals(1));
-      expect(incompleteSessions[0].sessionId, equals(activeId));
-      expect(incompleteSessions[0].sessionName, equals('Active Session'));
-    });
+        expect(incompleteSessions.length, equals(1));
+        expect(incompleteSessions[0].sessionId, equals(interruptedId));
+        expect(
+          incompleteSessions[0].sessionName,
+          equals('Interrupted Session'),
+        );
+      },
+    );
 
     test('recoverSession restores session state', () async {
-      // Create a session with stats
-      final sessionId = await sessionsDao.startSession(
+      final sessionId = await _insertInterruptedSession(
+        sessionsDao,
         name: 'Recoverable Session',
       );
       await sessionsDao.updateSessionStats(
@@ -368,6 +447,10 @@ void main() {
 
       expect(newService.hasActiveSession, isTrue);
       expect(newService.currentSessionId, equals(sessionId));
+      // The row it is about to take frames for must stop saying it ended.
+      final resumed = await sessionsDao.getSessionById(sessionId);
+      expect(resumed!.status, equals('active'));
+      expect(resumed.endTime, isNull);
 
       final stats = newService.currentStats;
       expect(stats, isNotNull);
@@ -617,18 +700,19 @@ void main() {
     });
 
     test('multiple incomplete sessions can be recovered', () async {
-      // Residue from three processes that each died mid-session.
-      await _insertStaleActiveSession(
+      // Three nights three processes each died in, as the boot sweep left
+      // them: three opens, three closes, nothing overwritten.
+      await _insertInterruptedSession(
         sessionsDao,
         name: 'Session 1',
         targetId: 1,
       );
-      await _insertStaleActiveSession(
+      await _insertInterruptedSession(
         sessionsDao,
         name: 'Session 2',
         targetId: 2,
       );
-      await _insertStaleActiveSession(
+      await _insertInterruptedSession(
         sessionsDao,
         name: 'Session 3',
         targetId: 3,

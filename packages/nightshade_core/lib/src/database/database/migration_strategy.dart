@@ -88,6 +88,15 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
           );
         }
 
+        // Close out imaging sessions a previous process left `active`, by the
+        // same rule as the runs above and BEFORE the statistics rebuild below,
+        // so a night this sweep closes gets its counters rebuilt in the same
+        // open. Left standing, one such row detaches every later night:
+        // `startSession` refuses to open a second session while it stands, so
+        // every frame registers with `session_id` NULL and the session-end
+        // hooks never fire. See [_closeOrphanedImagingSessions].
+        await _closeOrphanedImagingSessions();
+
         // Close out Darkroom jobs a previous process left mid-flight, for the
         // same reason and by the same rule as the sequence runs above: a
         // 'running' row at open belongs to a process that is gone.

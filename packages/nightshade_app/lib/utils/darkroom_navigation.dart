@@ -48,6 +48,27 @@ const String kDarkroomHostOnlyRefusal =
 String? darkroomHostOnlyRefusal(WidgetRef ref) =>
     ref.read(isRemoteClientProvider) ? kDarkroomHostOnlyRefusal : null;
 
+/// [darkroomHostOnlyRefusal] for a control that is being BUILT rather than
+/// pressed: the same answer, watched so the control follows the role.
+///
+/// Every Darkroom entry point asked the question inside its tap handler, so on
+/// a remote client each of them was drawn live — full contrast, focusable,
+/// nothing in the accessibility tree saying otherwise — and answered only after
+/// the operator committed to the press. A control that looks available and then
+/// refuses is the cry-wolf shape: it teaches the operator that the app's
+/// enabled state means nothing. The refusal belongs ON the control, as its
+/// disabled reason, before anybody reaches for it.
+///
+/// `watch`, not `read`: a control built while the role answer is one thing has
+/// to be rebuilt when it becomes another — a desktop that is handed
+/// `--remote-host` mid-session must not leave a live-looking button behind.
+///
+/// The after-press path in [openDarkroomForMasterRow] and
+/// [openDarkroomForSession] stays, because a deep link — a notification tap, a
+/// hand-typed route — reaches the Darkroom with no control to have disabled.
+String? watchDarkroomHostOnlyRefusal(WidgetRef ref) =>
+    ref.watch(isRemoteClientProvider) ? kDarkroomHostOnlyRefusal : null;
+
 /// Push the Darkroom scoped to [masterId].
 ///
 /// The raw push. Callers must have asked [darkroomHostOnlyRefusal] — directly
@@ -141,6 +162,44 @@ Future<DarkroomSessionTarget> resolveDarkroomTargetForSession(
         : '${blocked.name}: ${blocked.reason}.',
   );
 }
+
+/// The imaging session a master's pixels came from, or null when the fold
+/// record cannot name one.
+///
+/// The reverse of [resolveDarkroomTargetForSession], and it goes through the
+/// same record: a master is joined to a session only by the frames folded into
+/// it, so this walks the fold list newest-first and answers with the first
+/// frame that still names a session. Null is a real answer — a master whose
+/// folded frames are gone, or whose frames were imported with no session, has
+/// no review to open, and a control that claimed otherwise would land the
+/// operator on a review of a night that is not this master's.
+///
+/// Bounded rather than exhaustive: the walk stops at [_sessionScanLimit] frames
+/// because it runs one query per frame and a master can carry thousands. A
+/// master whose newest 32 folds all name no session is one this cannot answer
+/// for, and it says so instead of reading the whole table to be sure.
+Future<int?> resolveSessionForDarkroomMaster(
+    WidgetRef ref, int masterId) async {
+  final frames =
+      await ref.read(integratedMastersDaoProvider).getFramesForMaster(masterId);
+  final images = ref.read(imagesDaoProvider);
+  var scanned = 0;
+  for (final frame in frames) {
+    if (scanned++ >= _sessionScanLimit) break;
+    final image = await images.getImageById(frame.imageId);
+    final sessionId = image?.sessionId;
+    if (sessionId != null) return sessionId;
+  }
+  return null;
+}
+
+/// How many fold records [resolveSessionForDarkroomMaster] reads before it
+/// answers "cannot say".
+const int _sessionScanLimit = 32;
+
+/// The session review location for [sessionId].
+String sessionReviewLocation(int sessionId) =>
+    '/session-review?session=$sessionId';
 
 /// Resolve [sessionId] and push the Darkroom onto its master, or say why there
 /// is nothing to open.

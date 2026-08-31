@@ -211,29 +211,38 @@ impl DeviceManager {
 
         // Handle mounts
         if info.device_type == DeviceType::Mount {
+            let baud_rate = parse_serial_mount_baud(&parts)?;
             let mut mount: Box<dyn NativeMount + Send + Sync> = match vendor {
                 "skywatcher" => {
                     // id_str is the serial port
-                    Box::new(SkyWatcherMount::new_serial(id_str.to_string(), None))
+                    Box::new(SkyWatcherMount::new_serial(id_str.to_string(), baud_rate))
                 }
                 "ioptron" => {
                     // id_str is the serial port
-                    Box::new(IOptronMount::new(id_str.to_string(), None))
+                    Box::new(IOptronMount::new(id_str.to_string(), baud_rate))
                 }
                 "onstep" | "pegasus" => {
                     // OnStep-based mounts (Pegasus NYX, DIY OnStep)
-                    Box::new(Lx200Mount::new_onstep(id_str.to_string()))
+                    Box::new(Lx200Mount::new(
+                        id_str.to_string(),
+                        Lx200MountType::OnStep,
+                        baud_rate,
+                    ))
                 }
-                "meade" | "lx200" => Box::new(Lx200Mount::new_meade(id_str.to_string())),
+                "meade" | "lx200" => Box::new(Lx200Mount::new(
+                    id_str.to_string(),
+                    Lx200MountType::Meade,
+                    baud_rate,
+                )),
                 "losmandy" => Box::new(Lx200Mount::new(
                     id_str.to_string(),
                     Lx200MountType::Losmandy,
-                    None,
+                    baud_rate,
                 )),
                 "10micron" => Box::new(Lx200Mount::new(
                     id_str.to_string(),
                     Lx200MountType::TenMicron,
-                    None,
+                    baud_rate,
                 )),
                 _ => return Err(format!("Unknown native mount vendor: {}", vendor)),
             };
@@ -421,5 +430,42 @@ impl DeviceManager {
                 Ok(device.is_connected())
             }
         }
+    }
+}
+
+/// Discovery encodes serial mounts as `native:<vendor>:<port>:<baud>`.
+/// Keep the discovered baud rate when reopening the device: dropping the
+/// fourth segment made a 115200-baud OnStep/NYX mount reopen at the LX200
+/// default of 9600, where every command predictably timed out.
+fn parse_serial_mount_baud(parts: &[&str]) -> Result<Option<u32>, String> {
+    let Some(raw_baud) = parts.get(3) else {
+        return Ok(None);
+    };
+    raw_baud
+        .parse::<u32>()
+        .map(Some)
+        .map_err(|_| format!("Invalid native mount baud rate: {raw_baud}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_serial_mount_baud;
+
+    #[test]
+    fn serial_mount_connection_preserves_discovered_baud_rate() {
+        let parts = ["native", "onstep", "COM4", "115200"];
+        assert_eq!(parse_serial_mount_baud(&parts).unwrap(), Some(115200));
+    }
+
+    #[test]
+    fn legacy_serial_mount_id_uses_driver_default() {
+        let parts = ["native", "lx200", "COM3"];
+        assert_eq!(parse_serial_mount_baud(&parts).unwrap(), None);
+    }
+
+    #[test]
+    fn malformed_serial_mount_baud_is_rejected() {
+        let parts = ["native", "onstep", "COM4", "fast"];
+        assert!(parse_serial_mount_baud(&parts).is_err());
     }
 }

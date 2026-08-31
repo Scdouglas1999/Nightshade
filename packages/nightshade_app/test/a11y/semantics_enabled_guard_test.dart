@@ -1,4 +1,5 @@
-// No Darkroom control may publish a button role without an enabled state.
+// No control under a covered directory may publish a button role without an
+// enabled state.
 //
 // `Semantics(button: true, …)` with no `enabled:` field produces a node that
 // resolves NO enabled state, and the AT-SPI bridge publishes ENABLED only for a
@@ -7,36 +8,50 @@
 // route into A/B compare and announced as DISABLED while a click on the same
 // row armed the comparison.
 //
-// Pinning the one row leaves the class alive, so this sweeps the directory. It
-// is a source scan rather than a widget drive because most of these controls
-// need a recipe, a master and a rendered preview to exist at all, while the
-// rule holds without any of them.
+// Pinning the one row leaves the class alive, so this sweeps whole directories.
+// It is a source scan rather than a widget drive because most of these controls
+// need a recipe, a master and a rendered preview to exist at all, while the rule
+// holds without any of them.
+//
+// The scan started on the Darkroom alone, and the class was alive one directory
+// over the whole time: the app's own window chrome — the Settings gear, the
+// profile shortcut, and minimize / maximize / close — published the same
+// state-less button node on EVERY screen, which is the widest reach the defect
+// has anywhere in the app. A guard scoped to one screen's directory cannot
+// catch that, so the shell is covered here too, and a new covered directory is
+// one entry in this list.
 
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The directory this rule covers.
-const _root = 'lib/screens/darkroom';
+/// The directories this rule covers, relative to the package root.
+const _roots = <String>[
+  'lib/screens/darkroom',
+  'lib/screens/shell',
+];
 
 void main() {
-  test('every Darkroom button node resolves an enabled state', () {
-    final root = Directory(_root);
-    expect(
-      root.existsSync(),
-      isTrue,
-      reason: 'run from the nightshade_app package root',
-    );
-
+  test('every button node in a covered directory resolves an enabled state',
+      () {
     final offenders = <String>[];
-    for (final entity in root.listSync(recursive: true)) {
-      if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      final source = entity.readAsStringSync();
-      final code = _codeOnly(source);
-      for (final site in _semanticsArguments(code)) {
-        if (!site.arguments.contains('button: true')) continue;
-        if (site.arguments.contains('enabled:')) continue;
-        offenders.add('${entity.path}:${_lineOf(code, site.offset)}');
+    for (final path in _roots) {
+      final root = Directory(path);
+      expect(
+        root.existsSync(),
+        isTrue,
+        reason: '$path is missing — run from the nightshade_app package root',
+      );
+
+      for (final entity in root.listSync(recursive: true)) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        final source = entity.readAsStringSync();
+        final code = _codeOnly(source);
+        for (final site in _semanticsArguments(code)) {
+          if (!site.arguments.contains('button: true')) continue;
+          if (site.arguments.contains('enabled:')) continue;
+          offenders.add('${entity.path}:${_lineOf(code, site.offset)}');
+        }
       }
     }
 

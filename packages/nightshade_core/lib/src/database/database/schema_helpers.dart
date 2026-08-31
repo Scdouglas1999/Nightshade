@@ -1227,6 +1227,70 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
+  /// Close out imaging sessions a previous process left `active`.
+  ///
+  /// The sibling of the `sequence_runs` sweep above and of
+  /// [_recoverInterruptedDarkroomJobs], by the same rule: an `imaging_sessions`
+  /// row is only `active` while THIS process's [SessionService] is driving it,
+  /// and that state lives in memory, so nothing can still be running at the
+  /// moment the database opens. Any `active` row here belongs to a process that
+  /// is gone.
+  ///
+  /// **What the missing sibling cost.** `SessionsDao.startSession` refuses to
+  /// open a second row while an older one is `active`, and every caller treats
+  /// that refusal as "no session row" rather than as a failure. So one daemon
+  /// stop mid-run — a cloud call at 2am, the updater, a power blip — detached
+  /// every LATER night: measured on the release bundle, night two's twelve
+  /// frames all registered with `session_id` NULL, the session-end hooks that
+  /// key on the session id (post-session integration, the dawn Darkroom pass)
+  /// logged "no active sequence id recorded" and never fired, no masters and no
+  /// drafts were produced, and `GET /api/sessions/active` kept serving the dead
+  /// run's counters while the live run captured.
+  ///
+  /// Runs on every boot path because `beforeOpen` does: the GUI and the
+  /// headless daemon open the same [NightshadeDatabase].
+  ///
+  /// The close itself — status, back-dated `end_time`, appended note — is
+  /// [kCloseOrphanedSessionsSql], shared with the sequence-start close in
+  /// [SessionService] so the two cannot drift.
+  Future<void> _closeOrphanedImagingSessions() async {
+    final orphans = await customSelect(
+      kSelectOrphanedSessionsSql,
+      readsFrom: {imagingSessions},
+    ).get();
+    if (orphans.isEmpty) return;
+
+    final found = DateTime.now();
+    final note = interruptedSessionNote(
+      cause: kInterruptedBySessionShutdownCause,
+      found: found,
+    );
+    await customUpdate(
+      kCloseOrphanedSessionsSql,
+      variables: [
+        Variable<int>(found.toUtc().millisecondsSinceEpoch ~/ 1000),
+        Variable<String>(note),
+        Variable<String>(note),
+      ],
+      updates: {imagingSessions},
+      updateKind: UpdateKind.update,
+    );
+
+    final named = orphans
+        .map((row) {
+          final id = row.data['id'] as int;
+          final name = row.data['name'] as String?;
+          return name == null || name.isEmpty ? '#$id' : '#$id "$name"';
+        })
+        .join(', ');
+    // ignore: avoid_print
+    print(
+      '[nightshade_db] Imaging session${orphans.length == 1 ? '' : 's'} left '
+      "open by a previous process, now recorded as "
+      "'$kInterruptedSessionStatus': $named.",
+    );
+  }
+
   /// Close out Darkroom jobs a previous process left mid-flight.
   ///
   /// A `darkroom_jobs` row is only 'running' while THIS process's executor is

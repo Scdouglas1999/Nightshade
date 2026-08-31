@@ -171,14 +171,27 @@ assert_night() {
 FRAMES0=$(Q "SELECT COALESCE(sum(frame_count),0) FROM integrated_masters;")
 say "=== night 1 ==="
 run_night 1
-SID1=$(Q "SELECT id FROM imaging_sessions ORDER BY id DESC LIMIT 1;")
+# run_night returns when the RUN is terminal; the session row's own write can
+# land a beat later. One unpolled read here lost that race once in twenty runs
+# and every later assert then queried "WHERE id=;". Poll like everything else.
+SID1=""
+for i in $(seq 1 30); do
+  SID1=$(Q "SELECT id FROM imaging_sessions ORDER BY id DESC LIMIT 1;")
+  [ -n "$SID1" ] && break
+  sleep 1
+done
 say "night 1 session id=$SID1"
 assert_night 1 "$SID1" "$FRAMES0"
 
 FRAMES1=$(Q "SELECT COALESCE(sum(frame_count),0) FROM integrated_masters;")
 say "=== night 2 (SAME process, no restart) ==="
 run_night 2
-SID2=$(Q "SELECT id FROM imaging_sessions ORDER BY id DESC LIMIT 1;")
+SID2=""
+for i in $(seq 1 30); do
+  SID2=$(Q "SELECT id FROM imaging_sessions ORDER BY id DESC LIMIT 1;")
+  [ -n "$SID2" ] && [ "$SID2" != "$SID1" ] && break
+  sleep 1
+done
 say "night 2 session id=$SID2"
 [ -n "$SID2" ] && [ "$SID2" != "$SID1" ] \
   && ok "night 2 opened its own session row ($SID2)" \

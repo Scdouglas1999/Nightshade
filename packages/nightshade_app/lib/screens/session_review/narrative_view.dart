@@ -70,6 +70,7 @@ class NarrativeView extends ConsumerWidget {
                 FrameDetailDialog.showForFrame(context, imageId: id),
           ),
           _GradedSubsDisagreement(subs: state.lights, report: report),
+          _CalibrationRecordDisagreement(master: state.reviewedMaster),
           const SizedBox(height: NightshadeTokens.spaceLg),
 
           // ── Proof it's optimal: integration-improvement curve. ───────────
@@ -441,6 +442,105 @@ class _GradedSubsDisagreement extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Reconciles the Night Doctor's verdict with what the night's own integration
+/// recorded about its CALIBRATION.
+///
+/// Same shape as [_GradedSubsDisagreement] and the same reason. The verdict is
+/// built from session-level degradation findings, and the calibration record is
+/// written somewhere else entirely: the integration stores it on the master's
+/// row (`stats_json`), the master FITS carries it as `CALWARN`, and the dawn
+/// pass's morning report prints every sentence of it. None of those reach the
+/// score — so a night whose masters recorded twenty calibration warnings scored
+/// 100 / 100 under "a clean night, no problems detected", and the operator had
+/// to open a FITS header or a JSON artifact to learn otherwise.
+///
+/// It states, it does not score: whether a calibration warning should MOVE the
+/// verdict is a decision about the grader, not about this line, and the number
+/// beside the headline is left exactly as the Doctor computed it.
+class _CalibrationRecordDisagreement extends StatelessWidget {
+  /// The master this review is about, or null when the night produced none.
+  final IntegratedMaster? master;
+
+  const _CalibrationRecordDisagreement({required this.master});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = calibrationRecordMessage(master: master);
+    if (message == null) return const SizedBox.shrink();
+
+    final colors = NightshadeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
+      child: Container(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        decoration: BoxDecoration(
+          color: colors.warning.withValues(alpha: 0.10),
+          borderRadius: NightshadeTokens.borderRadiusLg,
+          border: Border.all(color: colors.warning.withValues(alpha: 0.45)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(NightshadeIcons.warning,
+                size: NightshadeTokens.iconSm, color: colors.warning),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Expanded(
+              child: Text(
+                message,
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textPrimary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// How many recorded calibration sentences [calibrationRecordMessage] quotes
+/// before it counts the rest.
+///
+/// A master with an unreadable anchor raises one sentence per slot per
+/// dimension, so the record runs to twenty-odd lines. Quoting all of them turns
+/// the verdict block into a wall the operator scrolls past; quoting none makes
+/// the line unactionable. Three names the shape of the problem, and the count
+/// says how much more of it there is.
+const int kCalibrationSentencesQuoted = 3;
+
+/// The sentence stating what the master's own integration record says about its
+/// calibration, or null when the record raised nothing.
+///
+/// Read from `integrated_masters.stats_json` through [DawnMasterStats] — the
+/// same parse the dawn autopilot's morning report uses, so this screen and that
+/// report cannot disagree about the same master. A row whose stats are
+/// unreadable parses to [DawnMasterStats.unrecorded], which warns about
+/// nothing: an unparseable payload is not evidence of a calibration problem,
+/// and inventing one would be the cry-wolf defect pointed the other way.
+///
+/// Pure, and public, so the reconciliation can be pinned without driving the
+/// whole review screen.
+String? calibrationRecordMessage({required IntegratedMaster? master}) {
+  if (master == null) return null;
+  final stats = DawnMasterStats.parse(master.statsJson);
+  if (!stats.calibrationWarned) return null;
+
+  final sentences = stats.calibrationSentences;
+  if (sentences.isEmpty) return null;
+  final quoted = sentences.take(kCalibrationSentencesQuoted).toList();
+  final remaining = sentences.length - quoted.length;
+  final tail = remaining == 0
+      ? ''
+      : ' …and $remaining more recorded against this master.';
+
+  final count = sentences.length == 1
+      ? 'one calibration warning'
+      : '${sentences.length} calibration warnings';
+  return 'The verdict above scores the session\'s frames; it does not read the '
+      'calibration record. Integrating "${master.name}" recorded $count: '
+      '${quoted.join(' ')}$tail';
 }
 
 /// The sentence stating a clean Night-Doctor verdict's disagreement with the

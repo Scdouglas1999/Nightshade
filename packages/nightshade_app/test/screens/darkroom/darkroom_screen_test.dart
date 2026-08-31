@@ -405,8 +405,11 @@ void main() {
       findsOneWidget,
     );
     // The header action is suppressed here, so without this the only route out
-    // of the sentinel is the nav rail.
-    expect(find.text('Back to session review'), findsOneWidget);
+    // of the sentinel is the nav rail. The label names the SESSION LIST rather
+    // than a review: this link named no master, so there is no night to open
+    // and the control does not claim there is — it used to say "Back to session
+    // review" and go to Analytics > History, which is neither.
+    expect(find.text('Browse sessions'), findsOneWidget);
   });
 
   testWidgets('a recipe id with no row names the row AND a route back', (
@@ -418,7 +421,9 @@ void main() {
       find.textContaining('Recipe 4242 no longer has a row'),
       findsOneWidget,
     );
-    expect(find.text('Back to session review'), findsOneWidget);
+    // A recipe row that is gone names no master, so no session can be resolved
+    // and the way out says where it actually goes.
+    expect(find.text('Browse sessions'), findsOneWidget);
   });
 
   testWidgets('a recipe renders its stack, its picture and its outcomes', (
@@ -1246,17 +1251,17 @@ void main() {
     // The whole screen used to be ONE ~300-character button: the header's
     // title and subtitle, the empty state's title, the reason and this label
     // twice over, merged into the single fragment that carried a tap. Nothing
-    // was named "Back to session review" for an exact-name lookup to find, and
-    // an activation landed on a node whose extents were the screen.
+    // was named for an exact-name lookup to find, and an activation landed on a
+    // node whose extents were the screen.
     final action = find.widgetWithText(
       NightshadeButton,
-      'Back to session review',
+      'Browse sessions',
     );
     final node = tester.getSemantics(action);
     final data = node.getSemanticsData();
     expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(data.hasAction(SemanticsAction.tap), isTrue);
-    expect(data.label, contains('Back to session review'));
+    expect(data.label, contains('Browse sessions'));
     expect(data.label, isNot(contains('Nothing to open in the Darkroom')));
     expect(data.label, isNot(contains('no longer has a row')));
     expect(node.rect.size, tester.getSize(action));

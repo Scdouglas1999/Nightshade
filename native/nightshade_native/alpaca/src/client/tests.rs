@@ -18,6 +18,20 @@ fn decode_put_response_tolerates_missing_value() {
 }
 
 #[test]
+fn decode_void_put_ignores_nonstandard_value() {
+    // libindi's Alpaca bridge includes `Value: true` on successful Connected
+    // PUTs even though Connected is a void setter in the Alpaca contract.
+    let void_body = serde_json::json!({
+        "ClientTransactionID": 1,
+        "ServerTransactionID": 2,
+        "ErrorNumber": 0,
+        "ErrorMessage": "",
+        "Value": true
+    });
+    decode_put_response::<()>(void_body).expect("void PUT must ignore Value");
+}
+
+#[test]
 fn decode_put_response_surfaces_device_error() {
     let err_body = serde_json::json!({
         "ErrorNumber": 1035,

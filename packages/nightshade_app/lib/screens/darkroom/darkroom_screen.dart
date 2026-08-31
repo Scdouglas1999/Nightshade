@@ -15,6 +15,7 @@ library;
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io' show Directory;
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
@@ -374,13 +375,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         icon: NightshadeIcons.imageOff,
         title: 'Nothing to open in the Darkroom',
         body: loadError,
-        action: NightshadeButton(
-          label: 'Back to session review',
-          icon: NightshadeIcons.history,
-          variant: ButtonVariant.outline,
-          size: ButtonSize.small,
-          onPressed: () => context.go('/analytics?tab=history'),
-        ),
+        action: _DarkroomFailureExit(scope: widget.scope),
       );
     }
     final offer = state.offer;
@@ -506,38 +501,32 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       minPanelWidth: 280,
       maxPanelWidth: 520,
       primary: primary,
+      // One strip over whichever panels are on screen, drawn by the layout that
+      // knows how many surfaces that is. See [_compareOwner].
+      secondaryHeader:
+          compareId == null ? null : _compareOwner(colors, aLabel: aLabel),
       secondary: [
         AdaptivePanel(
           title: compareId == null ? 'Recipe' : 'Recipe · A',
           icon: NightshadeIcons.sliders,
-          child: _compareOwner(
-            colors,
-            comparing: compareId != null,
-            aLabel: aLabel,
-            child: _DarkroomRecipePanel(
-              state: state,
-              onUndo: _controller.undo,
-              onRedo: _controller.redo,
-              onResetToLinear: _controller.resetToLinear,
-              onRerender: _controller.refreshRender,
-            ),
+          child: _DarkroomRecipePanel(
+            state: state,
+            onUndo: _controller.undo,
+            onRedo: _controller.redo,
+            onResetToLinear: _controller.resetToLinear,
+            onRerender: _controller.refreshRender,
           ),
         ),
         AdaptivePanel(
           title: compareId == null ? 'History' : 'History · A',
           icon: NightshadeIcons.layers,
-          child: _compareOwner(
-            colors,
-            comparing: compareId != null,
-            aLabel: aLabel,
-            child: _DarkroomHistoryPanel(
-              state: state,
-              onToggle: _controller.toggleStep,
-              onParamChanged: _controller.setParam,
-              onRemove: _controller.removeStep,
-              onReorder: _controller.reorderStep,
-              onInsert: _controller.insertStep,
-            ),
+          child: _DarkroomHistoryPanel(
+            state: state,
+            onToggle: _controller.toggleStep,
+            onParamChanged: _controller.setParam,
+            onRemove: _controller.removeStep,
+            onReorder: _controller.reorderStep,
+            onInsert: _controller.insertStep,
           ),
         ),
       ],
@@ -555,59 +544,58 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
   ///
   /// Labelled at this seam because the panel titles do not reach a desktop
   /// screen reader — [AdaptivePanelLayout] renders them only on the phone
-  /// segments — so the sentence has to be inside the panel body to be read.
+  /// segments — so the sentence has to be inside the panel column to be read.
+  ///
+  /// Handed to the layout's `secondaryHeader` slot rather than wrapped around
+  /// each panel's body. Wrapped, it was built twice — once for Recipe, once for
+  /// History — and on desktop, where both panels stack in ONE column, the
+  /// operator read the same strip twice and a screen reader walked two
+  /// identical nodes. The layout is the only thing that knows how many
+  /// secondary surfaces are on screen, so it is the thing that draws the strip
+  /// once per surface.
   Widget _compareOwner(
     NightshadeColors colors, {
-    required bool comparing,
     required String aLabel,
-    required Widget child,
   }) {
-    if (!comparing) return child;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          key: const ValueKey('darkroom_compare_owner'),
-          container: true,
-          label: 'Showing pane A, $aLabel. These are pane A\'s steps; pane B '
-              'renders its own recipe and is not edited here.',
-          excludeSemantics: true,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceMd,
-              vertical: NightshadeTokens.spaceSm,
-            ),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              border: Border(bottom: BorderSide(color: colors.border)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  // "Pane A · …", not the pane's own "A · …" caption: this
-                  // strip is read beside that caption, and repeating it word
-                  // for word would leave the two indistinguishable to anyone
-                  // searching the screen for which one owns the stack.
-                  'Pane A · $aLabel',
-                  style: NightshadeTypography.labelStrongSm.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  'B renders its own recipe and is not edited here.',
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
+    return Semantics(
+      key: const ValueKey('darkroom_compare_owner'),
+      container: true,
+      label: 'Showing pane A, $aLabel. These are pane A\'s steps; pane B '
+          'renders its own recipe and is not edited here.',
+      excludeSemantics: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceMd,
+          vertical: NightshadeTokens.spaceSm,
         ),
-        Expanded(child: child),
-      ],
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          border: Border(bottom: BorderSide(color: colors.border)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              // "Pane A · …", not the pane's own "A · …" caption: this strip is
+              // read beside that caption, and repeating it word for word would
+              // leave the two indistinguishable to anyone searching the screen
+              // for which one owns the stack.
+              'Pane A · $aLabel',
+              style: NightshadeTypography.labelStrongSm.copyWith(
+                color: colors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              'B renders its own recipe and is not edited here.',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -642,6 +630,108 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         catalogStars: _controller.catalogStars,
         baseMasterFailure: masterFailure,
       ),
+    );
+  }
+}
+
+/// The way out of the "nothing to open" empty state, labelled with where it
+/// actually goes.
+///
+/// It said "Back to session review" and went to Analytics > History — the
+/// session LIST, a different screen, showing every night rather than this
+/// master's. Two facts were wrong at once: the destination, and the word "back"
+/// over a screen the operator may never have been on.
+///
+/// So the master's own session is resolved first, through the fold record that
+/// is the only thing joining a master to a night, and the label is written from
+/// the answer:
+///
+///  * a resolved session — the button says "session review" and opens THAT
+///    night's review;
+///  * no session, or no master to ask about (a recipe row that is gone names
+///    none) — the button says it is opening the session list, which is where it
+///    goes.
+///
+/// Resolved on build rather than on press, because the label is the promise: a
+/// control that discovers where it can go only after being pressed is the same
+/// defect one screen further on.
+class _DarkroomFailureExit extends ConsumerStatefulWidget {
+  /// What the route asked for. Its master id is the only handle this state has
+  /// — the load failed, so the controller carries no master of its own.
+  final DarkroomScope scope;
+
+  const _DarkroomFailureExit({required this.scope});
+
+  @override
+  ConsumerState<_DarkroomFailureExit> createState() =>
+      _DarkroomFailureExitState();
+}
+
+class _DarkroomFailureExitState extends ConsumerState<_DarkroomFailureExit> {
+  /// The session this master belongs to, once the walk has answered. Null both
+  /// before the answer and when the answer is "there is none" — [_resolved]
+  /// tells the two apart.
+  int? _sessionId;
+  bool _resolved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_resolve());
+  }
+
+  Future<void> _resolve() async {
+    final masterId = widget.scope.masterId;
+    if (masterId == null) {
+      if (mounted) setState(() => _resolved = true);
+      return;
+    }
+    int? sessionId;
+    try {
+      sessionId = await resolveSessionForDarkroomMaster(ref, masterId);
+    } catch (error) {
+      // The list route is the honest fallback: a database that cannot answer
+      // which night this master came from has not proved there is no night, so
+      // the button stops claiming to know which one and says what it will open.
+      developer.log(
+        'The Darkroom could not resolve the session behind master $masterId, '
+        'so its way out offers the session list instead',
+        name: 'DarkroomScreen',
+        level: 900,
+        error: error,
+      );
+      sessionId = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _sessionId = sessionId;
+      _resolved = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sessionId = _sessionId;
+    // Until the walk answers, the button offers the destination it is certain
+    // of. It never promises a review it has not found.
+    if (!_resolved || sessionId == null) {
+      return NightshadeButton(
+        label: 'Browse sessions',
+        icon: NightshadeIcons.history,
+        variant: ButtonVariant.outline,
+        size: ButtonSize.small,
+        semanticsHint:
+            'Opens the session list in Analytics. This master has no '
+            'session review to open.',
+        onPressed: () => context.go('/analytics?tab=history'),
+      );
+    }
+    return NightshadeButton(
+      label: 'Open this night\'s session review',
+      icon: NightshadeIcons.history,
+      variant: ButtonVariant.outline,
+      size: ButtonSize.small,
+      onPressed: () => context.go(sessionReviewLocation(sessionId)),
     );
   }
 }

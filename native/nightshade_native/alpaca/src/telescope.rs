@@ -7,6 +7,17 @@ use crate::{
 use serde::Deserialize;
 use std::time::Duration;
 
+/// Capability endpoints are optional in practice even when a server exposes
+/// the rest of the Telescope API. Treat an explicit not-implemented response
+/// as `false`, while preserving transport and malformed-response failures.
+fn capability_or_unsupported(result: Result<bool, String>) -> Result<bool, String> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(error) if error.to_ascii_lowercase().contains("not implemented") => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 /// Alpaca `Rate` object returned by `axisrates`.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -901,19 +912,19 @@ impl AlpacaTelescope {
         );
 
         Ok(TelescopeCapabilities {
-            can_find_home: can_find_home?,
-            can_park: can_park?,
-            can_unpark: can_unpark?,
-            can_set_park: can_set_park?,
-            can_slew: can_slew?,
-            can_slew_async: can_slew_async?,
-            can_slew_alt_az: can_slew_alt_az?,
-            can_slew_alt_az_async: can_slew_alt_az_async?,
-            can_sync: can_sync?,
-            can_sync_alt_az: can_sync_alt_az?,
-            can_set_tracking: can_set_tracking?,
-            can_pulse_guide: can_pulse_guide?,
-            can_set_guide_rates: can_set_guide_rates?,
+            can_find_home: capability_or_unsupported(can_find_home)?,
+            can_park: capability_or_unsupported(can_park)?,
+            can_unpark: capability_or_unsupported(can_unpark)?,
+            can_set_park: capability_or_unsupported(can_set_park)?,
+            can_slew: capability_or_unsupported(can_slew)?,
+            can_slew_async: capability_or_unsupported(can_slew_async)?,
+            can_slew_alt_az: capability_or_unsupported(can_slew_alt_az)?,
+            can_slew_alt_az_async: capability_or_unsupported(can_slew_alt_az_async)?,
+            can_sync: capability_or_unsupported(can_sync)?,
+            can_sync_alt_az: capability_or_unsupported(can_sync_alt_az)?,
+            can_set_tracking: capability_or_unsupported(can_set_tracking)?,
+            can_pulse_guide: capability_or_unsupported(can_pulse_guide)?,
+            can_set_guide_rates: capability_or_unsupported(can_set_guide_rates)?,
         })
     }
 
@@ -1028,6 +1039,17 @@ impl AlpacaTelescope {
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[test]
+    fn unsupported_capability_is_false_without_masking_other_errors() {
+        assert_eq!(
+            capability_or_unsupported(Err(
+                "HTTP error 400: Method not implemented: canfindhome".to_string()
+            )),
+            Ok(false)
+        );
+        assert!(capability_or_unsupported(Err("connection refused".to_string())).is_err());
+    }
 
     async fn serve_alpaca_response(
         body: &'static str,

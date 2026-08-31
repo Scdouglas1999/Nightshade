@@ -30,6 +30,24 @@ pub mod lx200;
 pub mod skywatcher;
 
 use crate::traits::NativeError;
+use std::sync::OnceLock;
+use tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
+
+/// Coordinates short-lived attempts to claim a serial mount port.
+///
+/// Discovery probes and live connections otherwise race at the OS handle: a
+/// discovery sweep can open COM4 between a driver's disconnect and reconnect,
+/// causing the real connection to fail with `Access is denied`. The guard is
+/// intentionally held only while opening/probing a port, never for the lifetime
+/// of a connected mount.
+static SERIAL_MOUNT_ACCESS: OnceLock<AsyncMutex<()>> = OnceLock::new();
+
+pub(crate) async fn serial_mount_access() -> AsyncMutexGuard<'static, ()> {
+    SERIAL_MOUNT_ACCESS
+        .get_or_init(|| AsyncMutex::new(()))
+        .lock()
+        .await
+}
 
 /// Run a serial-port scan on a blocking thread.
 ///
@@ -43,6 +61,7 @@ where
     T: Send + 'static,
     F: FnOnce() -> Result<T, NativeError> + Send + 'static,
 {
+    let _serial_access = serial_mount_access().await;
     tokio::task::spawn_blocking(scan).await.unwrap_or_else(|e| {
         Err(NativeError::SdkError(format!(
             "{} mount discovery task failed: {}",
@@ -54,6 +73,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -94,5 +114,37 @@ mod tests {
         .await
         .expect_err("expected the scan error to surface");
         assert!(err.to_string().contains("no ports"));
+    }
+
+    #[tokio::test]
+    async fn serial_scans_do_not_overlap() {
+        let first_running = Arc::new(AtomicBool::new(false));
+        let overlap = Arc::new(AtomicBool::new(false));
+
+        let first_flag = Arc::clone(&first_running);
+        let first = tokio::spawn(async move {
+            run_serial_scan("first", move || {
+                first_flag.store(true, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(100));
+                first_flag.store(false, Ordering::SeqCst);
+                Ok(())
+            })
+            .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        let observed_running = Arc::clone(&first_running);
+        let observed_overlap = Arc::clone(&overlap);
+        let second = tokio::spawn(async move {
+            run_serial_scan("second", move || {
+                observed_overlap.store(observed_running.load(Ordering::SeqCst), Ordering::SeqCst);
+                Ok(())
+            })
+            .await
+        });
+
+        first.await.unwrap().unwrap();
+        second.await.unwrap().unwrap();
+        assert!(!overlap.load(Ordering::SeqCst));
     }
 }

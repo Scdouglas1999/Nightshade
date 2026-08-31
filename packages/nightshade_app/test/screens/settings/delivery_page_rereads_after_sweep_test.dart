@@ -49,16 +49,22 @@ bool _pageSays(WidgetTester tester, String fragment) => tester
 
 /// One destination row already owed a file, on a watched folder that is not
 /// there. Returns the target id.
+///
+/// [content] is a parameter because a destination whose selection is EMPTY is
+/// still owed the rows it collected before the selection was cleared — the
+/// case the page and the sweep have to agree about.
 Future<int> _seedOwedRow(
   NightshadeDatabase database, {
   required Directory drop,
   required File master,
+  String name = 'attic-nas',
+  Set<ArtifactContent> content = const {ArtifactContent.linearMasters},
 }) async {
   final targetId = await DeliveryTargetsDao(database).create(
-    name: 'attic-nas',
+    name: name,
     kind: ArtifactDestinationKind.watchedFolder,
     configJson: '{"path":"${drop.path}"}',
-    content: {ArtifactContent.linearMasters},
+    content: content,
   );
   final journal = DeliveryJournalDao(database);
   final jobId = await DarkroomJobsDao(database).enqueue();
@@ -205,6 +211,144 @@ void main() {
 
       expect(_pageSays(tester, 'will retry'), isTrue);
       expect(_pageSays(tester, 'Delivered'), isFalse);
+    },
+  );
+
+  testWidgets(
+    'a peer file the RIG lost stops being reported as the desktop\'s to pull',
+    (tester) async {
+      // Measured against the release bundle on one launch: the manifest
+      // endpoint answered `sourceMissing` for a published draft deleted from
+      // the rig, the sweep on that same launch logged `peer-desktop: 4
+      // awaiting pull`, and the settings row read "Published 4 files, 671.6 KB
+      // — waiting for office-pc to pull" — 338 KB of which was the file the
+      // rig no longer had. The peer arm counted rows without reading the disk,
+      // so the row never failed and the operator had no control on it either.
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+
+      final draft = File('${root.path}${Platform.pathSeparator}draft.jpg')
+        ..writeAsBytesSync(List<int>.filled(4096, 3));
+      final targetId = await DeliveryTargetsDao(database).create(
+        name: 'peer-desktop',
+        kind: ArtifactDestinationKind.peer,
+        configJson: '{"peerId":"office-pc"}',
+        content: {ArtifactContent.draftRender},
+      );
+      final jobId = await DarkroomJobsDao(database).enqueue();
+      // Publication is the journal row and nothing else: `retrying` with no
+      // error is exactly what a published, unpulled file looks like.
+      await DeliveryJournalDao(database).recordAttempt(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: draft.path,
+        bytes: draft.lengthSync(),
+      );
+
+      final handle = await pumpAppScreen(
+        tester,
+        const DeliverySettings(),
+        database: database,
+        size: const Size(1280, 1400),
+        extraOverrides: _overrides(),
+      );
+
+      expect(
+        _pageSays(tester, 'waiting for office-pc to pull'),
+        isTrue,
+        reason: 'while the file is on the rig, the desktop is who it waits on',
+      );
+
+      // The file leaves the rig before the desktop ever collects it.
+      draft.deleteSync();
+
+      final report = await tester.runAsync(
+        () => handle.container.read(deliveryRetrySweeperProvider).sweepOnce(),
+      );
+      expect(report?.awaitingPull, 0);
+      expect(report?.failed, 1);
+
+      await tester.pumpAndSettle();
+
+      expect(
+        _pageSays(tester, 'waiting for office-pc to pull'),
+        isFalse,
+        reason: 'the rig lost the file; that is not the desktop\'s debt',
+      );
+      expect(_pageSays(tester, 'sourceMissing'), isTrue);
+      expect(
+        _pageSays(tester, 'never pulled it'),
+        isTrue,
+        reason: 'the sentence says which side the file left from',
+      );
+    },
+  );
+
+  testWidgets(
+    'an empty selection and the sweep state the same thing on one launch',
+    (tester) async {
+      // Measured against the release bundle on one launch: the sweep logged
+      // `empty-selection: 1 delivered` and wrote the file into the folder,
+      // while the row's status line LED with "Nothing selected — this
+      // destination receives no files." The selection picks destinations at
+      // job time only; rows already owed are on the sweep's work list and go.
+      _swallowKnownOverflows();
+      final database = mockDatabase();
+      addTearDown(database.close);
+
+      // The folder is there from the start — nothing structural is in the way,
+      // so the only claim under test is the one about the selection.
+      final drop = Directory('${root.path}${Platform.pathSeparator}drop')
+        ..createSync();
+      final master = File('${root.path}${Platform.pathSeparator}L.fits')
+        ..writeAsBytesSync(List<int>.filled(4096, 7));
+      await _seedOwedRow(
+        database,
+        drop: drop,
+        master: master,
+        name: 'empty-selection',
+        content: const {},
+      );
+
+      final handle = await pumpAppScreen(
+        tester,
+        const DeliverySettings(),
+        database: database,
+        size: const Size(1280, 1400),
+        extraOverrides: _overrides(),
+      );
+
+      expect(
+        _pageSays(tester, 'this destination receives no files'),
+        isFalse,
+        reason: 'a file is owed here and the sweep is about to deliver it',
+      );
+      expect(_pageSays(tester, 'receives no new files'), isTrue);
+      expect(
+        _pageSays(tester, '1 file owed from before is still delivered'),
+        isTrue,
+      );
+
+      final report = await tester.runAsync(
+        () => handle.container.read(deliveryRetrySweeperProvider).sweepOnce(),
+      );
+      expect(
+        report?.delivered,
+        1,
+        reason: 'the sweep works from the journal, not from the selection',
+      );
+      expect(drop.listSync().whereType<File>(), isNotEmpty);
+
+      await tester.pumpAndSettle();
+
+      expect(
+        _pageSays(tester, 'this destination receives no files'),
+        isFalse,
+        reason: 'the file is in the folder the page would be talking about',
+      );
+      expect(_pageSays(tester, 'receives no new files'), isTrue);
+      expect(_pageSays(tester, 'Delivered'), isTrue);
     },
   );
 }

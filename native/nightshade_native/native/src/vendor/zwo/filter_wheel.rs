@@ -50,10 +50,14 @@ pub(crate) fn efw_candidate_paths() -> Vec<PathBuf> {
         paths.push(PathBuf::from("libEFW_filter.dylib"));
     } else {
         paths.extend(vendor_library_candidates(
-            &["libEFW_filter.so"],
+            // Accept the filename used by Arch's libasi package as well as
+            // the historical name from ZWO's SDK archive.
+            &["libEFW_filter.so", "libEFWFilter.so"],
             &[
                 "/usr/lib/libEFW_filter.so",
+                "/usr/lib/libEFWFilter.so",
                 "/usr/local/lib/libEFW_filter.so",
+                "/usr/local/lib/libEFWFilter.so",
             ],
         ));
     }
@@ -703,4 +707,18 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
     }
 
     Ok(wheels)
+}
+
+#[cfg(test)]
+mod candidate_path_tests {
+    use super::*;
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn accepts_zwo_and_distro_linux_library_names() {
+        let candidates = efw_candidate_paths();
+        assert!(candidates.contains(&PathBuf::from("libEFW_filter.so")));
+        assert!(candidates.contains(&PathBuf::from("libEFWFilter.so")));
+        assert!(candidates.contains(&PathBuf::from("/usr/lib/libEFWFilter.so")));
+    }
 }

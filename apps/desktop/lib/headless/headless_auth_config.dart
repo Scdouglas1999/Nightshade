@@ -11,10 +11,11 @@ class HeadlessAuthConfig {
   final String? token;
   final bool requireAuth;
 
-  /// Explicit opt-in to the legacy fully-open behaviour. When true AND no
-  /// tokens are configured, every endpoint is served without a bearer token
-  /// (the server logs a prominent warning). Default false = FAIL CLOSED: an
-  /// unconfigured server serves only the pairing/dashboard bootstrap surface.
+  /// Explicit opt-in to the legacy fully-open behaviour. When true, every
+  /// endpoint is served without a bearer token even if configured or persisted
+  /// pairing tokens exist (the server logs a prominent warning). Default false
+  /// = FAIL CLOSED: an unconfigured server serves only the
+  /// pairing/dashboard bootstrap surface.
   ///
   /// Distinct from [bindLocalOnly]: this governs whether requests are
   /// *authenticated*, not which interface the socket binds to.

@@ -422,6 +422,8 @@ impl NativeDevice for IOptronMount {
             return Ok(());
         }
 
+        let _serial_access = crate::vendor::serial_mount_access().await;
+
         let serial = serialport::new(&self.port_name, self.baud_rate)
             .timeout(Duration::from_millis(500))
             .open()

@@ -152,7 +152,7 @@ function weatherPanel(weather, safety, { stale = false } = {}) {
   ]);
   const render = build(
     ['document', 'state', 'clearElement', 'weatherDataIsStale'],
-    [fn('paintOpsWeatherUnknown'), fn('renderOpsWeatherPanel'),
+    [fn('wireNumber'), fn('paintOpsWeatherUnknown'), fn('renderOpsWeatherPanel'),
       fn('setOpsTelemetry')],
     'renderOpsWeatherPanel',
   )(doc, { ops: { weather, safety } }, (el) => { el.children = []; },
@@ -229,7 +229,7 @@ test('the settings panel reads the keys the API actually emits', async () => {
   ]);
   const refresh = build(
     ['document', 'api', 'addLogEntry'],
-    [fn('refreshSettingsPanel')],
+    [fn('wireNumber'), fn('refreshSettingsPanel')],
     'refreshSettingsPanel',
   )(
     doc,
@@ -2177,7 +2177,8 @@ function galleryGrid(items) {
     ['document', 'gallery', 'revokeGalleryThumbnailUrls',
       'loadGalleryThumbnail', 'markGalleryThumbUnavailable',
       'openGalleryModal'],
-    [fn('formatGalleryMeta'), fn('galleryRejection'), fn('renderGallery')],
+    [fn('wireNumber'), fn('formatGalleryMeta'), fn('galleryRejection'),
+      fn('renderGallery')],
     'renderGallery',
   )(
     doc,
@@ -2265,7 +2266,8 @@ test('the count line states the tally the grader produced', () => {
 test('the preview modal states the verdict on the frame it is showing', () => {
   const meta = build(
     [],
-    [fn('formatGalleryMeta'), fn('galleryRejection'), fn('galleryModalMeta')],
+    [fn('wireNumber'), fn('formatGalleryMeta'), fn('galleryRejection'),
+      fn('galleryModalMeta')],
     'galleryModalMeta',
   )();
   const rejected = meta({ id: 13, filter: 'L', createdAt: 1787057569000,
@@ -2276,4 +2278,395 @@ test('the preview modal states the verdict on the frame it is showing', () => {
     isAccepted: true, rejectionReason: null });
   assert.doesNotMatch(accepted, /REJECT/i);
   assert.match(accepted, /^B · /);
+});
+
+// ---------------------------------------------------------------------------
+// w14-B — the active-session card
+// ---------------------------------------------------------------------------
+
+/** The REAL renderOpsAnalyticsPanel over the real wireNumber/formatDurationSeconds. */
+function analyticsPanel(session, transparency = []) {
+  const doc = makeDocument([
+    'ops-analytics-session-name', 'ops-analytics-frames',
+    'ops-analytics-graded', 'ops-analytics-integration',
+    'ops-analytics-hfr', 'ops-analytics-rms',
+    'ops-analytics-transparency-summary',
+  ]);
+  const render = build(
+    ['document', 'state', 'drawOpsTransparencySparkline'],
+    [fn('wireNumber'), fn('pad2'), fn('formatDurationSeconds'),
+      fn('renderOpsAnalyticsPanel')],
+    'renderOpsAnalyticsPanel',
+  )(doc, { ops: { sessionSummary: { session, transparency } } }, () => {});
+  render();
+  const read = (id) => doc.getElementById(id).textContent;
+  return { doc, read };
+}
+
+// GET /api/sessions/active serves the imaging_sessions row, whose exposure
+// counters used to be written only every fifth frame, beside an
+// accepted/rejected pair the same endpoint counts live off captured_images.
+// Four frames into a healthy night the card read "Frames returned 0" next to
+// "4 accepted". The counters now advance per frame (SessionService), so the
+// two halves of the card come from the same night at the same moment — and
+// this is the shape that must never render again.
+test('a card that has graded frames cannot report none returned', () => {
+  const { read } = analyticsPanel({
+    id: 1, name: 'D4 live watch',
+    totalExposures: 4, successfulExposures: 4, failedExposures: 0,
+    acceptedLights: 4, rejectedLights: 0,
+    totalIntegrationSecs: 48.0, avgHfr: 2.67, avgGuidingRms: null,
+  });
+  assert.equal(read('ops-analytics-frames'), '4');
+  assert.equal(read('ops-analytics-graded'), '4 accepted · 0 rejected');
+  assert.equal(read('ops-analytics-integration'), '48s');
+  assert.equal(read('ops-analytics-hfr'), '2.67');
+});
+
+test('a night that has returned nothing yet says so on both rows', () => {
+  const { read } = analyticsPanel({
+    id: 1, name: 'D4 live watch',
+    totalExposures: 0, successfulExposures: 0, failedExposures: 0,
+    acceptedLights: 0, rejectedLights: 0,
+    totalIntegrationSecs: 0.0, avgHfr: null, avgGuidingRms: null,
+  });
+  assert.equal(read('ops-analytics-frames'), '0');
+  assert.equal(read('ops-analytics-graded'), 'nothing graded yet');
+  assert.equal(read('ops-analytics-hfr'), '--');
+});
+
+// The `!= null` guard was a presence check, not a type check: it admitted
+// "banana" into String(...) and "NaN" into Number(...).toFixed(2), and the
+// panel printed both at the operator as if they were measurements.
+test('a wrong-typed session payload reads as absent, never as a number', () => {
+  const { read } = analyticsPanel({
+    id: 9, name: null,
+    totalExposures: 'banana', successfulExposures: null,
+    acceptedLights: null, rejectedLights: null,
+    totalIntegrationSecs: 'NaN', avgHfr: 'x', avgGuidingRms: {},
+  });
+  assert.equal(read('ops-analytics-session-name'), 'Session #9');
+  assert.equal(read('ops-analytics-frames'), '--');
+  assert.equal(read('ops-analytics-graded'), '--');
+  assert.equal(read('ops-analytics-integration'), '--');
+  assert.equal(read('ops-analytics-hfr'), '--');
+  assert.equal(read('ops-analytics-rms'), '--');
+});
+
+test('a NaN or an Infinity is an absence, not a reading', () => {
+  const { read } = analyticsPanel({
+    id: 3, name: 'Malformed',
+    successfulExposures: NaN, totalExposures: NaN,
+    acceptedLights: 2, rejectedLights: NaN,
+    totalIntegrationSecs: Infinity, avgHfr: NaN, avgGuidingRms: -Infinity,
+  });
+  assert.equal(read('ops-analytics-frames'), '--');
+  assert.equal(read('ops-analytics-graded'), '--');
+  assert.equal(read('ops-analytics-integration'), '--');
+  assert.equal(read('ops-analytics-hfr'), '--');
+  assert.equal(read('ops-analytics-rms'), '--');
+});
+
+test('a numeric string is not a number the panel will print', () => {
+  // The Dart handler serialises these as JSON numbers. A string arriving here
+  // means the wire changed shape, and guessing at it is how "banana" got on
+  // screen in the first place.
+  const { read } = analyticsPanel({
+    id: 4, name: 'Stringly typed',
+    successfulExposures: '7', totalExposures: '7',
+    acceptedLights: '7', rejectedLights: '0',
+    totalIntegrationSecs: '84', avgHfr: '2.5', avgGuidingRms: '0.4',
+  });
+  assert.equal(read('ops-analytics-frames'), '--');
+  assert.equal(read('ops-analytics-graded'), '--');
+  assert.equal(read('ops-analytics-integration'), '--');
+  assert.equal(read('ops-analytics-hfr'), '--');
+  assert.equal(read('ops-analytics-rms'), '--');
+});
+
+test('no active session paints every row absent', () => {
+  const { read } = analyticsPanel(null);
+  assert.equal(read('ops-analytics-session-name'), 'no active session');
+  assert.equal(read('ops-analytics-frames'), '--');
+  assert.equal(read('ops-analytics-graded'), '--');
+  assert.equal(read('ops-analytics-integration'), '--');
+});
+
+// The gate itself, exercised directly: every numeric sink in the sweep routes
+// through this one function, so its contract is what the panels inherit.
+test('wireNumber admits finite numbers and nothing else', () => {
+  const wire = build([], [fn('wireNumber')], 'wireNumber')();
+  assert.equal(wire(0), 0);
+  assert.equal(wire(-2.5), -2.5);
+  assert.equal(wire(48), 48);
+  for (const bad of ['banana', 'NaN', '12', '', null, undefined, NaN,
+    Infinity, -Infinity, true, false, {}, [], [5]]) {
+    assert.equal(wire(bad), null, JSON.stringify(bad) + ' is not a reading');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// w14-B — the rest of the sweep
+//
+// The analytics card above was the finding's example, not its extent. These
+// are the other panels that took a wire value straight into a numeric render,
+// and they failed in two directions the card did not: a wrong-typed value
+// either printed as a reading ("Temp NaN C", "0.0 °C" from an empty field) or
+// threw on `.toFixed` and took the REST of its panel down with it — the rows
+// below the bad one never got appended, so a cooling camera rendered as a
+// camera with no cooler.
+// ---------------------------------------------------------------------------
+
+/** The REAL renderFocuserPanel over the real wireNumber. */
+function focuserPanel(focuserStatus, lastAutofocusResult = null) {
+  const doc = makeDocument(['focuser-position', 'focuser-temp',
+    'focuser-moving', 'focuser-last-af']);
+  build(
+    ['document', 'state', 'updateFocuserButtons'],
+    [fn('wireNumber'), fn('renderFocuserPanel')],
+    'renderFocuserPanel',
+  )(doc, { focuserStatus, lastAutofocusResult }, () => {})();
+  return (id) => doc.getElementById(id).textContent;
+}
+
+test('an unreadable focuser temperature does not take the position with it',
+  () => {
+    const read = focuserPanel({ position: 42, temperature: 'banana' });
+    assert.equal(read('focuser-position'), '42');
+    assert.equal(read('focuser-temp'), '--');
+  });
+
+test('a focuser that reports a real temperature still shows it', () => {
+  const read = focuserPanel({ position: 18342, temperature: -4.25 });
+  assert.equal(read('focuser-position'), '18342');
+  assert.equal(read('focuser-temp'), '-4.3 °C');
+});
+
+/** The REAL renderRotatorPanel over the real wireNumber. */
+function rotatorPanel(rotatorStatus, lastImagePositionAngle = null) {
+  const doc = makeDocument(['rotator-sky-pa', 'rotator-mech-pa',
+    'rotator-moving', 'btn-rotator-sync-image']);
+  build(
+    ['document', 'state', 'updateRotatorButtons'],
+    [fn('wireNumber'), fn('renderRotatorPanel')],
+    'renderRotatorPanel',
+  )(doc, { rotatorStatus, lastImagePositionAngle }, () => {})();
+  return (id) => doc.getElementById(id).textContent;
+}
+
+test('a rotator angle that is not a number reads as no angle', () => {
+  const read = rotatorPanel({ position: 'banana', mechanicalPosition: NaN });
+  assert.equal(read('rotator-sky-pa'), '--°');
+  assert.equal(read('rotator-mech-pa'), '--°');
+});
+
+test('a rotator angle that is a number is painted', () => {
+  const read = rotatorPanel({ position: 118.5, mechanicalPosition: 0 });
+  assert.equal(read('rotator-sky-pa'), '118.50°');
+  assert.equal(read('rotator-mech-pa'), '0.00°');
+});
+
+/** The REAL renderCameraStatusInfo; returns the rows it appended, in order. */
+function cameraStatusRows(cameraStatus) {
+  const doc = makeDocument(['camera-status-info']);
+  const rows = [];
+  build(
+    ['document', 'state', 'clearElement', 'createStatusRow',
+      'updateCameraButtons'],
+    [fn('wireNumber'), fn('renderCameraStatusInfo')],
+    'renderCameraStatusInfo',
+  )(
+    doc,
+    { cameraStatus },
+    () => { rows.length = 0; },
+    (label, value) => {
+      rows.push(label + '=' + value);
+      return doc.createElement('div');
+    },
+    () => {},
+  )();
+  return rows;
+}
+
+test('a camera with no temperature reading still shows its cooler', () => {
+  // `null.toFixed` threw here, and the throw escaped the whole render: State
+  // was already on the panel, Cooler and Exposure never arrived, and the
+  // operator read a camera that was cooling as one with no cooler at all.
+  assert.deepEqual(
+    cameraStatusRows({ cameraState: 'idle', ccdTemperature: null,
+      coolerPower: 55, percentCompleted: 40 }),
+    ['State=idle', 'Cooler=55%', 'Exposure=40%']);
+});
+
+test('a camera temperature of NaN is omitted, never printed', () => {
+  assert.deepEqual(
+    cameraStatusRows({ cameraState: 'exposing', ccdTemperature: NaN,
+      coolerPower: 55, percentCompleted: 40 }),
+    ['State=exposing', 'Cooler=55%', 'Exposure=40%']);
+});
+
+test('a wrong-typed cooler figure drops only its own row', () => {
+  assert.deepEqual(
+    cameraStatusRows({ cameraState: 'idle', ccdTemperature: -12.5,
+      coolerPower: '55', percentCompleted: 40 }),
+    ['State=idle', 'Temp=-12.5 C', 'Exposure=40%']);
+});
+
+test('a fully reporting camera renders every row', () => {
+  assert.deepEqual(
+    cameraStatusRows({ cameraState: 'exposing', ccdTemperature: -10.0,
+      coolerPower: 62.4, percentCompleted: 33.3 }),
+    ['State=exposing', 'Temp=-10.0 C', 'Cooler=62%', 'Exposure=33%']);
+});
+
+test('the weather rows refuse every value Number() would invent', () => {
+  const setOpsTelemetry = build(
+    ['document'], [fn('wireNumber'), fn('setOpsTelemetry')], 'setOpsTelemetry',
+  )(makeDocument([]));
+  const doc = makeDocument(['t']);
+  const el = doc.getElementById('t');
+  const format = (v) => v.toFixed(1) + ' °C';
+  // Each of these used to coerce to a number and paint one: '' and [] became
+  // 0.0 °C — a freeze warning from a sensor that reported nothing.
+  for (const bad of ['', [], true, '12', 'banana', null, undefined, NaN]) {
+    setOpsTelemetry(el, bad, format);
+    assert.equal(el.textContent, '--', JSON.stringify(bad) + ' is not a reading');
+  }
+  setOpsTelemetry(el, -3.5, format);
+  assert.equal(el.textContent, '-3.5 °C');
+  setOpsTelemetry(el, 0, format);
+  assert.equal(el.textContent, '0.0 °C');
+});
+
+test('a coordinate formatter answers only to numbers', () => {
+  const formatRA = build(
+    [], [fn('wireNumber'), fn('pad2'), fn('formatRA')], 'formatRA')();
+  const formatDec = build(
+    [], [fn('wireNumber'), fn('pad2'), fn('formatDec')], 'formatDec')();
+  // `isNaN([])` is false, so an empty array used to print the pole: an
+  // observatory pointed at 00h 00m from a payload that named no coordinate.
+  for (const bad of [[], true, '5.588', 'banana', null, undefined, NaN, {}]) {
+    assert.equal(formatRA(bad), '--h --m --s',
+      JSON.stringify(bad) + ' is not an RA');
+    assert.equal(formatDec(bad), '--° --\' --"',
+      JSON.stringify(bad) + ' is not a Dec');
+  }
+  assert.equal(formatRA(5.588), '05h 35m 16.8s');
+  assert.equal(formatDec(-5.39), '-05° 23\' 24"');
+});
+
+test('a target row with an unreadable coordinate offers no coordinate', () => {
+  const doc = makeDocument(['ops-target-results']);
+  const list = doc.getElementById('ops-target-results');
+  build(
+    ['document', 'state', 'clearElement', 'createEmptyState',
+      'handleOpsTargetSelect'],
+    [fn('wireNumber'), fn('pad2'), fn('formatRA'), fn('formatDec'),
+      fn('renderOpsTargetResults')],
+    'renderOpsTargetResults',
+  )(
+    doc,
+    { ops: { catalogResults: [{ id: 1, name: 'M42', ra: 'banana', dec: {} }] } },
+    () => { list.children.length = 0; },
+    () => doc.createElement('div'),
+    () => {},
+  )();
+  const coords = list.children[0].children.map((c) => c.textContent);
+  assert.equal(coords[coords.length - 1], '--');
+});
+
+test('a target with an unreadable coordinate is not slewed to', () => {
+  // The worst of the family: `Number('banana')` handed NaN to the mount and
+  // logged "RA NaNh" beside it, so the operator watched a slew commanded to a
+  // place that does not exist.
+  const slews = [];
+  const said = [];
+  const doc = makeDocument(['mount-goto-name', 'mount-goto-ra',
+    'mount-goto-dec']);
+  const select = build(
+    ['document', 'state', 'api', 'showToast', 'addLogEntry',
+      'describeApiError', 'renderOpsSequencerLoadPanel'],
+    [fn('wireNumber'), fn('pad2'), fn('formatRA'), fn('formatDec'),
+      fn('handleOpsTargetSelect')],
+    'handleOpsTargetSelect',
+  )(
+    doc,
+    { mountDeviceId: 'mount-1', ops: {} },
+    { mountSlewToRaDec: (id, ra, dec) => { slews.push([ra, dec]); return Promise.resolve(); } },
+    (msg) => said.push(msg),
+    (category, msg) => said.push(msg),
+    (e) => String(e),
+    () => {},
+  );
+  return select({ id: 1, name: 'M42', ra: 'banana', dec: 1.2 }).then(() => {
+    assert.deepEqual(slews, []);
+    assert.ok(said.some((m) => m.includes('has no coordinates')), said.join(' / '));
+  });
+});
+
+test('a readable target is still slewed to, and logged as sent', () => {
+  const slews = [];
+  const said = [];
+  const doc = makeDocument(['mount-goto-name', 'mount-goto-ra',
+    'mount-goto-dec']);
+  const select = build(
+    ['document', 'state', 'api', 'showToast', 'addLogEntry',
+      'describeApiError', 'renderOpsSequencerLoadPanel'],
+    [fn('wireNumber'), fn('pad2'), fn('formatRA'), fn('formatDec'),
+      fn('handleOpsTargetSelect')],
+    'handleOpsTargetSelect',
+  )(
+    doc,
+    { mountDeviceId: 'mount-1', ops: {} },
+    { mountSlewToRaDec: (id, ra, dec) => { slews.push([ra, dec]); return Promise.resolve(); } },
+    (msg) => said.push(msg),
+    (category, msg) => said.push(msg),
+    (e) => String(e),
+    () => {},
+  );
+  return select({ id: 1, name: 'M42', ra: 5.588, dec: -5.39 }).then(() => {
+    assert.deepEqual(slews, [[5.588, -5.39]]);
+    assert.ok(said.some((m) => m.includes('RA 5.588h')), said.join(' / '));
+    assert.equal(doc.getElementById('mount-goto-ra').value, '05h 35m 16.8s');
+  });
+});
+
+/** The REAL renderPolarAlignmentPanel over the real wireNumber. */
+function polarPanel(polarAlignment) {
+  const doc = makeDocument(['pa-phase', 'pa-total-error', 'pa-modal-phase',
+    'pa-modal-error', 'pa-modal-status']);
+  build(['document', 'state'],
+    [fn('wireNumber'), fn('renderPolarAlignmentPanel')],
+    'renderPolarAlignmentPanel')(doc, { polarAlignment })();
+  return (id) => doc.getElementById(id).textContent;
+}
+
+test('an unreadable polar error leaves the phase readable', () => {
+  // `isFinite('3.5')` is true, so the old guard admitted the string and threw
+  // on `.toFixed` — and the throw was raised before the phase row was written
+  // in the modal, so the operator lost the whole alignment readout.
+  const read = polarPanel({ phase: 'measuring', totalErrorArcmin: '3.5',
+    statusMessage: 'adjusting' });
+  assert.equal(read('pa-phase'), 'measuring');
+  assert.equal(read('pa-total-error'), '--');
+  assert.equal(read('pa-modal-error'), '--');
+  assert.equal(read('pa-modal-status'), 'adjusting');
+});
+
+test('a measured polar error is painted and graded', () => {
+  const read = polarPanel({ phase: 'done', totalErrorArcmin: 0.42,
+    statusMessage: 'good' });
+  assert.equal(read('pa-total-error'), "0.42'");
+  assert.equal(read('pa-modal-error'), "0.42'");
+});
+
+test('a gallery row states an exposure only when one was sent', () => {
+  const meta = build([], [fn('wireNumber'), fn('formatGalleryMeta')],
+    'formatGalleryMeta')();
+  // `Number([])` is 0, so an empty exposure field used to label the frame
+  // "0s" — a sub that was never exposed.
+  assert.doesNotMatch(meta({ id: 1, filter: 'L', exposureTime: [] }), /s$/);
+  assert.doesNotMatch(meta({ id: 2, filter: 'L', exposureTime: true }), /1s/);
+  assert.doesNotMatch(meta({ id: 3, filter: 'L', exposureTime: '120' }), /120s/);
+  assert.match(meta({ id: 4, filter: 'L', exposureTime: 120 }), /120s/);
 });

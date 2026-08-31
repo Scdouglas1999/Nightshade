@@ -15,7 +15,8 @@ pub use version::*;
 use crate::{AlpacaDevice, AlpacaDeviceType};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize};
+use std::any::TypeId;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 use thiserror::Error;
@@ -31,10 +32,11 @@ static NEXT_CLIENT_ID: AtomicU32 = AtomicU32::new(1);
 /// ServerTransactionID / ErrorNumber / ErrorMessage and NO "Value" field.
 /// Decoding those into `AlpacaResponse<()>` fails with "missing field Value",
 /// which broke EVERY Alpaca PUT (connect included). We instead read the error
-/// fields directly and tolerate an absent "Value": when present it is decoded
-/// into `T` (so a rare value-returning PUT still works); when absent it is
-/// treated as JSON `null`, which deserializes to `()` for the void case.
-fn decode_put_response<T: for<'de> Deserialize<'de>>(
+/// fields directly and tolerate an absent "Value". Some bridges return a
+/// non-standard informational `Value` even for a void command (libindi's
+/// Alpaca server returns `Value: true` for `Connected=true`). For `T = ()` we
+/// therefore ignore `Value` entirely; value-returning PUTs still decode it.
+fn decode_put_response<T: DeserializeOwned + 'static>(
     raw: serde_json::Value,
 ) -> Result<T, AlpacaError> {
     let error_number = raw
@@ -52,7 +54,11 @@ fn decode_put_response<T: for<'de> Deserialize<'de>>(
             message: error_message,
         });
     }
-    let value_json = raw.get("Value").cloned().unwrap_or(serde_json::Value::Null);
+    let value_json = if TypeId::of::<T>() == TypeId::of::<()>() {
+        serde_json::Value::Null
+    } else {
+        raw.get("Value").cloned().unwrap_or(serde_json::Value::Null)
+    };
     serde_json::from_value(value_json).map_err(|e| AlpacaError::RequestFailed(e.to_string()))
 }
 
@@ -396,7 +402,7 @@ impl AlpacaClient {
     }
 
     /// Make a PUT request with typed error handling
-    pub async fn put_typed<T: for<'de> Deserialize<'de>>(
+    pub async fn put_typed<T: DeserializeOwned + 'static>(
         &self,
         endpoint: &str,
         params: &[(&str, &str)],
@@ -448,7 +454,7 @@ impl AlpacaClient {
     }
 
     /// Make a PUT request (backward compatible with String errors)
-    pub async fn put<T: for<'de> Deserialize<'de>>(
+    pub async fn put<T: DeserializeOwned + 'static>(
         &self,
         endpoint: &str,
         params: &[(&str, &str)],
@@ -499,7 +505,7 @@ impl AlpacaClient {
 
     /// Make a long-running PUT request with extended timeout
     /// Use for operations like slewing, parking, and shutter control
-    pub async fn put_long<T: for<'de> Deserialize<'de>>(
+    pub async fn put_long<T: DeserializeOwned + 'static>(
         &self,
         endpoint: &str,
         params: &[(&str, &str)],
@@ -546,7 +552,7 @@ impl AlpacaClient {
 
     /// Make a very long-running PUT request with extended timeout
     /// Use for operations like full dome rotation, image downloads, etc.
-    pub async fn put_very_long<T: for<'de> Deserialize<'de>>(
+    pub async fn put_very_long<T: DeserializeOwned + 'static>(
         &self,
         endpoint: &str,
         params: &[(&str, &str)],
@@ -605,13 +611,31 @@ impl AlpacaClient {
 
     /// Connect to the device
     pub async fn connect(&self) -> Result<(), String> {
-        self.put::<()>("connected", &[("Connected", "true")]).await
+        self.connect_typed().await.map_err(|e| e.to_string())
     }
 
     /// Connect to the device (typed error)
     pub async fn connect_typed(&self) -> Result<(), AlpacaError> {
-        self.put_typed::<()>("connected", &[("Connected", "true")])
-            .await
+        // A successful setter response is not enough for a bridge-backed
+        // device. The previous transport may still be finishing an async
+        // disconnect and can flip the shared hardware connection back off
+        // immediately after this PUT. Confirm the readback, and repeat the
+        // idempotent connect when that handover race is observed.
+        for attempt in 0..3 {
+            self.put_typed::<()>("connected", &[("Connected", "true")])
+                .await?;
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            if self.is_connected_typed().await? {
+                return Ok(());
+            }
+            if attempt < 2 {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+        }
+        Err(AlpacaError::ValidationFailed(
+            "Connected=true succeeded, but the device still reports disconnected after 3 attempts"
+                .to_string(),
+        ))
     }
 
     /// Disconnect from the device

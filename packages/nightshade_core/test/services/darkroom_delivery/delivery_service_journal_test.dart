@@ -540,6 +540,122 @@ void main() {
       expect((await DeliveryJournalDao(db).listForJob(1)).single.attempts, 1);
     });
 
+    test('a published file the RIG has lost fails on the rig, and stops being '
+        'the desktop\'s debt', () async {
+      // The peer arm counted every row straight into `awaitingPull` without
+      // reading the rig's own disk, so an artifact deleted after publication
+      // was reported "waiting for office-pc to pull" for ever — no error, no
+      // terminal state, attempts untouched — while the manifest endpoint was
+      // already refusing to serve it as `sourceMissing`. Every other transport
+      // describes its source on every pass; this one now does too.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      await createWatchedFolder(
+        db,
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.peer,
+      );
+      var now = DateTime.utc(2026, 8, 16, 5);
+      final transport = _ScriptedTransport(
+        kind: ArtifactDestinationKind.peer,
+        disposition: DeliveryDisposition.awaitingPull,
+      );
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => transport,
+        clock: () => now,
+      );
+      await service.deliverJobArtifacts(await artifactSet());
+
+      // The file leaves the rig before the desktop ever pulls it.
+      await File(p.join(source.path, 'M31_Ha_master.fits')).delete();
+
+      now = now.add(const Duration(hours: 3));
+      final report = await service.sweepDueRetries();
+
+      expect(
+        report.awaitingPull,
+        0,
+        reason: 'there is nothing left for the desktop to collect',
+      );
+      expect(report.failed, 1);
+      expect(
+        report.everythingLanded,
+        isFalse,
+        reason: 'a file that left the rig unpulled did not land',
+      );
+      final row = (await DeliveryJournalDao(db).listForJob(1)).single;
+      expect(row.state, DeliveryAttemptState.failed);
+      expect(row.lastError, contains('sourceMissing'));
+      expect(
+        row.lastError,
+        contains('never pulled it'),
+        reason: 'the sentence names which side lost the file',
+      );
+      expect(
+        row.attempts,
+        1,
+        reason:
+            'reading the rig\'s own disk is not another publication, so '
+            'the count still says how many times the file was offered',
+      );
+      expect(
+        transport.opens,
+        1,
+        reason: 'the check opens no transport — nothing is re-published',
+      );
+    });
+
+    test('a published file still on the rig is left waiting, and is not '
+        'hashed to find that out', () async {
+      // The existence check is `stat`, not `describe`: a peer row is looked at
+      // on every heartbeat pass for as long as the desktop leaves it unpulled,
+      // and hashing there would re-read every published master on an appliance
+      // that is also integrating. Pinned by permissions rather than by timing:
+      // a file that cannot be READ but can be stat-ed still reports as waiting.
+      final db = open();
+      addTearDown(db.close);
+      await enqueueJob(db);
+      await createWatchedFolder(
+        db,
+        name: 'office-pc',
+        kind: ArtifactDestinationKind.peer,
+      );
+      var now = DateTime.utc(2026, 8, 16, 5);
+      final service = DeliveryService(
+        targets: DeliveryTargetsDao(db),
+        journal: DeliveryJournalDao(db),
+        transportFactory: (_, __) => _ScriptedTransport(
+          kind: ArtifactDestinationKind.peer,
+          disposition: DeliveryDisposition.awaitingPull,
+        ),
+        clock: () => now,
+      );
+      await service.deliverJobArtifacts(await artifactSet());
+      final master = File(p.join(source.path, 'M31_Ha_master.fits'));
+      await Process.run('chmod', ['000', master.path]);
+      addTearDown(() => Process.run('chmod', ['644', master.path]));
+      expect(
+        () => master.openSync().closeSync(),
+        throwsA(isA<FileSystemException>()),
+        reason:
+            'the read must really be denied, or this test proves nothing '
+            'about which of stat and read the sweep performs',
+      );
+
+      now = now.add(const Duration(hours: 3));
+      final report = await service.sweepDueRetries();
+
+      expect(report.awaitingPull, 1);
+      expect(report.failed, 0);
+      expect(
+        (await DeliveryJournalDao(db).listForJob(1)).single.state,
+        DeliveryAttemptState.retrying,
+      );
+    });
+
     test(
       'a switched-off peer is suspended, not reported as awaiting a pull',
       () async {

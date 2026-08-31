@@ -80,9 +80,14 @@ void main() {
 
     await c.read(sessionStateProvider.notifier).startSession(targetName: 'M31');
 
-    // Left ACTIVE on purpose: an interrupted run is exactly the session the
-    // Continue Session dialog offers back, and getQuickStartContext prefers
-    // active sessions.
+    // Then the process died and the next open swept the row, which is the
+    // state the Continue Session dialog exists for. Closed by the boot sweep's
+    // own rule rather than by hand: `active` now means a run this process is
+    // driving, and a live run is not a session to hand off from.
+    await sessionsDao.closeOrphanedSessions(
+      cause: kInterruptedBySessionShutdownCause,
+    );
+
     final quickStart = QuickStartService(
       sessionsDao: sessionsDao,
       profilesDao: EquipmentProfilesDao(db),

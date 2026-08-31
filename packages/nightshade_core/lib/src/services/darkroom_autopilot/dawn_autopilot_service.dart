@@ -156,6 +156,16 @@ class DawnAutopilotService {
   /// queue. See [_enqueueOnePassPerSession].
   Future<void> _enqueueGate = Future<void>.value();
 
+  /// Serializes the RUNS. Every job this process executes chains behind it, so
+  /// one pass is live at a time whoever asked for it. See [_runSerialized].
+  Future<void> _runGate = Future<void>.value();
+
+  /// Job ids that have been handed to [_runSerialized] and have not come back —
+  /// the one waiting its turn as well as the one running. [drainQueue] skips
+  /// them so a row an explicit caller already owns is not started a second time
+  /// while it sits in the queue table waiting for the gate.
+  final Set<int> _submitted = <int>{};
+
   /// How many times a state-mark write is retried after a refusal before the
   /// failure is let out.
   static const int _markRetryAttempts = 5;
@@ -217,7 +227,7 @@ class DawnAutopilotService {
       kind: DarkroomJobKind.dawn,
       note: 'Queued by the dawn autopilot',
     );
-    return runJob(jobId);
+    return _runSerialized(jobId);
   }
 
   /// Queue and run an operator-requested pass over [sessionId] — the
@@ -236,7 +246,7 @@ class DawnAutopilotService {
       kind: DarkroomJobKind.manual,
       note: 'Queued on request',
     );
-    return runJob(jobId);
+    return _runSerialized(jobId);
   }
 
   /// Queue one pass over [sessionId], or refuse because one is already live.
@@ -296,11 +306,76 @@ class DawnAutopilotService {
     ];
   }
 
+  /// Run [jobId] with at most one pass live in this process.
+  ///
+  /// **Every entry point comes through here.** The one-at-a-time rule was
+  /// [drainQueue]'s alone: it ran its jobs in a loop, so the rows IT owned
+  /// never overlapped, while [runDawnForSession] and [processSessionNow]
+  /// enqueued and then called `runJob` straight away. The per-session guard in
+  /// [_enqueueOnePassPerSession] stopped a second pass over the SAME session
+  /// and nothing else, so a dawn pass over last night and a "Process now" over
+  /// a different night ran side by side — measured on the release bundle, two
+  /// rows held `running` for minutes and both wrote drafts into the same output
+  /// directory. That is exactly what the rule exists to prevent: a single
+  /// process-wide render cache the two passes evict each other out of.
+  ///
+  /// **The waiting job says so.** A queued row's `note` is what Session
+  /// Review's banner reads back verbatim, so a submission that has to wait
+  /// records its position there rather than sitting silently at `Queued on
+  /// request` while another night renders.
+  ///
+  /// **Claimed, not just chained.** The id goes into [_submitted] before the
+  /// gate is awaited, so [drainQueue] — which re-reads the `queued` table each
+  /// pass — cannot pick up a row that is already waiting its turn here and run
+  /// it a second time.
+  Future<DawnJobOutcome> _runSerialized(int jobId) {
+    _submitted.add(jobId);
+    final ahead = _submitted.length - 1;
+    late final Future<DawnJobOutcome> queued;
+    queued = _runGate.then((_) async {
+      try {
+        return await runJob(jobId);
+      } finally {
+        _submitted.remove(jobId);
+      }
+    });
+    // The gate advances on failure too, so one job that could not even be
+    // recorded does not strand every later submission behind it.
+    _runGate = queued.then((_) {}, onError: (_) {});
+    if (ahead > 0) {
+      // Best effort by design: the position is a courtesy on the row, and a
+      // job must not fail to run because its note could not be written.
+      unawaited(_noteQueuePosition(jobId, ahead));
+    }
+    return queued;
+  }
+
+  /// Record on the row that this pass is waiting for another to finish.
+  Future<void> _noteQueuePosition(int jobId, int ahead) async {
+    try {
+      await _jobs.noteWhileQueued(
+        jobId,
+        ahead == 1
+            ? 'Waiting for the Darkroom pass ahead of it to finish.'
+            : 'Waiting for $ahead Darkroom passes ahead of it to finish.',
+      );
+    } catch (error) {
+      _logger?.warning(
+        'The queued Darkroom job could not record its position; it still runs '
+        'in turn',
+        source: 'DawnAutopilotService',
+        fields: {'jobId': jobId, 'ahead': ahead, 'error': '$error'},
+      );
+    }
+  }
+
   /// Run every queued job, oldest first.
   ///
   /// This is what picks up the rows the open-time crash recovery re-queued.
   /// Jobs run one at a time: two Darkroom renders over the same master would
-  /// fight for the render cache and for the one cancellation id.
+  /// fight for the render cache and for the one cancellation id. The rule is
+  /// [_runSerialized]'s now rather than this loop's, so it holds for the
+  /// explicit callers too.
   ///
   /// **One job cannot end the drain.** Every job runs behind its own guard, so
   /// a row this process cannot even record the failure of — a database locked
@@ -320,14 +395,19 @@ class DawnAutopilotService {
       int? next;
       for (final job in await _jobs.listByState(DarkroomJobState.queued)) {
         final id = job.id;
-        if (id == null || tried.contains(id)) continue;
+        // A row an explicit caller already submitted is running, or waiting its
+        // turn behind the same gate this drain uses. Taking it again would run
+        // one job twice.
+        if (id == null || tried.contains(id) || _submitted.contains(id)) {
+          continue;
+        }
         next = id;
         break;
       }
       if (next == null) break;
       tried.add(next);
       try {
-        outcomes.add(await runJob(next));
+        outcomes.add(await _runSerialized(next));
       } catch (error, stack) {
         _logger?.error(
           'The dawn job could not be run or recorded; the rest of the queue '

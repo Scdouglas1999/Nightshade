@@ -57,15 +57,34 @@ class DeliveryFile {
   /// read as a complete delivery.
   static Future<DeliveryFile> describe(String path) async {
     final file = File(path);
+    final length = await confirmOnRig(path);
+    return DeliveryFile(
+      sourcePath: file.absolute.path,
+      bytes: length,
+      checksum: await sha256OfFile(file),
+    );
+  }
+
+  /// Confirm the file at [path] is still on the rig and readable, and answer
+  /// its size.
+  ///
+  /// [describe] without the hash, so the two cannot classify the same
+  /// filesystem answer differently. A caller that only needs to know whether
+  /// the rig still holds what it published — the delivery sweep's peer arm,
+  /// which is asked that on every heartbeat pass for as long as the desktop
+  /// leaves a file unpulled — would otherwise re-read every published master
+  /// to answer a question `stat` answers. The checksum belongs where it is
+  /// used: against the bytes a transport or a download is about to serve.
+  static Future<int> confirmOnRig(String path) async {
+    final file = File(path);
     if (!await file.exists()) {
       throw DeliveryFailure(
         DeliveryFailureKind.sourceMissing,
         'The job produced $path but it is no longer on disk',
       );
     }
-    final int length;
     try {
-      length = await file.length();
+      return await file.length();
     } on PathAccessException catch (error) {
       throw DeliveryFailure(
         DeliveryFailureKind.permissionDenied,
@@ -79,11 +98,6 @@ class DeliveryFile {
         cause: error,
       );
     }
-    return DeliveryFile(
-      sourcePath: file.absolute.path,
-      bytes: length,
-      checksum: await sha256OfFile(file),
-    );
   }
 
   @override

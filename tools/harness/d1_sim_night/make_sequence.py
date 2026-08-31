@@ -10,24 +10,55 @@ import json, sys, time, math
 
 FILTERS = ["L", "R", "G", "B"]
 
-def site(unix=None):
-    """The harness observing site: lat 40N, longitude chosen so it is 01:00
-    LOCAL SOLAR TIME at the site right now.
+# Real observatory sites, spread around the globe so one of them is always
+# near local midnight. REAL sites, not a computed longitude: the site the
+# harness writes is the profile's observing location, and every
+# geography-dependent feature reads it — the weather radar providers
+# (GOES/NEXRAD are US-only), the cloud forecast, the planner. A longitude
+# derived purely from the clock put the site at 40N/164W, the middle of the
+# North Pacific, where the radar map correctly showed no coverage and read as
+# a broken screen.
+OBSERVATORY_SITES = [
+    ("Mauna Kea", 19.8206, -155.4681),
+    ("Kitt Peak", 31.9583, -111.5967),
+    ("McDonald", 30.6717, -104.0217),
+    ("Cerro Paranal", -24.6275, -70.4044),
+    ("Roque de los Muchachos", 28.7606, -17.8814),
+    ("Sutherland", -32.3783, 20.8106),
+    ("Xinglong", 40.3939, 117.5750),
+    ("Siding Spring", -31.2733, 149.0644),
+]
 
-    A fixed longitude put the site wherever the wall clock happened to be: a
-    Phase D wave running at ~04:00 UTC landed 40N/105W inside the
-    DawnApproaching trigger's lead window, and the trigger — behaving
-    correctly for that site — parked a run the harness then failed as its
-    own. Solar 01:00 keeps every run mid-night at its site whatever hour the
-    harness fires, with the whole night ahead of it before any dawn logic
-    can arm."""
+
+def site(unix=None):
+    """The harness observing site: the real observatory closest to 01:00 LOCAL
+    SOLAR TIME right now.
+
+    Two properties have to hold at once. (1) Mid-night at the site: a fixed
+    40N/105W landed inside the DawnApproaching trigger's lead window whenever
+    a wave ran near 04:00 UTC, and the trigger — behaving correctly for that
+    site — parked a run the harness then failed as its own. (2) A real place:
+    the site is written to the profile as the observing location, so a
+    computed mid-ocean longitude leaves every location-keyed feature
+    truthfully reporting nothing.
+
+    The table spans ~all longitudes, so the closest site is always within
+    about 1.5 hours of local solar 01:00 — comfortably inside the night, with
+    hours of margin before any dawn logic arms."""
     unix = time.time() if unix is None else unix
     utc_hours = (unix / 3600.0) % 24.0
-    lon = (1.0 - utc_hours) * 15.0
-    lon = ((lon + 180.0) % 360.0) - 180.0
-    return 40.0, round(lon, 4)
 
-SITE_LAT, SITE_LON = site()
+    def hours_from_solar_1am(lon):
+        local = (utc_hours + lon / 15.0) % 24.0
+        gap = abs(local - 1.0)
+        return min(gap, 24.0 - gap)
+
+    name, lat, lon = min(
+        OBSERVATORY_SITES, key=lambda s: hours_from_solar_1am(s[2])
+    )
+    return lat, lon, name
+
+SITE_LAT, SITE_LON, SITE_NAME = site()
 
 # The shell legs POST the observer location before they build the sequence;
 # printing the pair here keeps them and the sequence on ONE site.

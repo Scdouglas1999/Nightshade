@@ -296,6 +296,11 @@ class _RightColumn extends ConsumerWidget {
           // machine that cannot open the Darkroom says so here rather than
           // navigating into the host-only screen.
           onOpenInDarkroom: (m) => openDarkroomForMasterRow(context, ref, m.id),
+          // Asked while the card is BUILT, so a client's card reads refused
+          // instead of drawing a live button that explains itself after the
+          // press. `openDarkroomForMasterRow` still asks on the way through,
+          // for the deep links that reach the editor with no control to disable.
+          darkroomRefusal: watchDarkroomHostOnlyRefusal(ref),
           onCreateAccumulating: () async {
             await controller.createAccumulatingMaster();
             await controller.loadSmartData();

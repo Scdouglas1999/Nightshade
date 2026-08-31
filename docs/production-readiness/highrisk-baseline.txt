@@ -13,6 +13,8 @@ native/nightshade_native/alpaca/src/client/config.rs:199:        .unwrap_or_defa
 native/nightshade_native/alpaca/src/safetymonitor.rs:286:            driver_info: driver_info.unwrap_or_default(),
 native/nightshade_native/alpaca/src/switch.rs:159:            let request_line = request.lines().next().unwrap_or_default().to_string();
 native/nightshade_native/alpaca/src/telescope.rs:1046:            let request_line = request.lines().next().unwrap_or_default().to_string();
+native/nightshade_native/alpaca/src/telescope.rs:1047:                "HTTP error 400: Method not implemented: canfindhome".to_string()
+native/nightshade_native/alpaca/src/telescope.rs:16:        Err(error) if error.to_ascii_lowercase().contains("not implemented") => Ok(false),
 native/nightshade_native/ascom/src/windows/connection.rs:1380:                description: "Property Gain is not implemented by this camera",
 native/nightshade_native/ascom/src/windows/connection.rs:1389:            err.contains("Property Gain is not implemented by this camera"),
 native/nightshade_native/ascom/src/windows/connection.rs:181:            let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();

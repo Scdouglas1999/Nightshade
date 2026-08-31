@@ -181,6 +181,27 @@ class ImagingRecordsRepository {
     await _sessionsDao!.endSession(id, status: status);
   }
 
+  /// Close every session row left `active` with nothing driving it, returning
+  /// the ids closed. See [SessionsDao.closeOrphanedSessions] for the rule.
+  ///
+  /// Host-only, like [updateEquipmentSnapshot] and for the same reason: on a
+  /// paired companion the session rows live on the appliance, which runs this
+  /// sweep at its own open and at its own sequence start. A phone reaching
+  /// across to close the host's rows would be a second, blind writer of a
+  /// liveness claim only the host can make.
+  Future<List<int>> closeOrphanedSessions({required String cause}) async {
+    if (_remote != null) return const <int>[];
+    return _sessionsDao!.closeOrphanedSessions(cause: cause);
+  }
+
+  /// Re-open an interrupted session so a recovery resumes it. Host-only for
+  /// the same reason as [closeOrphanedSessions]: the appliance owns the row and
+  /// the recovery that reopens it.
+  Future<void> reopenSession(int id) async {
+    if (_remote != null) return;
+    await _sessionsDao!.reopenSession(id);
+  }
+
   /// Record the equipment this session is running with, so the Continue
   /// Session handoff can re-apply it on the next launch.
   ///

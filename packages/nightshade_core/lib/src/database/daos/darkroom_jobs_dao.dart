@@ -181,6 +181,33 @@ class DarkroomJobsDao {
     });
   }
 
+  /// Replace the note on a job that is still `queued`, and answer whether it
+  /// was written.
+  ///
+  /// This is how a submission waiting for the one-pass-at-a-time gate says so:
+  /// Session Review's queued banner reads `note` back verbatim as the row's own
+  /// account of itself, so a pass that will not start for ten minutes says that
+  /// rather than showing the label its enqueue wrote.
+  ///
+  /// Scoped to `queued` in the same statement that writes, so a job that
+  /// reaches the front of the gate between the caller's decision and this write
+  /// keeps the stage its pipeline is recording. `false` means exactly that —
+  /// the row moved on — and is not an error.
+  Future<bool> noteWhileQueued(int id, String note) {
+    return retryWhileSqliteBusy(() async {
+      final changed = await _db.customUpdate(
+        'UPDATE darkroom_jobs SET note = ? WHERE id = ? AND state = ?',
+        variables: [
+          Variable<String>(note),
+          Variable<int>(id),
+          Variable<String>(DarkroomJobState.queued.wire),
+        ],
+        updateKind: UpdateKind.update,
+      );
+      return changed > 0;
+    });
+  }
+
   /// Finish a running job: state becomes [DarkroomJobState.done], progress
   /// reaches 1.0, `finished_at` is stamped. Returns the job as it now stands.
   Future<DarkroomJob> markDone(int id, {String? note, DateTime? now}) {

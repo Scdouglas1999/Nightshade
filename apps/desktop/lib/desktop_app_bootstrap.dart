@@ -658,11 +658,21 @@ Future<void> _startLanPushReceiver({
     );
     logger.info('Update push discovery responder started', source: _logSource);
   } catch (e) {
-    logger.warning(
-      'LAN push receiver failed',
-      source: _logSource,
-      fields: {'error': '$e'},
-    );
+    final message = '$e';
+    if (message.contains('no trusted public key compiled in')) {
+      // Unsigned local/development builds deliberately disable LAN updates.
+      // This is an expected capability state, not an operational failure.
+      logger.info(
+        'LAN push receiver disabled for this unsigned build',
+        source: _logSource,
+      );
+    } else {
+      logger.warning(
+        'LAN push receiver failed',
+        source: _logSource,
+        fields: {'error': message},
+      );
+    }
   }
 }
 

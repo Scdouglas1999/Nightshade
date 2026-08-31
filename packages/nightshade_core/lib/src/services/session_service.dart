@@ -1,34 +1,35 @@
 import 'dart:async';
 
 import '../database/daos/sequence_checkpoints_dao.dart';
+import '../database/session_orphan_sweep.dart';
 import 'imaging_records_repository.dart';
 import 'logging_service.dart';
 
 /// Configuration for session checkpointing
 class SessionCheckpointConfig {
-  /// Checkpoint after this many images captured
-  final int checkpointImageInterval;
-
-  /// Checkpoint after this time interval
+  /// Re-persist the current statistics on this interval even when no frame has
+  /// arrived.
+  ///
+  /// Every progress update already writes the row, so this timer is not what
+  /// keeps the counters current — it is the retry. A checkpoint write that
+  /// throws is logged and swallowed (see `_drainCheckpointRequests`), so
+  /// without a periodic pass a transient database error would leave the row
+  /// stale until the next frame.
   final Duration checkpointTimeInterval;
 
   /// Whether automatic checkpointing is enabled
   final bool enabled;
 
   const SessionCheckpointConfig({
-    this.checkpointImageInterval = 5,
     this.checkpointTimeInterval = const Duration(minutes: 5),
     this.enabled = true,
   });
 
   SessionCheckpointConfig copyWith({
-    int? checkpointImageInterval,
     Duration? checkpointTimeInterval,
     bool? enabled,
   }) {
     return SessionCheckpointConfig(
-      checkpointImageInterval:
-          checkpointImageInterval ?? this.checkpointImageInterval,
       checkpointTimeInterval:
           checkpointTimeInterval ?? this.checkpointTimeInterval,
       enabled: enabled ?? this.enabled,
@@ -122,8 +123,6 @@ class SessionService {
   // Current session tracking
   int? _currentSessionId;
   SessionStats? _currentStats;
-  DateTime? _lastCheckpoint;
-  int _imagesSinceCheckpoint = 0;
   Future<void>? _checkpointDrain;
   bool _checkpointRequested = false;
   Future<int>? _startInFlight;
@@ -217,6 +216,27 @@ class SessionService {
     _logger.debug('  Profile ID: $profileId', source: 'SessionService');
     _logger.debug('  Sequence ID: $sequenceId', source: 'SessionService');
 
+    // Resolve a stranded session BEFORE opening tonight's, so the insert below
+    // cannot be refused.
+    //
+    // `SessionsDao.startSession` throws `ActiveImagingSessionException` while
+    // any row is `active`, and both start paths — the executor's
+    // `_startSessionRow` and the headless `load -> start` pre-flight — treat
+    // that throw as "this run has no session row". The run then captures a full
+    // night whose frames all carry `session_id` NULL, and the session-end hooks
+    // that key on the session id never fire: no integration, no masters, no
+    // Darkroom pass, and `GET /api/sessions/active` still answering with the
+    // dead run's counters.
+    //
+    // This service owns the only live session in the process and holds its id
+    // in `_currentSessionId` for the session's whole life; the guard above has
+    // already returned when that id is set. So reaching here with an `active`
+    // row on disk means the row belongs to nothing — a process that died before
+    // the boot sweep could see it, or a run in THIS process that failed after
+    // opening its session and could not finalize it. Either way it is closed
+    // the way the boot sweep closes one, not silently overwritten.
+    await _resolveStrandedSessions();
+
     // Create database session record with 'active' status
     final sessionId = await _records.startSession(
       name: name,
@@ -241,8 +261,6 @@ class SessionService {
     _sessionGeneration++;
     _currentSessionId = sessionId;
     _currentStats = SessionStats(lastUpdated: _now());
-    _lastCheckpoint = _now();
-    _imagesSinceCheckpoint = 0;
 
     // Start checkpoint timer if enabled
     if (_config.enabled) {
@@ -258,8 +276,56 @@ class SessionService {
     return sessionId;
   }
 
-  /// Update session progress with new statistics
-  /// Automatically triggers checkpoint if threshold reached
+  /// Close any `imaging_sessions` row still `active` before this service opens
+  /// its own.
+  ///
+  /// The liveness claim this makes is the one only this service can make: it
+  /// holds the id of the session it owns in `_currentSessionId` for that
+  /// session's whole life, and `startSession` has already returned by the time
+  /// this runs when that id is set. An `active` row reaching here therefore has
+  /// nothing driving it.
+  ///
+  /// The close is the boot sweep's, shared statement and all, so a night closed
+  /// here and a night closed at open read identically in History: status
+  /// `interrupted`, `end_time` back-dated to its last frame, and a note saying
+  /// what ended it.
+  ///
+  /// A failure here is NOT swallowed. The whole point is that the insert
+  /// below must not be refused, and a caller told the session opened when it
+  /// did not is exactly the shape that stranded a night's frames in the first
+  /// place; the start path's own error handling decides what to do with it.
+  Future<void> _resolveStrandedSessions() async {
+    final closed = await _records.closeOrphanedSessions(
+      cause: kInterruptedByNewSequenceCause,
+    );
+    if (closed.isEmpty) return;
+    _logger.warning(
+      'Closed ${closed.length} imaging session'
+      '${closed.length == 1 ? '' : 's'} left open with nothing driving '
+      '${closed.length == 1 ? 'it' : 'them'} (id'
+      '${closed.length == 1 ? '' : 's'} ${closed.join(', ')}); '
+      "${closed.length == 1 ? 'it is' : 'they are'} recorded as "
+      "'$kInterruptedSessionStatus' so this run can open its own session",
+      source: 'SessionService',
+    );
+  }
+
+  /// Update session progress with new statistics, persisting them immediately.
+  ///
+  /// [stats] is complete on arrival — the caller folds the frame in before
+  /// calling — so the session row advances frame by frame, and every reader of
+  /// `imaging_sessions` sees what the night has actually earned.
+  ///
+  /// It used to persist only after five images (or five minutes), and the row
+  /// is what `GET /api/sessions/active` serves. So a healthy run published
+  /// `successfulExposures: 0` and `totalIntegrationSecs: 0.0` beside the live
+  /// accepted/rejected pair the same endpoint counts off `captured_images`:
+  /// the dashboard's session card read "Frames returned 0" next to "4
+  /// accepted" for the first four frames of every night, then trailed by up to
+  /// four frames for the rest of it. The counters are cheap — one single-row
+  /// UPDATE per frame, beside the `captured_images` INSERT the same frame
+  /// already performs — and a threshold bought nothing worth a card that
+  /// contradicts itself.
   Future<void> updateSessionProgress(SessionStats stats) async {
     if (_currentSessionId == null) {
       _logger.debug('No active session to update', source: 'SessionService');
@@ -267,18 +333,17 @@ class SessionService {
     }
 
     _currentStats = stats;
-    _imagesSinceCheckpoint++;
 
-    // Check if checkpoint is needed
-    final imageThresholdReached =
-        _imagesSinceCheckpoint >= _config.checkpointImageInterval;
-    final timeThresholdReached =
-        _lastCheckpoint != null &&
-        DateTime.now().difference(_lastCheckpoint!) >=
-            _config.checkpointTimeInterval;
-
-    if (_config.enabled && (imageThresholdReached || timeThresholdReached)) {
-      await _performCheckpoint();
+    if (_config.enabled) {
+      // Request the write; do not wait for it. This runs once per captured
+      // frame, and on a remote rig the write is an HTTP round trip — awaiting
+      // it here puts the network between the camera and the next exposure.
+      // The counters still advance per frame without the wait: the drain
+      // coalesces every request into one in-flight write that always persists
+      // the LATEST stats, and its failures are logged rather than thrown
+      // (`_drainCheckpointRequests`). `checkpoint()` and `endSession()` are
+      // the callers that genuinely need a fresh snapshot, and they await.
+      unawaited(_performCheckpoint());
     }
   }
 
@@ -382,8 +447,6 @@ class SessionService {
     _sessionGeneration++;
     _currentSessionId = null;
     _currentStats = null;
-    _lastCheckpoint = null;
-    _imagesSinceCheckpoint = 0;
 
     _emitStatus('Session ended: $sessionId ($status)');
     _logger.info('Session finalized', source: 'SessionService');
@@ -437,9 +500,13 @@ class SessionService {
     try {
       final allSessions = await _records.getAllSessions();
 
-      // Find sessions with 'active' status (not completed/aborted/error)
+      // Nights a process left unfinished read `interrupted`, not `active`: the
+      // boot sweep closes an abandoned row at open so it cannot detach the
+      // nights that follow, and stamps that status on the way. `active` is now
+      // only ever a session a live executor is driving, and offering to recover
+      // a run that is still going would be offering to recover from nothing.
       final incompleteSessions = allSessions
-          .where((s) => s.status == 'active')
+          .where((s) => s.status == kInterruptedSessionStatus)
           .toList();
 
       if (incompleteSessions.isEmpty) {
@@ -498,17 +565,23 @@ class SessionService {
 
     _logger.info('Recovering session $sessionId...', source: 'SessionService');
 
-    // Verify session exists and is in 'active' state
+    // Verify the session exists and is one a process left unfinished.
     final session = await _records.getSessionById(sessionId);
     if (session == null) {
       throw Exception('Session $sessionId not found');
     }
 
-    if (session.status != 'active') {
+    if (session.status != kInterruptedSessionStatus) {
       throw Exception(
-        'Session $sessionId is not in active state (status: ${session.status})',
+        'Session $sessionId was not left interrupted, so there is nothing to '
+        'resume (status: ${session.status})',
       );
     }
+
+    // Re-open the row BEFORE taking ownership of it. The sweep stamped it
+    // `interrupted` with an `end_time` at its last frame; a session that is
+    // about to take frames again must not keep saying it ended.
+    await _records.reopenSession(sessionId);
 
     // Restore session state
     _sessionGeneration++;
@@ -522,8 +595,6 @@ class SessionService {
       autofocusCount: session.autofocusCount,
       lastUpdated: _now(),
     );
-    _lastCheckpoint = _now();
-    _imagesSinceCheckpoint = 0;
 
     // Start checkpoint timer
     if (_config.enabled) {
@@ -628,7 +699,6 @@ class SessionService {
       final sessionId = _currentSessionId;
       final stats = _currentStats;
       final generation = _sessionGeneration;
-      final imagesAtStart = _imagesSinceCheckpoint;
       if (sessionId == null || stats == null) return;
 
       _logger.debug(
@@ -653,9 +723,6 @@ class SessionService {
             _currentSessionId != sessionId) {
           continue;
         }
-        _lastCheckpoint = _now();
-        final remainingImages = _imagesSinceCheckpoint - imagesAtStart;
-        _imagesSinceCheckpoint = remainingImages > 0 ? remainingImages : 0;
 
         _emitStatus('Checkpoint saved');
         _logger.debug(

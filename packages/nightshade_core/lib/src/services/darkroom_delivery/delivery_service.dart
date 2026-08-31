@@ -350,8 +350,8 @@ class DeliveryService {
   /// for the same reason.
   ///
   /// A PEER destination's files are published and waiting for the paired
-  /// desktop to pull them. [_sweepDestination] short-circuits that arm to
-  /// `awaitingPull` and does no work at all: the next move belongs to the peer,
+  /// desktop to pull them. [_sweepPublications] re-checks that the rig still
+  /// holds them but re-attempts nothing: the next move belongs to the peer,
   /// not to this rig, and it arrives as a pull rather than as a retry. That is
   /// the NORMAL state between the dawn job and the operator's morning, so
   /// counting it made [hasDueRetries] permanently true — one unpulled file
@@ -469,15 +469,21 @@ class DeliveryService {
   /// The report entry for a destination this job handed no files to.
   ///
   /// Two different facts share this shape and the sentence says which: a
-  /// destination that selects no class of artifact receives nothing on every
+  /// destination that selects no class of artifact takes nothing NEW on any
   /// night, while one that selects a class this job did not produce is
   /// correctly configured and simply had nothing to take. Skipping the
   /// destination entirely made both read as "no delivery destination is
   /// enabled" in the morning report.
+  ///
+  /// "No new file" rather than "no file": the selection picks destinations at
+  /// job time only, so rows this destination was already owed when the
+  /// selection was cleared are still on the sweep's work list and still go.
+  /// The flat claim contradicted the sweeper's own log on the same launch —
+  /// `empty-selection: 1 delivered`.
   DeliveryDestinationReport _nothingToSend(ArtifactDestination destination) {
     final selection = destination.content;
     final reason = selection.isEmpty
-        ? 'nothing selected, so it receives no files'
+        ? 'nothing selected, so no new file goes there'
         : 'the job produced none of the '
               '${selection.map((c) => c.wire).join(', ')} it takes';
     return DeliveryDestinationReport(
@@ -590,10 +596,13 @@ class DeliveryService {
       return tally.build();
     }
     if (destination.kind == ArtifactDestinationKind.peer) {
-      // A peer row is published and waiting for the desktop to pull it, not
-      // owed another attempt. Counting it as a retry would burn the budget on
-      // work the rig is not the one doing.
-      tally.awaitingPull += rows.length;
+      await _sweepPublications(
+        destination: destination,
+        targetId: targetId,
+        rows: rows,
+        isCancelled: isCancelled,
+        tally: tally,
+      );
       return tally.build();
     }
 
@@ -624,6 +633,65 @@ class DeliveryService {
       );
     }
     return tally.build();
+  }
+
+  /// Check what a peer destination published against the rig's own disk, and
+  /// count each row as what it is.
+  ///
+  /// A peer row moves no bytes — publication IS the journal row, and the next
+  /// act belongs to the desktop — so there is no attempt to re-make here and
+  /// no transport to open. What the rig still owns is the source file, and
+  /// that is the one thing this arm can be wrong about: a published artifact
+  /// deleted from the rig used to be counted straight into `awaitingPull` with
+  /// no read of any kind, so the row said "waiting for office-pc to pull"
+  /// for ever, with no error and its attempt count untouched, while the
+  /// manifest endpoint was already refusing to serve it as `sourceMissing`.
+  ///
+  /// The rig losing the file is the RIG's fact, not the desktop's debt. The
+  /// row goes terminal here exactly as it does on every other transport, which
+  /// takes it out of the manifest's entries, out of the awaiting-pull count,
+  /// and into the never-arrived count the operator reads.
+  Future<void> _sweepPublications({
+    required ArtifactDestination destination,
+    required int targetId,
+    required List<DeliveryJournalEntry> rows,
+    required DeliveryCancellation? isCancelled,
+    required _Tally tally,
+  }) async {
+    for (final row in rows) {
+      if (_stopRequested(isCancelled)) {
+        // Nothing was read for this row, so nothing about it is restated. It
+        // stays published and owed with its attempts where they were, and the
+        // next pass checks it.
+        tally.stoppedPending++;
+        continue;
+      }
+      try {
+        await DeliveryFile.confirmOnRig(row.filePath);
+      } on DeliveryFailure catch (failure, stack) {
+        final lost = DeliveryFailure(
+          failure.kind,
+          '${failure.message}, and ${destination.name} never pulled it: the '
+          'file left the rig before the paired desktop collected it',
+          cause: failure.cause,
+        );
+        _log(lost, destination, stack);
+        // No attempt is counted. Reading the rig's own disk is not a
+        // publication, and the row's `attempts` is what the operator's Retry
+        // control resets — charging it here would misreport how many times
+        // this file was actually offered.
+        await _recordJournalOutcome(
+          targetId: targetId,
+          jobId: row.jobId,
+          filePath: row.filePath,
+          attempts: row.attempts,
+          failure: lost,
+          tally: tally,
+        );
+        continue;
+      }
+      tally.awaitingPull++;
+    }
   }
 
   /// Re-attempt one job's due rows on one destination, over a transport built

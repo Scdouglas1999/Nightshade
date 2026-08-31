@@ -149,17 +149,34 @@ void main() {
   group('HeadlessApiServer --allow-unauthenticated opt-in', () {
     late ProviderContainer container;
     late HeadlessApiServer server;
+    late PairingService pairingService;
     late HttpClient client;
     late Uri baseUri;
 
     setUp(() async {
       container = makeContainer();
+      pairingService = PairingService(
+        database: PairingDatabase.forTesting(NativeDatabase.memory()),
+      );
+      // Reproduce a real restarted rig: persisted sessions are hydrated after
+      // the startup banner has already promised fully-open access. They must
+      // not silently cancel the explicit operator override.
+      await pairingService.database.addPairedDevice(
+        deviceId: 'persisted-phone',
+        deviceName: 'Persisted Phone',
+        sessionToken: 'persisted-session-token',
+        deviceType: 'mobile',
+        expiresAt: DateTime.now().add(const Duration(days: 1)),
+        authGrantSpec: 'admin',
+      );
       server = HeadlessApiServer(
         port: 0,
         container: container,
         bindLocalOnly: true,
-        // Explicit opt-in to the legacy fully-open behaviour, no tokens.
+        // Explicit opt-in to the legacy fully-open behaviour with a persisted
+        // pairing token present.
         allowUnauthenticated: true,
+        pairingService: pairingService,
       );
       await server.start();
       client = HttpClient();
@@ -169,6 +186,7 @@ void main() {
     tearDown(() async {
       client.close(force: true);
       await server.stop();
+      await pairingService.close();
       container.dispose();
     });
 

@@ -506,11 +506,15 @@ class DarkroomController extends StateNotifier<DarkroomState> {
         );
         return;
       }
-      // The channel count travels with the row this walk already reads: it is
-      // the one master fact the chooser needs before an operation is added, and
-      // reading the row twice for it would be a second query for a number
-      // already in hand.
-      state = state.copyWith(masterChannels: master.channels);
+      // The channel count and the calibration record both travel with the row
+      // this walk already reads: they are the master facts the editor needs —
+      // one before an operation is added, one before the operator believes what
+      // a step reveals — and reading the row again for either would be a second
+      // query for something already in hand.
+      state = state.copyWith(
+        masterChannels: master.channels,
+        masterCalibration: DawnMasterStats.parse(master.statsJson),
+      );
       final wcs = overlayFromMasterWcs(
         crval1: master.wcsCrval1,
         crval2: master.wcsCrval2,

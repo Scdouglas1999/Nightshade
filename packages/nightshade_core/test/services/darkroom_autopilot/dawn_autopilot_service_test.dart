@@ -457,8 +457,10 @@ void main() {
     ArtifactTransportFactory? transportFactory,
     List<Star> catalog = const [],
     DarkroomJobsDao? jobs,
+    LoggingService? logger,
   }) {
     return DawnAutopilotService(
+      logger: logger,
       jobs: jobs ?? DarkroomJobsDao(db),
       recipes: RecipesDao(db),
       masters: IntegratedMastersDao(db),
@@ -2350,4 +2352,171 @@ void main() {
       expect((onRig['notification'] as Map<String, dynamic>)['sent'], isTrue);
     },
   );
+
+  // The one-pass-at-a-time rule used to belong to `drainQueue`'s loop, so it
+  // held only for the rows that loop owned: `runDawnForSession` and
+  // `processSessionNow` enqueued and then ran their job straight away, and the
+  // per-session guard stopped only a second pass over the SAME night. A dawn
+  // pass over last night and a "Process now" over a different night therefore
+  // ran side by side — measured on the release bundle, two rows held `running`
+  // for minutes — fighting over the one process-wide render cache the rule
+  // exists to protect.
+  test(
+    'a dawn pass and a Process now over different nights run one at a time',
+    () async {
+      final lastNight = await insertSession();
+      final imageA = await insertSub(sessionId: lastNight);
+      await insertMaster(imageIds: [imageA], filter: 'L');
+
+      final otherNight = await insertSession();
+      final imageB = await insertSub(sessionId: otherNight);
+      await insertMaster(
+        imageIds: [imageB],
+        filter: 'Ha',
+        path: '${workspace.path}/M42_Ha_master.fits',
+      );
+
+      final service = buildService();
+      // Park the first pass inside its pipeline, where a real render spends its
+      // minutes, and hold it there while the second pass is asked for.
+      final parked = Completer<void>();
+      final release = Completer<void>();
+      darkroom.beforeRegistry = () async {
+        if (parked.isCompleted) return;
+        parked.complete();
+        await release.future;
+      };
+
+      final dawn = service.runDawnForSession(lastNight);
+      await parked.future;
+      final manual = service.processSessionNow(otherNight);
+
+      // Let the second submission get as far as it can — its row is enqueued
+      // and its position noted, then it waits. Sampled while the first pass is
+      // frozen, the way the finding was measured on the release bundle: how
+      // many rows hold `running` at once, and how far the second one got.
+      DarkroomJob? second;
+      var mostRunningAtOnce = 0;
+      for (var i = 0; i < 400; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        final live = await db
+            .customSelect(
+              "SELECT count(*) AS n FROM darkroom_jobs WHERE state = 'running'",
+            )
+            .getSingle();
+        final n = live.read<int>('n');
+        if (n > mostRunningAtOnce) mostRunningAtOnce = n;
+        final rows = await DarkroomJobsDao(db).listForSession(otherNight);
+        if (rows.isNotEmpty) {
+          second = rows.last;
+          if (second.note != null && second.note!.contains('Waiting')) break;
+        }
+      }
+      expect(second, isNotNull, reason: 'the manual pass recorded no row');
+
+      expect(
+        mostRunningAtOnce,
+        1,
+        reason: 'two Darkroom passes held `running` at the same time',
+      );
+      expect(
+        second!.state,
+        DarkroomJobState.queued,
+        reason: 'the second pass ran while the first was frozen mid-render',
+      );
+      // Session Review's queued banner reads this note back verbatim, so a
+      // pass that will not start until the one ahead finishes says so rather
+      // than showing the label its enqueue wrote.
+      expect(second.note, contains('Waiting for the Darkroom pass ahead'));
+
+      release.complete();
+      final first = await dawn;
+      final follower = await manual;
+
+      // Both complete: waiting its turn is a delay, not a refusal.
+      expect(first.succeeded, isTrue);
+      expect(follower.succeeded, isTrue);
+      expect(follower.jobId, second.id);
+      expect(
+        (await DarkroomJobsDao(db).getById(first.jobId))!.state,
+        DarkroomJobState.done,
+      );
+      expect(
+        (await DarkroomJobsDao(db).getById(follower.jobId))!.state,
+        DarkroomJobState.done,
+      );
+    },
+  );
+
+  // The drain re-reads the `queued` table each pass, so a row an explicit
+  // caller has already handed to the gate is sitting there in plain sight
+  // while it waits its turn. Taking it would run one job twice — two
+  // executors over one row, one cancellation id between them.
+  test('the drain leaves alone a job already waiting on the gate', () async {
+    final lastNight = await insertSession();
+    final imageA = await insertSub(sessionId: lastNight);
+    await insertMaster(imageIds: [imageA], filter: 'L');
+
+    final otherNight = await insertSession();
+    final imageB = await insertSub(sessionId: otherNight);
+    await insertMaster(
+      imageIds: [imageB],
+      filter: 'Ha',
+      path: '${workspace.path}/M42_Ha_master.fits',
+    );
+
+    final logger = LoggingService();
+    final failures = <String>[];
+    final logs = logger.logEntryStream.listen((entry) {
+      if (entry.level == LogLevel.error) failures.add(entry.message);
+    });
+    addTearDown(logs.cancel);
+
+    final service = buildService(logger: logger);
+    final parked = Completer<void>();
+    final release = Completer<void>();
+    darkroom.beforeRegistry = () async {
+      if (parked.isCompleted) return;
+      parked.complete();
+      await release.future;
+    };
+
+    final dawn = service.runDawnForSession(lastNight);
+    await parked.future;
+    final manual = service.processSessionNow(otherNight);
+    for (var i = 0; i < 400; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      if ((await DarkroomJobsDao(db).listForSession(otherNight)).isNotEmpty) {
+        break;
+      }
+    }
+
+    // The drain runs while that row is sitting in the `queued` table waiting
+    // its turn — which is exactly when it is visible to a re-read and already
+    // spoken for.
+    final drained = service.drainQueue();
+    release.complete();
+    final outcomes = await drained;
+    final first = await dawn;
+    final follower = await manual;
+
+    expect(
+      outcomes.map((o) => o.jobId),
+      isNot(contains(follower.jobId)),
+      reason: 'the drain ran a row its submitter was already holding',
+    );
+    // Taking it a second time cannot silently succeed — `done` may not become
+    // `running` again — so the second start fails and the drain records it as
+    // a job it could not run. No such line is the proof that no second start
+    // was attempted.
+    expect(
+      failures,
+      isEmpty,
+      reason: 'the drain tried to start a row another caller already held',
+    );
+    expect(first.succeeded, isTrue);
+    expect(follower.succeeded, isTrue);
+    final row = await DarkroomJobsDao(db).getById(follower.jobId);
+    expect(row!.attempts, 1, reason: 'one run, not two');
+  });
 }

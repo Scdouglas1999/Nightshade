@@ -450,7 +450,8 @@ void main() {
   // with the dot AND the whole sentence in the dark theme's success token
   // (0xFF3DAA6D, sampled off the capture). Glance-level the row read healthy;
   // the refusal was the second half of a paragraph.
-  test('a blocker outranks a delivered history, and green comes back with the '
+  test(
+      'a blocker outranks a delivered history, and green comes back with the '
       'folder', () {
     DeliveryStatusLine lineFor(WatchedFolderState state) =>
         DeliveryStatusLine.of(
@@ -525,6 +526,64 @@ void main() {
     expect(line.kind, DeliveryStatusKind.incomplete);
     expect(line.sentence, startsWith('Nothing selected'));
     expect(line.sentence, contains('Delivered'));
+  });
+
+  // An empty selection stops NEW files only: the selection picks destinations
+  // at job time, and the sweep's work list is the journal, which it never
+  // re-checks against `content`. So the note names the rows already owed — and
+  // must not promise them, because the same structural gaps that stop any
+  // other destination stop these too.
+  group('an empty selection with rows already owed', () {
+    DeliveryStatusLine lineFor(StoredSecretState secret) =>
+        DeliveryStatusLine.of(
+          DeliveryDestinationView(
+            destination: sftp(content: const {}),
+            journal: [entry(state: DeliveryAttemptState.retrying)],
+            secret: secret,
+          ),
+        );
+
+    test('says the owed row still goes when nothing is in its way', () {
+      final line = lineFor(StoredSecretState.present);
+
+      expect(line.sentence, contains('receives no new files'));
+      expect(
+        line.sentence,
+        contains('1 file owed from before is still delivered'),
+        reason: 'the sweep works from the journal and this row is on its list',
+      );
+      expect(
+        line.sentence,
+        isNot(contains('this destination receives no files.')),
+        reason: 'the sweep delivers it on the same launch the page says this',
+      );
+    });
+
+    test('does not promise the owed row past a blocker that stops it', () {
+      // The claim is only as good as the transport under it. With no key in
+      // the keyring the sweep fails this row `credentialMissing` — a page
+      // reading "1 file owed from before is still delivered" would contradict
+      // the sweep on the same launch, in the other direction from the flat
+      // "receives no files" that this note replaced.
+      final line = lineFor(StoredSecretState.absent);
+
+      expect(
+        line.sentence,
+        isNot(contains('still delivered')),
+        reason: 'SSH cannot authenticate, so this row is not going anywhere',
+      );
+      expect(
+        line.sentence,
+        contains('No key in the keyring'),
+        reason: 'the mechanism that stops the owed row is what to state',
+      );
+      expect(line.sentence, contains('receives no new files'));
+      expect(
+        line.sentence,
+        contains('1 file'),
+        reason: 'the owed row is still counted; it is just not promised',
+      );
+    });
   });
 
   test('a watched folder that is there states nothing about its folder', () {

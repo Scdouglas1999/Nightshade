@@ -52,10 +52,15 @@ pub(crate) fn eaf_candidate_paths() -> Vec<PathBuf> {
         paths.push(PathBuf::from("libEAF_focuser.dylib"));
     } else {
         paths.extend(vendor_library_candidates(
-            &["libEAF_focuser.so"],
+            // ZWO's Linux packages and distro repackagings use both names:
+            // the SDK archive historically used libEAF_focuser.so, while
+            // Arch's libasi package installs libEAFFocuser.so.
+            &["libEAF_focuser.so", "libEAFFocuser.so"],
             &[
                 "/usr/lib/libEAF_focuser.so",
+                "/usr/lib/libEAFFocuser.so",
                 "/usr/local/lib/libEAF_focuser.so",
+                "/usr/local/lib/libEAFFocuser.so",
             ],
         ));
     }
@@ -695,4 +700,18 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
     }
 
     Ok(focusers)
+}
+
+#[cfg(test)]
+mod candidate_path_tests {
+    use super::*;
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn accepts_zwo_and_distro_linux_library_names() {
+        let candidates = eaf_candidate_paths();
+        assert!(candidates.contains(&PathBuf::from("libEAF_focuser.so")));
+        assert!(candidates.contains(&PathBuf::from("libEAFFocuser.so")));
+        assert!(candidates.contains(&PathBuf::from("/usr/lib/libEAFFocuser.so")));
+    }
 }

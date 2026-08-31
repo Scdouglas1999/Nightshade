@@ -204,6 +204,23 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     // frames dropped in with no session row — has no such master, so the
     // control says that rather than opening an editor with nothing behind it.
     final sessionId = result.sessionId;
+    // The other reason this control cannot act: the masters live on the imaging
+    // host, so a remote client has nothing to open. Asked HERE rather than in
+    // the tap handler, so the button reads refused instead of looking live and
+    // refusing after the press.
+    final hostOnly = watchDarkroomHostOnlyRefusal(ref);
+    final darkroomReason = sessionId == null
+        ? 'This stack has no imaging session, so there is no linear master to '
+            'refine.'
+        : hostOnly;
+    final canRefine = darkroomReason == null;
+    // The same two reasons, sized for the phone overflow menu. A popup item has
+    // no tooltip to hang an explanation on, so the reason is part of the row —
+    // and the row is ~256 px wide, which the full sentence wraps to four lines
+    // of caption inside.
+    final darkroomMenuReason = sessionId == null
+        ? 'No imaging session, so no linear master'
+        : (hostOnly == null ? null : 'The Darkroom runs on the imaging host');
 
     // On a phone the four export buttons cannot share the ScreenHeader's Row
     // with the title without overflowing the ~430 px width, so collapse them
@@ -266,13 +283,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           ),
           PopupMenuItem(
             value: _StackResultAction.darkroom,
-            enabled: sessionId != null,
+            enabled: canRefine,
             child: _ActionMenuRow(
               icon: NightshadeIcons.sliders,
               label: 'Refine in Darkroom',
-              reason: sessionId != null
-                  ? null
-                  : 'No imaging session, so no linear master',
+              reason: darkroomMenuReason,
             ),
           ),
         ],
@@ -318,19 +333,18 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           onPressed: !_exporting ? () => _exportAstroBin(result) : null,
         ),
         Tooltip(
-          message: sessionId != null
-              ? 'Open this night\'s linear master in the Darkroom'
-              : 'This stack has no imaging session, so there is no linear '
-                  'master to refine.',
+          message: darkroomReason ??
+              'Open this night\'s linear master in the Darkroom',
           child: NightshadeButton(
             key: const ValueKey('stack_result_refine_in_darkroom'),
             label: 'Refine in Darkroom',
             icon: NightshadeIcons.sliders,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: sessionId != null
+            semanticsHint: darkroomReason,
+            onPressed: canRefine
                 ? () =>
-                    unawaited(openDarkroomForSession(context, ref, sessionId))
+                    unawaited(openDarkroomForSession(context, ref, sessionId!))
                 : null,
           ),
         ),

@@ -136,9 +136,42 @@ class DeliveryStatusLine {
   /// An empty content selection is one of these rather than a state of its
   /// own: it stops delivery exactly the way a missing path does, and it is
   /// reported the same way wherever delivery is summarized.
+  ///
+  /// **It stops NEW files, and only new files.** The selection picks
+  /// destinations at job time — `DeliveryArtifactSet.selectedFor` — and the
+  /// retry sweep's work list is the journal, which it never re-checks against
+  /// `content`. So rows this destination was already owed when the selection
+  /// was cleared are still delivered, and they are the only rows that can be:
+  /// no row is ever created for a destination that selected nothing. A flat
+  /// "receives no files" led the row while the sweep on the same launch logged
+  /// `empty-selection: 1 delivered` and the file appeared in the folder the
+  /// page said received nothing.
+  ///
+  /// A promise about those owed rows is only as good as the transport under
+  /// them, so an empty selection is the one case that states TWO things: with
+  /// no key in the keyring, or no directory to write into, the sweep fails
+  /// exactly these rows and "still delivered" would contradict it in the other
+  /// direction. The blocker leads, the rows are still counted, and nothing is
+  /// promised for them.
   static String? _configurationNote(DeliveryDestinationView view) {
     if (view.destination.content.isEmpty) {
-      return 'Nothing selected — this destination receives no files.';
+      final owed = view.owed.length;
+      if (owed == 0) {
+        // No row is owed and none will be created, so no transport is ever
+        // asked for anything here and a structural gap cannot bite.
+        return view.journal.isEmpty
+            ? 'Nothing selected — this destination receives no files.'
+            : 'Nothing selected — this destination receives no new files.';
+      }
+      final blocker = _configurationBlocker(view);
+      if (blocker != null) {
+        return '$blocker Nothing selected — this destination receives no new '
+            'files, and the ${_files(owed)} owed from before cannot go while '
+            'that stands.';
+      }
+      return 'Nothing selected — this destination receives no new files. '
+          '${_files(owed)} owed from before ${owed == 1 ? 'is' : 'are'} '
+          'still delivered.';
     }
     return _configurationBlocker(view);
   }

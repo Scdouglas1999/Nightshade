@@ -77,10 +77,13 @@ void main() {
       profileId: profileId,
       sequenceId: sequenceId,
     );
-    // Left ACTIVE on purpose: an interrupted run is exactly the state the
-    // Continue Session dialog offers back, and getQuickStartContext prefers
-    // active sessions.
     expect(sessionId, isPositive);
+    // Then the process died and the next open swept the row — the state the
+    // Continue Session dialog exists for. Closed by the boot sweep's own rule,
+    // because `active` now means a run something is driving.
+    await sessionsDao.closeOrphanedSessions(
+      cause: kInterruptedBySessionShutdownCause,
+    );
 
     final quickStart = QuickStartService(
       sessionsDao: sessionsDao,

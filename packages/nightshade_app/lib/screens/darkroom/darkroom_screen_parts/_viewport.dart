@@ -85,7 +85,21 @@ class _DarkroomZoom {
   Size box = Size.zero;
 
   /// The viewer's own scale: screen pixels per RENDERED pixel.
-  double get viewerScale => controller.value.getMaxScaleOnAxis();
+  ///
+  /// Read off the X and Y columns, which are the two the picture is laid out
+  /// on. `Matrix4.getMaxScaleOnAxis` takes the maximum over X, Y **and Z**, and
+  /// every write below leaves Z at 1 — so it answered exactly 1.0 for every
+  /// view narrower than 1:1 and the readout said "100% of master" over a
+  /// picture fitted at half that. It pinned more than the words: the zoom floor
+  /// clamped against a scale that was not the view's, and `1:1` over a level-0
+  /// render asked for the scale it was already told it had and returned having
+  /// done nothing.
+  double get viewerScale {
+    final m = controller.value;
+    final x = math.sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]);
+    final y = math.sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6]);
+    return x > y ? x : y;
+  }
 
   /// Screen pixels per MASTER pixel for [preview], or null when the render did
   /// not state the level it answered at.

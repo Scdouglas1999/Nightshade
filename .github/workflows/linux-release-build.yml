@@ -113,6 +113,10 @@ jobs:
             printf '%s\n' '#!/usr/bin/env bash'
             printf '%s\n' 'HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}")")" && pwd)"'
             printf '%s\n' 'export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
+            printf '%s\n' '# Frameless GTK window under native Wayland runs headless-invisible'
+            printf '%s\n' '# (no surface ever shows); XWayland is the path every tested launch'
+            printf '%s\n' '# used. Force it until the Wayland surface path is fixed and proven.'
+            printf '%s\n' 'export GDK_BACKEND=x11'
             printf '%s\n' 'exec "$HERE/nightshade_desktop" "$@"'
           } > "$BUNDLE/nightshade"
           chmod +x "$BUNDLE/nightshade"

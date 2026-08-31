@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../database.dart';
+import '../session_orphan_sweep.dart';
 import '../tables/imaging_sessions.dart';
 import '../tables/equipment_profiles.dart';
 import '../tables/sequences.dart';
@@ -102,6 +103,67 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
         ),
       );
     });
+  }
+
+  /// Close every session still `active`, and return the ids that were closed.
+  ///
+  /// The boot sweep's twin, running the same [kCloseOrphanedSessionsSql] with
+  /// the same back-dated `end_time` and the same appended note. It exists as a
+  /// second call site because a row can be stranded WITHIN a process too — a
+  /// run that failed after opening its session and could not finalize it — and
+  /// the next `beforeOpen` is a relaunch away.
+  ///
+  /// **The caller owns the liveness claim.** This method cannot tell a row a
+  /// dead process left from the row a live run is filling; it closes whatever
+  /// is `active`. Only call it having established that no session is live —
+  /// [SessionService] does that from `_currentSessionId`, which is set for the
+  /// whole life of a session it owns.
+  Future<List<int>> closeOrphanedSessions({required String cause}) async {
+    final orphans = await customSelect(
+      kSelectOrphanedSessionsSql,
+      readsFrom: {imagingSessions},
+    ).get();
+    if (orphans.isEmpty) return const <int>[];
+
+    final found = DateTime.now();
+    final note = interruptedSessionNote(cause: cause, found: found);
+    await customUpdate(
+      kCloseOrphanedSessionsSql,
+      variables: [
+        Variable<int>(found.toUtc().millisecondsSinceEpoch ~/ 1000),
+        Variable<String>(note),
+        Variable<String>(note),
+      ],
+      updates: {imagingSessions},
+      updateKind: UpdateKind.update,
+    );
+    return [for (final row in orphans) row.data['id'] as int];
+  }
+
+  /// Re-open a session the sweep closed, so a recovery resumes the night it
+  /// names.
+  ///
+  /// Without this the recovered session would keep reading `interrupted` with
+  /// an `end_time` in the past while frames were landing on it — the row would
+  /// be saying the night is over while it is running.
+  ///
+  /// The interruption note is appended to, never replaced: the gap really
+  /// happened, and a resumed night that shows no sign of it is the History card
+  /// that made a two-part night look continuous.
+  Future<void> reopenSession(int id) async {
+    final note = resumedSessionNote(DateTime.now());
+    await customUpdate(
+      "UPDATE imaging_sessions SET status = 'active', end_time = NULL, "
+      "notes = CASE WHEN notes IS NULL OR notes = '' THEN ? "
+      "ELSE notes || char(10) || ? END WHERE id = ?",
+      variables: [
+        Variable<String>(note),
+        Variable<String>(note),
+        Variable<int>(id),
+      ],
+      updates: {imagingSessions},
+      updateKind: UpdateKind.update,
+    );
   }
 
   /// End a session
@@ -308,10 +370,22 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     )..where((s) => s.id.equals(id))).write(updates);
   }
 
+  /// Every session a previous process left unfinished, newest first — the
+  /// nights the Continue Session handoff exists for.
+  ///
+  /// Reads `interrupted`, not `active`. Those two used to be the same set
+  /// because nothing ever closed an abandoned row, so `active` meant "live OR
+  /// abandoned" and the handoff read it for the second meaning. The boot sweep
+  /// now closes abandoned rows at open, which leaves `active` meaning only
+  /// "this process is driving it right now" — and a night still in progress is
+  /// not a night to hand off from.
+  Future<List<ImagingSession>> getInterruptedSessions() =>
+      getSessionsByStatus(kInterruptedSessionStatus);
+
   /// Check if there are any incomplete/crashed sessions
   Future<bool> hasIncompleteSessions() async {
-    final activeSessions = await getActiveSessions();
-    return activeSessions.isNotEmpty;
+    final interrupted = await getInterruptedSessions();
+    return interrupted.isNotEmpty;
   }
 
   // Quick start methods

@@ -399,12 +399,34 @@ void main(List<String> args) async {
   // first frames are counted too.
   startFrameTimingProbe();
 
-  runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const NightshadeApp(isDesktop: true),
-    ),
-  );
+  // The window is frameless (TitleBarStyle.hidden, the app draws its own
+  // chrome), and a frameless window only resizes where something answers the
+  // edge hit-test. On Windows and macOS the window_manager plugin answers it
+  // natively; on Linux nothing does, so without these edge zones the window
+  // is simply not resizable by mouse — found by the first human to grab a
+  // corner after a campaign of harness runs that resized via xdotool, which
+  // bypasses the window manager and masked the gap.
+  Widget appRoot = Platform.isLinux
+      ? const Directionality(
+          textDirection: TextDirection.ltr,
+          child: DragToResizeArea(child: NightshadeApp(isDesktop: true)),
+        )
+      : const NightshadeApp(isDesktop: true);
+
+  // Windows accessibility bridge spam: Flutter logs
+  // `[ERROR:flutter/shell/platform/common/accessibility_bridge.cc(114)]
+  // Failed to update ui::AXTree, error: N will not be in the tree and is
+  // not the new root` whenever semantics nodes churn (tooltips, overlays,
+  // live telemetry). Engine bug, not a Nightshade fault; ExcludeSemantics
+  // stops those updates reaching AXTree. Screen-reader users can opt back
+  // in with NIGHTSHADE_ENABLE_SEMANTICS=1.
+  final enableSemantics =
+      Platform.environment['NIGHTSHADE_ENABLE_SEMANTICS'] == '1';
+  if (Platform.isWindows && !enableSemantics) {
+    appRoot = ExcludeSemantics(child: appRoot);
+  }
+
+  runApp(UncontrolledProviderScope(container: container, child: appRoot));
 
   // Reveal the frameless window only after Flutter has built at least one
   // frame so the custom title bar (drag target) and scaffold are present.

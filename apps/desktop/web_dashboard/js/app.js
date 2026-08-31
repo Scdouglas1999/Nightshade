@@ -727,10 +727,11 @@
     // on the desktop console.
     api.pairingStart()
       .then((result) => {
-        const exp = result && result.expiresInSeconds ? result.expiresInSeconds : 0;
+        const exp = wireNumber(result && result.expiresInSeconds);
         setPairModalStatus(
-          'Code printed to the Nightshade desktop console. Expires in ~' +
-          Math.max(1, Math.round(exp / 60)) + ' min.',
+          'Code printed to the Nightshade desktop console.' + (exp != null
+            ? ' Expires in ~' + Math.max(1, Math.round(exp / 60)) + ' min.'
+            : ' Expiry not reported.'),
           'success',
         );
       })
@@ -3013,10 +3014,15 @@
     const movingEl = document.getElementById('focuser-moving');
     const afEl = document.getElementById('focuser-last-af');
 
-    if (posEl) posEl.textContent = s && s.position != null ? String(s.position) : '--';
+    const focuserPosition = wireNumber(s && s.position);
+    if (posEl) {
+      posEl.textContent = focuserPosition != null
+        ? String(focuserPosition) : '--';
+    }
+    const focuserTemp = wireNumber(s && s.temperature);
     if (tempEl) {
-      tempEl.textContent = s && s.temperature != null
-        ? s.temperature.toFixed(1) + ' °C'
+      tempEl.textContent = focuserTemp != null
+        ? focuserTemp.toFixed(1) + ' °C'
         : '--';
     }
     if (movingEl) movingEl.classList.toggle('hidden-inline', !(s && s.moving));
@@ -3027,12 +3033,12 @@
         afEl.textContent = '--';
       } else {
         // Autofocus result fields can vary: bestFocus / bestPosition / hfr.
-        const best = r.bestFocus ?? r.bestPosition ?? r.position;
-        const hfr = r.hfr ?? r.bestHfr ?? r.minHfr;
+        const best = wireNumber(r.bestFocus ?? r.bestPosition ?? r.position);
+        const hfr = wireNumber(r.hfr ?? r.bestHfr ?? r.minHfr);
         const success = r.success !== false; // default to true unless explicitly false
         const parts = [];
         if (best != null) parts.push('pos=' + Math.round(best));
-        if (hfr != null) parts.push('HFR=' + Number(hfr).toFixed(2));
+        if (hfr != null) parts.push('HFR=' + hfr.toFixed(2));
         if (!success) parts.unshift('FAILED');
         afEl.textContent = parts.length ? parts.join(', ') : 'done';
       }
@@ -3110,13 +3116,13 @@
     const skyEl = document.getElementById('rotator-sky-pa');
     const mechEl = document.getElementById('rotator-mech-pa');
     const movingEl = document.getElementById('rotator-moving');
+    const skyPa = wireNumber(s && s.position);
+    const mechPa = wireNumber(s && s.mechanicalPosition);
     if (skyEl) {
-      skyEl.textContent = s && s.position != null ? s.position.toFixed(2) + '°' : '--°';
+      skyEl.textContent = skyPa != null ? skyPa.toFixed(2) + '°' : '--°';
     }
     if (mechEl) {
-      mechEl.textContent = s && s.mechanicalPosition != null
-        ? s.mechanicalPosition.toFixed(2) + '°'
-        : '--°';
+      mechEl.textContent = mechPa != null ? mechPa.toFixed(2) + '°' : '--°';
     }
     if (movingEl) {
       movingEl.classList.toggle('hidden-inline', !(s && (s.moving || s.isMoving)));
@@ -3278,7 +3284,8 @@
       const meta = [];
       if (t.objectType) meta.push(t.objectType);
       if (t.constellation) meta.push(t.constellation);
-      if (t.magnitude != null) meta.push('mag ' + Number(t.magnitude).toFixed(1));
+      const magnitude = wireNumber(t.magnitude);
+      if (magnitude != null) meta.push('mag ' + magnitude.toFixed(1));
       metaEl.textContent = meta.join(' · ');
       item.appendChild(nameEl);
       item.appendChild(metaEl);
@@ -3467,13 +3474,20 @@
 
     // Render image stats
     if (img.stats) {
+      const stat = (raw, digits) => {
+        const v = wireNumber(raw);
+        return v != null ? v.toFixed(digits) : '--';
+      };
+      const width = wireNumber(img.width);
+      const height = wireNumber(img.height);
       const stats = [
-        { label: 'HFR', value: img.stats.hfr != null ? img.stats.hfr.toFixed(2) : '--' },
-        { label: 'Stars', value: img.stats.starCount != null ? img.stats.starCount : '--' },
-        { label: 'Mean', value: img.stats.mean != null ? img.stats.mean.toFixed(0) : '--' },
-        { label: 'Median', value: img.stats.median != null ? img.stats.median.toFixed(0) : '--' },
-        { label: 'StdDev', value: img.stats.stdDev != null ? img.stats.stdDev.toFixed(0) : '--' },
-        { label: 'Size', value: img.width + 'x' + img.height },
+        { label: 'HFR', value: stat(img.stats.hfr, 2) },
+        { label: 'Stars', value: stat(img.stats.starCount, 0) },
+        { label: 'Mean', value: stat(img.stats.mean, 0) },
+        { label: 'Median', value: stat(img.stats.median, 0) },
+        { label: 'StdDev', value: stat(img.stats.stdDev, 0) },
+        { label: 'Size', value: width != null && height != null
+          ? width + 'x' + height : '--' },
         { label: 'Raw', value: rawStatLabel(), valueClass: rawStatClass() },
       ];
       for (const s of stats) {
@@ -3555,15 +3569,26 @@
     if (cs.cameraState !== undefined) {
       el.appendChild(createStatusRow('State', String(cs.cameraState)));
     }
-    if (cs.ccdTemperature !== undefined) {
-      const tempClass = cs.ccdTemperature <= -10 ? 'good' : cs.ccdTemperature <= 0 ? 'warn' : 'error';
-      el.appendChild(createStatusRow('Temp', cs.ccdTemperature.toFixed(1) + ' C', tempClass));
+    // A row is omitted when the camera reports no figure, and that is the only
+    // reason it may be omitted: `ccdTemperature: null` used to reach
+    // `null.toFixed` and throw, taking the Cooler and Exposure rows below it
+    // off the panel along with the temperature — a cooling camera rendered as
+    // a camera with no cooler at all.
+    const ccdTemperature = wireNumber(cs.ccdTemperature);
+    if (ccdTemperature != null) {
+      const tempClass = ccdTemperature <= -10
+        ? 'good' : ccdTemperature <= 0 ? 'warn' : 'error';
+      el.appendChild(
+        createStatusRow('Temp', ccdTemperature.toFixed(1) + ' C', tempClass));
     }
-    if (cs.coolerPower !== undefined) {
-      el.appendChild(createStatusRow('Cooler', cs.coolerPower.toFixed(0) + '%'));
+    const coolerPower = wireNumber(cs.coolerPower);
+    if (coolerPower != null) {
+      el.appendChild(createStatusRow('Cooler', coolerPower.toFixed(0) + '%'));
     }
-    if (cs.percentCompleted !== undefined && cs.percentCompleted > 0) {
-      el.appendChild(createStatusRow('Exposure', cs.percentCompleted.toFixed(0) + '%', 'info'));
+    const percentCompleted = wireNumber(cs.percentCompleted);
+    if (percentCompleted != null && percentCompleted > 0) {
+      el.appendChild(
+        createStatusRow('Exposure', percentCompleted.toFixed(0) + '%', 'info'));
     }
   }
 
@@ -3634,8 +3659,14 @@
     // Alt/Az
     const altEl = document.getElementById('mount-alt');
     const azEl = document.getElementById('mount-az');
-    if (altEl && ms.altitude !== undefined) altEl.textContent = ms.altitude.toFixed(1) + '°';
-    if (azEl && ms.azimuth !== undefined) azEl.textContent = ms.azimuth.toFixed(1) + '°';
+    const altitude = wireNumber(ms.altitude);
+    const azimuth = wireNumber(ms.azimuth);
+    if (altEl) {
+      altEl.textContent = altitude != null ? altitude.toFixed(1) + '°' : '--';
+    }
+    if (azEl) {
+      azEl.textContent = azimuth != null ? azimuth.toFixed(1) + '°' : '--';
+    }
   }
 
   /**
@@ -4158,16 +4189,23 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  // `isNaN` coerces before it tests, so the old guard passed `[]` and `true`
+  // straight through: an empty array printed "00h 00m 0.0s" — the pole, from a
+  // payload that named no coordinate at all — and `true` printed 01h. Both
+  // reach here from the wire (a target row, a mount status, a solve result),
+  // so the gate is the type check, not the coercion.
   function formatRA(raHours) {
-    if (raHours == null || isNaN(raHours)) return '--h --m --s';
-    const h = Math.floor(raHours);
-    const m = Math.floor((raHours - h) * 60);
-    const s = ((raHours - h) * 60 - m) * 60;
+    const hours = wireNumber(raHours);
+    if (hours == null) return '--h --m --s';
+    const h = Math.floor(hours);
+    const m = Math.floor((hours - h) * 60);
+    const s = ((hours - h) * 60 - m) * 60;
     return pad2(h) + 'h ' + pad2(m) + 'm ' + pad2(s.toFixed(1)) + 's';
   }
 
-  function formatDec(decDeg) {
-    if (decDeg == null || isNaN(decDeg)) return '--° --\' --"';
+  function formatDec(decDegrees) {
+    const decDeg = wireNumber(decDegrees);
+    if (decDeg == null) return '--° --\' --"';
     const sign = decDeg >= 0 ? '+' : '-';
     const abs = Math.abs(decDeg);
     const d = Math.floor(abs);
@@ -4573,8 +4611,9 @@
       const metaParts = [];
       if (t.objectType) metaParts.push(t.objectType);
       if (t.constellation) metaParts.push(t.constellation);
-      if (t.magnitude != null) {
-        metaParts.push('mag ' + Number(t.magnitude).toFixed(1));
+      const magnitude = wireNumber(t.magnitude);
+      if (magnitude != null) {
+        metaParts.push('mag ' + magnitude.toFixed(1));
       }
       const metaEl = document.createElement('span');
       metaEl.className = 'ops-target-row__meta';
@@ -4586,9 +4625,10 @@
       // committing the slew.
       const coordsEl = document.createElement('span');
       coordsEl.className = 'ops-target-row__coords';
-      if (t.ra != null && t.dec != null) {
-        coordsEl.textContent = formatRA(Number(t.ra)) + '  '
-          + formatDec(Number(t.dec));
+      const rowRa = wireNumber(t.ra);
+      const rowDec = wireNumber(t.dec);
+      if (rowRa != null && rowDec != null) {
+        coordsEl.textContent = formatRA(rowRa) + '  ' + formatDec(rowDec);
       } else {
         coordsEl.textContent = '--';
       }
@@ -4605,7 +4645,13 @@
     // is what the operator most often wants from a phone in the field. The
     // mount panel's goto inputs are also populated so a manual abort/retry
     // is one tap away.
-    if (target.ra == null || target.dec == null) {
+    // A coordinate the catalogue did not send as a number is not a coordinate.
+    // `Number(target.ra)` used to hand NaN to the slew call and print "RA NaNh"
+    // in the log beside it, so the operator watched a mount being commanded to
+    // a place that does not exist.
+    const targetRa = wireNumber(target.ra);
+    const targetDec = wireNumber(target.dec);
+    if (targetRa == null || targetDec == null) {
       showToast('Target ' + (target.name || target.id)
         + ' has no coordinates', 'error');
       return;
@@ -4621,17 +4667,16 @@
     const goRa = document.getElementById('mount-goto-ra');
     const goDec = document.getElementById('mount-goto-dec');
     if (goName) goName.value = target.name || '';
-    if (goRa) goRa.value = formatRA(Number(target.ra));
-    if (goDec) goDec.value = formatDec(Number(target.dec));
+    if (goRa) goRa.value = formatRA(targetRa);
+    if (goDec) goDec.value = formatDec(targetDec);
 
     state.ops.currentTargetId = target.id;
 
     try {
-      await api.mountSlewToRaDec(state.mountDeviceId,
-        Number(target.ra), Number(target.dec));
+      await api.mountSlewToRaDec(state.mountDeviceId, targetRa, targetDec);
       addLogEntry('mount', 'Slewing to ' + (target.name || target.id)
-        + ' (RA ' + Number(target.ra).toFixed(3)
-        + 'h, Dec ' + Number(target.dec).toFixed(3) + '°)');
+        + ' (RA ' + targetRa.toFixed(3)
+        + 'h, Dec ' + targetDec.toFixed(3) + '°)');
       showToast('Slewing to ' + (target.name || target.id));
       renderOpsSequencerLoadPanel();
     } catch (e) {
@@ -4842,13 +4887,15 @@
     }
   }
 
+  // `isNaN(Number(value))` coerced first and tested second, so every value that
+  // Number() maps onto a number passed: `''` and `[]` became 0 and the weather
+  // row read "0.0 °C" — a hard freeze warning — for a sensor that had reported
+  // nothing, and `true` read "1.0 °C". Only a number the wire actually carried
+  // is a reading.
   function setOpsTelemetry(el, value, formatter) {
     if (!el) return;
-    if (value == null || isNaN(Number(value))) {
-      el.textContent = '--';
-    } else {
-      el.textContent = formatter(Number(value));
-    }
+    const reading = wireNumber(value);
+    el.textContent = reading != null ? formatter(reading) : '--';
   }
 
   // ---------------------------------------------------------------------------
@@ -4934,8 +4981,8 @@
 
     if (shutterEl) shutterEl.textContent = d.shutterState || '--';
     if (azEl) {
-      azEl.textContent = d.azimuth != null
-        ? Number(d.azimuth).toFixed(1) + ' °' : '--';
+      const azimuth = wireNumber(d.azimuth);
+      azEl.textContent = azimuth != null ? azimuth.toFixed(1) + ' °' : '--';
     }
     if (slewEl) slewEl.textContent = d.slewing ? 'yes' : 'no';
     if (syncEl) syncEl.textContent = d.syncEnabled ? 'enabled' : 'disabled';
@@ -5270,28 +5317,30 @@
     // `successfulExposures` answers "did the camera return the frame", not
     // "was the frame worth keeping" — the label says "returned" and the
     // Graded row beside it carries what the culling actually decided.
-    const totalFrames = (session.successfulExposures != null
-      ? session.successfulExposures : session.totalExposures);
+    const successful = wireNumber(session.successfulExposures);
+    const totalFrames = successful != null
+      ? successful : wireNumber(session.totalExposures);
     setText('ops-analytics-frames', totalFrames != null
       ? String(totalFrames) : '--');
-    if (session.acceptedLights != null && session.rejectedLights != null) {
-      const decided = session.acceptedLights + session.rejectedLights;
+    const accepted = wireNumber(session.acceptedLights);
+    const rejected = wireNumber(session.rejectedLights);
+    if (accepted != null && rejected != null) {
+      const decided = accepted + rejected;
       // The server counts only decided frames, so 0 + 0 means nobody has
       // looked yet — not a clean slate and not an all-rejected night.
       setText('ops-analytics-graded', decided > 0
-        ? (session.acceptedLights + ' accepted · '
-          + session.rejectedLights + ' rejected')
+        ? (accepted + ' accepted · ' + rejected + ' rejected')
         : 'nothing graded yet');
     } else {
       setText('ops-analytics-graded', '--');
     }
-    setText('ops-analytics-integration', session.totalIntegrationSecs != null
-      ? formatDurationSeconds(Number(session.totalIntegrationSecs))
-      : '--');
-    setText('ops-analytics-hfr', session.avgHfr != null
-      ? Number(session.avgHfr).toFixed(2) : '--');
-    setText('ops-analytics-rms', session.avgGuidingRms != null
-      ? Number(session.avgGuidingRms).toFixed(2) + '"' : '--');
+    const integrationSecs = wireNumber(session.totalIntegrationSecs);
+    setText('ops-analytics-integration', integrationSecs != null
+      ? formatDurationSeconds(integrationSecs) : '--');
+    const hfr = wireNumber(session.avgHfr);
+    setText('ops-analytics-hfr', hfr != null ? hfr.toFixed(2) : '--');
+    const rms = wireNumber(session.avgGuidingRms);
+    setText('ops-analytics-rms', rms != null ? rms.toFixed(2) + '"' : '--');
 
     // Transparency values: prefer the `mag_zero_point` field as the magnitude
     // proxy for transparency trend. The science DAO stores per-sample rows,
@@ -5382,6 +5431,19 @@
   // ---------------------------------------------------------------------------
   // Misc ops helpers
   // ---------------------------------------------------------------------------
+
+  // A finite number off the wire, or null when the value is not one.
+  //
+  // `x != null` is a presence check, not a type check: it admits every
+  // non-null JSON shape into a numeric render. A payload carrying
+  // `totalExposures: "banana"` reached String(...) and printed "banana" in the
+  // frame count; `avgHfr: "NaN"` reached Number(...).toFixed(2) and printed
+  // "NaN" as a measured seeing figure. Number.isFinite does not coerce, so a
+  // string, a boolean, an object or an actual NaN all fail it and the caller
+  // paints the honest '--' instead of an operator-facing fiction.
+  function wireNumber(raw) {
+    return Number.isFinite(raw) ? raw : null;
+  }
 
   function formatDurationSeconds(secs) {
     if (secs == null || isNaN(secs)) return '--';
@@ -5619,10 +5681,11 @@
       }
 
       renderPlateSolveResult(result, filePath);
+      const solvedRotation = wireNumber(result.rotation);
       addLogEntry('imaging',
         'Plate-solve: RA ' + formatRA(result.ra) +
         ' Dec ' + formatDec(result.dec) +
-        (result.rotation != null ? ' PA ' + Number(result.rotation).toFixed(2) + '°' : ''));
+        (solvedRotation != null ? ' PA ' + solvedRotation.toFixed(2) + '°' : ''));
 
       if (syncMount) {
         if (!state.mountDeviceId) {
@@ -5648,18 +5711,23 @@
     const lines = [];
     lines.push('RA  ' + formatRA(result.ra));
     lines.push('Dec ' + formatDec(result.dec));
-    if (result.pixelScale != null) {
-      lines.push('Scale ' + Number(result.pixelScale).toFixed(3) + '"/px');
+    const pixelScale = wireNumber(result.pixelScale);
+    if (pixelScale != null) {
+      lines.push('Scale ' + pixelScale.toFixed(3) + '"/px');
     }
-    if (result.rotation != null) {
-      lines.push('PA ' + Number(result.rotation).toFixed(2) + '°');
+    const rotation = wireNumber(result.rotation);
+    if (rotation != null) {
+      lines.push('PA ' + rotation.toFixed(2) + '°');
     }
-    if (result.fieldWidth != null && result.fieldHeight != null) {
-      lines.push('FOV ' + Number(result.fieldWidth).toFixed(2) + '° × ' +
-        Number(result.fieldHeight).toFixed(2) + '°');
+    const fieldWidth = wireNumber(result.fieldWidth);
+    const fieldHeight = wireNumber(result.fieldHeight);
+    if (fieldWidth != null && fieldHeight != null) {
+      lines.push('FOV ' + fieldWidth.toFixed(2) + '° × '
+        + fieldHeight.toFixed(2) + '°');
     }
-    if (result.solveTimeSecs != null) {
-      lines.push('Solved in ' + Number(result.solveTimeSecs).toFixed(2) + 's');
+    const solveTimeSecs = wireNumber(result.solveTimeSecs);
+    if (solveTimeSecs != null) {
+      lines.push('Solved in ' + solveTimeSecs.toFixed(2) + 's');
     }
     if (filePath) {
       // Truncate long paths so the tile doesn't grow unbounded.
@@ -5776,8 +5844,12 @@
     const errEl = document.getElementById('pa-total-error');
     if (phaseEl) phaseEl.textContent = state.polarAlignment.phase || 'idle';
     if (errEl) {
-      const v = state.polarAlignment.totalErrorArcmin;
-      errEl.textContent = v != null && isFinite(v) ? v.toFixed(2) + "'" : '--';
+      // `isFinite` coerces, so a string error figure passed the guard and then
+      // threw on `.toFixed`, leaving the whole panel — phase included —
+      // unpainted. The colour class keys off the same gated value, so an
+      // unreadable error can no longer render green.
+      const v = wireNumber(state.polarAlignment.totalErrorArcmin);
+      errEl.textContent = v != null ? v.toFixed(2) + "'" : '--';
       errEl.className = 'status-value' + (v != null
         ? (v < 1.0 ? ' good' : (v < 5.0 ? ' warn' : ' error'))
         : '');
@@ -5788,8 +5860,8 @@
     const mStat = document.getElementById('pa-modal-status');
     if (mPhase) mPhase.textContent = state.polarAlignment.phase || 'idle';
     if (mErr) {
-      const v = state.polarAlignment.totalErrorArcmin;
-      mErr.textContent = v != null && isFinite(v) ? v.toFixed(2) + "'" : '--';
+      const v = wireNumber(state.polarAlignment.totalErrorArcmin);
+      mErr.textContent = v != null ? v.toFixed(2) + "'" : '--';
     }
     if (mStat) mStat.textContent = state.polarAlignment.statusMessage || '--';
   }
@@ -5918,8 +5990,11 @@
       value.className = c.success
         ? 'wizard-list-entry__ok'
         : 'wizard-list-entry__bad';
+      const exposure = wireNumber(c.exposure);
+      const adu = wireNumber(c.adu);
       value.textContent = c.success
-        ? (Number(c.exposure).toFixed(3) + 's @ ' + Math.round(Number(c.adu)) + ' ADU')
+        ? ((exposure != null ? exposure.toFixed(3) + 's' : '--')
+          + ' @ ' + (adu != null ? Math.round(adu) + ' ADU' : '-- ADU'))
         : ('FAILED: ' + (c.errorMessage || 'no convergence'));
       row.appendChild(name);
       row.appendChild(value);
@@ -6166,10 +6241,17 @@
       const seq = resp && resp.sequence;
       if (!seq) throw new Error('Server returned no sequence');
       await api.sequencerLoad(seq);
-      document.getElementById('mosaic-wizard-result').textContent =
-        'Loaded ' + seq.totalPanels + '-panel mosaic (~' +
-        formatDurationSecs(seq.estimatedTimeSecs || 0) + ')';
-      addLogEntry('sequencer', 'Mosaic sequence loaded (' + seq.totalPanels + ' panels)');
+      // A panel count the server did not send as a number is not a count:
+      // interpolating it printed "Loaded banana-panel mosaic" at the operator.
+      const totalPanels = wireNumber(seq.totalPanels);
+      const estimate = wireNumber(seq.estimatedTimeSecs);
+      const loaded = totalPanels != null
+        ? 'Loaded ' + totalPanels + '-panel mosaic'
+        : 'Loaded mosaic (panel count not reported)';
+      document.getElementById('mosaic-wizard-result').textContent = loaded
+        + (estimate != null ? ' (~' + formatDurationSecs(estimate) + ')' : '');
+      addLogEntry('sequencer', 'Mosaic sequence loaded: ' + (totalPanels != null
+        ? totalPanels + ' panels' : 'panel count not reported'));
       showToast('Mosaic loaded — open Sequencer to start');
       closeWizardModal('mosaic-modal');
     } catch (e) {
@@ -6446,10 +6528,12 @@
         exposureTime: 3.0,
         binning: 2,
       });
-      const iters = result && result.iterations != null ? Number(result.iterations) : 0;
-      const off = result && result.finalOffsetArcsec != null
-        ? Number(result.finalOffsetArcsec).toFixed(1) + '"'
-        : '--';
+      // An unreported iteration count reads '--', not 0: "0 iter" claims the
+      // centering converged without moving, which is a result nobody sent.
+      const iterCount = wireNumber(result && result.iterations);
+      const iters = iterCount != null ? String(iterCount) : '--';
+      const offset = wireNumber(result && result.finalOffsetArcsec);
+      const off = offset != null ? offset.toFixed(1) + '"' : '--';
       if (result && result.success) {
         document.getElementById('framing-action-status').textContent =
           'Centered (' + iters + ' iter, residual ' + off + ')';
@@ -6603,13 +6687,13 @@
         api.planetariumGetMountPosition(),
         api.getFovConfig(),
       ]);
-      const raH = pos.raHours != null ? pos.raHours : pos.ra;
-      const decD = pos.decDegrees != null ? pos.decDegrees : pos.dec;
+      const raH = wireNumber(pos.raHours ?? pos.ra);
+      const decD = wireNumber(pos.decDegrees ?? pos.dec);
       if (raEl && raH != null) raEl.textContent = formatRA(raH);
       if (decEl && decD != null) decEl.textContent = formatDec(decD);
       if (fovEl && fov) {
-        const w = fov.fovWidthDegrees != null ? fov.fovWidthDegrees : fov.widthDegrees;
-        const h = fov.fovHeightDegrees != null ? fov.fovHeightDegrees : fov.heightDegrees;
+        const w = wireNumber(fov.fovWidthDegrees ?? fov.widthDegrees);
+        const h = wireNumber(fov.fovHeightDegrees ?? fov.heightDegrees);
         fovEl.textContent = (w != null && h != null)
           ? w.toFixed(2) + '° × ' + h.toFixed(2) + '°'
           : '--';
@@ -6649,12 +6733,15 @@
       setEl('settings-plate-solver',
         settings && settings.plateSolver ? settings.plateSolver : '--');
       if (loc) {
+        const latitude = wireNumber(loc.latitude);
+        const longitude = wireNumber(loc.longitude);
+        const elevation = wireNumber(loc.elevation);
         setEl('settings-latitude',
-          loc.latitude != null ? loc.latitude.toFixed(4) + '°' : '--');
+          latitude != null ? latitude.toFixed(4) + '°' : '--');
         setEl('settings-longitude',
-          loc.longitude != null ? loc.longitude.toFixed(4) + '°' : '--');
+          longitude != null ? longitude.toFixed(4) + '°' : '--');
         setEl('settings-elevation',
-          loc.elevation != null ? loc.elevation.toFixed(0) + ' m' : '--');
+          elevation != null ? elevation.toFixed(0) + ' m' : '--');
       } else {
         setEl('settings-latitude', '--');
         setEl('settings-longitude', '--');
@@ -6997,12 +7084,12 @@
     if (!item) return 'Image';
     const target = item.targetName || item.target || '';
     const filter = item.filter || item.filterName || '';
-    const exp = item.exposureTime != null ? item.exposureTime : item.exposure;
+    const exp = wireNumber(item.exposureTime ?? item.exposure);
     const created = item.createdAt || item.timestamp || item.capturedAt;
     const parts = [];
     if (target) parts.push(target);
     if (filter) parts.push(filter);
-    if (exp != null && !isNaN(Number(exp))) parts.push(Number(exp) + 's');
+    if (exp != null) parts.push(exp + 's');
     if (created) {
       const ts = typeof created === 'number'
         ? new Date(created)

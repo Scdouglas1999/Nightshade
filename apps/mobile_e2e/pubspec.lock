@@ -863,14 +863,14 @@ packages:
       path: "../desktop"
       relative: true
     source: path
-    version: "6.1.0+25"
+    version: "6.2.0+26"
   nightshade_mobile:
     dependency: "direct dev"
     description:
       path: "../mobile"
       relative: true
     source: path
-    version: "6.1.0+25"
+    version: "6.2.0+26"
   nightshade_planetarium:
     dependency: "direct overridden"
     description:

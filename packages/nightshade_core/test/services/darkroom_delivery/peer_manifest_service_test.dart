@@ -185,6 +185,45 @@ void main() {
     expect(manifest.unavailable.single.reason, contains('sourceMissing'));
   });
 
+  test('a file the sweep already recorded as lost is still named to the '
+      'desktop, and is no longer offered', () async {
+    // The rig's sweep now marks a published file it has lost as terminal, so
+    // the two peer surfaces meet at that row. Skipping every `failed` row
+    // outright would have made the file vanish from the manifest entirely the
+    // moment the sweep noticed it — a desktop that pulled before the sweep and
+    // one that pulled after it would report different nights.
+    final jobId = await DarkroomJobsDao(db).enqueue();
+    await createPeer('office-pc');
+    final set = await publishSet(jobId, names: ['a.fits', 'b.fits']);
+    final service = serviceFor();
+    await service.deliverJobArtifacts(set);
+    await File(set.artifacts.first.sourcePath).delete();
+    final swept = await service.sweepDueRetries();
+    expect(swept.failed, 1, reason: 'the sweep is what marks the row terminal');
+
+    final manifest = await peers.buildManifest(
+      jobId: jobId,
+      peerId: 'office-pc',
+    );
+
+    expect(manifest.entries.length, 1);
+    expect(
+      manifest.entries.single.artifactId,
+      artifactIdForPath(set.artifacts.last.sourcePath),
+      reason: 'the file that is still on the rig is the one still offered',
+    );
+    expect(manifest.unavailable.length, 1);
+    expect(
+      manifest.unavailable.single.artifactId,
+      artifactIdForPath(set.artifacts.first.sourcePath),
+    );
+    expect(
+      manifest.unavailable.single.reason,
+      contains('sourceMissing'),
+      reason: 'the desktop reads the reason the rig recorded, not a new guess',
+    );
+  });
+
   group('resolving an id', () {
     test('finds the file the manifest named', () async {
       final jobId = await DarkroomJobsDao(db).enqueue();

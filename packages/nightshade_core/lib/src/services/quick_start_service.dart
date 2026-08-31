@@ -62,8 +62,8 @@ class QuickStartService {
   /// Get the quick start context from the most recent recoverable session.
   ///
   /// This method retrieves the most recent session that has:
-  /// - A status of 'active' (interrupted) or 'completed' within 7 days
-  /// - Preference given to active sessions with progress
+  /// - A status of 'interrupted', or 'completed' within 7 days
+  /// - Preference given to interrupted sessions with progress
   ///
   /// Returns null if no suitable session is found.
   Future<QuickStartContext?> getQuickStartContext() async {
@@ -73,20 +73,23 @@ class QuickStartService {
       level: 800,
     );
 
-    // First, check for active (interrupted) sessions
-    final activeSessions = await sessionsDao.getActiveSessions();
-    if (activeSessions.isNotEmpty) {
-      // Return the most recent active session
-      final session = activeSessions.first;
+    // First, check for sessions a previous process left unfinished — the case
+    // this dialog exists for. Read from `interrupted` rather than `active`
+    // since the boot sweep started closing abandoned rows: `active` now means
+    // a run in progress, which is not something to hand off from.
+    final interruptedSessions = await sessionsDao.getInterruptedSessions();
+    if (interruptedSessions.isNotEmpty) {
+      // Return the most recent interrupted session
+      final session = interruptedSessions.first;
       developer.log(
-        'QuickStartService: Found active session ${session.id} from ${session.startTime}',
+        'QuickStartService: Found interrupted session ${session.id} from ${session.startTime}',
         name: 'QuickStartService',
         level: 800,
       );
       return _buildQuickStartContext(session);
     }
 
-    // If no active sessions, look for recent completed sessions
+    // If no interrupted sessions, look for recent completed sessions
     final recentSessions = await sessionsDao.getRecentSessions(limit: 10);
 
     // Filter to sessions within the last 7 days that have meaningful progress
@@ -315,7 +318,7 @@ class QuickStartService {
   /// Check if quick start is available.
   ///
   /// Quick start is available if there's a recent session (within 7 days)
-  /// that has meaningful progress or an active (interrupted) session.
+  /// that has meaningful progress, or a session left interrupted.
   Future<bool> isQuickStartAvailable() async {
     developer.log(
       'QuickStartService: Checking if quick start is available...',
@@ -323,11 +326,11 @@ class QuickStartService {
       level: 800,
     );
 
-    // Check for active sessions first
-    final hasActive = await sessionsDao.hasIncompleteSessions();
-    if (hasActive) {
+    // Check for sessions left unfinished first
+    final hasInterrupted = await sessionsDao.hasIncompleteSessions();
+    if (hasInterrupted) {
       developer.log(
-        'QuickStartService: Quick start available (active session found)',
+        'QuickStartService: Quick start available (interrupted session found)',
         name: 'QuickStartService',
         level: 800,
       );
@@ -374,9 +377,9 @@ class QuickStartService {
     );
     final contexts = <QuickStartContext>[];
 
-    // Get active sessions first
-    final activeSessions = await sessionsDao.getActiveSessions();
-    for (final session in activeSessions) {
+    // Get the sessions a previous process left unfinished first
+    final interruptedSessions = await sessionsDao.getInterruptedSessions();
+    for (final session in interruptedSessions) {
       if (contexts.length >= limit) break;
       contexts.add(await _buildQuickStartContext(session));
     }

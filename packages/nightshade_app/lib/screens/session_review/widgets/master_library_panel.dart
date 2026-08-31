@@ -28,6 +28,14 @@ class MasterLibraryPanel extends StatelessWidget {
   /// interpretation on top of them.
   final void Function(IntegratedMaster) onOpenInDarkroom;
 
+  /// Why this machine cannot open the Darkroom at all, or null when it can.
+  ///
+  /// Stated by the OWNER of the screen, before the card is built, because the
+  /// answer is about the machine rather than the master. The button used to be
+  /// drawn live on a remote client and explained itself only after the press —
+  /// so the operator learned the app's enabled state was not to be trusted.
+  final String? darkroomRefusal;
+
   final void Function(IntegratedMaster) onAddTonight;
   final void Function(IntegratedMaster) onFinalize;
   final void Function(IntegratedMaster) onDelete;
@@ -40,6 +48,7 @@ class MasterLibraryPanel extends StatelessWidget {
     required this.busy,
     required this.onOpen,
     required this.onOpenInDarkroom,
+    this.darkroomRefusal,
     required this.onAddTonight,
     required this.onFinalize,
     required this.onDelete,
@@ -95,6 +104,7 @@ class MasterLibraryPanel extends StatelessWidget {
                 busy: busy,
                 onOpen: () => onOpen(m),
                 onOpenInDarkroom: () => onOpenInDarkroom(m),
+                darkroomRefusal: darkroomRefusal,
                 onAddTonight: () => onAddTonight(m),
                 onFinalize: () => onFinalize(m),
                 onDelete: () => onDelete(m),
@@ -112,6 +122,10 @@ class _MasterCard extends StatelessWidget {
   final bool busy;
   final VoidCallback onOpen;
   final VoidCallback onOpenInDarkroom;
+
+  /// Why this machine cannot open the Darkroom at all — see
+  /// [MasterLibraryPanel.darkroomRefusal].
+  final String? darkroomRefusal;
   final VoidCallback onAddTonight;
   final VoidCallback onFinalize;
   final VoidCallback onDelete;
@@ -122,6 +136,7 @@ class _MasterCard extends StatelessWidget {
     required this.busy,
     required this.onOpen,
     required this.onOpenInDarkroom,
+    required this.darkroomRefusal,
     required this.onAddTonight,
     required this.onFinalize,
     required this.onDelete,
@@ -134,7 +149,16 @@ class _MasterCard extends StatelessWidget {
         master.accumulationMode == AccumulationMode.runningWeightedMean;
     final canOpen =
         master.previewPngPath != null || master.masterFitsPath != null;
-    final canRefine = master.masterFitsPath != null;
+    // Two separate reasons the Darkroom cannot be opened from this card, and
+    // the one that applies is the one the control states: the master has no
+    // linear FITS, or this machine is not the imaging host. Both are known
+    // BEFORE the press, which is why both are on the button.
+    final refineRefusal = master.masterFitsPath == null
+        ? 'This master has no linear FITS yet. Finalize the accumulation '
+            'first — the Darkroom renders from linear pixels, not from the '
+            'preview.'
+        : darkroomRefusal;
+    final canRefine = refineRefusal == null;
 
     return NightshadeCard(
       onTap: canOpen && !busy ? onOpen : null,
@@ -210,11 +234,8 @@ class _MasterCard extends StatelessWidget {
                       label: 'Darkroom',
                       icon: NightshadeIcons.sliders,
                       onPressed: (busy || !canRefine) ? null : onOpenInDarkroom,
-                      tooltip: canRefine
-                          ? 'Edit this master\'s recipe in the Darkroom'
-                          : 'This master has no linear FITS yet. Finalize the '
-                              'accumulation first — the Darkroom renders '
-                              'from linear pixels, not from the preview.',
+                      tooltip: refineRefusal ??
+                          'Edit this master\'s recipe in the Darkroom',
                     ),
                     if (accumulating)
                       _MiniButton(

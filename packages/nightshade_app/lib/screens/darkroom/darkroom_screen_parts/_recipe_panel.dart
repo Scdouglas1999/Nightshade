@@ -347,9 +347,79 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
             color: colors.textMuted,
           ),
         ),
+        ..._calibration(colors),
       ],
     );
   }
+
+  /// What the integration recorded about the calibration behind these pixels.
+  ///
+  /// The provenance block named who wrote the stack and which file it replays
+  /// over, and stopped there — while the one fact that changes what every step
+  /// above it MEANS went unsaid. A gradient over lights that never had a flat
+  /// applied is a sensor signature; a background extraction "fixes" it and the
+  /// operator ships a master with the vignette folded into the sky model. The
+  /// master FITS carries this as `CALWARN`, the morning report prints it, and
+  /// the editor — the one screen where the decision is actually made — did not.
+  ///
+  /// Read from the master's own row, through the same parse the morning report
+  /// uses. A recipe with no library row states nothing rather than guessing:
+  /// the record belongs to the master, and a master this build cannot find has
+  /// no record to quote.
+  List<Widget> _calibration(NightshadeColors colors) {
+    final stats = state.masterCalibration;
+    if (stats == null) return const [];
+    if (stats.calibration.isEmpty && !stats.calibrationWarned) return const [];
+
+    final warnings = stats.calibrationSentences;
+    return [
+      const SizedBox(height: NightshadeTokens.spaceMd),
+      Text(
+        'Calibration applied',
+        style: NightshadeTypography.labelSm.copyWith(
+          color: colors.textSecondary,
+        ),
+      ),
+      const SizedBox(height: 2),
+      for (final slot in stats.calibration)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 2),
+          child: Text(
+            // The slot's own two facts, in its own words: whether the
+            // correction RAN, and the quality the matcher recorded for it. A
+            // row that said only "dark" would leave "applied" and "missing"
+            // looking identical.
+            '${_capitalized(slot.kind)}: '
+            '${slot.applied ? 'applied' : 'not applied'} · ${slot.quality}',
+            style: NightshadeTypography.captionSm.copyWith(
+              color: slot.isWarning ? colors.warning : colors.textSecondary,
+            ),
+          ),
+        ),
+      if (stats.cosmeticCorrection != null)
+        Text(
+          'Cosmetic correction: '
+          '${stats.cosmeticCorrection! ? 'ran per light' : 'did not run'}',
+          style: NightshadeTypography.captionSm.copyWith(
+            color: colors.textSecondary,
+          ),
+        ),
+      if (warnings.isNotEmpty) ...[
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        _DarkroomCollapsibleAlert(
+          severity: NightshadeAlertSeverity.warning,
+          title: warnings.length == 1
+              ? 'The integration recorded a calibration warning'
+              : 'The integration recorded ${warnings.length} calibration '
+                  'warnings',
+          message: warnings.join('\n\n'),
+        ),
+      ],
+    ];
+  }
+
+  static String _capitalized(String value) =>
+      value.isEmpty ? value : '${value[0].toUpperCase()}${value.substring(1)}';
 
   Widget _editActions(NightshadeColors colors) {
     return Column(

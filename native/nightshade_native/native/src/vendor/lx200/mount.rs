@@ -130,6 +130,9 @@ impl Lx200Mount {
 
             match port.read(&mut buf) {
                 Ok(1) => {
+                    if response.is_empty() && is_inter_response_framing(buf[0]) {
+                        continue;
+                    }
                     if buf[0] == RESPONSE_TERM {
                         break;
                     }
@@ -169,7 +172,12 @@ impl Lx200Mount {
             }
 
             match port.read(&mut buf) {
-                Ok(1) => return Ok(buf[0] == b'1'),
+                Ok(1) => {
+                    if is_inter_response_framing(buf[0]) {
+                        continue;
+                    }
+                    return Ok(buf[0] == b'1');
+                }
                 Ok(_) => {
                     std::thread::sleep(Duration::from_millis(10));
                     continue;
@@ -209,6 +217,27 @@ impl Lx200Mount {
     }
 }
 
+/// OnStep controllers such as the Pegasus NYX terminate a response with `#`
+/// and then emit CRLF. The byte-oriented reader stops at `#`, so those trailing
+/// bytes become the prefix of the next response unless they are discarded.
+fn is_inter_response_framing(byte: u8) -> bool {
+    matches!(byte, b'\r' | b'\n' | b'\0')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_inter_response_framing;
+
+    #[test]
+    fn nyx_crlf_between_responses_is_framing() {
+        assert!(is_inter_response_framing(b'\r'));
+        assert!(is_inter_response_framing(b'\n'));
+        assert!(is_inter_response_framing(b'\0'));
+        assert!(!is_inter_response_framing(b'1'));
+        assert!(!is_inter_response_framing(b'+'));
+    }
+}
+
 #[async_trait]
 impl NativeDevice for Lx200Mount {
     fn id(&self) -> &str {
@@ -231,6 +260,8 @@ impl NativeDevice for Lx200Mount {
         if self.is_connected() {
             return Ok(());
         }
+
+        let _serial_access = crate::vendor::serial_mount_access().await;
 
         let serial = serialport::new(&self.port_name, self.baud_rate)
             .timeout(Duration::from_millis(500))

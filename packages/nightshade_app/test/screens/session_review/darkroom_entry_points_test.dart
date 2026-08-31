@@ -174,6 +174,86 @@ void main() {
       await tester.pump();
       expect(taps, 0);
     });
+
+    testWidgets('a remote client reads the refusal ON the control', (
+      tester,
+    ) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        _panelHarness(
+          MasterLibraryPanel(
+            masters: [
+              _master(id: 11, name: 'M31 Ha', fitsPath: '/masters/m31.fits'),
+            ],
+            acceptedSubCount: 40,
+            busy: false,
+            onOpen: (_) {},
+            onOpenInDarkroom: (_) => taps++,
+            // The answer every Darkroom entry point used to ask for only
+            // INSIDE its tap handler: on a client the button was drawn live,
+            // full contrast and focusable, and explained itself after the
+            // operator had already committed to the press.
+            darkroomRefusal: kDarkroomHostOnlyRefusal,
+            onAddTonight: (_) {},
+            onFinalize: (_) {},
+            onDelete: (_) {},
+            onCreateAccumulating: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final button = find.byKey(const ValueKey('master_open_in_darkroom'));
+      await tester.tap(button, warnIfMissed: false);
+      await tester.pump();
+      expect(taps, 0, reason: 'a refused control must not fire');
+
+      final tooltip = tester.widget<Tooltip>(
+        find.descendant(of: button, matching: find.byType(Tooltip)).first,
+      );
+      expect(tooltip.message, kDarkroomHostOnlyRefusal);
+    });
+
+    testWidgets('the master\'s own gate still wins over the host gate', (
+      tester,
+    ) async {
+      // Both reasons apply at once. The one the operator can act on from HERE
+      // is the master's, so that is the one the control states.
+      await tester.pumpWidget(
+        _panelHarness(
+          MasterLibraryPanel(
+            masters: [
+              _master(
+                id: 12,
+                name: 'M31 Ha (accumulating)',
+                fitsPath: null,
+                mode: AccumulationMode.runningWeightedMean,
+              ),
+            ],
+            acceptedSubCount: 40,
+            busy: false,
+            onOpen: (_) {},
+            onOpenInDarkroom: (_) {},
+            darkroomRefusal: kDarkroomHostOnlyRefusal,
+            onAddTonight: (_) {},
+            onFinalize: (_) {},
+            onDelete: (_) {},
+            onCreateAccumulating: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final tooltip = tester.widget<Tooltip>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('master_open_in_darkroom')),
+              matching: find.byType(Tooltip),
+            )
+            .first,
+      );
+      expect(tooltip.message, contains('no linear FITS'));
+    });
   });
 
   group('the session-review header processes tonight', () {

@@ -245,6 +245,19 @@ class DarkroomState {
   /// step and discovering it in a failed render.
   final int? masterChannels;
 
+  /// What the master's own integration recorded about the calibration it
+  /// applied, or null when the recipe carries no library row / before that row
+  /// has been read.
+  ///
+  /// Parsed from the SAME `integrated_masters.stats_json` the dawn autopilot's
+  /// morning report reads, so the editor and that report cannot disagree about
+  /// which darks, flats and bias reached these pixels. It is the one fact about
+  /// the base master that changes what the operator should believe about every
+  /// step above it — a gradient over an uncalibrated frame is a sensor
+  /// signature, not sky — and the Recipe panel's provenance block, which names
+  /// the author and the file, said nothing about it at all.
+  final DawnMasterStats? masterCalibration;
+
   /// Why the field carries no catalogue photometry, when it does not. The
   /// color calibration is skipped with the engine's own reason in that case;
   /// this states the app-side half of the same fact.
@@ -329,6 +342,7 @@ class DarkroomState {
     this.insertRefusal,
     this.insertRefusalAttempt = 0,
     this.masterChannels,
+    this.masterCalibration,
     this.photometryNote,
     this.photometryStarCount = 0,
     this.canUndo = false,
@@ -538,6 +552,7 @@ class DarkroomState {
     bool clearInsertRefusal = false,
     int? masterChannels,
     bool clearMasterChannels = false,
+    DawnMasterStats? masterCalibration,
     String? photometryNote,
     int? photometryStarCount,
     bool? canUndo,
@@ -597,6 +612,7 @@ class DarkroomState {
           : (insertRefusalAttempt ?? this.insertRefusalAttempt),
       masterChannels:
           clearMasterChannels ? null : (masterChannels ?? this.masterChannels),
+      masterCalibration: masterCalibration ?? this.masterCalibration,
       photometryNote: photometryNote ?? this.photometryNote,
       photometryStarCount: photometryStarCount ?? this.photometryStarCount,
       canUndo: canUndo ?? this.canUndo,

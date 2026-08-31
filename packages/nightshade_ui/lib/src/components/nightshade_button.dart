@@ -17,6 +17,16 @@ class NightshadeButton extends StatefulWidget {
   final ButtonSize size;
   final bool isLoading;
 
+  /// A sentence read after [label], qualifying what the button is in this
+  /// state — most often WHY it is disabled.
+  ///
+  /// A disabled control publishes `enabled: false` and nothing else, so
+  /// assistive tech says "dimmed" and the reason stays wherever the screen put
+  /// it. The hint is the slot that carries the reason with the control, which
+  /// is the difference between a button that refuses and a button that looks
+  /// broken.
+  final String? semanticsHint;
+
   const NightshadeButton({
     super.key,
     required this.label,
@@ -25,6 +35,7 @@ class NightshadeButton extends StatefulWidget {
     this.variant = ButtonVariant.primary,
     this.size = ButtonSize.medium,
     this.isLoading = false,
+    this.semanticsHint,
   });
 
   @override
@@ -195,6 +206,7 @@ class _NightshadeButtonState extends State<NightshadeButton>
       button: true,
       enabled: !isDisabled,
       label: widget.label,
+      hint: widget.semanticsHint,
       child: MouseRegion(
         onEnter: (_) => _setHovered(true),
         onExit: (_) {

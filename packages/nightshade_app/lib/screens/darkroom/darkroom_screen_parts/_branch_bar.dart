@@ -63,6 +63,31 @@ String darkroomSiblingAuthorPhrase(DarkroomSiblingDraft sibling) {
       : 'written by you';
 }
 
+/// The sentence over the sibling strip: how many masters the night produced,
+/// and how many of the OTHER ones carry a recipe.
+///
+/// [drafted] is the count of siblings with a recipe; [siblings] is how many
+/// other masters there are. Both numbers are in the sentence, so the verb has
+/// to agree with the one it is about — and it did not: the verb was governed by
+/// [siblings] while its subject is [drafted], so a night with three masters and
+/// one drafted sibling read "1 of the other 2 carry a recipe".
+///
+/// Pure, and public, so the agreement can be pinned across the counts without
+/// standing up a branch bar for each.
+String darkroomSiblingSummarySentence({
+  required int drafted,
+  required int siblings,
+}) {
+  final total = siblings + 1;
+  if (drafted == siblings) {
+    return 'This night produced $total masters and every one of them carries '
+        'a recipe. The others:';
+  }
+  // "carries"/"carry" agrees with `drafted`, the count it follows.
+  return 'This night produced $total masters; $drafted of the other $siblings '
+      '${drafted == 1 ? 'carries' : 'carry'} a recipe:';
+}
+
 /// The glyph on a sibling chip.
 ///
 /// A master with NO recipe gets the neutral frame rather than the person: the
@@ -330,12 +355,10 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     return [
       const SizedBox(height: NightshadeTokens.spaceXs),
       Text(
-        drafted == siblings.length
-            ? 'This night produced ${siblings.length + 1} masters and every '
-                'one of them carries a recipe. The others:'
-            : 'This night produced ${siblings.length + 1} masters; '
-                '$drafted of the other ${siblings.length} '
-                '${siblings.length == 1 ? 'carries' : 'carry'} a recipe:',
+        darkroomSiblingSummarySentence(
+          drafted: drafted,
+          siblings: siblings.length,
+        ),
         style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
       ),
       const SizedBox(height: NightshadeTokens.spaceXs),

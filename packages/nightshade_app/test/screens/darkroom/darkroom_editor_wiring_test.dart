@@ -929,9 +929,11 @@ void main() {
     expect(find.text('History stack'), findsOneWidget);
     expect(find.text('Denoise'), findsWidgets);
     expect(find.text('Reset to linear'), findsOneWidget);
-    // Each of those panels now names the branch it is showing, so the stack
-    // beside two captioned panes belongs to one of them on screen.
-    expect(find.text('Pane A · Draft'), findsNWidgets(2));
+    // The column those panels share names the branch they are showing, so the
+    // stack beside two captioned panes belongs to one of them on screen —
+    // once, over the surface both panels are stacked on rather than once per
+    // panel.
+    expect(find.text('Pane A · Draft'), findsOneWidget);
     await drain(tester);
   });
 

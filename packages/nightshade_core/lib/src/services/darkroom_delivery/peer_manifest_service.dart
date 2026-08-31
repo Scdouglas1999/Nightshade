@@ -88,10 +88,11 @@ class PeerManifestService {
   /// carries that peer id — a manifest served to an unrecognised caller would
   /// hand one desktop another desktop's night.
   ///
-  /// A file a job published that is no longer on disk is left out and its
-  /// absence is what the desktop sees; the rig's own journal row still records
-  /// that it was published, so the morning report can still say the file is
-  /// owed.
+  /// A file a job published that is no longer on disk is not offered — it is
+  /// listed as unavailable, whether this request is the first to notice it
+  /// gone or the rig's own sweep already recorded it terminal. Both readings
+  /// name the same file to the desktop, so a pull that ran before the sweep
+  /// and one that ran after it report the same night.
   Future<DeliveryManifest> buildManifest({
     required int jobId,
     required String peerId,
@@ -105,7 +106,20 @@ class PeerManifestService {
     for (final row in await _journal.listForJob(jobId)) {
       final naming = namings[row.targetId];
       if (naming == null) continue;
-      if (row.state == DeliveryAttemptState.failed) continue;
+      if (row.state == DeliveryAttemptState.failed) {
+        // Terminal on the rig: nothing here will offer it again, so it is not
+        // an entry. It is still one of this job's published files, and the
+        // desktop is the one machine that cannot see the rig's journal —
+        // dropping the row outright is how a file the rig lost after
+        // publishing it disappeared from both surfaces at once.
+        unavailable.add(
+          UnavailableArtifact(
+            artifactId: artifactIdForPath(row.filePath),
+            reason: _terminalReason(row),
+          ),
+        );
+        continue;
+      }
       final DeliveryFile file;
       try {
         file = await DeliveryFile.describe(row.filePath);
@@ -138,6 +152,20 @@ class PeerManifestService {
       entries: entries,
       unavailable: unavailable,
     );
+  }
+
+  /// Why a terminal row cannot be served, in the words the journal recorded.
+  ///
+  /// [DeliveryJournalDao.markFailed] is the only writer of that state and it
+  /// requires the text, so this reads the recorded reason. A row that reached
+  /// the state without one is reported as exactly that rather than given a
+  /// reason it does not have.
+  static String _terminalReason(DeliveryJournalEntry row) {
+    final recorded = row.lastError?.trim();
+    if (recorded == null || recorded.isEmpty) {
+      return 'This file is recorded as failed on the rig with no reason';
+    }
+    return recorded;
   }
 
   /// Resolve [artifactId] to the file it names, or null when this job

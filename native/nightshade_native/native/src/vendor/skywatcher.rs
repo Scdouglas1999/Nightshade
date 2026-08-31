@@ -477,6 +477,7 @@ impl NativeDevice for SkyWatcherMount {
 
         match &self.connection_config {
             SynScanConnection::Serial { port, baud_rate } => {
+                let _serial_access = crate::vendor::serial_mount_access().await;
                 let serial = serialport::new(port, *baud_rate)
                     .timeout(Duration::from_millis(500))
                     .open()

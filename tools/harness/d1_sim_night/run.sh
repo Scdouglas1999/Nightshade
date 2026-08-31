@@ -293,6 +293,14 @@ fi
 RJ=$(find "$OUT" -type d -name 'Reject' -exec sh -c 'ls "$1" | wc -l' _ {} \; 2>/dev/null | head -1)
 [ "${RJ:-0}" -ge 1 ] && ok "rejected frames filed under Reject/ ($RJ)" || bad "no rejected frames under Reject/"
 
+# The probe's 100k star floor is a deliberate absurdity that forces the
+# rejections asserted above. Put the defaults back so a database reused after
+# this run (a GUI poke profile, a follow-on leg) does not inherit a grading
+# config that rejects every real frame — found by an operator wondering why
+# their frames demanded 100,000 stars.
+sqlite3 "$DBDIR/nightshade.db" "DELETE FROM app_settings WHERE key IN ('image_grading_star_count_min','image_grading_max_consecutive_rejects');" \
+  && say "  grading probe thresholds restored to defaults"
+
 say "=== phase 8: teardown ==="
 stopapp
 say "=== RESULT: PASS=$PASS FAIL=$FAIL ==="
