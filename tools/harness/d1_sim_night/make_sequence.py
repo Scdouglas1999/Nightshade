@@ -6,7 +6,7 @@ Wire shape per sequence_serializer.dart:301-329 and sequencer/src/lib.rs
 TargetHeaderConfig:1220, LoopConfig:1692, FilterConfig:2279). Optional keys
 with serde(default) are omitted; required ones are stated.
 """
-import json, sys, time, math
+import json, os, sys, time, math
 
 FILTERS = ["L", "R", "G", "B"]
 
@@ -58,12 +58,23 @@ def site(unix=None):
     )
     return lat, lon, name
 
-SITE_LAT, SITE_LON, SITE_NAME = site()
+# The site is CHOSEN ONCE PER LEG, not once per invocation. Each shell leg
+# runs this file twice — `--print-site` to get the location it POSTs, then
+# again to build the sequence — and a leg that straddles a site crossover got
+# two different observatories from the two calls: the profile said Mauna Kea
+# while the target was computed for Kitt Peak, which is a fabricated sky.
+# The leg exports NIGHTSHADE_HARNESS_SITE from the first call and every later
+# call reads it back, so one leg is always one place.
+_pinned = os.environ.get("NIGHTSHADE_HARNESS_SITE")
+if _pinned:
+    _lat, _lon, _name = _pinned.split(",", 2)
+    SITE_LAT, SITE_LON, SITE_NAME = float(_lat), float(_lon), _name
+else:
+    SITE_LAT, SITE_LON, SITE_NAME = site()
 
-# The shell legs POST the observer location before they build the sequence;
-# printing the pair here keeps them and the sequence on ONE site.
 if len(sys.argv) > 1 and sys.argv[1] == "--print-site":
-    print(f"{SITE_LAT} {SITE_LON}")
+    # lat, lon, and the pin the caller must export for the rest of the leg.
+    print(f"{SITE_LAT} {SITE_LON} {SITE_LAT},{SITE_LON},{SITE_NAME}")
     sys.exit(0)
 
 def lst_hours(unix, lon_deg):

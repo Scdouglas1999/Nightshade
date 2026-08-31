@@ -18,7 +18,11 @@ P="${D1_PORT:-8093}"
 # One observing site for the whole leg: the sequence builder picks it (solar
 # 01:00 at the site, so no dawn logic can arm mid-run) and the settings POSTs
 # below use the same pair.
-read D1_SITE_LAT D1_SITE_LON <<< "$(python3 "$HERE/make_sequence.py" --print-site)"
+read D1_SITE_LAT D1_SITE_LON NIGHTSHADE_HARNESS_SITE <<< "$(python3 "$HERE/make_sequence.py" --print-site)"
+# Pin the site for the WHOLE leg: make_sequence.py runs again to build the
+# sequence, and without the pin a leg straddling a crossover would target a
+# different observatory than the one it wrote to the profile.
+export NIGHTSHADE_HARNESS_SITE
 B="http://127.0.0.1:$P"
 AH="Authorization: Bearer $T"
 DBDIR=$D1/db; OUT=$D1/captures; DROP=$D1/drop; DATA=$D1/data
