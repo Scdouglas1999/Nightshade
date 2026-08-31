@@ -236,11 +236,19 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
         onTap: widget.onTap != null ? (_, __) => widget.onTap?.call() : null,
       ),
       children: [
-        // Base map layer (dark theme)
+        // Base map layer (dark theme).
+        //
+        // NOT cartocdn: Carto now requires an API key for its basemaps and
+        // serves the refusal as a watermark BAKED INTO an HTTP 200 tile
+        // ("API KEY REQUIRED / carto.com/basemaps/apikey" across every image).
+        // A 200 with a valid PNG body defeats every error path the map has,
+        // so the whole radar view silently became a wall of watermarks with
+        // nothing to report. Esri's dark-gray canvas is keyless, is the dark
+        // ground this screen was designed against, and is attributed below.
         TileLayer(
           urlTemplate:
-              'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-          subdomains: const ['a', 'b', 'c', 'd'],
+              'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/'
+              'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
           userAgentPackageName: 'com.nightshade.app',
           retinaMode: RetinaMode.isHighDensity(context),
           tileBuilder: (context, tileWidget, tile) {
@@ -304,6 +312,17 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
               ),
             ],
           ),
+
+        // The basemap's terms require its attribution to be shown wherever the
+        // tiles are. The radar source names itself in its own overlay chip, so
+        // this credits the ground the radar is drawn over.
+        const RichAttributionWidget(
+          alignment: AttributionAlignment.bottomRight,
+          animationConfig: FadeRAWA(),
+          attributions: [
+            TextSourceAttribution('Esri, HERE, Garmin, © OpenStreetMap'),
+          ],
+        ),
       ],
     );
 
