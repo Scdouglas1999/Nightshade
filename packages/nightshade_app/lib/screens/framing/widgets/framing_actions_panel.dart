@@ -383,7 +383,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     if (target == null) return null;
     final settings = ref.watch(appSettingsProvider).valueOrNull;
     if (settings == null) return null;
-    if (settings.latitude == 0.0 && settings.longitude == 0.0) return null;
+    if (!settings.hasObserverLocation) return null;
     final (alt, _) = calculateCurrentAltAz(
       raHours: target.raHours,
       decDegrees: target.decDegrees,

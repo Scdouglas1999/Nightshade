@@ -366,8 +366,7 @@ class _StepSidebar extends ConsumerWidget {
     // whose value lives outside the draft. Null island (0,0) is the "not set"
     // sentinel, exactly as the Review screen reads it.
     final settings = ref.watch(appSettingsProvider).valueOrNull;
-    final siteConfigured = settings != null &&
-        (settings.latitude != 0.0 || settings.longitude != 0.0);
+    final siteConfigured = settings != null && settings.hasObserverLocation;
 
     return SizedBox(
       width: 220,

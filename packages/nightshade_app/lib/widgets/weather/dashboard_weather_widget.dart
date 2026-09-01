@@ -28,8 +28,7 @@ class DashboardWeatherWidget extends ConsumerWidget {
     final settingsAsync = ref.watch(appSettingsProvider);
     final appSettings = settingsAsync.valueOrNull;
 
-    final hasLocation = appSettings != null &&
-        !(appSettings.latitude == 0.0 && appSettings.longitude == 0.0);
+    final hasLocation = appSettings?.hasObserverLocation ?? false;
 
     // The tap lived on a bare gesture wrapper, which publishes an action
     // and no role, so assistive tech read a live control as an inert

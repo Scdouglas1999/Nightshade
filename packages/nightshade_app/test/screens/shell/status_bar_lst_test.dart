@@ -11,6 +11,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';
+// `siteLocationIsSet` moved from this widget file to the settings model in
+// nightshade_core: a not-set rule living inside a status-bar widget invited
+// every other surface to re-derive its own copy, and those copies drifted.
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../harness/pump_app_screen.dart';

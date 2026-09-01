@@ -13,7 +13,7 @@ import '../models/plate_solver.dart';
 import '../services/plate_solve_service.dart';
 import '../models/settings/app_settings.dart' as models;
 import '../models/settings/app_settings.dart'
-    show SafetyFailMode, kDefaultAccentColorHex;
+    show ObserverLocation, SafetyFailMode, kDefaultAccentColorHex;
 import '../models/imaging/imaging_models.dart'
     show AutofocusSettings, FilterAutofocusConfig;
 
@@ -185,7 +185,8 @@ final appObserverLocationProvider = Provider<LocationSettings?>((ref) {
   if (location == null) {
     return null;
   }
-  if (location.latitude == 0.0 && location.longitude == 0.0) {
+  // One rule, one home: [siteLocationIsSet] is the canonical not-set test.
+  if (!siteLocationIsSet(location.latitude, location.longitude)) {
     return null;
   }
 

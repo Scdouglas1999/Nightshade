@@ -58,8 +58,7 @@ class _OnboardingSummaryStepState extends ConsumerState<OnboardingSummaryStep> {
     // global observer setting. lat/lon both 0.0 is the "null island" default,
     // which we surface as "— not set —" rather than a bogus 0/0 coordinate.
     final settings = ref.watch(appSettingsProvider).valueOrNull;
-    final siteSet = settings != null &&
-        (settings.latitude != 0.0 || settings.longitude != 0.0);
+    final siteSet = settings != null && settings.hasObserverLocation;
     final siteValue = siteSet
         ? '${settings.latitude.toStringAsFixed(4)}°, '
             '${settings.longitude.toStringAsFixed(4)}°'

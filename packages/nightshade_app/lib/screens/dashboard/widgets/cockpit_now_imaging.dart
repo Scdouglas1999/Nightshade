@@ -73,9 +73,7 @@ class CockpitNowImaging extends ConsumerWidget {
 
     final sky = ref.watch(runDashboardSkyStatsProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
-    final hasLocation = settingsAsync.valueOrNull != null &&
-        (settingsAsync.valueOrNull!.latitude != 0.0 ||
-            settingsAsync.valueOrNull!.longitude != 0.0);
+    final hasLocation = settingsAsync.valueOrNull?.hasObserverLocation ?? false;
 
     final altText = sky != null
         ? '${sky.altitudeDeg.toStringAsFixed(1)}°'

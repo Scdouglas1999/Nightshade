@@ -28,9 +28,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
     final target = ref.watch(runDashboardActiveTargetProvider);
     final sky = ref.watch(runDashboardSkyStatsProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
-    final hasLocation = settingsAsync.valueOrNull != null &&
-        (settingsAsync.valueOrNull!.latitude != 0.0 ||
-            settingsAsync.valueOrNull!.longitude != 0.0);
+    final hasLocation = settingsAsync.valueOrNull?.hasObserverLocation ?? false;
 
     if (target == null) {
       return _HeaderShell(

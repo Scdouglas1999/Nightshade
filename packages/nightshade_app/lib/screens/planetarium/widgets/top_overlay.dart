@@ -31,8 +31,7 @@ class TopOverlay extends ConsumerWidget {
     String locationLabel;
     final settings = settingsAsync.valueOrNull;
     final site = location.site;
-    if (settings != null &&
-        (settings.latitude != 0.0 || settings.longitude != 0.0)) {
+    if (settings != null && (settings.hasObserverLocation)) {
       locationLabel = CoordinateFormatUtils.formatLatLon(
           settings.latitude, settings.longitude);
     } else if (location.locationName != null) {

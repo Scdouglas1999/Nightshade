@@ -127,7 +127,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     // / solver prerequisites.
     final settings = await ref.read(appSettingsProvider.future);
     if (!mounted) return;
-    if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+    if (!settings.hasObserverLocation) {
       ref.read(polarAlignmentStateProvider.notifier).reset();
       context.showErrorSnackBar(
         'No observing location set. Polar error is measured relative to your '

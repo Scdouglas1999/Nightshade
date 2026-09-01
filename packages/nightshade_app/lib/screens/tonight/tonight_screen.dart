@@ -41,7 +41,7 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
         // the suggestion pipeline bails before it looks at the sky. Say which
         // it is instead of listing every possible cause.
         final settings = await ref.read(appSettingsProvider.future);
-        if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+        if (!settings.hasObserverLocation) {
           throw const NoTonightTargetException(
             'Your observing location is not set, so Nightshade cannot tell '
             'what is above your horizon. Set your latitude and longitude in '
@@ -700,9 +700,7 @@ class _NoPickCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider).valueOrNull;
-    final locationUnset = settings != null &&
-        settings.latitude == 0.0 &&
-        settings.longitude == 0.0;
+    final locationUnset = settings != null && !settings.hasObserverLocation;
 
     if (locationUnset) {
       return _NoTargetCard(

@@ -20,8 +20,7 @@ final timelineVisibleProvider = StateProvider<bool>((ref) => false);
 final preSessionTwilightTimesProvider =
     Provider<planetarium.TwilightTimes?>((ref) {
   final settings = ref.watch(appSettingsProvider).valueOrNull;
-  final hasLocation = settings != null &&
-      (settings.latitude != 0.0 || settings.longitude != 0.0);
+  final hasLocation = settings != null && settings.hasObserverLocation;
   if (!hasLocation) return null;
 
   return planetarium.AstronomyCalculations.calculateTwilightTimes(
@@ -38,8 +37,7 @@ final sequenceTimelineProvider = Provider<PreSessionSimulationResult?>((ref) {
 
   final settings = ref.watch(appSettingsProvider).valueOrNull;
   final twilight = ref.watch(preSessionTwilightTimesProvider);
-  final hasLocation = settings != null &&
-      (settings.latitude != 0.0 || settings.longitude != 0.0);
+  final hasLocation = settings != null && settings.hasObserverLocation;
   // Shared overhead model — see the same construction in
   // preflight_validation_dialog.dart. Two surfaces describing one sequence
   // must not bill it differently.

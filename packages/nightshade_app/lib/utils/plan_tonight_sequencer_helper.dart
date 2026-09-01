@@ -181,7 +181,7 @@ Future<TargetSuggestion> catalogTargetSuggestion({
   ObjectVisibility? visibility,
 }) async {
   final settings = await ref.read(appSettingsProvider.future);
-  if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+  if (!settings.hasObserverLocation) {
     throw const SmartNightBuildException(
       'No observer location set — configure latitude and longitude in Settings '
       'before building a sequence from the sky chart.',

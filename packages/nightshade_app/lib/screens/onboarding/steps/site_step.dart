@@ -110,7 +110,7 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
   void _seedFrom(AppSettingsState settings) {
     if (_seeded) return;
     _seeded = true;
-    final hasSite = settings.latitude != 0.0 || settings.longitude != 0.0;
+    final hasSite = settings.hasObserverLocation;
     _baselineLat = settings.latitude;
     _baselineLon = settings.longitude;
     if (hasSite) {
@@ -334,8 +334,7 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
       // Only a site already on record can lend a stale elevation; on a first
       // run the field holds whatever the operator has just typed, which is
       // theirs to keep.
-      final hasStoredSite =
-          settings.latitude != 0.0 || settings.longitude != 0.0;
+      final hasStoredSite = settings.hasObserverLocation;
       final keepElevation = !hasStoredSite ||
           _kmBetween(settings.latitude, settings.longitude, lat, lon) <=
               _sameSiteRadiusKm;

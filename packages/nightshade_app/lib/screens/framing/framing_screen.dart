@@ -119,7 +119,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
     final lat = settings.latitude;
     final lon = settings.longitude;
     // (0,0) is the sentinel for "no location set"; avoid reporting nonsense.
-    if (lat == 0.0 && lon == 0.0) return null;
+    if (!settings.hasObserverLocation) return null;
     return calculateCurrentAltAz(
       raHours: target.raHours,
       decDegrees: target.decDegrees,

@@ -96,14 +96,11 @@ class _TempCompIndicator extends ConsumerWidget {
   }
 }
 
-/// Whether the operator has actually given us an observing site.
-///
-/// 0/0 is the app's documented "not set" sentinel — see `locationSyncProvider`,
-/// which deliberately refuses to guess a site. Every location-driven surface is
-/// supposed to have an honest empty state for it.
-@visibleForTesting
-bool siteLocationIsSet(double latitude, double longitude) =>
-    latitude != 0.0 || longitude != 0.0;
+// `siteLocationIsSet` used to be defined here, beside its one caller. It is now
+// the canonical predicate on the settings model in `nightshade_core` (exported
+// through the package barrel), because a not-set rule living inside a
+// status-bar widget invites every other surface to re-derive its own copy —
+// and those copies drifted.
 
 /// The LST chip's text.
 ///

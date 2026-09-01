@@ -19,6 +19,16 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 /// an honest empty state for it. The estimate stays one click away: the
 /// onboarding observing-site step offers it as a labelled suggestion, and
 /// Settings → Location has the same affordance.
+///
+/// The Rust backend is the one consumer that must NOT receive the sentinel.
+/// Its site is `Option<ObserverLocation>`, `None` is its only way to say "no
+/// site", and every native consumer reads a `Some` as a site the user chose:
+/// the simulated mount reported a parked altitude of −78° on a fresh install
+/// because this provider had handed it 0/0/0 as a real site, and the Dashboard
+/// printed that number beside a status bar that said `LST --:--`. So the
+/// backend is given [AppSettingsState.observerSite] — null until the user sets
+/// a site — while the planetarium provider below keeps receiving the raw
+/// geometry, for the reason given at the initial-value push.
 final locationSyncProvider = Provider<void>((ref) {
   // Use ref.listen to sync settings to planetarium provider and Rust backend whenever settings change
   // This defers the update until after the build phase, avoiding the Riverpod error
@@ -44,9 +54,9 @@ final locationSyncProvider = Provider<void>((ref) {
         ref.read(planetariumEffectiveHorizonDegProvider.notifier).state =
             settings.effectiveHorizonDeg;
 
-        // Also sync to Rust backend for astronomical calculations
-        await _syncLocationToBackend(
-            ref, settings.latitude, settings.longitude, settings.elevation);
+        // Also sync to Rust backend for astronomical calculations. Null
+        // until a site is set — see the provider doc.
+        await _syncLocationToBackend(ref, settings.observerSite);
       });
     });
   });
@@ -75,25 +85,26 @@ final locationSyncProvider = Provider<void>((ref) {
       ref.read(planetariumEffectiveHorizonDegProvider.notifier).state =
           settings.effectiveHorizonDeg;
 
-      await _syncLocationToBackend(
-          ref, settings.latitude, settings.longitude, settings.elevation);
+      await _syncLocationToBackend(ref, settings.observerSite);
     });
   });
 });
 
-/// Sync location to the Rust backend (for Provider ref)
-Future<void> _syncLocationToBackend(
-    Ref ref, double latitude, double longitude, double elevation) async {
+/// Sync location to the Rust backend (for Provider ref).
+///
+/// [site] is null when the operator has not set one, and null is what the
+/// backend must be told: it has no coordinate that means "unset".
+Future<void> _syncLocationToBackend(Ref ref, ObserverLocation? site) async {
   try {
     final backend = ref.read(profileSettingsBackendProvider);
     developer.log(
-        'Syncing observer location to Rust backend: lat=$latitude, lon=$longitude, elev=$elevation',
+        site == null
+            ? 'Clearing observer location in Rust backend: no site is set'
+            : 'Syncing observer location to Rust backend: '
+                'lat=${site.latitude}, lon=${site.longitude}, '
+                'elev=${site.elevation}',
         name: 'LocationSync');
-    await backend.setLocation(ObserverLocation(
-      latitude: latitude,
-      longitude: longitude,
-      elevation: elevation,
-    ));
+    await backend.setLocation(site);
     developer.log('Observer location synced successfully to Rust backend',
         name: 'LocationSync');
   } catch (e, stackTrace) {

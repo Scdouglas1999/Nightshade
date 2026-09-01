@@ -113,7 +113,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     final lon = settings.longitude;
     // No observing site: the chips already say '--' and there is nothing to
     // refresh them to.
-    if (lat == 0.0 && lon == 0.0) return;
+    if (!settings.hasObserverLocation) return;
 
     final now = widget.nowValue();
     // Left open past the end of the plotted night: the whole solve is stale,
@@ -145,7 +145,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     final lat = settings.latitude;
     final lon = settings.longitude;
 
-    if (lat == 0.0 && lon == 0.0) {
+    if (!settings.hasObserverLocation) {
       setState(() {
         _altitudeData = [];
         _airmassData = [];

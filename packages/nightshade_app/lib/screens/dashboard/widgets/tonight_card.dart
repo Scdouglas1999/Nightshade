@@ -16,7 +16,7 @@ import 'glass_card.dart';
 final _tonightOptimizationPlanProvider =
     FutureProvider.autoDispose<SessionOptimizationPlan>((ref) async {
   final settings = await ref.watch(appSettingsProvider.future);
-  if ((settings.latitude == 0.0 && settings.longitude == 0.0)) {
+  if (!settings.hasObserverLocation) {
     return SessionOptimizationPlan(
       generatedAt: DateTime.fromMillisecondsSinceEpoch(0),
       primaryTarget: null,

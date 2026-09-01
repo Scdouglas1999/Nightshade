@@ -50,8 +50,7 @@ class SequenceTimeline extends ConsumerWidget {
         isRunning ? ref.watch(sessionStateProvider).startTime : null;
     final timelineStart = startTime ?? sessionStart ?? DateTime.now();
     final settings = ref.watch(appSettingsProvider).valueOrNull;
-    final hasLocation = settings != null &&
-        (settings.latitude != 0.0 || settings.longitude != 0.0);
+    final hasLocation = settings != null && settings.hasObserverLocation;
     final estimator = SequenceTimeEstimator(
       overhead: ref.watch(sequencerOverheadConfigProvider),
     );

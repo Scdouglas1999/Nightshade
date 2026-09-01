@@ -120,7 +120,7 @@ class _PreFlightValidationDialogState
     Sequence sequence,
   ) async {
     final settings = await ref.read(appSettingsProvider.future);
-    if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+    if (!settings.hasObserverLocation) {
       return (
         null,
         'Set observer latitude and longitude to simulate target visibility.',
