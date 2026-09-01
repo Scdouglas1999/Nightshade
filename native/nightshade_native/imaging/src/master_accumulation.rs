@@ -74,7 +74,15 @@ use serde::{Deserialize, Serialize};
 /// Current on-disk format version for the serialized accumulator state. Bumped
 /// whenever the binary layout changes so [`IntegratedMaster::deserialize`] can
 /// refuse (rather than misread) an incompatible sidecar.
-pub const MASTER_STATE_VERSION: u32 = 1;
+///
+/// Version 2 is a DATA retirement, not a layout change: every v1 sidecar was
+/// accumulated under the defective background-pair normalization fit that
+/// collapsed frame scale to ~0.002 and erased star flux from the fold (see
+/// `normalization.rs` module docs). Folding corrected frames onto such an
+/// accumulator would blend poisoned pixels into good data with no way to
+/// separate them afterwards, so v1 is refused outright — the constituent subs
+/// are untouched on disk and a fresh master rebuilds from them.
+pub const MASTER_STATE_VERSION: u32 = 2;
 
 /// Magic bytes prefixing a serialized accumulator (`"NSM"` + version tag). Lets
 /// [`IntegratedMaster::deserialize`] fail loudly on a non-master / corrupt blob

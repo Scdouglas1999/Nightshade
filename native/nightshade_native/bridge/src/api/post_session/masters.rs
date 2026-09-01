@@ -1,5 +1,25 @@
 use super::*;
 
+/// Turn a sidecar deserialize failure into an operator-honest message.
+///
+/// A version-1 sidecar is not corrupt — it is data accumulated by a build
+/// whose normalization erased star flux from every fold (retired as
+/// MASTER_STATE_VERSION 2). The message must say "start fresh, your subs are
+/// safe", not "corrupt", because the operator's next action is different.
+fn describe_sidecar_error(e: nightshade_imaging::master_accumulation::MasterError) -> String {
+    use nightshade_imaging::master_accumulation::MasterError;
+    match e {
+        MasterError::UnsupportedVersion { got, supported } if got < supported => format!(
+            "this accumulating master (sidecar version {got}) was built by an earlier \
+             Nightshade whose frame normalization was defective and erased star flux \
+             from the fold; it cannot be extended. Start a new master — every original \
+             sub is untouched on disk and re-integrates cleanly (this build reads \
+             version {supported})."
+        ),
+        other => format!("corrupt sidecar: {other}"),
+    }
+}
+
 // api_master_accumulate implementation
 
 #[derive(Debug, Clone, Deserialize)]
@@ -190,8 +210,7 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
 
     let sidecar = Path::new(&args.sidecar_path);
     let bytes = std::fs::read(sidecar).map_err(|e| format!("failed to read sidecar: {e}"))?;
-    let mut master =
-        IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
+    let mut master = IntegratedMaster::deserialize(&bytes).map_err(describe_sidecar_error)?;
 
     let geom = master.geometry.clone();
     let width = geom.width;
@@ -386,8 +405,7 @@ pub(crate) fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult,
     }
     let sidecar = Path::new(&args.sidecar_path);
     let bytes = std::fs::read(sidecar).map_err(|e| format!("failed to read sidecar: {e}"))?;
-    let master =
-        IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
+    let master = IntegratedMaster::deserialize(&bytes).map_err(describe_sidecar_error)?;
     let calibration_log = read_fold_calibration_log(sidecar)?;
 
     let image = master.finalize();
@@ -451,8 +469,7 @@ pub(crate) fn master_info(args_json: &str) -> Result<MasterAccumulateResult, Str
         serde_json::from_str(args_json).map_err(|e| format!("invalid info args: {e}"))?;
     let bytes =
         std::fs::read(&args.sidecar_path).map_err(|e| format!("failed to read sidecar: {e}"))?;
-    let master =
-        IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
+    let master = IntegratedMaster::deserialize(&bytes).map_err(describe_sidecar_error)?;
     Ok(MasterAccumulateResult {
         sidecar_path: args.sidecar_path,
         master_path: None,
