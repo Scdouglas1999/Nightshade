@@ -704,4 +704,5 @@ export 'src/utils/export_target.dart';
 export 'src/utils/duration_format.dart';
 export 'src/utils/temperature_format.dart';
 export 'src/utils/utc_timestamp.dart';
+export 'src/utils/aligned_ticker.dart';
 export 'src/utils/nightshade_data_directory.dart';

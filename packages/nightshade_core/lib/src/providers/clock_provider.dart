@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/logging_service.dart';
+import '../utils/aligned_ticker.dart';
 import 'settings_provider.dart';
 
 /// Time-source abstraction for Nightshade.
@@ -213,7 +214,7 @@ final tickerProvider = StreamProvider.family<DateTime, TickerCadence>((
 ) {
   final interval = _tickerInterval(cadence);
   late StreamController<DateTime> controller;
-  Timer? timer;
+  AlignedTicker? timer;
   controller = StreamController<DateTime>.broadcast(
     onListen: () {
       // Emit synchronously so the first build of a consumer doesn't have
@@ -221,7 +222,10 @@ final tickerProvider = StreamProvider.family<DateTime, TickerCadence>((
       // this the consumer would render `AsyncLoading` until the timer
       // fires, which produces a visible "—" → "12s remaining" flicker.
       controller.add(DateTime.now());
-      timer ??= Timer.periodic(interval, (_) {
+      // Aligned to the cadence's wall-clock boundary, so this shared tick lands
+      // in the same frame as the app's other clocks instead of costing a
+      // full-window frame on a phase of its own. See [AlignedTicker].
+      timer ??= AlignedTicker(interval, () {
         if (!controller.isClosed) controller.add(DateTime.now());
       });
     },

@@ -143,7 +143,7 @@ class ObservationTimeState {
 }
 
 class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
-  Timer? _timer;
+  AlignedTicker? _timer;
 
   ObservationTimeNotifier()
     : super(ObservationTimeState(time: DateTime.now())) {
@@ -152,7 +152,10 @@ class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
 
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    // Aligned, not free-running: this is one of three 1 Hz clocks in the app,
+    // and an unaligned one costs a whole extra full-window frame per second at
+    // idle. See [AlignedTicker].
+    _timer = AlignedTicker(const Duration(seconds: 1), () {
       if (state.isRealTime) {
         state = state.copyWith(time: DateTime.now());
       } else if (state.speedMultiplier != 0) {
@@ -215,10 +218,13 @@ final observationTimeProvider =
 /// clock the transport cannot move, or it reports a fictional time next to the
 /// real one with nothing marking the difference.
 class WallClockNotifier extends StateNotifier<DateTime> {
-  Timer? _timer;
+  AlignedTicker? _timer;
 
   WallClockNotifier() : super(DateTime.now()) {
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    // Aligned so this clock shares a frame with the observation clock above and
+    // the shell status bar's, instead of costing a third one. See
+    // [AlignedTicker].
+    _timer = AlignedTicker(const Duration(seconds: 1), () {
       state = DateTime.now();
     });
   }

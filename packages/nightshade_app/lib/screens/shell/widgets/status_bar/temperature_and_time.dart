@@ -146,7 +146,7 @@ class _TimeDisplay extends ConsumerStatefulWidget {
 
 class _TimeDisplayState extends ConsumerState<_TimeDisplay>
     with WidgetsBindingObserver {
-  Timer? _timer;
+  AlignedTicker? _timer;
   DateTime _now = DateTime.now();
 
   @override
@@ -158,7 +158,11 @@ class _TimeDisplayState extends ConsumerState<_TimeDisplay>
 
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    // Aligned to the wall-clock second so this tick shares its frame with the
+    // planetarium's two 1 Hz clocks rather than costing a full-window frame of
+    // its own. It also makes the displayed second change *on* the second.
+    // See [AlignedTicker].
+    _timer = AlignedTicker(const Duration(seconds: 1), () {
       if (mounted) setState(() => _now = DateTime.now());
     });
   }
