@@ -134,11 +134,48 @@ impl SequenceExecutor {
         // valid solve-field / non-standard catalog setup is not falsely
         // rejected; the CenterTarget node's own fail-closed error remains the
         // backstop).
-        if self
+        //
+        // A `CenterTarget` node is not the only way a run reaches the solver.
+        // The meridian-flip trigger re-centres after a flip (`auto_center`, ON
+        // by default) and that solve lives in trigger configuration, not in the
+        // tree, so a walk for `CenterTarget` alone cannot see it. Observed on a
+        // fresh install: a sequence with no Center node showed a green "All
+        // Checks Passed" on a machine whose own Equipment panel said "No plate
+        // solver is configured", then met the missing solver mid-run.
+        //
+        // A flip MAY never fire (a short run, a target nowhere near the
+        // meridian, a parked calibration block), so this one warns rather than
+        // refusing to start — blocking every run on a solverless machine would
+        // be its own false claim. A `CenterTarget` node WILL solve, so that
+        // stays a hard failure.
+        let meridian_auto_centers = {
+            let manager = self.trigger_manager.read().await;
+            manager
+                .get_trigger("meridian_flip")
+                .filter(|t| t.enabled)
+                .and_then(|t| match &t.trigger_type {
+                    TriggerType::MeridianFlip { config } => Some(config.auto_center),
+                    _ => None,
+                })
+                .unwrap_or(false)
+        };
+        let tree_centers = self
             .root_node
             .as_ref()
-            .is_some_and(|root| tree_contains_centering(&**root))
-        {
+            .is_some_and(|root| tree_contains_centering(&**root));
+
+        if meridian_auto_centers && !tree_centers && !nightshade_imaging::is_solver_available() {
+            let _ = self.event_tx.send(ExecutorEvent::Error {
+                message: "The meridian-flip trigger is set to re-centre after a flip, but no \
+                          plate solver (ASTAP or solve-field) was found on this system. If the \
+                          flip fires it will retry and fail against a solver that is not there, \
+                          and the run will be recorded as failed. Install a solver, or turn off \
+                          \"Center after flip\" in Settings → Meridian Flip."
+                    .to_string(),
+            });
+        }
+
+        if tree_centers {
             if !nightshade_imaging::is_solver_available() {
                 return Err(
                     "This sequence centers on a target but no plate solver (ASTAP or \

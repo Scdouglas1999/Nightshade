@@ -287,6 +287,44 @@ impl Trigger {
                     return false;
                 }
 
+                // ...and the mount has to actually be following it.
+                //
+                // `current_hour_angle` is now the TARGET's, which fixed the
+                // flip that fired off a parked mount's home RA. It did not fix
+                // the case underneath: a parked mount whose named target really
+                // is past the meridian still armed the flip. That is precisely a
+                // calibration block — a TargetHeader with darks under it, mount
+                // parked, dome shut — and the flip then slews a parked mount,
+                // retries against whatever the centering step needs, and the
+                // exhausted flip coerces a run that captured every frame it was
+                // asked for into FAILED (see `meridian_flip_failed` in
+                // `executor/start.rs`). A dark, bias or flat is taken with the
+                // shutter closed or on a flat panel, so where the mount points
+                // cannot ruin it.
+                //
+                // These are the same two questions the Dart countdown banner
+                // already asks before it will arm ("Mount is parked" / "Mount
+                // not tracking" in `meridian_countdown_provider`). Only that
+                // banner asked them, which is how the Imaging screen could say
+                // "Meridian flip imminent — handled automatically" while the
+                // Sequencer reported "attempt 2/4 failed" for the same instant.
+                //
+                // Both fields are `Option`: `Some(_)` is a real reading, `None`
+                // means the mount never reported. Only a definite reading
+                // blocks the flip, so a mount that publishes neither behaves
+                // exactly as before rather than losing flips entirely.
+                //
+                // `OnTrackingLimitHit` is exempt: tracking having STOPPED is its
+                // whole premise, and `looks_like_tracking_limit_hit` already
+                // refuses a parked or slewing mount itself.
+                if !matches!(
+                    config.trigger_method,
+                    crate::MeridianTriggerMethod::OnTrackingLimitHit
+                ) && (state.mount_parked == Some(true) || state.mount_is_tracking == Some(false))
+                {
+                    return false;
+                }
+
                 match config.trigger_method {
                     crate::MeridianTriggerMethod::MinutesPastMeridian => {
                         // `current_hour_angle` is the TARGET's hour angle

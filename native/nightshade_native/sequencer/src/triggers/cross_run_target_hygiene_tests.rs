@@ -129,3 +129,149 @@ async fn meridian_flip_does_not_fire_for_a_run_with_no_target() {
         "a run with no target must not flip"
     );
 }
+
+/// The mount has to be FOLLOWING the target, not merely named alongside it.
+///
+/// `current_hour_angle` is the target's, which fixed the flip that armed off a
+/// parked mount's home RA. Underneath it sat this: a parked mount whose named
+/// target genuinely is past the meridian still armed the flip. That is a
+/// calibration block — a TargetHeader with darks under it, mount parked — and
+/// the exhausted flip then coerces a run that captured every frame it was asked
+/// for into FAILED.
+///
+/// The Dart countdown banner already refuses to arm on `mount.isParked` or
+/// `!mount.isTracking` (`meridian_countdown_provider`), which is how the
+/// Imaging screen could say "Meridian flip imminent — handled automatically"
+/// while the Sequencer said "attempt 2/4 failed": only one surface asked.
+fn parked_calibration_run_state() -> TriggerState {
+    let mut state = TriggerState::new();
+    // A TargetHeader stamps the target even for a calibration block under it.
+    state.set_target(270.0, 60.0);
+    // The target really is past the meridian — well beyond the 5-minute gate.
+    state.update_hour_angle(1.5);
+    state.pier_side = Some(PierSide::West);
+    state
+}
+
+fn meridian_trigger(config: crate::MeridianFlipConfig) -> Trigger {
+    Trigger::new(
+        "meridian_flip",
+        "Meridian Flip",
+        TriggerType::MeridianFlip {
+            config: config.clone(),
+        },
+        RecoveryAction::MeridianFlip(config),
+    )
+}
+
+#[tokio::test]
+async fn meridian_flip_does_not_arm_on_a_parked_mount() {
+    let config = crate::MeridianFlipConfig {
+        trigger_method: crate::MeridianTriggerMethod::MinutesPastMeridian,
+        minutes_past_meridian: 5.0,
+        ..Default::default()
+    };
+
+    // Control: identical state, mount tracking the target.
+    let mut tracking = parked_calibration_run_state();
+    tracking.mount_parked = Some(false);
+    tracking.mount_is_tracking = Some(true);
+    assert!(
+        meridian_trigger(config.clone()).check(&tracking).await,
+        "a tracked target past the meridian must still fire the flip"
+    );
+
+    let mut parked = parked_calibration_run_state();
+    parked.mount_parked = Some(true);
+    assert!(
+        !meridian_trigger(config).check(&parked).await,
+        "a parked mount is not following the target; the flip must not arm"
+    );
+}
+
+#[tokio::test]
+async fn meridian_flip_does_not_arm_when_the_mount_is_not_tracking() {
+    let config = crate::MeridianFlipConfig {
+        trigger_method: crate::MeridianTriggerMethod::MinutesPastMeridian,
+        minutes_past_meridian: 5.0,
+        ..Default::default()
+    };
+
+    let mut idle = parked_calibration_run_state();
+    idle.mount_parked = Some(false);
+    idle.mount_is_tracking = Some(false);
+    assert!(
+        !meridian_trigger(config).check(&idle).await,
+        "a mount that is not tracking is not following the target; no flip"
+    );
+}
+
+#[tokio::test]
+async fn meridian_flip_hour_angle_threshold_honours_the_same_mount_guards() {
+    // The guard has to cover every hour-angle-derived method, or switching the
+    // trigger method reopens the hole.
+    let config = crate::MeridianFlipConfig {
+        trigger_method: crate::MeridianTriggerMethod::HourAngleThreshold,
+        hour_angle_threshold: 0.5,
+        ..Default::default()
+    };
+
+    let mut tracking = parked_calibration_run_state();
+    tracking.mount_parked = Some(false);
+    tracking.mount_is_tracking = Some(true);
+    assert!(
+        meridian_trigger(config.clone()).check(&tracking).await,
+        "HourAngleThreshold must still fire for a tracked target"
+    );
+
+    let mut parked = parked_calibration_run_state();
+    parked.mount_parked = Some(true);
+    assert!(
+        !meridian_trigger(config).check(&parked).await,
+        "HourAngleThreshold must not arm on a parked mount either"
+    );
+}
+
+#[tokio::test]
+async fn a_mount_that_never_reports_park_or_tracking_is_unaffected() {
+    // Both fields are Option. `None` means the mount never told us, and such a
+    // mount must behave exactly as before rather than losing flips entirely.
+    let config = crate::MeridianFlipConfig {
+        trigger_method: crate::MeridianTriggerMethod::MinutesPastMeridian,
+        minutes_past_meridian: 5.0,
+        ..Default::default()
+    };
+
+    let silent = parked_calibration_run_state();
+    assert_eq!(silent.mount_parked, None);
+    assert_eq!(silent.mount_is_tracking, None);
+    assert!(
+        meridian_trigger(config).check(&silent).await,
+        "a mount with no park/tracking readings must still be able to flip"
+    );
+}
+
+#[tokio::test]
+async fn on_tracking_limit_hit_is_exempt_from_the_not_tracking_guard() {
+    // Tracking having stopped is that method's entire premise; the new guard
+    // must not disable it.
+    let config = crate::MeridianFlipConfig {
+        trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+        tracking_limit_wait_minutes: 0.0,
+        ..Default::default()
+    };
+
+    let mut state = parked_calibration_run_state();
+    state.mount_tracking_expected = true;
+    state.mount_tracking_lost = true;
+    state.mount_is_tracking = Some(false);
+    state.mount_status_query_failed = false;
+    state.mount_slewing = Some(false);
+    state.mount_parked = Some(false);
+    state.tracking_limit_detected_at = Some(chrono::Utc::now().timestamp() - 600);
+
+    assert!(
+        meridian_trigger(config).check(&state).await,
+        "OnTrackingLimitHit fires precisely when tracking has stopped"
+    );
+}
