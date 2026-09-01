@@ -92,12 +92,27 @@ class NightshadeAlert extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       padding: padding,
-      child: _IntrinsicSafeLayout(
-        child: LayoutBuilder(
-          builder: (context, constraints) =>
-              _body(constraints, iconColor, textColor),
-        ),
-      ),
+      // Only an alert with an ACTION reads its own width: the action's
+      // half-width bound and the narrow-screen decision to stack it under the
+      // title are the sole readers of the incoming constraints (see [_body]). A
+      // plain banner ignores them, so it skips the width-adaptive path and is
+      // laid out directly.
+      //
+      // That same distinction is what lets a plain banner report an intrinsic
+      // HEIGHT. The width-adaptive path defers its build to a [LayoutBuilder],
+      // which by framework design throws on every intrinsic query, so it is
+      // shielded by [_IntrinsicSafeLayout] — the shield [AlertDialog]'s
+      // `IntrinsicWidth` needs, but it answers a zero height too, which
+      // collapses the banner to nothing inside an `IntrinsicHeight`. A banner
+      // built directly is an ordinary `Row` that measures its own height.
+      child: action == null
+          ? _body(const BoxConstraints(), iconColor, textColor)
+          : _IntrinsicSafeLayout(
+              child: LayoutBuilder(
+                builder: (context, constraints) =>
+                    _body(constraints, iconColor, textColor),
+              ),
+            ),
     );
   }
 
@@ -285,13 +300,25 @@ class NightshadeAlert extends StatelessWidget {
 /// with `IntrinsicWidth`, which made every alert-with-action inside a dialog
 /// crash at layout.
 ///
-/// Zero is the honest answer for a wrapping banner: the alert conforms to
-/// whatever width its parent chooses and wraps its text there, so it has no
+/// Zero is the honest answer for a wrapping banner's WIDTH: the alert conforms
+/// to whatever width its parent chooses and wraps its text there, so it has no
 /// preferred width of its own to report, and letting it drive an
 /// `IntrinsicWidth` parent wider would size a dialog to the alert's longest
 /// unwrapped line. Inside a measuring parent the alert therefore defers to
 /// its siblings for sizing; everywhere else these overrides are never called
 /// and layout is untouched.
+///
+/// The HEIGHT overrides are a different case, and a shortcoming: zero there is
+/// not honest, it is simply all this shield can answer, because the
+/// LayoutBuilder beneath it cannot be measured speculatively at any width. An
+/// alert wrapped in this — one WITH an action, the only kind that reads its own
+/// width — therefore still collapses to nothing inside an `IntrinsicHeight`.
+/// That is why [NightshadeAlert] only reaches for this shield when it has an
+/// action: a plain banner is laid out directly, is an ordinary `Row`, and
+/// measures its own height like any other widget. No screen in this repo places
+/// an alert WITH an action inside an `IntrinsicHeight`; making that case
+/// measurable means replacing the LayoutBuilder with a render object that lays
+/// out both arrangements, which is a larger change than this shield.
 class _IntrinsicSafeLayout extends SingleChildRenderObjectWidget {
   const _IntrinsicSafeLayout({super.child});
 

@@ -127,10 +127,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
             // the stack is empty or forty cards deep, and it costs the cards
             // no height — a row of its own pushed the last card out of a
             // short panel.
-            trailing: _DarkroomAddStep(
-              state: state,
-              onInsert: widget.onInsert,
-            ),
+            trailing: _DarkroomAddStep(state: state, onInsert: widget.onInsert),
           ),
         ),
         Expanded(
@@ -326,9 +323,17 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
                   // no way to reorder anything. These are the same move, as two
                   // ordinary buttons.
                   _moveButton(
-                      state: state, title: title, index: index, up: true),
+                    state: state,
+                    title: title,
+                    index: index,
+                    up: true,
+                  ),
                   _moveButton(
-                      state: state, title: title, index: index, up: false),
+                    state: state,
+                    title: title,
+                    index: index,
+                    up: false,
+                  ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -907,11 +912,27 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
     final value = darkroomNumber(effective);
     final min = spec.min;
     final max = spec.max;
+    final span = min != null && max != null ? max - min : null;
+    // An integer parameter carries one slider division per integer it can
+    // reach, so the rounded span IS the division count; null leaves the track
+    // continuous. Computed here, once, so the count the track is built with is
+    // the same one the degenerate case below is judged on.
+    final divisions =
+        isInteger && span != null && span <= 64 ? span.round() : null;
 
-    if (spec.isSliderRanged && value != null && min != null && max != null) {
+    if (spec.isSliderRanged &&
+        value != null &&
+        min != null &&
+        max != null &&
+        span != null &&
+        // A range narrower than a single integer step — min 1.0, max 1.4, say
+        // — rounds to ZERO divisions, which a Material slider rejects outright
+        // (an assert in debug, NaN track geometry and a 0 nudge step in
+        // release) and which holds at most one selectable integer anyway. That
+        // is not a slider: it falls through to the typed field below, where
+        // the one legal value is still read and re-entered.
+        divisions != 0) {
       final clamped = value.clamp(min, max);
-      final span = max - min;
-      final divisions = isInteger && span <= 64 ? span.round() : null;
       void write(double raw) => widget.onParamChanged(
             index,
             spec.name,
@@ -1450,10 +1471,7 @@ class _DarkroomNumberFieldState extends State<_DarkroomNumberField> {
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
         ],
-        Semantics(
-          label: widget.semanticName,
-          child: _field(),
-        ),
+        Semantics(label: widget.semanticName, child: _field()),
       ],
     );
   }

@@ -726,7 +726,11 @@ class HeadlessApiServer {
 
   Future<void> stop() => _stopServer();
 
-  void broadcastEvent(dynamic event) => _broadcastEventImpl(event);
+  /// Stamp and fan an event out to the WebSocket clients and replay buffer,
+  /// returning the stamped event so a caller can also hand the SAME stamped
+  /// copy to the run-watch SSE fan-out (see [_broadcastEventImpl]). Callers
+  /// that only broadcast may ignore the result.
+  NightshadeEvent? broadcastEvent(dynamic event) => _broadcastEventImpl(event);
 
   void setPushNotificationStream(
     Stream<Map<String, dynamic>> notificationStream,

@@ -512,6 +512,22 @@ impl AscomCameraWrapper {
                                 sensor_config.bayer_offset_y,
                             );
 
+                            // A colour sensor with no nameable Bayer order is left
+                            // undebayered and writes no BAYERPAT card — correct for the
+                            // direct-colour and CMYG families, but silent for a Bayer OSC
+                            // whose driver misreports its SensorType as 1 now the OSC gate
+                            // keys on SensorType==2. This read happens once per connect, so
+                            // naming it here is the one place it can be surfaced without a
+                            // per-frame flood; the capabilities carry the same fact to the
+                            // app in structured form — `is_color` true beside a null
+                            // `bayer_pattern`. The reason itself is derived (and tested) in
+                            // the shared, always-compiled sensor-type module.
+                            if let Some(reason) =
+                                crate::ascom_sensor_type::debayer_skip_reason(sensor_type)
+                            {
+                                tracing::warn!("ASCOM camera reports a {}", reason);
+                            }
+
                             // Why: ReadoutModes is optional in ASCOM ICameraV3; an Err here
                             // (typically NotImplementedException) just means the driver does
                             // not advertise readout modes. Treating absence as empty list is

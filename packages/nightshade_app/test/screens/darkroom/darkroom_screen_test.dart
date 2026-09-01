@@ -166,11 +166,16 @@ class _ScriptedDarkroom implements DarkroomSeam {
     throw StateError('the editor does not export in these tests');
   }
 
+  /// Operations this test appends to the registry below, for a shape the two
+  /// fixed ones do not carry.
+  List<Map<String, dynamic>> extraOps = [];
+
   @override
   Future<Map<String, dynamic>> registry(Map<String, dynamic> args) async {
     return {
       'schemaVersion': 1,
       'ops': [
+        ...extraOps,
         {
           'id': 'background_extract',
           'version': 1,
@@ -696,6 +701,60 @@ void main() {
     expect(find.byType(NightshadeSlider), findsOneWidget);
     // No stored value: the operation's own default is what renders.
     expect(find.text('default'), findsOneWidget);
+  });
+
+  testWidgets(
+      'an integer range narrower than one step is a field, not a slider',
+      (tester) async {
+    // An integer parameter carries one slider division per integer it can
+    // reach, so the rounded span IS the division count. `isSliderRanged` only
+    // refuses min == max, so a range narrower than a single integer step —
+    // 1 … 1.4 here — passed it and asked Material for ZERO divisions: an
+    // assert in a debug build, and in a release one a NaN track geometry with
+    // a nudge step of span ÷ 0. The range holds exactly one legal integer, so
+    // it is not a slider at all; it renders as the typed field, which still
+    // reads the value and takes it back.
+    darkroom.extraOps = [
+      {
+        'id': 'narrow_integer',
+        'version': 1,
+        'stage': 'linear',
+        'summary': 'Runs a whole number of passes.',
+        'params': [
+          {
+            'name': 'passes',
+            'kind': 'integer',
+            'required': false,
+            'min': 1.0,
+            'max': 1.4,
+            'default': 1,
+            'independent': true,
+            'summary': 'How many passes the operation runs.',
+          },
+        ],
+      },
+    ];
+    final id = await seedRecipe([
+      _step('narrow_integer', params: {'passes': 1}),
+    ]);
+    await pump(tester, DarkroomScope.recipe(id), size: const Size(1280, 1400));
+    await tester.tap(find.text('Parameters'));
+    await tester.pump();
+
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'a zero-division slider is a Material assert, not a control',
+    );
+    expect(
+      find.byType(NightshadeSlider),
+      findsNothing,
+      reason: 'one reachable integer is a readout, not a track to drag',
+    );
+    // The parameter is still on screen, still named, still typed into.
+    expect(find.text('passes'), findsOneWidget);
+    // The typed field, captioned with the bounds the track would have shown.
+    expect(find.text('accepts 1 … 1.400'), findsOneWidget);
   });
 
   testWidgets('a refused reorder says why and leaves the order alone', (

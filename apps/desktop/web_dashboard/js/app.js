@@ -2609,6 +2609,57 @@
     showToast(what + ' failed: ' + describeApiError(e, what), 'error');
   }
 
+  /// The refusal body a not-running pause/resume carries, parsed, or null.
+  ///
+  /// `_post` throws the 409 as an http_error whose `detail.body` is the raw
+  /// response text; the not-running case is
+  /// `{ "error": "sequencer_not_running", "wasRunning": false, "message": … }`.
+  /// Read as an object so the caller can act on the verdict rather than paste
+  /// the JSON into a red toast.
+  function seqErrorBody(e) {
+    const raw = e && e.detail ? e.detail.body : null;
+    if (raw && typeof raw === 'object') return raw;
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch (_) { return null; }
+    }
+    return null;
+  }
+
+  /// Run a sequencer command that is a no-op when nothing is in flight.
+  ///
+  /// "Nothing was running" is not a failure. Stop reports it off a 200
+  /// (`wasRunning: false`); pause and resume report it off a 409
+  /// (`sequencer_not_running`, carrying the same `wasRunning: false` verdict).
+  /// Both are the operator pressing a control that had nothing to act on, so
+  /// both read as one informational line — never the refusal's raw JSON body in
+  /// a red toast, which is what routing this 409 through `reportSeqFailure` did.
+  /// Every other failure keeps the toast `reportSeqFailure` gives it.
+  async function runSeqNoop(fn, buttonId, verb, doneMessage) {
+    try {
+      const res = await fn();
+      if (res && res.wasRunning === false) {
+        addLogEntry('sequencer', verb + ' ignored: no sequence was running');
+        showToast('No sequence was running');
+      } else {
+        addLogEntry('sequencer', doneMessage);
+      }
+    } catch (e) {
+      const body = seqErrorBody(e);
+      if (e && e.status === 409 && body &&
+          (body.error === 'sequencer_not_running' ||
+           body.wasRunning === false)) {
+        addLogEntry('sequencer', verb + ' ignored: no sequence was running');
+        showToast(
+          typeof body.message === 'string' && body.message
+            ? body.message
+            : 'No sequence was running',
+        );
+        return;
+      }
+      reportSeqFailure(buttonId, e, verb);
+    }
+  }
+
   async function handleSeqStart() {
     try {
       await api.sequencerStart();
@@ -2620,36 +2671,23 @@
   }
 
   async function handleSeqStop() {
-    try {
-      // See the camera-abort note: 200 does not mean a run was stopped.
-      const res = await api.sequencerStop();
-      if (res && res.wasRunning === false) {
-        addLogEntry('sequencer', 'Stop ignored: no sequence was running');
-        showToast('No sequence was running');
-      } else {
-        addLogEntry('sequencer', 'Sequence stopped');
-      }
-    } catch (e) {
-      reportSeqFailure('btn-seq-stop', e, 'Stop');
-    }
+    // See the camera-abort note: 200 does not mean a run was stopped.
+    await runSeqNoop(
+      () => api.sequencerStop(), 'btn-seq-stop', 'Stop', 'Sequence stopped',
+    );
   }
 
   async function handleSeqPause() {
-    try {
-      await api.sequencerPause();
-      addLogEntry('sequencer', 'Sequence paused');
-    } catch (e) {
-      reportSeqFailure('btn-seq-pause', e, 'Pause');
-    }
+    await runSeqNoop(
+      () => api.sequencerPause(), 'btn-seq-pause', 'Pause', 'Sequence paused',
+    );
   }
 
   async function handleSeqResume() {
-    try {
-      await api.sequencerResume();
-      addLogEntry('sequencer', 'Sequence resumed');
-    } catch (e) {
-      reportSeqFailure('btn-seq-resume', e, 'Resume');
-    }
+    await runSeqNoop(
+      () => api.sequencerResume(), 'btn-seq-resume', 'Resume',
+      'Sequence resumed',
+    );
   }
 
   // =========================================================================

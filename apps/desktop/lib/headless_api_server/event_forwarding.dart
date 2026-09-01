@@ -17,17 +17,25 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
   /// The replay buffer append is done BEFORE the early-return on empty
   /// sockets: SSE clients and the snapshot endpoint can still pick up
   /// the buffered events even if no WS clients are connected.
-  void _broadcastEventImpl(dynamic event) {
+  ///
+  /// Returns the STAMPED event so a second sink — the run-watch SSE/snapshot
+  /// fan-out — can carry the same server `seq` and instance id the WebSocket
+  /// path does, rather than re-stamping (which would double-count the sequence)
+  /// or forwarding the raw, seq-less original. Null when the payload was not an
+  /// event we could sequence; that sink then keeps the raw payload, which has
+  /// no seq to key on regardless.
+  NightshadeEvent? _broadcastEventImpl(dynamic event) {
     final stamped = _stampEventForBroadcast(event);
     if (stamped == null) {
       // Non-event payload (e.g. raw map without the canonical fields).
       // Don't sequence it but still emit so legacy callers continue to
       // work. These payloads bypass the replay buffer by design.
       _emitRawEvent(event);
-      return;
+      return null;
     }
     _eventReplayBuffer.append(stamped);
     _emitStampedEvent(stamped);
+    return stamped;
   }
 
   /// Stamp a NightshadeEvent (or coerce a Map into one) with the next

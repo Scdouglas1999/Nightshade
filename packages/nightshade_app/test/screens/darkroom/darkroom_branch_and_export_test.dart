@@ -278,6 +278,13 @@ void main() {
   /// the operator answers it.
   Completer<String?>? pickerHold;
 
+  /// Thrown out of the reveal/share hand-off when set — the shape a platform
+  /// whose share sheet refuses takes AFTER the file is already on disk.
+  Object? revealFailure;
+
+  /// How many times the written file was handed to the OS.
+  late int revealCalls;
+
   setUp(() {
     darkroom = _ScriptedDarkroom();
     db = mockDatabase();
@@ -285,6 +292,8 @@ void main() {
     pickerCalls = [];
     pickerAnswer = '/tmp/nightshade-test/out.fits';
     pickerHold = null;
+    revealFailure = null;
+    revealCalls = 0;
   });
 
   tearDown(() async {
@@ -354,6 +363,15 @@ void main() {
             return hold.future;
           }
           return pickerAnswer;
+        }),
+        darkroomFileRevealerProvider.overrideWithValue((
+          BuildContext context,
+          String filePath, {
+          String subject = '',
+        }) async {
+          revealCalls += 1;
+          final failure = revealFailure;
+          if (failure != null) throw failure;
         }),
       ],
     );
@@ -1350,6 +1368,97 @@ void main() {
         matching: find.text('Close'),
       ),
     );
+    await settle(tester);
+    await drain(tester);
+  });
+
+  testWidgets('a share sheet that refuses does not fail a written export', (
+    tester,
+  ) async {
+    // The reveal/share is a hand-off to the OS that happens AFTER the engine
+    // has written the file and the sheet has recorded the outcome. It used to
+    // sit inside the try that reports the export, so on a platform whose share
+    // sheet throws — a headless or sandboxed desktop target — a written,
+    // sidecar-carrying export was reported to the operator as "Export failed",
+    // over an outcome block that named the very file on disk.
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    revealFailure = StateError('no activity found to handle the share intent');
+    await tester.tap(find.text('Export'));
+    await settle(tester);
+
+    expect(revealCalls, 1, reason: 'the hand-off was attempted');
+    // The export happened, and the sheet says so.
+    expect(darkroom.exportArgs, hasLength(1));
+    expect(find.text('Written'), findsOneWidget);
+    expect(
+      find.textContaining('/tmp/nightshade-test/out.fits.nsrecipe'),
+      findsOneWidget,
+    );
+    // And it is NOT reported as a failure.
+    expect(find.text('Export failed'), findsNothing);
+    expect(find.byType(ErrorDialog), findsNothing);
+    // The smaller, true news is what the operator is told instead.
+    expect(
+      find.textContaining('could not be revealed or shared'),
+      findsOneWidget,
+    );
+    // Nothing latched: the button is still live for a second export.
+    expect(
+      tester
+          .widget<NightshadeButton>(
+            find.widgetWithText(NightshadeButton, 'Export'),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await drain(tester);
+  });
+
+  testWidgets(
+      'a raster format the chosen stage cannot write says so on the '
+      'button', (tester) async {
+    // Reachable in three taps: a stack that ends stretched offers the rasters,
+    // so JPEG can be selected; switching the stage back to the linear master
+    // takes them away again and leaves JPEG selected. `_stageBlocked` is null
+    // for that state — the STAGE is fine — so the button fell through to its
+    // plain, unlabelled form: greyed, and announcing the bare word "Export"
+    // over a bridge that publishes a node's name and nothing else.
+    final handle = tester.ensureSemantics();
+    final root = await seedRecipe([
+      _step('background_extract'),
+      _step('stretch'),
+    ]);
+    await pump(tester, root);
+    await openExport(tester);
+
+    await tester.tap(find.widgetWithText(NightshadeChip, 'JPEG'));
+    await settle(tester);
+    await tester.tap(find.widgetWithText(NightshadeChip, 'Linear master'));
+    await settle(tester);
+
+    expect(
+      tester
+          .widget<NightshadeButton>(
+            find.widgetWithText(NightshadeButton, 'Export'),
+          )
+          .onPressed,
+      isNull,
+      reason: 'a linear master cannot be written as a JPEG',
+    );
+    final refusal = find.bySemanticsLabel(RegExp('^Export — '));
+    expect(refusal, findsOneWidget);
+    final label = tester.getSemantics(refusal).label;
+    expect(label, contains('JPEG is unavailable for this stage'));
+    expect(label, contains('FITS'));
+
+    handle.dispose();
+    Navigator.of(tester.element(find.text('Format'))).pop();
     await settle(tester);
     await drain(tester);
   });

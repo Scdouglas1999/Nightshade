@@ -1901,6 +1901,19 @@ let feedSeenKeys = new Set();
 let foldedProgressTicks = 0;
 
 function feedEventKey(evt) {
+  // The pair (serverInstanceId, seq) uniquely identifies a server event, so a
+  // burst the host stamps with ONE timestamp — the sibling case a timestamp+
+  // type key collapses onto a single row, dropping every event after the
+  // first — stays distinct here. seq is server-assigned and monotonic; the
+  // same event arriving on the stream and again in the snapshot's recent ring
+  // carries the same seq, so it still de-dupes to one row.
+  //
+  // Absent only on events that carry no seq at all (a client-synthesised entry,
+  // or an older host that does not stamp one). Those fall back to timestamp+
+  // type — all they carry — and take the collision the seq is meant to avoid.
+  if (evt && evt.seq !== undefined && evt.seq !== null) {
+    return 'seq:' + String(evt.serverInstanceId || '') + ':' + String(evt.seq);
+  }
   return String((evt && evt.timestamp) || '') + '|' +
     String((evt && (evt.eventType || evt.eventName)) || '');
 }

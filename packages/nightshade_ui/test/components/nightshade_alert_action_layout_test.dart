@@ -258,4 +258,81 @@ void _intrinsicHostCases() {
     expect(tester.takeException(), isNull);
     expect(find.text(_refusalTitle), findsOneWidget);
   });
+
+  // The width overrides above answer an `IntrinsicWidth` host; the HEIGHT
+  // overrides answered zero, and an alert measured for its intrinsic height —
+  // any child of an [IntrinsicHeight], used across ~8 screens for equal-height
+  // card rows — collapsed to that zero and rendered invisibly. A plain banner
+  // (no action) reads none of its own width, so it no longer defers its build
+  // to the LayoutBuilder that cannot answer the query: it is an ordinary Row
+  // that measures its own height, inside an IntrinsicHeight as anywhere else.
+  testWidgets('a plain banner keeps its height inside an IntrinsicHeight', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    const banner = NightshadeAlert(
+      severity: NightshadeAlertSeverity.info,
+      title: _refusalTitle,
+      message: _refusalMessage,
+    );
+
+    // The alert as one child of an equal-height row, beside a short sibling: the
+    // IntrinsicHeight measures the row's tallest child, and a banner reporting
+    // zero would be flattened to the sibling's height.
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 500,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: banner),
+                    SizedBox(width: 12, height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final hosted = tester.getSize(find.byType(NightshadeAlert)).height;
+
+    // The same banner at the same width, laid out on its own: the height the
+    // IntrinsicHeight host must not shrink.
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(width: 500 - 12, child: banner),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final natural = tester.getSize(find.byType(NightshadeAlert)).height;
+
+    expect(
+      natural,
+      greaterThan(60),
+      reason: 'a multi-line banner is well over one line tall',
+    );
+    expect(
+      hosted,
+      closeTo(natural, 1.0),
+      reason:
+          'the banner measured ${hosted}px inside an IntrinsicHeight against a '
+          '${natural}px natural height — a shortfall is the zero-height collapse',
+    );
+  });
 }

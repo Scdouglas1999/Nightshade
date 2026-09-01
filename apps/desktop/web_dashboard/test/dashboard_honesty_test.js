@@ -2963,6 +2963,188 @@ test('a refused control names its refusal on the control, in a toast and in the 
   assert.match(log[0], /Pause refused/);
 });
 
+/** The real runSeqNoop, over recorders, with the real seqErrorBody under it. */
+function seqNoopRunner() {
+  const toasts = [];
+  const log = [];
+  const failures = [];
+  const run = build(
+    ['showToast', 'addLogEntry', 'reportSeqFailure'],
+    [fn('seqErrorBody'), fn('runSeqNoop')],
+    'runSeqNoop',
+  )(
+    (m, kind) => toasts.push({ message: m, kind }),
+    (kind, text) => log.push(kind + ': ' + text),
+    (buttonId, e, what) => failures.push({ buttonId, what, e }),
+  );
+  return { run, toasts, log, failures };
+}
+
+/** The refusal the host answers pause/resume with when nothing is in flight. */
+function notRunningRefusal(verb) {
+  const body = JSON.stringify({
+    error: 'sequencer_not_running',
+    message: 'No sequence is running; nothing to ' + verb + '.',
+    wasRunning: false,
+    state: 'idle',
+  });
+  const e = new Error('POST /api/sequencer/' + verb + ' failed (409): ' + body);
+  e.kind = 'http_error';
+  e.status = 409;
+  e.detail = { status: 409, body };
+  return e;
+}
+
+// Stop already read `wasRunning: false` off its 200 and said so plainly. Pause
+// and resume answer the same verdict as a 409, and routing that through
+// reportSeqFailure printed the whole JSON body as a red "Pause failed: POST
+// /api/sequencer/pause failed (409): {…}" — a product fault for a press that
+// simply had nothing to act on.
+test('a pause with nothing running reads as information, not a failure', async () => {
+  const { run, toasts, log, failures } = seqNoopRunner();
+  await run(
+    () => Promise.reject(notRunningRefusal('pause')),
+    'btn-seq-pause', 'Pause', 'Sequence paused',
+  );
+
+  assert.equal(failures.length, 0,
+    'nothing was running: that is the answer to the press, not a failure');
+  assert.equal(toasts.length, 1);
+  assert.equal(toasts[0].kind, undefined,
+    'an informational toast, never the red error kind');
+  assert.match(toasts[0].message, /nothing to pause/);
+  assert.doesNotMatch(toasts[0].message, /[{}]|sequencer_not_running|409/,
+    'the raw refusal body is a diagnostic, not a sentence for the operator');
+  assert.match(log[0], /Pause ignored: no sequence was running/);
+});
+
+test('a resume with nothing running says so too', async () => {
+  const { run, toasts, failures } = seqNoopRunner();
+  await run(
+    () => Promise.reject(notRunningRefusal('resume')),
+    'btn-seq-resume', 'Resume', 'Sequence resumed',
+  );
+  assert.equal(failures.length, 0);
+  assert.match(toasts[0].message, /nothing to resume/);
+});
+
+test('every other pause failure keeps the error toast it always had', async () => {
+  const { run, toasts, failures } = seqNoopRunner();
+  await run(
+    () => Promise.reject({ kind: 'scope_denied', status: 403, detail: {} }),
+    'btn-seq-pause', 'Pause', 'Sequence paused',
+  );
+  assert.equal(toasts.length, 0, 'the reporter owns the toast for a real failure');
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].buttonId, 'btn-seq-pause');
+  assert.equal(failures[0].what, 'Pause');
+});
+
+test('a 409 that is not the not-running refusal is still a failure', async () => {
+  const { run, failures } = seqNoopRunner();
+  const body = JSON.stringify({ error: 'sequencer_busy', message: 'busy' });
+  const e = new Error('POST /api/sequencer/pause failed (409): ' + body);
+  e.kind = 'http_error';
+  e.status = 409;
+  e.detail = { status: 409, body };
+  await run(() => Promise.reject(e), 'btn-seq-pause', 'Pause', 'Sequence paused');
+  assert.equal(failures.length, 1, 'only the not-running verdict is informational');
+});
+
+test('a pause that did pause logs the act and raises no toast', async () => {
+  const { run, toasts, log, failures } = seqNoopRunner();
+  await run(async () => ({}), 'btn-seq-pause', 'Pause', 'Sequence paused');
+  assert.equal(failures.length, 0);
+  assert.equal(toasts.length, 0);
+  assert.equal(log[0], 'sequencer: Sequence paused');
+});
+
+test('a 200 reporting wasRunning false is not read as a pause', async () => {
+  // The stop contract, honoured on this path too: a host that answers the
+  // no-op with 200 rather than 409 must not be logged as "Sequence paused".
+  const { run, toasts, log } = seqNoopRunner();
+  await run(
+    async () => ({ wasRunning: false }),
+    'btn-seq-pause', 'Pause', 'Sequence paused',
+  );
+  assert.match(log[0], /Pause ignored: no sequence was running/);
+  assert.match(toasts[0].message, /No sequence was running/);
+});
+
+/**
+ * The REAL handleSeqPause / handleSeqResume / handleSeqStop, over the real
+ * runSeqNoop and seqErrorBody, with only `api` and the reporters stubbed.
+ *
+ * The helper being correct proves nothing on its own: the defect was the
+ * HANDLER routing its 409 straight to reportSeqFailure, so the wiring is what
+ * has to be executed.
+ */
+function seqControl(name, apiMethod, answer) {
+  const toasts = [];
+  const log = [];
+  const failures = [];
+  const handler = build(
+    ['api', 'showToast', 'addLogEntry', 'reportSeqFailure'],
+    [fn('seqErrorBody'), fn('runSeqNoop'), fn(name)],
+    name,
+  )(
+    { [apiMethod]: answer },
+    (m, kind) => toasts.push({ message: m, kind }),
+    (kind, text) => log.push(kind + ': ' + text),
+    (buttonId, e, what) => failures.push({ buttonId, what, e }),
+  );
+  return { handler, toasts, log, failures };
+}
+
+test('the Pause button itself answers a not-running 409 as information', async () => {
+  const { handler, toasts, log, failures } = seqControl(
+    'handleSeqPause', 'sequencerPause',
+    () => Promise.reject(notRunningRefusal('pause')),
+  );
+  await handler();
+  assert.equal(failures.length, 0,
+    'the handler, not just the helper, must route the refusal');
+  assert.equal(toasts[0].kind, undefined);
+  assert.doesNotMatch(toasts[0].message, /[{}]|sequencer_not_running|409/);
+  assert.match(log[0], /Pause ignored: no sequence was running/);
+});
+
+test('the Resume button itself answers a not-running 409 as information', async () => {
+  const { handler, toasts, failures } = seqControl(
+    'handleSeqResume', 'sequencerResume',
+    () => Promise.reject(notRunningRefusal('resume')),
+  );
+  await handler();
+  assert.equal(failures.length, 0);
+  assert.match(toasts[0].message, /nothing to resume/);
+});
+
+test('the Pause button still reports a real failure as one', async () => {
+  const { handler, failures } = seqControl(
+    'handleSeqPause', 'sequencerPause',
+    () => Promise.reject({ kind: 'scope_denied', status: 403, detail: {} }),
+  );
+  await handler();
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].buttonId, 'btn-seq-pause');
+});
+
+test('Stop keeps the wasRunning reading it already had', async () => {
+  const stopped = seqControl(
+    'handleSeqStop', 'sequencerStop', async () => ({ wasRunning: true }),
+  );
+  await stopped.handler();
+  assert.deepEqual(stopped.log, ['sequencer: Sequence stopped']);
+  assert.equal(stopped.toasts.length, 0);
+
+  const nothing = seqControl(
+    'handleSeqStop', 'sequencerStop', async () => ({ wasRunning: false }),
+  );
+  await nothing.handler();
+  assert.match(nothing.log[0], /Stop ignored: no sequence was running/);
+  assert.match(nothing.toasts[0].message, /No sequence was running/);
+});
+
 test('the next status poll does not hand a refused control back', () => {
   const doc = makeDocument([
     'btn-seq-start', 'btn-seq-pause', 'btn-seq-resume', 'btn-seq-stop',

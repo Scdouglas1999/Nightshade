@@ -18,6 +18,8 @@
 //! here, compiled and regression-tested on every platform.
 
 use nightshade_native::camera::BayerPattern;
+use std::collections::HashSet;
+use std::sync::{Mutex, OnceLock};
 
 /// The `SensorType` ordinal for an RGGB-family colour-filter array, the one
 /// family whose element order [`BayerPattern`] can name.
@@ -43,6 +45,73 @@ pub fn has_nameable_bayer_order(sensor_type: i32) -> bool {
 /// treating a frame as colour on a guess is not.
 pub fn is_colour_sensor(sensor_type: i32) -> bool {
     (1..=5).contains(&sensor_type)
+}
+
+/// The operator-facing reason a colour frame will NOT be debayered, or `None`
+/// when the sensor is monochrome, outside the enum, or carries a nameable order.
+///
+/// A colour sensor with no RGGB-style order — `SensorType` 1 (direct colour) or
+/// the 3..=5 CMYG/CMYG2/LRGB mosaics — is left undebayered and writes no
+/// `BAYERPAT` card. That is correct for those families, but once the OSC gate
+/// moved from `SensorType == 1` to `== 2` a Bayer one-shot-colour camera whose
+/// driver MISREPORTS its `SensorType` as 1 loses its debayering and its
+/// `BAYERPAT` card silently. Naming the reason lets that misreport be
+/// recognised from the app rather than hunted, and keeps the copy in one place
+/// across the Windows COM worker and the Alpaca download path.
+pub fn debayer_skip_reason(sensor_type: i32) -> Option<String> {
+    if is_colour_sensor(sensor_type) && !has_nameable_bayer_order(sensor_type) {
+        Some(format!(
+            "colour sensor (SensorType={sensor_type}) with no nameable Bayer order: the \
+             frame is left undebayered and carries no BAYERPAT card. If this is a Bayer \
+             one-shot-colour camera, its driver is misreporting SensorType — set it to 2 \
+             (RGGB) so the BayerOffsetX/Y pair can name the element order."
+        ))
+    } else {
+        None
+    }
+}
+
+/// The (device, `SensorType`) pairs whose skipped debayer has already been
+/// reported this session — see [`warn_debayer_skip_once`].
+static REPORTED_DEBAYER_SKIPS: OnceLock<Mutex<HashSet<(String, i32)>>> = OnceLock::new();
+
+/// [`debayer_skip_reason`], but only the FIRST time this (device, `SensorType`)
+/// pair asks.
+///
+/// The download path runs once per exposure, and a CMYG or direct-colour camera
+/// is *correctly* left undebayered on every one of them — repeating the reason
+/// per frame would bury it in its own noise, and a misreporting driver's
+/// reading is the one that has to be readable. The seen-set is passed in so the
+/// latch is a value the tests can own; [`warn_debayer_skip_once`] holds the
+/// process-wide one.
+pub fn take_debayer_skip_reason(
+    seen: &mut HashSet<(String, i32)>,
+    device_id: &str,
+    sensor_type: i32,
+) -> Option<String> {
+    let reason = debayer_skip_reason(sensor_type)?;
+    seen.insert((device_id.to_string(), sensor_type))
+        .then_some(reason)
+}
+
+/// Log the skipped debayer once per (device, `SensorType`), at WARN.
+///
+/// Called from the frame-download path, so the operator learns from the app's
+/// own log why a colour frame arrived undebayered with no `BAYERPAT` card,
+/// instead of finding it in the pixels. A `SensorType` that CHANGES — the
+/// driver corrected, or a different camera on the same id — is a new pair and
+/// is reported again.
+pub fn warn_debayer_skip_once(device_id: &str, sensor_type: i32) {
+    let seen = REPORTED_DEBAYER_SKIPS.get_or_init(|| Mutex::new(HashSet::new()));
+    // A panic inside an unrelated caller must not silence this warning for the
+    // rest of the session; the set's contents are still valid either way.
+    let mut guard = match seen.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if let Some(reason) = take_debayer_skip_reason(&mut guard, device_id, sensor_type) {
+        tracing::warn!("Camera {} reports a {}", device_id, reason);
+    }
 }
 
 /// Derive the Bayer element order from `SensorType` plus the
@@ -248,6 +317,89 @@ mod tests {
                 ascom_wrapper_adapter(sensor_type, Some(0), Some(0)),
                 None,
                 "SensorType={sensor_type} produced a BAYERPAT card"
+            );
+        }
+    }
+
+    /// A colour sensor with no nameable order carries a reason the operator can
+    /// read — direct colour (1) and the CMYG/CMYG2/LRGB mosaics (3..=5) — and
+    /// that reason names the SensorType so a misreport can be recognised.
+    #[test]
+    fn colour_without_a_nameable_order_carries_a_reason() {
+        for sensor_type in [1, 3, 4, 5] {
+            let reason = debayer_skip_reason(sensor_type)
+                .unwrap_or_else(|| panic!("SensorType={sensor_type} named no reason"));
+            assert!(
+                reason.contains(&format!("SensorType={sensor_type}")),
+                "the reason must name the SensorType it saw: {reason}"
+            );
+            assert!(
+                reason.contains("BAYERPAT"),
+                "the reason must state that no BAYERPAT card is written: {reason}"
+            );
+        }
+    }
+
+    /// The download path asks once per exposure. The reason is given the first
+    /// time a (device, SensorType) pair asks and withheld afterwards, so a
+    /// legitimately undebayerable camera does not repeat it every frame — while
+    /// a SECOND camera, and the same camera reporting a DIFFERENT SensorType,
+    /// are each new pairs that are reported.
+    #[test]
+    fn the_reason_is_given_once_per_device_and_sensor_type() {
+        let mut seen = HashSet::new();
+        assert!(
+            take_debayer_skip_reason(&mut seen, "alpaca:cam-1", 1).is_some(),
+            "the first frame off this camera must name the reason"
+        );
+        for frame in 0..10 {
+            assert_eq!(
+                take_debayer_skip_reason(&mut seen, "alpaca:cam-1", 1),
+                None,
+                "frame {frame} repeated a reason already given"
+            );
+        }
+        assert!(
+            take_debayer_skip_reason(&mut seen, "alpaca:cam-2", 1).is_some(),
+            "a different camera is a different reading"
+        );
+        assert!(
+            take_debayer_skip_reason(&mut seen, "alpaca:cam-1", 3).is_some(),
+            "the same camera reporting a different SensorType is a new reading"
+        );
+    }
+
+    /// The latch never invents a reason: a nameable-order or non-colour sensor
+    /// stays silent however many times it is asked, and leaves the seen-set
+    /// empty so it cannot crowd out a camera that does have something to say.
+    #[test]
+    fn the_latch_stays_silent_for_a_sensor_with_nothing_to_report() {
+        let mut seen = HashSet::new();
+        for sensor_type in [0, 2, -1, 99] {
+            assert_eq!(
+                take_debayer_skip_reason(&mut seen, "alpaca:cam-1", sensor_type),
+                None,
+                "SensorType={sensor_type} has no skipped debayer to report"
+            );
+        }
+        assert!(
+            seen.is_empty(),
+            "nothing was reported, so nothing is latched"
+        );
+    }
+
+    /// An RGGB-family sensor (2) HAS a nameable order, monochrome (0) and
+    /// out-of-enum ordinals are not colour: none of them is a skipped-debayer
+    /// reason, so none raises the warning.
+    #[test]
+    fn a_nameable_or_non_colour_sensor_carries_no_reason() {
+        assert_eq!(debayer_skip_reason(2), None, "RGGB has a nameable order");
+        assert_eq!(debayer_skip_reason(0), None, "monochrome is not colour");
+        for sensor_type in [-1, 6, 99] {
+            assert_eq!(
+                debayer_skip_reason(sensor_type),
+                None,
+                "SensorType={sensor_type} is outside the enum and names no family"
             );
         }
     }

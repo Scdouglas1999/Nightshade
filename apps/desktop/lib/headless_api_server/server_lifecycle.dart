@@ -471,11 +471,15 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   void _subscribeToHostMutationEvents() {
     final hub = container.read(hostMutationEventHubProvider);
     hub.wsBroadcast = (event) {
-      broadcastEvent(event);
+      final stamped = broadcastEvent(event);
       final ctrl = _runWatchEventBroadcast;
       if (ctrl != null && !ctrl.isClosed) {
         try {
-          ctrl.add(event);
+          // The STAMPED copy, so the run-watch feed carries the same server
+          // `seq` and instance id the WebSocket path does — the pair its feed
+          // de-dup keys on. Raw only when stamping declined (a non-event
+          // payload), which carries no seq to key on regardless.
+          ctrl.add(stamped ?? event);
         } catch (e) {
           _logWarning('[run-watch] host-mutation SSE fan-out failed: $e');
         }
@@ -563,7 +567,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     try {
       final backend = container.read(backendProvider);
       _eventSubscription = backend.eventStream.listen((event) {
-        broadcastEvent(event);
+        final stamped = broadcastEvent(event);
         // Host-side live-stacking auto-feed: every frame the host writes to
         // disk is offered to the stacker, which ignores it unless stacking is
         // armed. This is what lets a running sequence stack live with no client
@@ -581,7 +585,12 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         final ctrl = _runWatchEventBroadcast;
         if (ctrl != null && !ctrl.isClosed) {
           try {
-            ctrl.add(event);
+            // The STAMPED copy: the run-watch SSE/snapshot feed then carries
+            // the same server `seq` and instance id as the WebSocket path, so
+            // its de-dup can key on the pair that actually distinguishes a
+            // burst of same-millisecond siblings. Raw only when stamping
+            // declined, which has no seq to key on regardless.
+            ctrl.add(stamped ?? event);
           } catch (e) {
             // A failure inside the SSE fan-out must never crash the
             // upstream event subscription that the WS path depends on.

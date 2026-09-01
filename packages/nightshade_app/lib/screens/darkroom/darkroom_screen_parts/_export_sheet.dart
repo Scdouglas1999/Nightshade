@@ -86,6 +86,20 @@ final darkroomSavePickerProvider = Provider<DarkroomSavePicker>((ref) {
   };
 });
 
+/// How a written export is handed to the OS, as a seam a test can script.
+///
+/// The production hand-off is a share sheet on touch and a path snackbar on
+/// desktop; neither can be made to FAIL inside a widget test, and the failing
+/// case is the one that has to be proven — a share sheet that throws on a
+/// written file must not be reported as a failed export.
+typedef DarkroomFileRevealer = Future<void>
+    Function(BuildContext context, String filePath, {String subject});
+
+/// Override point for the reveal/share hand-off (tests script this).
+final darkroomFileRevealerProvider = Provider<DarkroomFileRevealer>(
+  (ref) => revealExportedFile,
+);
+
 /// Which stage of the stack an export materialises.
 enum _DarkroomExportStageKind {
   /// The master's own pixels. The recipe still travels with the file as
@@ -538,8 +552,8 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
   /// and drops `Semantics(hint:)`, so a disabled control whose only explanation
   /// is a hint announces as a bare, dead "Export".
   Widget _exportButton(bool rasterAllowed) {
-    final blocked = _masterFailure ?? _stageBlocked();
-    final enabled = !_exporting && blocked == null && _canExport(rasterAllowed);
+    final blocked = _exportRefusal(rasterAllowed);
+    final enabled = !_exporting && blocked == null;
     final button = NightshadeButton(
       label: 'Export',
       icon: NightshadeIcons.download,
@@ -1091,14 +1105,31 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
     }
   }
 
-  bool _canExport(bool rasterAllowed) {
-    if (_stageBlocked() != null) return false;
+  /// Why Export is unavailable, or null when it can run.
+  ///
+  /// The predicates the run path gates on, in the same order, folded into one
+  /// sentence the greyed Export button carries as its accessible name — the
+  /// shape the Compare button and the format chips already use, so a disabled
+  /// control is never a bare, reasonless "Export" over a bridge that publishes
+  /// only a node's name. The master failure leads, then the chosen stage, then
+  /// the two selections a stage leaves open: a step not yet picked, and a
+  /// raster format still selected for a stage that cannot write one. The last
+  /// two used to disable the button with no reason at all — `_stageBlocked` is
+  /// null for both, so the button fell through to its plain, unlabelled form.
+  String? _exportRefusal(bool rasterAllowed) {
+    final master = _masterFailure;
+    if (master != null) return master;
+    final stage = _stageBlocked();
+    if (stage != null) return stage;
     if (_stageKind == _DarkroomExportStageKind.afterStep &&
         _afterStep == null) {
-      return false;
+      return 'Choose the step to stop after.';
     }
-    if (_format.isRaster && !rasterAllowed) return false;
-    return true;
+    if (_format.isRaster && !rasterAllowed) {
+      return '${_format.label} is unavailable for this stage. Render it '
+          'through the auto stretch, or choose FITS.';
+    }
+    return null;
   }
 
   /// Why the CHOSEN stage cannot be exported, or null when it can.
@@ -1242,11 +1273,38 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
         message: 'Exported ${p.basename(outputPath)}',
         severity: NightshadeAlertSeverity.success,
       );
-      await revealExportedFile(
-        context,
-        outputPath,
-        subject: 'Nightshade Darkroom export',
-      );
+      // The reveal/share is a hand-off to the OS AFTER the file is written and
+      // the success above is already recorded. It gets its OWN try: on a
+      // platform whose share sheet throws — some desktop and headless targets
+      // do — a written export must not be reported as "Export failed" and must
+      // not latch `_exportMasterFailure`. The export succeeded; only the reveal
+      // did not, and that is the smaller, non-fatal news it carries.
+      try {
+        await ref.read(darkroomFileRevealerProvider)(
+          context,
+          outputPath,
+          subject: 'Nightshade Darkroom export',
+        );
+      } catch (revealError, revealStack) {
+        // The path is on the sheet's own outcome block either way, so the
+        // operator can still find the file; only the hand-off is lost, and the
+        // reason for it belongs in the log rather than in a toast.
+        developer.log(
+          'Darkroom: the export was written to $outputPath but could not be '
+          'revealed or shared: $revealError',
+          name: 'Darkroom',
+          level: 900,
+          stackTrace: revealStack,
+        );
+        if (mounted) {
+          NightshadeToastHelper.show(
+            context: context,
+            message: 'Exported ${p.basename(outputPath)}, but it could not be '
+                'revealed or shared on this device.',
+            severity: NightshadeAlertSeverity.warning,
+          );
+        }
+      }
     } on DarkroomCancelledOutcome catch (cancelled) {
       if (!mounted) return;
       // The engine honours a stop before it writes, so a stopped export leaves

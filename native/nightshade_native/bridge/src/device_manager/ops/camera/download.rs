@@ -154,6 +154,18 @@ impl DeviceManager {
                         bayer_offset_y,
                     );
 
+                    // A colour sensor with no nameable Bayer order leaves this
+                    // frame undebayered and writes no BAYERPAT card. That is
+                    // correct for a direct-colour or CMYG/CMYG2/LRGB sensor, but
+                    // silent for a Bayer one-shot-colour camera whose driver
+                    // MISREPORTS SensorType as 1 — the OSC gate keys on 2 — and
+                    // the loss is not recoverable from the saved frame. Say it
+                    // here, on the download, so the operator reads it in the
+                    // app's log rather than finding it in the pixels; latched
+                    // per (device, SensorType) because a legitimately
+                    // undebayerable camera downloads a frame every exposure.
+                    crate::ascom_sensor_type::warn_debayer_skip_once(device_id, sensor_type);
+
                     return Ok(ImageData {
                         width,
                         height,

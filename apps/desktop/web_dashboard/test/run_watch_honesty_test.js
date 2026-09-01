@@ -128,6 +128,13 @@ function loadRunWatch(overrides) {
   renderSnapshot,
   renderFrameCounter,
   noteFrameEvent,
+  noteFeedEvent,
+  feedEventKey,
+  peekFeed: () => ({
+    events: feedEvents.slice(),
+    keys: new Set(feedSeenKeys),
+    ticks: foldedProgressTicks,
+  }),
   refreshFrame,
   peekCredential: () => ({
     adoptedBearer, sessionCsrfToken, credentialSource,
@@ -2443,4 +2450,79 @@ test('the refusal sentence never invents a level the rig did not state', () => {
   assert.match(text, /control access to sequencer/);
   assert.doesNotMatch(text, /no access|view access/,
     'an answer that named no tokenLevel gets a sentence without one');
+});
+
+// The event feed de-dupes on the pair (serverInstanceId, seq) the server
+// stamps, not on the timestamp+type key it used to. A host stamps a whole
+// burst with ONE millisecond, so a same-type burst — three FrameAccepted in
+// the same tick — collapsed onto one row under the old key and the second and
+// third events vanished. seq is server-assigned and monotonic, so the burst
+// stays distinct while the same event heard twice (stream, then the snapshot's
+// recent ring) still shows once.
+test('a same-millisecond same-type burst keeps every event by seq', () => {
+  const { api } = loadRunWatch();
+  const base = {
+    timestamp: 1000,
+    eventType: 'FrameAccepted',
+    serverInstanceId: 'srv-1',
+  };
+  api.noteFeedEvent({ ...base, seq: 1 });
+  api.noteFeedEvent({ ...base, seq: 2 });
+  api.noteFeedEvent({ ...base, seq: 3 });
+  assert.equal(
+    api.peekFeed().events.length, 3,
+    'three siblings in one millisecond must not collapse to one row',
+  );
+});
+
+test('the same server event heard twice is shown once', () => {
+  const { api } = loadRunWatch();
+  const evt = {
+    timestamp: 1000,
+    eventType: 'FrameAccepted',
+    serverInstanceId: 'srv-1',
+    seq: 7,
+  };
+  // Once off the stream, once out of the snapshot's recent ring — same
+  // (serverInstanceId, seq), so one row.
+  api.noteFeedEvent({ ...evt });
+  api.noteFeedEvent({ ...evt });
+  assert.equal(api.peekFeed().events.length, 1);
+});
+
+test('a seqless event falls back to the timestamp and type key', () => {
+  const { api } = loadRunWatch();
+  // No seq (a client-synthesised entry, or an older host): same timestamp AND
+  // type still de-dupes, because that pair is all it carries.
+  api.noteFeedEvent({ timestamp: 2000, eventType: 'NodeTransition' });
+  api.noteFeedEvent({ timestamp: 2000, eventType: 'NodeTransition' });
+  assert.equal(
+    api.peekFeed().events.length, 1,
+    'a seqless duplicate still collapses on timestamp+type',
+  );
+  // A different type at the same timestamp is a different event.
+  api.noteFeedEvent({ timestamp: 2000, eventType: 'FrameAccepted' });
+  assert.equal(api.peekFeed().events.length, 2);
+});
+
+test('a seq key and a seqless key never collide', () => {
+  const { api } = loadRunWatch();
+  const withSeq = api.feedEventKey({
+    timestamp: 1000, eventType: 'FrameAccepted', serverInstanceId: 'srv-1', seq: 5,
+  });
+  const withoutSeq = api.feedEventKey({
+    timestamp: 1000, eventType: 'FrameAccepted',
+  });
+  assert.notEqual(withSeq, withoutSeq);
+  assert.match(withSeq, /^seq:srv-1:5$/);
+});
+
+test('seq zero is a real sequence number, not an absence', () => {
+  const { api } = loadRunWatch();
+  // `seq` can be 0 on the first event; `|| ''` would have dropped it back to
+  // the timestamp key, so the guard is an explicit null/undefined check.
+  const key = api.feedEventKey({
+    timestamp: 1000, eventType: 'FrameAccepted', serverInstanceId: 'srv-1', seq: 0,
+  });
+  assert.equal(key, 'seq:srv-1:0');
 });
