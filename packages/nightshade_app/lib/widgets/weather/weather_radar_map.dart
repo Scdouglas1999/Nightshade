@@ -132,7 +132,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
     return 6.0;
   }
 
-  /// Creates a color matrix for contrast enhancement.
+  /// Creates a color matrix applying contrast enhancement AND layer opacity.
   ///
   /// The contrast parameter controls the intensity:
   /// - 0.0 = no enhancement (identity matrix)
@@ -142,7 +142,14 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
   /// This uses a standard contrast matrix formula that also slightly increases
   /// brightness in dark areas while compressing bright areas, making the
   /// distinction between clear sky and clouds more obvious.
-  ColorFilter _buildContrastFilter(double contrast) {
+  ///
+  /// Opacity rides in the alpha row instead of a separate [Opacity] widget.
+  /// Stacked ColorFiltered + Opacity cost two saveLayers PER TILE, which is
+  /// the amplifier that turned a 40x40 marker pulse into a full-map raster
+  /// load; one filter costs one. For a tile this is exact, not approximate:
+  /// group opacity and per-pixel alpha only diverge when a layer overdraws
+  /// itself, and a tile is a single image draw.
+  ColorFilter _buildTileFilter(double contrast, double opacity) {
     // Base contrast multiplier (1.0 = no change, higher = more contrast)
     // Using a sigmoid-like curve for natural-looking enhancement
     final contrastMultiplier = 1.0 + (contrast * 0.5);
@@ -162,33 +169,21 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
       0, contrastMultiplier + brightBoost, 0, 0, offset,
       // Blue channel: enhanced contrast + cooler for clear sky depth
       0, 0, contrastMultiplier + brightBoost * 0.5, 0, offset,
-      // Alpha channel: unchanged
-      0, 0, 0, 1, 0,
+      // Alpha channel: layer opacity
+      0, 0, 0, opacity, 0,
     ]);
   }
 
   /// Wraps a tile widget with contrast enhancement and opacity.
   Widget _buildEnhancedTile(
       Widget tileWidget, double opacity, double contrast) {
-    Widget result = tileWidget;
-
-    // Apply contrast enhancement if enabled
-    if (contrast > 0) {
-      result = ColorFiltered(
-        colorFilter: _buildContrastFilter(contrast),
-        child: result,
-      );
+    if (contrast <= 0 && opacity >= 1.0) {
+      return tileWidget;
     }
-
-    // Apply opacity
-    if (opacity < 1.0) {
-      result = Opacity(
-        opacity: opacity,
-        child: result,
-      );
-    }
-
-    return result;
+    return ColorFiltered(
+      colorFilter: _buildTileFilter(contrast, opacity),
+      child: tileWidget,
+    );
   }
 
   /// Builds the appropriate tile layer based on the frame's tile type
@@ -304,9 +299,33 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
           userAgentPackageName: 'com.nightshade.app',
           retinaMode: RetinaMode.isHighDensity(context),
           tileBuilder: (context, tileWidget, tile) {
-            // Apply opacity to base map for better radar visibility
-            return Opacity(
-              opacity: 0.6,
+            // Dim the base map for better radar visibility. As a ColorFilter
+            // rather than an Opacity: an Opacity widget costs a saveLayer per
+            // tile, and a tile is a single image draw so alpha-row scaling is
+            // exact (see _buildTileFilter).
+            return ColorFiltered(
+              colorFilter: const ColorFilter.matrix(<double>[
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0.6,
+                0,
+              ]),
               child: tileWidget,
             );
           },
