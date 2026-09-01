@@ -34,12 +34,20 @@ extension _HeadlessApiServerAuthMiddleware on HeadlessApiServer {
         // pairing/discovery/dashboard bootstrap surface so the appliance can be
         // onboarded, while every privileged endpoint requires a bearer token
         // and returns 401 until a token is configured or a device pairs.
-        // This flag is an explicit operator override, so persisted pairing
-        // sessions must not silently re-enable authentication after startup.
-        // The startup banner promises that every endpoint is open when the
-        // override is present; keep the middleware consistent with that
-        // contract regardless of configured or restored tokens.
-        if (allowUnauthenticated) {
+        //
+        // The override only opens a server that has NO configured tokens. A
+        // token being present is what every truth surface reads as
+        // "authentication is on": the startup banner (server_lifecycle),
+        // `authRequired`/`authScopes` on GET /api/info, the mDNS advertisement,
+        // and `bindLocalOnly` (a configured token is what moves the socket onto
+        // the LAN). If the override also beat configured tokens, all four would
+        // announce a locked server while it served every endpoint open on the
+        // network — so `--allow-unauthenticated` must never outrank a token.
+        // Restored PAIRING sessions are a different matter and are deliberately
+        // NOT part of this test: they must not silently re-enable auth after an
+        // operator asked for an open server, which is why `_pairedSessionTokens`
+        // is not consulted here.
+        if (allowUnauthenticated && _effectiveAuthTokensByValue.isEmpty) {
           return innerHandler(request);
         }
 
