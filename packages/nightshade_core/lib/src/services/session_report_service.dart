@@ -81,8 +81,22 @@ class SessionReportService {
     }
 
     final images = await _records.getImagesForSession(sessionId);
+    // Case-insensitive. The native sequencer emits "Light"/"Dark" capitalised
+    // and Dart lower-cases on the way into the row, but `images_dao`,
+    // `equipment_stats` and `session_chart` all normalise before comparing and
+    // this was the one place that did not — a row that reached the table with
+    // its original capitalisation was invisible to the report alone.
     final lightFrames = images
-        .where((i) => i.frameType == 'light')
+        .where((i) => i.frameType.toLowerCase() == 'light')
+        .toList(growable: false);
+    // Everything that is not a light. Previously discarded outright, which is
+    // how a dark-only session reported "Frames accepted 0/0" and "Integration
+    // 0s" while three dark FITS sat on disk, `imaging_sessions` recorded
+    // 3 exposures / 6.0 s, and the Sequencer showed "3 / 3 frames".
+    // Calibration frames do not belong in a target's integration, but they are
+    // frames, and the report has to say so.
+    final calibrationFrames = images
+        .where((i) => i.frameType.toLowerCase() != 'light')
         .toList(growable: false);
 
     final scienceSnrById = await _loadScienceSnr(sessionId);
@@ -90,6 +104,7 @@ class SessionReportService {
       lightFrames,
       scienceSnrById,
     );
+    final calibrationReports = _buildCalibrationReports(calibrationFrames);
     final guideStats = _buildGuideStats(lightFrames);
     final mountStats = await _buildMountStats(session);
 
@@ -108,14 +123,26 @@ class SessionReportService {
       milliseconds: (totalIntegrationSecs * 1000).round(),
     );
 
+    // Downtime and effective-imaging measure the CLOCK, not the science: any
+    // second the shutter was open is a second the rig was working. Deriving
+    // them from light integration alone reported a calibration run as 100%
+    // downtime — a night spent building a dark library came back looking like
+    // a night spent doing nothing.
+    final shutterOpenSecs =
+        totalIntegrationSecs +
+        calibrationReports.fold<double>(
+          0.0,
+          (sum, c) => sum + c.totalIntegrationSecs,
+        );
+
     // Effective fraction must be clamped because pathological short sessions
     // (e.g. 0-duration aborts) would otherwise divide by zero or report >100%.
     final wallClockSecs = wallClockDuration.inMilliseconds / 1000.0;
     final effectiveImagingFraction = wallClockSecs <= 0.0
         ? 0.0
-        : (totalIntegrationSecs / wallClockSecs).clamp(0.0, 1.0);
+        : (shutterOpenSecs / wallClockSecs).clamp(0.0, 1.0);
 
-    final downtimeSecs = wallClockSecs - totalIntegrationSecs;
+    final downtimeSecs = wallClockSecs - shutterOpenSecs;
     final downtime = Duration(
       milliseconds: (downtimeSecs < 0 ? 0 : downtimeSecs * 1000).round(),
     );
@@ -134,6 +161,7 @@ class SessionReportService {
       effectiveImagingFraction: effectiveImagingFraction,
       downtime: downtime,
       targets: targetReports,
+      calibration: calibrationReports,
       guideStats: guideStats,
       mountStats: mountStats,
       avgTemperatureC: session.avgTemperature,
@@ -144,6 +172,37 @@ class SessionReportService {
       warningMessages: warnings,
       generatedAt: DateTime.now(),
     );
+  }
+
+  /// Bucket non-light frames by their (lower-cased) frame type.
+  ///
+  /// Grouping is by the frame-type STRING — the row's own identity for this
+  /// purpose — never by position in [frames].
+  List<SessionCalibrationReport> _buildCalibrationReports(
+    List<CapturedImage> frames,
+  ) {
+    if (frames.isEmpty) return const [];
+
+    final byType = <String, List<CapturedImage>>{};
+    for (final frame in frames) {
+      final type = frame.frameType.toLowerCase();
+      byType.putIfAbsent(type, () => <CapturedImage>[]).add(frame);
+    }
+
+    final types = byType.keys.toList()..sort();
+    return types.map((type) {
+      final all = byType[type]!;
+      final accepted = all.where((f) => f.isAccepted).toList(growable: false);
+      return SessionCalibrationReport(
+        frameType: type,
+        framesAttempted: all.length,
+        framesAccepted: accepted.length,
+        totalIntegrationSecs: accepted.fold<double>(
+          0.0,
+          (sum, f) => sum + f.exposureDuration,
+        ),
+      );
+    }).toList(growable: false);
   }
 
   /// Group frames by `(targetId, filter)` and build per-filter rollups.

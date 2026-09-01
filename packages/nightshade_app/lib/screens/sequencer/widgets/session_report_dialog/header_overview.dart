@@ -75,11 +75,23 @@ class _OverviewGrid extends StatelessWidget {
           colors: colors,
         ),
         _OverviewTile(
-          label: 'Integration',
+          // "Light integration", not "Integration": `report.totalIntegration`
+          // has always been the LIGHT-frame total, and a dark-library night
+          // read "Integration 0s" as if nothing had been exposed. The
+          // calibration tile beside it carries the rest of the shutter-open
+          // time.
+          label: 'Light integration',
           value: DurationFormat.of(report.totalIntegration,
               style: DurationStyle.hoursMinutes),
           colors: colors,
         ),
+        if (report.calibration.isNotEmpty)
+          _OverviewTile(
+            label: 'Calibration',
+            value: '${report.calibrationFramesAccepted} frames · '
+                '${DurationFormat.of(Duration(milliseconds: (report.calibrationIntegrationSecs * 1000).round()), style: DurationStyle.hoursMinutes)}',
+            colors: colors,
+          ),
         _OverviewTile(
           label: 'Effective imaging',
           value: '$efficiencyPct%',

@@ -229,6 +229,50 @@ class SessionMountStats {
   };
 }
 
+/// Per-frame-type rollup of the calibration frames a session captured.
+///
+/// The report's target/filter rollup covers LIGHT frames only, which is
+/// correct — a dark contributes nothing to a target's integration. But the
+/// headline counters were derived from that rollup alone, so a session that
+/// captured nothing but calibration frames reported "Integration 0s", "Frames
+/// accepted 0/0" and 100% downtime while `imaging_sessions` (3 exposures,
+/// 6.0 s), the Imaging screen's "3 / 3 frames", Analytics and three FITS files
+/// on disk all agreed the run had happened. Calibration frames are counted here
+/// so no surface can claim a session captured nothing when it captured
+/// something.
+class SessionCalibrationReport {
+  /// Normalised frame type, lower-case: 'dark', 'bias', 'flat', 'darkflat'.
+  final String frameType;
+
+  /// Frames of this type recorded for the session, accepted or not.
+  final int framesAttempted;
+
+  /// Frames of this type marked `is_accepted`.
+  final int framesAccepted;
+
+  /// Shutter-open seconds across the ACCEPTED frames of this type. A bias is
+  /// ~0 s by construction, so this can legitimately be 0 alongside a non-zero
+  /// [framesAccepted].
+  final double totalIntegrationSecs;
+
+  const SessionCalibrationReport({
+    required this.frameType,
+    required this.framesAttempted,
+    required this.framesAccepted,
+    required this.totalIntegrationSecs,
+  });
+
+  int get framesRejected => framesAttempted - framesAccepted;
+
+  Map<String, dynamic> toJson() => {
+    'frameType': frameType,
+    'framesAttempted': framesAttempted,
+    'framesAccepted': framesAccepted,
+    'framesRejected': framesRejected,
+    'totalIntegrationSecs': totalIntegrationSecs,
+  };
+}
+
 /// Top-level session report.
 ///
 /// Generated from the persisted Drift rows, so any past session can be
@@ -269,6 +313,10 @@ class SessionReport {
   /// Per-target / per-filter rollup. Ordered by target name for stable
   /// rendering; empty when the session has no accepted light frames.
   final List<SessionTargetReport> targets;
+
+  /// Calibration frames captured by the same session, one entry per frame
+  /// type, ordered by frame type. Empty when the session shot only lights.
+  final List<SessionCalibrationReport> calibration;
 
   /// Whole-session guide-stats rollup.
   final SessionGuideStats guideStats;
@@ -314,6 +362,7 @@ class SessionReport {
     required this.effectiveImagingFraction,
     required this.downtime,
     required this.targets,
+    this.calibration = const [],
     required this.guideStats,
     required this.mountStats,
     required this.avgTemperatureC,
@@ -325,17 +374,43 @@ class SessionReport {
     required this.generatedAt,
   });
 
-  /// Sum of `framesAttempted` across all targets.
-  int get totalFramesAttempted =>
+  /// Light frames recorded across all targets, accepted or not.
+  int get lightFramesAttempted =>
       targets.fold<int>(0, (sum, t) => sum + t.framesAttempted);
 
-  /// Sum of `framesAccepted` across all targets.
-  int get totalFramesAccepted =>
+  /// Light frames marked accepted across all targets.
+  int get lightFramesAccepted =>
       targets.fold<int>(0, (sum, t) => sum + t.framesAccepted);
 
-  /// Sum of `framesRejected` across all targets.
+  /// Calibration frames recorded, accepted or not.
+  int get calibrationFramesAttempted =>
+      calibration.fold<int>(0, (sum, c) => sum + c.framesAttempted);
+
+  /// Calibration frames marked accepted.
+  int get calibrationFramesAccepted =>
+      calibration.fold<int>(0, (sum, c) => sum + c.framesAccepted);
+
+  /// Shutter-open seconds across accepted calibration frames.
+  double get calibrationIntegrationSecs =>
+      calibration.fold<double>(0.0, (sum, c) => sum + c.totalIntegrationSecs);
+
+  /// EVERY frame the session recorded, lights and calibration alike.
+  ///
+  /// This counted lights only, which is what let a calibration-only session
+  /// report "0/0" beside three FITS files on disk. "Frames" means frames; the
+  /// light-only figure is [lightFramesAttempted].
+  int get totalFramesAttempted =>
+      lightFramesAttempted + calibrationFramesAttempted;
+
+  /// Every accepted frame, lights and calibration alike. See
+  /// [totalFramesAttempted].
+  int get totalFramesAccepted =>
+      lightFramesAccepted + calibrationFramesAccepted;
+
+  /// Sum of `framesRejected` across all targets and calibration types.
   int get totalFramesRejected =>
-      targets.fold<int>(0, (sum, t) => sum + t.framesRejected);
+      targets.fold<int>(0, (sum, t) => sum + t.framesRejected) +
+      calibration.fold<int>(0, (sum, c) => sum + c.framesRejected);
 
   /// True when the report has no recorded frames at all.
   bool get isEmpty => totalFramesAttempted == 0;
@@ -354,6 +429,10 @@ class SessionReport {
     'totalFramesAccepted': totalFramesAccepted,
     'totalFramesRejected': totalFramesRejected,
     'targets': targets.map((t) => t.toJson()).toList(),
+    'calibration': calibration.map((c) => c.toJson()).toList(),
+    'lightFramesAttempted': lightFramesAttempted,
+    'lightFramesAccepted': lightFramesAccepted,
+    'calibrationIntegrationSecs': calibrationIntegrationSecs,
     'guideStats': guideStats.toJson(),
     'mountStats': mountStats.toJson(),
     'avgTemperatureC': avgTemperatureC,

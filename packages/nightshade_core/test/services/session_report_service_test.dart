@@ -206,11 +206,22 @@ void main() {
       expect(r.framesAttempted, 1);
       expect(r.totalIntegrationSecs, 120.0);
 
-      // Whole-session totals exclude darks.
-      expect(report.totalFramesAttempted, 4);
-      expect(report.totalFramesAccepted, 3);
-      expect(report.totalFramesRejected, 1);
+      // Light-frame totals exclude darks: a dark contributes nothing to a
+      // target's integration, so "Integration" and the per-target rollup are
+      // lights only.
+      expect(report.lightFramesAttempted, 4);
+      expect(report.lightFramesAccepted, 3);
       expect(report.totalIntegration.inSeconds, 240);
+
+      // Whole-session frame COUNTS include the dark. They used to exclude it,
+      // which is how a calibration-only session reported "Frames accepted 0/0"
+      // beside three FITS files on disk — see
+      // session_report_counts_calibration_test.dart.
+      expect(report.totalFramesAttempted, 5);
+      expect(report.totalFramesAccepted, 4);
+      expect(report.totalFramesRejected, 1);
+      expect(report.calibration.single.frameType, 'dark');
+      expect(report.calibration.single.framesAccepted, 1);
     });
 
     test('guide stats expose unguided fraction and max RMS', () async {

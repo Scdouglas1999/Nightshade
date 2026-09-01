@@ -183,10 +183,27 @@ class _ReportBody extends ConsumerWidget {
           _SectionTitle(
               title: 'Targets', icon: LucideIcons.target, colors: colors),
           if (report.targets.isEmpty)
-            _muted('No accepted light frames recorded.'),
+            // "No light frames" is true of a calibration run, but on its own it
+            // read as "this session captured nothing" — which is what the whole
+            // dialog said about a 3-frame dark run. Name what the session DID
+            // capture, not only what it did not.
+            _muted(report.calibration.isEmpty
+                ? 'No accepted light frames recorded.'
+                : 'Calibration only — no light frames. See Calibration below.'),
           for (final target in report.targets) ...[
             const SizedBox(height: 8),
             _TargetBlock(target: target, colors: colors),
+          ],
+          if (report.calibration.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _SectionTitle(
+                title: 'Calibration', icon: LucideIcons.layers, colors: colors),
+            for (final cal in report.calibration) ...[
+              const SizedBox(height: 8),
+              _muted('${cal.frameType}: ${cal.framesAccepted}/'
+                  '${cal.framesAttempted} accepted · '
+                  '${cal.totalIntegrationSecs.toStringAsFixed(1)}s exposed'),
+            ],
           ],
           // A run the operator stopped is not a failed run. The cancellation
           // notice is dropped from Errors (and stated plainly instead) only for
