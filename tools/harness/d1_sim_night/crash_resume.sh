@@ -31,7 +31,11 @@ say()  { echo "[d1cr] $*"; }
 ok()   { PASS=$((PASS+1)); echo "[d1cr]   PASS: $*"; }
 bad()  { FAIL=$((FAIL+1)); echo "[d1cr]   FAIL: $*"; }
 api()  { curl -sf -m 10 -H "$AH" "$@"; }
-Q()    { sqlite3 "$DBDIR/nightshade.db" "$1"; }
+# Every read waits out a writer instead of failing on SQLITE_BUSY: the app holds
+# the lock for whole seconds during open-time migration and crash recovery, and
+# on a loaded machine the first query after a relaunch landed inside that window
+# ("database is locked (5)") and read an empty row as a FAIL.
+Q()    { sqlite3 -cmd ".timeout 10000" "$DBDIR/nightshade.db" "$1"; }
 
 PIDFILE=$D1/app.pid
 # Reap only what a previous run of THIS script left behind. `pkill -f

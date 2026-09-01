@@ -40,7 +40,11 @@ say()  { echo "[2n] $*"; }
 ok()   { PASS=$((PASS+1)); echo "[2n]   PASS: $*"; }
 bad()  { FAIL=$((FAIL+1)); echo "[2n]   FAIL: $*"; }
 api()  { curl -sf -m 10 -H "$AH" "$@"; }
-Q()    { sqlite3 "$DB" "$1"; }
+# Every read waits out a writer instead of failing on SQLITE_BUSY: the app holds
+# the lock for whole seconds during open-time migration and crash recovery, and
+# on a loaded machine the first query after a relaunch landed inside that window
+# ("database is locked (5)") and read an empty row as a FAIL.
+Q()    { sqlite3 -cmd ".timeout 10000" "$DB" "$1"; }
 
 rm -rf "$D1"; mkdir -p "$DBDIR" "$OUT" "$DROP" "$DATA"
 

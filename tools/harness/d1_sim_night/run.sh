@@ -147,13 +147,17 @@ say "=== phase 6: wait for dawn job ==="
 JOBSTATE=""
 for i in $(seq 1 150); do
   sleep 2
-  JOBSTATE=$(sqlite3 "$DBDIR/nightshade.db" "SELECT state FROM darkroom_jobs ORDER BY id DESC LIMIT 1;" 2>/dev/null)
+  JOBSTATE=$(sqlite3 -cmd ".timeout 10000" "$DBDIR/nightshade.db" "SELECT state FROM darkroom_jobs ORDER BY id DESC LIMIT 1;" 2>/dev/null)
   case "$JOBSTATE" in done|failed|cancelled) break;; esac
 done
 [ "$JOBSTATE" = "done" ] && ok "darkroom job done" || bad "darkroom job state='$JOBSTATE'"
 
 say "=== phase 7: assertions ==="
-Q() { sqlite3 "$DBDIR/nightshade.db" "$1"; }
+# Every read waits out a writer instead of failing on SQLITE_BUSY: the app holds
+# the lock for whole seconds during open-time migration and crash recovery, and
+# on a loaded machine the first query after a relaunch landed inside that window
+# ("database is locked (5)") and read an empty row as a FAIL.
+Q() { sqlite3 -cmd ".timeout 10000" "$DBDIR/nightshade.db" "$1"; }
 # Every registered frame carries the grader's measurements and its verdict. A
 # null here means the frame reached the library ungraded, and everything that
 # reads quality afterwards — the reject folder, the Darkroom's sub selection,
