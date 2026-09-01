@@ -53,6 +53,13 @@ String? highRiskAuditActionFor({required String method, required String path}) {
     if (_isLogDownloadPath(path)) {
       return 'log_download';
     }
+    // The darkroom peer-delivery artifact route streams a published master off
+    // the appliance, so it is audited for the same reason as the mosaic output
+    // download below: an operator can trace who pulled the night's masters
+    // after an incident.
+    if (_isDeliveryArtifactPath(path)) {
+      return 'darkroom_artifact_download';
+    }
   }
 
   // DELETE /api/system/update/staged is destructive but uses the
@@ -134,6 +141,21 @@ bool _isRegenerateThumbnailPath(String path) {
   if (path == '/api/images/<imageId>/regenerate-thumbnail') return true;
   if (!path.startsWith('/api/images/')) return false;
   return path.endsWith('/regenerate-thumbnail');
+}
+
+/// matches the parameterised
+/// `/api/darkroom/delivery/artifact/<jobId>/<artifactId>` route and its
+/// concrete request paths (`/api/darkroom/delivery/artifact/7/abc123`). Both
+/// the templated form (route-enumeration list) and the instantiated form
+/// (request-time) are accepted. The two trailing segments are required, so the
+/// sibling `manifest/` and `ack/` routes do not match.
+bool _isDeliveryArtifactPath(String path) {
+  const prefix = '/api/darkroom/delivery/artifact/';
+  if (!path.startsWith(prefix)) return false;
+  final tail = path.substring(prefix.length);
+  final segments = tail.split('/');
+  return segments.length == 2 &&
+      segments.every((segment) => segment.isNotEmpty);
 }
 
 /// matches the parameterised `/api/logs/files/<filename>/download`
@@ -328,6 +350,22 @@ String requiredAuthScopeNameForEndpoint({
       return 'admin';
     }
     return normalizedMethod == 'GET' ? 'control' : 'admin';
+  }
+
+  // Darkroom peer delivery. All three routes are CONTROL, GETs included.
+  //
+  // The method default would make the two GETs view scope, and what they serve
+  // is why that is wrong: the manifest lists every master this job published
+  // for a peer with its size and SHA-256, and the artifact route streams those
+  // masters byte-for-byte with Range resume. That is the night's output
+  // leaving the appliance. A read-only credential — the phone by the bed, a
+  // shared run-watch link — has no business pulling it, on exactly the
+  // principle that made GET /api/settings control scope above.
+  //
+  // Control is the floor, not the ceiling: collecting a night is what a paired
+  // desktop does with a control credential, so this does not require admin.
+  if (normalizedPath.startsWith('/api/darkroom/delivery/')) {
+    return 'control';
   }
 
   if (adminOnlyPathPrefixes.any(normalizedPath.startsWith) ||

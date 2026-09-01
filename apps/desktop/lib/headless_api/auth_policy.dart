@@ -69,6 +69,12 @@ enum HeadlessResource {
   mosaic,
   coimaging,
   constellation,
+  // Darkroom peer delivery (`/api/darkroom/`). The published-master pull
+  // surface. First-class for the same reason as the collaborative resources
+  // above: without it these routes fell through to [system], so a fine-grained
+  // token needed `system` (admin-adjacent) to collect a night, and every
+  // `system` grant silently gained the right to stream the rig's masters.
+  darkroom,
   system,
   info,
 }
@@ -123,6 +129,8 @@ String headlessResourceName(HeadlessResource resource) {
       return 'coimaging';
     case HeadlessResource.constellation:
       return 'constellation';
+    case HeadlessResource.darkroom:
+      return 'darkroom';
     case HeadlessResource.system:
       return 'system';
     case HeadlessResource.info:
@@ -185,6 +193,8 @@ HeadlessResource? parseHeadlessResource(String? value) {
     // it with either the `collaboration` or `constellation` key.
     case 'collaboration':
       return HeadlessResource.constellation;
+    case 'darkroom':
+      return HeadlessResource.darkroom;
     case 'system':
       return HeadlessResource.system;
     case 'info':

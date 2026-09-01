@@ -34,10 +34,25 @@ import '../validation.dart';
 /// file the job never published resolves to nothing and is refused, so no
 /// crafted id can walk the rig's filesystem.
 ///
-/// **The peer id is required and is checked against the destination rows.**
-/// Without it a rig with two peer destinations would hand either desktop the
-/// other's night, and both destinations would be marked delivered when one
-/// machine collected everything.
+/// **The peer id is required and is checked against the destination rows** —
+/// an id no enabled peer destination carries is refused. That is a check on the
+/// id, not on the caller: nothing here proves the caller IS the peer it names,
+/// because no peer↔credential association exists to check against. A
+/// destination row carries `{"peerId": ...}` and nothing else identifying
+/// (`config_json` may hold no key material by design), and a
+/// [HeadlessAuthGrant] carries only resource levels — no pairing identity. So
+/// on a rig with two peer destinations, a caller already holding a delivery
+/// credential can name either peer and collect that peer's night, or
+/// acknowledge on its behalf.
+///
+/// What bounds that today is the scope, not the id: the whole
+/// `/api/darkroom/delivery/` prefix is `darkroom:control` (see
+/// `route_metadata/path_classification.dart`), so a read-only credential
+/// cannot reach any of it and only a credential already trusted to run the rig
+/// can. Binding a peer to the credential that pairs as it needs a recorded
+/// association on the destination row and a pairing flow that sets it; until
+/// that exists this surface separates peers by NAME, not by AUTHORITY, and the
+/// journal's "delivered to &lt;peer&gt;" is only as strong as that.
 class DarkroomDeliveryHandlers {
   final ProviderContainer container;
 

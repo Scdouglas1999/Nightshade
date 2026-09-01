@@ -422,15 +422,36 @@ void main() {
       }
     });
 
-    test('reading a manifest or an artifact needs at least a view token', () {
+    test('reading a manifest or an artifact needs control, not view', () {
+      // This assertion used to require only a view token, which is what the
+      // routes actually did: with no entry in `resourcePrefixKeys` and no
+      // scope rule, both GETs fell through to the method default. The manifest
+      // lists every master this job published with its size and SHA-256 and
+      // the artifact route streams those masters byte-for-byte, so a read-only
+      // credential — the phone by the bed, a shared run-watch link — must not
+      // reach either.
       for (final path in paths.take(2)) {
+        expect(
+          HeadlessAuthPolicy.requiredScopeFor(method: 'GET', path: path),
+          HeadlessTokenScope.control,
+        );
         expect(
           HeadlessAuthPolicy.allows(
             actual: HeadlessTokenScope.view,
             method: 'GET',
             path: path,
           ),
+          isFalse,
+          reason: 'a read-only credential cannot pull the published masters',
+        );
+        expect(
+          HeadlessAuthPolicy.allows(
+            actual: HeadlessTokenScope.control,
+            method: 'GET',
+            path: path,
+          ),
           isTrue,
+          reason: 'the paired desktop collecting its night still can',
         );
       }
     });

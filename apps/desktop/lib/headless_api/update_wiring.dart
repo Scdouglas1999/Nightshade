@@ -17,6 +17,8 @@ import 'package:nightshade_updater/nightshade_updater.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../secret_file.dart';
+
 /// Bundle returned by [provisionUpdateStack]. Carries the
 /// [UpdateController] (which owns the underlying [UpdateService] and is
 /// the API surface the headless server consumes) plus the LAN-push
@@ -123,24 +125,28 @@ Future<UpdateStack?> provisionUpdateStack({
 /// both GUI and headless bootstraps.
 ///
 /// Exposed at library level so unit tests can pre-seed a fixed secret in
-/// the AppData root.
+/// the AppData root. [appDataDir] overrides where that root is, which is what
+/// lets a test assert the file mode without a platform-channel mock; production
+/// callers leave it null and get the real application-support directory.
 Future<String> getOrCreatePushSecret(
   LoggingService logger, {
   required String logSource,
+  Directory? appDataDir,
 }) async {
-  final appData = await getApplicationSupportDirectory();
+  final appData = appDataDir ?? await getApplicationSupportDirectory();
   final secretFile = File(p.join(appData.path, 'push_secret.txt'));
 
   if (await secretFile.exists()) {
     final secret = (await secretFile.readAsString()).trim();
     if (secret.isNotEmpty) {
+      // Repair a file an older build created world-readable.
+      await restrictSecretFile(secretFile);
       return secret;
     }
   }
 
   final secret = LanPushReceiver.generatePushSecret();
-  await secretFile.parent.create(recursive: true);
-  await secretFile.writeAsString(secret);
+  await writeSecretFile(secretFile, secret);
   logger.info(
     'Generated new LAN push secret. Configure this on the push tool.',
     source: logSource,

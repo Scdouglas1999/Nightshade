@@ -43,6 +43,10 @@ const Map<String, String> resourcePrefixKeys = {
   // deliberately NOT here: it transfers session ownership and stays admin-only
   // via `adminOnlyPaths`, where the resource is irrelevant.)
   '/api/collaboration/': 'constellation',
+  // Darkroom peer delivery (7.0). The manifest/artifact/ack surface a paired
+  // desktop pulls the night through. Without this entry the three routes fell
+  // through to the `system` catch-all.
+  '/api/darkroom/': 'darkroom',
   '/api/catalog/': 'catalog',
   '/api/files/': 'filesystem',
   '/api/backup/': 'backup',
@@ -167,6 +171,11 @@ const controlPathPrefixes = [
   // three motion endpoints are additionally escalated to the high-risk
   // tier via `highRiskControlPaths`.
   '/api/planetarium/',
+  // darkroom peer-delivery acknowledgement. Each ack re-reads and re-hashes
+  // the published file to compare the desktop's checksum against the rig's
+  // own copy, so an unthrottled ack loop is a disk-and-CPU amplifier on
+  // Pi-class hardware.
+  '/api/darkroom/',
 ];
 
 const rateLimitedReadPaths = {'/api/files/browse'};

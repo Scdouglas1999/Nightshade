@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'headless_api/update_wiring.dart';
 import 'headless_api_server.dart';
+import 'secret_file.dart';
 
 const String _logSource = 'DesktopBootstrap';
 
@@ -718,9 +719,10 @@ Future<bool> shouldStartMinimized(ProviderContainer container) async {
 /// server in GUI mode. Why persist on disk: rotating the token on every app
 /// launch would force every paired mobile/dashboard client to re-pair through
 /// the 6-digit pairing flow. The token is stored under the platform
-/// application-support directory which is per-user-private on all desktop
-/// platforms, so leaking the file out of that scope requires either local
-/// account compromise or operator action.
+/// application-support directory and written owner-only (0600) — the directory
+/// itself is per-user-private on Windows and macOS but is created 0755 on
+/// Linux, so the file mode, not the directory, is what keeps another local
+/// account out.
 Future<String> _getOrCreateRemoteAccessToken(LoggingService logger) async {
   final appData = await getApplicationSupportDirectory();
   final tokenFile = File(path.join(appData.path, 'remote_access_token.txt'));
@@ -728,6 +730,8 @@ Future<String> _getOrCreateRemoteAccessToken(LoggingService logger) async {
   if (await tokenFile.exists()) {
     final existing = (await tokenFile.readAsString()).trim();
     if (existing.isNotEmpty) {
+      // Repair a file an older build created world-readable.
+      await restrictSecretFile(tokenFile);
       return existing;
     }
   }
@@ -737,8 +741,7 @@ Future<String> _getOrCreateRemoteAccessToken(LoggingService logger) async {
   final rng = Random.secure();
   final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
   final token = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  await tokenFile.parent.create(recursive: true);
-  await tokenFile.writeAsString(token);
+  await writeSecretFile(tokenFile, token);
   logger.info(
     'Generated new remote-access bearer token. Pair via the dashboard or '
     'copy the token from this file to configure mobile/CLI clients.',

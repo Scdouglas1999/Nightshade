@@ -97,6 +97,62 @@ void main() {
     });
   });
 
+  group('darkroom peer-delivery surface', () {
+    const manifest = '/api/darkroom/delivery/manifest/<jobId>';
+    const artifact = '/api/darkroom/delivery/artifact/<jobId>/<artifactId>';
+    const ack = '/api/darkroom/delivery/ack/<jobId>';
+
+    test('carries its own resource key rather than falling through to '
+        'system', () {
+      // Falling through to `system` means any fine-grained token holding
+      // `system` silently gained the published-master surface, and a token
+      // holding only the darkroom resource could not use it at all.
+      expect(resourceKeyForEndpoint(method: 'GET', path: manifest), 'darkroom');
+      expect(resourceKeyForEndpoint(method: 'GET', path: artifact), 'darkroom');
+      expect(resourceKeyForEndpoint(method: 'POST', path: ack), 'darkroom');
+    });
+
+    test('reads are control scope, not view', () {
+      // These GETs stream every published master byte-for-byte. A read-only
+      // credential — the phone by the bed, a shared run-watch link — has no
+      // business pulling the night's masters, on the same principle that made
+      // GET /api/settings control scope.
+      expect(
+        requiredAuthScopeNameForEndpoint(method: 'GET', path: manifest),
+        'control',
+      );
+      expect(
+        requiredAuthScopeNameForEndpoint(method: 'GET', path: artifact),
+        'control',
+      );
+      expect(
+        requiredAuthScopeNameForEndpoint(method: 'POST', path: ack),
+        'control',
+      );
+    });
+
+    test('the acknowledgement is rate limited like the rest of the control '
+        'surface', () {
+      expect(endpointRateLimitFor(method: 'POST', path: ack), isNotNull);
+    });
+
+    test('artifact egress is audited', () {
+      // The bytes leave the appliance, exactly like the mosaic output
+      // download that is already audited.
+      expect(
+        highRiskAuditActionFor(method: 'GET', path: artifact),
+        'darkroom_artifact_download',
+      );
+      expect(
+        highRiskAuditActionFor(
+          method: 'GET',
+          path: '/api/darkroom/delivery/artifact/7/abc123',
+        ),
+        'darkroom_artifact_download',
+      );
+    });
+  });
+
   group('OpenAPI route metadata', () {
     test('converts shelf route parameters to OpenAPI parameters', () {
       expect(openApiPath('/api/targets/<id>'), '/api/targets/{id}');
