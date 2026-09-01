@@ -297,7 +297,11 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
               'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/'
               'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
           userAgentPackageName: 'com.nightshade.app',
-          retinaMode: RetinaMode.isHighDensity(context),
+          // No retinaMode: it was correct for the old cartocdn template, whose
+          // {r} placeholder let flutter_map request true @2x tiles from the
+          // server. The Esri template has no {r}, so the flag would resolve to
+          // RetinaMode.simulation — one zoom coarser, scaled up 2x — the same
+          // trap documented on the WMS layer above.
           tileBuilder: (context, tileWidget, tile) {
             // Dim the base map for better radar visibility. As a ColorFilter
             // rather than an Opacity: an Opacity widget costs a saveLayer per
@@ -359,7 +363,8 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
               'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/'
               'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
           userAgentPackageName: 'com.nightshade.app',
-          retinaMode: RetinaMode.isHighDensity(context),
+          // No retinaMode — same reason as the base layer: no {r} in the Esri
+          // template means the flag can only make the labels COARSER.
         ),
 
         // Alert radius circle
