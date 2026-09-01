@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
@@ -186,7 +187,11 @@ final _screenshotSequence = Sequence(
 );
 
 class _ScreenshotSequence extends CurrentSequenceNotifier {
-  _ScreenshotSequence(Ref ref) : super(ref: ref) {
+  // No [Ref]: the notifier only enforces its running-sequence edit guard when
+  // it has one, and this fixture loads its canned plan while the execution
+  // state is overridden to `running` — exactly the state the guard refuses.
+  // A real notifier is never first-loaded mid-run; a screenshot fixture is.
+  _ScreenshotSequence() : super() {
     loadSequence(_screenshotSequence, discardUnsaved: true);
     markSaved();
   }
@@ -381,7 +386,7 @@ final _sharedOverrides = <Override>[
   selectedEquipmentProfileIdProvider
       .overrideWith((ref) => _screenshotProfile.id),
   smartNightExposureContextProvider.overrideWith((ref) async => null),
-  currentSequenceProvider.overrideWith((ref) => _ScreenshotSequence(ref)),
+  currentSequenceProvider.overrideWith((ref) => _ScreenshotSequence()),
   selectedNodeIdProvider.overrideWith((ref) => 'nb-ha'),
   sequenceExecutionStateProvider.overrideWith(
     (ref) => SequenceExecutionState.running,
@@ -509,6 +514,23 @@ void main() {
 
   testWidgets('refresh public screenshots from real app screens',
       (tester) async {
+    // Screens that read a persisted model (the focus model behind the Flat
+    // Wizard and Analytics) resolve their file through path_provider, which
+    // has no platform implementation under `flutter test`. Answer every
+    // directory query with one scratch dir so the capture sees an honest
+    // "nothing saved yet" instead of a MissingPluginException.
+    final scratch = Directory.systemTemp.createTempSync('nightshade_shots_');
+    const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      pathProvider,
+      (call) async => scratch.path,
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathProvider, null);
+      scratch.deleteSync(recursive: true);
+    });
+
     await _capture(
       tester,
       screen: const DashboardScreen(),
