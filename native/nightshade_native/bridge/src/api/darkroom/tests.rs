@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 
 use super::export::recipe_from_history;
 use super::schema::{example_params, ParamKind, OP_DOCS};
+use super::state::MAX_TRACKED_RENDERS;
 use super::{
     api_darkroom_cancel, api_darkroom_registry, api_darkroom_render_export,
     api_darkroom_render_preview, api_darkroom_validate,
@@ -620,6 +621,45 @@ fn a_cancelled_export_writes_nothing_and_says_it_was_cancelled() {
     let outcome = parse(&error);
     assert_eq!(outcome["kind"], json!("cancelled"));
     assert!(!out.exists(), "a cancelled export leaves no file behind");
+}
+
+#[test]
+fn late_cancels_for_renders_that_never_start_do_not_block_a_new_render() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let master = write_master(dir.path(), "cancel-flood.fits", 32, 32, 1);
+
+    // The two shapes that arrive in the field: the dawn autopilot cancels a
+    // queued job that will never render, and the editor cancels an id that
+    // raced its own completion. Neither is ever claimed by a render, so each
+    // one is a pre-arm nothing removes.
+    let flood: Vec<String> = (0..MAX_TRACKED_RENDERS + 8)
+        .map(|i| format!("darkroom-flood-{i}"))
+        .collect();
+    for id in flood.iter().take(MAX_TRACKED_RENDERS) {
+        api_darkroom_cancel(json!({"renderId": id}).to_string())
+            .expect("a cancel for a render that never started is always accepted");
+    }
+
+    // A brand-new render must still run: a registry full of stale pre-arms is
+    // never a reason to refuse work the operator just asked for.
+    let fresh = "darkroom-flood-fresh";
+    let recipe = recipe_json("r-flood", "master:flood", json!([stretch_step()]));
+    let preview = api_darkroom_render_preview(
+        recipe,
+        json!({"masterPath": master.to_string_lossy(), "renderId": fresh}).to_string(),
+    )
+    .expect("a new render is not refused by the cancel registry");
+    assert!(preview.width > 0 && preview.height > 0);
+
+    // And the cancels themselves keep being accepted past the cap.
+    for id in flood.iter().skip(MAX_TRACKED_RENDERS) {
+        api_darkroom_cancel(json!({"renderId": id}).to_string())
+            .expect("a late cancel is still accepted once the registry is full");
+    }
+
+    for id in &flood {
+        let _ = api_darkroom_cancel(json!({"op": "clear", "renderId": id}).to_string());
+    }
 }
 
 #[test]

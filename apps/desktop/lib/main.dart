@@ -245,6 +245,16 @@ void main(List<String> args) async {
           );
     },
     exitProcess: exit,
+    // The GUI drains the same dawn queue the daemon does (see
+    // desktop_app_bootstrap's resumeDarkroomWork), so it owes the same hand-back
+    // the daemon's teardown makes: a pass left `running` by an orderly quit is
+    // read at the next open as a dead process and charged one of the job's three
+    // starts.
+    releaseDarkroomJobs: () async {
+      await container
+          .read(dawnAutopilotServiceProvider)
+          .releaseRunningJobsForShutdown();
+    },
     onInfo: (message, {error}) =>
         logger.info(message, source: 'desktop.shutdown'),
     onCritical: (message, {error}) => logger.error(

@@ -644,6 +644,12 @@ pub(crate) fn read_fold_calibration_log(
 
 /// Append one fold's calibration to a master's log, creating the log on the
 /// first fold.
+///
+/// The write goes through a temporary sibling and a rename, the same way the
+/// Darkroom places an export. A plain `fs::write` truncates first, so a process
+/// killed mid-append left a torn log on disk — and because a log that exists and
+/// does not parse is an error rather than a silent reset, that single kill made
+/// every later fold of that master report failure.
 pub(crate) fn append_fold_calibration(
     sidecar: &Path,
     entry: FoldCalibration,
@@ -659,8 +665,35 @@ pub(crate) fn append_fold_calibration(
     let path = calibration_log_path(sidecar);
     let encoded =
         serde_json::to_vec(&log).map_err(|e| format!("failed to encode calibration log: {e}"))?;
-    std::fs::write(&path, encoded)
-        .map_err(|e| format!("failed to write calibration log '{}': {e}", path.display()))
+    let temp = calibration_log_temp_path(&path);
+    std::fs::write(&temp, encoded)
+        .map_err(|e| format!("failed to write calibration log '{}': {e}", temp.display()))?;
+    match std::fs::rename(&temp, &path) {
+        Ok(()) => Ok(()),
+        Err(rename_error) => {
+            if let Err(cleanup_error) = std::fs::remove_file(&temp) {
+                tracing::warn!(
+                    "could not remove '{}' after a failed calibration-log rename: {cleanup_error}",
+                    temp.display()
+                );
+            }
+            Err(format!(
+                "failed to place calibration log '{}': {rename_error}",
+                path.display()
+            ))
+        }
+    }
+}
+
+/// The temporary sibling a calibration-log write goes through.
+fn calibration_log_temp_path(path: &Path) -> std::path::PathBuf {
+    let mut p = path.to_path_buf();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "master.calib.json".to_string());
+    p.set_file_name(format!("{name}.nshatmp"));
+    p
 }
 
 /// The report as FITS `HISTORY` card text, one line per statement.
@@ -723,6 +756,20 @@ pub(crate) fn calibration_history_lines(report: &CalibrationReport) -> Vec<Strin
     lines
 }
 
+/// What a finalize found where the master's provenance log should be.
+///
+/// The three cases read differently in the FITS `HISTORY` because they mean
+/// different things to whoever opens the file later: a log that was never
+/// written, one that cannot be parsed, and one that is there.
+pub(crate) enum FoldCalibrationRecord<'a> {
+    /// The log as read from disk.
+    Present(&'a FoldCalibrationLog),
+    /// No log beside the sidecar.
+    Missing,
+    /// A log exists and could not be read, with the reason.
+    Unreadable(&'a str),
+}
+
 /// Write an accumulating master's per-fold calibration into `header` as
 /// `HISTORY` cards, and return whether the record warrants a warning.
 ///
@@ -733,14 +780,21 @@ pub(crate) fn calibration_history_lines(report: &CalibrationReport) -> Vec<Strin
 /// one that claims calibration it never applied.
 pub(crate) fn write_fold_calibration_history(
     header: &mut FitsHeader,
-    log: Option<&FoldCalibrationLog>,
+    record: FoldCalibrationRecord<'_>,
     sidecar_fold_count: usize,
 ) -> bool {
-    let Some(log) = log else {
-        header.add_history(
-            "Calibration record unavailable: no fold calibration log beside the sidecar",
-        );
-        return true;
+    let log = match record {
+        FoldCalibrationRecord::Present(log) => log,
+        FoldCalibrationRecord::Missing => {
+            header.add_history(
+                "Calibration record unavailable: no fold calibration log beside the sidecar",
+            );
+            return true;
+        }
+        FoldCalibrationRecord::Unreadable(reason) => {
+            header.add_history(&format!("Calibration record unreadable: {reason}"));
+            return true;
+        }
     };
     let mut warns = log.folds.len() != sidecar_fold_count;
     if warns {

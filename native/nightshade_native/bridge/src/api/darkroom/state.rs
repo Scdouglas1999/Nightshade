@@ -33,6 +33,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant};
 
 use nightshade_imaging::read_fits;
 use nightshade_imaging::recipe::{
@@ -55,9 +56,18 @@ pub(crate) const BASE_CACHE_CAPACITY_BYTES: usize = 512 * 1024 * 1024;
 ///
 /// A live render releases its id when it finishes, so this bounds only the
 /// pre-armed entries a caller creates by cancelling renders that never start.
-/// Past the cap, cancelling an unknown id is an explicit error rather than an
-/// unbounded leak.
-const MAX_TRACKED_RENDERS: usize = 32;
+/// The cap is enforced by evicting stale pre-arms, never by refusing work: see
+/// [`make_room`].
+pub(crate) const MAX_TRACKED_RENDERS: usize = 32;
+
+/// How long an unclaimed pre-arm is kept before the registry may drop it.
+///
+/// A pre-arm exists for the window between a cancellation and the render
+/// reaching Rust — sub-second in practice. Minutes of grace is far more than
+/// that window needs, and an entry older than this belongs to a render that is
+/// never coming: the dawn autopilot cancels queued jobs that never render, and
+/// the editor cancels ids that race their own completion.
+const PREARM_TTL: Duration = Duration::from_secs(300);
 
 // ---------------------------------------------------------------------------
 // Operation registry
@@ -358,6 +368,24 @@ pub(crate) fn base_pyramid(path: &Path) -> Result<LoadedMaster, String> {
 struct RenderEntry {
     cancel: Arc<AtomicBool>,
     live: AtomicBool,
+    /// When this id entered the registry, so a pre-arm nothing ever claims can
+    /// be aged out. A live render is never evicted by age; its token removes it
+    /// on drop.
+    armed_at: Instant,
+}
+
+impl RenderEntry {
+    fn new() -> Self {
+        Self {
+            cancel: Arc::new(AtomicBool::new(false)),
+            live: AtomicBool::new(false),
+            armed_at: Instant::now(),
+        }
+    }
+
+    fn is_live(&self) -> bool {
+        self.live.load(Ordering::Relaxed)
+    }
 }
 
 static CANCEL_REGISTRY: OnceLock<Mutex<BTreeMap<String, Arc<RenderEntry>>>> = OnceLock::new();
@@ -370,6 +398,38 @@ fn cancel_registry() -> MutexGuard<'static, BTreeMap<String, Arc<RenderEntry>>> 
     match lock.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+/// Make room for one more id, dropping expired and then oldest pre-arms.
+///
+/// Returns `false` only when every tracked id is a render executing right now —
+/// the one case where nothing may be dropped, since evicting a live entry would
+/// hand a running render a flag no cancellation can reach.
+///
+/// A cancellation aimed at a render that never starts leaves a pre-arm behind,
+/// and nothing else removes one: [`RenderCancelToken`]'s drop only fires for an
+/// id a render actually claimed. Without this the cap is a permanent ceiling —
+/// past 32 late cancels every subsequent render and export is refused until the
+/// process restarts — so the registry ages pre-arms out and, when it must,
+/// gives the oldest one's slot to the new work rather than refusing it.
+fn make_room(map: &mut BTreeMap<String, Arc<RenderEntry>>) -> bool {
+    let now = Instant::now();
+    map.retain(|_, entry| entry.is_live() || now.duration_since(entry.armed_at) < PREARM_TTL);
+    if map.len() < MAX_TRACKED_RENDERS {
+        return true;
+    }
+    let oldest = map
+        .iter()
+        .filter(|(_, entry)| !entry.is_live())
+        .min_by_key(|(_, entry)| entry.armed_at)
+        .map(|(id, _)| id.clone());
+    match oldest {
+        Some(id) => {
+            map.remove(&id);
+            true
+        }
+        None => false,
     }
 }
 
@@ -412,15 +472,12 @@ impl RenderCancelToken {
                 Arc::clone(existing)
             }
             None => {
-                if map.len() >= MAX_TRACKED_RENDERS {
+                if !make_room(&mut map) {
                     return Err(format!(
-                        "cannot track render '{id}': {MAX_TRACKED_RENDERS} darkroom render ids are already tracked"
+                        "cannot track render '{id}': {MAX_TRACKED_RENDERS} darkroom renders are in flight"
                     ));
                 }
-                let entry = Arc::new(RenderEntry {
-                    cancel: Arc::new(AtomicBool::new(false)),
-                    live: AtomicBool::new(false),
-                });
+                let entry = Arc::new(RenderEntry::new());
                 map.insert(id.to_string(), Arc::clone(&entry));
                 entry
             }
@@ -480,17 +537,14 @@ pub(crate) fn request_cancel(render_id: &str) -> Result<CancelOpOutcome, String>
     let entry = match map.get(render_id) {
         Some(existing) => Arc::clone(existing),
         None => {
-            if map.len() >= MAX_TRACKED_RENDERS {
+            if !make_room(&mut map) {
                 return Err(format!(
-                    "cannot pre-arm cancellation for '{render_id}': {MAX_TRACKED_RENDERS} darkroom render ids are already tracked"
+                    "cannot pre-arm cancellation for '{render_id}': {MAX_TRACKED_RENDERS} darkroom renders are in flight"
                 ));
             }
             // Pre-arm: safing can fire before the render reaches Rust, and a
             // request that lands in that window is still honoured.
-            let entry = Arc::new(RenderEntry {
-                cancel: Arc::new(AtomicBool::new(false)),
-                live: AtomicBool::new(false),
-            });
+            let entry = Arc::new(RenderEntry::new());
             map.insert(render_id.to_string(), Arc::clone(&entry));
             entry
         }

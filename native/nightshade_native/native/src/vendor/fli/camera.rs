@@ -204,12 +204,31 @@ impl NativeDevice for FliCamera {
         // Select 16-bit mode before publishing the sensor's bit depth. If this write
         // fails the camera stays in 8-bit while the app advertises a 65535 full scale,
         // so every subsequent frame would be scaled, stretched and written to FITS
-        // against a ceiling 256x too large. Fail the connect instead.
+        // against a ceiling 256x too large. A device that reached us and refused is
+        // therefore fatal to the connect.
+        //
+        // A device with no bit-depth control at all is the other case, and it is not
+        // that one: libfli answers a command a model does not implement with a
+        // not-supported errno, and an FLI body with no selectable depth is 16-bit —
+        // the mode being asked for. Refusing those made 16-bit-only bodies impossible
+        // to connect, where they had imaged for years.
         // SAFETY: fli_mutex held; self.handle is open; FLI_MODE_16BIT is a pass-by-value constant.
         let result = unsafe { (sdk.set_bit_depth)(self.handle, FLI_MODE_16BIT) };
-        if let Err(error) = check_fli_error(result, "set 16-bit mode") {
-            close_fli_handle(sdk, &mut self.handle);
-            return Err(error);
+        match fli_capability_answer(result) {
+            FliCapabilityAnswer::Done => {}
+            FliCapabilityAnswer::NotSupported(code) => {
+                tracing::warn!(
+                    "FLI camera '{}' has no selectable bit depth (FLISetBitDepth returned {}); treating it as 16-bit only, which is the mode being selected",
+                    self.name,
+                    code
+                );
+            }
+            FliCapabilityAnswer::Failed(code) => {
+                if let Err(error) = check_fli_error(code, "set 16-bit mode") {
+                    close_fli_handle(sdk, &mut self.handle);
+                    return Err(error);
+                }
+            }
         }
 
         // libfli has no cooler-presence flag, so the temperature channel is the only

@@ -64,6 +64,60 @@ enum NotificationPriority {
   const NotificationPriority(this.value);
 }
 
+/// What one [NotificationService.notifyDetailed] send actually did.
+///
+/// Three independent outcomes hide behind the old single bool: the service's
+/// own gates (settings loaded, notifications on, this event family on), the
+/// router fan-out that carries the in-app surfaces and the phone, and the two
+/// AppSettings webhooks. Only the last one was ever reported.
+class NotificationDispatch {
+  /// What the routing matrix did, or null when there was no router to forward
+  /// to (the `.testing` service, or a container without the notification
+  /// graph).
+  final NotificationRouteOutcome? routed;
+
+  /// Whether Discord or Pushover accepted it.
+  final bool webhookAccepted;
+
+  /// Why the service sent nothing at all, naming its own gate. Null when the
+  /// send was attempted.
+  final String? refusedReason;
+
+  const NotificationDispatch({
+    required this.routed,
+    required this.webhookAccepted,
+  }) : refusedReason = null;
+
+  const NotificationDispatch.refused(String this.refusedReason)
+    : routed = null,
+      webhookAccepted = false;
+
+  /// True when the message reached at least one transport or webhook — the
+  /// only honest basis for telling an operator it was sent.
+  bool get anyDelivered => webhookAccepted || (routed?.anyDispatched ?? false);
+
+  /// One sentence naming what happened, for a report the operator reads.
+  String describe() {
+    if (refusedReason != null) return '$refusedReason, so nothing was sent.';
+    final route = routed;
+    if (route != null && route.anyDispatched) {
+      final also = webhookAccepted
+          ? ', and a configured webhook accepted it'
+          : '';
+      return 'Sent to ${route.dispatchedNames}$also.';
+    }
+    if (webhookAccepted) {
+      final why = route?.dropReason;
+      return 'Sent to a configured webhook'
+          '${why == null ? '' : '; the routed transports sent nothing: $why'}.';
+    }
+    final why = route?.dropReason;
+    return why == null
+        ? 'Nothing was sent: no routed transport and no webhook took it.'
+        : 'Nothing was sent: $why, and no webhook accepted it either.';
+  }
+}
+
 /// Service for sending notifications via Discord and Pushover
 class NotificationService {
   static const Duration defaultRequestTimeout = Duration(seconds: 15);
@@ -131,13 +185,49 @@ class NotificationService {
     NotificationCategory routeAs = NotificationCategory.custom,
     String? deepLink,
   }) async {
+    final dispatch = await notifyDetailed(
+      event: event,
+      title: title,
+      message: message,
+      priority: priority,
+      routeAs: routeAs,
+      deepLink: deepLink,
+    );
+    return dispatch.webhookAccepted;
+  }
+
+  /// The same send, reporting what actually left the process.
+  ///
+  /// [notify]'s bool has only ever described the two AppSettings webhooks —
+  /// the router fan-out that carries the phone was `void` and every one of its
+  /// drop paths was silent. A caller that STATES an outcome (the dawn
+  /// autopilot's morning message says whether the night's report was sent, and
+  /// it is the only surface that lists delivery problems) has to be able to
+  /// name the gate that stopped it.
+  Future<NotificationDispatch> notifyDetailed({
+    required NotificationEvent event,
+    required String title,
+    required String message,
+    NotificationPriority priority = NotificationPriority.normal,
+    NotificationCategory routeAs = NotificationCategory.custom,
+    String? deepLink,
+  }) async {
     final settings = _readSettings();
-    if (settings == null || !settings.notificationsEnabled) {
-      return false;
+    if (settings == null) {
+      return const NotificationDispatch.refused(
+        'The notification settings have not loaded, so no gate could be read',
+      );
+    }
+    if (!settings.notificationsEnabled) {
+      return const NotificationDispatch.refused(
+        'Notifications are switched off in Settings',
+      );
     }
 
     if (!_shouldNotifyForEvent(event, settings)) {
-      return false;
+      return NotificationDispatch.refused(
+        'The ${event.name} event alert is switched off in Settings',
+      );
     }
 
     // Why: the user can independently enable/disable the audible alert from
@@ -160,7 +250,7 @@ class NotificationService {
     // dark; the router adds the new transports on top. Only available when
     // constructed with a Riverpod `Ref` (the `.testing` constructor has none,
     // and the webhook/sound assertions there are unaffected).
-    _forwardToRouter(
+    final routed = _forwardToRouter(
       event: event,
       title: title,
       message: message,
@@ -173,7 +263,10 @@ class NotificationService {
       _sendPushoverNotification(title, message, priority, settings),
     ]);
 
-    return results.any((success) => success);
+    return NotificationDispatch(
+      routed: routed,
+      webhookAccepted: results.any((success) => success),
+    );
   }
 
   /// Send a notification for sequence completion
@@ -264,7 +357,7 @@ class NotificationService {
   /// fires for it, which is why the dawn autopilot's morning message can carry
   /// one: nothing on the backend event stream describes a finished Darkroom
   /// pass.
-  void _forwardToRouter({
+  NotificationRouteOutcome? _forwardToRouter({
     required NotificationEvent event,
     required String title,
     required String message,
@@ -272,7 +365,8 @@ class NotificationService {
     String? deepLink,
   }) {
     final ref = _ref;
-    if (ref == null) return; // `.testing` has no Ref; nothing to forward to.
+    // `.testing` has no Ref; nothing to forward to.
+    if (ref == null) return null;
     final NotificationRouter router;
     try {
       router = ref.read(notificationRouterProvider);
@@ -285,9 +379,9 @@ class NotificationService {
         name: 'NotificationService',
         level: 900,
       );
-      return;
+      return null;
     }
-    router.routeRendered(
+    return router.routeRendered(
       category: routeAs,
       title: title,
       body: message,

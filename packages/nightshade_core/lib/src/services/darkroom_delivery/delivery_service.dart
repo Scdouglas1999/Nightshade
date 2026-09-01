@@ -1100,8 +1100,14 @@ class DeliveryService {
         ? '${failure.journalText} (after $attempts attempts)'
         : failure.journalText;
     try {
+      // The journal refuses to move a row the desktop already acknowledged, and
+      // hands back the row as it stands. That is not a failed write: the file
+      // arrived while this attempt was in flight, which is exactly what the
+      // acknowledgement means. Count it for what happened, and say nothing
+      // about a problem that resolved itself.
+      final DeliveryJournalEntry recorded;
       if (terminal) {
-        await _journalWrite(
+        recorded = await _journalWrite(
           () => _journal.markFailed(
             targetId: targetId,
             jobId: jobId,
@@ -1110,9 +1116,8 @@ class DeliveryService {
             now: _clock(),
           ),
         );
-        tally.failed++;
       } else {
-        await _journalWrite(
+        recorded = await _journalWrite(
           () => _journal.markRetrying(
             targetId: targetId,
             jobId: jobId,
@@ -1121,6 +1126,14 @@ class DeliveryService {
             now: _clock(),
           ),
         );
+      }
+      if (recorded.state == DeliveryAttemptState.delivered) {
+        tally.alreadyDelivered++;
+        return;
+      }
+      if (terminal) {
+        tally.failed++;
+      } else {
         tally.retrying++;
       }
     } catch (error, stack) {

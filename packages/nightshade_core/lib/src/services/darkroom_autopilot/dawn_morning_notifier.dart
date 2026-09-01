@@ -100,7 +100,12 @@ class NotificationServiceDawnNotifier implements DawnMorningNotifier {
       );
     }
 
-    final accepted = await _notifications.notify(
+    // `sent` states what LEFT THE PROCESS, never that a send was attempted.
+    // This message is the only surface that lists the night's delivery
+    // problems, so a morning where the routing row was off, the phone was not
+    // paired, or the debounce swallowed it must not read as one where the
+    // operator was told.
+    final dispatch = await _notifications.notifyDetailed(
       event: NotificationEvent.sequenceComplete,
       title: report.headline,
       message: report.body,
@@ -110,14 +115,8 @@ class NotificationServiceDawnNotifier implements DawnMorningNotifier {
       deepLink: draftDeepLinkFor(report),
     );
     return DawnNotificationDecision(
-      sent: true,
-      reason: accepted
-          ? 'Sent through the notification router and accepted by at least '
-                'one configured webhook.'
-          : 'Sent through the notification router, which fans it out to the '
-                'routed transports including the phone; no Discord or '
-                'Pushover webhook accepted it, because none is configured or '
-                'both refused.',
+      sent: dispatch.anyDelivered,
+      reason: dispatch.describe(),
     );
   }
 }

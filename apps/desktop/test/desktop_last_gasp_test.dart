@@ -35,13 +35,17 @@ void main() {
     required Future<void> Function() safeRig,
     required List<int> exits,
     Duration safingTimeout = const Duration(seconds: 45),
+    Duration releaseTimeout = const Duration(seconds: 10),
+    Future<void> Function()? releaseDarkroomJobs,
     void Function(String message, {Object? error})? onCritical,
   }) {
     return DesktopLastGasp(
       recordFile: recordFile,
       safeRig: safeRig,
       exitProcess: exits.add,
+      releaseDarkroomJobs: releaseDarkroomJobs,
       safingTimeout: safingTimeout,
+      releaseTimeout: releaseTimeout,
       onCritical: onCritical,
       version: '6.1.0',
       pid: 4242,
@@ -272,5 +276,62 @@ void main() {
           'Crying "unreadable record" on every fresh install would make the '
           'notice worthless.',
     );
+  });
+
+  // The GUI drains the same dawn queue the daemon does, so it owes the same
+  // hand-back: a pass left `running` by an orderly quit is read at the next
+  // open as a dead process and charged one of the job's three starts. Three
+  // ordinary quits during a dawn pass then fail the night outright.
+  group('the Darkroom queue', () {
+    test('a running pass is handed back before the rig is safed', () async {
+      final order = <String>[];
+      final exits = <int>[];
+      final lastGasp = build(
+        safeRig: () async => order.add('safe'),
+        releaseDarkroomJobs: () async => order.add('release'),
+        exits: exits,
+      );
+
+      await lastGasp.handleFatal('Received SIGTERM');
+
+      expect(order, ['release', 'safe']);
+      expect(exits, [70]);
+    });
+
+    test('a hand-back that hangs never blocks the exit', () async {
+      final exits = <int>[];
+      final criticals = <String>[];
+      final lastGasp = build(
+        safeRig: () async {},
+        releaseDarkroomJobs: () => Completer<void>().future,
+        releaseTimeout: const Duration(milliseconds: 20),
+        onCritical: (message, {error}) => criticals.add(message),
+        exits: exits,
+      );
+
+      await lastGasp.handleFatal('Received SIGTERM');
+
+      expect(exits, [70]);
+      expect(
+        criticals.any((m) => m.contains('could not be handed back')),
+        isTrue,
+        reason: 'the operator is told the next launch will spend a start',
+      );
+    });
+
+    test('an operator quit hands the pass back too', () async {
+      final released = <int>[];
+      final exits = <int>[];
+      final lastGasp = build(
+        safeRig: () async {},
+        releaseDarkroomJobs: () async => released.add(1),
+        exits: exits,
+      );
+
+      lastGasp.recordCleanExit('Window closed');
+      await lastGasp.handOffDarkroomWork();
+
+      expect(released, hasLength(1), reason: 'once, not once per caller');
+    });
   });
 }

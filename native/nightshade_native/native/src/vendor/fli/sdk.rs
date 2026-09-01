@@ -152,6 +152,43 @@ pub(crate) fn get_sdk() -> Result<&'static FliSdk, NativeError> {
     FliSdk::get_or_reason().map_err(|reason| NativeError::SdkError(reason.to_string()))
 }
 
+/// What one libfli return code means for a call that asks a device to do
+/// something it may not have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FliCapabilityAnswer {
+    /// The device did it.
+    Done,
+    /// The device has no such control. libfli answers a command a model does
+    /// not implement with a negative errno from a small documented set, not
+    /// with a device-specific failure.
+    NotSupported(c_long),
+    /// The call reached the device and failed.
+    Failed(c_long),
+}
+
+/// libfli's "this device has no such command" answers, as negative errno.
+///
+/// `EINVAL` is in the set because libfli's per-model dispatch returns it for a
+/// command a model does not implement; the others are the generic
+/// not-implemented codes. Everything else is a real failure.
+const FLI_NOT_SUPPORTED: [c_long; 4] = [
+    -22, // EINVAL
+    -25, // ENOTTY
+    -38, // ENOSYS
+    -95, // EOPNOTSUPP
+];
+
+/// Classify a libfli return code for an optional capability.
+pub(crate) fn fli_capability_answer(result: c_long) -> FliCapabilityAnswer {
+    if result == 0 {
+        FliCapabilityAnswer::Done
+    } else if FLI_NOT_SUPPORTED.contains(&result) {
+        FliCapabilityAnswer::NotSupported(result)
+    } else {
+        FliCapabilityAnswer::Failed(result)
+    }
+}
+
 pub(crate) fn check_fli_error(result: c_long, context: &str) -> Result<(), NativeError> {
     if result == 0 {
         Ok(())

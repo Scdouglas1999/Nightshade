@@ -73,6 +73,116 @@ NightshadeEvent _evt({
 );
 
 void main() {
+  // routeRendered is what the dawn autopilot's morning message goes through,
+  // and that message is the only surface listing the night's delivery
+  // problems. Every gate below used to be a bare `return`, so the producer
+  // could only report that it had ASKED — and it reported "sent".
+  group('a routed message reports what left the process', () {
+    test('a dispatch names the transports it reached', () async {
+      final pushover = _RecordingTransport(NotificationTransportKind.pushover);
+      final router = NotificationRouter(
+        transports: [pushover],
+        matrix: const NotificationRoutingMatrix(
+          rules: {
+            NotificationCategory.darkroomDraftReady: NotificationRoutingRule(
+              transports: [NotificationTransportKind.pushover],
+            ),
+          },
+        ),
+      );
+
+      final outcome = router.routeRendered(
+        category: NotificationCategory.darkroomDraftReady,
+        title: 'Your night is ready',
+        body: 'Three drafts',
+      );
+
+      expect(outcome.anyDispatched, isTrue);
+      expect(outcome.dispatched, [NotificationTransportKind.pushover]);
+      expect(outcome.dropReason, isNull);
+      await router.dispose();
+    });
+
+    test('routing switched off says so', () async {
+      final router = NotificationRouter(
+        transports: [_RecordingTransport(NotificationTransportKind.pushover)],
+        matrix: const NotificationRoutingMatrix(enabled: false),
+      );
+
+      final outcome = router.routeRendered(
+        category: NotificationCategory.darkroomDraftReady,
+        title: 'Your night is ready',
+        body: 'Three drafts',
+      );
+
+      expect(outcome.anyDispatched, isFalse);
+      expect(outcome.dropReason, contains('switched off'));
+      await router.dispose();
+    });
+
+    test('a row with no configured transport says so', () async {
+      final unpaired = _RecordingTransport(
+        NotificationTransportKind.systemPush,
+        configured: false,
+      );
+      final router = NotificationRouter(
+        transports: [unpaired],
+        matrix: const NotificationRoutingMatrix(
+          rules: {
+            NotificationCategory.darkroomDraftReady: NotificationRoutingRule(
+              transports: [NotificationTransportKind.systemPush],
+            ),
+          },
+        ),
+      );
+
+      final outcome = router.routeRendered(
+        category: NotificationCategory.darkroomDraftReady,
+        title: 'Your night is ready',
+        body: 'Three drafts',
+      );
+
+      expect(outcome.anyDispatched, isFalse);
+      expect(
+        outcome.dropReason,
+        contains('No transport'),
+        reason: 'the phone was never paired; the operator hears about it',
+      );
+      expect(unpaired.sent, isEmpty);
+      await router.dispose();
+    });
+
+    test('a repeat inside the dedupe window is a drop, not a send', () async {
+      final pushover = _RecordingTransport(NotificationTransportKind.pushover);
+      final router = NotificationRouter(
+        transports: [pushover],
+        matrix: const NotificationRoutingMatrix(
+          rules: {
+            NotificationCategory.darkroomDraftReady: NotificationRoutingRule(
+              transports: [NotificationTransportKind.pushover],
+            ),
+          },
+        ),
+      );
+
+      final first = router.routeRendered(
+        category: NotificationCategory.darkroomDraftReady,
+        title: 'Your night is ready',
+        body: 'Three drafts',
+      );
+      final second = router.routeRendered(
+        category: NotificationCategory.darkroomDraftReady,
+        title: 'Your night is ready',
+        body: 'Three drafts',
+      );
+
+      expect(first.anyDispatched, isTrue);
+      expect(second.anyDispatched, isFalse);
+      expect(second.dropReason, contains('already gone out'));
+      await router.dispose();
+    });
+  });
+
   test('matrix disabled drops every event', () async {
     final t = _RecordingTransport(NotificationTransportKind.pushover);
     final router = NotificationRouter(

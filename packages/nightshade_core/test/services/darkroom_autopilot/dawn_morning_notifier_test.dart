@@ -100,7 +100,7 @@ void main() {
     },
   );
 
-  test('an open gate dispatches the message through the router', () async {
+  test('an open gate sends, and the decision names what took it', () async {
     final built = _build(
       const AppSettingsState(
         notificationsEnabled: true,
@@ -112,27 +112,28 @@ void main() {
     final decision = await built.notifier.announce(_report());
 
     expect(decision.sent, isTrue);
-    expect(decision.reason, contains('notification router'));
+    expect(decision.reason, contains('webhook'));
     expect(built.posts(), greaterThan(0));
   });
 
-  test(
-    'a dispatch no webhook accepted says so instead of claiming delivery',
-    () async {
-      final built = _build(
-        const AppSettingsState(
-          notificationsEnabled: true,
-          notifyOnSequenceComplete: true,
-          soundEnabled: false,
-        ),
-      );
-      final decision = await built.notifier.announce(_report());
+  test('a message nothing carried is not reported as sent', () async {
+    // No webhook configured and no router on this service, so nothing left
+    // the process. `sent` used to be hard-coded true here, and the morning
+    // message is the ONLY surface that lists the night's delivery problems —
+    // so a night nobody was told about read exactly like one they were.
+    final built = _build(
+      const AppSettingsState(
+        notificationsEnabled: true,
+        notifyOnSequenceComplete: true,
+        soundEnabled: false,
+      ),
+    );
+    final decision = await built.notifier.announce(_report());
 
-      expect(decision.sent, isTrue);
-      expect(decision.reason, contains('no Discord or Pushover webhook'));
-      expect(built.posts(), 0);
-    },
-  );
+    expect(decision.sent, isFalse);
+    expect(decision.reason, contains('Nothing was sent'));
+    expect(built.posts(), 0);
+  });
 
   group('the deep link the tap follows', () {
     DawnMasterReport master({

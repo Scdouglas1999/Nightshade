@@ -417,6 +417,89 @@ void main() {
       expect(requeued.attempts, 0);
     });
 
+    test(
+      'an acknowledged row cannot be walked back to failed or retrying',
+      () async {
+        await journal.recordAttempt(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: file,
+          bytes: 4096,
+          now: DateTime.utc(2026, 8, 16, 5),
+        );
+        await journal.markDelivered(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: file,
+          checksum: 'sha256:abc123',
+          now: DateTime.utc(2026, 8, 16, 6, 12),
+        );
+
+        // The sweep took its work list before the desktop's acknowledgement
+        // landed, and writes the outcome of the attempt it had already started.
+        // It goes straight to the outcome writer, so the guard on recordAttempt
+        // never sees it.
+        final failed = await journal.markFailed(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: file,
+          error: 'the file is no longer on the rig',
+          now: DateTime.utc(2026, 8, 16, 7),
+        );
+        expect(
+          failed.state,
+          DeliveryAttemptState.delivered,
+          reason: 'the desktop has the file; the caller is told so, not obeyed',
+        );
+        expect(failed.deliveredAt, DateTime.utc(2026, 8, 16, 6, 12));
+        expect(failed.lastError, isNull);
+
+        final retrying = await journal.markRetrying(
+          targetId: targetId,
+          jobId: jobId,
+          filePath: file,
+          error: 'the file is no longer on the rig',
+          now: DateTime.utc(2026, 8, 16, 7, 5),
+        );
+        expect(retrying.state, DeliveryAttemptState.delivered);
+        expect(
+          await journal.listPendingRetry(),
+          isEmpty,
+          reason: 'a file the desktop already pulled is never re-offered',
+        );
+      },
+    );
+
+    test('requeueForRetry clears the arrival timestamp it undoes', () async {
+      await journal.recordAttempt(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        now: DateTime.utc(2026, 8, 16, 5),
+      );
+      await journal.markDelivered(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        now: DateTime.utc(2026, 8, 16, 6, 12),
+      );
+
+      // The one legal exit from delivered: the operator asking for another go.
+      final requeued = await journal.requeueForRetry(
+        targetId: targetId,
+        jobId: jobId,
+        filePath: file,
+        now: DateTime.utc(2026, 8, 16, 8),
+      );
+      expect(requeued.state, DeliveryAttemptState.retrying);
+      expect(
+        requeued.deliveredAt,
+        isNull,
+        reason:
+            'a row cannot say both that the file arrived and that it has not',
+      );
+    });
+
     test('a spent delivery fails with its last reason', () async {
       await journal.recordAttempt(
         targetId: targetId,

@@ -35,6 +35,36 @@ import 'stop_push_arbiter.dart';
 import 'transports/notification_transport.dart';
 import 'transports/system_push_transport.dart';
 
+/// What one routed message actually did.
+///
+/// The router has seven legitimate reasons to send nothing — routing off, the
+/// row off, below the row's severity floor, debounced, rate-limited, no
+/// configured transport, and already-said — and a producer that reports
+/// "notified" needs to know which one happened. [dispatched] names the
+/// transports the message was HANDED TO; each transport's own success or
+/// failure lands later in [NotificationRouter.lastResults], because the sends
+/// are deliberately not awaited.
+class NotificationRouteOutcome {
+  /// The transports the message was handed to, in routing order.
+  final List<NotificationTransportKind> dispatched;
+
+  /// Why nothing was sent, naming the gate that decided. Null when something
+  /// was.
+  final String? dropReason;
+
+  const NotificationRouteOutcome.dispatched(this.dispatched)
+    : dropReason = null;
+
+  const NotificationRouteOutcome.dropped(String this.dropReason)
+    : dispatched = const [];
+
+  /// True when the message reached at least one transport.
+  bool get anyDispatched => dispatched.isNotEmpty;
+
+  /// The transports named for an operator-facing sentence.
+  String get dispatchedNames => dispatched.map((k) => k.name).join(', ');
+}
+
 /// Public entry point the router uses to fan out a single notification.
 /// Tests can construct a router with an in-memory transport set and
 /// call [route] directly with a synthetic context.
@@ -380,7 +410,16 @@ class NotificationRouter {
   /// [deepLink] is the phone's `type[:arg]` tap payload. Only the systemPush
   /// transport can act on it; the others ignore it, because an email has
   /// nowhere to navigate to.
-  void routeRendered({
+  /// Returns what actually left the process, or why nothing did.
+  ///
+  /// Every gate below is a legitimate reason to send nothing, and each one used
+  /// to be a bare `return` — so a producer could only ever report that it had
+  /// asked. The dawn autopilot's morning message is the one surface that lists
+  /// the night's delivery problems, and it was telling the operator it had been
+  /// sent on nights where the routing row was off, the phone was not paired, or
+  /// the debounce swallowed it. A caller that states an outcome needs the
+  /// outcome.
+  NotificationRouteOutcome routeRendered({
     required NotificationCategory category,
     required String title,
     required String body,
@@ -388,23 +427,60 @@ class NotificationRouter {
     List<NotificationTransportKind>? explicitTransports,
     String? deepLink,
   }) {
-    if (!_matrix.enabled) return;
+    if (!_matrix.enabled) {
+      return const NotificationRouteOutcome.dropped(
+        'Notification routing is switched off in Settings',
+      );
+    }
     final baseRule = _ruleFor(category);
-    if (!baseRule.enabled) return;
-    if (severity.index < baseRule.minSeverity.index) return;
-    if (_isDebounced(category, baseRule)) return;
-    if (_isRateLimited(category, baseRule)) return;
+    if (!baseRule.enabled) {
+      return NotificationRouteOutcome.dropped(
+        'The ${category.name} routing row is switched off in Settings',
+      );
+    }
+    if (severity.index < baseRule.minSeverity.index) {
+      return NotificationRouteOutcome.dropped(
+        'The ${category.name} routing row only sends '
+        '${baseRule.minSeverity.name} and above, and this was ${severity.name}',
+      );
+    }
+    if (_isDebounced(category, baseRule)) {
+      return NotificationRouteOutcome.dropped(
+        'Another ${category.name} notification went out inside this row\'s '
+        'debounce window',
+      );
+    }
+    if (_isRateLimited(category, baseRule)) {
+      return NotificationRouteOutcome.dropped(
+        'The ${category.name} routing row has spent its hourly rate limit',
+      );
+    }
 
     final eligible = _eligibleTransports(
       explicitTransports ?? baseRule.transports,
     );
-    if (eligible.isEmpty) return;
+    if (eligible.isEmpty) {
+      return NotificationRouteOutcome.dropped(
+        'No transport on the ${category.name} routing row is configured — '
+        'nothing is paired or set up to receive it',
+      );
+    }
 
     _lastFireTime[category] = _now();
     _recordRateHit(category);
+    final dispatched = <NotificationTransportKind>[];
     for (final transport in eligible) {
-      _dispatch(transport, category, title, body, deepLink: deepLink);
+      if (_dispatch(transport, category, title, body, deepLink: deepLink)) {
+        dispatched.add(transport.kind);
+      }
     }
+    if (dispatched.isEmpty) {
+      return const NotificationRouteOutcome.dropped(
+        'The same message had already gone out on every routed transport '
+        'moments earlier',
+      );
+    }
+    return NotificationRouteOutcome.dispatched(dispatched);
   }
 
   /// Send a single test notification through one specific transport.
@@ -592,7 +668,9 @@ class NotificationRouter {
     window.record(_now());
   }
 
-  void _dispatch(
+  /// Hand one message to one transport. Returns false when the dedupe window
+  /// swallowed it, which is the seventh way a routed message can send nothing.
+  bool _dispatch(
     NotificationTransport transport,
     NotificationCategory category,
     String title,
@@ -603,7 +681,7 @@ class NotificationRouter {
     // physical happening (see [_recentSignatures]); the operator must be told
     // once. The signature is per transport kind, so an external alert is never
     // swallowed because the UI already said it.
-    if (_isDuplicate(transport.kind, title, body)) return;
+    if (_isDuplicate(transport.kind, title, body)) return false;
 
     // Fire and forget — the transport's own timeout caps the wait. We
     // record the result so the settings UI can show the latest status.
@@ -644,6 +722,7 @@ class NotificationRouter {
         );
       }
     });
+    return true;
   }
 
   List<NotificationTransport> _eligibleTransports(

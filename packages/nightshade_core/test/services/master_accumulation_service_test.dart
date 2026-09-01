@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:nightshade_core/src/database/daos/dark_library_dao.dart';
 import 'package:nightshade_core/src/database/daos/flat_library_dao.dart';
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
@@ -362,4 +365,153 @@ void main() {
       throwsStateError,
     );
   });
+
+  group('a retired accumulator', () {
+    late Directory dir;
+    late String sidecarPath;
+    late _RetiringSeam retiringSeam;
+    late MasterAccumulationService retiringService;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('ns_master_retired');
+      sidecarPath = p.join(dir.path, 'm51.nsmaster');
+      File(sidecarPath).writeAsStringSync('v1 accumulator state');
+      File('$sidecarPath.calib.json').writeAsStringSync('{"folds":[]}');
+      retiringSeam = _RetiringSeam(sidecarPath);
+      retiringService = MasterAccumulationService(
+        mastersDao: mastersDao,
+        darkLibrary: DarkLibraryService(DarkLibraryDao(db)),
+        flatLibrary: FlatLibraryService(dao: FlatLibraryDao(db), seam: seam),
+        seam: retiringSeam,
+      );
+    });
+
+    tearDown(() {
+      if (dir.existsSync()) dir.deleteSync(recursive: true);
+    });
+
+    Future<int> seedMaster() async {
+      final ref = await insertSub('${dir.path}/ref.fits');
+      return retiringService.createMaster(
+        referenceSub: ref,
+        sidecarPath: sidecarPath,
+        targetName: 'M51',
+        filter: 'L',
+      );
+    }
+
+    test('is archived aside and the night lands in a new master', () async {
+      final retiredId = await seedMaster();
+      final night = [
+        await insertSub('${dir.path}/a.fits'),
+        await insertSub('${dir.path}/b.fits'),
+      ];
+
+      final result = await retiringService.addNight(
+        masterId: retiredId,
+        subs: night,
+        label: '2026-08-16',
+      );
+
+      // The night was folded, not lost.
+      expect(result.framesAdded, 2);
+
+      // The retired state was moved aside, never deleted — it is the only
+      // record of how those earlier nights were accumulated.
+      expect(File(sidecarPath).existsSync(), isFalse);
+      expect(
+        File('$sidecarPath$kSupersededSidecarSuffix').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$sidecarPath.calib.json$kSupersededSidecarSuffix').existsSync(),
+        isTrue,
+      );
+
+      final notice = retiringService.lastRestart;
+      expect(notice, isNotNull);
+      expect(notice!.retiredMasterId, retiredId);
+      expect(notice.newMasterId, isNot(retiredId));
+      expect(notice.reason, contains(kRetiredMasterSidecarMarker));
+
+      // The new master carries the operator's target and filter, holds this
+      // night's subs, and has its own sidecar.
+      final fresh = await mastersDao.getById(notice.newMasterId);
+      expect(fresh, isNotNull);
+      expect(fresh!.name, 'M51 · L');
+      expect(fresh.filter, 'L');
+      expect(fresh.status, IntegratedMasterStatus.accumulating);
+      expect(fresh.sidecarPath, isNot(sidecarPath));
+      expect(
+        await mastersDao.getFoldedImageIds(notice.newMasterId),
+        night.map((s) => s.id).toSet(),
+      );
+
+      // Every sub of every earlier night is selectable again, because the new
+      // master has no fold records of its own beyond tonight's.
+      final retiredRow = await mastersDao.getById(retiredId);
+      expect(
+        retiredRow,
+        isNotNull,
+        reason: 'what the retired master recorded did happen; it is kept',
+      );
+    });
+
+    test('is never superseded twice', () async {
+      final retiredId = await seedMaster();
+      final night = [await insertSub('${dir.path}/a.fits')];
+      await retiringService.addNight(
+        masterId: retiredId,
+        subs: night,
+        label: '2026-08-16',
+      );
+      final mastersAfterFirst = (await mastersDao.getAll()).length;
+
+      // The operator presses the same button again on the same (retired)
+      // master. It must say where the state went, not start a third master.
+      await expectLater(
+        retiringService.addNight(
+          masterId: retiredId,
+          subs: [await insertSub('${dir.path}/c.fits')],
+          label: '2026-08-17',
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains(kSupersededSidecarSuffix),
+              contains(kRetiredMasterSidecarMarker),
+            ),
+          ),
+        ),
+      );
+      expect((await mastersDao.getAll()).length, mastersAfterFirst);
+    });
+  });
+}
+
+/// A seam whose `add` refuses the retired sidecar exactly the way the native
+/// side does — the marker clause `masters.rs` writes.
+class _RetiringSeam extends FakePostSessionSeam {
+  _RetiringSeam(this.retiredSidecar);
+
+  final String retiredSidecar;
+
+  @override
+  Future<MasterAccumulateResult> masterAccumulate(
+    Map<String, dynamic> args,
+  ) async {
+    if (args['op'] == 'add' && args['sidecarPath'] == retiredSidecar) {
+      throw StateError(
+        "this accumulating master's $kRetiredMasterSidecarMarker: sidecar "
+        'version 1 was built by an earlier Nightshade whose frame '
+        'normalization was defective and erased star flux from the fold, so '
+        'it cannot be extended. Start a new master — every original sub is '
+        'untouched on disk and re-integrates cleanly (this build reads '
+        'version 2).',
+      );
+    }
+    return super.masterAccumulate(args);
+  }
 }

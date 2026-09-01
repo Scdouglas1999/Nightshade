@@ -6,15 +6,29 @@ use super::*;
 /// whose normalization erased star flux from every fold (retired as
 /// MASTER_STATE_VERSION 2). The message must say "start fresh, your subs are
 /// safe", not "corrupt", because the operator's next action is different.
+/// The clause that marks a refusal of a sidecar format this build has retired.
+///
+/// The Dart side matches on it (`kRetiredMasterSidecarMarker` in
+/// `master_accumulation_service.dart`) to archive the retired accumulator aside
+/// and start a new master rather than losing the night. The seam between the
+/// two is a plain string, so the phrase is the contract, pinned by a test on
+/// each side.
+pub(crate) const RETIRED_SIDECAR_MARKER: &str = "accumulator format has been retired";
+
 fn describe_sidecar_error(e: nightshade_imaging::master_accumulation::MasterError) -> String {
     use nightshade_imaging::master_accumulation::MasterError;
     match e {
+        // The leading clause is also the marker the Dart side matches on to run
+        // the graceful half — archive this accumulator aside and carry the
+        // night into a new master. It is a sentence, not a code, because the
+        // operator reads the same string; `RETIRED_SIDECAR_MARKER` and its test
+        // keep it from drifting.
         MasterError::UnsupportedVersion { got, supported } if got < supported => format!(
-            "this accumulating master (sidecar version {got}) was built by an earlier \
-             Nightshade whose frame normalization was defective and erased star flux \
-             from the fold; it cannot be extended. Start a new master — every original \
-             sub is untouched on disk and re-integrates cleanly (this build reads \
-             version {supported})."
+            "this accumulating master's {RETIRED_SIDECAR_MARKER}: sidecar version {got} was \
+             built by an earlier Nightshade whose frame normalization was defective and \
+             erased star flux from the fold, so it cannot be extended. Start a new master — \
+             every original sub is untouched on disk and re-integrates cleanly (this build \
+             reads version {supported})."
         ),
         other => format!("corrupt sidecar: {other}"),
     }
@@ -124,6 +138,12 @@ pub(crate) struct MasterAccumulateResult {
     /// master's FITS `HISTORY`.
     #[serde(default)]
     pub(crate) calibration: Option<CalibrationReport>,
+    /// Why this fold's calibration could not be recorded in the master's log,
+    /// when it could not. The fold itself succeeded — it is in the sidecar — and
+    /// only its provenance is missing, so this rides back as a warning instead
+    /// of failing a call whose work is already durable.
+    #[serde(default)]
+    pub(crate) calibration_log_warning: Option<String>,
 }
 
 pub(crate) fn master_create(args_json: &str) -> Result<MasterAccumulateResult, String> {
@@ -183,6 +203,7 @@ pub(crate) fn master_create(args_json: &str) -> Result<MasterAccumulateResult, S
         rejected: 0,
         frame_weights: Vec::new(),
         calibration: None,
+        calibration_log_warning: None,
     })
 }
 
@@ -372,14 +393,27 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
     // The sidecar carries no calibration, and the FITS is only written at
     // `finalize` — possibly nights later, in another process. The log beside the
     // sidecar is where this fold's calibration survives until then.
-    append_fold_calibration(
+    //
+    // The fold is committed above, and the caller records which subs went in
+    // only when this call succeeds. Returning Err here would therefore make the
+    // retry fold the same lights a second time — inflating the frame count and
+    // weighting the pixels with duplicated data — to punish a provenance file.
+    // The lost provenance rides back as a warning instead.
+    let calibration_log_warning = append_fold_calibration(
         sidecar,
         FoldCalibration {
             label: label.clone(),
             lights: args.light_paths.len(),
             report: calibration_report.clone(),
         },
-    )?;
+    )
+    .err();
+    if let Some(warning) = calibration_log_warning.as_deref() {
+        tracing::warn!(
+            "fold '{label}' is committed to '{}' but its calibration could not be recorded: {warning}",
+            sidecar.display()
+        );
+    }
 
     Ok(MasterAccumulateResult {
         sidecar_path: args.sidecar_path,
@@ -394,6 +428,7 @@ pub(crate) fn master_add(args_json: &str) -> Result<MasterAccumulateResult, Stri
         rejected: report.rejected,
         frame_weights: weights,
         calibration: Some(calibration_report),
+        calibration_log_warning,
     })
 }
 
@@ -406,7 +441,20 @@ pub(crate) fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult,
     let sidecar = Path::new(&args.sidecar_path);
     let bytes = std::fs::read(sidecar).map_err(|e| format!("failed to read sidecar: {e}"))?;
     let master = IntegratedMaster::deserialize(&bytes).map_err(describe_sidecar_error)?;
-    let calibration_log = read_fold_calibration_log(sidecar)?;
+    // A provenance log that cannot be read is reported in the master's HISTORY,
+    // not turned into a refusal: the sidecar holds every night already folded in
+    // and the log holds only the story of how they were calibrated. Blocking the
+    // FITS would cost the operator the data to protect the record of it.
+    let calibration_log = match read_fold_calibration_log(sidecar) {
+        Ok(log) => Ok(log),
+        Err(reason) => {
+            tracing::warn!(
+                "finalizing '{}' without its calibration record: {reason}",
+                sidecar.display()
+            );
+            Err(reason)
+        }
+    };
 
     let image = master.finalize();
     let master_path = Path::new(&args.master_fits_path);
@@ -428,11 +476,13 @@ pub(crate) fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult,
         master.metadata.total_frames,
         master.metadata.folds.len()
     ));
-    let calibration_warns = write_fold_calibration_history(
-        &mut header,
-        calibration_log.as_ref(),
-        master.metadata.folds.len(),
-    );
+    let record = match calibration_log.as_ref() {
+        Ok(Some(log)) => FoldCalibrationRecord::Present(log),
+        Ok(None) => FoldCalibrationRecord::Missing,
+        Err(reason) => FoldCalibrationRecord::Unreadable(reason),
+    };
+    let calibration_warns =
+        write_fold_calibration_history(&mut header, record, master.metadata.folds.len());
     header.set_bool("CALWARN", calibration_warns);
     write_fits(master_path, &image, &header)
         .map_err(|e| format!("failed to write master: {e:?}"))?;
@@ -461,6 +511,7 @@ pub(crate) fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult,
         rejected: 0,
         frame_weights: Vec::new(),
         calibration: None,
+        calibration_log_warning: None,
     })
 }
 
@@ -483,6 +534,7 @@ pub(crate) fn master_info(args_json: &str) -> Result<MasterAccumulateResult, Str
         rejected: 0,
         frame_weights: Vec::new(),
         calibration: None,
+        calibration_log_warning: None,
     })
 }
 

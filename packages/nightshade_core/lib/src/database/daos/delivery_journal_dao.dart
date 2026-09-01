@@ -258,6 +258,11 @@ class DeliveryJournalDao {
   /// `last_error` is KEPT. Until another attempt is made, why the file did not
   /// arrive is still the most recent true thing about it, and the status line
   /// goes on saying so while it waits.
+  ///
+  /// `delivered_at` is CLEARED. This is the one way back out of `delivered`, so
+  /// it is also the one place that can leave an arrival timestamp on a file the
+  /// journal now says has not arrived — the contradiction every other writer is
+  /// guarded against.
   Future<DeliveryJournalEntry> requeueForRetry({
     required int targetId,
     required int jobId,
@@ -267,7 +272,8 @@ class DeliveryJournalDao {
     await _require(targetId, jobId, filePath);
     final at = _toEpochSeconds(now ?? DateTime.now());
     await _db.customUpdate(
-      'UPDATE delivery_journal SET state = ?, attempts = 0, updated_at = ? '
+      'UPDATE delivery_journal SET state = ?, attempts = 0, '
+      'delivered_at = NULL, updated_at = ? '
       'WHERE target_id = ? AND job_id = ? AND file_path = ?',
       variables: [
         Variable<String>(DeliveryAttemptState.retrying.wire),
@@ -340,6 +346,20 @@ class DeliveryJournalDao {
     return rows.map(_map).toList();
   }
 
+  /// The shared write behind [markRetrying] and [markFailed].
+  ///
+  /// **A `delivered` row is left exactly as it is** and returned untouched, for
+  /// the reason [recordAttempt] gives at length. The guard belongs here as well
+  /// as there because these two are reached on paths that never went through
+  /// [recordAttempt]: the overnight sweep writes the outcome of an attempt it
+  /// started before it read the row, and the acknowledgement from a paired
+  /// desktop can land at any point in between. Without it an acknowledged row
+  /// walked back to `failed` while its `delivered_at` stayed set — a row saying
+  /// both that the file arrived and that it did not, which the settings page
+  /// then read as "Delivered 06:12" beside a failed destination.
+  ///
+  /// The caller is told, not obeyed: the returned entry still reads
+  /// `delivered`, so a pass counts it as already delivered rather than failed.
   Future<DeliveryJournalEntry> _recordOutcome({
     required int targetId,
     required int jobId,
@@ -352,7 +372,7 @@ class DeliveryJournalDao {
     final at = _toEpochSeconds(now ?? DateTime.now());
     await _db.customUpdate(
       'UPDATE delivery_journal SET state = ?, last_error = ?, updated_at = ? '
-      'WHERE target_id = ? AND job_id = ? AND file_path = ?',
+      'WHERE target_id = ? AND job_id = ? AND file_path = ? AND state <> ?',
       variables: [
         Variable<String>(state.wire),
         Variable<String>(error),
@@ -360,6 +380,7 @@ class DeliveryJournalDao {
         Variable<int>(targetId),
         Variable<int>(jobId),
         Variable<String>(filePath),
+        Variable<String>(DeliveryAttemptState.delivered.wire),
       ],
       updateKind: UpdateKind.update,
     );

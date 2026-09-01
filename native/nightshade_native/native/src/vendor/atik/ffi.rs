@@ -125,3 +125,62 @@ pub(crate) fn atik_sensor_colour(colour_type: c_int) -> Option<AtikSensorColour>
         _ => None,
     }
 }
+
+/// What `connect` does with the SDK's answer about the sensor's colour filter
+/// array.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum AtikColourDecision {
+    /// The SDK named the sensor; publish it.
+    Publish(AtikSensorColour),
+    /// The SDK has no answer to give for this body. Connect as monochrome —
+    /// which is what the camera was before this call existed — and say so, with
+    /// the reason.
+    ConnectAsMono(String),
+    /// The SDK named something, and it is not something this build can image
+    /// with. Refuse, with the reason.
+    Refuse(String),
+}
+
+/// Decide what an `ArtemisColourProperties` outcome means for the connect.
+///
+/// Three different answers hide behind "not RGGB", and collapsing them was a
+/// defect in both directions. Reading a failed call's untouched `0` seed as
+/// monochrome published a claim the SDK refused to make, and every frame of a
+/// one-shot-colour night lost its BAYERPAT card. Refusing every one of them
+/// instead made bodies that have no such property — older mono cameras and
+/// older AtikCameras builds answer `NotImplemented` — impossible to connect at
+/// all, where they had imaged as mono for years.
+///
+/// So: a body that cannot answer connects as mono and says why (mono is not a
+/// guess there — a camera with no colour property is not a CFA sensor, and
+/// `bayer_pattern: None` is already the "do not debayer" state). A body that
+/// answers with a colour type this build cannot map is still refused: that is a
+/// real CFA the SDK named and we would be guessing at its layout.
+pub(crate) fn atik_colour_decision(
+    outcome: ArtemisError,
+    colour_type: c_int,
+) -> AtikColourDecision {
+    match outcome {
+        ArtemisError::Ok => match atik_sensor_colour(colour_type) {
+            Some(colour) => AtikColourDecision::Publish(colour),
+            None if colour_type == ARTEMIS_COLOUR_UNKNOWN => AtikColourDecision::ConnectAsMono(
+                "the SDK reported ARTEMIS_COLOUR_UNKNOWN: it could not determine the sensor's \
+                 colour filter array"
+                    .to_string(),
+            ),
+            None => AtikColourDecision::Refuse(format!(
+                "the SDK reported colour type {colour_type}, a colour filter array this build \
+                 does not recognise"
+            )),
+        },
+        // The call itself is missing on this driver or this body. There is no
+        // colour property to read, which is what a camera with no CFA looks
+        // like; it is not a transport failure.
+        ArtemisError::NotImplemented | ArtemisError::InvalidFunction => {
+            AtikColourDecision::ConnectAsMono(format!(
+                "this camera's driver does not implement ArtemisColourProperties ({outcome:?})"
+            ))
+        }
+        other => AtikColourDecision::Refuse(format!("ArtemisColourProperties failed ({other:?})")),
+    }
+}

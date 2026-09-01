@@ -29,6 +29,44 @@ pub use focuser::*;
 use sdk::*;
 
 #[cfg(test)]
+mod capability_answer_tests {
+    use super::*;
+
+    /// A body with no selectable bit depth is 16-bit, which is the mode the
+    /// connect asks for. Turning libfli's not-supported answer into a hard
+    /// refusal made those bodies impossible to connect; they imaged in 6.2.0.
+    #[test]
+    fn libfli_not_supported_codes_are_not_failures() {
+        for code in [-22, -25, -38, -95] {
+            assert_eq!(
+                fli_capability_answer(code),
+                FliCapabilityAnswer::NotSupported(code),
+                "libfli code {code} means the device has no such control"
+            );
+        }
+    }
+
+    /// Everything else reached the device and failed, and a camera left in
+    /// 8-bit while the app advertises a 65535 full scale mis-scales every frame
+    /// of the night — so those still refuse.
+    #[test]
+    fn other_codes_remain_connect_failures() {
+        for code in [-5, -19, -110, 7] {
+            assert_eq!(
+                fli_capability_answer(code),
+                FliCapabilityAnswer::Failed(code),
+                "libfli code {code} is a real failure"
+            );
+        }
+    }
+
+    #[test]
+    fn zero_is_done() {
+        assert_eq!(fli_capability_answer(0), FliCapabilityAnswer::Done);
+    }
+}
+
+#[cfg(test)]
 mod camera_tests {
     use super::*;
 

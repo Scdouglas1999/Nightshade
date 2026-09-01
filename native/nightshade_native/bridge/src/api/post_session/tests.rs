@@ -1584,6 +1584,214 @@ fn finalize_without_a_calibration_log_states_the_gap() {
     assert_eq!(header.get("CALWARN").and_then(|v| v.as_bool()), Some(true));
 }
 
+/// One fold's lights, folded into a master whose provenance log is already
+/// corrupt on disk.
+///
+/// The fold is committed to the sidecar before the log is touched, and the Dart
+/// caller records the folded sub ids only when the call succeeds — so a call
+/// that commits and then reports failure makes the retry fold the same lights a
+/// second time, inflating `total_frames` and re-weighting the pixels with
+/// duplicated data. The provenance log may not veto a fold that is already
+/// durable.
+#[test]
+fn a_committed_fold_is_not_reported_as_failed_by_its_calibration_log() {
+    let dir = temp_dir("master_corrupt_calibration_log");
+    let size = 128u32;
+    let stars = base_stars(size as f64);
+    let reference = render_field(size, &stars, 400.0);
+    let ref_path = dir.join("ref.fits");
+    write_light_with_metadata(&ref_path, &reference, "2026-08-14T21:00:00");
+    let sidecar = dir.join("m31.nsmaster");
+
+    api_master_accumulate(
+        serde_json::json!({
+            "op": "create",
+            "referencePath": ref_path.to_string_lossy(),
+            "sidecarPath": sidecar.to_string_lossy(),
+            "target": "M31"
+        })
+        .to_string(),
+    )
+    .expect("create");
+
+    // What a process killed mid-write leaves behind: a log that exists and does
+    // not parse.
+    std::fs::write(
+        calibration_log_path(sidecar.as_path()),
+        b"{\"folds\":[{\"label\":\"2026-08-1",
+    )
+    .expect("write a torn log");
+
+    let mut light_paths = Vec::new();
+    for (i, (dx, dy)) in [(0.0, 0.0), (2.0, -1.0)].iter().enumerate() {
+        let field = render_field(size, &shift_stars(&stars, *dx, *dy), 400.0);
+        let p = dir.join(format!("fold{i}.fits"));
+        write_light_with_metadata(&p, &field, "2026-08-14T21:00:00");
+        light_paths.push(p.to_string_lossy().to_string());
+    }
+
+    let outcome = api_master_accumulate(
+        serde_json::json!({
+            "op": "add",
+            "sidecarPath": sidecar.to_string_lossy(),
+            "lightPaths": light_paths,
+            "exposuresSec": [60.0, 60.0],
+            "label": "2026-08-14",
+            "settings": { "align": synthetic_align() }
+        })
+        .to_string(),
+    );
+
+    // What the sidecar actually holds, whatever the call answered.
+    let info: MasterAccumulateResult = serde_json::from_str(
+        &api_master_accumulate(
+            serde_json::json!({"op": "info", "sidecarPath": sidecar.to_string_lossy()}).to_string(),
+        )
+        .expect("info"),
+    )
+    .unwrap();
+
+    let resp = match outcome {
+        Ok(resp) => resp,
+        Err(e) => panic!(
+            "the fold is already committed to the sidecar ({} frames) but master_add reported failure, so the caller retries and folds the same lights again: {e}",
+            info.frame_count
+        ),
+    };
+    let added: MasterAccumulateResult = serde_json::from_str(&resp).unwrap();
+    assert_eq!(added.frames_added, 2);
+    assert_eq!(info.frame_count, 2);
+    let warning = added
+        .calibration_log_warning
+        .expect("a fold whose provenance could not be recorded says so");
+    assert!(
+        warning.contains("corrupt calibration log"),
+        "the warning names what went wrong: {warning}"
+    );
+}
+
+/// A retired accumulator is refused in words the Dart side can act on.
+///
+/// The seam is a plain string, so the marker clause IS the contract: it is what
+/// `master_accumulation_service.dart` matches to archive the retired sidecar
+/// aside and carry the night into a new master. Reword it here and the night
+/// silently starts failing instead.
+#[test]
+fn a_retired_sidecar_is_refused_with_the_marker_the_dart_side_acts_on() {
+    let dir = temp_dir("master_retired_sidecar");
+    let sidecar = dir.join("v1.nsmaster");
+    // A version-1 sidecar: the magic and header this build reads, with the
+    // retired version stamped in it.
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(nightshade_imaging::master_accumulation::MASTER_MAGIC);
+    bytes.extend_from_slice(&1u32.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    std::fs::write(&sidecar, &bytes).expect("write a v1 sidecar");
+
+    let error = api_master_accumulate(
+        serde_json::json!({"op": "info", "sidecarPath": sidecar.to_string_lossy()}).to_string(),
+    )
+    .expect_err("a retired sidecar is refused");
+
+    assert!(
+        error.contains(RETIRED_SIDECAR_MARKER),
+        "the refusal must carry the marker the Dart side matches on: {error}"
+    );
+    assert!(
+        error.contains("every original sub is untouched on disk"),
+        "and must still tell the operator their data is safe: {error}"
+    );
+}
+
+/// The provenance log is written through a temporary sibling and renamed, so a
+/// process killed mid-append leaves the previous log intact rather than a torn
+/// one that fails every later fold.
+#[test]
+fn the_calibration_log_is_written_atomically() {
+    let dir = temp_dir("master_atomic_calibration_log");
+    let sidecar = dir.join("atomic.nsmaster");
+    let report = CalibrationReport {
+        masters: Vec::new(),
+        cosmetic_correction: false,
+        anchor_light: None,
+        anchor_unreadable: false,
+    };
+
+    for label in ["night-one", "night-two"] {
+        append_fold_calibration(
+            sidecar.as_path(),
+            FoldCalibration {
+                label: label.to_string(),
+                lights: 1,
+                report: report.clone(),
+            },
+        )
+        .expect("append");
+    }
+
+    let log = read_fold_calibration_log(sidecar.as_path())
+        .expect("read log")
+        .expect("the log exists");
+    assert_eq!(log.folds.len(), 2);
+    let leftovers: Vec<PathBuf> = std::fs::read_dir(dir.as_ref())
+        .expect("read dir")
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.to_string_lossy().contains("nshatmp"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "an atomic write leaves no temporary behind: {leftovers:?}"
+    );
+}
+
+/// A master whose provenance log cannot be read still gets written.
+///
+/// The sidecar holds the integrated data of every night folded so far; the log
+/// beside it holds the story of how they were calibrated. A torn story must not
+/// cost the operator the master — it costs them the provenance, said out loud
+/// in HISTORY and flagged with CALWARN.
+#[test]
+fn finalize_with_an_unreadable_calibration_log_still_writes_the_master() {
+    let dir = temp_dir("master_unreadable_calibration_log");
+    let size = 64u32;
+    let reference = render_field(size, &base_stars(size as f64), 400.0);
+    let ref_path = dir.join("ref.fits");
+    write_field_fits(&ref_path, &reference);
+    let sidecar = dir.join("torn.nsmaster");
+
+    api_master_accumulate(
+        serde_json::json!({
+            "op": "create",
+            "referencePath": ref_path.to_string_lossy(),
+            "sidecarPath": sidecar.to_string_lossy()
+        })
+        .to_string(),
+    )
+    .expect("create");
+    std::fs::write(calibration_log_path(sidecar.as_path()), b"{\"folds\":[")
+        .expect("write a torn log");
+
+    let master_path = dir.join("torn_master.fits");
+    api_master_accumulate(
+        serde_json::json!({
+            "op": "finalize",
+            "sidecarPath": sidecar.to_string_lossy(),
+            "masterFitsPath": master_path.to_string_lossy()
+        })
+        .to_string(),
+    )
+    .expect("a corrupt provenance log does not block the data product");
+
+    let (_img, header) = read_fits(master_path.as_path()).expect("read master");
+    let history = history_text(&header);
+    assert!(
+        history.contains("Calibration record unreadable"),
+        "the master states why its provenance is missing: {:?}",
+        header.history
+    );
+    assert_eq!(header.get("CALWARN").and_then(|v| v.as_bool()), Some(true));
+}
+
 /// `exposuresSec` is the source of both `totalIntegrationSec` and the
 /// accumulating master's FITS `EXPTIME`, and it was value-unchecked: three
 /// lights at -100 s produced a succeeded job reporting -300.0 seconds of

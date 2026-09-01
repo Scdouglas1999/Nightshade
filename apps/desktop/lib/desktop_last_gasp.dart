@@ -136,9 +136,11 @@ class DesktopLastGasp {
     required File recordFile,
     required Future<void> Function() safeRig,
     required void Function(int code) exitProcess,
+    Future<void> Function()? releaseDarkroomJobs,
     void Function(String message, {Object? error})? onInfo,
     void Function(String message, {Object? error})? onCritical,
     Duration safingTimeout = const Duration(seconds: 45),
+    Duration releaseTimeout = const Duration(seconds: 10),
     Duration errorRecordInterval = const Duration(seconds: 5),
     DateTime Function() now = DateTime.now,
     String? version,
@@ -146,9 +148,11 @@ class DesktopLastGasp {
   }) : _recordFile = recordFile,
        _safeRig = safeRig,
        _exitProcess = exitProcess,
+       _releaseDarkroomJobs = releaseDarkroomJobs,
        _onInfo = onInfo,
        _onCritical = onCritical,
        _safingTimeout = safingTimeout,
+       _releaseTimeout = releaseTimeout,
        _errorRecordInterval = errorRecordInterval,
        _now = now,
        _version = version,
@@ -157,9 +161,11 @@ class DesktopLastGasp {
   final File _recordFile;
   final Future<void> Function() _safeRig;
   final void Function(int code) _exitProcess;
+  final Future<void> Function()? _releaseDarkroomJobs;
   final void Function(String message, {Object? error})? _onInfo;
   final void Function(String message, {Object? error})? _onCritical;
   final Duration _safingTimeout;
+  final Duration _releaseTimeout;
   final Duration _errorRecordInterval;
   final DateTime Function() _now;
   final String? _version;
@@ -170,6 +176,7 @@ class DesktopLastGasp {
   DateTime? _lastErrorWrite;
   bool _shuttingDown = false;
   bool _exited = false;
+  Future<void>? _releaseInFlight;
 
   /// The record left by the PREVIOUS session, or null when there is none (a
   /// first launch, a new data directory, or a record torn in half).
@@ -221,6 +228,11 @@ class DesktopLastGasp {
   }
 
   /// The operator closed the window and the shell let it go.
+  ///
+  /// Synchronous by contract — `windowManager.destroy()` follows immediately —
+  /// so the Darkroom hand-back this also starts is deliberately not awaited
+  /// here. See [handOffDarkroomWork] for what that costs and why the signal
+  /// paths, which can await it, are the ones that guarantee it.
   void recordCleanExit(String reason) {
     if (_shuttingDown) return;
     _write(
@@ -230,6 +242,38 @@ class DesktopLastGasp {
         at: _now(),
       ),
     );
+    unawaited(handOffDarkroomWork());
+  }
+
+  /// Hand any Darkroom pass this process is running back to the queue, once and
+  /// bounded.
+  ///
+  /// The GUI drains the same dawn queue the daemon does. A row left `running`
+  /// by an exit is read at the next open as a process that DIED: it is
+  /// re-queued and charged one of its three starts, so three ordinary quits
+  /// during a dawn pass fail the night's job outright — no drafts, no report,
+  /// no delivery, nothing to retry. An orderly quit is not a crash, and this is
+  /// where the row learns the difference.
+  ///
+  /// Never throws and never blocks the exit past [_releaseTimeout]: a row that
+  /// could not be released stays `running` for the crash recovery, which is the
+  /// behaviour without this step at all.
+  Future<void> handOffDarkroomWork() {
+    final release = _releaseDarkroomJobs;
+    if (release == null) return Future<void>.value();
+    return _releaseInFlight ??= () async {
+      try {
+        await release().timeout(_releaseTimeout);
+        _onInfo?.call('Handed the running Darkroom pass back to the queue');
+      } catch (e) {
+        _onCritical?.call(
+          'The running Darkroom pass could not be handed back to the queue; '
+          'the next launch will read it as an interrupted run and spend one of '
+          'its starts recovering it',
+          error: e,
+        );
+      }
+    }();
   }
 
   /// Remember the newest framework/engine error against the live record.
@@ -285,6 +329,10 @@ class DesktopLastGasp {
         rigSafed: false,
       ),
     );
+
+    // Before safing, while the container and its database are still up: the
+    // Darkroom queue is the one piece of state that reads this exit wrong.
+    await handOffDarkroomWork();
 
     try {
       await _safeRig().timeout(_safingTimeout);

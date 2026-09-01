@@ -99,4 +99,86 @@ mod colour_classification_tests {
             );
         }
     }
+
+    /// A named sensor is published as named.
+    #[test]
+    fn a_named_colour_type_is_published() {
+        assert_eq!(
+            atik_colour_decision(ArtemisError::Ok, ARTEMIS_COLOUR_RGGB),
+            AtikColourDecision::Publish(AtikSensorColour::Rggb)
+        );
+        assert_eq!(
+            atik_colour_decision(ArtemisError::Ok, ARTEMIS_COLOUR_NONE),
+            AtikColourDecision::Publish(AtikSensorColour::Mono)
+        );
+    }
+
+    /// A body whose driver has no colour property still images.
+    ///
+    /// Older mono bodies and older AtikCameras builds answer NotImplemented, and
+    /// refusing that answer made them impossible to connect — a camera that
+    /// imaged fine in 6.2.0 became unusable. Mono is not a guess here: a camera
+    /// with no colour property is not a CFA sensor, and `bayer_pattern: None` is
+    /// already the "do not debayer" state.
+    #[test]
+    fn a_driver_without_the_colour_property_connects_as_mono() {
+        for outcome in [ArtemisError::NotImplemented, ArtemisError::InvalidFunction] {
+            match atik_colour_decision(outcome, ARTEMIS_COLOUR_UNKNOWN) {
+                AtikColourDecision::ConnectAsMono(reason) => {
+                    assert!(
+                        reason.contains("ArtemisColourProperties"),
+                        "the warning names the call that had no answer: {reason}"
+                    );
+                }
+                other => panic!("{outcome:?} must not block the connect: {other:?}"),
+            }
+        }
+    }
+
+    /// UNKNOWN is the SDK declining to determine the array, not a failure to
+    /// reach the camera: connect as mono and say so.
+    #[test]
+    fn an_undetermined_colour_type_connects_as_mono() {
+        match atik_colour_decision(ArtemisError::Ok, ARTEMIS_COLOUR_UNKNOWN) {
+            AtikColourDecision::ConnectAsMono(reason) => {
+                assert!(reason.contains("ARTEMIS_COLOUR_UNKNOWN"), "{reason}");
+            }
+            other => panic!("UNKNOWN must not block the connect: {other:?}"),
+        }
+    }
+
+    /// A CFA the SDK names and this build cannot map is still refused — that is
+    /// a real colour filter array whose layout we would be guessing at.
+    #[test]
+    fn an_unmappable_colour_filter_array_is_still_refused() {
+        for colour_type in [3, 4, 99] {
+            match atik_colour_decision(ArtemisError::Ok, colour_type) {
+                AtikColourDecision::Refuse(reason) => {
+                    assert!(reason.contains(&colour_type.to_string()), "{reason}");
+                }
+                other => panic!("colour type {colour_type} must be refused: {other:?}"),
+            }
+        }
+    }
+
+    /// A call that reached the camera and failed is a transport failure, and
+    /// those still refuse: the sensor description is unknown for a reason that
+    /// says the link itself is bad.
+    #[test]
+    fn a_transport_failure_still_refuses_the_connect() {
+        for outcome in [
+            ArtemisError::NotConnected,
+            ArtemisError::NoResponse,
+            ArtemisError::OperationFailed,
+            ArtemisError::InvalidParameter,
+        ] {
+            assert!(
+                matches!(
+                    atik_colour_decision(outcome, ARTEMIS_COLOUR_UNKNOWN),
+                    AtikColourDecision::Refuse(_)
+                ),
+                "{outcome:?} is a transport failure and must refuse"
+            );
+        }
+    }
 }

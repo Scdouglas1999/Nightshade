@@ -218,56 +218,48 @@ impl NativeDevice for AtikCamera {
                 &mut _preview_offset_y,
             )
         };
-        // This answer is not optional, for the same reason the 16-bit mode call below
-        // is not: it sets `SensorInfo.color` / `bayer_pattern` for the whole session,
+        // This answer sets `SensorInfo.color` / `bayer_pattern` for the whole session,
         // which decides whether every frame carries a BAYERPAT card and is ever
         // debayered. A one-shot-colour sensor published as mono yields a night of
-        // undebayered mosaics under a header that says the camera is monochrome.
+        // undebayered mosaics under a header that says the camera is monochrome — and
+        // that used to happen silently, because a failed call left `colour_type` at its
+        // 0 seed and ARTEMISCOLOURTYPE 0 is ARTEMIS_COLOUR_UNKNOWN ("the colour cannot
+        // be determined", AtikDefs.h:56), NOT monochrome, which is 1.
         //
-        // Two ways that used to happen silently: a failed call left `colour_type` at
-        // its 0 seed, and ARTEMISCOLOURTYPE 0 is ARTEMIS_COLOUR_UNKNOWN — "the colour
-        // cannot be determined" (AtikDefs.h:56), NOT monochrome, which is 1. Both were
-        // read as mono. Neither is a claim we can make, so refuse the connect and say
-        // why rather than image all night against a guessed CFA.
-        let colour = match ArtemisError::from_i32(colour_result) {
-            ArtemisError::Ok => atik_sensor_colour(colour_type),
-            other => {
-                tracing::error!(
-                    "Atik ArtemisColourProperties failed for camera '{}' ({:?}); refusing to connect rather than publish an undetermined sensor as monochrome",
+        // The three outcomes are separated in `atik_colour_decision`: a named CFA is
+        // published, a body whose driver has no colour property connects as mono with a
+        // warning, and a colour type this build cannot map is refused.
+        let colour = match atik_colour_decision(ArtemisError::from_i32(colour_result), colour_type)
+        {
+            AtikColourDecision::Publish(colour) => Some(colour),
+            AtikColourDecision::ConnectAsMono(reason) => {
+                tracing::warn!(
+                    "Atik camera '{}': {}. Connecting as monochrome — frames will carry no BAYERPAT card and will not be debayered. If this is a colour camera, update the AtikCameras driver.",
                     self.device_id,
-                    other
+                    reason
+                );
+                None
+            }
+            AtikColourDecision::Refuse(reason) => {
+                tracing::error!(
+                    "Atik camera '{}': {}; refusing to connect rather than guess the colour filter array",
+                    self.device_id,
+                    reason
                 );
                 // SAFETY: atik_mutex held; `handle` was successfully opened above.
                 // ArtemisDisconnect pairs with ArtemisConnect to release it.
                 unsafe { (sdk.disconnect)(handle) };
-                return Err(other.to_native_error("read sensor colour properties"));
+                return Err(NativeError::SdkError(format!(
+                    "Atik camera '{}': {reason}. Nightshade will not guess a colour filter array, \
+                     because debayering against the wrong one corrupts every frame of the session. \
+                     Update the AtikCameras driver or report this colour type.",
+                    self.device_id
+                )));
             }
         };
-        let Some(colour) = colour else {
-            let detail = if colour_type == ARTEMIS_COLOUR_UNKNOWN {
-                "ARTEMIS_COLOUR_UNKNOWN: the SDK could not determine the sensor's colour filter array"
-            } else {
-                "a colour type this build does not recognise"
-            };
-            tracing::error!(
-                "Atik ArtemisColourProperties reported ARTEMISCOLOURTYPE {} for camera '{}' ({}); refusing to connect rather than guess the colour filter array",
-                colour_type,
-                self.device_id,
-                detail
-            );
-            // SAFETY: atik_mutex held; `handle` was successfully opened above.
-            unsafe { (sdk.disconnect)(handle) };
-            return Err(NativeError::SdkError(format!(
-                "Atik camera '{}' reported colour type {} ({}). \
-                 Nightshade will not publish an undetermined sensor as monochrome, because a colour \
-                 sensor labelled mono produces frames with no BAYERPAT card that are never debayered. \
-                 Update the AtikCameras driver or report this colour type.",
-                self.device_id, colour_type, detail
-            )));
-        };
 
-        let is_color = colour.is_color();
-        let bayer_pattern = colour.bayer_pattern();
+        let is_color = colour.is_some_and(|c| c.is_color());
+        let bayer_pattern = colour.and_then(|c| c.bayer_pattern());
 
         // Set sensor info
         // Why: `props.pixels_x` / `props.pixels_y` are `c_int` (i32) populated by ArtemisProperties.
