@@ -217,18 +217,24 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
     );
   }
 
-  /// Human-readable magnitude depth for the installed package, or null when it
-  /// doesn't apply to this catalog type.
+  /// Human-readable magnitude depth for the installed catalog, or null when
+  /// there is no honest depth to state.
+  ///
+  /// Stars quote [kHygFaintFloorMag] — HYG's real completeness, the same number
+  /// the Deep-Star card and the Layers panel quote. This read the depth off the
+  /// metadata sidecar's package name, so the SAME installed file reported
+  /// "mag ≤ 6.5" or "mag ≤ 8.0" depending on which fictitious tier had been
+  /// clicked at download time.
+  ///
+  /// DSOs get no depth chip. OpenNGC is a compilation, not a magnitude-limited
+  /// survey, so there is no magnitude it is complete to; the card's measured
+  /// Objects count and file size already say what is installed.
   String? _magnitudeDepth(String type, CatalogPackage? package) {
     if (package == null) return null;
-    switch (type) {
-      case 'stars':
-        return 'mag ≤ ${package.starMagnitudeLimit.toStringAsFixed(1)}';
-      case 'dso':
-        return 'mag ≤ ${package.dsoMagnitudeLimit.toStringAsFixed(1)}';
-      default:
-        return null;
+    if (type == 'stars') {
+      return 'mag ≤ ${kHygFaintFloorMag.toStringAsFixed(1)}';
     }
+    return null;
   }
 
   String _formatCount(int? count) {

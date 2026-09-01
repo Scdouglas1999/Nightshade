@@ -98,20 +98,25 @@ void main() {
 
     expect(dsoAttempts, 2);
     expect(completed, 1);
+    // The one dataset an install delivers. There is no tier to pick — see
+    // [CatalogPackage] — so every download is the same, full package.
     verify(
       () => manager.downloadStarCatalog(
-        package: CatalogPackage.standard,
+        package: CatalogPackage.complete,
         onProgress: any(named: 'onProgress'),
       ),
     ).called(1);
   });
 
-  testWidgets('the advertised catalog contents follow the selected package',
+  testWidgets(
+      'the dialog advertises the one dataset it installs, with no tier to pick',
       (tester) async {
-    // The dialog printed the Complete figures ("~120,000 stars",
-    // "~13,000 DSOs") above a selector that defaults to Standard, so the
-    // default choice was advertised as delivering three times what it
-    // installs. Both summary lines must track the selection.
+    // The dialog used to offer Essential (~9,000 stars, mag ≤ 6.5), Standard
+    // (~40,000, mag ≤ 8.0) and Complete (~120,000) above the download button.
+    // Live, on the release bundle, Essential and Standard fetched byte-identical
+    // files (same SHA-256, 119,614 HYG rows) — there is one HYG asset and one
+    // OpenNGC asset behind the download whichever name is clicked. The tiers
+    // are gone; what the dialog says must be what arrives.
     await pumpAppScreen(
       tester,
       const CatalogSetupDialog(),
@@ -121,37 +126,34 @@ void main() {
       ],
     );
 
-    Future<void> select(CatalogPackage package) async {
-      final option = find.text(package.displayName);
-      await tester.ensureVisible(option);
-      await tester.tap(option);
-      await tester.pump();
-    }
+    // The figures of the installed dataset, stated once, with HYG's real
+    // completeness rather than an invented per-tier depth.
+    expect(
+      find.text(
+        '~${formatCatalogCount(kInstalledStarApproxCount)} stars, '
+        'complete to mag ${kHygFaintFloorMag.toStringAsFixed(1)}',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+          '~${formatCatalogCount(kInstalledDsoApproxCount)} DSOs (NGC/IC)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('About $kInstalledCatalogApproxSizeMB MB on disk.'),
+      findsOneWidget,
+    );
 
-    // Standard is the default selection.
-    expect(find.text('~40,000 stars'), findsOneWidget);
-    expect(find.text('~8,000 DSOs (NGC/IC)'), findsOneWidget);
-    expect(find.text('~120,000 stars'), findsNothing);
-
-    await select(CatalogPackage.essential);
-    expect(find.text('~9,000 stars'), findsOneWidget);
-    expect(find.text('~2,000 DSOs (NGC/IC)'), findsOneWidget);
-    expect(find.text('~40,000 stars'), findsNothing);
-
-    await select(CatalogPackage.complete);
-    expect(find.text('~120,000 stars'), findsOneWidget);
-    expect(find.text('~13,000 DSOs (NGC/IC)'), findsOneWidget);
-
-    // Every option states what it installs, not just how many megabytes.
+    // No selector, no fictitious tiers, no figures the bytes do not back.
+    expect(find.text('Select package size:'), findsNothing);
     for (final package in CatalogPackage.values) {
-      expect(
-        find.text(
-          '~${formatCatalogCount(package.approximateStarCount)} stars · '
-          '~${formatCatalogCount(package.approximateDsoCount)} DSOs',
-        ),
-        findsOneWidget,
-        reason: '${package.displayName} must show its contents',
-      );
+      expect(find.text(package.displayName), findsNothing,
+          reason: '${package.displayName} must not be offered as a choice');
     }
+    expect(find.text('~40,000 stars'), findsNothing);
+    expect(find.text('~9,000 stars'), findsNothing);
+    expect(find.textContaining('mag ≤ 6.5'), findsNothing);
+    expect(find.textContaining('mag ≤ 8.0'), findsNothing);
   });
 }

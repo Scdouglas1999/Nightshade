@@ -114,7 +114,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   String _downloadStatus = '';
   double _downloadProgress = 0;
   String _currentDownload = '';
-  CatalogPackage _selectedPackage = CatalogPackage.standard;
+  /// The single dataset every install delivers. There is no tier to pick —
+  /// see [CatalogPackage]; the selector that used to set this downloaded the
+  /// same bytes whichever option was clicked.
+  static const CatalogPackage _installedPackage = CatalogPackage.complete;
   AnnotationPackage _selectedAnnotationPackage = AnnotationPackage.standard;
 
   StreamSubscription<DownloadProgress>? _progressSub;
@@ -258,11 +261,11 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
     _logOutcome(
       'Catalog download started',
-      fields: {'package': _selectedPackage.name, 'catalogs': 'stars+dso'},
+      fields: {'package': _installedPackage.name, 'catalogs': 'stars+dso'},
     );
     try {
       final starSuccess = await CatalogManager.instance.downloadStarCatalog(
-        package: _selectedPackage,
+        package: _installedPackage,
         isCancelled: () async => _cancelRequested,
       );
       if (_cancelRequested) return _onDownloadCancelled();
@@ -271,7 +274,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       }
 
       final dsoSuccess = await CatalogManager.instance.downloadDsoCatalog(
-        package: _selectedPackage,
+        package: _installedPackage,
         isCancelled: () async => _cancelRequested,
       );
       if (_cancelRequested) return _onDownloadCancelled();
@@ -281,7 +284,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
       _logOutcome(
         'Catalog download completed',
-        fields: {'package': _selectedPackage.name, 'catalogs': 'stars+dso'},
+        fields: {'package': _installedPackage.name, 'catalogs': 'stars+dso'},
       );
       await _loadCatalogStatus();
 

@@ -183,18 +183,47 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 16),
+          // There is ONE dataset. The three-tier selector that stood here —
+          // Essential / Standard / Complete, each with its own size, star count
+          // and "Stars: mag <= x.x" — downloaded the same two files whichever
+          // was chosen, so two installs into an empty catalog directory
+          // produced byte-identical files the card then described with
+          // different depths. Say what arrives, once.
           Text(
-            'Select a package size based on your needs:',
+            'One download installs both catalogs:',
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: NightshadeTypography.fontSize13,
             ),
           ),
-          const SizedBox(height: 16),
-          ...CatalogPackage.values.map((package) => _buildPackageOption(
-                context: context,
-                package: package,
-              )),
+          const SizedBox(height: 8),
+          Text(
+            'HYG Star Database - '
+            '~${formatCatalogCount(kInstalledStarApproxCount)} stars, '
+            'complete to mag ${kHygFaintFloorMag.toStringAsFixed(1)}',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'OpenNGC - '
+            '~${formatCatalogCount(kInstalledDsoApproxCount)} deep-sky objects '
+            '(NGC / IC)',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'About $kInstalledCatalogApproxSizeMB MB on disk.',
+            style: TextStyle(
+              color: colors.textSecondary.withValues(alpha: 0.7),
+              fontSize: NightshadeTypography.fontSize11,
+            ),
+          ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
@@ -203,110 +232,13 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   ? 'Deleting catalogs…'
                   : _isDownloading
                       ? 'Downloading...'
-                      : 'Download Selected Package',
+                      : 'Download Catalogs',
               icon: NightshadeIcons.download,
               variant: ButtonVariant.primary,
               onPressed: _isDownloading ? null : _downloadCatalogs,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPackageOption({
-    required BuildContext context,
-    required CatalogPackage package,
-  }) {
-    final colors = context.nightshadeColors;
-    final isSelected = _selectedPackage == package;
-
-    return GestureDetector(
-      onTap: _isDownloading
-          ? null
-          : () {
-              setState(() => _selectedPackage = package);
-            },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.border.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(
-            color: isSelected ? colors.primary : colors.border,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? NightshadeIcons.success : NightshadeIcons.circle,
-              color: isSelected ? colors.primary : colors.textSecondary,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          package.displayName,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.border,
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                        ),
-                        child: Text(
-                          '~${package.approximateSizeMB} MB',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: NightshadeTypography.fontSize11,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    package.description,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Stars: mag ≤ ${package.starMagnitudeLimit.toStringAsFixed(1)} • '
-                    'DSOs: mag ≤ ${package.dsoMagnitudeLimit.toStringAsFixed(1)}',
-                    style: TextStyle(
-                      color: colors.textSecondary.withValues(alpha: 0.7),
-                      fontSize: NightshadeTypography.fontSize11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

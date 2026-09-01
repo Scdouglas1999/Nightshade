@@ -135,68 +135,105 @@ bool _catalogTextEquals(String value, String rawQuery, String normalizedQuery) {
       _normalizeCatalogSearchText(value) == normalizedQuery;
 }
 
-/// Available catalog packages with different size/detail levels
+/// What a catalog install actually delivers — the one dataset that exists.
+///
+/// Every figure here describes the assets [catalogDownloadCandidates] resolves
+/// to, so a surface quoting them cannot drift from the bytes on disk.
+const String kInstalledCatalogDescription =
+    'HYG star database and the OpenNGC deep-sky catalog';
+
+/// Approximate on-disk size of both catalogs together, in megabytes. Once a
+/// catalog is installed the settings card prints the MEASURED size; this is
+/// only the pre-download estimate.
+const int kInstalledCatalogApproxSizeMB = 60;
+
+/// Roughly how many HYG stars an install delivers. The shipped file counts
+/// 119,614 rows; rounded because it is an estimate shown before download.
+const int kInstalledStarApproxCount = 120000;
+
+/// Roughly how many OpenNGC deep-sky objects an install delivers.
+const int kInstalledDsoApproxCount = 13000;
+
+/// Faintest magnitude the OpenNGC data carries a value for.
+///
+/// OpenNGC is a compilation rather than a magnitude-limited survey, so this is
+/// an inclusion bound, not a completeness claim — which is why the settings
+/// card no longer prints a DSO "Depth" chip at all.
+const double kInstalledDsoDepthMag = 20.0;
+
+/// LEGACY metadata label for an installed catalog. **Not a choice.**
+///
+/// This was a three-way size/detail selector — Essential (~10 MB, ~9,000
+/// stars, mag ≤ 6.5), Standard (~30 MB, ~40,000 stars, mag ≤ 8.0), Complete
+/// (~60 MB, ~120,000 stars). None of it was real. There is one HYG asset and
+/// one OpenNGC asset behind [catalogDownloadCandidates], and `_downloadCatalog`
+/// fetches them regardless of the selected package: downloading Essential and
+/// then Standard into an empty catalog directory produced BYTE-IDENTICAL files
+/// — same SHA-256, 119,614 stars either way — and the settings card then
+/// printed a different "Depth" for the same bytes. Nothing consumed
+/// [starMagnitudeLimit] as a FILTER either; the render path takes its magnitude
+/// limit from the view settings.
+///
+/// The tier selector is gone from both download surfaces. The enum survives
+/// only so `stars_metadata.json` / `dso_metadata.json` written by an older
+/// build still parses — and every variant now reports the SAME figures, because
+/// the installed bytes are the same whichever name is on the sidecar.
+/// Fabricating three depths for one file is the defect this replaces; do not
+/// re-introduce per-variant numbers without per-variant data behind them.
 enum CatalogPackage {
-  /// Essential package: ~10MB
-  /// - Stars: magnitude < 6.5 (~9,000 stars)
-  /// - DSOs: Messier + NGC objects magnitude < 10 (~2,000 objects)
+  /// Legacy label. Describes the single available dataset.
   essential(
     'Essential',
-    'Basic catalog for visual observation',
-    10,
-    6.5,
-    10.0,
-    9000,
-    2000,
+    kInstalledCatalogDescription,
+    kInstalledCatalogApproxSizeMB,
+    kHygFaintFloorMag,
+    kInstalledDsoDepthMag,
+    kInstalledStarApproxCount,
+    kInstalledDsoApproxCount,
   ),
 
-  /// Standard package: ~30MB
-  /// - Stars: magnitude < 8.0 (~40,000 stars)
-  /// - DSOs: All NGC + IC objects magnitude < 12 (~8,000 objects)
+  /// Legacy label. Describes the single available dataset.
   standard(
     'Standard',
-    'Recommended for most users',
-    30,
-    8.0,
-    12.0,
-    40000,
-    8000,
+    kInstalledCatalogDescription,
+    kInstalledCatalogApproxSizeMB,
+    kHygFaintFloorMag,
+    kInstalledDsoDepthMag,
+    kInstalledStarApproxCount,
+    kInstalledDsoApproxCount,
   ),
 
-  /// Complete package: ~60MB
-  /// - Stars: All HYG stars (~120,000 stars), complete to [kHygFaintFloorMag]
-  /// - DSOs: All OpenNGC objects (~13,000 objects)
+  /// The name written for every new install: the full HYG + OpenNGC data.
   complete(
     'Complete',
-    'Full catalogs for advanced users',
-    60,
+    kInstalledCatalogDescription,
+    kInstalledCatalogApproxSizeMB,
     kHygFaintFloorMag,
-    20.0,
-    120000,
-    13000,
+    kInstalledDsoDepthMag,
+    kInstalledStarApproxCount,
+    kInstalledDsoApproxCount,
   );
 
   final String displayName;
   final String description;
   final int approximateSizeMB;
 
-  /// Magnitude to which the package's star catalog is COMPLETE — what the
-  /// settings "Depth" chip reports.
+  /// Magnitude to which the installed star catalog is COMPLETE.
   ///
-  /// This read 15.0 for [complete], which is the HYG loader's inclusion filter,
-  /// not its depth. Shown next to "Package: Complete" it told the user that the
-  /// nearly-empty field at an imaging FOV was the real sky; HYG is
-  /// Hipparcos-derived and runs out around magnitude 9.
+  /// [kHygFaintFloorMag] for every variant, because one file is installed.
+  /// This read 15.0 for [complete] — the HYG loader's inclusion filter, not its
+  /// depth — and 6.5 / 8.0 for the other two, which were invented outright.
   final double starMagnitudeLimit;
+
+  /// Faintest magnitude the installed OpenNGC data carries. An inclusion
+  /// bound, not a completeness claim — see [kInstalledDsoDepthMag].
   final double dsoMagnitudeLimit;
 
-  /// Roughly how many HYG stars this package installs.
-  ///
-  /// A field rather than a doc comment so the setup dialog quotes the SELECTED
-  /// package's own figure; the packages differ by up to 13x.
+  /// Roughly how many HYG stars an install delivers. Identical across the
+  /// variants, because the download is identical.
   final int approximateStarCount;
 
-  /// Roughly how many OpenNGC deep-sky objects this package installs. Same
+  /// Roughly how many OpenNGC deep-sky objects an install delivers. Same
   /// reason as [approximateStarCount].
   final int approximateDsoCount;
 
