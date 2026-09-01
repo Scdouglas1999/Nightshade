@@ -7,6 +7,9 @@ pub(crate) struct LoadedLight {
     pub(crate) path: String,
     pub(crate) image: ImageData,
     pub(crate) exposure_sec: f64,
+    /// The sub's own FITS keywords, kept from the single read so the master can
+    /// inherit FILTER/OBJECT/INSTRUME/DATE-OBS without re-opening every file.
+    pub(crate) header: std::collections::HashMap<String, String>,
 }
 
 pub(crate) fn integrate_session(
@@ -47,6 +50,7 @@ pub(crate) fn integrate_session(
         cancel.check("calibrating", Some(i as u32), Some(total_lights))?;
         let read =
             read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
+        let source_header = read.header;
         let mut image = read.image;
         if image.pixel_type != PixelType::U16 {
             return Err(format!(
@@ -78,6 +82,7 @@ pub(crate) fn integrate_session(
             path: path.clone(),
             image,
             exposure_sec: exposures[i],
+            header: source_header,
         });
         // Calibrate phase spans 0.0..0.20 across all lights.
         let done = (i + 1) as u32;
@@ -318,9 +323,23 @@ pub(crate) fn integrate_session(
     // stitcher can place this panel without a post-hoc solve. Best-effort: a
     // reference with no WCS leaves the master WCS-less (the stitch gates it out).
     let reference_wcs = reference_wcs_from_fits(&loaded[ref_index].path);
+    // Provenance comes from the ACCEPTED subs only: a frame that was rejected
+    // contributed no signal and must not name the master's filter or pull
+    // DATE-OBS earlier than the data actually integrated.
+    let accepted_headers: Vec<_> = accepted_idx
+        .iter()
+        .map(|&i| loaded[i].header.clone())
+        .collect();
+    let accepted_exposures: Vec<f64> = accepted_idx
+        .iter()
+        .map(|&i| loaded[i].exposure_sec)
+        .collect();
+    let provenance = collect_master_provenance(&accepted_headers, &accepted_exposures);
     let header = build_master_header(
         sub_count,
         &args.settings.integration,
+        &int_cfg.reject,
+        &provenance,
         reference_wcs.as_ref(),
         &calibration_report,
     );

@@ -175,6 +175,103 @@ NM=$(Q "SELECT count(*) FROM integrated_masters WHERE status IS NULL OR status N
 Q "SELECT id,filter,frame_count,total_integration_seconds,master_fits_path FROM integrated_masters;" | sed 's/^/[d1]   master: /'
 BADEXP=$(Q "SELECT count(*) FROM integrated_masters WHERE total_integration_seconds<=0;")
 [ "${BADEXP:-1}" -eq 0 ] && ok "no zero-integration masters" || bad "$BADEXP masters have <=0 integration seconds"
+
+# A master can exist, carry the right frame count and a positive integration
+# time, and still be scientifically worthless. A normalization defect once
+# shipped LRGB masters that had erased over 99.9% of their star flux — every
+# master was a near-flat field at the sky pedestal — and this harness passed
+# 37/37 over them, because nothing here had ever looked at a master's PIXELS.
+#
+# The signal that separates the two is contrast: p99.9 minus the median. A real
+# star field puts hundreds of ADU between the sky and the bright tail (the D1
+# field measures 118-188). The star-erased masters measured 4.8. The 30 ADU
+# floor below sits an order of magnitude under the good case and well above the
+# broken one, so it catches total erasure without pretending to be a
+# photometric assertion.
+#
+# python3 stdlib only (no numpy/astropy on the harness host): FITS is 2880-byte
+# header blocks of 80-char cards followed by big-endian data.
+MASTERPIX=$(python3 - "$OUT" <<'EOF'
+import array, glob, sys
+
+FLOOR = 30.0
+TYPECODE = {8: 'B', 16: 'h', 32: 'i', -32: 'f', -64: 'd'}
+
+
+def read_fits(path):
+    with open(path, 'rb') as fh:
+        cards, header = b'', {}
+        while True:
+            block = fh.read(2880)
+            if not block:
+                raise ValueError('header ended without END')
+            cards += block
+            if b'END     ' in block:
+                break
+        for i in range(0, len(cards), 80):
+            card = cards[i:i + 80].decode('ascii', 'replace')
+            key = card[:8].strip()
+            if key == 'END':
+                break
+            if '=' not in card:
+                continue
+            value = card[10:].split('/')[0].strip()
+            header[key] = value
+        bitpix = int(header['BITPIX'])
+        n = int(header['NAXIS1']) * int(header['NAXIS2'])
+        code = TYPECODE.get(bitpix)
+        if code is None:
+            raise ValueError('unsupported BITPIX %s' % bitpix)
+        data = array.array(code)
+        data.fromfile(fh, n)
+        if sys.byteorder == 'little':
+            data.byteswap()   # FITS data is always big-endian
+        bzero = float(header.get('BZERO', 0) or 0)
+        bscale = float(header.get('BSCALE', 1) or 1)
+        # Stride-sample: a median and a 99.9th percentile do not need every
+        # pixel, and this keeps the harness's memory and runtime small.
+        vals = [v * bscale + bzero for v in data[::3]]
+        vals.sort()
+        return vals
+
+
+masters = [f for f in sorted(glob.glob(sys.argv[1] + '/**/*.fits', recursive=True))
+           if 'master' in f.lower() and 'rejmap' not in f.lower()]
+if not masters:
+    print('FAIL no master FITS found')
+    sys.exit(0)
+
+worst, failures = None, []
+for path in masters:
+    name = path.split('/')[-1]
+    try:
+        vals = read_fits(path)
+    except Exception as exc:                       # noqa: BLE001 - reported, not raised
+        failures.append('%s unreadable (%s)' % (name, exc))
+        continue
+    median = vals[len(vals) // 2]
+    p999 = vals[min(int(len(vals) * 0.999), len(vals) - 1)]
+    contrast = p999 - median
+    print('DETAIL %s median=%.1f p99.9=%.1f contrast=%.1f' % (name, median, p999, contrast))
+    if worst is None or contrast < worst:
+        worst = contrast
+    if contrast < FLOOR:
+        failures.append('%s contrast=%.1f < %.1f (stars erased?)' % (name, contrast, FLOOR))
+
+if failures:
+    print('FAIL ' + '; '.join(failures))
+else:
+    print('OK %d masters carry star contrast (worst=%.1f ADU, floor=%.1f)'
+          % (len(masters), worst, FLOOR))
+EOF
+)
+echo "$MASTERPIX" | grep '^DETAIL' | sed 's/^DETAIL /[d1]   master pixels: /'
+MPVERDICT=$(echo "$MASTERPIX" | grep -E '^(OK|FAIL)' | head -1)
+case "$MPVERDICT" in
+  OK*)   ok "master pixels: ${MPVERDICT#OK }" ;;
+  FAIL*) bad "master pixels: ${MPVERDICT#FAIL }" ;;
+  *)     bad "master pixel probe produced no verdict" ;;
+esac
 NR=$(Q "SELECT count(*) FROM recipes WHERE created_by='autopilot';")
 [ "${NR:-0}" -ge 1 ] && ok "autopilot recipes=$NR" || bad "autopilot recipes=$NR"
 JOB=$(Q "SELECT id FROM darkroom_jobs ORDER BY id DESC LIMIT 1;")

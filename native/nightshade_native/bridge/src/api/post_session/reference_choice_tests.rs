@@ -62,6 +62,8 @@ fn light(path: &str, image: ImageData) -> LoadedLight {
         path: path.to_string(),
         image,
         exposure_sec: 300.0,
+        // Reference choice never consults the source header.
+        header: std::collections::HashMap::new(),
     }
 }
 

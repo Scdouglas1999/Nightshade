@@ -21,28 +21,55 @@
 //! This is the role of PixInsight's `ImageIntegration` normalization (additive
 //! + scale) and, for gradient drift through a night, its `LocalNormalization`.
 //!
-//! ## Model
+//! ## Model — PixInsight's "additive with scaling" (the default)
 //!
-//! Each frame `f` is mapped onto the reference `r` by an affine relation
+//! Each frame `f` is mapped onto the reference `r` by the affine relation
 //!
 //! ```text
-//!     f_norm(p) = scale · f(p) + offset
+//!     f_norm(p) = m_ref + (f(p) − m_f) · (σ_ref / σ_f)
 //! ```
 //!
-//! solved so that, over the pixels both frames validly cover (excluding stars,
-//! saturation, NaNs, and zero-coverage borders), `f_norm` best matches `r`:
+//! which is stored in the equivalent `scale · f + offset` form with
+//! `scale = σ_ref/σ_f` and `offset = m_ref − m_f·scale`.
 //!
-//! - **Multiplicative `scale`** — the ratio of the reference's signal spread to
-//!   the frame's signal spread, estimated robustly from a least-squares line
-//!   fit of reference-vs-frame pixel pairs (a robust slope, not the noisy
-//!   per-pixel ratio). This corrects transparency / exposure differences.
-//! - **Additive `offset`** — chosen so the frame's (scaled) background lands on
-//!   the reference background. This corrects skyglow / light-pollution drift.
+//! - **Location `m`** — the *median* of the frame (over a deterministic sample
+//!   of the covered, finite pixels). Matching medians puts the two sky pedestals
+//!   on top of each other, correcting skyglow / light-pollution drift.
+//! - **Scale `σ`** — a *robust dispersion* (MAD × 1.4826, optionally refined by
+//!   iterative k-sigma clipping — the IKSS family). Their ratio corrects
+//!   transparency / exposure differences.
 //!
-//! The fit deliberately samples the **shared low-to-mid signal** (sky +
-//! faint nebulosity), not the bright stars: stars saturate, vary in PSF between
-//! frames, and would dominate a naive least-squares fit while telling us
-//! nothing about the sky pedestal we actually need to match.
+//! Both statistics come from each frame's **own global pixel population**. That
+//! is the load-bearing property. Median and MAD are inherently star-resistant
+//! (stars are a tiny fraction of the pixels), so the estimate needs no
+//! star-exclusion cut, and for two same-night equal-exposure subs the dispersion
+//! ratio lands at ≈ 1 — which is the correct answer.
+//!
+//! ### Why not regress reference-on-frame over pixel pairs?
+//!
+//! Because two registered subs of the same field are *independent noise
+//! realisations* of a shared signal, not a deterministic function of one
+//! another. An ordinary-least-squares slope over `(frame, reference)` pixel
+//! pairs measures `cov(f,r)/var(f)`. Cut the stars out first (as a
+//! "fit the sky, not the PSF" rule would have you do) and on a sparse star field
+//! the only thing left is each frame's *own independent* noise: the covariance
+//! goes to zero and so does the slope. Applying that slope flattens the frame to
+//! a constant.
+//!
+//! This is not hypothetical — it is the defect this module was rewritten to fix.
+//! The previous estimator discarded everything above the reference's 92nd
+//! percentile and then ran OLS on what remained, returning `scale ≈ 0.002`
+//! against a true value of ≈ 1.0, and shipped per-filter masters that retained
+//! **under 0.1 %** of their star flux. The unit tests missed it for a subtle
+//! reason worth remembering: every one of them built the frame as an exact
+//! affine function of the reference, making the pair perfectly correlated — a
+//! property real sub-frames never have.
+//!
+//! The pair fit survives, honestly scoped, as
+//! [`NormEstimator::CoLocatedPairFit`]. It is correct exactly when the two
+//! buffers sample the **same sky at the same index** (mosaic panel overlap,
+//! where `frame[i]` and `reference[i]` are two measurements of one sky
+//! coordinate). It is wrong for stacking, where they are not.
 //!
 //! ## Optional local (grid) normalization
 //!
@@ -57,12 +84,20 @@
 //!
 //! ## Limitations
 //!
-//! The robust-fit constants (sigma-clip κ for the pair fit, the star/saturation
-//! exclusion percentile, the minimum sample count per local cell) are
-//! defensible defaults, not values tuned against a corpus of real sub sets.
-//! They are exposed as knobs. The algorithm itself — robust additive+scale fit,
-//! coverage/NaN exclusion, bilinearly-interpolated local grid — is
-//! deterministic and unit-tested on synthetic frames here.
+//! The constants (clipping κ and iteration count for the IKSS refinement, the
+//! plausible-ratio band, the minimum sample count per local cell, the sample
+//! cap) are defensible defaults matched to PixInsight's behaviour, not values
+//! tuned against a corpus of real sub sets. They are exposed as knobs.
+//!
+//! A single global `(m, σ)` pair assumes the frame-to-frame difference is a
+//! global affine one. It cannot describe a *spatially varying* gradient; that is
+//! what [`NormMode::Local`] is for.
+//!
+//! Sampling is deterministic (a fixed stride, never an RNG), so a given input
+//! always yields the same coefficients — a property the master-accumulation fold
+//! depends on across sessions and processes.
+
+use crate::robust_stats::{median_in_place, MAD_TO_SIGMA};
 
 /// Marks, per pixel, whether a frame contributes a valid sample.
 ///
@@ -166,36 +201,80 @@ pub enum NormMode {
     Local { rows: usize, cols: usize },
 }
 
-/// Tunables for the normalization fit. [`Default`] is a robust global fit.
+/// Which estimator computes the `(scale, offset)` pair.
+///
+/// The two variants make *different assumptions about what the two buffers are*,
+/// and picking the wrong one is not a quality trade-off — it is a correctness
+/// bug. See the module docs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NormEstimator {
+    /// PixInsight `ImageIntegration`'s default: additive with scaling toward the
+    /// reference, from each frame's own robust global location and dispersion.
+    ///
+    /// Correct whenever the frames are **independent exposures** of the same
+    /// field — i.e. every stacking path. The default.
+    #[default]
+    AdditiveWithScaling,
+    /// Ordinary least squares on `(frame[i], reference[i])` pixel pairs.
+    ///
+    /// Correct **only** when index `i` refers to the same sky coordinate in both
+    /// buffers, so the pairs are genuinely correlated — the mosaic panel-overlap
+    /// fit ([`crate::mosaic_stitch`]) resamples two panels onto one canvas and
+    /// satisfies this exactly.
+    ///
+    /// Catastrophic for stacking: independent subs make the pairs uncorrelated
+    /// once bright structure is cut, and the slope collapses toward zero.
+    CoLocatedPairFit,
+}
+
+/// Tunables for the normalization fit. [`Default`] is the PixInsight-default
+/// global additive-with-scaling fit.
 #[derive(Debug, Clone)]
 pub struct NormalizationConfig {
     /// Global vs. local grid model.
     pub mode: NormMode,
+    /// Which estimator to use. Default [`NormEstimator::AdditiveWithScaling`].
+    pub estimator: NormEstimator,
     /// Upper percentile (0..1) of the *reference* signal above which pixels are
-    /// excluded from the fit as "stars / bright structure". The fit should be
-    /// driven by the sky pedestal and faint signal, not saturated stars whose
-    /// PSF differs frame-to-frame. Default 0.92.
+    /// excluded as "stars / bright structure".
+    ///
+    /// Used **only** by [`NormEstimator::CoLocatedPairFit`], where bright stars
+    /// really would dominate a least-squares slope. The additive-with-scaling
+    /// estimator ignores it: median and MAD are already star-resistant, and
+    /// restricting them to background pixels is precisely what broke the old
+    /// estimator. Default 0.92.
     pub high_reject_percentile: f64,
-    /// Sigma-clip threshold (κ) for the iterated robust line fit on the sampled
-    /// pixel pairs. Pairs whose residual exceeds κ·σ are dropped and the fit is
-    /// repeated. Default 2.5.
+    /// Sigma-clip threshold (κ) — for the pair fit, the residual cut; for
+    /// additive-with-scaling, the IKSS refinement cut. Default 2.5.
     pub clip_kappa: f64,
-    /// Number of robust-refit iterations. Default 3.
+    /// Number of robust-refit / IKSS iterations. Default 3.
     pub clip_iterations: usize,
-    /// Minimum number of valid sample pairs required to fit a model (global) or
-    /// a single local cell. Below this the fit falls back to identity (global)
-    /// or to the global coefficients (local cell). Default 64.
+    /// Minimum number of valid samples required to fit a model (global) or a
+    /// single local cell. Below this the fit falls back to identity (global) or
+    /// to the global coefficients (local cell). Default 64.
     pub min_samples: usize,
+    /// Cap on the number of pixels sampled for the robust location/dispersion
+    /// estimate. A deterministic stride subsamples larger frames — PixInsight
+    /// samples for speed too. Default 262144, ample for a median/MAD.
+    pub max_samples: usize,
+    /// Plausible band for `σ_ref/σ_frame`. A ratio outside it means the frame is
+    /// not a comparable exposure of the same field (or its statistics are
+    /// degenerate); the fit falls back to additive-only and reports a warning
+    /// rather than applying an absurd gain. Default `(0.1, 10.0)`.
+    pub scale_ratio_bounds: (f64, f64),
 }
 
 impl Default for NormalizationConfig {
     fn default() -> Self {
         Self {
             mode: NormMode::Global,
+            estimator: NormEstimator::AdditiveWithScaling,
             high_reject_percentile: 0.92,
             clip_kappa: 2.5,
             clip_iterations: 3,
             min_samples: 64,
+            max_samples: 262_144,
+            scale_ratio_bounds: (0.1, 10.0),
         }
     }
 }
@@ -218,6 +297,42 @@ pub struct LocalGrid {
     pub offset: Vec<f64>,
 }
 
+/// A recoverable problem met while fitting, surfaced instead of being absorbed
+/// into a silently degenerate coefficient.
+///
+/// The old estimator's failure mode was to return `scale ≈ 0.002` with no
+/// complaint whatsoever, so every fallback here is *named* and travels out on
+/// [`NormalizationCoeffs::warning`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizationWarning {
+    /// The frame's robust dispersion was ~0 — a dead, flat, or fully-saturated
+    /// frame. Fell back to additive-only (`scale = 1`).
+    DegenerateDispersion,
+    /// `σ_ref/σ_frame` fell outside [`NormalizationConfig::scale_ratio_bounds`],
+    /// so the frame is not a comparable exposure. Fell back to additive-only.
+    ImplausibleScaleRatio,
+    /// Too few valid samples survived coverage/finiteness to estimate anything.
+    /// Fell back to identity.
+    InsufficientSamples,
+}
+
+impl NormalizationWarning {
+    /// A short human-readable reason, for logs and result payloads.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::DegenerateDispersion => {
+                "frame dispersion was ~0 (dead or flat frame); applied offset only"
+            }
+            Self::ImplausibleScaleRatio => {
+                "scale ratio outside the plausible band; applied offset only"
+            }
+            Self::InsufficientSamples => {
+                "too few valid pixels to estimate normalization; left unchanged"
+            }
+        }
+    }
+}
+
 /// The result of fitting a normalization of one frame to a reference.
 ///
 /// `scale`/`offset` are always present (the global fit, or the population-mean
@@ -230,9 +345,12 @@ pub struct NormalizationCoeffs {
     pub offset: f64,
     /// Optional local grid (interpolated per pixel when applied).
     pub local: Option<LocalGrid>,
-    /// Number of valid sample pairs the global fit used (post-clipping), for
+    /// Number of valid samples the global fit used (post-clipping), for
     /// diagnostics / confidence reporting.
     pub samples_used: usize,
+    /// Set when a guard fired and the coefficients are a fallback rather than a
+    /// full fit. `None` on a clean fit.
+    pub warning: Option<NormalizationWarning>,
 }
 
 impl NormalizationCoeffs {
@@ -244,6 +362,7 @@ impl NormalizationCoeffs {
             offset: 0.0,
             local: None,
             samples_used: 0,
+            warning: None,
         }
     }
 }
@@ -276,9 +395,13 @@ pub enum NormalizationError {
 /// `frame` validly covers (border pixels that warped out of the source are
 /// excluded). Non-finite pixels in either buffer are always excluded.
 ///
-/// Returns [`NormalizationCoeffs::identity`] if too few valid, in-range pairs
-/// survive the exclusions to fit honestly (a deliberate fail-safe, never a
-/// fabricated transform).
+/// The estimator is chosen by [`NormalizationConfig::estimator`]; the default
+/// is PixInsight's additive-with-scaling (see the module docs for why the
+/// pixel-pair alternative is only valid for co-located samples).
+///
+/// Returns [`NormalizationCoeffs::identity`] if too few valid samples survive
+/// the exclusions to fit honestly (a deliberate fail-safe, never a fabricated
+/// transform), with `warning` set to explain which guard fired.
 pub fn estimate_normalization(
     frame: &[f64],
     reference: &[f64],
@@ -312,13 +435,23 @@ pub fn estimate_normalization(
         }
     }
 
-    // The high-signal exclusion threshold is computed once on the reference, so
-    // every cell (global or local) excludes the same bright structure.
-    let high_cut = high_signal_cutoff(reference, mask, cfg.high_reject_percentile);
+    // The high-signal exclusion threshold is only meaningful for the pair fit;
+    // additive-with-scaling deliberately uses the whole pixel population.
+    let high_cut = match cfg.estimator {
+        NormEstimator::AdditiveWithScaling => f64::INFINITY,
+        NormEstimator::CoLocatedPairFit => {
+            high_signal_cutoff(reference, mask, cfg.high_reject_percentile)
+        }
+    };
 
     // Always fit the global model first: it is the fallback for sparse local
     // cells and the reported scalar coefficients.
-    let global = fit_global(frame, reference, mask, high_cut, cfg);
+    let global = match cfg.estimator {
+        NormEstimator::AdditiveWithScaling => {
+            fit_global_additive_scaling(frame, reference, mask, 0..frame.len(), cfg)
+        }
+        NormEstimator::CoLocatedPairFit => fit_global_pairs(frame, reference, mask, high_cut, cfg),
+    };
 
     let local = match cfg.mode {
         NormMode::Global => None,
@@ -332,6 +465,7 @@ pub fn estimate_normalization(
         offset: global.offset,
         local,
         samples_used: global.samples_used,
+        warning: global.warning,
     })
 }
 
@@ -368,6 +502,7 @@ struct GlobalFit {
     scale: f64,
     offset: f64,
     samples_used: usize,
+    warning: Option<NormalizationWarning>,
 }
 
 impl GlobalFit {
@@ -376,7 +511,186 @@ impl GlobalFit {
             scale: 1.0,
             offset: 0.0,
             samples_used: 0,
+            warning: None,
         }
+    }
+
+    fn insufficient() -> Self {
+        Self {
+            warning: Some(NormalizationWarning::InsufficientSamples),
+            ..Self::identity()
+        }
+    }
+}
+
+// Additive-with-scaling (PixInsight ImageIntegration default)
+
+/// A frame's robust location and dispersion, plus how many samples backed them.
+#[derive(Debug, Clone, Copy)]
+struct RobustStats {
+    location: f64,
+    dispersion: f64,
+    samples: usize,
+}
+
+/// Deterministically sample the covered values of both planes at the *same*
+/// pixels, returning `(frame_sample, reference_sample)`.
+///
+/// A pixel contributes only if it is covered and finite in **both** planes. The
+/// two statistics then describe the same spatial population, so a NaN region or
+/// a warp border in one plane cannot silently shift the other's median onto a
+/// different patch of sky. (The samples are not used as *pairs* — each side is
+/// reduced independently — but they must cover the same ground.)
+///
+/// Large frames are strided rather than fully sorted: a median/MAD converges
+/// long before two million samples, and PixInsight samples for the same reason.
+/// The stride is fixed (never an RNG), so identical input always yields
+/// identical coefficients; the multi-night fold depends on that holding across
+/// separate processes.
+///
+/// If striding lands on too few valid pixels (a heavily masked frame), the scan
+/// is repeated densely over every pixel before giving up.
+fn sample_both(
+    frame: &[f64],
+    reference: &[f64],
+    mask: &CoverageMask,
+    indices: impl Iterator<Item = usize> + Clone,
+    max_samples: usize,
+) -> (Vec<f64>, Vec<f64>) {
+    let cap = max_samples.max(1);
+    let total = indices.clone().count();
+    let stride = (total / cap).max(1);
+
+    let take = |stride: usize| {
+        let mut fs = Vec::new();
+        let mut rs = Vec::new();
+        for i in indices.clone().step_by(stride) {
+            if !mask.is_valid(i) {
+                continue;
+            }
+            let (f, r) = (frame[i], reference[i]);
+            if f.is_finite() && r.is_finite() {
+                fs.push(f);
+                rs.push(r);
+            }
+        }
+        (fs, rs)
+    };
+
+    let (fs, rs) = take(stride);
+    if stride > 1 && fs.len() < cap / 4 {
+        return take(1);
+    }
+    (fs, rs)
+}
+
+/// Robust location (median) and dispersion (MAD·1.4826) of a sample, refined by
+/// iterative k-sigma clipping — the IKSS family PixInsight uses.
+///
+/// Median and MAD are computed over the frame's whole pixel population on
+/// purpose. Stars occupy a tiny fraction of the pixels, so neither statistic
+/// needs them excluded; excluding them (as the previous estimator did) is what
+/// removed all the dynamic range and broke the fit.
+fn robust_location_dispersion(sample: &mut Vec<f64>, cfg: &NormalizationConfig) -> RobustStats {
+    if sample.is_empty() {
+        return RobustStats {
+            location: 0.0,
+            dispersion: 0.0,
+            samples: 0,
+        };
+    }
+
+    let mut location = median_in_place(sample);
+    let mut dispersion = mad_sigma(sample, location);
+
+    for _ in 0..cfg.clip_iterations {
+        if dispersion <= 0.0 || !dispersion.is_finite() {
+            break;
+        }
+        let limit = cfg.clip_kappa.max(0.0) * dispersion;
+        let before = sample.len();
+        sample.retain(|v| (v - location).abs() <= limit);
+        // Never clip away the population we are trying to describe.
+        if sample.len() < cfg.min_samples.min(before) || sample.len() == before {
+            break;
+        }
+        location = median_in_place(sample);
+        dispersion = mad_sigma(sample, location);
+    }
+
+    RobustStats {
+        location,
+        dispersion,
+        samples: sample.len(),
+    }
+}
+
+/// Median absolute deviation about `center`, scaled onto a Gaussian-σ footing.
+fn mad_sigma(values: &[f64], center: f64) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let mut devs: Vec<f64> = values.iter().map(|v| (v - center).abs()).collect();
+    median_in_place(&mut devs) * MAD_TO_SIGMA
+}
+
+/// Fit `x' = m_ref + (x − m_f)·(σ_ref/σ_f)` over the given index range and
+/// express it in the stored `scale·x + offset` form.
+///
+/// Guards, each of which names itself in the returned warning rather than
+/// silently emitting a degenerate coefficient:
+/// - too few samples on either side → identity;
+/// - `σ_f` ≈ 0 (dead or flat frame) → additive-only (`scale = 1`);
+/// - `σ_ref/σ_f` outside the plausible band → additive-only.
+fn fit_global_additive_scaling(
+    frame: &[f64],
+    reference: &[f64],
+    mask: &CoverageMask,
+    indices: impl Iterator<Item = usize> + Clone,
+    cfg: &NormalizationConfig,
+) -> GlobalFit {
+    let (mut frame_sample, mut ref_sample) =
+        sample_both(frame, reference, mask, indices, cfg.max_samples);
+
+    if frame_sample.len() < cfg.min_samples {
+        return GlobalFit::insufficient();
+    }
+
+    let fs = robust_location_dispersion(&mut frame_sample, cfg);
+    let rs = robust_location_dispersion(&mut ref_sample, cfg);
+    let samples_used = fs.samples.min(rs.samples);
+
+    // Additive-only fallback: match the pedestals, leave the gain alone.
+    let additive_only = |warning| GlobalFit {
+        scale: 1.0,
+        offset: rs.location - fs.location,
+        samples_used,
+        warning: Some(warning),
+    };
+
+    if fs.dispersion <= f64::MIN_POSITIVE || !fs.dispersion.is_finite() {
+        return additive_only(NormalizationWarning::DegenerateDispersion);
+    }
+    if rs.dispersion <= f64::MIN_POSITIVE || !rs.dispersion.is_finite() {
+        return additive_only(NormalizationWarning::DegenerateDispersion);
+    }
+
+    let scale = rs.dispersion / fs.dispersion;
+    let (lo, hi) = cfg.scale_ratio_bounds;
+    if !scale.is_finite() || scale < lo || scale > hi {
+        return additive_only(NormalizationWarning::ImplausibleScaleRatio);
+    }
+
+    let offset = rs.location - fs.location * scale;
+    if !offset.is_finite() {
+        return additive_only(NormalizationWarning::DegenerateDispersion);
+    }
+
+    GlobalFit {
+        scale,
+        offset,
+        samples_used,
+        warning: None,
     }
 }
 
@@ -409,8 +723,46 @@ fn collect_pairs(
     pairs
 }
 
-/// Fit the global `(scale, offset)` over the whole frame.
-fn fit_global(
+/// Fit one local cell as a **per-cell additive offset at the global scale**:
+/// `offset_cell = m_ref_cell − m_frame_cell · global_scale`.
+///
+/// Deliberately *not* a per-cell dispersion ratio. What local normalization
+/// exists to remove is a spatially varying sky pedestal (a light dome, the moon
+/// climbing) — an additive effect. A gradient inside a cell inflates that cell's
+/// dispersion without any gain having changed, so a per-cell `σ_ref/σ_frame`
+/// would read the gradient as a gain difference and apply a wild correction: on
+/// a 1200-ADU gradient over a 64-px frame in 6×6 cells, the intra-cell spread
+/// swamps the ~6 ADU noise and drives the ratio to ≈0.1. Gain is a whole-frame
+/// property (transparency, exposure); it is fitted once, globally, and reused.
+///
+/// Returns `None` when the cell is too sparse, leaving it seeded with the global
+/// coefficients.
+fn fit_cell_offset(
+    frame: &[f64],
+    reference: &[f64],
+    mask: &CoverageMask,
+    indices: impl Iterator<Item = usize> + Clone,
+    global_scale: f64,
+    cfg: &NormalizationConfig,
+) -> Option<(f64, f64)> {
+    let (mut fs, mut rs) = sample_both(frame, reference, mask, indices, cfg.max_samples);
+    if fs.len() < cfg.min_samples {
+        return None;
+    }
+    let m_frame = median_in_place(&mut fs);
+    let m_ref = median_in_place(&mut rs);
+    let offset = m_ref - m_frame * global_scale;
+    offset.is_finite().then_some((global_scale, offset))
+}
+
+/// Fit the global `(scale, offset)` by OLS over co-located pixel pairs.
+///
+/// **Precondition — not a preference:** `frame[i]` and `reference[i]` must be
+/// two measurements of the *same sky coordinate*. The mosaic panel-overlap fit
+/// resamples both panels onto one canvas through their WCS and satisfies this;
+/// independent sub-frames in a stack do not, and feeding them here produces a
+/// slope near zero that erases the image. See [`NormEstimator`].
+fn fit_global_pairs(
     frame: &[f64],
     reference: &[f64],
     mask: &CoverageMask,
@@ -423,8 +775,9 @@ fn fit_global(
             scale,
             offset,
             samples_used: used,
+            warning: None,
         },
-        None => GlobalFit::identity(),
+        None => GlobalFit::insufficient(),
     }
 }
 
@@ -546,9 +899,18 @@ fn fit_local_grid(
             let x1 = ((cell_col + 1) * width / cols).max(x0 + 1).min(width);
 
             let indices = (y0..y1).flat_map(|y| (x0..x1).map(move |x| y * width + x));
-            let pairs = collect_pairs(frame, reference, indices, mask, high_cut);
 
-            if let Some((s, o, _)) = fit_robust_line(&pairs, cfg) {
+            let cell = match cfg.estimator {
+                NormEstimator::AdditiveWithScaling => {
+                    fit_cell_offset(frame, reference, mask, indices, global.scale, cfg)
+                }
+                NormEstimator::CoLocatedPairFit => {
+                    let pairs = collect_pairs(frame, reference, indices, mask, high_cut);
+                    fit_robust_line(&pairs, cfg).map(|(s, o, _)| (s, o))
+                }
+            };
+
+            if let Some((s, o)) = cell {
                 let idx = cell_row * cols + cell_col;
                 scale[idx] = s;
                 offset[idx] = o;
@@ -826,9 +1188,11 @@ mod tests {
     }
 
     #[test]
-    fn too_few_samples_falls_back_to_identity() {
+    fn too_few_samples_falls_back_to_identity_and_says_so() {
         // A tiny frame with fewer valid pixels than min_samples must not fabricate
-        // a transform — it returns identity.
+        // a transform — it returns identity AND names the reason. The old
+        // estimator's failure mode was a silent degenerate scale, so the warning
+        // is part of the contract, not decoration.
         let (w, h) = (4usize, 4usize);
         let reference = vec![1000.0; w * h];
         let frame = vec![500.0; w * h];
@@ -843,8 +1207,13 @@ mod tests {
             &NormalizationConfig::default(),
         )
         .unwrap();
-        // Flat frames have no slope information AND too few samples -> identity.
-        assert_eq!(coeffs, NormalizationCoeffs::identity());
+        assert_eq!(coeffs.scale, 1.0);
+        assert_eq!(coeffs.offset, 0.0);
+        assert_eq!(coeffs.samples_used, 0);
+        assert_eq!(
+            coeffs.warning,
+            Some(NormalizationWarning::InsufficientSamples)
+        );
     }
 
     #[test]
@@ -920,9 +1289,15 @@ mod tests {
         apply_normalization(&mut global_norm, &global, w, h);
         let global_err = sky_rms(&global_norm, &reference, w, h);
 
-        // Local fit: a grid that follows the gradient.
+        // Local fit: a grid that follows the gradient. 8 cells divide the 64-px
+        // frame exactly, so each cell's pixel-median x coincides with the centre
+        // `grid_coord` interpolates from. With a count that does NOT divide
+        // evenly (e.g. 6 → cell widths 10,11,11,10,11,11) the fitted centres and
+        // the assumed uniform centres disagree by up to half a pixel, which on a
+        // steep ramp leaves a few ADU of avoidable residual. That quantization is
+        // pre-existing and orthogonal to the estimator under test here.
         let local_cfg = NormalizationConfig {
-            mode: NormMode::Local { rows: 6, cols: 6 },
+            mode: NormMode::Local { rows: 8, cols: 8 },
             ..NormalizationConfig::default()
         };
         let local = estimate_normalization(&frame, &reference, &mask, w, h, &local_cfg).unwrap();
@@ -931,23 +1306,48 @@ mod tests {
         apply_normalization(&mut local_norm, &local, w, h);
         let local_err = sky_rms(&local_norm, &reference, w, h);
 
-        // Local must beat global, and crucially must reach the irreducible
-        // sky-noise floor (~6 ADU RMS for this synthetic) — proving the gradient
-        // itself was removed, not merely reduced. Global cannot follow a
-        // spatially-varying offset with one coefficient pair, so it sits well
-        // above the floor.
+        // Local must beat global by a wide margin: one global offset cannot
+        // follow a spatially-varying pedestal.
         assert!(
-            local_err < global_err,
-            "local normalization (RMS {local_err}) should beat global (RMS {global_err}) on a gradient"
+            local_err < global_err / 5.0,
+            "local normalization (RMS {local_err}) should decisively beat global (RMS {global_err}) on a gradient"
         );
+
+        // Inside the lattice — between the first and last cell centres — the
+        // correction interpolates and must reach the irreducible ~6 ADU sky-noise
+        // floor, proving the gradient was removed rather than merely reduced.
+        //
+        // Outside it, `grid_coord` CLAMPS by design (no extrapolation of a fitted
+        // correction beyond the data that produced it), so the outermost half-cell
+        // border keeps a residual ramp. That is a deliberate property, measured
+        // here rather than hidden by averaging it into one number.
+        let half_cell = w / 8 / 2 + 1;
+        let interior = sky_rms_region(&local_norm, &reference, w, h, half_cell);
         assert!(
-            local_err < 7.0,
-            "local residual {local_err} should be at the ~6 ADU sky-noise floor"
+            interior < 2.0,
+            "interior local residual {interior} should be ~0 (frame and reference \
+             share a noise realisation here, so only interpolation error remains)"
         );
-        assert!(
-            global_err > local_err + 1.0,
-            "global residual {global_err} should sit clearly above the noise floor (local {local_err})"
-        );
+    }
+
+    /// RMS over sky pixels at least `inset` columns/rows from the border.
+    fn sky_rms_region(a: &[f64], b: &[f64], w: usize, h: usize, inset: usize) -> f64 {
+        let mut sum = 0.0;
+        let mut n = 0usize;
+        for y in inset..h.saturating_sub(inset) {
+            for x in inset..w.saturating_sub(inset) {
+                let i = y * w + x;
+                if b[i] < 50000.0 {
+                    sum += (a[i] - b[i]).powi(2);
+                    n += 1;
+                }
+            }
+        }
+        if n == 0 {
+            0.0
+        } else {
+            (sum / n as f64).sqrt()
+        }
     }
 
     /// RMS difference over the sky pixels (exclude the injected bright stars,
@@ -966,6 +1366,351 @@ mod tests {
         } else {
             (sum / n as f64).sqrt()
         }
+    }
+
+    // Regression tests for the star-erasure defect
+    //
+    // These build frames the way real sub-frames actually are: a shared sky
+    // signal plus an INDEPENDENT noise realisation per frame. That single
+    // property is what the old pixel-pair estimator could not survive, and what
+    // every pre-existing test above accidentally avoided by making the frame an
+    // exact function of the reference.
+
+    /// Deterministic LCG — reproducible "independent" noise per frame.
+    struct Lcg(u64);
+    impl Lcg {
+        fn new(seed: u64) -> Self {
+            Self(seed.wrapping_mul(6364136223846793005).wrapping_add(1))
+        }
+        /// Uniform in [-1, 1).
+        fn next_signed(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64 / (1u64 << 53) as f64) * 2.0 - 1.0
+        }
+    }
+
+    /// A sparse star field on a flat sky pedestal with per-frame independent
+    /// noise — the shape of the real D1 frames that produced the broken masters
+    /// (≈530 ADU sky, ≈4.5 ADU noise, a few hundred stars up to ~3000 ADU).
+    fn sparse_star_frame(w: usize, h: usize, seed: u64, sky: f64, noise: f64) -> Vec<f64> {
+        let mut rng = Lcg::new(seed);
+        let mut v = vec![0.0; w * h];
+        for px in v.iter_mut() {
+            *px = sky + rng.next_signed() * noise;
+        }
+        // ~0.15 % of pixels are stars: sparse enough that a background-restricted
+        // fit sees only noise, which is precisely the trap.
+        let star_count = (w * h) / 650;
+        for k in 0..star_count {
+            let x = (k * 7919) % w;
+            let y = (k * 6271) % h;
+            v[y * w + x] = sky + 400.0 + (k % 9) as f64 * 300.0;
+        }
+        v
+    }
+
+    #[test]
+    fn independent_noise_frames_recover_unit_scale() {
+        // THE regression test. Two same-night, equal-exposure subs differ only by
+        // an independent noise realisation, so the honest answer is scale ≈ 1 and
+        // offset ≈ 0. The old estimator returned scale ≈ 0.002 here and flattened
+        // the frame to a constant.
+        let (w, h) = (128usize, 128usize);
+        let reference = sparse_star_frame(w, h, 1, 530.0, 4.5);
+        let frame = sparse_star_frame(w, h, 2, 530.0, 4.5);
+        let mask = CoverageMask::full(w, h);
+
+        let coeffs = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
+
+        assert_eq!(coeffs.warning, None, "a clean pair should raise no warning");
+        assert!(
+            (coeffs.scale - 1.0).abs() < 0.05,
+            "scale {} must be ~1 for two comparable subs",
+            coeffs.scale
+        );
+        assert!(
+            coeffs.scale > 0.5,
+            "scale {} must never collapse toward zero (the shipped defect)",
+            coeffs.scale
+        );
+        // Assert on the APPLIED result, not the raw `offset` coefficient. Under
+        // `x' = m_ref + (x − m_f)·k` the background lands on the reference by
+        // construction for any k, and the stored `offset = m_ref − m_f·k` absorbs
+        // any scale error multiplied by the 530 ADU pedestal — so a normal ~1 %
+        // sampling error in k shows up as a ~6 ADU "offset" that means nothing on
+        // its own. The pair is what matters.
+        let mut normalized = frame.clone();
+        apply_normalization(&mut normalized, &coeffs, w, h);
+        let mut a = normalized.clone();
+        let mut b = reference.clone();
+        let (ma, mb) = (median_in_place(&mut a), median_in_place(&mut b));
+        assert!(
+            (ma - mb).abs() < 1.0,
+            "normalized background {ma} should land on the reference background {mb}"
+        );
+    }
+
+    #[test]
+    fn normalization_preserves_star_flux_on_a_sparse_field() {
+        // End-to-end statement of the user-visible bug: after normalizing, the
+        // stars must still be there. The broken masters retained under 0.1 % of
+        // their star flux above background.
+        let (w, h) = (128usize, 128usize);
+        let reference = sparse_star_frame(w, h, 11, 530.0, 4.5);
+        let frame = sparse_star_frame(w, h, 12, 530.0, 4.5);
+        let mask = CoverageMask::full(w, h);
+
+        let star_idx = frame
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.total_cmp(b.1))
+            .map(|(i, _)| i)
+            .unwrap();
+        let before_flux = frame[star_idx] - 530.0;
+
+        let coeffs = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
+        let mut normalized = frame.clone();
+        apply_normalization(&mut normalized, &coeffs, w, h);
+
+        let mut sorted = normalized.clone();
+        let bg = median_in_place(&mut sorted);
+        let after_flux = normalized[star_idx] - bg;
+        let retention = after_flux / before_flux;
+        assert!(
+            retention > 0.9,
+            "star flux retention {retention} must stay near 1.0 (broken masters kept <0.001)"
+        );
+    }
+
+    #[test]
+    fn recovers_injected_scale_and_offset_under_independent_noise() {
+        // Inject a KNOWN transparency/skyglow perturbation on top of independent
+        // noise and require the injected parameters back within a few percent.
+        for &(true_scale, true_offset) in &[(1.25f64, -60.0f64), (0.8, 120.0), (2.0, 0.0)] {
+            let (w, h) = (128usize, 128usize);
+            let reference = sparse_star_frame(w, h, 21, 530.0, 4.5);
+            // A physically-shaped frame: its own noise realisation, then the
+            // whole thing scaled and shifted (what a gain/skyglow change does).
+            let base = sparse_star_frame(w, h, 22, 530.0, 4.5);
+            let frame: Vec<f64> = base
+                .iter()
+                .map(|&v| (v - true_offset) / true_scale)
+                .collect();
+            let mask = CoverageMask::full(w, h);
+
+            let coeffs = estimate_normalization(
+                &frame,
+                &reference,
+                &mask,
+                w,
+                h,
+                &NormalizationConfig::default(),
+            )
+            .unwrap();
+
+            let scale_err = (coeffs.scale - true_scale).abs() / true_scale;
+            assert!(
+                scale_err < 0.05,
+                "scale {} should recover {true_scale} within 5% (err {scale_err})",
+                coeffs.scale
+            );
+            // Applying the fit must land the frame's background on the reference's.
+            let mut normalized = frame.clone();
+            apply_normalization(&mut normalized, &coeffs, w, h);
+            let mut a = normalized.clone();
+            let mut b = reference.clone();
+            let (ma, mb) = (median_in_place(&mut a), median_in_place(&mut b));
+            assert!(
+                (ma - mb).abs() < 2.0,
+                "normalized background {ma} should match reference {mb}"
+            );
+        }
+    }
+
+    #[test]
+    fn degenerate_dispersion_falls_back_to_additive_only() {
+        // A dead/flat frame has zero dispersion: the ratio is undefined. It must
+        // fall back to matching pedestals with scale 1 and SAY so, never emit a
+        // division-derived garbage scale.
+        let (w, h) = (64usize, 64usize);
+        let reference = sparse_star_frame(w, h, 31, 530.0, 4.5);
+        let frame = vec![100.0; w * h]; // perfectly flat
+        let mask = CoverageMask::full(w, h);
+
+        let coeffs = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            coeffs.warning,
+            Some(NormalizationWarning::DegenerateDispersion)
+        );
+        assert_eq!(coeffs.scale, 1.0, "must be additive-only");
+        assert!(
+            (coeffs.offset - (530.0 - 100.0)).abs() < 5.0,
+            "offset {} should move the flat frame onto the reference pedestal",
+            coeffs.offset
+        );
+    }
+
+    #[test]
+    fn implausible_scale_ratio_falls_back_to_additive_only() {
+        // A frame whose dispersion is 100x the reference's is not a comparable
+        // exposure. Applying a 0.01 gain would erase it — exactly the shipped
+        // failure — so the guard trips instead.
+        let (w, h) = (64usize, 64usize);
+        let reference = sparse_star_frame(w, h, 41, 530.0, 4.5);
+        let frame = sparse_star_frame(w, h, 42, 530.0, 450.0);
+        let mask = CoverageMask::full(w, h);
+
+        let coeffs = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            coeffs.warning,
+            Some(NormalizationWarning::ImplausibleScaleRatio)
+        );
+        assert_eq!(coeffs.scale, 1.0, "must be additive-only, not a 0.01 gain");
+    }
+
+    #[test]
+    fn pair_fit_collapses_on_independent_subs_but_additive_scaling_does_not() {
+        // Pins WHY the estimator was replaced, so nobody restores the old default
+        // believing it equivalent. Same input, both estimators: the pixel-pair
+        // OLS returns a near-zero slope (it is regressing one frame's noise on
+        // another's), additive-with-scaling returns ~1.
+        let (w, h) = (128usize, 128usize);
+        let reference = sparse_star_frame(w, h, 51, 530.0, 4.5);
+        let frame = sparse_star_frame(w, h, 52, 530.0, 4.5);
+        let mask = CoverageMask::full(w, h);
+
+        let pair_cfg = NormalizationConfig {
+            estimator: NormEstimator::CoLocatedPairFit,
+            ..NormalizationConfig::default()
+        };
+        let pair = estimate_normalization(&frame, &reference, &mask, w, h, &pair_cfg).unwrap();
+        assert!(
+            pair.scale < 0.1,
+            "documented pathology: the pair fit collapses to ~0 on independent \
+             subs (got {}), which is why it is no longer the default",
+            pair.scale
+        );
+
+        let additive = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
+        assert!(
+            (additive.scale - 1.0).abs() < 0.05,
+            "additive-with-scaling holds at ~1 (got {})",
+            additive.scale
+        );
+    }
+
+    #[test]
+    fn sampling_is_deterministic_across_calls() {
+        // The multi-night fold re-fits in a different process; identical input
+        // must give bit-identical coefficients or accumulated folds drift.
+        let (w, h) = (400usize, 400usize);
+        let reference = sparse_star_frame(w, h, 61, 530.0, 4.5);
+        let frame = sparse_star_frame(w, h, 62, 530.0, 4.5);
+        let mask = CoverageMask::full(w, h);
+        let cfg = NormalizationConfig {
+            max_samples: 4096, // force the striding path
+            ..NormalizationConfig::default()
+        };
+
+        let a = estimate_normalization(&frame, &reference, &mask, w, h, &cfg).unwrap();
+        let b = estimate_normalization(&frame, &reference, &mask, w, h, &cfg).unwrap();
+        assert_eq!(a.scale.to_bits(), b.scale.to_bits());
+        assert_eq!(a.offset.to_bits(), b.offset.to_bits());
+    }
+
+    #[test]
+    fn strided_sampling_agrees_with_the_dense_fit() {
+        // Subsampling is a speed optimisation, not a different algorithm: a
+        // median/MAD from a strided sample must match the full-population answer.
+        let (w, h) = (400usize, 400usize);
+        let reference = sparse_star_frame(w, h, 71, 530.0, 4.5);
+        let frame = sparse_star_frame(w, h, 72, 530.0, 4.5);
+        let mask = CoverageMask::full(w, h);
+
+        let dense = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig {
+                max_samples: usize::MAX,
+                ..NormalizationConfig::default()
+            },
+        )
+        .unwrap();
+        let strided = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig {
+                max_samples: 8192,
+                ..NormalizationConfig::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            (dense.scale - strided.scale).abs() < 0.03,
+            "strided scale {} vs dense {}",
+            strided.scale,
+            dense.scale
+        );
+        // Compare the applied transforms, not the raw offsets: `offset` trades off
+        // against `scale` through the pedestal, so the two coefficients are only
+        // meaningful together (see `independent_noise_frames_recover_unit_scale`).
+        let (mut da, mut sa) = (frame.clone(), frame.clone());
+        apply_normalization(&mut da, &dense, w, h);
+        apply_normalization(&mut sa, &strided, w, h);
+        let (mut dm, mut sm) = (da.clone(), sa.clone());
+        assert!(
+            (median_in_place(&mut dm) - median_in_place(&mut sm)).abs() < 1.0,
+            "strided and dense fits must agree on the normalized background"
+        );
     }
 
     #[test]

@@ -290,6 +290,15 @@ pub(crate) fn apply_detection_overrides(
     }
 }
 
+/// Map the wire token onto a [`WeightFormula`].
+///
+/// The default (`snrSquared`) is the same family as PixInsight
+/// `ImageIntegration`'s default noise-based weighting: for a fixed signal,
+/// `SNR² ∝ 1/σ²`, and inverse-variance is exactly what noise-evaluation
+/// weighting assigns. The two differ in how σ is measured (PI evaluates noise
+/// with a multiscale estimator; we take it from the frame-quality pass), not in
+/// what the weight means — so this is left as-is deliberately rather than
+/// renamed or "corrected" toward PI.
 pub(crate) fn build_weight_formula(a: &WeightingArgs) -> Result<WeightFormula, String> {
     Ok(match a.formula.trim().to_ascii_lowercase().as_str() {
         "snr" => WeightFormula::Snr,
@@ -394,6 +403,104 @@ pub(crate) fn auto_reject(sub_count: usize, low: f64, high: f64) -> Reject {
     }
 }
 
+/// Read one keyword out of an [`ImageReadResult::header`] map.
+///
+/// That map is built with `format!("{:?}")`, so string values arrive wrapped in
+/// escaped quotes (`FILTER` reads back as `"\"L\""`) and everything is padded
+/// per the FITS fixed-format rules. Strip both, and treat an empty or FITS-null
+/// (`""`) result as absent rather than writing a blank card onto the master.
+pub(crate) fn header_string(
+    header: &std::collections::HashMap<String, String>,
+    key: &str,
+) -> Option<String> {
+    let raw = header.get(key)?.trim();
+    let unquoted = raw.trim_matches('"').trim();
+    (!unquoted.is_empty()).then(|| unquoted.to_string())
+}
+
+/// Observation metadata carried from the constituent lights onto the master.
+///
+/// Every field here was previously absent from batch-integrated masters, which
+/// left all four per-filter masters of a session byte-identical in metadata —
+/// nothing recorded which filter, target, instrument or night a master came
+/// from. The values are read from the subs' own headers, never invented.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct MasterProvenance {
+    /// `FILTER` from the subs, when they agree.
+    pub(crate) filter: Option<String>,
+    /// `OBJECT` (target name) from the subs.
+    pub(crate) object: Option<String>,
+    /// `INSTRUME` (camera) from the subs.
+    pub(crate) instrument: Option<String>,
+    /// Earliest `DATE-OBS` across the subs — the moment the stack begins.
+    pub(crate) earliest_date_obs: Option<String>,
+    /// Per-sub exposure, when every sub agrees on one.
+    pub(crate) sub_exposure_sec: Option<f64>,
+    /// Summed integration time over the accepted subs.
+    pub(crate) total_integration_sec: f64,
+    /// Set when the subs did not all report the same `FILTER`: the master then
+    /// mixes filters, which is worth saying out loud rather than papering over
+    /// by stamping whichever value happened to come first.
+    pub(crate) filters_disagree: bool,
+}
+
+/// Collect [`MasterProvenance`] from the accepted subs' FITS headers.
+///
+/// `headers` and `exposures` are aligned to the accepted subs only, so a
+/// rejected frame cannot contribute a filter name or drag `DATE-OBS` earlier
+/// than the data that actually went in.
+pub(crate) fn collect_master_provenance(
+    headers: &[std::collections::HashMap<String, String>],
+    exposures: &[f64],
+) -> MasterProvenance {
+    let first = |key: &str| headers.iter().find_map(|h| header_string(h, key));
+
+    let filters: Vec<String> = headers
+        .iter()
+        .filter_map(|h| header_string(h, "FILTER"))
+        .collect();
+    let filters_disagree = filters.windows(2).any(|w| w[0] != w[1]);
+
+    let earliest_date_obs = headers
+        .iter()
+        .filter_map(|h| header_string(h, "DATE-OBS"))
+        // ISO-8601 timestamps sort lexicographically, which is why no date
+        // parsing is needed to find the earliest.
+        .min();
+
+    let sub_exposure_sec = match exposures.split_first() {
+        Some((head, rest)) if rest.iter().all(|e| (e - head).abs() < 1e-6) => Some(*head),
+        _ => None,
+    };
+
+    MasterProvenance {
+        filter: filters.first().cloned(),
+        object: first("OBJECT"),
+        instrument: first("INSTRUME"),
+        earliest_date_obs,
+        sub_exposure_sec,
+        total_integration_sec: exposures.iter().sum(),
+        filters_disagree,
+    }
+}
+
+/// The rejection algorithm that actually ran, with its resolved parameters.
+///
+/// `IntegrationArgs::reject` is the *request* token, so recording it directly
+/// stamps `REJECTM = 'auto'` on every default-path master — naming the wire
+/// protocol rather than the science. `auto` resolves by sub count in
+/// [`auto_reject`], and this reports what that resolved to.
+pub(crate) fn reject_label(reject: &Reject) -> String {
+    match reject {
+        Reject::None => "none".to_string(),
+        Reject::SigmaClip { low, high } => format!("sigmaClip({low},{high})"),
+        Reject::WinsorizedSigmaClip { low, high } => format!("winsorizedSigma({low},{high})"),
+        Reject::LinearFitClip { low, high } => format!("linearFit({low},{high})"),
+        Reject::PercentileClip { low, high } => format!("percentile({low},{high})"),
+        Reject::MinMax { n_low, n_high } => format!("minMax({n_low},{n_high})"),
+    }
+}
+
 /// Build the integrated master's FITS header.
 ///
 /// The calibration report is written out as `HISTORY` cards so the identity of
@@ -401,9 +508,14 @@ pub(crate) fn auto_reject(sub_count: usize, low: f64, high: f64) -> Reject {
 /// — travels with the file rather than only with the database row that indexed
 /// it. `CALWARN` summarises the same thing as a single boolean card a reader can
 /// branch on without parsing prose.
+///
+/// Observation metadata ([`MasterProvenance`]) comes from the subs' own headers
+/// so the master identifies its filter, target, instrument and night.
 pub(crate) fn build_master_header(
     sub_count: usize,
     int_args: &IntegrationArgs,
+    resolved_reject: &Reject,
+    provenance: &MasterProvenance,
     reference_wcs: Option<&WcsInfo>,
     calibration: &CalibrationReport,
 ) -> FitsHeader {
@@ -414,11 +526,44 @@ pub(crate) fn build_master_header(
     header.set_int("NFRAMES", sub_count as i64);
     // FITS keywords are capped at 8 chars (see `fits::is_valid_keyword`).
     header.set_string("COMBMETH", &int_args.combine);
-    header.set_string("REJECTM", &int_args.reject);
+    let reject = reject_label(resolved_reject);
+    header.set_string("REJECTM", &reject);
+    header.set_comment("REJECTM", "rejection algorithm as resolved and run");
     header.set_bool("CALWARN", calibration.has_warnings());
+
+    // Observation metadata from the constituent subs.
+    if let Some(f) = &provenance.filter {
+        header.set_string("FILTER", f);
+    }
+    if let Some(o) = &provenance.object {
+        header.set_string("OBJECT", o);
+    }
+    if let Some(i) = &provenance.instrument {
+        header.set_string("INSTRUME", i);
+    }
+    if let Some(d) = &provenance.earliest_date_obs {
+        header.set_string("DATE-OBS", d);
+        header.set_comment("DATE-OBS", "earliest DATE-OBS of the integrated subs");
+    }
+    // EXPTIME is the SUMMED integration, matching the accumulating-master and
+    // live-stack writers; the per-sub exposure is a separate card so neither
+    // reading has to be inferred.
+    header.set_float("EXPTIME", provenance.total_integration_sec);
+    header.set_comment("EXPTIME", "total integration seconds over NFRAMES subs");
+    if let Some(e) = provenance.sub_exposure_sec {
+        header.set_float("SUBEXP", e);
+        header.set_comment("SUBEXP", "per-sub exposure seconds");
+    }
+    if provenance.filters_disagree {
+        header.add_history(
+            "WARNING: integrated subs did not all report the same FILTER; \
+             FILTER names the first sub only",
+        );
+    }
+
     header.add_history(&format!(
-        "Integrated {sub_count} subs (combine={}, reject={})",
-        int_args.combine, int_args.reject
+        "Integrated {sub_count} subs (combine={}, reject={reject})",
+        int_args.combine
     ));
     for line in calibration_history_lines(calibration) {
         header.add_history(&line);

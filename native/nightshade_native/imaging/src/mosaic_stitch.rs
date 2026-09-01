@@ -33,8 +33,10 @@
 //! 3. **Cross-panel normalization** ([`solve_panel_photometry`]) — for every
 //!    pair of panels whose canvas footprints overlap, matched (panel_i, panel_j)
 //!    samples over the shared sky are fitted to a relative scale+offset with the
-//!    crate's robust line fit (reused from [`normalization`](crate::normalization)
-//!    via [`crate::normalization::estimate_normalization`]). A single global
+//!    crate's co-located pixel-pair line fit
+//!    ([`crate::normalization::NormEstimator::CoLocatedPairFit`]) — valid here
+//!    precisely because both panels are resampled onto one canvas first, so
+//!    paired samples share a sky coordinate. A single global
 //!    least-squares then solves per-panel gain `g_k` and offset `o_k`, anchored
 //!    to a reference panel (`g_ref = 1`, `o_ref = 0`), so all panels share one
 //!    photometric scale. Panels with no overlap default to `g = 1`, `o = 0`.
@@ -54,7 +56,9 @@
 use rayon::prelude::*;
 use thiserror::Error;
 
-use crate::normalization::{estimate_normalization, CoverageMask, NormalizationConfig};
+use crate::normalization::{
+    estimate_normalization, CoverageMask, NormEstimator, NormalizationConfig,
+};
 use crate::registration::Interpolator;
 use crate::robust_stats::median_in_place as median;
 use crate::{ImageData, WcsInfo};
@@ -742,8 +746,8 @@ struct PanelPhotometry {
 /// For each pair of footprint-overlapping panels `(i, j)` we sample matched
 /// values across the shared canvas region (channel 0, the luminance proxy) and
 /// fit a robust line `v_i ≈ s·v_j + o` via
-/// [`crate::normalization::estimate_normalization`] — the same robust-slope +
-/// background-offset machinery batch integration uses, reused verbatim. That
+/// [`crate::normalization::estimate_normalization`] under
+/// [`crate::normalization::NormEstimator::CoLocatedPairFit`]. That
 /// gives a pairwise constraint `g_i·v_i + o_i ≈ g_j·v_j + o_j` after a
 /// log/linear reparametrisation. We then solve a single global least-squares
 /// for all `(g_k, o_k)` anchored to panel 0 (`g_0 = 1`, `o_0 = 0`).
@@ -962,7 +966,17 @@ fn fit_overlap_pair(
         }
     }
     let mask = CoverageMask::new(w, h, valid)?;
-    let cfg = NormalizationConfig::default();
+    // The loop above resampled BOTH panels onto the same output pixel grid via
+    // their WCS, so `frame[i]` and `reference[i]` are two measurements of one
+    // sky coordinate. That co-location is exactly the precondition the pixel-pair
+    // OLS estimator needs, and it is why the panel fit keeps using it while
+    // stacking uses additive-with-scaling: here we want the relative gain over
+    // the SHARED overlap, and each panel's global statistics describe mostly
+    // non-overlapping sky.
+    let cfg = NormalizationConfig {
+        estimator: NormEstimator::CoLocatedPairFit,
+        ..NormalizationConfig::default()
+    };
     let coeffs = estimate_normalization(&frame, &reference, &mask, w, h, &cfg).ok()?;
     // estimate_normalization returns identity (scale 1, offset 0, samples 0) when
     // it cannot fit honestly; treat that as "no usable constraint".
