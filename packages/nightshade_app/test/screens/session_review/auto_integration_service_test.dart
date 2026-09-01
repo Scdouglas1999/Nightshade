@@ -36,6 +36,7 @@ class _FakeAccumulationService implements MasterAccumulationService {
     IntegrationSettings settings = IntegrationSettings.defaults,
     String? biasPath,
     String? runId,
+    bool allowRestart = true,
   }) async {
     calls.add((masterId: masterId, subs: subs, runId: runId));
     return MasterAccumulateResult(

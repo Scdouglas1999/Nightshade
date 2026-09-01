@@ -112,6 +112,7 @@ class _ObservingAccumulationService implements MasterAccumulationService {
     IntegrationSettings settings = IntegrationSettings.defaults,
     String? biasPath,
     String? runId,
+    bool allowRestart = true,
   }) async {
     markerDuringRun = await readIntegrationMarker(_markerDir);
     foldedInto.add(masterId);
