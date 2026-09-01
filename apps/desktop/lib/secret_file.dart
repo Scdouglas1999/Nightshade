@@ -41,7 +41,7 @@ Future<void> writeSecretFile(File file, String contents) async {
 /// Also called for files that already exist, so an install created by an older
 /// build stops being world-readable the next time the credential is read.
 ///
-/// Best-effort: a failure is reported on stderr and does not throw. A rig that
+/// Non-fatal: a failure is reported on stderr and does not throw. A rig that
 /// cannot chmod its token file must still start — refusing to boot would turn a
 /// permissions nit into an outage — but the operator is told.
 Future<void> restrictSecretFile(File file) async {

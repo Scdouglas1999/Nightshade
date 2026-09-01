@@ -109,7 +109,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // DID find is handed over, because a Darkroom job left running is what
         // separates a kill during the draft from a kill during the integrate.
         //
-        // Best-effort, and the try/catch is the whole point. Everything in
+        // This block may fail, and the try/catch is the whole point. Everything in
         // this block is a POST-MORTEM: it explains a night that already
         // happened. None of it is required for the database to work, and all
         // of it writes rows keyed to sessions and jobs whose ids come from a
