@@ -108,19 +108,43 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // truncated master sitting on disk looking finished. What the recovery
         // DID find is handed over, because a Darkroom job left running is what
         // separates a kill during the draft from a kill during the integrate.
-        final reportedSession = await _reportInterruptedIntegration(
-          interruptedDarkroomJobs,
-        );
+        //
+        // Best-effort, and the try/catch is the whole point. Everything in
+        // this block is a POST-MORTEM: it explains a night that already
+        // happened. None of it is required for the database to work, and all
+        // of it writes rows keyed to sessions and jobs whose ids come from a
+        // marker file a dead process left behind — ids the current database
+        // may no longer contain. Under `PRAGMA foreign_keys = ON` such a write
+        // throws, and a throw HERE is not one failed report: drift records the
+        // failure against the connection and refuses every later open, while
+        // the marker that caused it stays on disk to cause it again. That
+        // turns an undamaged database into an install that never starts.
+        //
+        // So the report is allowed to fail. What must not fail is the open.
+        try {
+          final reportedSession = await _reportInterruptedIntegration(
+            interruptedDarkroomJobs,
+          );
 
-        // The report above is written once per interruption, from a marker the
-        // first report consumes — so a job that dies repeatedly keeps the
-        // record its FIRST death wrote, which promised a re-queue the cap has
-        // since cancelled. Correct those here, now that the recovery has said
-        // which jobs it ended for good.
-        await _supersedeRetryPromiseForCappedJobs(
-          interruptedDarkroomJobs,
-          reportedSessionId: reportedSession,
-        );
+          // The report above is written once per interruption, from a marker
+          // the first report consumes — so a job that dies repeatedly keeps
+          // the record its FIRST death wrote, which promised a re-queue the
+          // cap has since cancelled. Correct those here, now that the recovery
+          // has said which jobs it ended for good.
+          await _supersedeRetryPromiseForCappedJobs(
+            interruptedDarkroomJobs,
+            reportedSessionId: reportedSession,
+          );
+        } catch (error, stackTrace) {
+          // ignore: avoid_print
+          print(
+            '[nightshade_db] WARNING: reporting an interrupted post-session '
+            'pass failed ($error). The database opens anyway — this report is '
+            'a courtesy, not a precondition. Discarding the marker that drove '
+            'it so the failure cannot repeat at every launch.\n$stackTrace',
+          );
+          await _discardIntegrationMarkerAfterFailedReport();
+        }
 
         // Rebuild session statistics that a dead process never got to write.
         //
@@ -199,34 +223,88 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         }
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        await _upgradeSchemaV2ToV17(m, from);
-        await _upgradeSchemaV18ToV22(m, from);
-        await _upgradeSchemaV23ToV31(m, from);
-        await _upgradeSchemaV32ToV40(m, from);
-        await _upgradeSchemaV41(m, from);
-        await _upgradeSchemaV42(m, from);
-        await _upgradeSchemaV43(m, from);
-        await _upgradeSchemaV44(m, from);
-        await _upgradeSchemaV45(m, from);
-        await _upgradeSchemaV46(m, from);
-        await _upgradeSchemaV47(m, from);
-        await _upgradeSchemaV48(m, from);
-        await _upgradeSchemaV49(m, from);
-        await _upgradeSchemaV50(m, from);
-        await _upgradeSchemaV51(m, from);
-        await _upgradeSchemaV52(m, from);
-        await _upgradeSchemaV53(m, from);
-        await _upgradeSchemaV54(m, from);
-        await _upgradeSchemaV55(m, from);
-        await _upgradeSchemaV56(m, from);
-        await _upgradeSchemaV57(m, from);
-        await _upgradeSchemaV58(m, from);
-        await _upgradeSchemaV59(m, from);
+        // ONE transaction for the whole upgrade, with the schema version
+        // stamped inside it — the same boundary `onCreate` above already
+        // draws, for the same reason.
+        //
+        // Drift runs `onUpgrade` in auto-commit and writes `user_version`
+        // only after the callback returns, so every statement below committed
+        // as it ran while the version on disk stayed at the OLD number. A
+        // process killed part-way through — the power cut at 3am, an OOM kill,
+        // an operator closing the laptop on the launch after an update — left
+        // a file that is half at the new schema and labelled as being entirely
+        // at the old one. The next launch then re-runs the whole chain over
+        // it, and every step is only as re-runnable as its own guard: the
+        // `IF NOT EXISTS` ones survive it, while the rename-create-copy-drop
+        // rebuilds do not (see the v30 `guide_rms_history` block, which is why
+        // that one now resumes).
+        //
+        // Committing the statements and the version together leaves the file
+        // either entirely before the upgrade or entirely after it. A kill
+        // before the commit rolls back through the journal on the next open,
+        // and the upgrade runs again from a state it has already handled once.
+        //
+        // WHY drift's `transaction()` here and a raw `BEGIN` in `onCreate`:
+        // the upgrade chain reaches `Migrator.alterTable`, which opens a
+        // transaction of its OWN to run SQLite's twelve-step table rebuild. A
+        // raw `customStatement('BEGIN')` is invisible to drift's transaction
+        // bookkeeping, so drift then issues a second `BEGIN` and SQLite
+        // rejects it — `cannot start a transaction within a transaction`,
+        // which broke every upgrade from a schema old enough to reach an
+        // `alterTable` step. Going through `transaction()` lets drift see the
+        // outer one and nest the inner as a savepoint. `onCreate` calls only
+        // `createAll`, which opens nothing, so its raw form is left alone.
+        //
+        // Before anything rewrites the file: a copy of it as it is now.
+        // Outside the transaction because `VACUUM INTO` cannot run inside one,
+        // and first because a snapshot taken after the first statement is a
+        // snapshot of a database mid-upgrade. See
+        // [_writePreMigrationBackup] for why an upgrade is the one operation
+        // that needs this and what it protects against.
+        await _writePreMigrationBackup(from);
 
-        await _ensureDefaultSettings();
-        await _createCustomIndexes();
+        await transaction(() async {
+          await _runUpgrade(m, from);
+          // Inside the transaction on purpose. Drift writes the same value
+          // again once this callback returns; that repeat is a no-op.
+          await customStatement('PRAGMA user_version = $schemaVersion');
+        });
       },
     );
+  }
+
+  /// Every step of the upgrade chain, in version order.
+  ///
+  /// Split out of `onUpgrade` so the whole chain runs inside that callback's
+  /// one transaction and the reader can see where the atomic boundary is —
+  /// the same split, for the same reason, as [_createSchema].
+  Future<void> _runUpgrade(Migrator m, int from) async {
+    await _upgradeSchemaV2ToV17(m, from);
+    await _upgradeSchemaV18ToV22(m, from);
+    await _upgradeSchemaV23ToV31(m, from);
+    await _upgradeSchemaV32ToV40(m, from);
+    await _upgradeSchemaV41(m, from);
+    await _upgradeSchemaV42(m, from);
+    await _upgradeSchemaV43(m, from);
+    await _upgradeSchemaV44(m, from);
+    await _upgradeSchemaV45(m, from);
+    await _upgradeSchemaV46(m, from);
+    await _upgradeSchemaV47(m, from);
+    await _upgradeSchemaV48(m, from);
+    await _upgradeSchemaV49(m, from);
+    await _upgradeSchemaV50(m, from);
+    await _upgradeSchemaV51(m, from);
+    await _upgradeSchemaV52(m, from);
+    await _upgradeSchemaV53(m, from);
+    await _upgradeSchemaV54(m, from);
+    await _upgradeSchemaV55(m, from);
+    await _upgradeSchemaV56(m, from);
+    await _upgradeSchemaV57(m, from);
+    await _upgradeSchemaV58(m, from);
+    await _upgradeSchemaV59(m, from);
+
+    await _ensureDefaultSettings();
+    await _createCustomIndexes();
   }
 
   /// Every statement a fresh install's schema is made of, in dependency order.

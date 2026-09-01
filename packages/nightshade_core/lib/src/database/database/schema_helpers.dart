@@ -1,5 +1,21 @@
 part of '../database.dart';
 
+/// Filename prefix of the copy an upgrade takes of the database before it
+/// rewrites it — `nightshade-premigration-v58-<epoch seconds>.db`.
+///
+/// Distinct from the `nightshade-corrupt-` and `nightshade-incomplete-`
+/// prefixes `integrity_check.dart` globs, so a quarantine sweep never consumes
+/// one of these and this never consumes one of those.
+const String kPreMigrationBackupPrefix = 'nightshade-premigration-';
+
+/// How many pre-upgrade copies are kept beside the database.
+///
+/// Two: the one from the upgrade that just ran and the one before it, which is
+/// what an operator needs when a problem is only noticed after a second
+/// launch. These are full copies of the database, so keeping every one of them
+/// would grow without bound on the machine least able to afford it.
+const int kPreMigrationBackupsKept = 2;
+
 extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   /// Create the v31 `focus_models` table + its indexes. Called from both
   /// `onCreate` (fresh installs run `m.createAll()` which already covers
@@ -1327,8 +1343,8 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   Future<List<_InterruptedDarkroomJob>>
   _recoverInterruptedDarkroomJobs() async {
     final residue = await customSelect(
-      'SELECT id, session_id, progress, attempts FROM darkroom_jobs '
-      'WHERE state = ?',
+      'SELECT id, session_id, kind, created_at, progress, attempts '
+      'FROM darkroom_jobs WHERE state = ?',
       variables: [const Variable<String>('running')],
     ).get();
     final interrupted = [
@@ -1336,6 +1352,8 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
         _InterruptedDarkroomJob(
           jobId: row.data['id'] as int,
           sessionId: row.data['session_id'] as int?,
+          kind: row.data['kind'] as String?,
+          createdAtEpochSeconds: row.data['created_at'] as int?,
           progress: (row.data['progress'] as num).toDouble(),
           attempts: row.data['attempts'] as int,
         ),
@@ -1398,6 +1416,158 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       return Directory(p.dirname(file));
     }
     return null;
+  }
+
+  /// Copy the database aside, as it is right now, before an upgrade rewrites
+  /// it.
+  ///
+  /// **Why there has to be one.** Every other copy this codebase makes is
+  /// post-hoc — `nightshade-corrupt-*.db` and `nightshade-incomplete-*.db` are
+  /// both written once a file is ALREADY unusable. An upgrade is the one
+  /// routine operation that rewrites a healthy database in place, and two of
+  /// its failure modes leave nothing to appeal to: a rebuild that loses rows,
+  /// and the downgrade — an install upgraded to a new schema, then opened once
+  /// by an older build, which re-stamps `user_version` back down and lets its
+  /// foreign keys cascade over rows it does not know about. Nothing in this
+  /// build can stop an older binary doing that. A copy taken here is what
+  /// makes it survivable.
+  ///
+  /// **Why `VACUUM INTO`.** It is SQLite's own consistent snapshot: one
+  /// statement, no separate `-wal`/`-shm` to keep in step, and the result is a
+  /// plain database file the operator can open or swap in. It cannot run
+  /// inside a transaction, which is why this is called before the upgrade's
+  /// `BEGIN` rather than within it.
+  ///
+  /// **Why only on a real upgrade.** This runs from `onUpgrade`, which drift
+  /// enters only for an existing database whose stored version is behind the
+  /// code's. A fresh install goes through `onCreate` and copies nothing, which
+  /// is right: there is nothing yet to preserve.
+  ///
+  /// **Why a failure here does not stop the upgrade.** These files are large,
+  /// and refusing to open when the disk is too full to hold one would turn a
+  /// missing safety net into an outage. The warning is loud and names the
+  /// reason; the upgrade itself is atomic (see `onUpgrade`), so what is being
+  /// given up is the ability to go BACK, not the integrity of going forward.
+  Future<void> _writePreMigrationBackup(int from) async {
+    try {
+      final directory = await _databaseDirectory();
+      // An in-memory database has no directory and nothing to preserve.
+      if (directory == null) return;
+
+      final stamp = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+      final path = p.join(
+        directory.path,
+        '${kPreMigrationBackupPrefix}v$from-$stamp.db',
+      );
+      final destination = File(path);
+      // `VACUUM INTO` refuses to write over an existing file, and a second
+      // upgrade inside the same second would land on this name.
+      if (destination.existsSync()) await destination.delete();
+
+      await customStatement('VACUUM INTO ?', [path]);
+
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] Upgrading the database from schema version $from to '
+        '$schemaVersion. A copy of it as it was before the upgrade is at '
+        '$path',
+      );
+
+      await _pruneOldPreMigrationBackups(directory);
+    } catch (error) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] WARNING: could not copy the database aside before '
+        'upgrading it from schema version $from ($error). The upgrade '
+        'continues, but there is no pre-upgrade copy to fall back on.',
+      );
+    }
+  }
+
+  /// Keep the newest [kPreMigrationBackupsKept] pre-migration copies and delete
+  /// the rest.
+  ///
+  /// By modification time rather than by name: the name carries the version it
+  /// was taken at BEFORE the timestamp, so sorting the strings would rank a
+  /// copy from v58 above a newer one from v6 — which is exactly the pair an
+  /// operator upgrading, downgrading and upgrading again ends up with.
+  Future<void> _pruneOldPreMigrationBackups(Directory directory) async {
+    final copies =
+        directory
+            .listSync()
+            .whereType<File>()
+            .where(
+              (file) =>
+                  p.basename(file.path).startsWith(kPreMigrationBackupPrefix),
+            )
+            .toList()
+          ..sort(
+            (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+          );
+    for (final stale in copies.skip(kPreMigrationBackupsKept)) {
+      try {
+        await stale.delete();
+      } catch (error) {
+        // ignore: avoid_print
+        print(
+          '[nightshade_db] Could not delete the superseded pre-upgrade copy '
+          '${stale.path} ($error).',
+        );
+      }
+    }
+  }
+
+  /// Whether [sessionId] already carries a narrator event under [dedupeKey].
+  ///
+  /// The session-scoped half of [NarratorEventsDao.hasDedupeKey]'s rule, asked
+  /// in SQL because this runs inside `beforeOpen`, where the DAOs are not yet
+  /// usable. No time window is needed: every night gets a fresh session id, so
+  /// a key can only collide with an earlier event of the SAME night — which is
+  /// exactly the duplicate worth suppressing.
+  Future<bool> _narratorEventExists(int sessionId, String dedupeKey) async {
+    final rows = await customSelect(
+      'SELECT 1 FROM narrator_events WHERE session_id = ? AND dedupe_key = ? '
+      'LIMIT 1',
+      variables: [Variable<int>(sessionId), Variable<String>(dedupeKey)],
+      readsFrom: {narratorEvents},
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  /// Consume the integration marker after the post-mortem report it feeds
+  /// failed, naming what it said in the log first.
+  ///
+  /// The report is a courtesy — it tells the operator a night was interrupted —
+  /// and the marker that drives it is re-read at every open. So a report that
+  /// throws does not fail once: it fails identically on every launch, out of
+  /// `beforeOpen`, which drift treats as a fatal migration error and refuses to
+  /// open past. Discarding the marker costs one night's warning; keeping it
+  /// costs the whole database. The marker's contents go to the log so the
+  /// warning is not lost, only relocated.
+  Future<void> _discardIntegrationMarkerAfterFailedReport() async {
+    try {
+      final directory = await _databaseDirectory();
+      if (directory == null) return;
+      final interrupted = await readIntegrationMarker(directory);
+      if (interrupted != null) {
+        // ignore: avoid_print
+        print(
+          '[nightshade_db] The discarded marker recorded: session '
+          '${interrupted.sessionId}, stage ${interrupted.stage.name}, started '
+          '${interrupted.startedAtUtc.toIso8601String()} UTC, intended masters '
+          '${interrupted.intendedMasterPaths.isEmpty ? '(none recorded)' : interrupted.intendedMasterPaths.join('; ')}.',
+        );
+      }
+      await clearIntegrationMarker(directory);
+    } catch (error) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] WARNING: the interrupted-pass marker could not be '
+        'discarded either ($error). It will be read again at the next open; '
+        'delete $kIntegrationMarkerName beside the database by hand if '
+        'startup keeps failing.',
+      );
+    }
   }
 
   /// Report a post-session pass that a previous process died in the middle of,
@@ -1475,9 +1645,41 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     final interrupted = await readIntegrationMarker(directory);
     if (interrupted == null) return null;
 
+    // The marker names its session by id, and that row can be gone by the time
+    // this runs: the operator deleted the night from the sessions list after
+    // the crash, the integrity quarantine rotated the damaged file aside and
+    // left this marker beside a FRESH database that never held the session, or
+    // a replace-mode restore swapped in a backup predating it. The report below
+    // INSERTs a `narrator_events` row keyed to that id under
+    // `PRAGMA foreign_keys = ON`, so a missing session turns a post-mortem note
+    // into a foreign-key failure thrown out of `beforeOpen` — which drift
+    // remembers, so every later open fails the same way while the marker sits
+    // on disk producing it again. The database is undamaged and unopenable.
+    //
+    // A night that is no longer on record has nothing to carry the report, so
+    // the marker is consumed and the finding goes to the log instead.
+    final sessionRow = await customSelect(
+      'SELECT 1 FROM imaging_sessions WHERE id = ? LIMIT 1',
+      variables: [Variable<int>(interrupted.sessionId)],
+      readsFrom: {imagingSessions},
+    ).get();
+    if (sessionRow.isEmpty) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] A post-session pass was interrupted for session '
+        '${interrupted.sessionId} (started '
+        '${interrupted.startedAtUtc.toIso8601String()} UTC), but that session '
+        'is no longer in the database, so there is no night to report it on. '
+        'Discarding the marker. Master files it intended to write: '
+        '${interrupted.intendedMasterPaths.isEmpty ? '(none recorded)' : interrupted.intendedMasterPaths.join('; ')}.',
+      );
+      await clearIntegrationMarker(directory);
+      return null;
+    }
+
     _InterruptedDarkroomJob? darkroomPass;
     for (final job in interruptedJobs) {
-      if (job.sessionId == interrupted.sessionId) {
+      if (job.isPassFor(interrupted.sessionId, interrupted.startedAtUtc)) {
         darkroomPass = job;
         break;
       }
@@ -1654,6 +1856,28 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
             'integration again when you are ready.',
     ].join(' ');
 
+    // One interruption, one record. The key below has always been WRITTEN and
+    // never read: the "reported once" promise rested entirely on the marker
+    // delete at the end of this method, and that delete is a file operation
+    // that can fail — a read-only directory, a full disk — and is deliberately
+    // the LAST thing here, so a process killed between the insert and the
+    // delete leaves the marker standing over an event that already landed.
+    // Either way the next open re-reports, and the operator's feed carries the
+    // same warning about the same night twice, three times, once per launch.
+    // The key is what makes the record idempotent; consulting it is what makes
+    // the promise true.
+    final dedupeKey = '$kInterruptedPassEventType:$startedAt';
+    if (await _narratorEventExists(interrupted.sessionId, dedupeKey)) {
+      // ignore: avoid_print
+      print(
+        '[nightshade_db] Session ${interrupted.sessionId}: this interruption '
+        'is already on record ($dedupeKey); consuming the marker without '
+        'repeating the warning.',
+      );
+      await clearIntegrationMarker(directory);
+      return interrupted.sessionId;
+    }
+
     await customUpdate(
       'UPDATE imaging_sessions SET notes = '
       "CASE WHEN notes IS NULL OR notes = '' THEN ? "
@@ -1681,8 +1905,9 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
         Variable<String>(body),
         // Session-scoped and stamped with the start instant, so re-reporting
         // the same interruption cannot duplicate the event while two separate
-        // interrupted nights each keep their own.
-        Variable<String>('$kInterruptedPassEventType:$startedAt'),
+        // interrupted nights each keep their own. Checked above, not merely
+        // recorded.
+        Variable<String>(dedupeKey),
       ],
     );
 
@@ -1732,6 +1957,15 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       // A job queued outside a session has no night to carry a record.
       if (sessionId == null) continue;
       if (sessionId == reportedSessionId) continue;
+
+      // Keyed on the JOB: one job reaches the cap once, and this is the record
+      // of that. The rule is checked rather than assumed, by the same argument
+      // as the report above — "once by construction" is a property of the code
+      // paths reaching here, and the key costs one indexed lookup to hold it
+      // true whatever else learns to put a row back into `running`.
+      final dedupeKey =
+          '$kInterruptedPassEventType:job:${job.jobId}:retry-limit';
+      if (await _narratorEventExists(sessionId, dedupeKey)) continue;
 
       final standing = await customSelect(
         'SELECT count(*) AS rows FROM narrator_events '
@@ -1787,11 +2021,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
           const Variable<String>('warning'),
           const Variable<String>(headline),
           Variable<String>(body),
-          // Keyed on the JOB rather than on an instant: one job reaches the cap
-          // once, and this is the record of that.
-          Variable<String>(
-            '$kInterruptedPassEventType:job:${job.jobId}:retry-limit',
-          ),
+          Variable<String>(dedupeKey),
         ],
       );
 
@@ -1908,6 +2138,16 @@ class _InterruptedDarkroomJob {
   /// — which no session-scoped marker can match.
   final int? sessionId;
 
+  /// `dawn` or `manual`. The pass a post-session marker covers is always
+  /// `dawn` — `AutoIntegrationService` runs it through
+  /// `DawnAutopilotService.runDawnForSession` — while `manual` is the
+  /// operator's separate "Process now", which writes no marker at all.
+  final String? kind;
+
+  /// `darkroom_jobs.created_at`, whole seconds since the epoch, or null on a
+  /// row that carries none.
+  final int? createdAtEpochSeconds;
+
   /// Fraction complete `0.0 .. 1.0` as the dead attempt last reported it. Left
   /// where it was by the recovery precisely so this can be stated.
   final double progress;
@@ -1918,6 +2158,8 @@ class _InterruptedDarkroomJob {
   const _InterruptedDarkroomJob({
     required this.jobId,
     required this.sessionId,
+    required this.kind,
+    required this.createdAtEpochSeconds,
     required this.progress,
     required this.attempts,
   });
@@ -1925,4 +2167,28 @@ class _InterruptedDarkroomJob {
   /// Whether the recovery re-queued this job rather than failing it, by the
   /// same rule the recovery's own `WHERE` clause applies.
   bool get willRetry => attempts < kDarkroomJobMaxAttempts;
+
+  /// Whether this row is the Darkroom pass the marker written at
+  /// [markerStartedAtUtc] for [markerSessionId] was covering.
+  ///
+  /// Identity, not "same session". A night carries the operator's "Process
+  /// now" presses as well as its own automatic pass, and a `manual` row that
+  /// was already running when the integrate started is indistinguishable from
+  /// this pass's row by session alone. Reading one as the other asserts the
+  /// integrate had finished — because a pass row only exists once the masters
+  /// do — and tells the operator not to re-run the integration, on a night
+  /// whose marker says the masters were still being written and may be
+  /// half-finished on disk.
+  ///
+  /// Two conditions, both from the row: the marker's pass is always `dawn`
+  /// (`runDawnForSession`), and it cannot predate the marker that covers it.
+  /// The instant is floored to the second `created_at` is stored in, so a job
+  /// inserted milliseconds after the marker still counts as this pass's.
+  bool isPassFor(int markerSessionId, DateTime markerStartedAtUtc) {
+    if (sessionId != markerSessionId) return false;
+    if (kind != 'dawn') return false;
+    final createdAt = createdAtEpochSeconds;
+    if (createdAt == null) return false;
+    return createdAt >= markerStartedAtUtc.millisecondsSinceEpoch ~/ 1000;
+  }
 }

@@ -258,18 +258,51 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
       // guide_rms_history" and aborts the entire migration, leaving the app
       // unable to open. Older DBs skip this block and get the nullable table
       // + index from v34.
-      if (await _tableExists('guide_rms_history')) {
+      // WHY the aside table is checked too, and why the steps below are
+      // written to be resumed rather than merely repeated.
+      //
+      // Rename-create-copy-drop is four statements and a kill can land between
+      // any two of them. The guard used to be `guide_rms_history` alone, which
+      // is the ONE name that stops existing the moment the first statement
+      // runs — so a process killed after the RENAME left the rows in
+      // `guide_rms_history_v29`, and every later run took the guard's `false`
+      // branch and skipped the whole block. The v34 step then created
+      // `guide_rms_history` empty (`IF NOT EXISTS`), the upgrade reported
+      // success, and the guiding history sat in an aside table nothing would
+      // ever look at again — no error, no warning, just a history that starts
+      // at the upgrade.
+      //
+      // Either name present means there is work to finish. A database
+      // upgrading from before 30 has neither and still skips, which is what
+      // the original guard was for: the table is first created at v34, and an
+      // unguarded `CREATE INDEX` here would abort the whole migration.
+      final legacyAside = await _tableExists('guide_rms_history_v29');
+      if (await _tableExists('guide_rms_history') || legacyAside) {
         final exposureNotNullInfo = await customSelect(
           "SELECT \"notnull\" FROM pragma_table_info('guide_rms_history') "
           "WHERE name = 'exposure_seconds'",
         ).get();
-        if (exposureNotNullInfo.isNotEmpty &&
-            exposureNotNullInfo.first.data['notnull'] == 1) {
+        final liveTableIsLegacyShape =
+            exposureNotNullInfo.isNotEmpty &&
+            exposureNotNullInfo.first.data['notnull'] == 1;
+
+        // Step 1 — move the old shape aside. Skipped when a previous run was
+        // killed after doing it: the aside table already holds the rows, and
+        // renaming onto an existing name throws.
+        if (liveTableIsLegacyShape && !legacyAside) {
           await customStatement(
             'ALTER TABLE guide_rms_history RENAME TO guide_rms_history_v29',
           );
+        }
+
+        // Steps 2 and 3 — the nullable table, then the rows. Both are written
+        // as "make it so" rather than "do it once": `IF NOT EXISTS` covers a
+        // kill between the rename and the create, and `OR IGNORE` covers one
+        // between the create and the drop, where some or all of the rows have
+        // already been copied under the ids they keep.
+        if (await _tableExists('guide_rms_history_v29')) {
           await customStatement(
-            'CREATE TABLE guide_rms_history ('
+            'CREATE TABLE IF NOT EXISTS guide_rms_history ('
             'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
             'session_id TEXT NOT NULL, '
             'mount_id TEXT NOT NULL, '
@@ -281,15 +314,17 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
             ')',
           );
           await customStatement(
-            'INSERT INTO guide_rms_history '
+            'INSERT OR IGNORE INTO guide_rms_history '
             '(id, session_id, mount_id, target_id, total_rms_arcsec, '
             'sample_count, exposure_seconds, recorded_at) '
             'SELECT id, session_id, mount_id, target_id, total_rms_arcsec, '
             'sample_count, exposure_seconds, recorded_at '
             'FROM guide_rms_history_v29',
           );
+          // Step 4 — only now, with the rows provably copied.
           await customStatement('DROP TABLE guide_rms_history_v29');
         }
+
         await customStatement(
           'CREATE INDEX IF NOT EXISTS idx_guide_rms_mount_recent '
           'ON guide_rms_history (mount_id, recorded_at DESC)',

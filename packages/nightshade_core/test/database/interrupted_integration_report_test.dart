@@ -147,6 +147,47 @@ void main() {
     expect(second.notes, first.notes);
   });
 
+  // The test above passes because the marker is deleted. That delete is the
+  // LAST thing the report does — deliberately, so a process that dies before
+  // it re-reports at the next open — and it is a file operation that can fail
+  // on its own. Either way the marker outlives the event it already wrote, and
+  // "reported once" then rests on nothing. The row's own dedupe key is the
+  // durable half of that promise; it was written and never read.
+  test('a marker that outlives its report does not repeat it', () async {
+    final sessionId = await seedSession();
+    final marker = InterruptedIntegration(
+      sessionId: sessionId,
+      targetName: 'M31',
+      startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+      intendedMasterPaths: const [],
+    );
+
+    await markIntegrationStarted(tempDir, marker);
+    final first = await reopenAndRead(sessionId);
+    expect(first.events, hasLength(1));
+
+    // Byte for byte what the disk holds after a kill between the INSERT and
+    // the delete.
+    await markIntegrationStarted(tempDir, marker);
+    final second = await reopenAndRead(sessionId);
+
+    expect(
+      second.events,
+      hasLength(1),
+      reason: 'one interruption is one event, however often it is re-read',
+    );
+    expect(
+      second.notes,
+      first.notes,
+      reason: 'the session note must not grow a copy per launch either',
+    );
+    expect(
+      await integrationMarkerFile(tempDir).exists(),
+      isFalse,
+      reason: 'the marker is still consumed on the way past',
+    );
+  });
+
   test('a clean shutdown leaves nothing to report', () async {
     final sessionId = await seedSession();
     await markIntegrationStarted(
@@ -392,6 +433,107 @@ void main() {
         reason: 'the draft stage writes no master, so none was in danger',
       );
       expect(read.events.single['headline'], contains('The Darkroom pass'));
+    });
+
+    /// A `running` row for the same session that is NOT this pass's row.
+    /// [kind] and [createdAt] are what separate them: the marker's own pass is
+    /// always `dawn` (`runDawnForSession`) and is queued after the marker is
+    /// written, so a `manual` row, or one that predates the marker, belongs to
+    /// something else.
+    Future<int> seedUnrelatedRunningJob(
+      int sessionId, {
+      required DarkroomJobKind kind,
+      required DateTime createdAt,
+    }) async {
+      final db = open();
+      final dao = DarkroomJobsDao(db);
+      final jobId = await dao.enqueue(sessionId: sessionId, kind: kind);
+      await dao.markRunning(jobId);
+      await dao.updateProgress(jobId, 0.4, note: 'rendering the draft');
+      await db.customStatement(
+        'UPDATE darkroom_jobs SET created_at = ? WHERE id = ?',
+        [createdAt.millisecondsSinceEpoch ~/ 1000, jobId],
+      );
+      await db.close();
+      return jobId;
+    }
+
+    // The pass row is read as proof the integrate had finished — a Darkroom job
+    // only exists once the masters do. That inference holds for THIS pass's
+    // row and for no other. A night also carries the operator's "Process now"
+    // presses, which write no marker and can already be running when the
+    // integrate starts; matching on session alone read one of those as the
+    // pass and told an operator whose masters were half-written that the
+    // integration had finished and must not be re-run.
+    test("an operator's manual pass is not read as this pass", () async {
+      final sessionId = await seedSession();
+      await seedUnrelatedRunningJob(
+        sessionId,
+        kind: DarkroomJobKind.manual,
+        createdAt: DateTime.utc(2026, 8, 17, 1),
+      );
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: const [],
+          stage: PostSessionPassStage.integrating,
+        ),
+      );
+
+      final read = await reopenAndRead(sessionId);
+      final notes = read.notes!;
+
+      expect(
+        notes,
+        contains('Nightshade closed while integrating this session'),
+        reason: "the marker's own stage says the masters were still going",
+      );
+      expect(
+        notes,
+        isNot(contains('The integration itself had already finished')),
+        reason:
+            'nothing here says that, and a half-written master may be on '
+            'disk',
+      );
+      expect(
+        notes,
+        contains('run the integration again'),
+        reason: 'an interrupted integrate is exactly what needs re-running',
+      );
+    });
+
+    // The other half of the same rule: a `dawn` row can also belong to an
+    // earlier pass over this session that is still standing.
+    test('a dawn job predating the marker is not read as this pass', () async {
+      final sessionId = await seedSession();
+      await seedUnrelatedRunningJob(
+        sessionId,
+        kind: DarkroomJobKind.dawn,
+        createdAt: DateTime.utc(2026, 8, 16, 22),
+      );
+      await markIntegrationStarted(
+        tempDir,
+        InterruptedIntegration(
+          sessionId: sessionId,
+          targetName: 'M31',
+          startedAtUtc: DateTime.utc(2026, 8, 17, 3, 30),
+          intendedMasterPaths: const [],
+          stage: PostSessionPassStage.integrating,
+        ),
+      );
+
+      final read = await reopenAndRead(sessionId);
+      expect(
+        read.notes,
+        contains('Nightshade closed while integrating this session'),
+      );
+      expect(
+        read.notes,
+        isNot(contains('The integration itself had already finished')),
+      );
     });
 
     test('a kill during the INTEGRATE still blames the integrate', () async {
