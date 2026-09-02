@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_tokens.dart';
@@ -19,8 +21,22 @@ enum StatusDotVariant {
 ///
 /// Replaces ad-hoc pulsing dots across the app with a consistent, quieter
 /// motion language: static by default, a one-shot flash on meaningful
-/// transitions, and a slow pulse only for urgent error/recovery states.
+/// transitions, and a slow pulse — for [urgentPulseWindow], then steady — only
+/// for urgent error/recovery states.
 class StatusDot extends StatefulWidget {
+  /// How long an urgent dot pulses before settling to a steady, full-opacity
+  /// dot.
+  ///
+  /// The pulse exists to draw the eye to a state change; it does not need to
+  /// run for as long as the state lasts. Left unbounded it did: a run that
+  /// FAILED left the status bar's red dot pulsing at 61 fps — a full-window
+  /// frame per vsync on the Linux embedder — for **32.7% of a core,
+  /// indefinitely**, on an app doing nothing (measured on the release
+  /// bundle). Ten cycles is long enough to be noticed from across a dark
+  /// room; after that the dot stays red and stays still, which says the same
+  /// thing.
+  static const Duration urgentPulseWindow = Duration(seconds: 20);
+
   final Color color;
   final double size;
   final StatusDotVariant variant;
@@ -42,6 +58,15 @@ class _StatusDotState extends State<StatusDot>
 
   late AnimationController _controller;
   Animation<double> _opacity = const AlwaysStoppedAnimation(1.0);
+
+  /// Armed on entering [StatusDotVariant.urgent]; when it fires the pulse
+  /// settles. Re-armed whenever the variant becomes urgent again.
+  Timer? _urgentPulseTimer;
+  bool _urgentPulseSettled = false;
+
+  /// Test-only view of the pulse controller.
+  @visibleForTesting
+  AnimationController get debugControllerForTesting => _controller;
 
   @override
   void initState() {
@@ -68,6 +93,9 @@ class _StatusDotState extends State<StatusDot>
 
   void _applyVariant() {
     _controller.stop();
+    _urgentPulseTimer?.cancel();
+    _urgentPulseTimer = null;
+    _urgentPulseSettled = false;
 
     switch (widget.variant) {
       case StatusDotVariant.static:
@@ -98,7 +126,25 @@ class _StatusDotState extends State<StatusDot>
         _opacity = Tween<double>(begin: 0.55, end: 1.0).animate(
           CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
         );
+        _urgentPulseTimer = Timer(
+          StatusDot.urgentPulseWindow,
+          _settleUrgentPulse,
+        );
     }
+  }
+
+  /// The attention has been drawn; hold the dot at full opacity and stop
+  /// asking for frames. The gate sees `repeating: false` on the rebuild and
+  /// releases the controller it started.
+  void _settleUrgentPulse() {
+    _urgentPulseTimer = null;
+    if (!mounted) {
+      return;
+    }
+    _controller
+      ..stop()
+      ..value = 1.0;
+    setState(() => _urgentPulseSettled = true);
   }
 
   void _flashAttention() {
@@ -110,6 +156,7 @@ class _StatusDotState extends State<StatusDot>
 
   @override
   void dispose() {
+    _urgentPulseTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -120,12 +167,13 @@ class _StatusDotState extends State<StatusDot>
       return _dot(opacity: 1.0);
     }
 
-    // `repeating` is only true for the urgent pulse; the one-shot `attention`
-    // flash drives the same controller with forward(), and the gate leaves
-    // animations it did not start alone.
+    // `repeating` is only true for the urgent pulse, and only until its window
+    // has run out; the one-shot `attention` flash drives the same controller
+    // with forward(), and the gate leaves animations it did not start alone.
     return OnScreenAnimationGate(
       controller: _controller,
-      repeating: widget.variant == StatusDotVariant.urgent,
+      repeating:
+          widget.variant == StatusDotVariant.urgent && !_urgentPulseSettled,
       reverse: true,
       child: AnimatedBuilder(
         animation: _opacity,
