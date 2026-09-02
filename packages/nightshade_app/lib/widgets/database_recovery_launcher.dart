@@ -23,7 +23,7 @@ class DatabaseRecoveryLauncher extends ConsumerStatefulWidget {
   final Widget child;
 
   /// Optional override used by tests so the launcher can read the marker
-  /// from a temp directory instead of the real `getApplicationDocumentsDirectory()`.
+  /// from a temp directory instead of the real `resolveNightshadeDocumentsDirectory()`.
   final Future<DatabaseRecoveryMarker?> Function()? markerConsumer;
 
   /// Optional acknowledgement hook for a non-consuming [markerConsumer].

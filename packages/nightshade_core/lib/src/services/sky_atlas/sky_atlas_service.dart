@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../database/daos/sky_atlas_dao.dart';
 import '../../database/database.dart';
@@ -12,6 +11,7 @@ import '../logging_service.dart';
 import '../wcs/gnomonic_projection.dart';
 import 'sky_atlas_models.dart';
 import 'sky_atlas_seam.dart';
+import '../../utils/nightshade_data_directory.dart';
 part 'sky_atlas_service/atlas_models.dart';
 part 'sky_atlas_service/internals.dart';
 
@@ -858,6 +858,6 @@ class SkyAtlasService {
 /// Default atlas root: `<app support>/sky_atlas`. The native fold creates the
 /// per-tile sidecar directories on demand, so we only need the root to exist.
 Future<String> defaultAtlasRoot() async {
-  final support = await getApplicationSupportDirectory();
+  final support = await resolveNightshadeDataDirectory();
   return p.join(support.path, 'sky_atlas');
 }

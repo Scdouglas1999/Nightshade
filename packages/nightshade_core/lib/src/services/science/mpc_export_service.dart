@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../../database/database.dart' show MovingObjectCandidateRow;
+import '../../utils/nightshade_data_directory.dart';
 
 /// Service for generating Minor Planet Center (MPC) 80-column format reports
 /// from Nightshade moving object candidate observations.
@@ -128,7 +128,7 @@ class MpcExportService {
       provisionalDesignations: provisionalDesignations,
     );
 
-    final docsDir = await getApplicationDocumentsDirectory();
+    final docsDir = await resolveNightshadeDocumentsDirectory();
     final exportDir = Directory(
       path.join(docsDir.path, 'Nightshade', 'exports'),
     );

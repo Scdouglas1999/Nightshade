@@ -100,7 +100,7 @@ class BackupMetadata {
 /// folder beside the database they were taken from.
 ///
 /// WHY resolved from [resolveDefaultDatabaseFile] rather than straight from
-/// `getApplicationDocumentsDirectory()`: a bundle only means anything next to
+/// `resolveNightshadeDocumentsDirectory()`: a bundle only means anything next to
 /// the database it snapshotted. Following the configured data directory keeps
 /// each install's history its own, so "Recent Backups" cannot list bundles from
 /// a database this instance has never seen and offer Restore on one.

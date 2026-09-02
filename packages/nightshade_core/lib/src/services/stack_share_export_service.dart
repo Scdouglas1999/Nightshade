@@ -5,11 +5,11 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../database/daos/stacked_results_dao.dart';
 import '../models/imaging/stack_and_share_models.dart';
 import '../providers/profiles_provider.dart';
+import '../utils/nightshade_data_directory.dart';
 import 'logging_service.dart';
 import 'share_card_renderer.dart';
 
@@ -101,7 +101,7 @@ class StackShareExportService {
        _cardRenderer = cardRenderer,
        _applicationSupportDirectoryProvider =
            applicationSupportDirectoryProvider ??
-           getApplicationSupportDirectory;
+           resolveNightshadeDataDirectory;
 
   final Ref _ref;
   final SaveRgbaPng _savePng;

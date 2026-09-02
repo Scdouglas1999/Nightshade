@@ -4,8 +4,8 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../models/update_manifest.dart';
 import 'anti_freeze_store.dart';
@@ -107,13 +107,13 @@ class UpdateService {
            antiFreezeStore ??
            AntiFreezeStore(
              applicationSupportDirectoryProvider ??
-                 getApplicationSupportDirectory,
+                 resolveNightshadeDataDirectory,
            ),
        _httpClient = httpClient ?? http.Client(),
        _httpTimeout = httpTimeout,
        _applicationSupportDirectoryProvider =
            applicationSupportDirectoryProvider ??
-           getApplicationSupportDirectory,
+           resolveNightshadeDataDirectory,
        _allowInsecureUpdateSource = allowInsecureUpdateSource,
        _currentPlatform = normalizeUpdatePlatform(
          currentPlatform ?? Platform.operatingSystem,

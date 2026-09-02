@@ -29,7 +29,7 @@ import '../../utils/snackbar_helper.dart';
 Future<String?> resolveDumpSaveDirectory({
   Future<Directory?> Function() downloadsDirectory = getDownloadsDirectory,
   Future<Directory> Function() documentsDirectory =
-      getApplicationDocumentsDirectory,
+      resolveNightshadeDocumentsDirectory,
 }) async {
   for (final lookup in <Future<Directory?> Function()>[
     downloadsDirectory,

@@ -7,7 +7,7 @@ import 'snackbar_helper.dart';
 
 /// Make a just-written export file reachable by the operator.
 ///
-/// Every in-app export writes to `getApplicationDocumentsDirectory()`. On
+/// Every in-app export writes to `resolveNightshadeDocumentsDirectory()`. On
 /// desktop that path is user-accessible, so an `Exported to <path>` snackbar
 /// is actionable. On a PHONE/TABLET it is the app's PRIVATE sandbox — the same
 /// snackbar named a file the user can never open in Files/Photos/Drive. This

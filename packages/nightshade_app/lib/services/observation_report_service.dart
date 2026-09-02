@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:intl/intl.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -26,7 +25,7 @@ class ObservationReportService {
         _imagesDao = imagesDao,
         _scienceDao = scienceDao,
         _documentsDirectoryProvider =
-            documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+            documentsDirectoryProvider ?? resolveNightshadeDocumentsDirectory;
 
   /// Generate a full observation report PDF for a session.
   ///

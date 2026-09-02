@@ -563,7 +563,7 @@ mixin _MobileReconnectOps on _MobileConnectionState {
         // directory with one that cannot exist there, so every checkpoint
         // write failed and a mid-night crash became unrecoverable.
         if (ref.read(backendProvider) is! NetworkBackend) {
-          final docsDir = await getApplicationDocumentsDirectory();
+          final docsDir = await resolveNightshadeDocumentsDirectory();
           await executor.initializeCheckpoints(docsDir.path);
         }
 

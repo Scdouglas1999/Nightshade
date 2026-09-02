@@ -2,13 +2,13 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../../database/daos/images_dao.dart';
 import '../../database/daos/science_dao.dart';
 import '../../database/daos/settings_dao.dart';
 import '../../database/database.dart';
 import 'airmass.dart';
+import '../../utils/nightshade_data_directory.dart';
 
 // Surfaced through the science-services barrel, which already exports this
 // library, so every consumer reaches the one airmass model by importing
@@ -44,7 +44,7 @@ class AavsoExportService {
        _imagesDao = imagesDao,
        _softwareLabel = softwareLabel,
        _documentsDirectoryProvider =
-           documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+           documentsDirectoryProvider ?? resolveNightshadeDocumentsDirectory;
 
   /// Export photometry data for a session to AAVSO Extended Format.
   ///

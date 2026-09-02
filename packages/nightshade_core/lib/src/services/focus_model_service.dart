@@ -6,7 +6,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
+import '../utils/nightshade_data_directory.dart';
 
 /// Provider for the focus model service
 final focusModelServiceProvider = Provider<FocusModelService>((ref) {
@@ -331,7 +331,7 @@ class FocusModelService {
   }
 
   Future<void> _initializeInternal() async {
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await resolveNightshadeDocumentsDirectory();
     _storageDir = '${appDir.path}/Nightshade/focus_models';
     await Directory(_storageDir!).create(recursive: true);
     await _loadAllProfiles();

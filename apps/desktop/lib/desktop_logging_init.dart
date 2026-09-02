@@ -6,7 +6,6 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 /// Pre-Riverpod boot artifacts captured during early initialisation so they
 /// can be reused later by Riverpod-aware services without round-tripping
@@ -23,42 +22,30 @@ class DesktopBootPaths {
   });
 }
 
-/// Sets [NIGHTSHADE_DATA_DIR] for the current process before Rust reads it.
+/// Sets `NIGHTSHADE_DATA_DIR` for the current process before Rust reads it.
 ///
 /// Respects a value already supplied by the parent shell or systemd unit.
-/// The path matches [getApplicationSupportDirectory] — the same root used for
-/// logs — so defect maps and other native persistence align with the GUI host.
+/// The path matches [resolveNightshadeDataDirectory] — the same root used for
+/// logs, catalogs and tokens — so defect maps and other native persistence
+/// align with the Dart side of the same process.
 void configureNightshadeDataDirectory(
   String dataDirectory, {
   Map<String, String>? environment,
 }) {
   final env = environment ?? Platform.environment;
-  final existing = env['NIGHTSHADE_DATA_DIR']?.trim();
+  // Freeze the PROCESS environment as the operator supplied it, before this
+  // function writes its own answer back into it. Without the snapshot the Dart
+  // resolvers would later read a NIGHTSHADE_DATA_DIR this function invented
+  // and conclude the instance had been relocated — which would move the
+  // documents root off `~/Documents` on an ordinary install. The snapshot is
+  // taken from `Platform.environment`, never from an injected [environment],
+  // so a test's fake map cannot become the process-wide answer.
+  captureNightshadeProcessEnvironment();
+  final existing = env[nightshadeDataDirEnv]?.trim();
   if (existing != null && existing.isNotEmpty) {
     return;
   }
-  _setProcessEnvironment('NIGHTSHADE_DATA_DIR', dataDirectory);
-}
-
-/// Resolves the root that owns this instance's logs and native persistence.
-///
-/// [envDataDir] is the process's `NIGHTSHADE_DATA_DIR`; [appSupportPath] is
-/// [getApplicationSupportDirectory]. When the operator has pointed
-/// `NIGHTSHADE_DATA_DIR` at their own directory — the one supported way to run
-/// a second instance side by side — the logs must follow it.
-///
-/// They did not: the log directory was hard-coded to the platform support
-/// folder while only Rust's persistence honoured the env var, so every
-/// instance on the machine appended to one shared `nightshade.log`. A
-/// diagnostic dump then carried other instances' capture paths, target names
-/// and host names to whoever received the bug report.
-String resolveDesktopDataRoot({
-  required String? envDataDir,
-  required String appSupportPath,
-}) {
-  final trimmed = envDataDir?.trim();
-  if (trimmed != null && trimmed.isNotEmpty) return trimmed;
-  return appSupportPath;
+  _setProcessEnvironment(nightshadeDataDirEnv, dataDirectory);
 }
 
 /// Resolves the directory that owns this instance's native profile, settings
@@ -68,7 +55,7 @@ String resolveDesktopDataRoot({
 /// `GET /api/settings/location` all read, so it follows the same
 /// operator-configured data directory as `nightshade.db` and `pairing.db` —
 /// [nightshadeDatabaseDirEnv]. It did not: it resolved straight to
-/// `getApplicationDocumentsDirectory()/Nightshade/profiles`, so an instance
+/// `<platform documents>/Nightshade/profiles`, so an instance
 /// pinned to its own database still read and rewrote the machine-wide file.
 /// One process then answered `GET /api/settings` with the scratch database's
 /// 0,0 and `GET /api/settings/location` with another install's real site,
@@ -80,14 +67,20 @@ Future<String> resolveDesktopProfileDirectory({
   Map<String, String>? environment,
   Future<Directory> Function()? documentsDirectoryProvider,
 }) async {
-  final env = environment ?? Platform.environment;
+  // [nightshadeProcessEnvironment], not `Platform.environment`: by the time a
+  // caller reaches here [configureNightshadeDataDirectory] has published this
+  // process's data root back into the environment for Rust, and reading that
+  // back would move an ordinary install's native profile store.
+  final env = environment ?? nightshadeProcessEnvironment;
   final overrideDir = env[nightshadeDatabaseDirEnv]?.trim();
   if (overrideDir != null && overrideDir.isNotEmpty) {
     return path.join(overrideDir, 'profiles');
   }
 
-  final appDir =
-      await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
+  final appDir = await resolveNightshadeDocumentsDirectory(
+    environment: env,
+    documentsDirectoryProvider: documentsDirectoryProvider,
+  );
   return path.join(appDir.path, 'Nightshade', 'profiles');
 }
 
@@ -97,17 +90,22 @@ Future<String> resolveDesktopProfileDirectory({
 /// Separate from [initialiseDesktopLogging] so the path decision is reachable
 /// without the native bridge: everything after this point in the bootstrap
 /// requires a loadable `libnightshade_bridge`.
+///
+/// The log directory follows the operator's data root rather than the platform
+/// support folder. It did not once: the log directory was hard-coded to the
+/// support folder while only Rust's persistence honoured the env var, so every
+/// instance on the machine appended to one shared `nightshade.log`, and a
+/// diagnostic dump carried other instances' capture paths, target names and
+/// host names to whoever received the bug report.
 Future<({String dataRoot, String logDirectory})> prepareDesktopLogDirectory({
   Map<String, String>? environment,
   Future<Directory> Function()? applicationSupportDirectory,
 }) async {
   final env = environment ?? Platform.environment;
-  final appSupportDir =
-      await (applicationSupportDirectory ?? getApplicationSupportDirectory)();
-  final dataRoot = resolveDesktopDataRoot(
-    envDataDir: env['NIGHTSHADE_DATA_DIR'],
-    appSupportPath: appSupportDir.path,
-  );
+  final dataRoot = (await resolveNightshadeDataDirectory(
+    environment: env,
+    applicationSupportDirectoryProvider: applicationSupportDirectory,
+  )).path;
   configureNightshadeDataDirectory(dataRoot, environment: env);
 
   final logDir = path.join(dataRoot, 'logs');
@@ -131,7 +129,7 @@ Future<AppVersionInfo> loadDesktopAppVersion() async {
 /// native profile + settings storage onto [resolveDesktopProfileDirectory].
 /// Returns the resolved paths so the rest of the bootstrap can hand them to
 /// the `LoggingService` and `ProfileService` without re-querying
-/// [getApplicationSupportDirectory].
+/// [resolveNightshadeDataDirectory].
 ///
 /// This step must run before any provider that touches the Rust runtime
 /// (every backend method goes through `bridge.NativeBridge`), so it lives

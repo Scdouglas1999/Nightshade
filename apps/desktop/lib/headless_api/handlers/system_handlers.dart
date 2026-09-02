@@ -31,7 +31,6 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shelf/shelf.dart';
 
 import '../auth/public_paths.dart';
@@ -426,11 +425,11 @@ class SystemHandlers {
 
     await addDirectoryCheck(
       'applicationDocuments',
-      getApplicationDocumentsDirectory,
+      resolveNightshadeDocumentsDirectory,
     );
     await addDirectoryCheck(
       'applicationSupport',
-      getApplicationSupportDirectory,
+      resolveNightshadeDataDirectory,
     );
     await addDirectoryCheck('systemTemp', () async => Directory.systemTemp);
 

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 
 import '../utils/nightshade_data_directory.dart';
@@ -146,7 +145,10 @@ const String dartLogFileBaseName = 'nightshade-dart.log';
 
 /// Service for managing application logs
 class LoggingService {
-  final Future<Directory> Function() _applicationSupportDirectoryProvider;
+  /// Fallback handed to [resolveNightshadeDataDirectory] when the operator
+  /// has not relocated this instance. Null means "use path_provider" — the
+  /// resolver owns that default so there is exactly one place that names it.
+  final Future<Directory> Function()? _applicationSupportDirectoryProvider;
   final Map<String, String>? _environment;
   final void Function({String? logDirectory}) _nativeInitWithLogging;
   final void Function() _nativeInit;
@@ -193,8 +195,7 @@ class LoggingService {
     void Function()? nativeInit,
     String? Function()? currentLogFileProvider,
   }) : _applicationSupportDirectoryProvider =
-           applicationSupportDirectoryProvider ??
-           getApplicationSupportDirectory,
+           applicationSupportDirectoryProvider,
        _environment = environment,
        _nativeInitWithLogging =
            nativeInitWithLogging ?? bridge_api.apiInitWithLogging,

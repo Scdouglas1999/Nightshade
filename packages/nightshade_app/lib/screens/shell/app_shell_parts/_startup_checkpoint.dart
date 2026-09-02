@@ -98,7 +98,7 @@ Future<Directory> resolveGuiCheckpointDirectory({
 Future<void> adoptLegacyGuiCheckpoint({
   required Directory targetDir,
   Future<Directory> Function() legacyDirectoryResolver =
-      getApplicationSupportDirectory,
+      resolveNightshadeDataDirectory,
   Map<String, String>? environment,
 }) async {
   final env = environment ?? Platform.environment;

@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../utils/exported_file_reveal.dart';
@@ -462,7 +461,7 @@ class _ObservationLogSettingsState
         return;
       }
 
-      final docsDir = await getApplicationDocumentsDirectory();
+      final docsDir = await resolveNightshadeDocumentsDirectory();
       final exportDir =
           Directory(p.join(docsDir.path, 'Nightshade', 'exports'));
       await exportDir.create(recursive: true);

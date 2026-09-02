@@ -5,9 +5,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../providers/framing_provider.dart' show SurveySource;
+import '../utils/nightshade_data_directory.dart';
 
 /// Result of a [FramingImageCacheService.saveSurveyImage] call.
 class FramingImageCacheEntry {
@@ -48,7 +48,7 @@ class FramingImageCacheEntry {
 class FramingImageCacheService {
   /// Optional override for the application-support directory provider. Tests
   /// can inject a temporary directory; production passes `null` to use
-  /// [getApplicationSupportDirectory].
+  /// [resolveNightshadeDataDirectory].
   final Future<Directory> Function()? _supportDirProvider;
 
   /// Subdirectory under app support where framing images live.
@@ -62,7 +62,7 @@ class FramingImageCacheService {
     if (provider != null) {
       return provider();
     }
-    return getApplicationSupportDirectory();
+    return resolveNightshadeDataDirectory();
   }
 
   /// Returns the absolute path of the cache directory, creating it on demand.

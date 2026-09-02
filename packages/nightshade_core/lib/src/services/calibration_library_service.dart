@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
@@ -20,6 +19,7 @@ import '../providers/constellation_provider.dart';
 import '../providers/database_provider.dart';
 import 'calibration/fits_header_reader.dart';
 import 'calibration/shared_calibration_library.dart';
+import '../utils/nightshade_data_directory.dart';
 part 'calibration_library_service/remote_acceptance.dart';
 part 'calibration_library_service/matchers.dart';
 part 'calibration_library_service/sharing.dart';
@@ -695,7 +695,7 @@ final calibrationLibraryServiceProvider = Provider<CalibrationLibraryService>((
       credentialsResolver: () => resolveConstellationCredentials(settings),
     ),
     sharedMasterDirResolver: () async {
-      final dir = await getApplicationSupportDirectory();
+      final dir = await resolveNightshadeDataDirectory();
       return p.join(dir.path, 'shared_calibration');
     },
   );

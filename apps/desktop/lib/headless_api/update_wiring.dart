@@ -15,7 +15,6 @@ import 'dart:math';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_updater/nightshade_updater.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../secret_file.dart';
 
@@ -70,7 +69,7 @@ Future<UpdateStack?> provisionUpdateStack({
       ? Platform.environment['NIGHTSHADE_UPDATE_CHANNEL']!.trim()
       : channel;
 
-  final appData = await getApplicationSupportDirectory();
+  final appData = await resolveNightshadeDataDirectory();
   final pushSecret = await getOrCreatePushSecret(logger, logSource: logSource);
 
   final service = UpdateService(
@@ -133,7 +132,7 @@ Future<String> getOrCreatePushSecret(
   required String logSource,
   Directory? appDataDir,
 }) async {
-  final appData = appDataDir ?? await getApplicationSupportDirectory();
+  final appData = appDataDir ?? await resolveNightshadeDataDirectory();
   final secretFile = File(p.join(appData.path, 'push_secret.txt'));
 
   if (await secretFile.exists()) {

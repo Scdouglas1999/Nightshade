@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'headless_env.dart';
 
@@ -52,7 +51,7 @@ Future<RelayUplink?> startRelayUplink({
     return null;
   }
 
-  final appData = await getApplicationSupportDirectory();
+  final appData = await resolveNightshadeDataDirectory();
   final credentialsPath =
       '${appData.path}${Platform.pathSeparator}relay_credentials.json';
 

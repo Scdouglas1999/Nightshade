@@ -25,7 +25,6 @@ import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
-import 'package:path_provider/path_provider.dart';
 
 /// The pairing database the host's headless server stores push tokens in.
 ///
@@ -41,7 +40,7 @@ final pushPairingDatabaseProvider = Provider<PairingDatabase>((ref) {
 /// Whether the HOST has a cloud push channel configured. Overridable in tests.
 final hostCloudPushConfiguredProvider = FutureProvider<bool>((ref) async {
   try {
-    final dir = await getApplicationSupportDirectory();
+    final dir = await resolveNightshadeDataDirectory();
     final config = await PushConfig.load(appSupportDir: dir.path);
     return config.hasCloudChannel || config.mock;
   } on MissingPluginException {

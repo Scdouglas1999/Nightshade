@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../services/file_download_service.dart';
 import '../../../utils/exported_file_reveal.dart';

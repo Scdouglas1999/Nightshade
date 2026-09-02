@@ -20,7 +20,6 @@ import '../../utils/darkroom_navigation.dart';
 import '../../utils/exported_file_reveal.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';

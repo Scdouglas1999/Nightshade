@@ -40,7 +40,6 @@ import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
@@ -104,14 +103,11 @@ class CalibrationHandlers {
   }
 
   Future<Directory> _resolveDataDirectory() async {
-    if (dataDirectoryOverride != null) {
-      return dataDirectoryOverride!();
+    final override = dataDirectoryOverride;
+    if (override != null) {
+      return override();
     }
-    final envOverride = Platform.environment['NIGHTSHADE_DATA_DIR']?.trim();
-    if (envOverride != null && envOverride.isNotEmpty) {
-      return Directory(envOverride);
-    }
-    return getApplicationSupportDirectory();
+    return resolveNightshadeDataDirectory();
   }
 
   // Helpers — JSON shape

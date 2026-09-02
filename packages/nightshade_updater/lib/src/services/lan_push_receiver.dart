@@ -5,8 +5,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../models/update_manifest.dart';
 import 'archive_extraction.dart';
@@ -525,7 +525,7 @@ class LanPushReceiver {
 
   /// Get staging directory
   Future<Directory> _getStagingDirectory() async {
-    final appData = await getApplicationSupportDirectory();
+    final appData = await resolveNightshadeDataDirectory();
     final staging = Directory(path.join(appData.path, 'updates', 'staging'));
     if (!await staging.exists()) {
       await staging.create(recursive: true);

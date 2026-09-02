@@ -677,7 +677,7 @@ class _ReportBody extends ConsumerWidget {
 
       // Desktop: write to the documents dir and surface the path with a
       // reveal-in-clipboard action so the snackbar isn't a dead end.
-      final docsDir = await getApplicationDocumentsDirectory();
+      final docsDir = await resolveNightshadeDocumentsDirectory();
       final dir = Directory(p.join(docsDir.path, 'Nightshade', 'reports'));
       if (!await dir.exists()) {
         await dir.create(recursive: true);

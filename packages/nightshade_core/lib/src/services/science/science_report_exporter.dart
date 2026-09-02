@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../database/daos/images_dao.dart';
 import '../../database/daos/science_dao.dart';
@@ -13,6 +12,7 @@ import '../../database/database.dart';
 import '../../providers/app_version_provider.dart';
 import '../../providers/database_provider.dart';
 import 'period_analysis_service.dart';
+import '../../utils/nightshade_data_directory.dart';
 
 /// Markdown science-report exporter.
 ///
@@ -134,7 +134,7 @@ class ScienceReportExporter {
   }
 
   Future<Directory> _ensureReportsDirectory() async {
-    final base = await getApplicationDocumentsDirectory();
+    final base = await resolveNightshadeDocumentsDirectory();
     final dir = Directory(p.join(base.path, 'Nightshade', 'science-reports'));
     if (!await dir.exists()) {
       await dir.create(recursive: true);

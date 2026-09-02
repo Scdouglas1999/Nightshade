@@ -730,7 +730,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
         nowProvider: clock.now,
       );
 
-      // The export lands in getApplicationDocumentsDirectory(), which is the
+      // The export lands in resolveNightshadeDocumentsDirectory(), which is the
       // private sandbox on Android/iOS — an "Exported to: <path>" line there
       // names a file the user cannot open, so hand it to the share sheet.
       final filePath = await exportService.exportToJson(session.id);
@@ -912,7 +912,7 @@ Future<String> _saveRemoteExport(
   String format,
 ) async {
   final bytes = await backend.downloadSessionExport(sessionId, format);
-  final docsDir = await getApplicationDocumentsDirectory();
+  final docsDir = await resolveNightshadeDocumentsDirectory();
   final exportDir = Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
   if (!await exportDir.exists()) {
     await exportDir.create(recursive: true);

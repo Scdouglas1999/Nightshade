@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../headless_api/auth/pairing_service.dart';
 import '../headless_api/auth_policy.dart';
@@ -61,7 +60,7 @@ Future<HeadlessApiServer> startHeadlessServices(
   // mid-flight.
   TlsProvisionResult? tlsProvision;
   if (tlsEnabled) {
-    final appData = await getApplicationSupportDirectory();
+    final appData = await resolveNightshadeDataDirectory();
     try {
       tlsProvision = await provisionTlsContext(
         appDataDirectory: appData.path,
@@ -220,7 +219,7 @@ Future<HeadlessApiServer> startHeadlessServices(
   // channel the cellular path stays disabled; a would-send mock is permitted
   // only when the operator explicitly sets `mock:true` for development.
   try {
-    final pushAppSupportDir = await getApplicationSupportDirectory();
+    final pushAppSupportDir = await resolveNightshadeDataDirectory();
     final delivery = await apiServer.wireRemotePushDelivery(
       appSupportDir: pushAppSupportDir.path,
       log: (message) => logger.info(message, source: _headlessLogSource),

@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import '../utils/fwhm_conversion.dart';
 import '../database/daos/sessions_dao.dart';
 import '../database/daos/images_dao.dart';
 import '../database/database.dart';
+import '../utils/nightshade_data_directory.dart';
 
 /// What the culling decided about a night's light frames.
 ///
@@ -68,7 +68,7 @@ class SessionExportService {
   }) : _sessionsDao = sessionsDao,
        _imagesDao = imagesDao,
        _documentsDirectoryProvider =
-           documentsDirectoryProvider ?? getApplicationDocumentsDirectory,
+           documentsDirectoryProvider ?? resolveNightshadeDocumentsDirectory,
        _now = nowProvider ?? DateTime.now;
 
   /// Export session images to CSV format

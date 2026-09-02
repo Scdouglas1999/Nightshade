@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
@@ -220,15 +219,15 @@ class FileSystemHandlers {
 
     // 1. User Documents — always available, anchors a sensible default.
     try {
-      final docs = await getApplicationDocumentsDirectory();
+      final docs = await resolveNightshadeDocumentsDirectory();
       await add('Documents', docs.path);
     } on Object catch (e, stackTrace) {
-      // Why: getApplicationDocumentsDirectory can fail under unusual
+      // Why: resolveNightshadeDocumentsDirectory can fail under unusual
       // platform conditions (e.g. sandboxed CI without HOME); we keep the
       // method best-effort because other roots may still resolve. Log the
       // detail so operators can diagnose the no-roots case.
       _logger.warning(
-        'getApplicationDocumentsDirectory failed: $e',
+        'resolveNightshadeDocumentsDirectory failed: $e',
         source: 'FileSystemHandlers',
         fields: {'stack': stackTrace.toString()},
       );

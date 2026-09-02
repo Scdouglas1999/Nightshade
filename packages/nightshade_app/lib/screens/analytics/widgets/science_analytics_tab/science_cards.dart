@@ -31,7 +31,7 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
           widget.sessionId,
           targetStarName: targetName.trim(),
         );
-        final docsDir = await getApplicationDocumentsDirectory();
+        final docsDir = await resolveNightshadeDocumentsDirectory();
         final exportDir =
             Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
         if (!await exportDir.exists()) {

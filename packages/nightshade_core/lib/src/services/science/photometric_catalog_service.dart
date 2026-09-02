@@ -9,11 +9,11 @@ import 'package:http/http.dart' as http;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     show CatalogManager;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../models/science/science_models.dart';
 import '../../providers/database_provider.dart';
 import '../logging_service.dart';
+import '../../utils/nightshade_data_directory.dart';
 
 /// One catalog star usable for photometric work: position, Johnson V, and
 /// (when the catalog provides it) a B-V color index.
@@ -376,7 +376,7 @@ class PhotometricCatalogService {
   // ── Cache ─────────────────────────────────────────────────────────────
 
   Future<Directory> _cacheDirectory() async {
-    final base = await getApplicationSupportDirectory();
+    final base = await resolveNightshadeDataDirectory();
     final dir = Directory(p.join(base.path, 'catalog_cache', 'apass_v1'));
     if (!await dir.exists()) {
       await dir.create(recursive: true);

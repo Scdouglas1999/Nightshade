@@ -438,6 +438,15 @@ const pairingDatabaseDirEnv = 'NIGHTSHADE_DATABASE_DIR';
 ///
 /// Pairing credentials follow the same configured data directory as the main
 /// database so isolated instances cannot share trust state.
+///
+/// The only `path_provider` call left outside
+/// `nightshade_core`'s `resolveNightshadeDocumentsDirectory`, and deliberately
+/// so: the dependency edge runs nightshade_core -> nightshade_remote_protocol,
+/// so importing the resolver here would close a cycle. Nothing leaks as a
+/// result — this file's root is the database directory, which
+/// [pairingDatabaseDirEnv] already relocates, and the platform documents
+/// folder is only ever the no-override default. The call-site sweep test in
+/// nightshade_core names this file as its single exemption.
 Future<File> resolvePairingDatabaseFile({
   Map<String, String>? environment,
   Future<Directory> Function()? documentsDirectoryProvider,

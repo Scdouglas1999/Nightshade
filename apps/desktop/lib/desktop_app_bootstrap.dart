@@ -11,7 +11,6 @@ import 'package:nightshade_updater/nightshade_updater.dart';
 // its own; only the discovery primitives are used here.
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import 'headless_api/update_wiring.dart';
 import 'headless_api_server.dart';
@@ -571,7 +570,7 @@ class _ApiServerLifecycle {
       // cellular delivery disabled; mock would-send delivery is available only
       // through an explicit `mock:true` development configuration.
       try {
-        final appSupportDir = await getApplicationSupportDirectory();
+        final appSupportDir = await resolveNightshadeDataDirectory();
         final delivery = await nextServer.wireRemotePushDelivery(
           appSupportDir: appSupportDir.path,
           log: (message) => logger.info(message, source: _logSource),
@@ -682,7 +681,7 @@ Future<void> _startLanPushReceiver({
 /// logged as errors so the operator knows why catalog-backed UI is empty.
 Future<void> initialiseCatalogManager(LoggingService logger) async {
   try {
-    final appDataDir = await getApplicationSupportDirectory();
+    final appDataDir = await resolveNightshadeDataDirectory();
     final catalogDir = path.join(appDataDir.path, 'catalogs');
     await CatalogManager.instance.initialize(catalogDir);
     logger.info('Catalog manager initialised', source: _logSource);
@@ -724,7 +723,7 @@ Future<bool> shouldStartMinimized(ProviderContainer container) async {
 /// Linux, so the file mode, not the directory, is what keeps another local
 /// account out.
 Future<String> _getOrCreateRemoteAccessToken(LoggingService logger) async {
-  final appData = await getApplicationSupportDirectory();
+  final appData = await resolveNightshadeDataDirectory();
   final tokenFile = File(path.join(appData.path, 'remote_access_token.txt'));
 
   if (await tokenFile.exists()) {

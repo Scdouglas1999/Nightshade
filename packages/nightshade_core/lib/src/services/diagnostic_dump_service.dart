@@ -24,6 +24,7 @@ import '../providers/equipment/weather_state_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/sequence_provider.dart';
 import 'logging_service.dart';
+import '../utils/nightshade_data_directory.dart';
 
 /// Snapshot of one device's contribution to the diagnostic-dump device list.
 ///
@@ -598,7 +599,7 @@ Future<Map<String, Object?>> _gatherSystemInfo(Ref ref) async {
 
   Directory? supportDir;
   try {
-    supportDir = await getApplicationSupportDirectory();
+    supportDir = await resolveNightshadeDataDirectory();
   } on Exception catch (_) {
     // path_provider can fail on unconfigured test harnesses or unusual OS
     // configurations; leave the path null rather than aborting the dump.

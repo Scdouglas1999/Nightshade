@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../database/database.dart' show CoImagingSessionRow;
 import '../database/daos/coimaging_sessions_dao.dart';
@@ -22,6 +21,7 @@ import 'database_provider.dart';
 import 'scheduler_provider.dart' show schedulerEngineProvider;
 import 'settings_provider.dart' show appSettingsProvider;
 import 'sky_atlas_provider.dart';
+import '../utils/nightshade_data_directory.dart';
 
 /// Riverpod surface for the Constellation community hub client.
 ///
@@ -133,7 +133,7 @@ final collaborativeMosaicServiceProvider = Provider<CollaborativeMosaicService>(
       projectService: ref.watch(mosaicProjectServiceProvider),
       logger: ref.watch(loggingServiceProvider),
       assemblyDirResolver: (mosaicId) async {
-        final dir = await getApplicationSupportDirectory();
+        final dir = await resolveNightshadeDataDirectory();
         return p.join(dir.path, 'collaborative_mosaics', mosaicId);
       },
     );

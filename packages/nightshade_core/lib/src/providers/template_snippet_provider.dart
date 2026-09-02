@@ -3,12 +3,12 @@ import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/sequence/template_snippet.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/sequence_file_service.dart';
+import '../utils/nightshade_data_directory.dart';
 
 // Built-in snippets provider
 
@@ -171,7 +171,7 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
 }
 
 Future<File> _defaultSnippetsFile() async {
-  final appDir = await getApplicationSupportDirectory();
+  final appDir = await resolveNightshadeDataDirectory();
   final snippetsDir = '${appDir.path}${Platform.pathSeparator}snippets';
   return File('$snippetsDir${Platform.pathSeparator}custom_snippets.json');
 }

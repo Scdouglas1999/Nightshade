@@ -13,14 +13,20 @@ Future<File> resolveDefaultDatabaseFile({
   Map<String, String>? environment,
   Future<Directory> Function()? documentsDirectoryProvider,
 }) async {
-  final env = environment ?? Platform.environment;
+  // [nightshadeProcessEnvironment], not `Platform.environment`: apps/desktop
+  // writes its resolved NIGHTSHADE_DATA_DIR back into the process environment
+  // for the Rust side, and reading that back would move an ordinary install's
+  // `nightshade.db` off `~/Documents`.
+  final env = environment ?? nightshadeProcessEnvironment;
   final overrideDir = env[nightshadeDatabaseDirEnv]?.trim();
   if (overrideDir != null && overrideDir.isNotEmpty) {
     return File(p.join(overrideDir, 'nightshade.db'));
   }
 
-  final dbFolder =
-      await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
+  final dbFolder = await resolveNightshadeDocumentsDirectory(
+    environment: env,
+    documentsDirectoryProvider: documentsDirectoryProvider,
+  );
   return File(p.join(dbFolder.path, 'Nightshade', 'nightshade.db'));
 }
 

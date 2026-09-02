@@ -2,10 +2,10 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../../database/database.dart' show TransientDetectionRow;
 import 'transient_candidate.dart' show TransientKind;
+import '../../utils/nightshade_data_directory.dart';
 
 /// Which discovery network a [TransientReportService] report targets. Each has a
 /// distinct, real submission format.
@@ -354,7 +354,7 @@ class TransientReportService {
     required String content,
     required String fileName,
   }) async {
-    final docsDir = await getApplicationDocumentsDirectory();
+    final docsDir = await resolveNightshadeDocumentsDirectory();
     final exportDir = Directory(
       path.join(docsDir.path, 'Nightshade', 'exports'),
     );

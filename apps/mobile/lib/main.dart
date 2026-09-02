@@ -11,7 +11,6 @@ import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/qr_scanner_screen.dart';
@@ -91,7 +90,7 @@ void main() async {
 
   // Initialize CatalogManager
   try {
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await resolveNightshadeDocumentsDirectory();
     await CatalogManager.instance.initialize(appDir.path);
   } catch (e) {
     developer.log(

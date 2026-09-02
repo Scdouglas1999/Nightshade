@@ -292,7 +292,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
       );
       if (mounted) {
         setState(() => _lastExportPath = filePath);
-        // MpcExportService writes into getApplicationDocumentsDirectory(),
+        // MpcExportService writes into resolveNightshadeDocumentsDirectory(),
         // which on Android/iOS is the private sandbox — announcing the path
         // there names a report the observer cannot attach to an MPC
         // submission, so hand the file to the share sheet instead.

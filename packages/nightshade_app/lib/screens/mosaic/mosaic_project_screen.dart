@@ -8,7 +8,6 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     show meanRaHours;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../session_review/widgets/master_overlay_view.dart';
 import '../session_review/widgets/master_preview_view.dart';
@@ -85,7 +84,7 @@ Future<void> _confirmForceRelease(
 /// Bounded: a platform channel that never answers must become a visible error
 /// on the screen, not a spinner that outlives the session.
 final mosaicArtifactsBaseDirProvider = FutureProvider<String>((ref) async {
-  final supportDir = await getApplicationSupportDirectory()
+  final supportDir = await resolveNightshadeDataDirectory()
       .timeout(const Duration(seconds: 10));
   return p.join(supportDir.path, 'nightshade_mosaic');
 });

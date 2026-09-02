@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+import './nightshade_data_directory.dart';
 
 /// Forces [chooseExportTarget] down the touch or desktop branch in tests.
 ///
@@ -59,7 +59,7 @@ Future<ExportTarget?> chooseExportTarget({
   final isTouch =
       debugIsTouchPlatformOverride ?? (Platform.isAndroid || Platform.isIOS);
   if (isTouch) {
-    final documents = await getApplicationDocumentsDirectory();
+    final documents = await resolveNightshadeDocumentsDirectory();
     final directory = Directory('${documents.path}/Nightshade/exports');
     if (!await directory.exists()) {
       await directory.create(recursive: true);

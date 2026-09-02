@@ -25,9 +25,9 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import 'logging_service.dart';
+import '../utils/nightshade_data_directory.dart';
 
 /// An installed plugin's full manifest as exposed by the headless API.
 /// Mirrors the wire shape the dashboard / mobile companion consumes via
@@ -194,7 +194,7 @@ class PluginManagementService {
   final LoggingService _logger;
 
   /// Override for the plugin directory. Tests inject this; production
-  /// resolves it from `path_provider`.
+  /// resolves it from [resolveNightshadeDataDirectory].
   final Future<Directory> Function()? _directoryOverride;
   Future<void> _mutationTail = Future<void>.value();
 
@@ -213,7 +213,7 @@ class PluginManagementService {
       }
       return dir;
     }
-    final appDir = await getApplicationSupportDirectory();
+    final appDir = await resolveNightshadeDataDirectory();
     final pluginDir = Directory(
       path.join(appDir.path, 'Nightshade', 'plugins'),
     );
