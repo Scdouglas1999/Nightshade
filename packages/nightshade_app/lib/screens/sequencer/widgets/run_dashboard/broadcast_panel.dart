@@ -14,8 +14,6 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../pulse_lifecycle_mixin.dart';
-
 class BroadcastPanel extends ConsumerWidget {
   const BroadcastPanel({super.key});
 
@@ -265,42 +263,42 @@ class _LiveDot extends StatefulWidget {
 }
 
 class _LiveDotState extends State<_LiveDot>
-    with SingleTickerProviderStateMixin, PulseLifecycleMixin {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-
-  @override
-  AnimationController get pulseController => _ctrl;
-
-  @override
-  bool get pulseReverses => true;
 
   @override
   void initState() {
     super.initState();
+    // Created idle and started by the OnScreenAnimationGate in build(): a
+    // repeat() that outlives visibility schedules a frame on every vsync and
+    // stops the whole app from idling.
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    startPulse();
   }
 
   @override
   void dispose() {
-    stopPulseLifecycle();
     _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween<double>(begin: 0.45, end: 1.0).animate(_ctrl),
-      child: Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(
-          color: widget.color,
-          shape: BoxShape.circle,
+    return OnScreenAnimationGate(
+      controller: _ctrl,
+      repeating: true,
+      reverse: true,
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.45, end: 1.0).animate(_ctrl),
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: widget.color,
+            shape: BoxShape.circle,
+          ),
         ),
       ),
     );

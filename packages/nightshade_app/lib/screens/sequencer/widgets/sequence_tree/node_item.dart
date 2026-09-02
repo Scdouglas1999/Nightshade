@@ -185,6 +185,21 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     return false;
   }
 
+  /// Whether this node is being executed **right now**.
+  ///
+  /// `nodeStatus == running` is the node's own last-reported status. A PAUSED
+  /// run has nothing executing in it — the node is where the run stopped, not
+  /// work in progress — and an idle app has nothing executing at all.
+  /// Measured: a paused run held two 16 px spinners at 61 fps and 46% of one
+  /// core, and a spinning icon on a run that is not running is also a claim
+  /// the app cannot back. Only the spin is gated on this: the running stripe,
+  /// the highlight and the live progress panel still say "this is the node the
+  /// run is on", which stays true while paused.
+  bool get _isExecuting =>
+      widget.nodeStatus == NodeStatus.running &&
+      ref.watch(sequenceExecutionStateProvider) ==
+          SequenceExecutionState.running;
+
   @override
   Widget build(BuildContext context) {
     final categoryColor = _getCategoryColor();
@@ -390,7 +405,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                   ? NightshadeTokens.radiusLg
                   : NightshadeTokens.radiusInline8),
             ),
-            child: isRunning
+            child: _isExecuting
                 ? _SpinningIcon(
                     icon: _getIcon(),
                     color: categoryColor,

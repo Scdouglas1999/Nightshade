@@ -211,10 +211,16 @@ pub(crate) async fn run_sequencer_event_loop(
                     }),
                 )),
                 ExecutorEvent::NodeCompleted { id, status } => {
+                    // `Cancelled` is its own wire value, not a failure. Both
+                    // Dart consumers already fold "cancelled" onto
+                    // `NodeStatus.skipped`; reporting it as "failed" painted
+                    // a stopped run's nodes red and is the kind of untrue
+                    // statement this codebase treats as a defect.
                     let status_str = match status {
                         NodeStatus::Success => "success",
                         NodeStatus::Failure => "failed",
                         NodeStatus::Skipped => "skipped",
+                        NodeStatus::Cancelled => "cancelled",
                         _ => "failed",
                     };
                     let severity = match status {

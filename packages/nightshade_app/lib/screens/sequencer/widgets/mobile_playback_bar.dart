@@ -8,7 +8,6 @@ import '../../../localization/nightshade_localizations.dart';
 import '../../../services/sequence_action_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
-import 'pulse_lifecycle_mixin.dart';
 import 'run_dashboard/sequence_status_visuals.dart';
 
 /// Compact playback control bar for mobile devices.
@@ -347,43 +346,45 @@ class _PulsingIcon extends StatefulWidget {
 }
 
 class _PulsingIconState extends State<_PulsingIcon>
-    with SingleTickerProviderStateMixin, PulseLifecycleMixin {
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-
-  @override
-  AnimationController get pulseController => _controller;
-
-  @override
-  bool get pulseReverses => true;
 
   @override
   void initState() {
     super.initState();
+    // Created idle and started by the OnScreenAnimationGate in build(): a
+    // repeat() that outlives visibility schedules a frame on every vsync and
+    // stops the whole app from idling.
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
-    startPulse();
   }
 
   @override
   void dispose() {
-    stopPulseLifecycle();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Icon(
-          widget.icon,
-          size: widget.size,
-          color: widget.color.withValues(alpha: 0.5 + _controller.value * 0.5),
-        );
-      },
+    return OnScreenAnimationGate(
+      controller: _controller,
+      repeating: true,
+      reverse: true,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Icon(
+            widget.icon,
+            size: widget.size,
+            color: widget.color.withValues(
+              alpha: 0.5 + _controller.value * 0.5,
+            ),
+          );
+        },
+      ),
     );
   }
 }

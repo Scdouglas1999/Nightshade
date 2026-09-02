@@ -74,6 +74,21 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   String _formatDec(double decDegrees) => CoordinateFormat.dec(decDegrees,
       seconds: SecondsPrecision.integerRounded);
 
+  /// Whether this target header's subtree is being executed **right now**.
+  ///
+  /// `nodeStatus == running` is the node's own last-reported status. A PAUSED
+  /// run has nothing executing in it — the node is where the run stopped, not
+  /// work in progress — and an idle app has nothing executing at all.
+  /// Measured: a paused run held two 16 px spinners at 61 fps and 46% of one
+  /// core, and a spinning icon on a run that is not running is also a claim
+  /// the app cannot back. Only the spin is gated on this: the running stripe
+  /// and the highlight still say "this is where the run is", which stays true
+  /// while paused.
+  bool get _isExecuting =>
+      widget.nodeStatus == NodeStatus.running &&
+      ref.watch(sequenceExecutionStateProvider) ==
+          SequenceExecutionState.running;
+
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
@@ -191,7 +206,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               bordered: false,
             ),
-            child: isRunning
+            child: _isExecuting
                 ? _SpinningIcon(
                     icon: LucideIcons.target,
                     color: categoryColor,

@@ -121,7 +121,34 @@ pub(super) fn build_progress_callback(
             // already taken twice the frames it had. The reset now
             // happens after the frame block.
             let mut started = started_nodes.write();
-            started.remove(&update.node_id);
+            let was_started = started.remove(&update.node_id);
+            // Announce the node's terminal status, exactly once, and only
+            // for a node we actually announced as started. Without this the
+            // `NodeStarted` above is never answered: `RuntimeNode::execute`
+            // emits the terminal `ProgressUpdate` for every node it ran —
+            // leaf AND container, the root sequence node included — but this
+            // callback used to swallow it, so every node the run touched
+            // stayed `NodeStatus.running` in the UI forever. A finished run
+            // then rendered a tree of nodes still claiming to be executing,
+            // each with a spinning status icon, which on the Linux embedder
+            // (full-window frame per dirty mark) cost ~61 fps and ~43% of a
+            // core indefinitely after the run had ended.
+            //
+            // `started.remove` returning true is the pairing check: it is
+            // true only for a node that emitted `NodeStarted`, so a loop
+            // body gets one Started/Completed pair per iteration and a node
+            // that was never entered gets neither.
+            if was_started {
+                tracing::info!(
+                    "[PROGRESS_CB] Emitting NodeCompleted: id={}, status={:?}",
+                    update.node_id,
+                    update.status
+                );
+                let _ = event_tx_clone.send(ExecutorEvent::NodeCompleted {
+                    id: update.node_id.clone(),
+                    status: update.status,
+                });
+            }
             // Only Success closes a target. A target node that
             // failed, was cancelled or was skipped did not
             // "complete" it, and `SequencerEvent::TargetCompleted`
@@ -339,4 +366,217 @@ pub(super) fn build_progress_callback(
         // so the enum stays small (see `ExecutorEvent` doc-comment).
         let _ = event_tx_clone.send(ExecutorEvent::ProgressUpdated(Box::new(prog.clone())));
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node::progress::ProgressUpdate;
+
+    fn callback_with_channel() -> (
+        crate::node::context::ProgressCallback,
+        broadcast::Receiver<ExecutorEvent>,
+        Arc<StdRwLock<std::collections::HashSet<NodeId>>>,
+    ) {
+        let (tx, rx) = broadcast::channel(256);
+        let started_nodes: Arc<StdRwLock<std::collections::HashSet<NodeId>>> =
+            Arc::new(StdRwLock::new(std::collections::HashSet::new()));
+        let cb = build_progress_callback(ProgressCallbackArgs {
+            event_tx_clone: tx,
+            exposure_node_metadata: Arc::new(HashMap::new()),
+            node_frame_progress: Arc::new(StdRwLock::new(HashMap::new())),
+            node_integration_credited: Arc::new(StdRwLock::new(HashMap::new())),
+            node_names: Arc::new(StdRwLock::new(HashMap::new())),
+            node_pending_exposure_completion: Arc::new(StdRwLock::new(HashMap::new())),
+            progress_clone: Arc::new(StdRwLock::new(SequenceProgress::default())),
+            start_time: std::time::Instant::now(),
+            started_nodes: started_nodes.clone(),
+            target_node_metadata: Arc::new(HashMap::new()),
+        });
+        (cb, rx, started_nodes)
+    }
+
+    fn drain(rx: &mut broadcast::Receiver<ExecutorEvent>) -> Vec<ExecutorEvent> {
+        let mut out = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            out.push(ev);
+        }
+        out
+    }
+
+    /// The regression this pins: a node that reports a terminal status must
+    /// announce it. Without the `NodeCompleted` send in the terminal branch
+    /// the UI hears `NodeStarted` and nothing else, so every node a run
+    /// touched — the root container included — stays `running` forever, which
+    /// both states something untrue and leaves its status spinner animating
+    /// (measured: ~61 fps and ~43% of a core after the run had ended).
+    #[test]
+    fn terminal_status_emits_node_completed_for_a_started_node() {
+        let (cb, mut rx, _started) = callback_with_channel();
+
+        cb(ProgressUpdate::lifecycle(
+            "node-1".to_string(),
+            NodeStatus::Running,
+            "Executing: Take Exposures",
+        ));
+        cb(ProgressUpdate::lifecycle(
+            "node-1".to_string(),
+            NodeStatus::Success,
+            "Completed: Take Exposures",
+        ));
+
+        let events = drain(&mut rx);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ExecutorEvent::NodeStarted { id, .. } if id == "node-1")),
+            "expected a NodeStarted for node-1, got {events:?}"
+        );
+        let completed: Vec<_> = events
+            .iter()
+            .filter_map(|e| match e {
+                ExecutorEvent::NodeCompleted { id, status } if id == "node-1" => Some(*status),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            completed,
+            vec![NodeStatus::Success],
+            "expected exactly one NodeCompleted(Success) for node-1, got {events:?}"
+        );
+    }
+
+    /// Containers go through the same callback as leaves, so the root
+    /// sequence node must be answered too — it is one of the two nodes that
+    /// was observed still spinning on a finished run.
+    #[test]
+    fn every_started_node_is_answered_including_containers() {
+        let (cb, mut rx, _started) = callback_with_channel();
+
+        for id in ["root-container", "leaf"] {
+            cb(ProgressUpdate::lifecycle(
+                id.to_string(),
+                NodeStatus::Running,
+                format!("Executing: {id}"),
+            ));
+        }
+        // Leaves finish before the container that owns them.
+        for id in ["leaf", "root-container"] {
+            cb(ProgressUpdate::lifecycle(
+                id.to_string(),
+                NodeStatus::Success,
+                format!("Completed: {id}"),
+            ));
+        }
+
+        let events = drain(&mut rx);
+        let mut answered: Vec<String> = events
+            .iter()
+            .filter_map(|e| match e {
+                ExecutorEvent::NodeCompleted { id, .. } => Some(id.clone()),
+                _ => None,
+            })
+            .collect();
+        answered.sort();
+        assert_eq!(
+            answered,
+            vec!["leaf".to_string(), "root-container".to_string()],
+            "both the leaf and the container that ran it must report terminal, got {events:?}"
+        );
+    }
+
+    /// Failure, cancellation and skipping are terminal too — a node that
+    /// ends any of those ways has stopped running and must say so.
+    #[test]
+    fn non_success_terminal_statuses_are_announced_verbatim() {
+        for status in [
+            NodeStatus::Failure,
+            NodeStatus::Cancelled,
+            NodeStatus::Skipped,
+        ] {
+            let (cb, mut rx, _started) = callback_with_channel();
+            cb(ProgressUpdate::lifecycle(
+                "n".to_string(),
+                NodeStatus::Running,
+                "Executing: n",
+            ));
+            cb(ProgressUpdate::lifecycle(
+                "n".to_string(),
+                status,
+                "done: n",
+            ));
+            let events = drain(&mut rx);
+            let reported: Vec<_> = events
+                .iter()
+                .filter_map(|e| match e {
+                    ExecutorEvent::NodeCompleted { status, .. } => Some(*status),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                reported,
+                vec![status],
+                "{status:?} must be reported as itself, not folded onto another status"
+            );
+        }
+    }
+
+    /// The pairing rule: `NodeCompleted` follows a `NodeStarted` we actually
+    /// sent. A terminal update for a node that never entered (so never
+    /// announced a start) must not invent a completion, and a loop body that
+    /// re-enters gets one pair per iteration rather than a doubled tail.
+    #[test]
+    fn completion_is_paired_with_a_start_never_invented_or_doubled() {
+        let (cb, mut rx, _started) = callback_with_channel();
+
+        // Terminal with no preceding Running: nothing to answer.
+        cb(ProgressUpdate::lifecycle(
+            "never-ran".to_string(),
+            NodeStatus::Skipped,
+            "Skipped: never-ran",
+        ));
+        assert!(
+            !drain(&mut rx)
+                .iter()
+                .any(|e| matches!(e, ExecutorEvent::NodeCompleted { .. })),
+            "a node that never started must not report a completion"
+        );
+
+        // Two loop iterations: two starts, two completions, in order.
+        for _ in 0..2 {
+            cb(ProgressUpdate::lifecycle(
+                "body".to_string(),
+                NodeStatus::Running,
+                "Executing: body",
+            ));
+            cb(ProgressUpdate::lifecycle(
+                "body".to_string(),
+                NodeStatus::Success,
+                "Completed: body",
+            ));
+        }
+        let events = drain(&mut rx);
+        let lifecycle: Vec<&str> = events
+            .iter()
+            .filter_map(|e| match e {
+                ExecutorEvent::NodeStarted { id, .. } if id == "body" => Some("start"),
+                ExecutorEvent::NodeCompleted { id, .. } if id == "body" => Some("done"),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(lifecycle, vec!["start", "done", "start", "done"]);
+
+        // A repeated terminal for an already-answered node adds nothing.
+        cb(ProgressUpdate::lifecycle(
+            "body".to_string(),
+            NodeStatus::Success,
+            "Completed: body",
+        ));
+        assert!(
+            !drain(&mut rx)
+                .iter()
+                .any(|e| matches!(e, ExecutorEvent::NodeCompleted { .. })),
+            "a duplicate terminal update must not emit a second completion"
+        );
+    }
 }

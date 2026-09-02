@@ -638,7 +638,12 @@ class _SequencerRecoveryActionsBannerState
       _lastTick = d;
       if (mounted) setState(() {});
     });
-    _ticker.start();
+    // Not started here — driven from build() by _syncTicker, so the 500 ms
+    // rebuild loop is idle whenever there is nothing counting down. An
+    // active Ticker schedules a frame on every vsync even when build()
+    // returns SizedBox.shrink(), which is exactly the state this banner is
+    // in whenever no recovery is running. Matches the desktop twin,
+    // run_dashboard/recovery_banner.dart.
   }
 
   @override
@@ -647,9 +652,21 @@ class _SequencerRecoveryActionsBannerState
     super.dispose();
   }
 
+  /// Start/stop the countdown ticker to match whether a recovery is actually
+  /// waiting for its next retry.
+  void _syncTicker({required bool needsCountdown}) {
+    if (needsCountdown) {
+      if (!_ticker.isActive) _ticker.start();
+    } else if (_ticker.isActive) {
+      _ticker.stop();
+      _lastTick = Duration.zero;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctx = ref.watch(currentRecoveryProvider);
+    _syncTicker(needsCountdown: ctx != null && ctx.isWaiting);
     if (ctx == null) return const SizedBox.shrink();
 
     final colors = NightshadeColors.of(context);
