@@ -8,6 +8,15 @@ import 'package:url_launcher/url_launcher.dart';
 ///
 /// The primary state follows the user's active [choice]. An installed backup
 /// must not make an explicitly selected, unusable solver look ready.
+///
+/// settings-search: ignore — this card's five headlines ("ASTAP detected …",
+/// "ASTAP detected — catalog missing", "ASTAP not installed …", "Selected
+/// Astrometry.net solver is not installed", the auto-fallback line) are
+/// mutually exclusive reports of what was DETECTED on this machine, and at
+/// most one is ever on screen. They are not the names of rows, so the settings
+/// search index must not offer them as such: it listed "ASTAP detected —
+/// catalog missing" under Plate Solving on a machine whose Plate Solving page
+/// said "ASTAP not installed — Nightshade cannot plate-solve".
 class SolverDetectionCard extends StatelessWidget {
   static const String astapDownloadUrl = 'https://www.hnsky.org/astap.htm';
   static const String astrometryDownloadUrl = 'https://astrometry.net/use.html';

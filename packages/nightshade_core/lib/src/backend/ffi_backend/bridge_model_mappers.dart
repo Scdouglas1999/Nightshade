@@ -55,9 +55,14 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
           : _fromBridgePierSide(s.sideOfPier!),
       rightAscension: s.rightAscension,
       declination: s.declination,
-      altitude: s.altitude ?? 0.0,
-      azimuth: s.azimuth ?? 0.0,
-      siderealTime: s.siderealTime ?? 0.0,
+      // Pass the horizon frame through as the native side reported it. These
+      // three carried `?? 0.0`, which turned "this mount cannot say" — what
+      // `sim_gate::apply_derived_mount_telemetry` returns when no observing
+      // site is configured — into a settled `0.00°` on every panel that
+      // prints them. The panels already render `--` for null.
+      altitude: s.altitude,
+      azimuth: s.azimuth,
+      siderealTime: s.siderealTime,
       trackingRate: s.trackingRate == null
           ? dart_caps.TrackingRate.sidereal
           : _fromBridgeTrackingRate(s.trackingRate!),

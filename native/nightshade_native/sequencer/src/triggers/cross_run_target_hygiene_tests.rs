@@ -275,3 +275,105 @@ async fn on_tracking_limit_hit_is_exempt_from_the_not_tracking_guard() {
         "OnTrackingLimitHit fires precisely when tracking has stopped"
     );
 }
+
+// ---------------------------------------------------------------------------
+// AltitudeLimit: the same two questions the meridian flip now asks.
+//
+// Live, on a solverless machine: a three-frame DARKS block under a parked
+// simulated mount logged
+//   00:14:59.824  Starting sequence execution
+//   00:14:59.832  WARN Trigger fired: Altitude Limit (altitude_limit) - action: NextTarget
+// eight milliseconds in, and the Session Report of the completed run said
+// "Trigger fires 1". The altitude it judged was correct — it is the TARGET's,
+// computed by `executor::monitoring::target_sky_state`, and M4 really was at
+// 16.6° against the default 30° floor. What was wrong is that it acted at all:
+// nothing about a dark, bias or flat depends on where the tube is pointing,
+// and the mount was parked.
+// ---------------------------------------------------------------------------
+
+fn altitude_trigger(min_altitude: f64) -> Trigger {
+    Trigger::new(
+        "altitude_limit",
+        "Altitude Limit",
+        TriggerType::AltitudeLimit { min_altitude },
+        RecoveryAction::NextTarget,
+    )
+}
+
+/// The observed run: target below the floor, mount parked, darks underneath.
+fn low_target_state() -> TriggerState {
+    let mut state = parked_calibration_run_state();
+    // M4's altitude at the moment of the observed run, against the 30° default.
+    state.current_altitude = Some(16.6);
+    state
+}
+
+#[tokio::test]
+async fn altitude_limit_does_not_fire_on_a_parked_mount() {
+    // Control: same low target, mount actually tracking it — the trigger's
+    // whole reason to exist, and it must still fire.
+    let mut tracking = low_target_state();
+    tracking.mount_parked = Some(false);
+    tracking.mount_is_tracking = Some(true);
+    assert!(
+        altitude_trigger(30.0).check(&tracking).await,
+        "a tracked target below the floor is exactly what AltitudeLimit is for"
+    );
+
+    let mut parked = low_target_state();
+    parked.mount_parked = Some(true);
+    assert!(
+        !altitude_trigger(30.0).check(&parked).await,
+        "a parked mount is not following the target; skipping to the next one \
+         answers a question nobody asked"
+    );
+}
+
+#[tokio::test]
+async fn altitude_limit_does_not_fire_when_the_mount_is_not_tracking() {
+    let mut idle = low_target_state();
+    idle.mount_parked = Some(false);
+    idle.mount_is_tracking = Some(false);
+    assert!(
+        !altitude_trigger(30.0).check(&idle).await,
+        "a mount that has stopped tracking is not following the target"
+    );
+}
+
+#[tokio::test]
+async fn a_mount_that_never_reports_park_or_tracking_keeps_altitude_protection() {
+    let silent = low_target_state();
+    assert_eq!(silent.mount_parked, None);
+    assert_eq!(silent.mount_is_tracking, None);
+    assert!(
+        altitude_trigger(30.0).check(&silent).await,
+        "None is 'the mount never said', not 'the mount is parked' — a driver \
+         that publishes neither must not silently lose altitude protection"
+    );
+}
+
+#[tokio::test]
+async fn altitude_limit_still_judges_the_target_not_the_mount() {
+    // The mount's own pointing never reaches this trigger: `current_altitude`
+    // is the target's. A tracking mount whose target is comfortably high must
+    // not fire however low the tube itself happens to be sitting.
+    let mut high_target = parked_calibration_run_state();
+    high_target.mount_parked = Some(false);
+    high_target.mount_is_tracking = Some(true);
+    high_target.current_altitude = Some(64.0);
+    assert!(
+        !altitude_trigger(30.0).check(&high_target).await,
+        "a target above the floor must not fire"
+    );
+
+    // And with no target-derived altitude at all (no site, or no target yet)
+    // there is nothing to judge, so nothing fires.
+    let mut unknown = parked_calibration_run_state();
+    unknown.mount_parked = Some(false);
+    unknown.mount_is_tracking = Some(true);
+    unknown.current_altitude = None;
+    assert!(
+        !altitude_trigger(30.0).check(&unknown).await,
+        "an unknown altitude is not a low altitude"
+    );
+}

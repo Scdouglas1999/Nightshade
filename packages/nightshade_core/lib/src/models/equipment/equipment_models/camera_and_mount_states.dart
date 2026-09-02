@@ -184,6 +184,7 @@ class MountState extends Equatable {
     DeviceError? lastError,
     bool? autoReconnectEnabled,
     bool clearError = false,
+    bool clearHorizonFrame = false,
   }) {
     return MountState(
       connectionState: connectionState ?? this.connectionState,
@@ -191,8 +192,12 @@ class MountState extends Equatable {
       deviceName: deviceName ?? this.deviceName,
       ra: ra ?? this.ra,
       dec: dec ?? this.dec,
-      altitude: altitude ?? this.altitude,
-      azimuth: azimuth ?? this.azimuth,
+      // A null [altitude]/[azimuth] argument means "leave unchanged" like every
+      // other field here, so a poll that reports the horizon frame as UNKNOWN
+      // needs [clearHorizonFrame] to say so — otherwise the last computed pair
+      // outlives the site it was computed for and keeps being drawn as live.
+      altitude: clearHorizonFrame ? null : (altitude ?? this.altitude),
+      azimuth: clearHorizonFrame ? null : (azimuth ?? this.azimuth),
       isTracking: isTracking ?? this.isTracking,
       isSlewing: isSlewing ?? this.isSlewing,
       isParked: isParked ?? this.isParked,

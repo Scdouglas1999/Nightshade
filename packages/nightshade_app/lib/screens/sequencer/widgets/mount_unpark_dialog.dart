@@ -45,6 +45,17 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
   late int _remainingSeconds;
   Timer? _countdownTimer;
   bool _isUnparking = false;
+
+  /// Set the moment the operator presses Cancel, and checked again AFTER the
+  /// unpark round-trip.
+  ///
+  /// The countdown used to become unbeatable the instant it expired: the
+  /// Cancel button was disabled for the whole `unpark()` await, so a press in
+  /// that window did nothing at all and the sequence started anyway. Cancel
+  /// stays live and this latch is what makes it authoritative — a cancel that
+  /// lands mid-unpark still aborts the start.
+  bool _cancelled = false;
+
   late AnimationController _pulseController;
 
   @override
@@ -88,7 +99,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
   }
 
   Future<void> _handleUnparkAndContinue() async {
-    if (_isUnparking) return;
+    if (_isUnparking || _cancelled) return;
 
     _countdownTimer?.cancel();
 
@@ -102,6 +113,9 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
             !mountState.isParked;
     if (!isAlreadyUnparked) {
       final result = await ref.read(mountCommandServiceProvider).unpark();
+      // Re-read the latch after the await: the operator had a live Cancel
+      // button for the whole round-trip and may have used it.
+      if (_cancelled) return;
       if (!result.isSuccess) {
         if (mounted) {
           setState(() {
@@ -113,6 +127,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
       }
     }
 
+    if (_cancelled) return;
     if (mounted) {
       Navigator.of(context).pop();
       widget.onUnparkAndContinue();
@@ -120,6 +135,8 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
   }
 
   void _handleCancel() {
+    if (_cancelled) return;
+    _cancelled = true;
     _countdownTimer?.cancel();
     Navigator.of(context).pop();
     widget.onCancel();
@@ -307,7 +324,12 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                   // Cancel button
                   Expanded(
                     child: NightshadeButton(
-                      onPressed: _isUnparking ? null : _handleCancel,
+                      // Deliberately NOT disabled while unparking: this button
+                      // is the operator's only way out, and disabling it for
+                      // the duration of the mount round-trip made the expiring
+                      // countdown unbeatable. [_cancelled] is what makes a
+                      // press here win the race with the timer.
+                      onPressed: _handleCancel,
                       label: 'Cancel Sequence',
                       variant: ButtonVariant.ghost,
                       size: ButtonSize.small,

@@ -222,6 +222,9 @@ class _PreFlightValidationDialogState
     final isMountConnected =
         mountState.connectionState == DeviceConnectionState.connected;
     final isMountParked = mountState.isParked;
+    // Read synchronously, before any await: this is the tree the operator
+    // pressed Start on, and it decides whether the run needs the mount at all.
+    final sequence = ref.read(currentSequenceProvider);
 
     // Capture a navigator that outlives this dialog so the follow-on handoff /
     // unpark dialogs can be shown AFTER we pop the preflight dialog without
@@ -285,8 +288,16 @@ class _PreFlightValidationDialogState
       if (decisions == null) return;
     }
 
+    // A parked mount only has to come off its park if something in this run
+    // actually needs the sky. A calibration block does not: the executor takes
+    // darks, biases and flats without ever issuing a slew, so the dialog's
+    // promise that "the sequence will automatically unpark the mount and
+    // continue" described an unpark the run had no use for — and then
+    // performed it, leaving the mount off its park for a run of three darks.
+    final needsSky = sequence == null || sequenceNeedsMountOffPark(sequence);
+
     // If mount is connected and parked, show the unpark dialog
-    if (isMountConnected && isMountParked) {
+    if (isMountConnected && isMountParked && needsSky) {
       if (!navigator.mounted) return;
       final result = await showMountUnparkDialog(navigator.context);
 
@@ -297,7 +308,8 @@ class _PreFlightValidationDialogState
       }
       // If cancelled, do nothing (sequence won't start)
     } else {
-      // Mount is not parked or not connected, just start the sequence
+      // Mount not parked, not connected, or parked with nothing in the run
+      // that needs it moved — start, and leave the park exactly as it is.
       _authorizeStartWithoutHistory(startWithoutHistory);
       widget.onStartSequence?.call();
     }

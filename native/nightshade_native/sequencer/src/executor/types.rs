@@ -578,6 +578,26 @@ pub enum ExecutorEvent {
     Error {
         message: String,
     },
+    /// A non-fatal advisory: something the operator should know about a run
+    /// that is otherwise proceeding normally.
+    ///
+    /// Distinct from [`ExecutorEvent::Error`] because severity is what the
+    /// whole downstream chain routes on. There was no `Warning` variant, so
+    /// advisories rode `Error` — and every consumer that only knows "an error
+    /// happened" acted on them. A solverless machine running three dark frames
+    /// produced, from ONE preflight advisory: a red `Critical - Sequencer`
+    /// toast, a `Sequence Error` toast, a `Sequence failed / Sequence aborted
+    /// at 20:14.` toast (plus the phone push behind it), and a red **Errors**
+    /// section in the Session Report of a run that finished `Completed` with
+    /// 3/3 frames accepted and 0 rejected.
+    ///
+    /// The bridge maps this to `EventSeverity::Warning` on the existing
+    /// `SequencerEvent::Error` payload, so no wire format changes; Dart routes
+    /// on the severity into the run's `warningMessages`, which the Session
+    /// Report already renders under "Warnings".
+    Warning {
+        message: String,
+    },
     /// A meridian flip finished — successfully, degraded (it needed retries),
     /// aborted, or failed outright.
     ///

@@ -405,7 +405,14 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                     // A target with no location is worth saying out
                     // loud — altitude and meridian protection are
                     // then INACTIVE, which is a user-visible
-                    // ExecutorEvent::Error rather than a log line.
+                    // ExecutorEvent::Warning rather than a log line.
+                    // A WARNING, not an error: the run proceeds and
+                    // normally finishes; it is protection that is
+                    // missing, not the sequence. Sent as `Error` it
+                    // produced a red "Critical - Sequencer" toast, a
+                    // "Sequence failed / Sequence aborted" toast and
+                    // push, and pushed a healthy run into `recovering`
+                    // 0.1 s after Start.
                     // Gated by a one-shot sentinel so a permanently
                     // unconfigured location does not flood the event
                     // stream every second. No target at all is
@@ -420,7 +427,7 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                              — altitude and meridian-flip protection are \
                              INACTIVE. Set location in Profile to enable.";
                         tracing::warn!("{}", msg);
-                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                        let _ = event_tx_clone2.send(ExecutorEvent::Warning {
                             message: msg.to_string(),
                         });
                         altitude_warned_no_location = true;

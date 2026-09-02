@@ -85,6 +85,7 @@ pub fn spawn_executor_event_bridge(state: SharedAppState) -> broadcast::Sender<E
 fn forward_event(state: &SharedAppState, event: ExecutorEvent) {
     let (severity, message) = match event {
         ExecutorEvent::Error { message } => (EventSeverity::Error, message),
+        ExecutorEvent::Warning { message } => (EventSeverity::Warning, message),
         ExecutorEvent::SequenceFailed { error } => (EventSeverity::Error, error),
         // Other variants currently surface as an informational error-tagged
         // payload because the one-shot bridge sites don't have a richer

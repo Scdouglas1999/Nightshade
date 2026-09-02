@@ -136,7 +136,13 @@ impl SequenceExecutor {
                         warning.clamped_to,
                         warning.field,
                     );
-                    let _ = self.event_tx.send(ExecutorEvent::Error { message: msg });
+                    // A clamp is an advisory about configuration, not a run
+                    // failure: the trigger is armed, just at the maximum
+                    // instead of the number that was typed. It rode
+                    // `ExecutorEvent::Error` only because no warning channel
+                    // existed, which filed it under a red "Errors" heading in
+                    // the Session Report of runs that completed.
+                    let _ = self.event_tx.send(ExecutorEvent::Warning { message: msg });
                 }
             }
         }

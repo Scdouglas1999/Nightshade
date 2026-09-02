@@ -31,9 +31,16 @@ impl Default for SimulatedMount {
                 side_of_pier: Some(PierSide::Unknown),
                 right_ascension: 0.0,
                 declination: 0.0,
-                altitude: Some(0.0),
-                azimuth: Some(0.0),
-                sidereal_time: Some(0.0),
+                // The horizon frame is NOT a property of the mount: it needs
+                // an observing site and the current time. Every read goes
+                // through `sim_gate::apply_derived_mount_telemetry`, which
+                // computes these when a site is configured and sets them to
+                // `None` when there is not — so a stored `Some(0.0)` here was
+                // only ever a stand-in that could leak out as a claim that the
+                // tube is on the horizon at sidereal time zero.
+                altitude: None,
+                azimuth: None,
+                sidereal_time: None,
                 tracking_rate: Some(TrackingRate::Sidereal),
                 can_park: true,
                 can_slew: true,

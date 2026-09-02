@@ -156,6 +156,14 @@ class NotificationEventClassifier {
       case 'Stopped':
         return (NotificationCategory.sequenceStopped, _stopContext(event));
       case 'Error':
+        // An advisory rides the same payload with `EventSeverity.warning` (see
+        // `ExecutorEvent::Warning`). It is not a run outcome, so it raises no
+        // notification at all: the run dashboard and the Session Report's
+        // Warnings section are where it belongs. Classified by payload type
+        // alone, the solverless meridian-flip notice fired this producer and
+        // told the operator — by toast AND by phone push — that a run which
+        // went on to finish 3/3 had FAILED and been ABORTED.
+        if (event.severity == EventSeverity.warning) return null;
         // PRODUCER 1 of the stop pipeline (toast "Sequence failed / Sequence
         // aborted at …", and the phone push behind it).
         //

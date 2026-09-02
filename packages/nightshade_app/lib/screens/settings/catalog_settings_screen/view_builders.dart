@@ -53,7 +53,11 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           icon: NightshadeIcons.star,
           usedFor:
               'Required for plate solving; draws the star field in the planetarium and finder.',
-          latestVersion: '4.2',
+          // The version the resolver would actually download, not a literal
+          // that has to be remembered when the asset rolls. A hardcoded '4.2'
+          // here outlived the move to hyg_v44 and made the newest fetchable
+          // catalog advertise an update to a version the app cannot get.
+          latestVersion: hygStarCatalog.version,
           rigStatus: isRemote ? _rigStatusFor('stars') : null,
         ),
         const SizedBox(height: 16),
@@ -72,7 +76,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           icon: Icons.blur_circular,
           usedFor:
               'Powers deep-sky target search, framing, and on-image NGC/IC labels.',
-          latestVersion: '2023.12',
+          latestVersion: openNgcCatalog.version,
           rigStatus: isRemote ? _rigStatusFor('dso') : null,
         ),
         const SizedBox(height: 32),
@@ -431,12 +435,12 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   label: 'Size',
                   value: _formatBytes(_annotationStatus!.fileSizeBytes),
                 ),
-                _buildStatusChip(
-                  context: context,
-                  label: 'Package',
-                  value: _annotationStatus!.installedPackage?.displayName ??
-                      'Custom',
-                ),
+                // No "Package" chip here either — see the note on the shared
+                // installed-catalog card in card_builders.dart. The download
+                // tier was a placebo and has been retired; printing the grade
+                // off the legacy sidecar labels the user's install with
+                // something they can no longer choose and that never described
+                // the bytes on disk.
                 if (_annotationStatus!.installedDate != null)
                   _buildStatusChip(
                     context: context,

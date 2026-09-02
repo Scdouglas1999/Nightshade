@@ -387,6 +387,19 @@ pub(crate) async fn run_sequencer_event_loop(
                         message: message.clone(),
                     }),
                 )),
+                // Same payload, different SEVERITY — which is what every
+                // downstream consumer routes on. Reusing the payload keeps the
+                // wire format (and the generated FRB bindings) unchanged; Dart
+                // reads `NightshadeEvent.severity` to decide whether a message
+                // is a run failure or an advisory, exactly as it already does
+                // for `MeridianFlipOutcome`.
+                ExecutorEvent::Warning { message } => Some(create_event_auto_id(
+                    EventSeverity::Warning,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::Error {
+                        message: message.clone(),
+                    }),
+                )),
                 ExecutorEvent::MeridianFlipOutcome {
                     outcome,
                     target_name,

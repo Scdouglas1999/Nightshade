@@ -30,10 +30,16 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
   }) {
     final colors = context.nightshadeColors;
     final isInstalled = status?.isInstalled ?? false;
+    // Only a version the app can actually FETCH and that is genuinely NEWER
+    // than the installed one earns the badge. This was `!=` against a hardcoded
+    // literal that had gone stale when HYG rolled to v4.4: the newest asset the
+    // resolver knows about was flagged "Update available" against itself,
+    // because 4.4 is not equal to the 4.2 the screen still named. See
+    // [_isNewerCatalogVersion].
     final updateAvailable = isInstalled &&
         latestVersion != null &&
         status?.version != null &&
-        status!.version != latestVersion;
+        _isNewerCatalogVersion(status!.version!, latestVersion);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -173,11 +179,15 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                     label: 'Version',
                     value: status.version!,
                   ),
-                _buildStatusChip(
-                  context: context,
-                  label: 'Package',
-                  value: status.installedPackage?.displayName ?? 'Custom',
-                ),
+                // No "Package" chip. It printed the download TIER off the
+                // metadata sidecar — Essential / Standard / Complete — and the
+                // tiers were retired because they were a placebo: all three
+                // downloaded the same bytes (byte-identical SHA-256 for an
+                // `essential` and a `standard` sidecar). A grade the user can
+                // no longer choose, that never described anything, is not a
+                // fact about their install. Everything the sidecar can honestly
+                // say is already on the card: the dataset name is the title and
+                // the object count, size, version and install date are chips.
                 if (_magnitudeDepth(type, status.installedPackage) != null)
                   _buildStatusChip(
                     context: context,
@@ -235,6 +245,50 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
       return 'mag ≤ ${kHygFaintFloorMag.toStringAsFixed(1)}';
     }
     return null;
+  }
+
+  /// Whether [fetchable] names a catalog release genuinely NEWER than
+  /// [installed] — the only case in which "Update available" is true.
+  ///
+  /// Catalog versions are dotted numeric strings, either a release number
+  /// (`4.2`, `4.4`) or a year-month stamp (`2023.12`), so components are
+  /// compared numerically and left to right; a shorter version is treated as
+  /// zero-padded (`4` < `4.1`). Anything that does not parse as numbers falls
+  /// back to "not newer": an unrecognised string is not evidence of an update,
+  /// and the badge exists to send the user to a download that will actually
+  /// give them something they do not have.
+  ///
+  /// The predicate this replaced was `installed != latest` against a hardcoded
+  /// literal on the screen. When HYG rolled from v4.2 to v4.4 the constant in
+  /// [catalogDownloadCandidates] moved and the one on the card did not, so a
+  /// fresh install of the newest asset the app can fetch wore a permanent amber
+  /// "Update available" pointing at a version that no longer exists.
+  static bool _isNewerCatalogVersion(String installed, String fetchable) {
+    if (installed == fetchable) return false;
+    final a = _versionComponents(installed);
+    final b = _versionComponents(fetchable);
+    if (a == null || b == null) return false;
+    for (var i = 0; i < (a.length > b.length ? a.length : b.length); i++) {
+      final lhs = i < a.length ? a[i] : 0;
+      final rhs = i < b.length ? b[i] : 0;
+      if (rhs > lhs) return true;
+      if (rhs < lhs) return false;
+    }
+    return false;
+  }
+
+  /// `"2023.12"` -> `[2023, 12]`; null when any component is not an integer.
+  static List<int>? _versionComponents(String version) {
+    final trimmed = version.trim();
+    if (trimmed.isEmpty) return null;
+    final parts = trimmed.split('.');
+    final out = <int>[];
+    for (final part in parts) {
+      final value = int.tryParse(part);
+      if (value == null) return null;
+      out.add(value);
+    }
+    return out;
   }
 
   String _formatCount(int? count) {

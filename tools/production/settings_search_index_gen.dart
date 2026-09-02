@@ -152,6 +152,18 @@ _Libraries _libraryIndex(String repoRoot, {required Set<String> exclude}) {
     sources[entity.path] = entity.readAsStringSync();
   }
 
+  // Widgets that report a runtime STATE rather than render settings rows, so
+  // their titles never become search terms. Same rule as the interpolation
+  // check in [_clean] ("renders differently per state, so it is not a term"),
+  // applied where the alternatives are separate literals instead of one
+  // `$`-string: the solver card has five mutually exclusive headlines and at
+  // most one is ever on screen. Indexing them let a search for "catalog" offer
+  // "ASTAP detected — catalog missing" as a Plate Solving row on a machine
+  // whose Plate Solving page said "ASTAP not installed — Nightshade cannot
+  // plate-solve": two Settings surfaces disagreeing about one fact.
+  final stateReporters = _markedIgnored(sources.values);
+  exclude = {...exclude, ...stateReporters};
+
   String resolvePart(String from, String relative) {
     final dir = File(from).parent.path;
     final joined = '$dir/$relative';
@@ -185,6 +197,32 @@ _Libraries _libraryIndex(String repoRoot, {required Set<String> exclude}) {
     }
   }
   return _Libraries(byPath, declaredIn);
+}
+
+/// The marker a widget carries to keep its strings out of the search index.
+///
+/// Put it on the line immediately above the class declaration:
+///
+/// ```dart
+/// // settings-search: ignore — reports which solver was DETECTED.
+/// class SolverDetectionCard extends StatelessWidget {
+/// ```
+const _ignoreMarker = 'settings-search: ignore';
+
+/// Class names marked with [_ignoreMarker] anywhere under the app's lib/.
+Set<String> _markedIgnored(Iterable<String> sources) {
+  final marked = <String>{};
+  final pattern = RegExp(
+    '//[^\n]*$_ignoreMarker[^\n]*\n'
+    r'(?:\s*//[^\n]*\n)*'
+    r'(?:class|mixin|extension) ([A-Za-z0-9_]+)',
+  );
+  for (final source in sources) {
+    for (final m in pattern.allMatches(source)) {
+      marked.add(m.group(1)!);
+    }
+  }
+  return marked;
 }
 
 /// Blanks out the body of every class in [names] while preserving offsets, so

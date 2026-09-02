@@ -165,7 +165,11 @@ impl SequenceExecutor {
             .is_some_and(|root| tree_contains_centering(&**root));
 
         if meridian_auto_centers && !tree_centers && !nightshade_imaging::is_solver_available() {
-            let _ = self.event_tx.send(ExecutorEvent::Error {
+            // A WARNING, not an error: the run is starting and will very
+            // probably finish. Sent as `Error`, this sentence gave a completed
+            // 3/3 darks run a "Sequence failed / Sequence aborted" toast, a
+            // Critical alert, and a red Errors section in its Session Report.
+            let _ = self.event_tx.send(ExecutorEvent::Warning {
                 message: "The meridian-flip trigger is set to re-centre after a flip, but no \
                           plate solver (ASTAP or solve-field) was found on this system. If the \
                           flip fires it will retry and fail against a solver that is not there, \

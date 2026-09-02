@@ -107,7 +107,18 @@ bool isCriticalEvent(NightshadeEvent event) {
       _ => false,
     },
     EventPayload_Sequencer(field0: final v) => switch (v) {
-      SequencerEvent_Error() => true,
+      // `SequencerEvent.Error` is the one payload that carries TWO severities
+      // by design: the executor has no separate warning payload, so
+      // `ExecutorEvent::Warning` rides this variant at
+      // `EventSeverity.warning` (see the bridge's sequencer event mapping).
+      // Escalating on the payload type alone gave a non-fatal preflight
+      // advisory a red "Critical - Sequencer" toast, a persistent Run
+      // Dashboard banner and an audible alert, on a run that went on to
+      // finish 3/3. The allow-list is documented as error-severity events;
+      // this is that rule, written down.
+      SequencerEvent_Error() =>
+        event.severity == EventSeverity.error ||
+            event.severity == EventSeverity.critical,
       // A terminal run failure escalates like any other error; off this
       // allow-list it would be downgraded to a scrolling feed row.
       SequencerEvent_Failed() => true,

@@ -127,9 +127,26 @@ class MountStatus {
   final PierSide sideOfPier;
   final double rightAscension; // Hours (0-24)
   final double declination; // Degrees (-90 to +90)
-  final double altitude; // Degrees
-  final double azimuth; // Degrees
-  final double siderealTime; // Hours
+
+  /// Degrees above the horizon, or null when the mount cannot say.
+  ///
+  /// Nullable because the horizon frame is not a property of the mount alone:
+  /// it needs an observing site, and the native side returns `None` (with the
+  /// matching `availability` entry set to `unsupported`) whenever there is no
+  /// site or the driver does not report alt/az. These three fields were
+  /// non-nullable doubles that the FFI mapper filled with `?? 0.0`, so a
+  /// parked simulated mount on a machine with no observing site printed
+  /// `Alt 0.00° / Az 0.00°` — the horizon, stated as a measurement — in the
+  /// same card that honestly printed `Pier --` two rows below.
+  final double? altitude;
+
+  /// Degrees clockwise from north, or null when the mount cannot say. See
+  /// [altitude] for why this is nullable.
+  final double? azimuth;
+
+  /// Local sidereal time in hours, or null when the mount cannot say. See
+  /// [altitude] for why this is nullable.
+  final double? siderealTime;
   final TrackingRate trackingRate;
   final bool canPark;
   final bool canSlew;
@@ -147,9 +164,9 @@ class MountStatus {
     required this.sideOfPier,
     required this.rightAscension,
     required this.declination,
-    required this.altitude,
-    required this.azimuth,
-    required this.siderealTime,
+    this.altitude,
+    this.azimuth,
+    this.siderealTime,
     required this.trackingRate,
     required this.canPark,
     required this.canSlew,
@@ -173,12 +190,13 @@ class MountStatus {
               ?.toDouble() ??
           0.0,
       declination: (json['declination'] ?? json['dec'])?.toDouble() ?? 0.0,
-      altitude: (json['altitude'] ?? json['alt'])?.toDouble() ?? 0.0,
-      azimuth: (json['azimuth'] ?? json['az'])?.toDouble() ?? 0.0,
+      // No `?? 0.0`: a missing horizon-frame field means the mount could not
+      // say, and 0° is a real altitude (the horizon), not a blank.
+      altitude: (json['altitude'] ?? json['alt'])?.toDouble(),
+      azimuth: (json['azimuth'] ?? json['az'])?.toDouble(),
       siderealTime:
           (json['sidereal_time'] ?? json['siderealTime'] ?? json['lst'])
-              ?.toDouble() ??
-          0.0,
+              ?.toDouble(),
       trackingRate: _parseTrackingRate(
         json['tracking_rate'] ?? json['trackingRate'],
       ),

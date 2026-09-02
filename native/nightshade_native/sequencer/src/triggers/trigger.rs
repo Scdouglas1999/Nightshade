@@ -473,6 +473,31 @@ impl Trigger {
                 }
             }
             TriggerType::AltitudeLimit { min_altitude } => {
+                // A mount that is parked, or that has definitely stopped
+                // tracking, is not following the target — so whatever the
+                // target's altitude is, this trigger's action (skip to the
+                // next target) is not the answer. The case that shipped: a
+                // three-frame DARKS block under a parked simulated mount fired
+                // `NextTarget` 8 ms into the run because its named target, M4,
+                // sat at 16.6° against the default 30° floor. Nothing about a
+                // dark, bias or flat depends on where the tube points, and the
+                // Session Report then reported `Trigger fires 1` for a run in
+                // which no trigger should have had anything to say.
+                //
+                // Deliberately the same two questions, read the same way, as
+                // the meridian-flip guard above: `Some(_)` is a real reading
+                // and blocks; `None` means the mount never reported and
+                // behaves exactly as before, so a driver that publishes
+                // neither does not lose altitude protection.
+                if state.mount_parked == Some(true) || state.mount_is_tracking == Some(false) {
+                    return false;
+                }
+                // `current_altitude` is the TARGET's altitude, computed by the
+                // trigger monitor from the target's coordinates, the observing
+                // site and the clock (`executor::monitoring::target_sky_state`)
+                // — never the mount's own pointing, which is a different
+                // question with a different answer whenever the mount is not
+                // on the target.
                 if let Some(alt) = state.current_altitude {
                     alt < *min_altitude
                 } else {

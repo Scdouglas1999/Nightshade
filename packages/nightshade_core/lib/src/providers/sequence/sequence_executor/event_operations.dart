@@ -251,6 +251,20 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
       case 'Error':
         final message = event.data['message'] as String? ?? 'Unknown error';
+        // An ADVISORY, not a fault. The executor has one payload for both and
+        // separates them by severity (`ExecutorEvent::Warning` ->
+        // `EventSeverity.warning` in `api/sequencer/event_bridge.rs`), so the
+        // severity is what decides here. Treated as an error, the preflight
+        // notice "the meridian-flip trigger is set to re-centre … but no plate
+        // solver was found" painted the running node red, pushed a healthy run
+        // into `recovering`, and put itself in the run's errorMessages — which
+        // is how a darks run that finished Completed 3/3 showed a red Errors
+        // section in its Session Report.
+        if (event.severity == EventSeverity.warning) {
+          _surfaceRunWarning(message);
+          progressNotifier.updateProgress(message: message);
+          break;
+        }
         // Older native executors acknowledged an accepted SkipToNode command
         // through the generic Error event. It is an informational success: the
         // current instruction finishes, then preceding nodes are reported as

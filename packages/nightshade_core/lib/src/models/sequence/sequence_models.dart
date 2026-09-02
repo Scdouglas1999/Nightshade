@@ -49,6 +49,7 @@ part 'sequence_models/instruction_nodes/equipment_timing_and_automation.dart';
 part 'sequence_models/instruction_nodes/alignment_and_dome.dart';
 part 'sequence_models/science_and_plugin_nodes.dart';
 part 'sequence_models/sequence_state.dart';
+part 'sequence_models/sequence_sky_requirement.dart';
 
 /// Sequence execution state
 ///

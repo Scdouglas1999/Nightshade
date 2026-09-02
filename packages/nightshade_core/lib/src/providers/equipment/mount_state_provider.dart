@@ -163,8 +163,18 @@ class MountStateNotifier extends StateNotifier<MountState>
     state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
-  void updatePosition(double ra, double dec, double alt, double az) {
-    state = state.copyWith(ra: ra, dec: dec, altitude: alt, azimuth: az);
+  /// [alt] / [az] are null when the mount cannot report the horizon frame —
+  /// no observing site, or a driver that does not expose alt/az. That is a
+  /// different fact from "0°", which is the horizon, so it is stored as null
+  /// and the panels render `--`.
+  void updatePosition(double ra, double dec, double? alt, double? az) {
+    state = state.copyWith(
+      ra: ra,
+      dec: dec,
+      altitude: alt,
+      azimuth: az,
+      clearHorizonFrame: alt == null && az == null,
+    );
   }
 
   void setTracking(bool tracking) {
