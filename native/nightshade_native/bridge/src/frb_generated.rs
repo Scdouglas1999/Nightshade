@@ -5793,21 +5793,24 @@ fn wire__crate__api__plate_solve__api_platesolve_set_config_impl(
     )
 }
 fn wire__crate__api__plate_solve__api_platesolve_verify_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     executable_path: impl CstDecode<String>,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "api_platesolve_verify",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let api_executable_path = executable_path.cst_decode();
-            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok =
-                    crate::api::plate_solve::api_platesolve_verify(api_executable_path)?;
-                Ok(output_ok)
-            })())
+            move |context| {
+                transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                    let output_ok =
+                        crate::api::plate_solve::api_platesolve_verify(api_executable_path)?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -31421,9 +31424,10 @@ mod io {
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_platesolve_verify(
+        port_: i64,
         executable_path: *mut wire_cst_list_prim_u_8_strict,
-    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__plate_solve__api_platesolve_verify_impl(executable_path)
+    ) {
+        wire__crate__api__plate_solve__api_platesolve_verify_impl(port_, executable_path)
     }
 
     #[unsafe(no_mangle)]

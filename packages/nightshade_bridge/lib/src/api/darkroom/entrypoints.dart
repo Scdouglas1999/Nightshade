@@ -6,6 +6,7 @@
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `geometry_findings`, `rect_json`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
 /// Check a recipe without touching pixels.
@@ -15,10 +16,21 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// adds the base master's geometry to the reply, which is what tells an editor
 /// whether a three-channel operation has three channels to work with.
 ///
-/// The reply is `{ok, error, steps[], base?}`. A recipe that decodes and fails
-/// validation is `ok: false` with the engine's own message plus a per-step
-/// diagnosis, so an editor can mark every bad step at once instead of the first
-/// one. A payload that is not a recipe at all surfaces as `Err(String)`.
+/// The reply is `{ok, error, steps[], geometryChecked, findings[], base?}`. A
+/// recipe that decodes and fails validation is `ok: false` with the engine's own
+/// message plus a per-step diagnosis, so an editor can mark every bad step at
+/// once instead of the first one. A payload that is not a recipe at all surfaces
+/// as `Err(String)`.
+///
+/// # Findings
+///
+/// `ok` answers whether the recipe is well formed, which is a question about the
+/// recipe alone. A `masterPath` adds the second question — whether it fits
+/// *these* pixels — and the answer travels as `findings`, because a recipe whose
+/// crop runs off this master is still a valid recipe: the render succeeds and
+/// silently frames something else. `geometryChecked` says whether that question
+/// was asked at all, so an empty `findings` never has to stand in for "no
+/// master was supplied".
 Future<String> apiDarkroomValidate({
   required String recipeJson,
   required String contextJson,

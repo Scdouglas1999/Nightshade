@@ -658,7 +658,9 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
 
   @override
   Future<PlateSolverInfo> verifyPlateSolver(String executablePath) async {
-    final info = bridge_api.apiPlatesolveVerify(executablePath: executablePath);
+    final info = await bridge_api.apiPlatesolveVerify(
+      executablePath: executablePath,
+    );
     return PlateSolverInfo(
       path: info.path,
       flavour: info.flavour,

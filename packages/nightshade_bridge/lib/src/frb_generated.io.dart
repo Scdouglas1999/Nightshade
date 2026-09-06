@@ -14553,10 +14553,12 @@ class RustLibWire implements BaseWire {
             )
           >();
 
-  WireSyncRust2DartDco wire__crate__api__plate_solve__api_platesolve_verify(
+  void wire__crate__api__plate_solve__api_platesolve_verify(
+    int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> executable_path,
   ) {
     return _wire__crate__api__plate_solve__api_platesolve_verify(
+      port_,
       executable_path,
     );
   }
@@ -14564,7 +14566,8 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__plate_solve__api_platesolve_verifyPtr =
       _lookup<
         ffi.NativeFunction<
-          WireSyncRust2DartDco Function(
+          ffi.Void Function(
+            ffi.Int64,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
           )
         >
@@ -14574,9 +14577,7 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__plate_solve__api_platesolve_verify =
       _wire__crate__api__plate_solve__api_platesolve_verifyPtr
           .asFunction<
-            WireSyncRust2DartDco Function(
-              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-            )
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
           >();
 
   void wire__crate__api__post_session__entrypoints__api_post_session_cancel(

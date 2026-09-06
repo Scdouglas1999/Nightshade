@@ -22,10 +22,9 @@ void main() {
     magnitude: 3.44,
   );
 
-  /// Mount the panel with the observation clock under test control: `setTime`
-  /// leaves real-time mode, after which each 1 Hz tick advances the clock by
-  /// exactly one second. Starting on the minute keeps five ticks inside one
-  /// minute, so `observationMinuteProvider` is genuinely constant across them.
+  /// Drive observation time explicitly: Flutter pumps fake timers, while the
+  /// aligned ticker schedules against real DateTime.now(). Mixing those two
+  /// clocks makes the number of ticks depend on the wall-clock millisecond.
   Future<ProviderContainer> pumpPanel(
     WidgetTester tester, {
     required List<Override> overrides,
@@ -39,6 +38,7 @@ void main() {
     container
         .read(observationTimeProvider.notifier)
         .setTime(DateTime(2026, 3, 14, 22, 0, 0));
+    container.read(observationTimeProvider.notifier).pause();
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -54,6 +54,16 @@ void main() {
     );
     await tester.pump();
     return container;
+  }
+
+  Future<void> advanceSecond(
+    WidgetTester tester,
+    ProviderContainer container,
+  ) async {
+    container
+        .read(observationTimeProvider.notifier)
+        .fastForward(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
   }
 
   testWidgets('a second of wall clock does not re-solve visibility', (
@@ -88,7 +98,7 @@ void main() {
 
     // Five ticks of the 1 Hz observation clock, all inside the same minute.
     for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(seconds: 1));
+      await advanceSecond(tester, container);
     }
 
     expect(
@@ -111,7 +121,7 @@ void main() {
     final before = tester.widget<Text>(name);
 
     for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(seconds: 1));
+      await advanceSecond(tester, container);
     }
 
     expect(
@@ -126,7 +136,7 @@ void main() {
     container.dispose();
   });
 
-  testWidgets('crossing a minute does re-solve, on the new minute', (
+  testWidgets('crossing a minute retains the same night visibility memo', (
     tester,
   ) async {
     final keys = <ObjectVisibilityKey>[];
@@ -149,7 +159,7 @@ void main() {
 
     keys.clear();
     for (var i = 0; i < 61; i++) {
-      await tester.pump(const Duration(seconds: 1));
+      await advanceSecond(tester, container);
     }
 
     // The clock crossed 22:01, but the night it belongs to did not change, so

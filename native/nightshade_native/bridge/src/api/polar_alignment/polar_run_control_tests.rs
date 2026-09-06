@@ -1,8 +1,74 @@
 use super::{
-    get_polar_align_cancel, get_polar_align_flag, plate_solve_ra_degrees, polar_generation,
-    polar_loop_control, pole_region_target, release_polar_run_if_current, try_admit_polar_run,
-    PolarLoopControl, PolarOrdering, POLE_REGION_OFFSET_DEG,
+    get_polar_align_cancel, get_polar_align_flag, normalize_hour_angle, plate_solve_ra_degrees,
+    polar_generation, polar_loop_control, pole_region_target, release_polar_run_if_current,
+    rotation_step_target, step_crosses_meridian, try_admit_polar_run, PolarLoopControl,
+    PolarOrdering, POLE_REGION_OFFSET_DEG,
 };
+
+/// The rotation between measurement points is a step about the polar axis in
+/// the MOUNT's frame: mount RA moves by the step, mount Dec does not move at
+/// all. Nothing about the plate solution enters the target — that is what made
+/// the rig swing toward the pole in two axes instead of stepping in RA.
+#[test]
+fn rotation_step_holds_mount_dec_and_steps_mount_ra_only() {
+    let (ra, dec) = rotation_step_target(2.0, 61.2259, 10.0, true);
+    assert!(
+        (ra - (2.0 + 10.0 / 15.0)).abs() < 1e-12,
+        "east step adds 10°/15 h: {ra}"
+    );
+    assert_eq!(dec, 61.2259, "declination must be exactly the mount's own");
+
+    let (ra, dec) = rotation_step_target(2.0, 61.2259, 10.0, false);
+    assert!(
+        (ra - (2.0 - 10.0 / 15.0)).abs() < 1e-12,
+        "west step subtracts: {ra}"
+    );
+    assert_eq!(dec, 61.2259);
+}
+
+#[test]
+fn rotation_step_wraps_ra_into_a_day() {
+    let (ra, _) = rotation_step_target(23.8, 50.0, 10.0, true);
+    assert!(
+        (ra - (23.8 + 10.0 / 15.0 - 24.0)).abs() < 1e-12,
+        "wraps past 24h: {ra}"
+    );
+    let (ra, _) = rotation_step_target(0.2, 50.0, 10.0, false);
+    assert!(
+        (ra - (0.2 - 10.0 / 15.0 + 24.0)).abs() < 1e-12,
+        "wraps below 0h: {ra}"
+    );
+}
+
+#[test]
+fn hour_angle_normalizes_into_half_open_half_day() {
+    assert_eq!(normalize_hour_angle(0.0), 0.0);
+    assert!((normalize_hour_angle(13.0) - (-11.0)).abs() < 1e-12);
+    assert!((normalize_hour_angle(-13.0) - 11.0).abs() < 1e-12);
+    assert!((normalize_hour_angle(25.5) - 1.5).abs() < 1e-12);
+    assert_eq!(normalize_hour_angle(12.0), -12.0);
+}
+
+/// A German equatorial flips at the meridian and at the anti-meridian; a step
+/// that lands on the other side of either is refused rather than performed,
+/// because the flip is a two-axis move that neither the geometry nor the
+/// operator standing beside the mount wants.
+#[test]
+fn meridian_guard_flags_crossings_and_only_crossings() {
+    // East of the meridian stepping further east: fine.
+    assert!(!step_crosses_meridian(-4.3, -4.97));
+    // Stepping across the meridian itself.
+    assert!(step_crosses_meridian(-0.3, 0.37));
+    assert!(step_crosses_meridian(0.3, -0.37));
+    // Stepping across the anti-meridian (below the pole), both directions.
+    assert!(step_crosses_meridian(11.8, -11.53));
+    assert!(step_crosses_meridian(-11.8, 11.53));
+    // Same side, near but not over either boundary.
+    assert!(!step_crosses_meridian(11.0, 11.6));
+    assert!(!step_crosses_meridian(-11.6, -11.0));
+    // No motion is not a crossing.
+    assert!(!step_crosses_meridian(0.0, 0.0));
+}
 
 #[test]
 fn plate_solve_ra_is_already_degrees_for_polar_geometry() {

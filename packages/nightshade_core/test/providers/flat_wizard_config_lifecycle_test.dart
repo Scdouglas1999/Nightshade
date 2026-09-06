@@ -192,6 +192,7 @@ class _GatedBackend extends Mock implements NightshadeBackend {
       StreamController<NightshadeEvent>.broadcast();
   int startCount = 0;
   int saveCount = 0;
+  final Completer<void> firstExposureStarted = Completer<void>();
   final List<String> abortCalls = [];
   int _seq = 0;
 
@@ -231,6 +232,7 @@ class _GatedBackend extends Mock implements NightshadeBackend {
     int? height,
   }) async {
     startCount++;
+    if (!firstExposureStarted.isCompleted) firstExposureStarted.complete();
   }
 
   @override
@@ -545,11 +547,18 @@ void main() {
 
       // Start the run but do not await; let it reach the calibration exposure.
       final run = notifier.runCapture();
-      await _pump(10);
-      expect(backend.startCount, greaterThanOrEqualTo(1));
-
-      notifier.requestCancel();
-      await run;
+      try {
+        // Configuration and output-directory preparation perform real async
+        // I/O. A fixed number of event-loop turns cannot establish readiness.
+        await backend.firstExposureStarted.future.timeout(
+          const Duration(seconds: 5),
+        );
+        expect(backend.startCount, 1);
+      } finally {
+        // Drain the run even after a failed assertion, before provider teardown.
+        notifier.requestCancel();
+        await run.timeout(const Duration(seconds: 5));
+      }
 
       expect(backend.saveCount, 0, reason: 'a cancelled run saves no frames');
       expect(

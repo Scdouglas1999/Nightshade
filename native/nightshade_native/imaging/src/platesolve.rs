@@ -455,12 +455,8 @@ pub struct SolverInfo {
 pub enum SolverVerifyError {
     #[error("solver executable `{0}` does not exist")]
     Missing(PathBuf),
-    #[error("failed to run solver `{path}`: {source}")]
-    Spawn {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
+    #[error("failed to verify solver `{path}`: {message}")]
+    Execution { path: PathBuf, message: String },
     #[error("solver `{path}` exited with status {status} on `--help`. stderr: {stderr}")]
     NonZeroExit {
         path: PathBuf,
@@ -475,24 +471,29 @@ pub enum SolverVerifyError {
 /// configured path. Running it once at settings-save time catches that
 /// instead of letting the failure surface inside a sequence.
 ///
-/// Both ASTAP and `solve-field` print a usage / version banner on `--help`
-/// and exit zero. We capture the first non-empty stdout line as the
-/// version banner. A non-zero exit (or process spawn failure) is reported
-/// as a structured error so the UI can surface the underlying cause.
+/// GUI builds may open a window instead of exiting on `--help`, so the probe
+/// has a deadline and terminates its child process if it does not finish.
 pub fn verify_solver(path: &Path) -> Result<SolverInfo, SolverVerifyError> {
+    verify_solver_with_timeout(path, 5)
+}
+
+fn verify_solver_with_timeout(
+    path: &Path,
+    timeout_secs: u32,
+) -> Result<SolverInfo, SolverVerifyError> {
     if !path.exists() {
         return Err(SolverVerifyError::Missing(path.to_path_buf()));
     }
 
-    let output = Command::new(path)
-        .arg("--help")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|source| SolverVerifyError::Spawn {
-            path: path.to_path_buf(),
-            source,
-        })?;
+    let output = run_solver_command(
+        Command::new(path).arg("--help"),
+        timeout_secs,
+        "plate-solver verification",
+    )
+    .map_err(|message| SolverVerifyError::Execution {
+        path: path.to_path_buf(),
+        message,
+    })?;
 
     // Why allow non-zero: some builds of ASTAP exit 1 on `--help` after
     // writing the usage banner. Require *some* output before we treat the
@@ -2373,6 +2374,48 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn verify_solver_times_out_and_reaps_a_hung_probe() {
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade-verify-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("solver");
+        let pid_file = dir.join("pid");
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\necho $$ > '{}'\nexec sleep 30\n",
+                pid_file.display()
+            ),
+        )
+        .unwrap();
+        make_executable(&script);
+        let started = std::time::Instant::now();
+        let error = super::verify_solver_with_timeout(&script, 1).unwrap_err();
+        assert!(error.to_string().contains("timed out"), "{error}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(3));
+        let pid = std::fs::read_to_string(pid_file).unwrap();
+        assert!(!std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success());
+        std::fs::write(&script, "#!/bin/sh\nprintf 'ASTAP test CLI\\n'\n").unwrap();
+        let info = super::verify_solver_with_timeout(&script, 1).unwrap();
+        assert_eq!(info.flavour, "ASTAP");
+        assert_eq!(info.version_line, "ASTAP test CLI");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     // Global solver-preference wiring and the catalog -d flag
 
     /// `ACTIVE_SOLVER_PREF` and the discovery cache are process-global, so the
@@ -2581,6 +2624,18 @@ mod tests {
         assert!(
             candidates.contains(&PathBuf::from(r"C:\Program Files\astap\astap_cli.exe")),
             "standard Windows ASTAP CLI path must be in the candidate list"
+        );
+        let cli = candidates
+            .iter()
+            .position(|p| p == &PathBuf::from(r"C:\Program Files\astap\astap_cli.exe"))
+            .unwrap();
+        let gui = candidates
+            .iter()
+            .position(|p| p == &PathBuf::from(r"C:\Program Files\astap\astap.exe"))
+            .unwrap();
+        assert!(
+            cli < gui,
+            "prefer the CLI when both executables are installed"
         );
     }
 

@@ -1146,7 +1146,7 @@ abstract class RustLibApi extends BaseApi {
     required PlateSolverConfigPayload config,
   });
 
-  PlateSolverInfo crateApiPlateSolveApiPlatesolveVerify({
+  Future<PlateSolverInfo> crateApiPlateSolveApiPlatesolveVerify({
     required String executablePath,
   });
 
@@ -9363,14 +9363,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  PlateSolverInfo crateApiPlateSolveApiPlatesolveVerify({
+  Future<PlateSolverInfo> crateApiPlateSolveApiPlatesolveVerify({
     required String executablePath,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           var arg0 = cst_encode_String(executablePath);
           return wire.wire__crate__api__plate_solve__api_platesolve_verify(
+            port_,
             arg0,
           );
         },

@@ -3146,7 +3146,8 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__plate_solve__api
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_platesolve_set_config(struct wire_cst_plate_solver_config_payload *config);
 
-WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_platesolve_verify(struct wire_cst_list_prim_u_8_strict *executable_path);
+void frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_platesolve_verify(int64_t port_,
+                                                                                   struct wire_cst_list_prim_u_8_strict *executable_path);
 
 void frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_post_session_cancel(int64_t port_,
                                                                                                    struct wire_cst_list_prim_u_8_strict *args_json);

@@ -68,6 +68,28 @@ static LAST_PUBLISHED_MS: AtomicU64 = AtomicU64::new(0);
 
 const HOTPLUG_DEBOUNCE_MS: u64 = 500;
 
+/// Re-probe delays after a bus event, measured from the previous probe.
+///
+/// A WM_DEVICECHANGE arrives the instant the kernel sees a device, which is
+/// before the device is usable: Windows may still be installing the driver
+/// for the new instance ("requires further installation"), and the ZWO SDKs
+/// report the camera as present-but-unqueryable (`CAMERA_REMOVED`) or simply
+/// absent for a few seconds after a re-enumeration. A single immediate probe
+/// therefore caches "nothing here" and, with no further bus event, the device
+/// stays invisible until the five-minute fallback — which on the rig read as
+/// "discovery doesn't see the camera until I restart". These follow-ups
+/// re-probe at ~3 s, ~13 s and ~43 s after the event; a newer bus event takes
+/// over the schedule so a re-plug storm does not fan out into dozens of
+/// overlapping SDK scans.
+const HOTPLUG_FOLLOW_UP_DELAYS: &[Duration] = &[
+    Duration::from_secs(3),
+    Duration::from_secs(10),
+    Duration::from_secs(30),
+];
+
+/// Bumped per bus event; a follow-up chain stops when it no longer owns it.
+static DEVICE_CHANGE_GENERATION: AtomicU64 = AtomicU64::new(0);
+
 /// Polling cadence for the native / ASCOM hot-plug watcher.
 ///
 /// Five minutes is the fallback cadence in the hybrid architecture
@@ -501,10 +523,23 @@ fn invalidate_discovery_caches() {
 /// this MUST go through `crate::get_runtime()` rather than
 /// `tokio::spawn` directly.
 fn schedule_off_cadence_poll() {
+    let generation = DEVICE_CHANGE_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     match crate::get_runtime() {
         Ok(runtime) => {
-            runtime.spawn(async {
+            runtime.spawn(async move {
                 poll_once(false).await;
+                for delay in HOTPLUG_FOLLOW_UP_DELAYS {
+                    tokio::time::sleep(*delay).await;
+                    if !follow_up_still_owned(generation) {
+                        return;
+                    }
+                    tracing::debug!(
+                        "Hot-plug follow-up probe {}s after bus event (generation {})",
+                        delay.as_secs(),
+                        generation
+                    );
+                    poll_once(false).await;
+                }
             });
         }
         Err(err) => {
@@ -517,6 +552,11 @@ fn schedule_off_cadence_poll() {
             );
         }
     }
+}
+
+/// A follow-up chain keeps probing only while no newer bus event has arrived.
+fn follow_up_still_owned(generation: u64) -> bool {
+    DEVICE_CHANGE_GENERATION.load(Ordering::Acquire) == generation
 }
 
 fn should_publish_device_change(now_ms: u64) -> bool {
@@ -767,6 +807,34 @@ mod tests {
         assert_eq!(device_type_str(DeviceType::Camera), "camera");
         assert_eq!(device_type_str(DeviceType::FilterWheel), "filterWheel");
         assert_eq!(device_type_str(DeviceType::Mount), "mount");
+    }
+
+    #[test]
+    fn follow_up_probes_outlast_a_driver_install_and_yield_to_newer_events() {
+        // The first follow-up must land while the operator is still looking
+        // at the device list; the last must reach past the tens of seconds a
+        // fresh USB instance can spend in driver installation on Windows.
+        let first = HOTPLUG_FOLLOW_UP_DELAYS[0];
+        let total: Duration = HOTPLUG_FOLLOW_UP_DELAYS.iter().sum();
+        assert!(
+            first <= Duration::from_secs(5),
+            "first follow-up too late: {first:?}"
+        );
+        assert!(
+            total >= Duration::from_secs(40),
+            "follow-ups end too soon: {total:?}"
+        );
+        assert!(
+            total <= HOTPLUG_POLL_INTERVAL,
+            "follow-ups must not outlive the slow poll"
+        );
+
+        // A newer bus event takes the chain over: the older generation stops.
+        let mine = DEVICE_CHANGE_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+        assert!(follow_up_still_owned(mine));
+        let newer = DEVICE_CHANGE_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+        assert!(!follow_up_still_owned(mine));
+        assert!(follow_up_still_owned(newer));
     }
 
     #[test]

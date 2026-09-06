@@ -836,7 +836,6 @@ pub fn api_platesolve_detect() -> Result<PlateSolverDetection, NightshadeError> 
 /// Returns a `PlateSolverInfo` with the detected flavour and version banner,
 /// or a `NightshadeError` if the binary is missing / fails to spawn / exits
 /// with non-zero status and empty output.
-#[flutter_rust_bridge::frb(sync)]
 pub fn api_platesolve_verify(executable_path: String) -> Result<PlateSolverInfo, NightshadeError> {
     use std::path::Path;
     let path = Path::new(&executable_path);
