@@ -982,6 +982,10 @@ mod park;
 mod pointing_gate;
 mod rotator;
 mod save_path;
+// Every test in `script` spawns a real /bin/sh, so the whole file is
+// Linux-only; without this the module's `use super::*` is an unused import on
+// Windows and `-D warnings` fails the build there.
+#[cfg(target_os = "linux")]
 mod script;
 mod slew;
 mod wait_time;

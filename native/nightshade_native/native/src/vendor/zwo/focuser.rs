@@ -702,12 +702,13 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
     Ok(focusers)
 }
 
-#[cfg(test)]
+// Linux library-name candidates; the module is gated rather than the test so
+// `use super::*` is not an unused import on every other platform.
+#[cfg(all(test, target_os = "linux"))]
 mod candidate_path_tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "linux")]
     fn accepts_zwo_and_distro_linux_library_names() {
         let candidates = eaf_candidate_paths();
         assert!(candidates.contains(&PathBuf::from("libEAF_focuser.so")));
