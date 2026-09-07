@@ -118,8 +118,14 @@ impl PlayerOneCamera {
                 attributes.max_value.int_value,
             )
         };
+        // c_long is i64 on LP64 *nix and i32 on Windows (LLP64), so a direct
+        // `i32::try_from` is a real range check on one and a useless conversion
+        // the lint rejects on the other. Widening first gives one shape that is
+        // honest on both — the same round-trip `fli_c_long_to_i32` uses.
         let narrow = |value: c_long| {
-            i32::try_from(value).map_err(|_| {
+            #[allow(clippy::unnecessary_cast)] // identity on Windows, widening on *nix
+            let widened: i64 = value as i64;
+            i32::try_from(widened).map_err(|_| {
                 NativeError::SdkError(format!(
                     "Player One control {:?} reported bound {} outside i32",
                     control, value
