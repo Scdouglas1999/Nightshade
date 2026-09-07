@@ -16,7 +16,15 @@ import 'package:nightshade_core/nightshade_core.dart';
 void main() {
   const estimator = SequenceTimeEstimator();
   const latitude = 40.0;
-  const longitude = -105.0;
+
+  // The scan runs local noon to local noon off the HOST's clock, while the sky
+  // comes from this longitude, so a hardcoded one only lines up in one
+  // timezone: pinned at -105 this passed in US Mountain/Eastern and failed on
+  // a UTC runner, where 18:00 local is late morning at the site. Deriving the
+  // longitude from the host's own offset makes 18:00 local mean 18:00 at the
+  // site everywhere.
+  final start = DateTime(2024, 1, 15, 18, 0);
+  final longitude = start.timeZoneOffset.inMinutes / 4.0;
 
   // RA 22h / Dec +20 at 40 N culminates in the early afternoon in mid-January
   // and sets in the evening: the exact shape that used to slip a day.
@@ -48,7 +56,6 @@ void main() {
   }
 
   test('the window names the set on the night the run is in', () {
-    final start = DateTime(2024, 1, 15, 18, 0);
     final window = estimator.calculateTargetWindows(
       buildSequence(start),
       start,
@@ -72,7 +79,6 @@ void main() {
   });
 
   test('a block that outlasts the target raises the conflict', () {
-    final start = DateTime(2024, 1, 15, 18, 0);
     final sequence = buildSequence(start);
 
     final analysis = estimator.analyzeSequence(

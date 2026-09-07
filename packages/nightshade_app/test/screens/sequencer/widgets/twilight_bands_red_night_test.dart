@@ -29,13 +29,22 @@ void _expectRedNightSafe(Color c, String what) {
       reason: '$what does not keep red dominant');
 }
 
+final _timelineMidnight = DateTime(2026, 7, 14);
+
+/// The timeline window is host-local while twilight comes from this longitude,
+/// so a hardcoded one only lines up in one timezone: pinned at -105.27 the
+/// bands rendered in US Mountain/Eastern and vanished on a UTC runner, where
+/// local midnight is early evening at the site. Deriving it from the host's
+/// offset keeps the fixture's midnight at the site's midnight everywhere.
+final _fixtureLongitude = _timelineMidnight.timeZoneOffset.inMinutes / 4.0;
+
 /// A rig with a real location, so the timeline computes twilight at all: the
 /// overlay is suppressed outright at lat/lon 0,0.
 class _LocatedSettings extends AppSettingsNotifier {
   @override
-  Future<AppSettingsState> build() async => const AppSettingsState(
+  Future<AppSettingsState> build() async => AppSettingsState(
         latitude: 40.02,
-        longitude: -105.27,
+        longitude: _fixtureLongitude,
       );
 }
 
@@ -87,7 +96,7 @@ Future<void> _pumpTimeline(
   );
   addTearDown(container.dispose);
 
-  final midnight = DateTime(2026, 7, 14);
+  final midnight = _timelineMidnight;
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
