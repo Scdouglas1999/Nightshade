@@ -395,11 +395,21 @@ fn preview_returns_the_rgba_buffer_the_viewer_takes() {
     assert!(!preview.is_color);
     assert_eq!(preview.rgba.len(), 64 * 64 * 4);
     assert!(
-        preview.rgba.chunks_exact(4).all(|pixel| pixel[3] == 255),
+        preview
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|pixel| pixel[3] == 255),
         "every pixel is opaque"
     );
     assert!(
-        preview.rgba.chunks_exact(4).any(|pixel| pixel[0] > 0),
+        preview
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .any(|pixel| pixel[0] > 0),
         "a stretched star field is not black"
     );
 

@@ -397,7 +397,9 @@ fn apply_stretch_to_tile(
     match pixel_type {
         PixelType::U16 => {
             let u16_data: Vec<u16> = data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect();
 
@@ -417,7 +419,9 @@ fn apply_stretch_to_tile(
         }
         PixelType::F32 => {
             let f32_data: Vec<f32> = data
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
                 .collect();
 
@@ -479,7 +483,9 @@ fn normalize_tile(
     match pixel_type {
         PixelType::U16 => {
             let u16_data: Vec<u16> = data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect();
 
@@ -505,7 +511,9 @@ fn apply_gamma_to_tile(data: &[u8], pixel_type: PixelType, gamma: f64) -> Result
     match pixel_type {
         PixelType::U16 => {
             let u16_data: Vec<u16> = data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect();
 

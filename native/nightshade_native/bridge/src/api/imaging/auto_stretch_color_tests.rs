@@ -12,7 +12,7 @@ fn emits_rgba8_with_opaque_alpha() {
     ];
     let rgba = auto_stretch_color_image(2, 2, data);
     assert_eq!(rgba.len(), 2 * 2 * 4, "RGBA8 length is width*height*4");
-    for px in rgba.chunks_exact(4) {
+    for px in rgba.as_chunks::<4>().0.iter() {
         assert_eq!(px[3], 255, "alpha must be fully opaque");
     }
 }
@@ -53,7 +53,7 @@ fn constant_channel_is_identity() {
     let flat = 0x8000u16;
     let data: Vec<u16> = std::iter::repeat_n(flat, pixel_count * 3).collect();
     let rgba = auto_stretch_color_image(4, 4, data);
-    for px in rgba.chunks_exact(4) {
+    for px in rgba.as_chunks::<4>().0.iter() {
         assert_eq!(px[0], 127, "constant R → identity midtone");
         assert_eq!(px[1], 127, "constant G → identity midtone");
         assert_eq!(px[2], 127, "constant B → identity midtone");
@@ -67,7 +67,7 @@ fn constant_channel_is_identity() {
 fn length_mismatch_returns_black_buffer() {
     let rgba = auto_stretch_color_image(2, 2, vec![1, 2, 3]); // expects 12 samples
     assert_eq!(rgba.len(), 2 * 2 * 4);
-    for px in rgba.chunks_exact(4) {
+    for px in rgba.as_chunks::<4>().0.iter() {
         assert_eq!(px, &[0, 0, 0, 0]);
     }
 }

@@ -374,7 +374,9 @@ impl NativeCamera for PlayerOneCamera {
         // within u16 because the max product is 255 * 256 = 65280 < u16::MAX).
         let data: Vec<u16> = if bytes_per_pixel == 2 {
             pooled_buffer
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_ne_bytes([chunk[0], chunk[1]]))
                 .collect()
         } else {

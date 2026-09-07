@@ -25,7 +25,9 @@ fn split_header_and_data(bytes: &[u8]) -> (&[u8], &[u8]) {
         let start = record * RECORD;
         let block = &bytes[start..start + RECORD];
         if block
-            .chunks_exact(80)
+            .as_chunks::<80>()
+            .0
+            .iter()
             .any(|card| card.starts_with(b"END") && card[3..].iter().all(|&b| b == b' '))
         {
             let split = start + RECORD;

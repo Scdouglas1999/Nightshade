@@ -922,7 +922,9 @@ fn read_i16_data<R: Read>(
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<i16> = buffer
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|chunk| i16::from_be_bytes([chunk[0], chunk[1]]))
         .collect();
 
@@ -944,7 +946,9 @@ fn read_i32_data<R: Read>(
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<i32> = buffer
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|chunk| i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect();
 
@@ -966,7 +970,9 @@ fn read_f32_data<R: Read>(
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<f32> = buffer
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|chunk| f32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect();
 
@@ -988,7 +994,9 @@ fn read_f64_data<R: Read>(
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<f64> = buffer
-        .chunks_exact(8)
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|chunk| {
             f64::from_be_bytes([
                 chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
@@ -1168,7 +1176,7 @@ fn write_be_samples<W: Write, const N: usize>(
     let mut block = Vec::with_capacity(block_bytes);
     for span in data.chunks(block_bytes) {
         block.clear();
-        for sample in span.chunks_exact(N) {
+        for sample in span.as_chunks::<N>().0 {
             let mut raw = [0u8; N];
             raw.copy_from_slice(sample);
             block.extend_from_slice(&convert(raw));
@@ -1853,7 +1861,9 @@ pub fn validate_image(
     if image.pixel_type == PixelType::U16 {
         let pixels: Vec<u16> = image
             .data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
             .collect();
 
@@ -2206,7 +2216,9 @@ pub fn validate_image_comprehensive(
     if image.pixel_type == PixelType::U16 && !image.data.is_empty() {
         let pixels: Vec<u16> = image
             .data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
             .collect();
 
@@ -3826,7 +3838,9 @@ mod tests {
         assert_eq!(image.pixel_type, PixelType::U16);
         let pix: Vec<u16> = image
             .data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
         assert_eq!(pix, vec![800, 1100]);
@@ -3852,7 +3866,9 @@ mod tests {
         let (image_a, header_a) = read_fits_from_bytes(&bytes).expect("first read");
         let pix_a: Vec<u16> = image_a
             .data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
         assert_eq!(pix_a, vec![600, 1200, 1000, 65000]);
@@ -3868,7 +3884,9 @@ mod tests {
         let (image_b, header_b) = read_fits_from_bytes(&on_disk).expect("second read");
         let pix_b: Vec<u16> = image_b
             .data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
         assert_eq!(
@@ -3901,7 +3919,9 @@ mod tests {
         let (image, _header) = read_fits_from_bytes(&bytes).expect("read");
         let pix: Vec<u16> = image
             .data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
         // v*BSCALE + BZERO, NOT v + BZERO (which would give 32868, 33768).
@@ -3934,7 +3954,9 @@ mod tests {
         assert_eq!(image_b.pixel_type, PixelType::U32);
         let pix: Vec<u32> = image_b
             .data
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect();
         assert_eq!(pix, values);
@@ -3998,7 +4020,7 @@ mod tests {
         let header_block = &on_disk[..2880];
         let mut found_comment = false;
         let mut found_history = false;
-        for chunk in header_block.chunks_exact(80) {
+        for chunk in header_block.as_chunks::<80>().0.iter() {
             if chunk.starts_with(b"COMMENT ") {
                 // Per FITS 4.4.2.4 the text body starts at column 9 (offset 8) and
                 // there must be no `=` at offset 8.
@@ -4073,7 +4095,7 @@ mod tests {
         // whole on one card. A continued card is marked, and only a continued
         // card may break a run of non-space characters.
         let mut bodies: Vec<String> = Vec::new();
-        for chunk in on_disk[..2880].chunks_exact(80) {
+        for chunk in on_disk[..2880].as_chunks::<80>().0.iter() {
             if chunk.starts_with(b"HISTORY ") {
                 bodies.push(String::from_utf8_lossy(&chunk[8..]).trim_end().to_string());
             }

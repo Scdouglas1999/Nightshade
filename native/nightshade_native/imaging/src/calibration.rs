@@ -388,11 +388,15 @@ fn divide_flat_u8(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
 
 fn subtract_u16(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<u16> = light
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
     let dark_pixels: Vec<u16> = dark
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
 
@@ -407,11 +411,15 @@ fn subtract_u16(light: &[u8], dark: &[u8]) -> Vec<u8> {
 
 fn divide_flat_u16(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<u16> = light
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
     let flat_pixels: Vec<u16> = flat
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
 
@@ -449,11 +457,15 @@ fn divide_flat_u16(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
 
 fn subtract_u32(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<u32> = light
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     let dark_pixels: Vec<u32> = dark
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
 
@@ -468,11 +480,15 @@ fn subtract_u32(light: &[u8], dark: &[u8]) -> Vec<u8> {
 
 fn divide_flat_u32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<u32> = light
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     let flat_pixels: Vec<u32> = flat
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
 
@@ -510,11 +526,15 @@ fn divide_flat_u32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
 
 fn subtract_f32(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<f32> = light
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     let dark_pixels: Vec<f32> = dark
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
 
@@ -536,11 +556,15 @@ fn subtract_f32(light: &[u8], dark: &[u8]) -> Vec<u8> {
 
 fn divide_flat_f32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<f32> = light
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     let flat_pixels: Vec<f32> = flat
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
 
@@ -584,11 +608,15 @@ fn divide_flat_f32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
 
 fn subtract_f64(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<f64> = light
-        .chunks_exact(8)
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|c| f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
         .collect();
     let dark_pixels: Vec<f64> = dark
-        .chunks_exact(8)
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|c| f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
         .collect();
 
@@ -610,11 +638,15 @@ fn subtract_f64(light: &[u8], dark: &[u8]) -> Vec<u8> {
 
 fn divide_flat_f64(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<f64> = light
-        .chunks_exact(8)
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|c| f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
         .collect();
     let flat_pixels: Vec<f64> = flat
-        .chunks_exact(8)
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|c| f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
         .collect();
 

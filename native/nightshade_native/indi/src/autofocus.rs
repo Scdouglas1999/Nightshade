@@ -403,7 +403,7 @@ impl IndiAutofocus {
         let mut height = 0u32;
         let mut end_card_index = None;
 
-        for (card_index, line) in data.chunks_exact(80).enumerate() {
+        for (card_index, line) in data.as_chunks::<80>().0.iter().enumerate() {
             let line_str =
                 std::str::from_utf8(line).map_err(|_| "Invalid FITS header".to_string())?;
             // Why: a FITS card slice may be shorter than 8 bytes on a malformed
@@ -467,7 +467,9 @@ impl IndiAutofocus {
 
         // Extract 16-bit pixel data (big-endian in FITS)
         let pixels: Vec<u16> = data[data_start..data_end]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
             .collect();
 

@@ -108,7 +108,7 @@ pub fn parse_area(bytes: &[u8], want: Option<Cone>) -> Vec<SkyStar> {
     let mut dec_high: i32 = 0;
     let mut mag = 0.0f64;
 
-    for record in body.chunks_exact(RECORD_FORMAT_5 as usize) {
+    for record in body.as_chunks::<{ RECORD_FORMAT_5 as usize }>().0 {
         let ra_raw =
             u32::from(record[0]) | (u32::from(record[1]) << 8) | (u32::from(record[2]) << 16);
         if ra_raw == 0x00FF_FFFF {

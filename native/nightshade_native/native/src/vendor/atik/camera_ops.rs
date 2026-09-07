@@ -266,7 +266,9 @@ impl NativeCamera for AtikCamera {
         // scoped to this block and the buffer remains owned by the SDK after we copy.
         let byte_slice = unsafe { std::slice::from_raw_parts(buffer_ptr as *const u8, byte_count) };
         let data: Vec<u16> = byte_slice
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|b| u16::from_le_bytes([b[0], b[1]]))
             .collect();
 

@@ -206,7 +206,7 @@ impl DarkroomOp for CurvesV1 {
                     }
                     return;
                 }
-                for (pixel, slots) in row.chunks_exact_mut(3).enumerate() {
+                for (pixel, slots) in row.as_chunks_mut::<3>().0.iter_mut().enumerate() {
                     let base = pixel * 3;
                     let r = (source_row[base] as f64).clamp(0.0, 1.0);
                     let g = (source_row[base + 1] as f64).clamp(0.0, 1.0);

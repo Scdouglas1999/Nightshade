@@ -1111,7 +1111,7 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             }
             let u16_data: Vec<u16> = image
                 .data
-                .chunks_exact(2)
+                .as_chunks::<2>().0.iter()
                 .map(|b| u16::from_ne_bytes([b[0], b[1]]))
                 .collect();
 
@@ -1444,22 +1444,30 @@ pub(crate) fn image_data_to_linear_f64(image_data: &ImageData) -> Vec<f64> {
             .collect::<Vec<f64>>(),
         nightshade_imaging::PixelType::U16 => image_data
             .data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]) as f64)
             .collect::<Vec<f64>>(),
         nightshade_imaging::PixelType::U32 => image_data
             .data
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
             .collect::<Vec<f64>>(),
         nightshade_imaging::PixelType::F32 => image_data
             .data
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
             .collect::<Vec<f64>>(),
         nightshade_imaging::PixelType::F64 => image_data
             .data
-            .chunks_exact(8)
+            .as_chunks::<8>()
+            .0
+            .iter()
             .map(|chunk| {
                 f64::from_le_bytes([
                     chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
@@ -2446,7 +2454,7 @@ pub async fn api_save_rgba_jpeg_file(
     // Flatten RGBA onto an opaque black background -> packed RGB8.
     let pixel_count = (width as usize) * (height as usize);
     let mut rgb = Vec::with_capacity(pixel_count * 3);
-    for px in rgba.chunks_exact(4) {
+    for px in rgba.as_chunks::<4>().0.iter() {
         // `px` is [r, g, b, a]; composite over black: out = src * a / 255.
         let a = px[3] as u32;
         rgb.push(((px[0] as u32 * a) / 255) as u8);
@@ -3773,7 +3781,9 @@ pub fn api_generate_fits_thumbnail(
             // Already u16, convert bytes to u16 values
             image_data
                 .data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect::<Vec<u16>>()
         }
@@ -3781,7 +3791,9 @@ pub fn api_generate_fits_thumbnail(
             // Convert u32 to u16 (downscale)
             image_data
                 .data
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|chunk| {
                     let val = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                     (val >> 16) as u16 // Take high 16 bits
@@ -3792,7 +3804,9 @@ pub fn api_generate_fits_thumbnail(
             // Convert f32 to u16 (scale 0.0-1.0 to 0-65535)
             image_data
                 .data
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|chunk| {
                     let val = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                     (val.clamp(0.0, 1.0) * 65535.0) as u16
@@ -3803,7 +3817,9 @@ pub fn api_generate_fits_thumbnail(
             // Convert f64 to u16 (scale 0.0-1.0 to 0-65535)
             image_data
                 .data
-                .chunks_exact(8)
+                .as_chunks::<8>()
+                .0
+                .iter()
                 .map(|chunk| {
                     let val = f64::from_le_bytes([
                         chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
@@ -3894,7 +3910,12 @@ pub fn api_generate_fits_thumbnail(
             stretched_rgba.len()
         )));
     }
-    let stretched: Vec<u8> = stretched_rgba.chunks_exact(4).map(|rgba| rgba[0]).collect();
+    let stretched: Vec<u8> = stretched_rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|rgba| rgba[0])
+        .collect();
     if stretched.len() != thumbnail_pixels {
         return Err(NightshadeError::ImageError(format!(
             "Invalid grayscale thumbnail length: expected {} bytes, got {}",

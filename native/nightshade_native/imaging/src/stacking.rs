@@ -1596,7 +1596,9 @@ fn decode_band_f64(image: &ImageData, start: usize, count: usize, out: &mut Vec<
             let bytes = &image.data[start * 2..(start + count) * 2];
             out.extend(
                 bytes
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|c| u16::from_le_bytes([c[0], c[1]]) as f64),
             );
         }
@@ -1604,7 +1606,9 @@ fn decode_band_f64(image: &ImageData, start: usize, count: usize, out: &mut Vec<
             let bytes = &image.data[start * 4..(start + count) * 4];
             out.extend(
                 bytes
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f64),
             );
         }
@@ -1685,7 +1689,9 @@ mod master_parity_tests {
                 PixelType::U16 => extract_u16_as_f64(f),
                 PixelType::F32 => f
                     .data
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f64)
                     .collect(),
                 _ => unreachable!(),

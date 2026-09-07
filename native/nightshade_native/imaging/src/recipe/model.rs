@@ -641,10 +641,18 @@ impl OpImage {
             return Err(OpError::EmptyImage);
         }
         let data: Vec<f32> = match image.pixel_type {
-            PixelType::F32 => image.data.chunks_exact(4).map(read_le_f32).collect(),
+            PixelType::F32 => image
+                .data
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(read_le_f32)
+                .collect(),
             PixelType::U16 => image
                 .data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| u16::from_le_bytes([c[0], c[1]]) as f32)
                 .collect(),
             other => return Err(OpError::UnsupportedPixelType { found: other }),
@@ -775,8 +783,8 @@ impl OpImage {
     }
 }
 
-fn read_le_f32(chunk: &[u8]) -> f32 {
-    f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+fn read_le_f32(chunk: &[u8; 4]) -> f32 {
+    f32::from_le_bytes(*chunk)
 }
 
 /// Read a [`SipWcs`] out of a FITS header.

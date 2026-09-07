@@ -363,7 +363,9 @@ impl ImageData {
 
         Some(
             self.data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect(),
         )
@@ -377,7 +379,9 @@ impl ImageData {
 
         Some(
             self.data
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
                 .collect(),
         )
@@ -559,7 +563,9 @@ pub fn write_tiff(path: &std::path::Path, image: &ImageData) -> Result<(), Strin
             use image::ImageEncoder;
             let pixels: Vec<u16> = image
                 .data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| u16::from_le_bytes([c[0], c[1]]))
                 .collect();
 
@@ -586,7 +592,9 @@ pub fn write_tiff(path: &std::path::Path, image: &ImageData) -> Result<(), Strin
             use image::ImageEncoder;
             let pixels: Vec<u16> = image
                 .data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| u16::from_le_bytes([c[0], c[1]]))
                 .collect();
 
@@ -661,7 +669,9 @@ pub fn write_png(path: &std::path::Path, image: &ImageData) -> Result<(), String
         (1, PixelType::U16) => {
             let pixels: Vec<u16> = image
                 .data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| u16::from_le_bytes([c[0], c[1]]))
                 .collect();
 
@@ -687,7 +697,9 @@ pub fn write_png(path: &std::path::Path, image: &ImageData) -> Result<(), String
         (3, PixelType::U16) => {
             let pixels: Vec<u16> = image
                 .data
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| u16::from_le_bytes([c[0], c[1]]))
                 .collect();
 
@@ -1063,7 +1075,7 @@ mod tests {
             .expect("mono (1-channel) layout must be supported");
         assert_eq!(rgba.len(), 2 * 2 * 4);
         // Alpha channel must be fully opaque on every pixel.
-        for px in rgba.chunks_exact(4) {
+        for px in rgba.as_chunks::<4>().0.iter() {
             assert_eq!(px[3], 255);
         }
     }

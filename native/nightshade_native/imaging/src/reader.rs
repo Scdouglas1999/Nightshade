@@ -163,7 +163,9 @@ impl MappedFitsReader {
             PixelType::U16 => {
                 // Convert i16 big-endian to u16 little-endian
                 let converted: Vec<u8> = data
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .flat_map(|chunk| {
                         let val = i16::from_be_bytes([chunk[0], chunk[1]]);
                         let adjusted = if bzero == 32768.0 {
@@ -179,7 +181,9 @@ impl MappedFitsReader {
             PixelType::F32 => {
                 // Convert f32 big-endian to little-endian
                 let converted: Vec<u8> = data
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .flat_map(|chunk| {
                         let val = f32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                         let adjusted = val * bscale as f32 + bzero as f32;

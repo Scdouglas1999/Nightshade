@@ -389,7 +389,9 @@ impl NativeCamera for QhyCamera {
         // and we already truncated the buffer to actual_size = width*height*(bpp/8)*channels.
         let data: Vec<u16> = if bpp == 16 {
             pooled_buffer
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect()
         } else {
