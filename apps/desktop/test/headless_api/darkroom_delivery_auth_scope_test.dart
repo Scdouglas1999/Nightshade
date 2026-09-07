@@ -101,22 +101,24 @@ void main() {
     container.dispose();
   });
 
-  test('a view-scoped credential is refused the manifest and the bytes',
-      () async {
-    for (final path in const [manifest, artifact]) {
-      final reply = await _get(client, baseUri, path, token: 'view-token');
-      expect(
-        reply.isScopeRefusal,
-        isTrue,
-        reason:
-            'GET $path answered ${reply.statusCode} ${reply.body} to a '
-            'read-only credential without naming a missing capability, i.e. '
-            'it reached the handler',
-      );
-      expect(reply.body['requiredResource'], 'darkroom');
-      expect(reply.body['requiredLevel'], 'control');
-    }
-  });
+  test(
+    'a view-scoped credential is refused the manifest and the bytes',
+    () async {
+      for (final path in const [manifest, artifact]) {
+        final reply = await _get(client, baseUri, path, token: 'view-token');
+        expect(
+          reply.isScopeRefusal,
+          isTrue,
+          reason:
+              'GET $path answered ${reply.statusCode} ${reply.body} to a '
+              'read-only credential without naming a missing capability, i.e. '
+              'it reached the handler',
+        );
+        expect(reply.body['requiredResource'], 'darkroom');
+        expect(reply.body['requiredLevel'], 'control');
+      }
+    },
+  );
 
   test('a control credential still reaches the handler', () async {
     // The paired desktop collecting its night. It must NOT be refused on
@@ -131,26 +133,35 @@ void main() {
     expect(reply.body['error'], 'unknown_delivery_peer');
   });
 
-  test('a fine-grained system token no longer reaches the delivery surface',
-      () async {
-    final reply = await _get(
-      client,
-      baseUri,
-      manifest,
-      token: 'system-only-token',
-    );
-    expect(reply.isScopeRefusal, isTrue);
-    expect(reply.body['requiredResource'], 'darkroom');
-  });
+  test(
+    'a fine-grained system token no longer reaches the delivery surface',
+    () async {
+      final reply = await _get(
+        client,
+        baseUri,
+        manifest,
+        token: 'system-only-token',
+      );
+      expect(reply.isScopeRefusal, isTrue);
+      expect(reply.body['requiredResource'], 'darkroom');
+    },
+  );
 
-  test('a fine-grained darkroom token reaches it without holding system',
-      () async {
-    final reply = await _get(client, baseUri, manifest, token: 'darkroom-token');
-    expect(
-      reply.isScopeRefusal,
-      isFalse,
-      reason: 'darkroom:control must be sufficient on its own',
-    );
-    expect(reply.body['error'], 'unknown_delivery_peer');
-  });
+  test(
+    'a fine-grained darkroom token reaches it without holding system',
+    () async {
+      final reply = await _get(
+        client,
+        baseUri,
+        manifest,
+        token: 'darkroom-token',
+      );
+      expect(
+        reply.isScopeRefusal,
+        isFalse,
+        reason: 'darkroom:control must be sufficient on its own',
+      );
+      expect(reply.body['error'], 'unknown_delivery_peer');
+    },
+  );
 }

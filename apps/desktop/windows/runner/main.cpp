@@ -16,7 +16,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
-  ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+  const HRESULT com_result =
+      ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
 
@@ -29,16 +30,29 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
   if (!window.Create(L"nightshade_desktop", origin, size)) {
+    window.Destroy();
+    if (SUCCEEDED(com_result)) {
+      ::CoUninitialize();
+    }
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
 
-  ::MSG msg;
-  while (::GetMessage(&msg, nullptr, 0, 0)) {
+  ::MSG msg{};
+  BOOL message_result;
+  while ((message_result = ::GetMessage(&msg, nullptr, 0, 0)) > 0) {
     ::TranslateMessage(&msg);
     ::DispatchMessage(&msg);
   }
 
-  ::CoUninitialize();
-  return EXIT_SUCCESS;
+  // window_manager.destroy() posts WM_QUIT without destroying the HWND. Tear
+  // down the controller while the derived window and COM apartment are still
+  // alive, not from member/base destructors after CoUninitialize. OnDestroy
+  // clears flutter_controller_ before deleting it, so reentrant Windows
+  // messages cannot dispatch through a controller whose view is being freed.
+  window.Destroy();
+  if (SUCCEEDED(com_result)) {
+    ::CoUninitialize();
+  }
+  return message_result == -1 ? EXIT_FAILURE : EXIT_SUCCESS;
 }

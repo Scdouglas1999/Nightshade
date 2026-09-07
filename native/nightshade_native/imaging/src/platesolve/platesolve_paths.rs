@@ -89,17 +89,17 @@ pub fn astap_candidates(inputs: &AstapPathInputs<'_>) -> Vec<PathBuf> {
     match inputs.os {
         OsFamily::Windows => {
             if let Some(lad) = inputs.local_app_data {
-                out.push(lad.join("Programs").join("astap").join("astap.exe"));
                 out.push(lad.join("Programs").join("astap").join("astap_cli.exe"));
-                out.push(lad.join("astap").join("astap.exe"));
+                out.push(lad.join("Programs").join("astap").join("astap.exe"));
                 out.push(lad.join("astap").join("astap_cli.exe"));
+                out.push(lad.join("astap").join("astap.exe"));
             }
-            out.push(PathBuf::from(r"C:\Program Files\astap\astap.exe"));
             out.push(PathBuf::from(r"C:\Program Files\astap\astap_cli.exe"));
-            out.push(PathBuf::from(r"C:\Program Files (x86)\astap\astap.exe"));
+            out.push(PathBuf::from(r"C:\Program Files\astap\astap.exe"));
             out.push(PathBuf::from(r"C:\Program Files (x86)\astap\astap_cli.exe"));
-            out.push(PathBuf::from(r"C:\astap\astap.exe"));
+            out.push(PathBuf::from(r"C:\Program Files (x86)\astap\astap.exe"));
             out.push(PathBuf::from(r"C:\astap\astap_cli.exe"));
+            out.push(PathBuf::from(r"C:\astap\astap.exe"));
         }
         OsFamily::MacOs => {
             out.push(PathBuf::from(

@@ -440,10 +440,13 @@ mod guard_tests {
     #[test]
     fn release_gate_still_guards_null_device_ops() {
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for (file, func) in [(
+        // A slice, not an inline array: the guard is meant to grow as more
+        // entrypoints install NullDeviceOps.
+        const GUARDED: &[(&str, &str)] = &[(
             "api/sequencer/runtime_config.rs",
             "api_sequencer_set_simulation_mode",
-        )] {
+        )];
+        for (file, func) in GUARDED {
             let text = std::fs::read_to_string(src.join(file))
                 .unwrap_or_else(|e| panic!("read {file}: {e}"));
             let start = text

@@ -177,12 +177,7 @@ where
         // Publish before the guard removes the entry: a follower that is
         // already subscribed gets the answer, and any caller arriving after
         // this starts a fresh solve.
-        let _ = tx.send(Arc::new(
-            result
-                .as_ref()
-                .map(Clone::clone)
-                .map_err(ToString::to_string),
-        ));
+        let _ = tx.send(Arc::new(result.clone().map_err(|e| e.to_string())));
     }
     result
 }
@@ -836,7 +831,6 @@ pub fn api_platesolve_detect() -> Result<PlateSolverDetection, NightshadeError> 
 /// Returns a `PlateSolverInfo` with the detected flavour and version banner,
 /// or a `NightshadeError` if the binary is missing / fails to spawn / exits
 /// with non-zero status and empty output.
-#[flutter_rust_bridge::frb(sync)]
 pub fn api_platesolve_verify(executable_path: String) -> Result<PlateSolverInfo, NightshadeError> {
     use std::path::Path;
     let path = Path::new(&executable_path);

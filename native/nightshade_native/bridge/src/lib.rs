@@ -84,6 +84,9 @@ mod timeout_ops;
 mod unified_device_ops;
 mod util;
 
+// `api` and `event` both carry `imaging` and `sequencer` submodules, so the
+// globs re-export those NAMES ambiguously. Nothing resolves them at the root.
+#[allow(ambiguous_glob_reexports)]
 pub use api::*;
 pub use device::*;
 // `DefectMapCorrectionRecord` is referenced in the
@@ -97,6 +100,7 @@ pub use device_capabilities::*;
 pub use device_id::*;
 pub use device_manager::*;
 pub use error::*;
+#[allow(ambiguous_glob_reexports)]
 pub use event::*;
 // FRB-generated impl SseDecode / IntoIntoDart blocks embed unqualified
 // references to `DefectMapCorrectionRecord` (as an `Option<_>` field on

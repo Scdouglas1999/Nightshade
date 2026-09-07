@@ -119,7 +119,7 @@ const _requiredFiles = <_RequiredFile>[
       'PlatformCapabilityMatrix.rows',
       'backendEnabled = isEnabled && unsupportedReason == null',
       'onTap: widget.isEnabled ? widget.onTap : null',
-      'enabled: unsupportedReason == null',
+      'enabled: widget.isEnabled',
     ],
   ),
   _RequiredFile(

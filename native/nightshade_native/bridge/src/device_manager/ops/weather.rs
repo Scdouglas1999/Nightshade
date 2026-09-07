@@ -232,7 +232,7 @@ mod tests {
 
     async fn wait_for_weather_property(manager: &DeviceManager, device_id: &str) {
         let (host, port, device_name) =
-            DeviceManager::parse_indi_device_id(&device_id).expect("test id is a valid INDI id");
+            DeviceManager::parse_indi_device_id(device_id).expect("test id is a valid INDI id");
         let server_key = format!("{host}:{port}");
         let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
 

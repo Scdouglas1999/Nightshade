@@ -228,6 +228,10 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
     return KeyEventResult.ignored;
   }
 
+  /// Swallow a scrim tap. Named, not an inline empty closure, because the
+  /// absorption IS the behaviour — see the scrim comment in [build].
+  void _absorbScrimTap() {}
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -293,7 +297,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () {},
+                onTap: _absorbScrimTap,
                 child: CustomPaint(
                   painter: OnboardingCutoutPainter(
                     targetRect: targetRect,

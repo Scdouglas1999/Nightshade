@@ -185,7 +185,11 @@ pub use init::*;
 pub use mosaic::*;
 pub use phd2::*;
 pub use plate_solve::*;
+// Both carry an `entrypoints` submodule, so the globs re-export that one NAME
+// ambiguously. Only the items matter; nothing references `crate::entrypoints`.
+#[allow(ambiguous_glob_reexports)]
 pub use polar_alignment::*;
+#[allow(ambiguous_glob_reexports)]
 pub use post_session::*;
 pub use secondary_rig::*;
 pub use sequencer::*;

@@ -224,20 +224,6 @@ fn is_inter_response_framing(byte: u8) -> bool {
     matches!(byte, b'\r' | b'\n' | b'\0')
 }
 
-#[cfg(test)]
-mod tests {
-    use super::is_inter_response_framing;
-
-    #[test]
-    fn nyx_crlf_between_responses_is_framing() {
-        assert!(is_inter_response_framing(b'\r'));
-        assert!(is_inter_response_framing(b'\n'));
-        assert!(is_inter_response_framing(b'\0'));
-        assert!(!is_inter_response_framing(b'1'));
-        assert!(!is_inter_response_framing(b'+'));
-    }
-}
-
 #[async_trait]
 impl NativeDevice for Lx200Mount {
     fn id(&self) -> &str {
@@ -342,5 +328,19 @@ impl NativeDevice for Lx200Mount {
         tracing::info!("Disconnected from LX200 mount");
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_inter_response_framing;
+
+    #[test]
+    fn nyx_crlf_between_responses_is_framing() {
+        assert!(is_inter_response_framing(b'\r'));
+        assert!(is_inter_response_framing(b'\n'));
+        assert!(is_inter_response_framing(b'\0'));
+        assert!(!is_inter_response_framing(b'1'));
+        assert!(!is_inter_response_framing(b'+'));
     }
 }

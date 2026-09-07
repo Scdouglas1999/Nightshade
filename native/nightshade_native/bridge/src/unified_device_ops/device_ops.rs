@@ -1616,11 +1616,8 @@ mod parked_from_status_tests {
 
     #[test]
     fn a_trustworthy_report_passes_through() {
-        assert_eq!(parked_from_status("m", &status(true, true)).unwrap(), true);
-        assert_eq!(
-            parked_from_status("m", &status(false, true)).unwrap(),
-            false
-        );
+        assert!(parked_from_status("m", &status(true, true)).unwrap());
+        assert!(!parked_from_status("m", &status(false, true)).unwrap());
     }
 
     fn unreadable(mut s: MountStatus) -> MountStatus {
@@ -1636,10 +1633,7 @@ mod parked_from_status_tests {
     /// through, or every autopilot run fails at its head Unpark node.
     #[test]
     fn cannot_park_with_a_readable_state_is_not_an_error() {
-        assert_eq!(
-            parked_from_status("m", &status(false, false)).unwrap(),
-            false
-        );
+        assert!(!parked_from_status("m", &status(false, false)).unwrap());
     }
 
     /// Only a park state the backend could not READ (Native NotSupported,

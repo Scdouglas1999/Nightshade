@@ -79,7 +79,7 @@ void main(List<String> args) {
 
   final serverSource = server.readAsStringSync();
   final networkBackendSource = _readNetworkBackendSource(networkBackend);
-  final routeMetadataSource = routeMetadata.readAsStringSync();
+  final routeMetadataSource = _readRouteMetadataSource(routeMetadata);
   final networkBackendWebSocketTestSource = networkBackendWebSocketTest
       .readAsStringSync();
   final networkBackendContractTestSource = networkBackendContractTest
@@ -273,6 +273,22 @@ String _readNetworkBackendSource(File networkBackend) {
         ..sort((a, b) => a.path.compareTo(b.path));
   sources.addAll(partFiles.map((file) => file.readAsStringSync()));
   return sources.join('\n');
+}
+
+/// Read the route-metadata barrel *and* every file it exports: the split into
+/// `route_metadata/` left this audit reading 11 lines and reporting 0/9
+/// coverage while the generator was intact.
+String _readRouteMetadataSource(File barrel) {
+  final buffer = StringBuffer(barrel.readAsStringSync());
+  final dir = barrel.parent.path;
+  final exportPattern = RegExp("export\\s+'([^']+)'");
+  for (final match in exportPattern.allMatches(buffer.toString())) {
+    final part = File('$dir/${match.group(1)}');
+    if (part.existsSync()) {
+      buffer.writeln(part.readAsStringSync());
+    }
+  }
+  return buffer.toString();
 }
 
 Map<String, bool> _openApiMetadataCoverage(String source) {

@@ -60,4 +60,60 @@ void main() {
     await tester.pump();
     expect(selected, DriverType.alpaca);
   });
+
+  testWidgets('an unsupported backend reads as a disabled button to a11y',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: Scaffold(
+          body: Center(
+            child: BackendSelectorChips(
+              availableBackends: const [
+                DriverType.ascom,
+                DriverType.alpaca,
+              ],
+              selectedBackend: DriverType.alpaca,
+              recommendedBackend: DriverType.alpaca,
+              currentPlatform: PlatformCapabilityMatrix.linux,
+              onBackendSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // The same refusal the ban icon makes, reaching assistive tech.
+    expect(
+      tester.getSemantics(find.text('ASCOM COM')),
+      matchesSemantics(
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: false,
+        label: 'ASCOM COM',
+        hint: 'Unsupported on this platform: '
+            '${unsupportedBackendReasonFor(DriverType.ascom, PlatformCapabilityMatrix.linux)}',
+        hasSelectedState: true,
+        isSelected: false,
+      ),
+    );
+
+    expect(
+      tester.getSemantics(find.text('Alpaca')),
+      matchesSemantics(
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasTapAction: true,
+        label: 'Alpaca',
+        hint: DriverType.alpaca.description,
+        hasSelectedState: true,
+        isSelected: true,
+      ),
+    );
+
+    handle.dispose();
+  });
 }

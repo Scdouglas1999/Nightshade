@@ -113,10 +113,12 @@ void main() {
     // calibration is never graded, so counting it would inflate Accepted.
     expect(
       find.descendant(
-        of: find.ancestor(
-          of: find.text('Accepted'),
-          matching: find.byType(Column),
-        ).first,
+        of: find
+            .ancestor(
+              of: find.text('Accepted'),
+              matching: find.byType(Column),
+            )
+            .first,
         matching: find.text('12'),
       ),
       findsOneWidget,

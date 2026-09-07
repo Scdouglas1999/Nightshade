@@ -190,19 +190,23 @@ class SessionReportService {
     }
 
     final types = byType.keys.toList()..sort();
-    return types.map((type) {
-      final all = byType[type]!;
-      final accepted = all.where((f) => f.isAccepted).toList(growable: false);
-      return SessionCalibrationReport(
-        frameType: type,
-        framesAttempted: all.length,
-        framesAccepted: accepted.length,
-        totalIntegrationSecs: accepted.fold<double>(
-          0.0,
-          (sum, f) => sum + f.exposureDuration,
-        ),
-      );
-    }).toList(growable: false);
+    return types
+        .map((type) {
+          final all = byType[type]!;
+          final accepted = all
+              .where((f) => f.isAccepted)
+              .toList(growable: false);
+          return SessionCalibrationReport(
+            frameType: type,
+            framesAttempted: all.length,
+            framesAccepted: accepted.length,
+            totalIntegrationSecs: accepted.fold<double>(
+              0.0,
+              (sum, f) => sum + f.exposureDuration,
+            ),
+          );
+        })
+        .toList(growable: false);
   }
 
   /// Group frames by `(targetId, filter)` and build per-filter rollups.

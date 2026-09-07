@@ -60,10 +60,10 @@ PlateSolverDetection apiPlatesolveDetect() =>
 /// Returns a `PlateSolverInfo` with the detected flavour and version banner,
 /// or a `NightshadeError` if the binary is missing / fails to spawn / exits
 /// with non-zero status and empty output.
-PlateSolverInfo apiPlatesolveVerify({required String executablePath}) => RustLib
-    .instance
-    .api
-    .crateApiPlateSolveApiPlatesolveVerify(executablePath: executablePath);
+Future<PlateSolverInfo> apiPlatesolveVerify({required String executablePath}) =>
+    RustLib.instance.api.crateApiPlateSolveApiPlatesolveVerify(
+      executablePath: executablePath,
+    );
 
 /// Read the persisted plate-solver configuration. Falls back to defaults if
 /// the storage was never written.

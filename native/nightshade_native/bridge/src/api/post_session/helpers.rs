@@ -425,6 +425,7 @@ pub(crate) fn header_string(
 /// nothing recorded which filter, target, instrument or night a master came
 /// from. The values are read from the subs' own headers, never invented.
 #[derive(Debug, Clone, Default)]
+#[flutter_rust_bridge::frb(ignore)]
 pub(crate) struct MasterProvenance {
     /// `FILTER` from the subs, when they agree.
     pub(crate) filter: Option<String>,

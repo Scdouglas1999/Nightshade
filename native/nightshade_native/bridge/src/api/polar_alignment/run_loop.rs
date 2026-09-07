@@ -326,24 +326,31 @@ pub(crate) async fn run_polar_alignment(
                     point as i32,
                 );
 
-                // Calculate new position (in degrees)
-                // Safe to get last() because we just pushed to solved_points above
-                let (current_ra_deg, current_dec) = match solved_points.last() {
-                    Some(coords) => coords,
-                    None => {
-                        return Err("No solved points available for slew calculation".to_string());
+                // Rotate about the polar axis in the MOUNT's frame: same mount
+                // Dec, mount RA stepped. The solved coordinates just pushed
+                // above are the measurement, not the slew target — a target
+                // built from them makes the mount absorb the very
+                // misalignment being measured as a two-axis move
+                // (`rotation_step_target` explains). The wait polls the
+                // driver's `slewing` flag instead of hoping five seconds is
+                // enough; a still-moving mount would smear point 2.
+                match rotate_for_next_point(
+                    &mount_id,
+                    point + 1,
+                    step_size,
+                    rotate_east,
+                    observer_longitude,
+                    generation,
+                )
+                .await?
+                {
+                    SlewOutcome::Settled => {}
+                    SlewOutcome::Cancelled => {
+                        emit_polar_status("Cancelled by user", "idle", 0);
+                        return Ok(());
                     }
-                };
-                let move_amount = if rotate_east { step_size } else { -step_size };
-                let target_ra_deg = (current_ra_deg + move_amount + 360.0) % 360.0;
-
-                // Slew mount (API takes RA in hours, Dec in degrees)
-                api_mount_slew_to_coordinates(mount_id.clone(), target_ra_deg / 15.0, *current_dec)
-                    .await
-                    .map_err(|e| format!("Failed to slew: {:?}", e))?;
-
-                // Wait for slew to complete
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    SlewOutcome::Superseded => return Ok(()),
+                }
             }
         }
     }

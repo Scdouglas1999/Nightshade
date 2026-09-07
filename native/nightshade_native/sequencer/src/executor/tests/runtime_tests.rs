@@ -876,9 +876,12 @@ async fn a_mid_run_location_change_reaches_the_altitude_dawn_and_meridian_inputs
         id: "target".to_string(),
         name: "Target".to_string(),
         node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig {
-            target_name: "M31".to_string(),
+            // The pole's altitude equals observer latitude at every sidereal
+            // time. An ordinary target can have nearly equal altitudes at
+            // these two sites, so an arbitrary minimum difference is flaky.
+            target_name: "North celestial pole".to_string(),
             ra_hours: 0.712,
-            dec_degrees: 41.269,
+            dec_degrees: 90.0,
             ..crate::TargetHeaderConfig::default()
         }),
         enabled: true,
@@ -969,16 +972,15 @@ async fn a_mid_run_location_change_reaches_the_altitude_dawn_and_meridian_inputs
         "DawnApproaching reads TriggerState::dawn_time; a cached dawn from the \
          previous site would stop the run at the wrong hour"
     );
-    assert!(
-        second
-            .current_altitude
-            .zip(first.current_altitude)
-            .is_some_and(|(now, before)| (now - before).abs() > 1.0),
-        "AltitudeLimit reads TriggerState::current_altitude, which is recomputed \
-         from the observer location: {:?} -> {:?}",
-        first.current_altitude,
-        second.current_altitude,
-    );
+    for (snapshot, latitude) in [(&first, NEW_YORK.0), (&second, SYDNEY.0)] {
+        assert!(
+            snapshot
+                .current_altitude
+                .is_some_and(|altitude| (altitude - latitude).abs() < 0.001),
+            "pole altitude must be recomputed for observer latitude {latitude}: {:?}",
+            snapshot.current_altitude,
+        );
+    }
 }
 
 /// Every production device call in the trigger monitor is bounded. A driver

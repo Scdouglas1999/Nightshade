@@ -20,6 +20,8 @@ Plan the target, connect the rig, frame and solve the field, run the sequence, g
 
 </div>
 
+Nightshade is a **capture suite**, not a Fujifilm driver. For Fuji on N.I.N.A. or ASCOM see [Fujicom](https://github.com/Scdouglas1999/Fujicom) and the [N.I.N.A. Fujifilm plugin](https://github.com/Scdouglas1999/NINA-Fujifilm-Native-Plugin). GitHub Sponsors is not enabled yet.
+
 ---
 
 Nightshade controls an astrophotography rig end to end. Equipment, planetarium, framing, sequencing, imaging, guiding, weather, safety, and analytics all work from the same target, the same equipment profile, and the same live session, instead of a separate program for each job.

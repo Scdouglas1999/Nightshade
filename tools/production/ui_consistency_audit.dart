@@ -583,6 +583,13 @@ bool _isScopedOutFinding({required String path, required String ruleId}) {
     // ThemeData button defaults are the preferred fallback for Material buttons.
     return true;
   }
+  if (ruleId == 'raw_button_style' &&
+      path ==
+          'packages/nightshade_app/lib/screens/mosaic/mosaic_project_screen.dart') {
+    // A muted breadcrumb, not an action: the theme's TextButton default paints
+    // it as a primary one. The override keeps kMinInteractiveDimension.
+    return true;
+  }
 
   return false;
 }

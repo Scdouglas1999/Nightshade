@@ -1,19 +1,29 @@
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
+import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/profiles_provider.dart';
 
 void main() {
   group('profileConnectionStatusProvider', () {
     late ProviderContainer container;
+    late NightshadeDatabase database;
 
     setUp(() {
-      container = ProviderContainer();
+      // Equipment state observes settings/profile streams even when this test
+      // assigns snapshots directly. Never open a shared on-disk user database.
+      database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      container = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(database)],
+      );
     });
 
-    tearDown(() {
+    tearDown(() async {
       container.dispose();
+      await database.close();
     });
 
     EquipmentProfileModel profile({

@@ -259,6 +259,12 @@ String? _intentionalRawResponseReason(String path, String snippet) {
   if (snippet.contains('file.openRead()')) {
     return 'file stream response';
   }
+  if (snippet.contains('Response.movedPermanently(') ||
+      snippet.contains('Response.found(')) {
+    // A redirect carries a Location header and no body, so there is no JSON
+    // envelope for response_helpers.dart to shape.
+    return 'HTTP redirect response';
+  }
   return null;
 }
 
@@ -424,7 +430,10 @@ class _UsageAudit {
     }
     for (final file in files) {
       final path = file['path']?.toString() ?? '';
-      final rawResponses = (file['rawResponseCalls'] as int?) ?? 0;
+      // Count only the calls no reason classified: the top-level check
+      // already honours `_intentionalRawResponseReason`, and a redirect or a
+      // byte stream has no JSON envelope for the helpers to shape.
+      final rawResponses = (file['unclassifiedRawResponseCalls'] as int?) ?? 0;
       if (rawResponses > 0 &&
           path.startsWith('apps/desktop/lib/headless_api/handlers/')) {
         issues.add(

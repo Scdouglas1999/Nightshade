@@ -158,63 +158,74 @@ class _BackendChipState extends State<_BackendChip> {
         ? widget.backend.description
         : '${widget.backend.description}\nUnsupported: $unsupportedReason';
 
-    return Tooltip(
-      message: tooltipMessage,
-      waitDuration: const Duration(milliseconds: 500),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        cursor: widget.isEnabled
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.forbidden,
-        child: GestureDetector(
-          onTap: widget.isEnabled ? widget.onTap : null,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: borderColor, width: 1),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.isRecommended) ...[
-                  Icon(
-                    NightshadeIcons.star,
-                    size: 10,
-                    color: widget.isSelected ? backendColor : colors.warning,
+    // The ban icon and muted text refuse only to a sighted operator; this is
+    // the same refusal, with its reason, reaching assistive tech. No `label`:
+    // the chip's own Text supplies the name, and a second one is announced twice.
+    return Semantics(
+      button: true,
+      enabled: widget.isEnabled,
+      selected: widget.isSelected,
+      hint: unsupportedReason == null
+          ? widget.backend.description
+          : 'Unsupported on this platform: $unsupportedReason',
+      child: Tooltip(
+        message: tooltipMessage,
+        waitDuration: const Duration(milliseconds: 500),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          cursor: widget.isEnabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.forbidden,
+          child: GestureDetector(
+            onTap: widget.isEnabled ? widget.onTap : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+                border: Border.all(color: borderColor, width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.isRecommended) ...[
+                    Icon(
+                      NightshadeIcons.star,
+                      size: 10,
+                      color: widget.isSelected ? backendColor : colors.warning,
+                    ),
+                    const SizedBox(width: 3),
+                  ],
+                  Text(
+                    widget.backend.shortLabel,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      fontWeight:
+                          widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: textColor,
+                    ),
                   ),
-                  const SizedBox(width: 3),
+                  if (unsupportedReason != null) ...[
+                    const SizedBox(width: 3),
+                    Icon(
+                      LucideIcons.ban,
+                      size: 10,
+                      color: colors.textMuted,
+                    ),
+                  ],
+                  if (widget.isSelected) ...[
+                    const SizedBox(width: 3),
+                    Icon(
+                      NightshadeIcons.check,
+                      size: 10,
+                      color: backendColor,
+                    ),
+                  ],
                 ],
-                Text(
-                  widget.backend.shortLabel,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight:
-                        widget.isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: textColor,
-                  ),
-                ),
-                if (unsupportedReason != null) ...[
-                  const SizedBox(width: 3),
-                  Icon(
-                    LucideIcons.ban,
-                    size: 10,
-                    color: colors.textMuted,
-                  ),
-                ],
-                if (widget.isSelected) ...[
-                  const SizedBox(width: 3),
-                  Icon(
-                    NightshadeIcons.check,
-                    size: 10,
-                    color: backendColor,
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),

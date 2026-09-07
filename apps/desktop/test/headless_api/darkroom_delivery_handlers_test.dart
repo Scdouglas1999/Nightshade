@@ -235,8 +235,9 @@ void main() {
         // entry's name and never noticed; `curl -OJ`, a browser or any
         // third-party puller writes what this header says — which is exactly
         // the two-rigs-one-share collision the namespacing exists to prevent.
-        final listed = jsonDecode(await (await manifest()).readAsString())
-            as Map<String, Object?>;
+        final listed =
+            jsonDecode(await (await manifest()).readAsString())
+                as Map<String, Object?>;
         final entries =
             (listed['manifest']! as Map<String, Object?>)['entries']! as List;
         final promised =

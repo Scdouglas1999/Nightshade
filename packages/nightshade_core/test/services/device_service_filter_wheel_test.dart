@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
+import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
+import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 
@@ -20,6 +23,7 @@ class TestBackendNotifier extends BackendNotifier {
 void main() {
   late ProviderContainer container;
   late MockBackend mockBackend;
+  late NightshadeDatabase database;
   late StreamController<NightshadeEvent> eventStreamController;
 
   setUpAll(() {
@@ -27,6 +31,10 @@ void main() {
   });
 
   setUp(() {
+    // FilterWheelStateNotifier observes profile/settings streams. Keep those
+    // dependencies in this test's database instead of opening the user's
+    // filesystem-backed store and racing asynchronous cleanup between tests.
+    database = NightshadeDatabase.forTesting(NativeDatabase.memory());
     mockBackend = MockBackend();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
@@ -47,6 +55,7 @@ void main() {
     when(() => mockBackend.stopDeviceHeartbeat(any())).thenAnswer((_) async {});
     container = ProviderContainer(
       overrides: [
+        databaseProvider.overrideWithValue(database),
         backendProvider.overrideWith(
           (ref) => TestBackendNotifier(ref, mockBackend),
         ),
@@ -54,9 +63,10 @@ void main() {
     );
   });
 
-  tearDown(() {
-    eventStreamController.close();
+  tearDown(() async {
     container.dispose();
+    await eventStreamController.close();
+    await database.close();
   });
 
   test('connectFilterWheel seeds state from backend status', () async {
@@ -259,6 +269,7 @@ void main() {
       );
 
       expect(container.read(filterWheelStateProvider).isMoving, isTrue);
+      verify(() => mockBackend.filterWheelSetPosition(deviceId, 1)).called(1);
     },
   );
 }

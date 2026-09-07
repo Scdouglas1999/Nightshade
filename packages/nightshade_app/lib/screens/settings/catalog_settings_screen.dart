@@ -114,6 +114,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   String _downloadStatus = '';
   double _downloadProgress = 0;
   String _currentDownload = '';
+
   /// The single dataset every install delivers. There is no tier to pick —
   /// see [CatalogPackage]; the selector that used to set this downloaded the
   /// same bytes whichever option was clicked.

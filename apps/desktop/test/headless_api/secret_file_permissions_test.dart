@@ -34,54 +34,70 @@ void main() {
     }
   });
 
-  test('a freshly generated push secret is owner-only', () async {
-    final secret = await getOrCreatePushSecret(
-      LoggingService(),
-      logSource: 'test',
-      appDataDir: appData,
-    );
-    expect(secret, isNotEmpty);
+  test(
+    'a freshly generated push secret is owner-only',
+    () async {
+      final secret = await getOrCreatePushSecret(
+        LoggingService(),
+        logSource: 'test',
+        appDataDir: appData,
+      );
+      expect(secret, isNotEmpty);
 
-    final file = File('${appData.path}/push_secret.txt');
-    expect(await file.exists(), isTrue);
-    expect(
-      await octalMode(file),
-      '600',
-      reason: 'the LAN-push secret must not be readable by other local users',
-    );
-  }, skip: Platform.isWindows ? 'POSIX file modes only' : null);
+      final file = File('${appData.path}/push_secret.txt');
+      expect(await file.exists(), isTrue);
+      expect(
+        await octalMode(file),
+        '600',
+        reason: 'the LAN-push secret must not be readable by other local users',
+      );
+    },
+    skip: Platform.isWindows ? 'POSIX file modes only' : null,
+  );
 
-  test('an existing world-readable secret is repaired on read', () async {
-    // What an older build left behind.
-    final file = File('${appData.path}/push_secret.txt');
-    await file.writeAsString('pre-existing-secret');
-    await Process.run('chmod', ['644', file.path]);
-    expect(await octalMode(file), '644');
+  test(
+    'an existing world-readable secret is repaired on read',
+    () async {
+      // What an older build left behind.
+      final file = File('${appData.path}/push_secret.txt');
+      await file.writeAsString('pre-existing-secret');
+      await Process.run('chmod', ['644', file.path]);
+      expect(await octalMode(file), '644');
 
-    final secret = await getOrCreatePushSecret(
-      LoggingService(),
-      logSource: 'test',
-      appDataDir: appData,
-    );
+      final secret = await getOrCreatePushSecret(
+        LoggingService(),
+        logSource: 'test',
+        appDataDir: appData,
+      );
 
-    expect(secret, 'pre-existing-secret', reason: 'the secret must not rotate');
-    expect(
-      await octalMode(file),
-      '600',
-      reason: 'reading an existing secret must repair its mode in place',
-    );
-  }, skip: Platform.isWindows ? 'POSIX file modes only' : null);
+      expect(
+        secret,
+        'pre-existing-secret',
+        reason: 'the secret must not rotate',
+      );
+      expect(
+        await octalMode(file),
+        '600',
+        reason: 'reading an existing secret must repair its mode in place',
+      );
+    },
+    skip: Platform.isWindows ? 'POSIX file modes only' : null,
+  );
 
-  test('writeSecretFile never exposes the bytes at a wider mode', () async {
-    // Create the file world-readable first, then write through the helper:
-    // the contents must land only after the mode is restricted.
-    final file = File('${appData.path}/remote_access_token.txt');
-    await file.writeAsString('');
-    await Process.run('chmod', ['644', file.path]);
+  test(
+    'writeSecretFile never exposes the bytes at a wider mode',
+    () async {
+      // Create the file world-readable first, then write through the helper:
+      // the contents must land only after the mode is restricted.
+      final file = File('${appData.path}/remote_access_token.txt');
+      await file.writeAsString('');
+      await Process.run('chmod', ['644', file.path]);
 
-    await writeSecretFile(file, 'deadbeef');
+      await writeSecretFile(file, 'deadbeef');
 
-    expect(await file.readAsString(), 'deadbeef');
-    expect(await octalMode(file), '600');
-  }, skip: Platform.isWindows ? 'POSIX file modes only' : null);
+      expect(await file.readAsString(), 'deadbeef');
+      expect(await octalMode(file), '600');
+    },
+    skip: Platform.isWindows ? 'POSIX file modes only' : null,
+  );
 }
