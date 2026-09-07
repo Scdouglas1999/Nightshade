@@ -619,9 +619,13 @@ async fn start_refuses_a_save_path_that_cannot_be_written() {
     executor
         .load_sequence(single_exposure_sequence(None))
         .expect("sequence loads");
-    executor.set_save_path(Some(std::path::PathBuf::from(
-        "/proc/nightshade-cannot-write",
-    )));
+    // Uncreatable on every platform: a child of a regular FILE. `/proc/...`
+    // only refuses on Linux — Windows reads it as a path on the current drive
+    // and creates it happily, so the run was never refused and the test failed
+    // there.
+    let blocker = std::env::temp_dir().join(format!("ns-not-a-dir-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&blocker, b"not a directory").expect("blocker file writes");
+    executor.set_save_path(Some(blocker.join("nightshade-cannot-write")));
 
     let error = executor
         .start()
@@ -632,6 +636,7 @@ async fn start_refuses_a_save_path_that_cannot_be_written() {
         "the refusal must name the save path; got: {error}"
     );
     executor.stop().await.ok();
+    std::fs::remove_file(&blocker).ok();
 }
 
 /// The gate must not fire when there is a real destination.
