@@ -277,7 +277,14 @@ mod guard_tests {
     /// fails if this goes back to comparing names.
     fn exemption_for(path: &Path) -> Option<&'static str> {
         let root = workspace_root();
-        let relative = path.strip_prefix(&root).ok()?.to_string_lossy().to_string();
+        // The allowlist is written with `/`; Windows renders the same path with
+        // `\`, so comparing raw exempts nothing there and the guard reports its
+        // own detection strings as offenders.
+        let relative = path
+            .strip_prefix(&root)
+            .ok()?
+            .to_string_lossy()
+            .replace('\\', "/");
         SANCTIONED
             .iter()
             .chain(GENERATED)
