@@ -1,7 +1,7 @@
 name: nightshade_desktop
 description: Nightshade Desktop - Cross-platform astrophotography suite
 publish_to: 'none'
-version: 6.2.0+26
+version: 7.0.0+27
 
 environment:
   sdk: ">=3.8.0 <4.0.0"

@@ -9,6 +9,108 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
+## [7.0.0] — Darkroom (build 27, 2026-09-07)
+
+Wake up to a finished image you can still change your mind about. The dawn
+autopilot integrates the night into per-filter linear masters, composes a
+first-draft **recipe**, renders a draft, and delivers everything where you want
+to work in the morning — and every step it took is editable, reorderable and
+discardable, because the draft is data, not a baked file. Proven against
+simulators on Linux by a committed live harness (64 assertions across three
+legs); on-sky and Windows validation are owed. See `docs/release-notes.md`.
+
+### Added
+
+- **Darkroom** — a non-destructive recipe engine (eight v1 operations, schema
+  v58/v59) with an editor whose step cards keep three truths separate: what the
+  recipe says, what validation says, and what the render actually did, including
+  *why* a step was skipped. Branch any recipe at its shared prefix and compare
+  branches side-by-side or blinking with a shared zoom/pan. "Reset to linear"
+  always exists and never destroys anything.
+- **Dawn autopilot** — on sequence completion, calibrate, register and integrate
+  accepted frames into per-filter linear masters, then compose and render a
+  first-draft recipe (gradient removal, denoise, colour calibration where the
+  data supports it, an auto-fitted stretch, an edge crop).
+- **Delivery engine** — watched folder (NAS included), SFTP over the system
+  OpenSSH with key auth, or a paired desktop that pulls a signed manifest with
+  resumable downloads. Copy, never move; atomic writes, checksum verification,
+  bounded retries that survive a rig reboot, and a journal whose every status
+  line derives from a recorded fact.
+- **Export at any stage** — the linear master, the image after step N, or the
+  final render. FITS carries the full recipe as provenance (HISTORY cards plus a
+  `.nsrecipe` sidecar); a raster export of a still-linear stage is a visible
+  screen-transfer choice, never a silent auto-stretch.
+- **Honest calibration reporting** — every master states which darks/flats/bias
+  were applied, per slot, with match quality and staleness, in the result, the
+  FITS HISTORY and a `CALWARN` card. A missing master is an explicit entry.
+- **Live release harness** (`tools/harness/d1_sim_night/`) — a full simulated
+  night from fresh install to checksummed delivery, a crash leg that kills the
+  process mid-job, and a two-nights leg, all run against the release bundle.
+
+### Changed
+
+- **Stacking normalisation follows PixInsight's default** (additive with
+  scaling). The 6.2.0 background-pair OLS fit erased stars; frame retention went
+  from 0.08% to 100%. v1 accumulating-master sidecars are refused at
+  `MASTER_STATE_VERSION 2` — **masters produced by 6.2.0 are void and must be
+  re-integrated.**
+- **The behavioural audit register is at zero open findings** for the first
+  time: every silent-behaviour site fixed or documented with the mechanism that
+  makes it safe.
+- **Observer location is explicitly unknown** until you set one; the backend is
+  told null rather than 0/0/0. Simulation mode's dead toggle is gone.
+- `NIGHTSHADE_DATA_DIR` is the root of everything Dart writes — one resolver,
+  52 call sites.
+- Colour calibration is labelled for what it is: a Johnson B−V regression
+  against the shipped catalogs. It is not SPCC and refuses mono input loudly.
+- Catalog downloads: the three tiers were a placebo. One dataset, stated once,
+  with HYG's real depth.
+
+### Fixed
+
+- **Three-point polar alignment rotated in the wrong frame.** The step target
+  was built from the *solved* coordinates, so the mount absorbed the very
+  misalignment being measured — a two-axis swing toward the pole instead of a
+  10° step in RA. The target is now built in the mount's own frame, a step that
+  would cross the meridian is refused, and the settle wait polls the driver's
+  `slewing` flag instead of sleeping five seconds.
+- **A finished node says so** — `NodeCompleted` now answers every
+  `NodeStarted`, so spinners stop when the run does.
+- **Idle frame rate was the number of clock phases, not the clock rate.** Every
+  1 Hz clock is aligned to the epoch-second boundary, and an urgent status dot
+  pulses for twenty seconds then holds instead of costing a third of a core
+  forever.
+- **Calibration frames count** — a 3-frame dark run no longer reports 0/0
+  frames and 100% downtime, and it leaves the mount parked.
+- **Meridian handling** — the trigger reads the target's sky, not the mount's
+  pointing; a parked or non-tracking mount does not arm the flip; preflight
+  warns when the flip would re-centre without a solver.
+- **Plate-solver verification is bounded and reaps a hung probe** — an ASTAP
+  GUI build opens a window instead of exiting on `--help`. The CLI executable is
+  now preferred wherever both are installed, and verification is no longer a
+  synchronous bridge call on the UI thread.
+- **USB hot-plug re-probes after a bus event** (~3 s, ~13 s, ~43 s). A single
+  immediate probe cached "nothing here" while Windows was still installing the
+  driver, leaving the device invisible until the five-minute fallback.
+- **Windows runner lifecycle** — the Flutter controller is torn down while the
+  window and COM apartment are still alive, a font-change broadcast during
+  teardown no longer dereferences a released controller, and a `GetMessage`
+  failure is reported as one.
+- **Database migrations** cannot brick the library: a backup first, then an
+  atomic upgrade.
+- **A missing SQLite busy-timeout** let any external reader holding a read
+  transaction kill the daemon at startup.
+- **Weather map** — labels above the clouds, honest zoom, tiles that retry, one
+  `saveLayer` per tile, and a basemap that is not a wall of "API KEY REQUIRED".
+- 120+ further defects from the six Darkroom break-waves (30, 21, 33, 22,
+  unrecorded and 14 findings by their own commit subjects) and the wave 7–19 fix
+  fleets, each reproduced against the running build before it was fixed.
+
+### Security
+
+- Darkroom delivery egress is scoped to control; credential files are `0600`.
+- `--allow-unauthenticated` no longer outranks a configured token.
+
 ## [6.2.0] — The Tightening Pass (build 26, 2026-08-14)
 
 A commercial-grade hardening cycle: every subsystem mapped, the running app
