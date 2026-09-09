@@ -34,7 +34,7 @@ Future<void> _pump(WidgetTester tester) async {
 /// row title, so an unscoped `find.text` matches two rows.
 Finder _row(String title) => find.descendant(
       of: find.ancestor(
-        of: find.text('Built-in event alerts'),
+        of: find.text('Built-in event alerts'.toUpperCase()),
         matching: find.byType(SettingsSection),
       ),
       matching: find.widgetWithText(SettingRow, title),

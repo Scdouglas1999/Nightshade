@@ -199,7 +199,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
   'catalogs': [
     'Delete annotation catalog',
     'Delete catalogs',
-    'HYG star database',
+    'HYG Star Database',
     'OpenNGC',
   ],
   'connection': [

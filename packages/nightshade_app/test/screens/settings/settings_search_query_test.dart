@@ -98,14 +98,14 @@ void main() {
         contains('Files & storage'),
         reason: '"$query" must reach the page that owns the capture directory',
       );
-      expect(results, isNot(contains('No settings match your search.')));
+      expect(results, isNot(contains('No settings match')));
     }
   });
 
   testWidgets('every token still has to match something', (tester) async {
     await _pump(tester);
     final results = await _search(tester, 'folder zzzqqqnotasetting');
-    expect(results, contains('No settings match your search.'));
+    expect(results, contains('No settings match'));
   });
 
   testWidgets('an autofocus term does not land on Files & Storage', (
