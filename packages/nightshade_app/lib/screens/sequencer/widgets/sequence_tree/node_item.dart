@@ -202,7 +202,6 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
 
   @override
   Widget build(BuildContext context) {
-    final categoryColor = _getCategoryColor();
     final statusColor = _getStatusColor();
     // An Autofocus node in defaults mode runs the AppSettings method, not its
     // own `method` field, so the row (and the screen-reader phrase built from
@@ -223,14 +222,21 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     final isTargetHeader = widget.node is TargetHeaderNode;
     final isMobile = widget.isMobile;
 
-    // Mobile-optimized sizes
-    final verticalMargin = isMobile ? 4.0 : 2.0;
-    final horizontalPadding = isMobile ? 14.0 : 12.0;
-    final verticalPadding = isMobile ? 14.0 : 10.0;
-    final iconBoxSize = isMobile ? 40.0 : 32.0;
-    final iconSize = isMobile ? 20.0 : 16.0;
-    final borderRadius = isMobile ? 12.0 : 10.0;
-    final titleFontSize = isMobile ? 14.0 : 12.0;
+    // A step at the top of the canvas is a NightshadePanel; a step nested
+    // inside a container is a `well` row inside that panel (06 §Sequencer:
+    // "its children as `well` rows"). That is the whole nesting rule —
+    // panel -> well and no deeper.
+    // depth 0 is the implicit root container, which the tree does not draw;
+    // the steps the operator sees start at depth 1 and their children at 2.
+    final isNested = widget.depth > 1;
+    final verticalMargin = isMobile ? NightshadeTokens.spaceXs : 3.0;
+    final horizontalPadding =
+        isMobile ? NightshadeTokens.spaceMd + 2 : NightshadeTokens.spaceMd;
+    final verticalPadding = isMobile
+        ? NightshadeTokens.spaceMd + 2
+        : (isNested ? NightshadeTokens.spaceSm : NightshadeTokens.spaceSm + 2);
+    final iconBoxSize = isMobile ? 40.0 : 28.0;
+    final iconSize = isMobile ? 20.0 : 14.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -266,7 +272,6 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                   // background color, not the whole row.
                   child: _buildRowBody(
                     context: context,
-                    categoryColor: categoryColor,
                     statusColor: statusColor,
                     summaryFragments: summaryFragments,
                     isDisabled: isDisabled,
@@ -276,51 +281,22 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     isSkipped: isSkipped,
                     isCancelled: isCancelled,
                     isTargetHeader: isTargetHeader,
+                    isNested: isNested,
                     isMobile: isMobile,
                     iconBoxSize: iconBoxSize,
                     iconSize: iconSize,
-                    titleFontSize: titleFontSize,
                   ),
                   builder: (context, hovered, child) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
+                    duration: NightshadeTokens.durationNormal,
+                    curve: NightshadeTokens.curveStandard,
                     margin: EdgeInsets.symmetric(vertical: verticalMargin),
                     padding: EdgeInsets.symmetric(
                         horizontal: horizontalPadding,
                         vertical: verticalPadding),
-                    decoration: BoxDecoration(
-                      color: widget.isDragging
-                          ? categoryColor.withValues(alpha: 0.2)
-                          : widget.isSelected
-                              ? NightshadeDecorations.selectedSurface(
-                                      categoryColor)
-                                  .color
-                              : isSuccess
-                                  ? widget.colors.success
-                                      .withValues(alpha: 0.06)
-                                  : isFailed
-                                      ? widget.colors.error
-                                          .withValues(alpha: 0.06)
-                                      : (isSkipped || isCancelled)
-                                          ? widget.colors.textMuted
-                                              .withValues(alpha: 0.04)
-                                          : isTargetHeader
-                                              ? categoryColor.withValues(
-                                                  alpha: 0.08)
-                                              : hovered
-                                                  ? widget.colors.surfaceAlt
-                                                  : widget.colors.surface,
-                      borderRadius: BorderRadius.circular(borderRadius),
-                      border: Border.all(
-                        color: widget.isSelected
-                            ? categoryColor
-                            : isRunning
-                                ? widget.colors.info.withValues(alpha: 0.65)
-                                : isTargetHeader
-                                    ? categoryColor.withValues(alpha: 0.3)
-                                    : widget.colors.border,
-                        width: widget.isSelected || isTargetHeader ? 2 : 1,
-                      ),
-                      boxShadow: null,
+                    decoration: _rowDecoration(
+                      isNested: isNested,
+                      isSelected: widget.isSelected || widget.isDragging,
+                      hovered: hovered,
                     ),
                     child: child,
                   ),
@@ -353,12 +329,41 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     );
   }
 
+  /// The step's container.
+  ///
+  /// Tone, not lines (02 rule 2): a top-level step is a `NightshadePanel`, a
+  /// nested step is a `well` row inside it, and the ONE line either can carry
+  /// is the selected ring. The old row painted a 2 px border in the node's
+  /// category colour plus a tinted fill per run status — five colours of
+  /// chrome competing with the sequence itself.
+  BoxDecoration _rowDecoration({
+    required bool isNested,
+    required bool isSelected,
+    required bool hovered,
+  }) {
+    final colors = widget.colors;
+    if (isSelected) {
+      final selected = NightshadeDecorations.panelSelected(colors);
+      return isNested
+          ? selected.copyWith(
+              color: colors.well,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+            )
+          : selected;
+    }
+    if (isNested) {
+      final well = NightshadeDecorations.well(colors);
+      return hovered ? well.copyWith(color: colors.surfaceHover) : well;
+    }
+    final panel = NightshadeDecorations.panel(colors);
+    return hovered ? panel.copyWith(color: colors.surfaceHover) : panel;
+  }
+
   /// The static (hover-independent) body of the row: status bar, icon, name,
   /// summary, and the action cluster. Built once and handed to the
   /// background [ValueListenableBuilder] via its `child` slot.
   Widget _buildRowBody({
     required BuildContext context,
-    required Color categoryColor,
     required Color statusColor,
     required List<SummaryFragment> summaryFragments,
     required bool isDisabled,
@@ -368,10 +373,10 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     required bool isSkipped,
     required bool isCancelled,
     required bool isTargetHeader,
+    required bool isNested,
     required bool isMobile,
     required double iconBoxSize,
     required double iconSize,
-    required double titleFontSize,
   }) {
     return Opacity(
       opacity: isDisabled
@@ -395,29 +400,48 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               ),
             ),
 
-          // Icon
-          Container(
-            width: iconBoxSize,
-            height: iconBoxSize,
-            decoration: NightshadeDecorations.tintedBadge(
-              categoryColor,
-              borderRadius: BorderRadius.circular(isMobile
-                  ? NightshadeTokens.radiusLg
-                  : NightshadeTokens.radiusInline8),
+          // Icon. A square in `well` at the top level; inside a container the
+          // row IS a well, so the glyph stands alone rather than sitting in a
+          // second inset (panel -> well is the deepest nesting there is).
+          if (isNested)
+            Icon(
+              _getIcon(),
+              size: iconSize,
+              color: widget.isSelected
+                  ? widget.colors.primary
+                  : widget.colors.textMuted,
+            )
+          else
+            Container(
+              width: iconBoxSize,
+              height: iconBoxSize,
+              decoration: widget.isSelected
+                  ? NightshadeDecorations.tintedBadge(
+                      widget.colors.primary,
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusSm),
+                    )
+                  : NightshadeDecorations.well(widget.colors),
+              child: _isExecuting
+                  ? _SpinningIcon(
+                      icon: _getIcon(),
+                      color: widget.isSelected
+                          ? widget.colors.primary
+                          : widget.colors.textSecondary,
+                      size: iconSize,
+                    )
+                  : Icon(
+                      _getIcon(),
+                      size: iconSize,
+                      color: widget.isSelected
+                          ? widget.colors.primary
+                          : widget.colors.textSecondary,
+                    ),
             ),
-            child: _isExecuting
-                ? _SpinningIcon(
-                    icon: _getIcon(),
-                    color: categoryColor,
-                    size: iconSize,
-                  )
-                : Icon(
-                    _getIcon(),
-                    size: iconSize,
-                    color: categoryColor,
-                  ),
-          ),
-          SizedBox(width: isMobile ? 14 : 12),
+          SizedBox(
+              width: isMobile
+                  ? NightshadeTokens.spaceMd + 2
+                  : NightshadeTokens.spaceSm + 2),
 
           // Name and subtitle
           Expanded(
@@ -435,11 +459,13 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     Flexible(
                       child: Text(
                         widget.node.name,
-                        style: TextStyle(
-                          fontSize: isTargetHeader
-                              ? titleFontSize + 1
-                              : titleFontSize,
-                          fontWeight: FontWeight.w600,
+                        // Step titles are 14/500 at the top level and 13 in a
+                        // nested well row (06 §Sequencer). Run OUTCOME still
+                        // colours the name — that is status, not decoration.
+                        style: (isNested
+                                ? NightshadeTypography.bodySm
+                                : NightshadeTypography.button)
+                            .copyWith(
                           color: isSuccess
                               ? widget.colors.success
                               : isFailed
@@ -485,11 +511,8 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       widget.node.comment!,
-                      style: TextStyle(
-                        fontSize: isMobile
-                            ? NightshadeTypography.fontSize12
-                            : NightshadeTypography.fontSize10,
-                        color: widget.colors.textMuted.withValues(alpha: 0.7),
+                      style: NightshadeTypography.caption.copyWith(
+                        color: widget.colors.textMuted,
                         fontStyle: FontStyle.italic,
                       ),
                       softWrap: false,
@@ -513,22 +536,20 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                             padding: const EdgeInsets.only(bottom: 2),
                             child: Text(
                               widget.progressDetail!,
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize10,
-                                color: widget.colors.info,
-                                fontWeight: FontWeight.w500,
+                              style: NightshadeTypography.caption.copyWith(
+                                color: widget.colors.primary,
                               ),
                             ),
                           ),
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline2),
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusXs),
                           child: LinearProgressIndicator(
                             value: widget.progressPercent! / 100.0,
                             minHeight: 4,
-                            backgroundColor: widget.colors.surfaceAlt,
+                            backgroundColor: widget.colors.surfaceHover,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                                widget.colors.info),
+                                widget.colors.primary),
                           ),
                         ),
                       ],

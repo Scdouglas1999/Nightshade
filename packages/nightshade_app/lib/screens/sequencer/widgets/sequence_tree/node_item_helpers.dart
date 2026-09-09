@@ -286,18 +286,11 @@ extension _NodeItemHelpers on _NodeItemState {
     }
   }
 
-  Color _getCategoryColor() {
-    switch (widget.node.category) {
-      case NodeCategory.instruction:
-        return widget.colors.primary;
-      case NodeCategory.trigger:
-        return widget.colors.warning;
-      case NodeCategory.logic:
-        return widget.colors.accent;
-      case NodeCategory.target:
-        return widget.colors.warning;
-    }
-  }
+  // _getCategoryColor is gone: a step's CATEGORY is not a status, and the
+  // four-colour scheme it drove painted chrome in four hues that meant
+  // nothing to the operator (02: "Not a colour-coded rainbow"). Colour on a
+  // step row now means exactly one of: selected (primary), succeeded
+  // (success), failed (error), skipped (muted).
 
   Color _getStatusColor() {
     switch (widget.nodeStatus) {

@@ -293,17 +293,19 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
 
   Widget _buildEmptyState(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
+    // One empty-state pattern, one button, and that button is `secondary`:
+    // the page's single primary is Start, in the header.
     return EmptyState(
       icon: LucideIcons.workflow,
-      title: 'Build Your Sequence',
+      title: 'Build your sequence',
       body: isMobile
-          ? 'Tap + to add nodes'
-          : 'Drag nodes from the palette to start building',
+          ? 'Tap + to add a node.'
+          : 'Drag a node from the palette, or double-click one.',
       action: NightshadeButton(
         onPressed: _addStarterTargetHeader,
-        label: 'Add Target Header',
+        label: 'Add a target',
         icon: LucideIcons.target,
-        variant: ButtonVariant.primary,
+        variant: ButtonVariant.secondary,
         size: ButtonSize.small,
       ),
     );
@@ -432,7 +434,14 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                   Expanded(
                     child: SingleChildScrollView(
                       controller: _scrollController,
-                      padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
+                      // 16 / 20 (06 §Sequencer): the canvas breathes at the
+                      // sides and packs vertically.
+                      padding: widget.isMobile
+                          ? const EdgeInsets.all(NightshadeTokens.spaceMd)
+                          : const EdgeInsets.symmetric(
+                              horizontal: NightshadeTokens.spaceXl,
+                              vertical: NightshadeTokens.spaceLg,
+                            ),
                       child: _NodeTreeView(
                         colors: widget.colors,
                         sequence: sequence,
