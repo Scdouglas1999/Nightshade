@@ -86,7 +86,7 @@ void main() {
     await _search(tester, 'alpaca');
 
     expect(find.text('Connection'), findsWidgets);
-    for (final row in ['Alpaca Server Address', 'Query Alpaca on startup']) {
+    for (final row in ['Alpaca server address', 'Query Alpaca on startup']) {
       final finder = _inSidebar(row);
       expect(finder, findsOneWidget, reason: '"$row" matched and is not shown');
       expect(
@@ -102,11 +102,11 @@ void main() {
     await _pump(tester);
     await _search(tester, 'alpaca');
 
-    await tester.tap(_inSidebar('Alpaca Server Address'));
+    await tester.tap(_inSidebar('Alpaca server address'));
     await tester.pumpAndSettle();
 
     // The section is open...
-    final row = _detailRow('Alpaca Server Address');
+    final row = _detailRow('Alpaca server address');
     expect(row, findsOneWidget);
     // ...with the target row on screen, not somewhere below the fold...
     final rect = tester.getRect(row);
@@ -114,7 +114,7 @@ void main() {
     expect(rect.bottom, lessThanOrEqualTo(_windowSize.height));
     // ...and marked, so it is findable at a glance on a page of 20 rows.
     expect(
-      _highlighted(tester, 'Alpaca Server Address'),
+      _highlighted(tester, 'Alpaca server address'),
       isTrue,
       reason: 'the row the search sent you to must be pointed at',
     );
@@ -122,7 +122,7 @@ void main() {
 
   // The index cannot tell a SettingsSection heading from a SettingRow title,
   // so headings are offered as row results too: "dither" offers "Dithering",
-  // and "meridian flip" offers ONLY "Meridian Flip" on the Sequencer entry.
+  // and "meridian flip" offers ONLY "Meridian flip" on the Sequencer entry.
   // Before this was wired, tapping one opened the page at the top and marked
   // nothing — the same dead end the row results were added to end.
   testWidgets('a matched SECTION HEADING is revealed too, not just rows',
@@ -171,13 +171,13 @@ void main() {
       (tester) async {
     await _pump(tester);
     await _search(tester, 'alpaca');
-    await tester.tap(_inSidebar('Alpaca Server Address'));
+    await tester.tap(_inSidebar('Alpaca server address'));
     await tester.pumpAndSettle();
-    expect(_highlighted(tester, 'Alpaca Server Address'), isTrue);
+    expect(_highlighted(tester, 'Alpaca server address'), isTrue);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
 
-    expect(_highlighted(tester, 'Alpaca Server Address'), isFalse);
+    expect(_highlighted(tester, 'Alpaca server address'), isFalse);
   });
 }

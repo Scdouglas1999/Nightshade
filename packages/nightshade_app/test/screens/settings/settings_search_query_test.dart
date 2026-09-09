@@ -95,7 +95,7 @@ void main() {
       final results = await _search(tester, query);
       expect(
         results,
-        contains('Files & Storage'),
+        contains('Files & storage'),
         reason: '"$query" must reach the page that owns the capture directory',
       );
       expect(results, isNot(contains('No settings match your search.')));
@@ -120,7 +120,7 @@ void main() {
       final results = await _search(tester, query);
       expect(
         results,
-        isNot(contains('Files & Storage')),
+        isNot(contains('Files & storage')),
         reason: '"$query" is an Autofocus setting; Files & Storage has none',
       );
     }
@@ -135,7 +135,7 @@ void main() {
     final results = await _search(tester, 'updates');
     expect(results, contains('About'));
     expect(
-      results.indexOf('Appliance Updates'),
+      results.indexOf('Appliance updates'),
       lessThan(results.indexOf('About')),
     );
   });
@@ -153,9 +153,9 @@ void main() {
         // them made the search look like it worked while pointing at text the
         // page never renders.
         if (const {
-          'Delete Deep-Star Tiles',
+          'Delete deep-star tiles',
           'Roll back this rig?',
-          'Restore Remote Backup?',
+          'Restore remote backup?',
           'Clear logs?',
           'Could not load profiles',
           'PHD2 executable on imaging host',

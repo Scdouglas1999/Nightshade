@@ -193,10 +193,10 @@ void main() {
     expect(
       offenders,
       unorderedEquals(<String>[
-        'Guided Flows',
-        'Tutorial Tours',
-        'Reset Progress',
-        'Help & Tutorials',
+        'Guided flows',
+        'Tutorial tours',
+        'Reset progress',
+        'Help & tutorials',
       ]),
     );
   });

@@ -78,15 +78,15 @@ void main() {
     // Both groups start collapsed; expand them and reveal their sections (the
     // grouped ListView builds rows lazily, so scroll the entry into view).
     await _expandGroup(tester, 'Imaging');
-    await revealInSettingsSidebar(tester, find.text('Adaptive Exposure'));
-    expect(find.text('Adaptive Exposure'), findsOneWidget,
-        reason: 'The "Adaptive Exposure" sidebar entry must exist under the '
+    await revealInSettingsSidebar(tester, find.text('Adaptive exposure'));
+    expect(find.text('Adaptive exposure'), findsOneWidget,
+        reason: 'The "Adaptive exposure" sidebar entry must exist under the '
             'Imaging group.');
 
     await _expandGroup(tester, 'Automation & Safety');
-    await revealInSettingsSidebar(tester, find.text('Pre-flight Checks'));
-    expect(find.text('Pre-flight Checks'), findsOneWidget,
-        reason: 'The "Pre-flight Checks" sidebar entry must exist under the '
+    await revealInSettingsSidebar(tester, find.text('Pre-flight checks'));
+    expect(find.text('Pre-flight checks'), findsOneWidget,
+        reason: 'The "Pre-flight checks" sidebar entry must exist under the '
             'Automation & Safety group.');
   });
 
@@ -106,7 +106,7 @@ void main() {
     );
 
     await _expandGroup(tester, 'Imaging');
-    await _selectSection(tester, 'Adaptive Exposure');
+    await _selectSection(tester, 'Adaptive exposure');
 
     expect(find.byType(AdaptiveExposureSettings), findsOneWidget,
         reason: 'Tapping Adaptive Exposure must swap the content pane to '
@@ -131,7 +131,7 @@ void main() {
     );
 
     await _expandGroup(tester, 'Automation & Safety');
-    await _selectSection(tester, 'Pre-flight Checks');
+    await _selectSection(tester, 'Pre-flight checks');
 
     expect(find.byType(PreflightSettings), findsOneWidget,
         reason: 'Tapping Pre-flight Checks must render PreflightSettings.');
@@ -162,7 +162,7 @@ void main() {
     );
 
     await _expandGroup(tester, 'Automation & Safety');
-    await _selectSection(tester, 'Pre-flight Checks');
+    await _selectSection(tester, 'Pre-flight checks');
 
     // The Strict option carries a ValueKey we can target deterministically.
     final strictRow = find.byKey(const ValueKey('preflightStrictness_strict'));

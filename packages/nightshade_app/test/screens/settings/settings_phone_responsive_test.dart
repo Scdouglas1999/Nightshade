@@ -24,6 +24,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/general_settings.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
@@ -154,9 +155,9 @@ void main() {
           reason: 'The detail pane is full-screen on phone; the grouped list '
               'must not also be visible at $label.');
 
-      // Back returns to the list. The detail header has a single IconButton
-      // (the back arrow).
-      await tester.tap(find.byType(IconButton).first);
+      // Back returns to the list. The detail header has a single icon button
+      // (the back arrow), now the design system's NightshadeIconButton.
+      await tester.tap(find.byType(NightshadeIconButton).first);
       await tester.pumpAndSettle(const Duration(seconds: 1));
       expect(find.text('GENERAL'), findsOneWidget,
           reason: 'Back from the detail pane must restore the grouped list '

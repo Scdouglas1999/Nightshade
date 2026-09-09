@@ -422,7 +422,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
       ],
     ),
     SettingsGroupDef(
-      title: 'Automation & safety',
+      title: 'Automation & Safety',
       displayTitle: t('settingsGroupAutomationSafety'),
       icon: LucideIcons.listOrdered,
       sections: [
@@ -574,7 +574,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
       ],
     ),
     SettingsGroupDef(
-      title: 'Notifications & remote',
+      title: 'Notifications & Remote',
       displayTitle: t('settingsGroupNotificationsRemote'),
       icon: LucideIcons.bell,
       sections: [

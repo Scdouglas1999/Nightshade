@@ -38,7 +38,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final row = find.text('Alpaca Server Address');
+    final row = find.text('Alpaca server address');
     expect(row, findsOneWidget);
     expect(
       find.textContaining('localhost:11111'),
@@ -86,7 +86,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Alpaca Server Address'));
+    await tester.ensureVisible(find.text('Alpaca server address'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Configure').last);
     await tester.pumpAndSettle();
@@ -138,7 +138,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Alpaca Server Address'));
+      await tester.ensureVisible(find.text('Alpaca server address'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Configure').last);
       await tester.pumpAndSettle();

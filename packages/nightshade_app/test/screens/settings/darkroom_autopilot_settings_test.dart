@@ -510,7 +510,7 @@ void main() {
     const links = [
       (
         'Auto-integrate has to be on for any of this to run',
-        'Image Grading',
+        'Image grading',
         'image-grading'
       ),
       (

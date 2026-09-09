@@ -1,7 +1,7 @@
 // Settings → Location must not claim things it did not do.
 //
 // Three claims are pinned here:
-//   1. "Sync from Server" must not report a green "Location synced from server"
+//   1. "Sync from server" must not report a green "Location synced from server"
 //      on a standalone desktop, where the read goes to this app's own settings
 //      store and nothing is fetched from anywhere.
 //   2. "Use Device Location" must ask before the third-party IP lookup, and
@@ -53,12 +53,12 @@ Future<HarnessHandle> _pumpLocation(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Sync from Server', () {
+  group('Sync from server', () {
     testWidgets('is not offered on a standalone (local) session', (
       tester,
     ) async {
       await _pumpLocation(tester, settings: const AppSettingsState());
-      expect(find.text('Sync from Server'), findsNothing);
+      expect(find.text('Sync from server'), findsNothing);
     });
 
     testWidgets('is offered when a host is actually connected', (tester) async {
@@ -67,11 +67,11 @@ void main() {
         settings: const AppSettingsState(),
         isRemote: true,
       );
-      expect(find.text('Sync from Server'), findsOneWidget);
+      expect(find.text('Sync from server'), findsOneWidget);
     });
   });
 
-  group('Detect Location', () {
+  group('Detect location', () {
     const seattle = AppSettingsState(
       latitude: 47.6062,
       longitude: -122.3321,
@@ -81,7 +81,7 @@ void main() {
     testWidgets('is not labelled GPS', (tester) async {
       await _pumpLocation(tester, settings: seattle);
       expect(find.text('Get location from GPS'), findsNothing);
-      expect(find.text('Detect Location'), findsOneWidget);
+      expect(find.text('Detect location'), findsOneWidget);
     });
 
     testWidgets('asks before anything leaves the machine', (tester) async {

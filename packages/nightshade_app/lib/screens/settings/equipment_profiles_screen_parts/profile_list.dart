@@ -230,9 +230,15 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         ),
                         if (widget.isActive) ...[
                           const SizedBox(width: 8),
-                          _ProfileBadge(
-                            label: 'Active',
-                            color: NightshadeColors.of(context).primary,
+                          // Flexible, not fixed: the badge label is an 11 px
+                          // eyebrow now, and two of them beside a long profile
+                          // name overflowed the row by 5 px. The name shrinks
+                          // first (it is Expanded); these give way after it.
+                          Flexible(
+                            child: _ProfileBadge(
+                              label: 'Active',
+                              color: NightshadeColors.of(context).primary,
+                            ),
                           ),
                         ],
                         // "Active" and "startup default" are different flags —
@@ -240,9 +246,11 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         // to be able to see which row that is.
                         if (widget.profile.isDefault) ...[
                           const SizedBox(width: 4),
-                          _ProfileBadge(
-                            label: 'Default',
-                            color: NightshadeColors.of(context).textSecondary,
+                          Flexible(
+                            child: _ProfileBadge(
+                              label: 'Default',
+                              color: NightshadeColors.of(context).textSecondary,
+                            ),
                           ),
                         ],
                       ],
@@ -285,6 +293,9 @@ class _ProfileBadge extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
         style: NightshadeTypography.eyebrow.copyWith(
           color: color,
         ),

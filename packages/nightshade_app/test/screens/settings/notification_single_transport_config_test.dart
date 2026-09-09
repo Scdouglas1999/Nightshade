@@ -77,8 +77,8 @@ void main() {
       expect(find.text('API token'), findsOneWidget);
       expect(find.text('User key'), findsOneWidget);
       // The legacy row's distinct labels are gone from the local page.
-      expect(find.text('API Key'), findsNothing);
-      expect(find.text('User Key'), findsNothing);
+      expect(find.text('API key'), findsNothing);
+      expect(find.text('User key'), findsNothing);
 
       // One test action per transport.
       expect(find.text('Test Discord'), findsOneWidget);

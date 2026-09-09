@@ -122,7 +122,7 @@ void main() {
         ],
       );
 
-      final entry = find.text('INDI Server Address');
+      final entry = find.text('INDI server address');
       expect(entry, findsOneWidget);
       // Subtitle reflects the configured address.
       expect(find.textContaining('10.0.0.9:7625'), findsOneWidget);
