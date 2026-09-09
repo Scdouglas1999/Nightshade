@@ -53,7 +53,7 @@ class AnnotationMiniChips extends ConsumerWidget {
                 ref.read(selectedAnnotationObjectProvider.notifier).state = obj;
                 // Switch to the annotations tab when a chip is tapped
                 ref.read(selectedImagingPanelProvider.notifier).state =
-                    PanelTabs.annotationsTabIndex;
+                    ImagingSidePanel.annotationsSectionIndex;
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

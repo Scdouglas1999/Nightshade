@@ -1,13 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/help/field_help_label.dart';
-import '../../../widgets/pill_tab.dart';
 import '../../../widgets/touch_target_floor.dart';
 
 /// Builds an imaging-panel row label, optionally appending a [helpAffordance]
@@ -51,140 +47,6 @@ Widget _panelRowLabel(
       ),
     ],
   );
-}
-
-class PanelTabs extends ConsumerWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
-  final NightshadeColors colors;
-
-  /// Compact density for phones — denser pills + tighter padding/gaps so the
-  /// 4x2 selector grid claims less of a short landscape viewport.
-  final bool compact;
-
-  const PanelTabs({
-    super.key,
-    required this.selectedIndex,
-    required this.onSelected,
-    required this.colors,
-    this.compact = false,
-  });
-
-  static const _tabs = [
-    (NightshadeIcons.camera, 'Capture'),
-    (NightshadeIcons.aperture, 'Camera'),
-    (NightshadeIcons.focuser, 'Focus'),
-    (NightshadeIcons.crosshair, 'Guiding'),
-    (NightshadeIcons.compass, 'Mount'),
-    (NightshadeIcons.rotator, 'Rotator'),
-    (NightshadeIcons.layers, 'Stack'),
-    (LucideIcons.sparkle, 'Annotations'),
-  ];
-
-  /// Index of the Annotations tab
-  static const int annotationsTabIndex = 7;
-
-  /// Number of columns in the tab grid.
-  static const int _columns = 4;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final annotation = ref.watch(currentAnnotationProvider);
-    final objectCount = annotation?.objects.length ?? 0;
-
-    final rowCount = (_tabs.length + _columns - 1) ~/ _columns;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        border: Border(
-          bottom: BorderSide(color: colors.border),
-        ),
-      ),
-      padding: compact
-          ? const EdgeInsets.all(4)
-          : const EdgeInsets.fromLTRB(6, 6, 6, 6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var row = 0; row < rowCount; row++) ...[
-            if (row > 0) SizedBox(height: compact ? 4 : 6),
-            _buildRow(row, objectCount),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRow(int row, int objectCount) {
-    final startIndex = row * _columns;
-    return Row(
-      children: List.generate(_columns, (col) {
-        final tabIndex = startIndex + col;
-
-        if (tabIndex >= _tabs.length) {
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(left: col == 0 ? 0 : 6),
-              child: const SizedBox.shrink(),
-            ),
-          );
-        }
-
-        final (icon, label) = _tabs[tabIndex];
-        final isSelected = tabIndex == selectedIndex;
-        final displayLabel = tabIndex == annotationsTabIndex && objectCount > 0
-            ? '$label ($objectCount)'
-            : label;
-
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(left: col == 0 ? 0 : (compact ? 4 : 6)),
-            child: _PanelTab(
-              icon: icon,
-              label: displayLabel,
-              isSelected: isSelected,
-              onTap: () => onSelected(tabIndex),
-              colors: colors,
-              dense: compact,
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-/// Thin wrapper around the shared [PillTab]. The imaging panel keeps its own
-/// type name for grid layout in [PanelTabs]; the pill styling itself is shared.
-class _PanelTab extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final NightshadeColors colors;
-  final bool dense;
-
-  const _PanelTab({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    required this.colors,
-    this.dense = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PillTab(
-      icon: icon,
-      label: label,
-      isSelected: isSelected,
-      onTap: onTap,
-      colors: colors,
-      dense: dense,
-    );
-  }
 }
 
 class BigActionButton extends StatefulWidget {

@@ -7,27 +7,36 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../widgets/catalog_overlay_widget.dart'
     show CatalogOverlayPopover;
 import '../../../widgets/tutorial_keys/imaging_keys.dart';
-import 'annotation_widgets.dart' show annotationPanelVisibleProvider;
+import 'annotation_panel.dart' show annotationPanelVisibleProvider;
 import 'custom_annotation_drawing.dart'
     show customAnnotationDrawModeActiveProvider, toggleAnnotationDrawPalette;
 import 'live_preview_area.dart' show previewReadoutsVisibleProvider;
-import 'overlay_widgets.dart';
 import 'preview_display_scale.dart' show previewDisplayScaleProvider;
 
-/// Slim, off-canvas toolbar that sits *above* the live preview image rather
-/// than floating over it. Hosts three groups, left-to-right:
+/// The 44 px viewer toolbar above the canvas (06 §Imaging).
 ///
-///  1. A low-emphasis status readout cluster (resolution / binning / zoom% and
-///     a Sky transparency readout). Reads as STATUS — no button chrome.
-///  2. A single labelled **Overlays** popover holding the overlay toggles as
-///     labelled rows, so the frame is not fringed with loose glyphs.
-///  3. A tight view-controls group (zoom in/out, 1:1, fit, abort capture).
+/// Left: the frame's mono meta line — size, binning, zoom and sky brightness,
+/// values loud and their labels quiet. Right: one [NightshadeToolbar] with the
+/// named actions first (Overlays, Annotate) and the view glyphs after it.
 ///
-/// The same widget renders for both the desktop and mobile imaging layouts.
-/// On narrow widths the status cluster is allowed to scroll horizontally so it
-/// never pushes the controls off-screen; the controls stay pinned trailing.
-class ImagingPreviewToolbar extends ConsumerWidget {
-  final NightshadeColors colors;
+/// Nothing here floats over the image. The canvas below runs edge to edge and
+/// carries only glass.
+class ImagingPreviewToolbar extends ConsumerStatefulWidget {
+  const ImagingPreviewToolbar({
+    super.key,
+    required this.showCrosshair,
+    required this.showStarOverlay,
+    required this.isStoppingCapture,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onFitToWindow,
+    required this.onZoom1to1,
+    required this.onAbortCapture,
+    required this.onToggleCrosshair,
+    required this.onToggleStarOverlay,
+    this.onFullscreen,
+  });
+
   final bool showCrosshair;
   final bool showStarOverlay;
 
@@ -43,248 +52,305 @@ class ImagingPreviewToolbar extends ConsumerWidget {
   final VoidCallback onToggleCrosshair;
   final VoidCallback onToggleStarOverlay;
 
-  const ImagingPreviewToolbar({
-    super.key,
-    required this.colors,
-    required this.showCrosshair,
-    required this.showStarOverlay,
-    required this.isStoppingCapture,
-    required this.onZoomIn,
-    required this.onZoomOut,
-    required this.onFitToWindow,
-    required this.onZoom1to1,
-    required this.onAbortCapture,
-    required this.onToggleCrosshair,
-    required this.onToggleStarOverlay,
-  });
+  /// Opens the frame in the fullscreen viewer. Null when there is no frame.
+  final VoidCallback? onFullscreen;
+
+  /// The bar's height (06 §Imaging: "A 44 px viewer toolbar on top").
+  static const double height = 44;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ImagingPreviewToolbar> createState() =>
+      _ImagingPreviewToolbarState();
+}
+
+class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
+  /// Anchors the overflow menu to the toolbar's own box.
+  final GlobalKey _barKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
     final currentImage = ref.watch(currentImageProvider);
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
     final scienceSnapshot = ref.watch(currentScienceSnapshotProvider);
     final latestTransparency = scienceSnapshot.$2;
+    final showAbort = !widget.isStoppingCapture &&
+        exposureProgress.remaining > 0 &&
+        !exposureProgress.isDownloading;
 
-    final status = _StatusReadoutCluster(
-      colors: colors,
-      resolutionLabel: currentImage != null
-          ? '${currentImage.width} × ${currentImage.height}'
-          : '--- × ---',
-      binningLabel: 'Bin ${exposureSettings.binning}',
+    final meta = _ViewerMeta(
+      // Null renders "—", never "--- × ---" (02 rule 3).
+      resolution: currentImage == null
+          ? null
+          : '${currentImage.width} × ${currentImage.height}',
+      binning: exposureSettings.binning,
       // Screen px per image px, as measured by the preview itself. The viewer
       // state's zoom is a fit-relative multiplier, so printing it as a
-      // percentage labelled a 4144 px frame letterboxed into ~990 px "100%" —
-      // and made the 1:1 button look like it did nothing.
-      zoomLabel: '${(ref.watch(previewDisplayScaleProvider) * 100).round()}%',
-      showCalibration: true,
-      skyLabel: latestTransparency == null
-          ? 'Sky --'
-          : 'Sky ${latestTransparency.qualityBucket}',
+      // percentage labelled a 4144 px frame letterboxed into ~990 px "100%".
+      zoom: '${(ref.watch(previewDisplayScaleProvider) * 100).round()}%',
+      sky: latestTransparency?.qualityBucket,
     );
 
-    final overlays = OverlaysMenuButton(
-      colors: colors,
-      showCrosshair: showCrosshair,
-      showStarOverlay: showStarOverlay,
-      onToggleCrosshair: onToggleCrosshair,
-      onToggleStarOverlay: onToggleStarOverlay,
-    );
-
-    final viewControls = _ViewControlsGroup(
-      colors: colors,
-      onZoomIn: onZoomIn,
-      onZoomOut: onZoomOut,
-      onZoom1to1: onZoom1to1,
-      onFitToWindow: onFitToWindow,
-      onAbortCapture: onAbortCapture,
-      showAbort: !isStoppingCapture &&
-          exposureProgress.remaining > 0 &&
-          !exposureProgress.isDownloading,
-    );
-
-    final trailing = <Widget>[
-      overlays,
-      const SizedBox(width: NightshadeTokens.spaceXs),
-      // Annotate toggle: opens/closes the docked drawing palette. Only
-      // meaningful with a frame on the canvas to draw over.
-      if (currentImage != null) ...[
-        _DrawModeButton(colors: colors),
-        const SizedBox(width: NightshadeTokens.spaceXs),
+    final toolbar = NightshadeToolbar(
+      key: _barKey,
+      overflowIcon: LucideIcons.moreHorizontal,
+      onOverflowPressed: () => _showOverflowMenu(showAbort: showAbort),
+      overflow: <Widget>[
+        NightshadeIconButton(
+          icon: NightshadeIcons.collapse,
+          tooltip: '1:1 zoom',
+          size: IconButtonSize.sm,
+          onPressed: widget.onZoom1to1,
+        ),
+        const _CatalogOverlaySettingsButton(),
+        if (showAbort)
+          NightshadeIconButton(
+            key: ImagingTutorialKeys.abortBtn,
+            icon: NightshadeIcons.close,
+            tooltip: 'Abort capture',
+            size: IconButtonSize.sm,
+            color: colors.error,
+            onPressed: widget.onAbortCapture,
+          ),
       ],
-      viewControls,
-    ];
+      groups: <List<Widget>>[
+        <Widget>[
+          OverlaysMenuButton(
+            showCrosshair: widget.showCrosshair,
+            showStarOverlay: widget.showStarOverlay,
+            onToggleCrosshair: widget.onToggleCrosshair,
+            onToggleStarOverlay: widget.onToggleStarOverlay,
+          ),
+          _AnnotateButton(enabled: currentImage != null),
+        ],
+        <Widget>[
+          NightshadeIconButton(
+            icon: NightshadeIcons.crosshair,
+            tooltip: 'Crosshair',
+            size: IconButtonSize.sm,
+            selected: widget.showCrosshair,
+            onPressed: widget.onToggleCrosshair,
+          ),
+          NightshadeIconButton(
+            icon: LucideIcons.zoomIn,
+            tooltip: 'Zoom in',
+            size: IconButtonSize.sm,
+            onPressed: widget.onZoomIn,
+          ),
+          NightshadeIconButton(
+            icon: LucideIcons.zoomOut,
+            tooltip: 'Zoom out',
+            size: IconButtonSize.sm,
+            onPressed: widget.onZoomOut,
+          ),
+          NightshadeIconButton(
+            icon: LucideIcons.scan,
+            tooltip: 'Fit to window',
+            size: IconButtonSize.sm,
+            onPressed: widget.onFitToWindow,
+          ),
+          NightshadeIconButton(
+            icon: LucideIcons.maximize,
+            tooltip: 'Fullscreen',
+            size: IconButtonSize.sm,
+            onPressed: widget.onFullscreen,
+          ),
+        ],
+      ],
+    );
 
     return Container(
+      height: ImagingPreviewToolbar.height,
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: colors.background,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceXs,
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // The status readouts + Overlays menu + view controls do not all fit
-          // on a narrow bar. Rather than clip, the whole bar becomes one
-          // horizontally-scrolling row so every control stays reachable. Only
-          // on a genuinely wide bar does the status cluster take the slack
-          // (Expanded) with controls pinned right. The threshold is set above
-          // the widest phone-landscape image pane (~544px on a Z Fold cover
-          // split) so that pane scrolls instead of overflowing the trailing
-          // controls by a few px; desktop full-width toolbars still expand.
-          const wideEnough = 680.0;
-          if (constraints.maxWidth >= wideEnough) {
-            return Row(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: status,
-                  ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                ...trailing,
-              ],
-            );
-          }
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                status,
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                ...trailing,
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Labelled "Annotate" toggle. Flips [annotationDrawPaletteOpenProvider] via
-/// [toggleAnnotationDrawPalette] so the docked drawing palette appears at the
-/// bottom of the canvas only while drawing is active. Shows the active accent
-/// while the palette / a tool is engaged.
-class _DrawModeButton extends ConsumerWidget {
-  final NightshadeColors colors;
-
-  const _DrawModeButton({required this.colors});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final active = ref.watch(customAnnotationDrawModeActiveProvider);
-    return _LabeledToolbarToggle(
-      colors: colors,
-      icon: NightshadeIcons.edit,
-      label: 'Annotate',
-      tooltip: active ? 'Close drawing tools' : 'Draw on the image',
-      active: active,
-      onTap: () => toggleAnnotationDrawPalette(ref),
-    );
-  }
-}
-
-/// Low-emphasis, non-interactive status readout. Renders as a row of muted
-/// text segments separated by thin dividers — deliberately *not* chips with
-/// button chrome, so it never reads as tappable. The Sky/transparency readout
-/// sits behind a leading gauge icon; zero-point now lives only in the richer
-/// tappable [FrameScienceChip] on the canvas.
-class _StatusReadoutCluster extends StatelessWidget {
-  final NightshadeColors colors;
-  final String resolutionLabel;
-  final String binningLabel;
-  final String zoomLabel;
-  final bool showCalibration;
-  final String skyLabel;
-
-  const _StatusReadoutCluster({
-    required this.colors,
-    required this.resolutionLabel,
-    required this.binningLabel,
-    required this.zoomLabel,
-    required this.showCalibration,
-    required this.skyLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final children = <Widget>[
-      _segment(NightshadeIcons.expand, resolutionLabel),
-      _divider(),
-      _segment(NightshadeIcons.grid, binningLabel),
-      _divider(),
-      _segment(NightshadeIcons.search, zoomLabel),
-    ];
-
-    if (showCalibration) {
-      children
-        ..add(_divider())
-        ..add(_segment(NightshadeIcons.gauge, skyLabel));
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: children,
-    );
-  }
-
-  Widget _segment(IconData icon, String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceSm),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: colors.textMuted),
-          const SizedBox(width: NightshadeTokens.spaceXs),
+        key: ImagingTutorialKeys.zoomControls,
+        children: <Widget>[
+          // The meta line yields its width before the actions do: a clipped
+          // zoom readout is a nuisance, an unreachable Fit button is a defect.
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: meta,
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          toolbar,
+        ],
+      ),
+    );
+  }
+
+  void _showOverflowMenu({required bool showAbort}) {
+    final box = _barKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlay == null) return;
+    final origin =
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay);
+    showMenu<VoidCallback>(
+      context: context,
+      color: context.nightshadeColors.surfaceElevated,
+      position: RelativeRect.fromLTRB(
+        origin.dx,
+        origin.dy,
+        overlay.size.width - origin.dx,
+        0,
+      ),
+      items: <PopupMenuEntry<VoidCallback>>[
+        _menuItem(
+          icon: NightshadeIcons.collapse,
+          label: '1:1 zoom',
+          onTap: widget.onZoom1to1,
+        ),
+        if (showAbort)
+          _menuItem(
+            icon: NightshadeIcons.close,
+            label: 'Abort capture',
+            onTap: widget.onAbortCapture,
+          ),
+      ],
+    );
+  }
+
+  PopupMenuItem<VoidCallback> _menuItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final colors = context.nightshadeColors;
+    return PopupMenuItem<VoidCallback>(
+      value: onTap,
+      onTap: onTap,
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: NightshadeTokens.iconSm, color: colors.textMuted),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             label,
-            style: NightshadeTypography.captionSm.copyWith(
-              color: colors.textSecondary,
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textPrimary,
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _divider() {
-    return Container(
-      width: 1,
-      height: 14,
-      color: colors.border,
+/// `6248 × 4176 · Bin 1×1 · Zoom 55% · Sky 19.8 mag/″²` — mono 12, values in
+/// `textPrimary`, their qualifiers in `textSecondary`, 14 px apart.
+class _ViewerMeta extends StatelessWidget {
+  const _ViewerMeta({
+    required this.resolution,
+    required this.binning,
+    required this.zoom,
+    required this.sky,
+  });
+
+  final String? resolution;
+  final String binning;
+  final String zoom;
+  final String? sky;
+
+  /// Gap between the segments (`observatory.css` `.vtool .meta`).
+  static const double segmentGap = 14;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final label = NightshadeTypography.monoCaption.copyWith(
+      color: colors.textSecondary,
+    );
+    final value = NightshadeTypography.monoCaption.copyWith(
+      color: colors.textPrimary,
+      fontWeight: FontWeight.w500,
+    );
+    final muted = NightshadeTypography.monoCaption.copyWith(
+      color: colors.textMuted,
+    );
+
+    Widget segment(String? prefix, String? text, [String? suffix]) {
+      return Text.rich(
+        TextSpan(
+          children: <InlineSpan>[
+            if (prefix != null) TextSpan(text: '$prefix ', style: label),
+            TextSpan(text: text ?? '—', style: text == null ? muted : value),
+            if (suffix != null) TextSpan(text: ' $suffix', style: label),
+          ],
+        ),
+        maxLines: 1,
+        softWrap: false,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        segment(null, resolution),
+        const SizedBox(width: segmentGap),
+        segment('Bin', binning),
+        const SizedBox(width: segmentGap),
+        segment('Zoom', zoom),
+        const SizedBox(width: segmentGap),
+        segment('Sky', sky, 'mag/″²'),
+      ],
+    );
+  }
+}
+
+/// The "Annotate" toggle. Flips [customAnnotationDrawModeActiveProvider] via
+/// [toggleAnnotationDrawPalette] so the docked drawing palette appears at the
+/// bottom of the canvas only while drawing is active.
+class _AnnotateButton extends ConsumerWidget {
+  const _AnnotateButton({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(customAnnotationDrawModeActiveProvider);
+    // A ghost button has no on-state in the sheet, so the toggle publishes it
+    // as semantics; on screen the docked drawing palette IS the on-state.
+    return Semantics(
+      toggled: active,
+      child: NightshadeButton(
+        label: 'Annotate',
+        icon: NightshadeIcons.tag,
+        size: ButtonSize.small,
+        variant: ButtonVariant.ghost,
+        semanticsHint: enabled ? null : 'Available once a frame is on screen',
+        onPressed: enabled ? () => toggleAnnotationDrawPalette(ref) : null,
+      ),
     );
   }
 }
 
 /// The single labelled "Overlays" entry point. Tapping opens a compact popover
 /// of labelled checkbox rows, one per overlay.
-///
-/// The button shows the active accent whenever *any* overlay is enabled, so the
-/// operator still gets at-a-glance "something is drawn on the frame" feedback
-/// without six competing glyphs.
 class OverlaysMenuButton extends ConsumerWidget {
-  final NightshadeColors colors;
-  final bool showCrosshair;
-  final bool showStarOverlay;
-  final VoidCallback onToggleCrosshair;
-  final VoidCallback onToggleStarOverlay;
-
   const OverlaysMenuButton({
     super.key,
-    required this.colors,
     required this.showCrosshair,
     required this.showStarOverlay,
     required this.onToggleCrosshair,
     required this.onToggleStarOverlay,
   });
 
+  final bool showCrosshair;
+  final bool showStarOverlay;
+  final VoidCallback onToggleCrosshair;
+  final VoidCallback onToggleStarOverlay;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.nightshadeColors;
     final annotationSettings =
         ref.watch(annotationSettingsProvider).valueOrNull;
     final gridType = annotationSettings?.gridType ?? GridType.none;
@@ -294,18 +360,11 @@ class OverlaysMenuButton extends ConsumerWidget {
     final scienceHudVisible = scienceMode.scienceHudVisible;
     final readoutsVisible = ref.watch(previewReadoutsVisibleProvider);
 
-    final anyOverlayActive = showCrosshair ||
-        gridType != GridType.none ||
-        showStarOverlay ||
-        annotationPanelVisible ||
-        catalogEnabled ||
-        scienceHudVisible;
-
     // Undeclared, this publishes as `panel: Overlays [DISABLED]` — a live popup
     // trigger announced as an inert panel — because PopupMenuButton's InkWell
-    // contributes a tap action but no button role or enabled state, and the pill
-    // inside contributes a second, separate named node. One control, one node,
-    // with the role and the state it actually has.
+    // contributes a tap action but no button role or enabled state, and the
+    // label inside contributes a second, separate named node. One control, one
+    // node, with the role and the state it actually has.
     return MergeSemantics(
       child: Semantics(
         button: true,
@@ -314,21 +373,19 @@ class OverlaysMenuButton extends ConsumerWidget {
         child: PopupMenuButton<int>(
           tooltip: 'Overlays',
           position: PopupMenuPosition.under,
-          offset: const Offset(0, 6),
+          offset: const Offset(0, NightshadeTokens.spaceXs),
           color: colors.surfaceElevated,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           constraints: const BoxConstraints(minWidth: 248, maxWidth: 296),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+            borderRadius: NightshadeTokens.borderRadiusXl,
             side: BorderSide(color: colors.border),
           ),
-          // Each item handles its own onTap so the menu stays open is NOT desired —
-          // PopupMenu closes after a tap, which matches a quick "flip one overlay"
-          // interaction. Re-opening to flip a second overlay is one click.
-          itemBuilder: (context) {
+          itemBuilder: (BuildContext context) {
             return <PopupMenuEntry<int>>[
               _overlayItem(
+                colors: colors,
                 value: 0,
                 icon: NightshadeIcons.crosshair,
                 label: 'Crosshair',
@@ -336,6 +393,7 @@ class OverlaysMenuButton extends ConsumerWidget {
                 onTap: onToggleCrosshair,
               ),
               _overlayItem(
+                colors: colors,
                 value: 1,
                 icon: gridType == GridType.celestial
                     ? NightshadeIcons.globe
@@ -355,6 +413,7 @@ class OverlaysMenuButton extends ConsumerWidget {
                         .cycleGridType(),
               ),
               _overlayItem(
+                colors: colors,
                 value: 2,
                 icon: NightshadeIcons.sparkle,
                 label: 'Star detection',
@@ -362,6 +421,7 @@ class OverlaysMenuButton extends ConsumerWidget {
                 onTap: onToggleStarOverlay,
               ),
               _overlayItem(
+                colors: colors,
                 value: 3,
                 icon: NightshadeIcons.list,
                 label: 'Object annotations',
@@ -371,6 +431,7 @@ class OverlaysMenuButton extends ConsumerWidget {
                     .state = !annotationPanelVisible,
               ),
               _overlayItem(
+                colors: colors,
                 value: 4,
                 icon: NightshadeIcons.target,
                 label: 'Catalog overlay',
@@ -380,6 +441,7 @@ class OverlaysMenuButton extends ConsumerWidget {
                     .state = !catalogEnabled,
               ),
               _overlayItem(
+                colors: colors,
                 value: 5,
                 icon: NightshadeIcons.science,
                 label: 'Science HUD',
@@ -393,6 +455,7 @@ class OverlaysMenuButton extends ConsumerWidget {
               // on the canvas hides itself on a timer. This row is how the
               // clean-frame view is asked for.
               _overlayItem(
+                colors: colors,
                 value: 6,
                 icon: NightshadeIcons.activity,
                 label: 'Readouts',
@@ -404,20 +467,18 @@ class OverlaysMenuButton extends ConsumerWidget {
               ),
             ];
           },
-          // Excluded so the pill does not publish a SECOND "Overlays" node beside
-          // the one the wrapper above owns; PopupMenuButton's tap sits above this,
-          // so the action is unaffected.
+          // Excluded so the label does not publish a SECOND "Overlays" node
+          // beside the one the wrapper above owns; PopupMenuButton's tap sits
+          // above this, so the action is unaffected.
           child: ExcludeSemantics(
-            child: _LabeledToolbarToggle(
-              colors: colors,
-              icon: NightshadeIcons.layers,
-              label: 'Overlays',
-              // Tooltip is provided by PopupMenuButton itself; the pill is purely
-              // visual here so the popup owns the tap.
-              tooltip: null,
-              active: anyOverlayActive,
-              showChevron: true,
-              onTap: null,
+            child: IgnorePointer(
+              child: NightshadeButton(
+                label: 'Overlays',
+                icon: NightshadeIcons.layers,
+                size: ButtonSize.small,
+                variant: ButtonVariant.ghost,
+                onPressed: () {},
+              ),
             ),
           ),
         ),
@@ -426,6 +487,7 @@ class OverlaysMenuButton extends ConsumerWidget {
   }
 
   PopupMenuItem<int> _overlayItem({
+    required NightshadeColors colors,
     required int value,
     required IconData icon,
     required String label,
@@ -436,8 +498,6 @@ class OverlaysMenuButton extends ConsumerWidget {
     return PopupMenuItem<int>(
       value: value,
       enabled: onTap != null,
-      // The list/catalog/grid rows also have their own deeper config elsewhere;
-      // here a tap simply flips/cycles the same provider the old icon did.
       onTap: onTap,
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceMd,
@@ -454,108 +514,8 @@ class OverlaysMenuButton extends ConsumerWidget {
   }
 }
 
-/// A labelled pill toggle used for the toolbar's named controls (Overlays,
-/// Annotate). Mirrors the [OverlayIconButton] active/hover treatment so it sits
-/// visually with the view controls, but carries a text label so the control's
-/// purpose is legible at a glance instead of a cryptic glyph.
-///
-/// When [onTap] is null the pill is purely presentational (e.g. the trigger
-/// child of a [PopupMenuButton], which owns the gesture); otherwise it behaves
-/// as a tappable button. [showChevron] adds a trailing caret for popovers.
-class _LabeledToolbarToggle extends StatefulWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String label;
-  final String? tooltip;
-  final bool active;
-  final bool showChevron;
-  final VoidCallback? onTap;
-
-  const _LabeledToolbarToggle({
-    required this.colors,
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.active,
-    this.showChevron = false,
-    this.onTap,
-  });
-
-  @override
-  State<_LabeledToolbarToggle> createState() => _LabeledToolbarToggleState();
-}
-
-class _LabeledToolbarToggleState extends State<_LabeledToolbarToggle> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = widget.colors;
-    final accent = widget.active ? colors.primary : colors.textSecondary;
-
-    final pill = MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: SystemMouseCursors.click,
-      child: AnimatedContainer(
-        duration: NightshadeTokens.durationQuick,
-        height: 32,
-        padding:
-            const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceSm),
-        decoration: BoxDecoration(
-          color: widget.active
-              ? colors.primary.withValues(alpha: 0.16)
-              : _hovered
-                  ? colors.surfaceHover
-                  : Colors.transparent,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(
-            color: widget.active
-                ? colors.primary.withValues(alpha: 0.45)
-                : colors.border,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(widget.icon, size: 15, color: accent),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-            Text(
-              widget.label,
-              style: NightshadeTypography.labelSm.copyWith(color: accent),
-            ),
-            if (widget.showChevron) ...[
-              const SizedBox(width: 2),
-              Icon(NightshadeIcons.chevronDown,
-                  size: 13, color: colors.textMuted),
-            ],
-          ],
-        ),
-      ),
-    );
-
-    final tappable = widget.onTap == null
-        ? pill
-        : GestureDetector(onTap: widget.onTap, child: pill);
-
-    final tooltip = widget.tooltip;
-    if (tooltip == null) return tappable;
-    return NightshadeTooltip(
-      message: tooltip,
-      position: NightshadeTooltipPosition.bottom,
-      child: tappable,
-    );
-  }
-}
-
 /// A single labelled checkbox row inside the Overlays popover.
 class _OverlayMenuRow extends StatelessWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final bool active;
-
   const _OverlayMenuRow({
     required this.colors,
     required this.icon,
@@ -564,27 +524,32 @@ class _OverlayMenuRow extends StatelessWidget {
     required this.active,
   });
 
+  final NightshadeColors colors;
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final bool active;
+
   @override
   Widget build(BuildContext context) {
     // The description stacks UNDER the label rather than sitting beside it.
     // Side by side, the description took its full intrinsic width first and
     // left the label a sliver, so "Readouts" rendered as "Rea" / "dou" broken
-    // across two lines. Stacking gives the label the whole row width, so no
-    // description can ever squeeze a control's name.
+    // across two lines.
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 40),
       child: Row(
-        children: [
+        children: <Widget>[
           // Check box — communicates on/off without button chrome.
           Icon(
             active ? LucideIcons.checkSquare : LucideIcons.square,
-            size: 16,
+            size: NightshadeTokens.iconSm,
             color: active ? colors.primary : colors.textMuted,
           ),
           const SizedBox(width: NightshadeTokens.spaceMd),
           Icon(
             icon,
-            size: 15,
+            size: SectionTitle.iconSize,
             color: active ? colors.primary : colors.textSecondary,
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
@@ -592,7 +557,7 @@ class _OverlayMenuRow extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: <Widget>[
                 Text(
                   label,
                   maxLines: 1,
@@ -607,7 +572,7 @@ class _OverlayMenuRow extends StatelessWidget {
                     subtitle!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NightshadeTypography.captionSm.copyWith(
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textMuted,
                     ),
                   ),
@@ -620,104 +585,30 @@ class _OverlayMenuRow extends StatelessWidget {
   }
 }
 
-/// The trailing view-controls group: zoom in/out, 1:1, fit-to-window, and
-/// (only while a capture is mid-flight) an abort button. Kept as one tight,
-/// visually distinct cluster on the bar's trailing edge. The catalog-overlay
-/// settings popover button rides along here too, since its dropdown still
-/// configures the catalog overlay toggled from the Overlays menu.
-class _ViewControlsGroup extends StatelessWidget {
-  final NightshadeColors colors;
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
-  final VoidCallback onZoom1to1;
-  final VoidCallback onFitToWindow;
-  final VoidCallback onAbortCapture;
-  final bool showAbort;
-
-  const _ViewControlsGroup({
-    required this.colors,
-    required this.onZoomIn,
-    required this.onZoomOut,
-    required this.onZoom1to1,
-    required this.onFitToWindow,
-    required this.onAbortCapture,
-    required this.showAbort,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      key: ImagingTutorialKeys.zoomControls,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Catalog overlay magnitude/kind settings popover. The overlay's
-        // on/off lives in the Overlays menu; this caret keeps its deeper
-        // configuration (magnitude limit, object kinds) reachable next to the
-        // view controls without re-introducing a second on/off toggle.
-        _CatalogOverlaySettingsButton(colors: colors),
-        OverlayIconButton(
-          icon: LucideIcons.zoomIn,
-          tooltip: 'Zoom in',
-          colors: colors,
-          onTap: onZoomIn,
-        ),
-        OverlayIconButton(
-          icon: LucideIcons.zoomOut,
-          tooltip: 'Zoom out',
-          colors: colors,
-          onTap: onZoomOut,
-        ),
-        OverlayIconButton(
-          icon: NightshadeIcons.collapse,
-          tooltip: '1:1 zoom',
-          colors: colors,
-          onTap: onZoom1to1,
-        ),
-        OverlayIconButton(
-          icon: LucideIcons.maximize,
-          tooltip: 'Fit to window',
-          colors: colors,
-          onTap: onFitToWindow,
-        ),
-        if (showAbort)
-          OverlayIconButton(
-            key: ImagingTutorialKeys.abortBtn,
-            icon: NightshadeIcons.close,
-            tooltip: 'Abort capture',
-            colors: colors,
-            onTap: onAbortCapture,
-          ),
-      ],
-    );
-  }
-}
-
-/// Settings-only catalog-overlay control: a caret that opens the catalog
-/// magnitude/kind popover. The overlay's on/off lives in the Overlays menu, so
-/// this exposes *only* the deeper configuration and never duplicates the
-/// enable toggle.
+/// Settings-only catalog-overlay control: a glyph that opens the catalog
+/// magnitude / kind popover. The overlay's on/off lives in the Overlays menu,
+/// so this exposes *only* the deeper configuration.
 class _CatalogOverlaySettingsButton extends ConsumerWidget {
-  final NightshadeColors colors;
-
-  const _CatalogOverlaySettingsButton({required this.colors});
+  const _CatalogOverlaySettingsButton();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.nightshadeColors;
     final magnitudeLimit = ref.watch(catalogOverlayMagnitudeLimitProvider);
     return PopupMenuButton<String>(
-      tooltip: 'Catalog overlay settings [Mag ≤ '
-          '${magnitudeLimit.toStringAsFixed(0)}]',
+      tooltip: 'Catalog overlay settings, magnitude '
+          '${magnitudeLimit.toStringAsFixed(0)} and brighter',
       position: PopupMenuPosition.under,
-      offset: const Offset(0, 6),
+      offset: const Offset(0, NightshadeTokens.spaceXs),
       color: colors.surfaceElevated,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        borderRadius: NightshadeTokens.borderRadiusXl,
         side: BorderSide(color: colors.border),
       ),
       onSelected: (_) {},
-      itemBuilder: (context) => [
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           enabled: false,
           padding: EdgeInsets.zero,
@@ -725,9 +616,17 @@ class _CatalogOverlaySettingsButton extends ConsumerWidget {
           child: CatalogOverlayPopover(colors: colors),
         ),
       ],
-      icon: Icon(NightshadeIcons.target, color: colors.textMuted, size: 16),
-      splashRadius: 16,
-      padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceXs),
+      icon: Icon(
+        NightshadeIcons.target,
+        color: colors.textMuted,
+        size: NightshadeTokens.iconSm,
+      ),
+      splashRadius: NightshadeTokens.iconSm,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(
+        width: NightshadeTokens.iconButtonSizeSm,
+        height: NightshadeTokens.iconButtonSizeSm,
+      ),
     );
   }
 }

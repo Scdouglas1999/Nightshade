@@ -14,10 +14,10 @@ import '../../../utils/exported_file_reveal.dart';
 import '../../../widgets/annotation_overlay.dart';
 import '../imaging_science_state.dart';
 import 'annotation_filters.dart';
-import 'panel_widgets.dart';
 import 'annotation_search.dart';
 import 'annotation_quick_settings.dart';
 import 'annotation_object_list.dart';
+import 'imaging_side_panel.dart';
 
 part 'annotation_panel_parts/status_widgets.dart';
 part 'annotation_panel_parts/objects_panel.dart';
