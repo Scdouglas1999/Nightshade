@@ -44,7 +44,9 @@ class TonightProgressPanel extends ConsumerWidget {
         ? null
         : DateTime.now().add(Duration(seconds: remaining.round()));
 
-    final filters = totals.goalSecs.keys.toList()..sort();
+    // The plan's own filter order, NOT alphabetical: sorting put B before Lum
+    // and R, which is not the order anyone builds or reads an LRGB run in.
+    final filters = totals.goalSecs.keys.toList(growable: false);
 
     return NightshadePanel(
       head: PanelHead(

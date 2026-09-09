@@ -11,6 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../../localization/nightshade_localizations.dart';
 import '../../../../services/sequence_action_service.dart';
 import '../../../../utils/snackbar_helper.dart';
+import '../../../sequencer/sequence_counts.dart';
 import '../../../sequencer/widgets/preflight_validation_dialog.dart';
 import '../../../sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
 import 'tonight_night.dart';
@@ -247,9 +248,13 @@ class _Facts extends ConsumerWidget {
         overhead: ref.watch(sequencerOverheadConfigProvider),
       );
       final total = estimator.estimateTotalDuration(sequence, DateTime.now());
+      // The SAME count the Sequencer's own header chip prints. `nodes.length`
+      // includes the invisible root, so the hero said 28 where the Sequencer
+      // said 27 for one sequence — two surfaces contradicting each other about
+      // a number the operator can see on both.
       final nodes = l10n.text(
         'tnNodeCount',
-        params: {'count': '${sequence.nodes.length}'},
+        params: {'count': '${visibleInstructionCount(sequence)}'},
       );
       facts.add(
         '${sequence.name} · $nodes · ~${tonightDuration(total) ?? '—'}',
