@@ -140,6 +140,21 @@ class _NightshadeIconButtonState extends State<NightshadeIconButton> {
       ),
     );
 
+    // Desktop pointer targets may be 28–36 px (03 §3.3), but below the tablet
+    // breakpoint the same button is a TOUCH target and must offer 48 dp. The
+    // visual box keeps its size; only the hit area grows.
+    final touchFloor =
+        MediaQuery.sizeOf(context).width < NightshadeTokens.breakpointTablet;
+    final Widget hitArea = touchFloor
+        ? ConstrainedBox(
+            constraints: const BoxConstraints(
+              minWidth: NightshadeTokens.minTouchTarget,
+              minHeight: NightshadeTokens.minTouchTarget,
+            ),
+            child: Center(child: button),
+          )
+        : button;
+
     return Semantics(
       button: true,
       enabled: !disabled,
@@ -181,7 +196,7 @@ class _NightshadeIconButtonState extends State<NightshadeIconButton> {
               child: ExcludeSemantics(
                 child: Opacity(
                   opacity: disabled ? NightshadeTokens.opacityDisabled : 1,
-                  child: button,
+                  child: hitArea,
                 ),
               ),
             ),
