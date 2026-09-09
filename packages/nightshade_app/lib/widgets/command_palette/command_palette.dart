@@ -87,8 +87,17 @@ class CommandPalette extends ConsumerStatefulWidget {
 
 class _CommandPaletteState extends ConsumerState<CommandPalette> {
   final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+
+  /// The input owns the focus, and its node intercepts the navigation keys.
+  ///
+  /// `onKeyEvent` ON THE NODE runs BEFORE the editable consumes the event,
+  /// which is the only place these bindings work: a single-line `TextField`
+  /// handles Arrow Up / Down itself (they move the caret to the start and end
+  /// of the line) and returns `handled`, so an ancestor `CallbackShortcuts`
+  /// never sees them and the palette's selection could not be moved from the
+  /// keyboard at all.
+  late final FocusNode _focusNode = FocusNode(onKeyEvent: _handleKey);
 
   /// Index into the FLAT filtered list. The group eyebrows are not selectable,
   /// so selection is over entries, not over rendered rows.
@@ -141,6 +150,34 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
     return matched;
   }
 
+  /// Arrow keys move the selection, Enter runs it, Esc closes the palette.
+  ///
+  /// Everything else is the operator typing, and belongs to the field.
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final entries = _entries();
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowDown:
+        _move(1, entries.length);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp:
+        _move(-1, entries.length);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        if (entries.isEmpty) return KeyEventResult.handled;
+        _invoke(entries[_selected.clamp(0, entries.length - 1)]);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.escape:
+        Navigator.of(context).maybePop();
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
   /// Moves the selection, wrapping at both ends.
   ///
   /// Dart's `%` returns a non-negative result for a negative left operand, so
@@ -181,42 +218,33 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
     final selected =
         _selected.clamp(0, entries.isEmpty ? 0 : entries.length - 1);
 
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-            _move(1, entries.length),
-        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-            _move(-1, entries.length),
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            Navigator.of(context).maybePop(),
-      },
-      child: Focus(
-        autofocus: true,
-        child: Material(
-          color: Colors.transparent,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: CommandPalette.width),
-            child: Container(
-              decoration: NightshadeDecorations.dialog(colors),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _input(colors),
-                  if (entries.isEmpty)
-                    _empty(colors)
-                  else
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxHeight: CommandPalette.maxResultsHeight,
-                        ),
-                        child: _results(colors, entries, selected),
-                      ),
+    // No ancestor Focus: the input takes the focus and keeps it, and its node
+    // owns the key bindings. An `autofocus` Focus around this took the focus
+    // FROM the field, which left the palette open with a caret nowhere and
+    // typing doing nothing at all.
+    return Material(
+      color: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: CommandPalette.width),
+        child: Container(
+          decoration: NightshadeDecorations.dialog(colors),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _input(colors),
+              if (entries.isEmpty)
+                _empty(colors)
+              else
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxHeight: CommandPalette.maxResultsHeight,
                     ),
-                ],
-              ),
-            ),
+                    child: _results(colors, entries, selected),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -249,13 +277,6 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
                 color: colors.textPrimary,
               ),
               cursorColor: colors.primary,
-              // Enter belongs to the palette, not to the field: the field
-              // submits nothing of its own.
-              onSubmitted: (_) {
-                final entries = _entries();
-                if (entries.isEmpty) return;
-                _invoke(entries[_selected.clamp(0, entries.length - 1)]);
-              },
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,

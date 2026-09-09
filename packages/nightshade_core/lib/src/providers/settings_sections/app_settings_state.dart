@@ -448,7 +448,7 @@ class AppSettingsState {
     this.accentColor = kDefaultAccentColorHex,
     this.fontSize = 'Medium',
     this.uiScale = 'Auto',
-    this.sidebarCollapsed = false,
+    this.sidebarCollapsed = true,
 
     // Location
     this.latitude = 0.0,

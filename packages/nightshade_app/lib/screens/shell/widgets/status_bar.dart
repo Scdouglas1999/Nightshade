@@ -236,6 +236,24 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     return fallback;
   }
 
+
+  /// What a device pill is called to assistive tech.
+  ///
+  /// "Camera, Simulated Camera" when there is one; "Camera, not connected"
+  /// when there is not. The pill itself renders only the value, because the
+  /// glyph says which device it is — but a glyph is not a name, so the role
+  /// has to be spelled out here.
+  String _deviceSemanticLabel(
+    String role, {
+    required bool connected,
+    required String value,
+    required NightshadeLocalizations l10n,
+  }) {
+    return connected
+        ? '$role, $value'
+        : '$role, ${l10n.text('disconnected').toLowerCase()}';
+  }
+
   InstrumentTone _connectionTone(DeviceConnectionState state) =>
       state == DeviceConnectionState.connected
           ? InstrumentTone.success
@@ -277,6 +295,12 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     final filterWheelConnected =
         filterWheelState.connectionState == DeviceConnectionState.connected;
 
+    // The pill's VALUE is the device name, or the phrase for its absence —
+    // never "Camera: ASI2600MM". The glyph carries the role (04 §5); spelling
+    // it out again spends half a 22px pill saying what the icon said.
+    //
+    // The accessible NAME has to carry the role, because a screen reader has
+    // no glyph: "Camera, Simulated Camera" / "Camera, not connected".
     final cameraValue = cameraConnected
         ? _deviceDisplayName(
             cameraState.deviceName,
@@ -315,7 +339,12 @@ class _StatusBarState extends ConsumerState<StatusBar> {
         icon: NightshadeIcons.camera,
         dotTone: _connectionTone(cameraState.connectionState),
         value: cameraValue,
-        semanticLabel: '${l10n.text('statusCamera')}: $cameraValue',
+        semanticLabel: _deviceSemanticLabel(
+          l10n.text('statusCamera'),
+          connected: cameraConnected,
+          value: cameraValue,
+          l10n: l10n,
+        ),
         maxValueWidth: _deviceValueMaxWidth,
         onTap: () => _go('/equipment'),
       ),
@@ -323,7 +352,12 @@ class _StatusBarState extends ConsumerState<StatusBar> {
         icon: LucideIcons.mountain,
         dotTone: _connectionTone(mountState.connectionState),
         value: mountValue,
-        semanticLabel: '${l10n.text('mount')}: $mountValue',
+        semanticLabel: _deviceSemanticLabel(
+          l10n.text('mount'),
+          connected: mountConnected,
+          value: mountValue,
+          l10n: l10n,
+        ),
         maxValueWidth: _deviceValueMaxWidth,
         onTap: () => _go('/equipment'),
       ),
@@ -335,7 +369,12 @@ class _StatusBarState extends ConsumerState<StatusBar> {
         // glance the bar said the guider was present and calm when there was
         // no guider at all.
         value: guiderValue,
-        semanticLabel: '${l10n.text('statusGuider')}: $guiderValue',
+        semanticLabel: _deviceSemanticLabel(
+          l10n.text('statusGuider'),
+          connected: guiderConnected,
+          value: guiderValue,
+          l10n: l10n,
+        ),
         maxValueWidth: _deviceValueMaxWidth,
         onTap: () => _go('/guiding'),
       ),
@@ -348,7 +387,12 @@ class _StatusBarState extends ConsumerState<StatusBar> {
         // this overhaul removes.
         value: focuserValue,
         mono: focuserConnected && focuserState.position != null,
-        semanticLabel: '${l10n.text('focus')}: $focuserValue',
+        semanticLabel: _deviceSemanticLabel(
+          l10n.text('focus'),
+          connected: focuserConnected,
+          value: focuserValue,
+          l10n: l10n,
+        ),
         maxValueWidth: _deviceValueMaxWidth,
         onTap: () => _go('/equipment'),
       ),

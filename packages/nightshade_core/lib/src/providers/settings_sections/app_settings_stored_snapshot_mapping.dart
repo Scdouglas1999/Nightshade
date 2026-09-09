@@ -58,7 +58,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       accentColor: allSettings['accent_color'] ?? kDefaultAccentColorHex,
       fontSize: allSettings['font_size'] ?? 'Medium',
       uiScale: allSettings['ui_scale'] ?? 'Auto',
-      sidebarCollapsed: _parseBool(allSettings['sidebar_collapsed'], false),
+      sidebarCollapsed: _parseBool(allSettings['sidebar_collapsed'], true),
 
       // Location
       latitude: _parseDouble(allSettings['observer_latitude'], 0.0),
