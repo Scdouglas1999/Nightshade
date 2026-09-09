@@ -25,11 +25,17 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         ),
     ];
 
+    // The glyph buttons are 28 px on a desktop pointer but grow to the 48 dp
+    // touch floor on a phone (NightshadeIconButton), so the budget must use
+    // the width they REALLY take or the row overflows by the difference.
+    final glyphWidth = NightshadeTouchTarget.minExtent(
+      context,
+      desktopExtent: NightshadeTokens.iconButtonSizeSm,
+    );
     var budget = DeviceTileWidth.of(context) -
         NightshadeTokens.spaceLg * 2 -
-        NightshadeTokens.iconButtonSizeSm -
-        trailing.length *
-            (NightshadeTokens.iconButtonSizeSm + _deviceActionGap);
+        glyphWidth -
+        trailing.length * (glyphWidth + _deviceActionGap);
 
     final inline = <Widget>[];
     for (final action in actions) {
