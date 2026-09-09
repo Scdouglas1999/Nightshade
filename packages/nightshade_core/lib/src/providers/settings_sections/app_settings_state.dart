@@ -575,7 +575,7 @@ class AppSettingsState {
     this.afFocuserSettleTimeMs = 500,
     this.afExposuresPerPoint = 1,
     this.afBacklashCompMethod = 'Overshoot',
-    this.afBacklashIn = 350,
+    this.afBacklashIn = 0,
     this.afBacklashOut = 0,
     this.afAutofocusFilterName = '',
     this.afFilterSettingsJson = '{}',

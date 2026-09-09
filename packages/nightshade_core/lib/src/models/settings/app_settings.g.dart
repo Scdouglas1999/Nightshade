@@ -200,7 +200,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       (json['afFocuserSettleTimeMs'] as num?)?.toInt() ?? 500,
   afExposuresPerPoint: (json['afExposuresPerPoint'] as num?)?.toInt() ?? 1,
   afBacklashCompMethod: json['afBacklashCompMethod'] as String? ?? 'Overshoot',
-  afBacklashIn: (json['afBacklashIn'] as num?)?.toInt() ?? 350,
+  afBacklashIn: (json['afBacklashIn'] as num?)?.toInt() ?? 0,
   afBacklashOut: (json['afBacklashOut'] as num?)?.toInt() ?? 0,
   afAutofocusFilterName: json['afAutofocusFilterName'] as String? ?? '',
   afFilterSettingsJson: json['afFilterSettingsJson'] as String? ?? '{}',

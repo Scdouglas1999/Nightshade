@@ -432,7 +432,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('Overshoot') String afBacklashCompMethod,
 
     /// AF backlash-in steps. DB `af_backlash_in`.
-    @Default(350) int afBacklashIn,
+    @Default(0) int afBacklashIn,
 
     /// AF backlash-out steps. DB `af_backlash_out`.
     @Default(0) int afBacklashOut,

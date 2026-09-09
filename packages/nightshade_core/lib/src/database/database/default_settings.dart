@@ -93,7 +93,7 @@ const Map<String, String> _defaultSettings = {
   'af_focuser_settle_time_ms': '500',
   'af_exposures_per_point': '1',
   'af_backlash_comp_method': 'Overshoot',
-  'af_backlash_in': '350',
+  'af_backlash_in': '0',
   'af_backlash_out': '0',
   'af_autofocus_filter_name': '',
   'af_filter_settings': '{}',

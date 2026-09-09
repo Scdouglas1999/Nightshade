@@ -972,12 +972,35 @@ pub(crate) async fn execute_autofocus_once(
             if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
                 return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
             }
-        } else if let Err(e) = ctx
-            .device_ops
-            .focuser_move_to(&focuser_id, best_position)
-            .await
-        {
-            return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
+        } else {
+            // The sweep always ends at its far extreme and best focus is back
+            // inside it, so this move always reverses direction. With no
+            // in-compensation configured the focuser stops wherever its own
+            // mechanical slack leaves it — short of the target by that
+            // focuser's backlash, the same amount after every run. Backlash
+            // is a property of the operator's hardware and this app cannot
+            // measure it, but staying silent about a known, constant offset
+            // is how an operator ends up nudging focus by hand every night
+            // without knowing why.
+            if best_position < last_position && backlash.backlash_in_steps == 0 {
+                tracing::info!(
+                    "Final move {} -> {} reverses direction and autofocus backlash-in is 0, \
+                     so the focuser lands short of {} by whatever slack it has. If focus reads \
+                     soft by a consistent number of steps after every run, that number is the \
+                     backlash to enter.",
+                    last_position,
+                    best_position,
+                    best_position
+                );
+            }
+
+            if let Err(e) = ctx
+                .device_ops
+                .focuser_move_to(&focuser_id, best_position)
+                .await
+            {
+                return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
+            }
         }
 
         if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {

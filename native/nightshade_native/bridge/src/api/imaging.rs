@@ -4038,7 +4038,7 @@ impl Default for IndiAutofocusConfigApi {
             step_size: 100,
             steps_out: 7,
             exposure_duration: 3.0,
-            backlash_compensation: 50,
+            backlash_compensation: 0,
             use_temperature_prediction: true,
             max_star_count_change: Some(0.5),
             outlier_rejection_sigma: 3.0,

@@ -2069,8 +2069,12 @@ fn default_af_exposure_duration() -> f64 {
     3.0
 }
 
+/// Backlash is a property of the operator's focuser, not something this
+/// app can know. Shipping a guess moves their drawtube by that guess on the
+/// first autofocus; zero means the compensation stays off until it is
+/// measured and entered.
 fn default_af_backlash_compensation() -> i32 {
-    50
+    0
 }
 
 fn default_af_use_temperature_prediction() -> bool {
