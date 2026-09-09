@@ -2,10 +2,9 @@
 //
 // With a weather station connected and its card on Equipment showing
 // temperature / humidity / cloud cover / rain rate, a profile with no observing
-// location must still render the station's readings, the Hardware Sensors card
-// and the Safety Status block — none of them needs a location. Only the radar
-// does, so only the radar gets the "Location Not Configured / Weather radar
-// requires your observation location" empty state.
+// location must still render the station's readings and the safety verdict —
+// neither needs a location. Only the radar does, so only the radar gets the
+// "No observing site" empty state.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,12 +45,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
 
     expect(
-      find.text('Location Not Configured'),
+      find.text('No observing site'),
       findsOneWidget,
       reason: 'the radar genuinely does need a location',
     );
     expect(
-      find.text('Hardware Sensors'),
+      find.text('CONDITIONS'),
       findsOneWidget,
       reason: 'a connected weather station reports without knowing where it is',
     );

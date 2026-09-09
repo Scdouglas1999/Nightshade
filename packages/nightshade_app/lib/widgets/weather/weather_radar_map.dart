@@ -427,7 +427,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
     // Wrap with controls if not compact
     if (widget.compact) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         child: mapWidget,
       );
     }
@@ -436,106 +436,73 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
       children: [
         mapWidget,
 
-        // Zoom controls
+        // Zoom group, bottom-right (05 §14 corner allocation). One glass
+        // element, not three floating buttons.
         Positioned(
-          right: 16,
-          bottom: 16,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _ZoomButton(
-                icon: LucideIcons.plus,
-                onPressed: () {
-                  final currentZoom = _mapController.camera.zoom;
-                  _mapController.move(
+          right: NightshadeTokens.space2xl,
+          bottom: NightshadeTokens.spaceLg,
+          child: Glass(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NightshadeIconButton(
+                  icon: LucideIcons.minus,
+                  tooltip: 'Zoom out',
+                  size: IconButtonSize.sm,
+                  onPressed: () => _mapController.move(
                     _mapController.camera.center,
-                    math.min(currentZoom + 1, 15.0),
-                  );
-                },
-                colors: colors,
-              ),
-              const SizedBox(height: 8),
-              _ZoomButton(
-                icon: LucideIcons.minus,
-                onPressed: () {
-                  final currentZoom = _mapController.camera.zoom;
-                  _mapController.move(
+                    math.max(_mapController.camera.zoom - 1, 4.0),
+                  ),
+                ),
+                NightshadeIconButton(
+                  icon: LucideIcons.plus,
+                  tooltip: 'Zoom in',
+                  size: IconButtonSize.sm,
+                  onPressed: () => _mapController.move(
                     _mapController.camera.center,
-                    math.max(currentZoom - 1, 4.0),
-                  );
-                },
-                colors: colors,
-              ),
-              const SizedBox(height: 8),
-              _ZoomButton(
-                icon: LucideIcons.locateFixed,
-                onPressed: () {
-                  _mapController.move(
-                    userLocation,
-                    _calculateInitialZoom(),
-                  );
-                },
-                colors: colors,
-              ),
-            ],
+                    math.min(_mapController.camera.zoom + 1, 15.0),
+                  ),
+                ),
+                NightshadeIconButton(
+                  icon: LucideIcons.locateFixed,
+                  tooltip: 'Centre on your site',
+                  size: IconButtonSize.sm,
+                  onPressed: () => _mapController.move(
+                      userLocation, _calculateInitialZoom()),
+                ),
+              ],
+            ),
           ),
         ),
 
-        // Radar info overlay (top-left)
+        // Source stamp, top-left.
         if (widget.currentFrame != null)
           Positioned(
-            left: 16,
-            top: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: colors.surface.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                border: Border.all(
-                  color: colors.border,
-                  width: 1,
-                ),
-              ),
-              child: Column(
+            left: NightshadeTokens.space2xl,
+            top: NightshadeTokens.spaceLg,
+            child: Glass(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        widget.currentFrame!.isForecast
-                            ? LucideIcons.cloudRainWind
-                            : LucideIcons.satellite,
-                        size: 16,
-                        color: widget.currentFrame!.isForecast
-                            ? colors.info
-                            : colors.textSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.sourceName ??
-                            (widget.currentFrame!.isForecast
-                                ? 'Forecast'
-                                : 'Live'),
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    widget.currentFrame!.isForecast
+                        ? LucideIcons.cloudRainWind
+                        : LucideIcons.satellite,
+                    size: NightshadeTokens.iconSm,
+                    color: widget.currentFrame!.isForecast
+                        ? colors.warning
+                        : colors.textSecondary,
                   ),
-                  if (widget.fetchedAt != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Updated ${_formatAge(widget.fetchedAt!)}',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Readout(
+                    value: widget.sourceName ??
+                        (widget.currentFrame!.isForecast ? 'Forecast' : 'Live'),
+                    label: widget.fetchedAt == null
+                        ? 'Source'
+                        : 'Updated ${_formatAge(widget.fetchedAt!)}',
+                    size: ReadoutSize.sm,
+                  ),
                 ],
               ),
             ),
@@ -545,49 +512,13 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
   }
 }
 
-/// Zoom control button
-class _ZoomButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-  final NightshadeColors colors;
+/// Fixed metrics the Weather screen needs to lay its own glass out around the
+/// map's: the zoom group owns the bottom-right corner, so the control bar has
+/// to stop short of it.
+class WeatherRadarMapMetrics {
+  const WeatherRadarMapMetrics._();
 
-  const _ZoomButton({
-    required this.icon,
-    required this.onPressed,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: colors.surface.withValues(alpha: 0.9),
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-      // The tap lived on a bare gesture wrapper, which publishes an action
-      // and no role, so assistive tech read a live control as an inert
-      // disabled panel. The flags are only published when given.
-      child: Semantics(
-          button: true,
-          enabled: true,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: colors.border,
-                  width: 1,
-                ),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: colors.textPrimary,
-              ),
-            ),
-          )),
-    );
-  }
+  /// Three 28px icon buttons plus the glass padding either side.
+  static const double zoomGroupWidth =
+      3 * NightshadeTokens.iconButtonSizeSm + 2 * NightshadeTokens.spaceXs;
 }

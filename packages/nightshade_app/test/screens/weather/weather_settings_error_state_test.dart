@@ -89,8 +89,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
 
-    expect(find.text('Weather Settings Unavailable'), findsOneWidget);
-    expect(find.text('Location Not Configured'), findsNothing);
+    expect(find.text('Weather settings unavailable'), findsOneWidget);
+    expect(find.text('No observing site'), findsNothing);
     expect(find.text('Retry'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
