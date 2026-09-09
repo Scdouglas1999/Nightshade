@@ -136,7 +136,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(IndiServerDialog), findsOneWidget);
-      expect(find.text('INDI Server Configuration'), findsOneWidget);
+      expect(find.text('INDI server'), findsOneWidget);
     },
     skip: Platform.isWindows,
   );
