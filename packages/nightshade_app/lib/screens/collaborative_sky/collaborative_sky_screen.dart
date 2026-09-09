@@ -208,11 +208,10 @@ class _ConnectedBody extends ConsumerWidget {
             error: (error, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                NightshadeAlert(
-                  severity: NightshadeAlertSeverity.warning,
-                  title: 'Hub unavailable',
-                  message: describeConstellationError(error),
-                ),
+                NightshadeBanner(
+                    title: 'Hub unavailable',
+                    message: describeConstellationError(error),
+                    tone: BannerTone.warning),
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 Wrap(
                   spacing: NightshadeTokens.spaceMd,
@@ -220,7 +219,7 @@ class _ConnectedBody extends ConsumerWidget {
                   children: [
                     ConstellationSignOutButton(
                       onSignedOut: onRefresh,
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                     ),
                     NightshadeButton(
@@ -277,7 +276,7 @@ class _CoImagingSectionState extends ConsumerState<_CoImagingSection> {
           trailing: NightshadeButton(
             label: _starting ? 'Starting…' : 'Start session',
             icon: LucideIcons.plus,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: _starting,
             onPressed: _starting ? null : _startSession,
@@ -307,11 +306,10 @@ class _CoImagingSectionState extends ConsumerState<_CoImagingSection> {
             );
           },
           loading: () => const _SectionSkeleton(),
-          error: (error, _) => NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Could not list co-imaging sessions',
-            message: describeConstellationError(error),
-          ),
+          error: (error, _) => NightshadeBanner(
+              title: 'Could not list co-imaging sessions',
+              message: describeConstellationError(error),
+              tone: BannerTone.warning),
         ),
       ],
     );
@@ -651,11 +649,10 @@ class _MosaicsSection extends ConsumerWidget {
             );
           },
           loading: () => const _SectionSkeleton(),
-          error: (error, _) => NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Could not list collaborative mosaics',
-            message: describeConstellationError(error),
-          ),
+          error: (error, _) => NightshadeBanner(
+              title: 'Could not list collaborative mosaics',
+              message: describeConstellationError(error),
+              tone: BannerTone.warning),
         ),
       ],
     );
@@ -717,11 +714,10 @@ class _SharedLibrarySection extends ConsumerWidget {
             onOpen: () => _openLibrary(context),
           ),
           loading: () => const _SectionSkeleton(),
-          error: (error, _) => NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Could not read the calibration library',
-            message: describeConstellationError(error),
-          ),
+          error: (error, _) => NightshadeBanner(
+              title: 'Could not read the calibration library',
+              message: describeConstellationError(error),
+              tone: BannerTone.warning),
         ),
       ],
     );

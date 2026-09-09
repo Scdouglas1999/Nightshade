@@ -357,19 +357,17 @@ class _ActionRow extends StatelessWidget {
     if (joined == null) {
       final errorMessage = membershipErrorMessage;
       if (errorMessage != null) {
-        return NightshadeAlert(
-          severity: NightshadeAlertSeverity.warning,
-          title: 'Could not verify membership',
-          message: errorMessage,
-          compact: true,
-          action: NightshadeButton(
-            label: 'Retry',
-            icon: NightshadeIcons.refresh,
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed: onRetryMembership,
-          ),
-        );
+        return NightshadeBanner(
+            title: 'Could not verify membership',
+            message: errorMessage,
+            tone: BannerTone.warning,
+            action: NightshadeButton(
+              label: 'Retry',
+              icon: NightshadeIcons.refresh,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: onRetryMembership,
+            ));
       }
       return Row(
         children: [
@@ -422,7 +420,7 @@ class _ActionRow extends StatelessWidget {
             NightshadeButton(
               label: 'Turn on sharing',
               icon: LucideIcons.upload,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: onEnableSharing,
             ),
@@ -432,7 +430,7 @@ class _ActionRow extends StatelessWidget {
             NightshadeButton(
               label: leaving ? 'Leaving…' : 'Leave',
               icon: LucideIcons.logOut,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               isLoading: leaving,
               onPressed: onLeave,

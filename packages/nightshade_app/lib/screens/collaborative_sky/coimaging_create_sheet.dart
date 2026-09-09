@@ -285,10 +285,7 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
           ),
           if (_error != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              message: _error!,
-            ),
+            NightshadeBanner(title: _error!, tone: BannerTone.error),
           ],
         ],
       ),
@@ -408,7 +405,7 @@ class _CoordinateSources extends ConsumerWidget {
           child: NightshadeButton(
             label: 'Look up coordinates',
             icon: LucideIcons.search,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: canLookUp ? onLookUp : null,
           ),
@@ -420,7 +417,7 @@ class _CoordinateSources extends ConsumerWidget {
           child: NightshadeButton(
             label: 'From mount',
             icon: LucideIcons.move,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: mountReady ? onUseMount : null,
           ),

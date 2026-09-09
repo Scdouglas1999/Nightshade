@@ -140,7 +140,7 @@ class FollowTheNightCard extends StatelessWidget {
                   NightshadeButton(
                     label: 'Plan tonight',
                     icon: LucideIcons.calendarPlus,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     isLoading: planning,
                     onPressed: planning ? null : onPlanTonight,
@@ -149,7 +149,7 @@ class FollowTheNightCard extends StatelessWidget {
                   NightshadeButton(
                     label: 'Release',
                     icon: LucideIcons.flagOff,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     isLoading: releasing,
                     onPressed: releasing ? null : onRelease,

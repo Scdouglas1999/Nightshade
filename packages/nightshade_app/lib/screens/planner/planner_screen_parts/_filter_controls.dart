@@ -115,7 +115,7 @@ Future<Set<String>?> _showObjectTypeDialog({
             backgroundColor: colors.surface,
             title: Text(
               'Object types',
-              style: NightshadeTypography.h5.copyWith(
+              style: NightshadeTypography.bodyStrong.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -304,7 +304,8 @@ class _ConstellationPickerDialogState
       backgroundColor: colors.surface,
       title: Text(
         'Constellation',
-        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+        style:
+            NightshadeTypography.bodyStrong.copyWith(color: colors.textPrimary),
       ),
       content: SizedBox(
         width: dialogMaxWidth(context, 380),

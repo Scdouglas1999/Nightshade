@@ -62,11 +62,8 @@ class _DecisionPanel extends ConsumerWidget {
                       'Unattended Autopilot',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize18,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.pageTitle
+                          .copyWith(color: colors.textPrimary),
                     ),
                     _StateBadge(state: status.state, colors: colors),
                   ],
@@ -85,11 +82,8 @@ class _DecisionPanel extends ConsumerWidget {
             'Runs hands-off and re-picks the best target all night as the sky '
             'changes. For a plan you can see and edit before it runs, build '
             'one in the Scheduler queue on this tab.',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
-              height: 1.35,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
           if (status.pausedByOperatorStop) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
@@ -120,10 +114,7 @@ class _DecisionPanel extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
               'Cannot start unattended until: ${readiness.blockers.map((item) => item.title).join(', ')}.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.error,
-              ),
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
             ),
           ] else if (status.state == SchedulerState.idle &&
               !candidateAvailable) ...[
@@ -133,10 +124,8 @@ class _DecisionPanel extends ConsumerWidget {
                   ? 'Loading scheduler targets…'
                   : 'Add at least one target before starting unattended '
                       'autopilot.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.warning,
-              ),
+              style:
+                  NightshadeTypography.caption.copyWith(color: colors.warning),
             ),
           ],
           const SizedBox(height: NightshadeTokens.spaceLg),
@@ -196,21 +185,15 @@ class _OperatorStopBanner extends StatelessWidget {
               children: [
                 Text(
                   'Autopilot paused — resume?',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.buttonSm
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'You stopped the run it had started, so it is leaving the rig '
                   'alone instead of picking another target.',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textSecondary,
-                    height: 1.35,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 const SizedBox(height: NightshadeTokens.spaceSm),
                 NightshadeButton(
@@ -249,11 +232,8 @@ class _StateBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize12,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
+        style: NightshadeTypography.caption
+            .copyWith(color: color, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -280,9 +260,8 @@ class _CurrentTargetSummary extends StatelessWidget {
             // scheduler loop, not something the operator acts on.
             : 'Autopilot is stopped. Start it and it will pick a target and '
                 'keep re-picking as the sky changes.',
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            color: colors.textSecondary),
+        style:
+            NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
       );
     }
     return Column(
@@ -290,31 +269,21 @@ class _CurrentTargetSummary extends StatelessWidget {
       children: [
         Text(
           'Active target',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textMuted,
-            letterSpacing: 0.5,
-          ),
+          style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
         ),
         const SizedBox(height: 4),
         Text(
           name,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize20,
-            fontWeight: FontWeight.w700,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.pageTitle
+              .copyWith(color: colors.textPrimary),
         ),
         if (decision != null) ...[
           const SizedBox(height: 2),
           Text(
             'Score ${decision!.score.toStringAsFixed(3)}',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                fontFeatures: const [FontFeature.tabularFigures()]),
           ),
         ],
       ],
@@ -335,8 +304,7 @@ class _Countdown extends StatelessWidget {
         // "No tick scheduled" is the scheduler's own vocabulary. What the
         // operator needs to know is whether anything is going to happen.
         'Not evaluating targets — start it to begin.',
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+        style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
       );
     }
     final delta = next.difference(DateTime.now());
@@ -350,9 +318,8 @@ class _Countdown extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
       ],
     );
@@ -417,7 +384,7 @@ class _ControlsRow extends StatelessWidget {
             label: 'Pause',
             icon: LucideIcons.pause,
             size: ButtonSize.small,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             onPressed: busy ? null : () => onPause(),
           ),
         if (status.state == SchedulerState.paused)
@@ -487,8 +454,7 @@ class _ReasoningList extends StatelessWidget {
       return Text(
         'Autopilot is stopped. Run unattended all night to begin evaluating '
         'targets every 60s.',
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+        style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
       );
     }
     return Column(
@@ -496,12 +462,7 @@ class _ReasoningList extends StatelessWidget {
       children: [
         Text(
           'Reasoning',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textMuted,
-            letterSpacing: 0.5,
-          ),
+          style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         SizedBox(
@@ -516,12 +477,8 @@ class _ReasoningList extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       line,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                        height: 1.4,
-                        fontFamily: 'monospace',
-                      ),
+                      style: NightshadeTypography.monoCaption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ),
               ],
@@ -659,18 +616,16 @@ class _RejectedRow extends StatelessWidget {
                     Expanded(
                       child: Text(
                         rejection.targetName,
-                        style: NightshadeTypography.h6.copyWith(
+                        style: NightshadeTypography.eyebrow.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),
                     ),
                     Text(
                       rejection.score.toStringAsFixed(3),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
+                      style: NightshadeTypography.caption.copyWith(
+                          color: colors.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()]),
                     ),
                   ],
                 ),
@@ -744,12 +699,8 @@ class _RejectedDetails extends StatelessWidget {
             if (rejection.hardConstraintFailures.isNotEmpty) ...[
               Text(
                 'Failed hard constraints',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                  letterSpacing: 0.4,
-                ),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 4),
               for (final r in rejection.hardConstraintFailures)
@@ -757,23 +708,16 @@ class _RejectedDetails extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 2),
                   child: Text(
                     '• $r',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.error,
-                      height: 1.4,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.error),
                   ),
                 ),
               const SizedBox(height: NightshadeTokens.spaceSm),
             ],
             Text(
               'Score breakdown',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-                letterSpacing: 0.4,
-              ),
+              style: NightshadeTypography.eyebrow
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 4),
             for (final f in rejection.factors)
@@ -784,12 +728,8 @@ class _RejectedDetails extends StatelessWidget {
                   'weight=${f.weight.toStringAsFixed(2)} '
                   '-> ${f.weighted.toStringAsFixed(3)}'
                   '${f.detail != null ? "  ${f.detail}" : ""}',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary,
-                    height: 1.4,
-                    fontFamily: 'monospace',
-                  ),
+                  style: NightshadeTypography.monoCaption
+                      .copyWith(color: colors.textSecondary),
                 ),
               ),
           ],

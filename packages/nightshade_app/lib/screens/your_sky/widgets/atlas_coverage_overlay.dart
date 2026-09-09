@@ -50,7 +50,7 @@ class AtlasCoverageOverlay extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Atlas coverage',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -388,7 +388,7 @@ class _TileDetailSheet extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Tile ${tile.tileId}',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -533,7 +533,7 @@ class _StatTile extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               stat.value,
-              style: NightshadeTypography.statValue
+              style: NightshadeTypography.readoutLg
                   .copyWith(color: colors.textPrimary),
             ),
           ),

@@ -33,11 +33,8 @@ class FramingPreviewFovSlider extends StatelessWidget {
             children: [
               Text(
                 '${value.toStringAsFixed(1)}°',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.bold,
+                style: NightshadeTypography.readoutMd.copyWith(
                   color: colors.primary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
               if (hasEquipment && equipmentFov != null)
@@ -55,10 +52,8 @@ class FramingPreviewFovSlider extends StatelessWidget {
                     child: Text(
                       'Equipment: ${equipmentFov!.toStringAsFixed(2)}°',
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize9,
-                        color: colors.info,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.info),
                     ),
                   ),
                 ),
@@ -87,13 +82,11 @@ class FramingPreviewFovSlider extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('0.1°',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize9,
-                      color: colors.textMuted)),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted)),
               Text('20°',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize9,
-                      color: colors.textMuted)),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted)),
             ],
           ),
           const SizedBox(height: 8),
@@ -182,8 +175,7 @@ class _FovPresetButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
+          style: NightshadeTypography.caption.copyWith(
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             color: isSelected ? color : colors.textSecondary,
           ),
@@ -246,9 +238,8 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
               children: [
                 Text(
                   'Opacity',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: colors.textSecondary),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 Expanded(
                   child: SliderTheme(
@@ -273,9 +264,8 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
                   width: 35,
                   child: Text(
                     '${(opacity * 100).round()}%',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textSecondary),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -284,9 +274,8 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Shows your actual equipment field of view as an overlay',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize9,
-                  color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ],

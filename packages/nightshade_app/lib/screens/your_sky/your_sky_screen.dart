@@ -211,7 +211,7 @@ class YourSkyView extends ConsumerWidget {
               child: NightshadeButton(
                 label: 'Name a region',
                 icon: LucideIcons.plus,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: () => NameRegionSheet.show(context),
               ),
@@ -239,7 +239,7 @@ class YourSkyView extends ConsumerWidget {
               ? NightshadeButton(
                   label: 'Name a region',
                   icon: LucideIcons.plus,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   onPressed: () => NameRegionSheet.show(context),
                 )
               : null,

@@ -136,10 +136,8 @@ class _FramingRotationFieldState extends State<FramingRotationField> {
             Expanded(
               child: Text(
                 'Rotation',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ),
             SizedBox(
@@ -266,11 +264,9 @@ class _RotationStepButton extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              fontWeight: FontWeight.w600,
-              color: enabled ? colors.textPrimary : colors.textMuted,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: enabled ? colors.textPrimary : colors.textMuted,
+                fontWeight: FontWeight.w600),
           ),
         ),
       ),

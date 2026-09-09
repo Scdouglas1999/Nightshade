@@ -64,7 +64,7 @@ class AtlasRegionCard extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         region.name,
-                        style: NightshadeTypography.h5
+                        style: NightshadeTypography.bodyStrong
                             .copyWith(color: colors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

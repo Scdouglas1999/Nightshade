@@ -196,7 +196,8 @@ class _CandidateObservingListDialogState
         backgroundColor: widget.colors.surface,
         title: Text(
           'Add to observing list',
-          style: TextStyle(color: widget.colors.textPrimary),
+          style: NightshadeTypography.body
+              .copyWith(color: widget.colors.textPrimary),
         ),
         content: SizedBox(
           width: dialogMaxWidth(context, 340),
@@ -213,17 +214,16 @@ class _CandidateObservingListDialogState
                 ),
                 error: (error, _) => Text(
                   'Could not load observing lists: $error',
-                  style: TextStyle(color: widget.colors.error),
+                  style: NightshadeTypography.body
+                      .copyWith(color: widget.colors.error),
                 ),
                 data: (lists) => lists.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
                           'No observing lists yet. Create one to add this target.',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: widget.colors.textSecondary),
                         ),
                       )
                     : ConstrainedBox(
@@ -283,7 +283,7 @@ class _CandidateObservingListDialogState
                 NightshadeButton(
                   label: 'Create new list…',
                   icon: LucideIcons.plus,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: _saving
                       ? null
@@ -296,10 +296,8 @@ class _CandidateObservingListDialogState
                 const SizedBox(height: NightshadeTokens.spaceSm),
                 Text(
                   _error!,
-                  style: TextStyle(
-                    color: widget.colors.error,
-                    fontSize: NightshadeTypography.fontSize12,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.error),
                 ),
               ],
             ],
@@ -370,10 +368,10 @@ class _ObservingListRow extends StatelessWidget {
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color:
-                          enabled ? colors.textPrimary : colors.textSecondary,
-                    ),
+                    style: NightshadeTypography.body.copyWith(
+                        color: enabled
+                            ? colors.textPrimary
+                            : colors.textSecondary),
                   ),
                 ),
                 if (alreadyContainsTarget)

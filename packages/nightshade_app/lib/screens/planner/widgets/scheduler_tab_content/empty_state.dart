@@ -112,20 +112,14 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
                   children: [
                     Text(
                       headline,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.bodyStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       body,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textSecondary,
-                        height: 1.4,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ),
@@ -156,7 +150,7 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
                   label: 'Schedule whole catalog',
                   icon: LucideIcons.globe,
                   size: ButtonSize.small,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   onPressed: () => unawaited(
                     ref
                         .read(activeProjectIdProvider.notifier)
@@ -186,11 +180,9 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
                   children: [
                     Text(
                       'How the scheduler picks targets',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.caption.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -205,11 +197,8 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
                       'filter score higher than fully-imaged ones. Switching '
                       'between targets is gated by a hysteresis ratio so the '
                       'scheduler does not flip-flop between two close scores.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                        height: 1.5,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ),

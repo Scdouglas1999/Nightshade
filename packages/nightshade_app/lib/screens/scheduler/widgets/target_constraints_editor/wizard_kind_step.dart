@@ -28,23 +28,16 @@ class _WizardHeader extends StatelessWidget {
         const SizedBox(width: NightshadeTokens.spaceSm),
         Text(
           'Add constraint',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize16,
-            fontWeight: FontWeight.w700,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.sectionTitle
+              .copyWith(color: colors.textPrimary),
         ),
         const SizedBox(width: NightshadeTokens.spaceMd),
         Expanded(
           child: Text(
             label,
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: colors.textMuted,
-              letterSpacing: 0.3,
-            ),
+            style:
+                NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
           ),
         ),
       ],
@@ -71,11 +64,8 @@ class _Step1ChooseKind extends StatelessWidget {
       children: [
         Text(
           'What kind of constraint?',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w700,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.bodyStrong
+              .copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         _KindCard(
@@ -206,13 +196,10 @@ class _KindCard extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize14,
-                              fontWeight: FontWeight.w700,
-                              color: disabled
-                                  ? colors.textMuted
-                                  : colors.textPrimary,
-                            ),
+                            style: NightshadeTypography.bodyStrong.copyWith(
+                                color: disabled
+                                    ? colors.textMuted
+                                    : colors.textPrimary),
                           ),
                           if (disabled) ...[
                             const SizedBox(width: NightshadeTokens.spaceSm),
@@ -227,10 +214,8 @@ class _KindCard extends StatelessWidget {
                               ),
                               child: Text(
                                 'already added',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize10,
-                                  color: colors.textMuted,
-                                ),
+                                style: NightshadeTypography.caption
+                                    .copyWith(color: colors.textMuted),
                               ),
                             ),
                           ],
@@ -239,13 +224,10 @@ class _KindCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         body,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: disabled
-                              ? colors.textMuted
-                              : colors.textSecondary,
-                          height: 1.4,
-                        ),
+                        style: NightshadeTypography.caption.copyWith(
+                            color: disabled
+                                ? colors.textMuted
+                                : colors.textSecondary),
                       ),
                     ],
                   ),

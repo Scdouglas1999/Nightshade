@@ -18,7 +18,7 @@
 //                 latest real camera frame. A `SolverNotAvailableError`
 //                 surfaces the existing `PlateSolverRequiredBanner`; a
 //                 successful solve reports the RA/Dec delta versus the target
-//                 in a `NightshadeAlert`.
+//                 in a `NightshadeBanner`.
 //   4. GoTo    — embeds the existing `SlewDropdownButton` (the complete
 //                 slew + center + rotate flow), passing the framing rotation as
 //                 the target angle so "Slew, Center & Rotate" lights up when a
@@ -517,7 +517,7 @@ class _StepRow extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.eyebrow.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -706,7 +706,7 @@ class _SolveStep extends StatelessWidget {
           child: NightshadeButton(
             label: 'Solve latest camera frame',
             icon: NightshadeIcons.crosshair,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             isLoading: isSolving,
             onPressed: canSolve ? onSolve : null,
           ),
@@ -759,21 +759,19 @@ class _SolveOutcomeView extends StatelessWidget {
     }
 
     if (outcome.error != null) {
-      return NightshadeAlert(
-        severity: NightshadeAlertSeverity.error,
-        title: 'Solve failed',
-        message: outcome.error!,
-      );
+      return NightshadeBanner(
+          title: 'Solve failed',
+          message: outcome.error!,
+          tone: BannerTone.error);
     }
 
     final result = outcome.result!;
     if (!result.success) {
-      return NightshadeAlert(
-        severity: NightshadeAlertSeverity.warning,
-        title: 'Plate solve did not converge',
-        message: result.error ??
-            'The solver ran but could not find a solution for this frame.',
-      );
+      return NightshadeBanner(
+          title: 'Plate solve did not converge',
+          message: result.error ??
+              'The solver ran but could not find a solution for this frame.',
+          tone: BannerTone.warning);
     }
 
     final against = outcome.against;
@@ -783,11 +781,8 @@ class _SolveOutcomeView extends StatelessWidget {
             '${CoordinateFormat.ra(result.ra, seconds: SecondsPrecision.integerRounded)} '
             '${CoordinateFormat.dec(result.dec, seconds: SecondsPrecision.integerRounded)}';
 
-    return NightshadeAlert(
-      severity: NightshadeAlertSeverity.success,
-      title: 'Frame solved',
-      message: deltaMessage,
-    );
+    return NightshadeBanner(
+        title: 'Frame solved', message: deltaMessage, tone: BannerTone.success);
   }
 
   /// Human-readable offset between the solved center and the target, plus the

@@ -132,9 +132,8 @@ class _WeightSlider extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           Expanded(
@@ -152,11 +151,9 @@ class _WeightSlider extends StatelessWidget {
             child: Text(
               value.toStringAsFixed(2),
               textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textPrimary,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: colors.textPrimary,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
         ],
@@ -195,9 +192,8 @@ class _ParameterSlider extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           Expanded(
@@ -215,11 +211,9 @@ class _ParameterSlider extends StatelessWidget {
             child: Text(
               '${value.toStringAsFixed(2)}$suffix',
               textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textPrimary,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: colors.textPrimary,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
         ],

@@ -96,7 +96,7 @@ class _ProjectHeaderBar extends StatelessWidget {
           NightshadeButton(
             label: 'Plan Tonight',
             icon: LucideIcons.sparkles,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: planningSmartNight,
             onPressed: interactionBusy ? null : onPlanInSmartNight,

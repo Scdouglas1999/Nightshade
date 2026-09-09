@@ -75,7 +75,8 @@ class _SharedTargetDetailScreenState
         elevation: 0,
         title: Text(
           _target.name.isEmpty ? 'Target #${_target.targetId}' : _target.name,
-          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.bodyStrong
+              .copyWith(color: colors.textPrimary),
         ),
       ),
       body: SafeArea(
@@ -435,7 +436,7 @@ class _JoinCard extends StatelessWidget {
           ),
           NightshadeButton(
             label: joined ? 'Leave' : 'Join',
-            variant: joined ? ButtonVariant.outline : ButtonVariant.primary,
+            variant: joined ? ButtonVariant.secondary : ButtonVariant.primary,
             size: ButtonSize.small,
             onPressed: onToggle,
           ),
@@ -702,7 +703,7 @@ class _BlendPayoffCard extends StatelessWidget {
             children: [
               Text(
                 formatIntegration(ownSecondsBefore),
-                style: NightshadeTypography.h5.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -715,7 +716,7 @@ class _BlendPayoffCard extends StatelessWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 formatIntegration(after),
-                style: NightshadeTypography.h5.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.accent,
                 ),
               ),
@@ -744,7 +745,7 @@ class _BlendPayoffCard extends StatelessWidget {
             child: NightshadeButton(
               label: 'Open in Your Sky',
               icon: LucideIcons.sparkles,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: onOpenInYourSky,
             ),
@@ -762,13 +763,11 @@ class _HostOnlyNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const NightshadeAlert(
-      severity: NightshadeAlertSeverity.info,
-      compact: true,
-      message: 'Contributing, pulling, and retracting run on your imaging '
-          'host. Browse and join from here; open Constellation on the host to '
-          'share your light.',
-    );
+    return const NightshadeBanner(
+        title: 'Contributing, pulling, and retracting run on your imaging '
+            'host. Browse and join from here; open Constellation on the host to '
+            'share your light.',
+        tone: BannerTone.info);
   }
 }
 
@@ -849,20 +848,19 @@ class _ContributionsCard extends ConsumerWidget {
       error: (error, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Contribution receipts unavailable',
-            message: '${describeConstellationError(error)}\n\n'
-                'Retract actions are hidden until Nightshade can verify your '
-                'receipts with the imaging host.',
-          ),
+          NightshadeBanner(
+              title: 'Contribution receipts unavailable',
+              message: '${describeConstellationError(error)}\n\n'
+                  'Retract actions are hidden until Nightshade can verify your '
+                  'receipts with the imaging host.',
+              tone: BannerTone.warning),
           const SizedBox(height: NightshadeTokens.spaceSm),
           Align(
             alignment: Alignment.centerLeft,
             child: NightshadeButton(
               label: 'Retry receipts',
               icon: NightshadeIcons.refresh,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: () => ref.invalidate(myContributionsProvider),
             ),
@@ -916,7 +914,7 @@ class _ContributionRow extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceMd),
           NightshadeButton(
             label: 'Retract',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: busy ? null : onRetract,
           ),

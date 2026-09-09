@@ -29,15 +29,15 @@ class _QueueTable extends ConsumerWidget {
           backgroundColor: colors.surface,
           title: Text(
             'Remove from scheduler?',
-            style: TextStyle(color: colors.textPrimary),
+            style:
+                NightshadeTypography.body.copyWith(color: colors.textPrimary),
           ),
           content: Text(
             'Remove $targetName from the scheduler? The autopilot will not '
             'pick it again; its integration goals and constraints are '
             'deleted, and the target itself stays in your catalog.',
-            style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13),
+            style: NightshadeTypography.bodySm
+                .copyWith(color: colors.textSecondary),
           ),
           actions: [
             NightshadeButton(
@@ -98,15 +98,15 @@ class _QueueTable extends ConsumerWidget {
           backgroundColor: colors.surface,
           title: Text(
             'Clear scheduler queue?',
-            style: TextStyle(color: colors.textPrimary),
+            style:
+                NightshadeTypography.body.copyWith(color: colors.textPrimary),
           ),
           content: Text(
             'Clear all targets from the scheduler? The autopilot will have '
             'nothing left to pick; integration goals and constraints are '
             'deleted, and the targets themselves stay in your catalog.',
-            style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13),
+            style: NightshadeTypography.bodySm
+                .copyWith(color: colors.textSecondary),
           ),
           actions: [
             NightshadeButton(
@@ -193,11 +193,8 @@ class _QueueTable extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 'Scheduler queue',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.sectionTitle
+                    .copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               if (decision != null)
@@ -208,9 +205,8 @@ class _QueueTable extends ConsumerWidget {
                     child: Text(
                       'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.textMuted),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ),
                 ),
@@ -243,9 +239,8 @@ class _QueueTable extends ConsumerWidget {
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
                 child: Text(
                   'Failed to load integration goals: $e',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.error),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.error),
                 ),
               ),
               data: (goals) {
@@ -302,12 +297,8 @@ class _ColumnHeaders extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    TextStyle h() => TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w700,
-          color: colors.textMuted,
-          letterSpacing: 0.4,
-        );
+    TextStyle h() =>
+        NightshadeTypography.eyebrow.copyWith(color: colors.textMuted);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
       child: Row(

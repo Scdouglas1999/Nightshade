@@ -90,11 +90,10 @@ class _ShareTargetSheetState extends ConsumerState<_ShareTargetSheet> {
                 borderRadius: NightshadeTokens.radiusLg,
               ),
             ),
-            error: (error, _) => NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
-              title: 'Could not load your targets',
-              message: '$error',
-            ),
+            error: (error, _) => NightshadeBanner(
+                title: 'Could not load your targets',
+                message: '$error',
+                tone: BannerTone.warning),
           ),
           if (_selected != null) ...[
             const SizedBox(height: NightshadeTokens.spaceLg),
@@ -105,10 +104,7 @@ class _ShareTargetSheetState extends ConsumerState<_ShareTargetSheet> {
           ],
           if (_error != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              message: _error!,
-            ),
+            NightshadeBanner(title: _error!, tone: BannerTone.error),
           ],
         ],
       ),

@@ -427,7 +427,7 @@ class _RegionCutoutActionsState extends ConsumerState<RegionCutoutActions> {
             NightshadeButton(
               label: 'Export',
               icon: LucideIcons.share2,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: _busy || !canAccessAtlas ? null : _export,
             ),
@@ -435,7 +435,7 @@ class _RegionCutoutActionsState extends ConsumerState<RegionCutoutActions> {
               NightshadeButton(
                 label: 'Use as reference frame',
                 icon: LucideIcons.crosshair,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: _busy ? null : _useAsReference,
               ),

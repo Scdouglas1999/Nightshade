@@ -44,7 +44,8 @@ class _MagnitudeRangeControl extends ConsumerWidget {
                   backgroundColor: colors.surface,
                   title: Text(
                     'Magnitude range',
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                   ),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -52,10 +53,8 @@ class _MagnitudeRangeControl extends ConsumerWidget {
                     children: [
                       Text(
                         'Brighter ${lo.toStringAsFixed(1)} – Dimmer ${hi.toStringAsFixed(1)}',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textSecondary,
-                        ),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textSecondary),
                       ),
                       RangeSlider(
                         values: RangeValues(lo, hi),
@@ -166,7 +165,8 @@ class _SizeRangeControl extends ConsumerWidget {
                   backgroundColor: colors.surface,
                   title: Text(
                     'Angular size range',
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                   ),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -174,10 +174,8 @@ class _SizeRangeControl extends ConsumerWidget {
                     children: [
                       Text(
                         '${_formatSizeLabel(lo)} – ${_formatSizeLabel(hi)}',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textSecondary,
-                        ),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textSecondary),
                       ),
                       RangeSlider(
                         values: RangeValues(lo, hi),
@@ -200,10 +198,8 @@ class _SizeRangeControl extends ConsumerWidget {
                         child: Text(
                           'Targets without recorded size data are excluded '
                           'while this filter is active.',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            color: colors.textMuted,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textMuted),
                         ),
                       ),
                     ],
@@ -520,14 +516,16 @@ Future<double?> _showAngleSlider({
         builder: (dCtx, setDState) {
           return AlertDialog(
             backgroundColor: colors.surface,
-            title: Text(title, style: TextStyle(color: colors.textPrimary)),
+            title: Text(title,
+                style: NightshadeTypography.body
+                    .copyWith(color: colors.textPrimary)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
                   touched ? '${val.toStringAsFixed(0)}$unit' : 'Any',
-                  style: NightshadeTypography.h4.copyWith(
+                  style: NightshadeTypography.sectionTitle.copyWith(
                     color: touched ? colors.textPrimary : colors.textMuted,
                   ),
                 ),

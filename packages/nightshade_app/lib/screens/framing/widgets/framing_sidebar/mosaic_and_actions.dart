@@ -32,8 +32,8 @@ class FramingMosaicSection extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Mosaic',
-                style:
-                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -58,9 +58,8 @@ class FramingMosaicSection extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Configure equipment to enable mosaic planning',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
               ],
@@ -139,9 +138,8 @@ class FramingMosaicSection extends ConsumerWidget {
           // Start corner dropdown
           Text(
             'Start Corner',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textSecondary),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 6),
           FramingStartCornerSelector(
@@ -166,7 +164,7 @@ class FramingMosaicSection extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Text(
                       '${config.totalPanels} Panels',
-                      style: NightshadeTypography.h6
+                      style: NightshadeTypography.eyebrow
                           .copyWith(color: colors.textPrimary),
                     ),
                   ],
@@ -217,33 +215,26 @@ class FramingMosaicSection extends ConsumerWidget {
                                   ),
                                   child: Text(
                                     '${panel.index + 1}',
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize9,
-                                      fontWeight: FontWeight.w600,
-                                      color: isSelected
-                                          ? colors.textPrimary
-                                          : colors.textSecondary,
-                                    ),
+                                    style: NightshadeTypography.caption
+                                        .copyWith(
+                                            color: isSelected
+                                                ? colors.textPrimary
+                                                : colors.textSecondary,
+                                            fontWeight: FontWeight.w600),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     panel.raFormatted,
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize10,
-                                      fontFamily: 'monospace',
-                                      color: colors.textSecondary,
-                                    ),
+                                    style: NightshadeTypography.monoCaption
+                                        .copyWith(color: colors.textSecondary),
                                   ),
                                 ),
                                 Text(
                                   panel.decFormatted,
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize10,
-                                    fontFamily: 'monospace',
-                                    color: colors.textSecondary,
-                                  ),
+                                  style: NightshadeTypography.monoCaption
+                                      .copyWith(color: colors.textSecondary),
                                 ),
                               ],
                             ),
@@ -323,7 +314,8 @@ class FramingActionsPanel extends ConsumerWidget {
         // Supplementary utility actions not covered by the guided rail.
         Text(
           'Utilities',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+          style:
+              NightshadeTypography.eyebrow.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         // Utility actions use the design-system NightshadeButton (outline)
@@ -339,7 +331,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: LucideIcons.listPlus,
                 label: 'Add to Sequence',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasTarget ? onAddToExistingSequence : null,
               ),
@@ -351,7 +343,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: LucideIcons.wand2,
                 label: 'Auto-build',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasTarget ? onAddToSequence : null,
               ),
@@ -365,7 +357,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: LucideIcons.bookmark,
                 label: 'Save Target',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasTarget ? onSaveTarget : null,
               ),
@@ -375,7 +367,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: NightshadeIcons.download,
                 label: 'Cache Image',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasSurveyImage ? onCacheImage : null,
               ),
@@ -388,7 +380,7 @@ class FramingActionsPanel extends ConsumerWidget {
           child: NightshadeButton(
             icon: NightshadeIcons.refresh,
             label: 'Reload',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: hasTarget
                 ? () => ref.read(framingProvider.notifier).loadSurveyImage()

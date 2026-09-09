@@ -226,7 +226,7 @@ class _ProjectSummaryHeader extends StatelessWidget {
             NightshadeButton(
               label: 'Add Target',
               icon: LucideIcons.plus,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: onAddTarget,
             ),
@@ -275,7 +275,7 @@ class _TargetProgressCard extends StatelessWidget {
                   children: [
                     Text(
                       target.targetName,
-                      style: NightshadeTypography.h5.copyWith(
+                      style: NightshadeTypography.bodyStrong.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),

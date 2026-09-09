@@ -98,7 +98,7 @@ class SharedLibraryCard extends StatelessWidget {
             child: NightshadeButton(
               label: 'Open calibration library',
               icon: LucideIcons.library,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: onOpen,
             ),

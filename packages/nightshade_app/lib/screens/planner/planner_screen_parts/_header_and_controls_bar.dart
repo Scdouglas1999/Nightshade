@@ -211,7 +211,7 @@ class _PlannerControlsBar extends ConsumerWidget {
                         Expanded(
                           child: Text(
                             'Filters & sort',
-                            style: NightshadeTypography.h4.copyWith(
+                            style: NightshadeTypography.sectionTitle.copyWith(
                               color: colors.textPrimary,
                             ),
                           ),

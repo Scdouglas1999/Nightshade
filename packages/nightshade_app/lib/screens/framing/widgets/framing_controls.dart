@@ -44,10 +44,8 @@ class FramingSliderField extends StatelessWidget {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
         ),
         Expanded(
@@ -72,10 +70,8 @@ class FramingSliderField extends StatelessWidget {
           width: 45,
           child: Text(
             '${value.toInt()}${suffix ?? ''}',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textPrimary),
             textAlign: TextAlign.right,
           ),
         ),
@@ -119,8 +115,7 @@ class FramingToggleChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
+          style: NightshadeTypography.caption.copyWith(
             color: isActive ? colors.primary : colors.textSecondary,
             fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
           ),

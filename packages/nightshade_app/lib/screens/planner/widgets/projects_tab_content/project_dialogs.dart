@@ -181,11 +181,10 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
           ),
           if (_addError != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              title: 'Could not add target',
-              message: _addError!,
-            ),
+            NightshadeBanner(
+                title: 'Could not add target',
+                message: _addError!,
+                tone: BannerTone.error),
           ],
           const SizedBox(height: NightshadeTokens.spaceMd),
           Expanded(
@@ -200,11 +199,10 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                   ),
                 ),
               ),
-              error: (err, _) => NightshadeAlert(
-                severity: NightshadeAlertSeverity.error,
-                title: 'Failed to load targets',
-                message: err.toString(),
-              ),
+              error: (err, _) => NightshadeBanner(
+                  title: 'Failed to load targets',
+                  message: err.toString(),
+                  tone: BannerTone.error),
               data: (targets) {
                 final query = _query.toLowerCase();
                 final available = targets

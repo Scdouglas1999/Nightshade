@@ -216,11 +216,10 @@ class _ConnectedBody extends ConsumerWidget {
             error: (error, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                NightshadeAlert(
-                  severity: NightshadeAlertSeverity.warning,
-                  title: 'Hub unavailable',
-                  message: describeConstellationError(error),
-                ),
+                NightshadeBanner(
+                    title: 'Hub unavailable',
+                    message: describeConstellationError(error),
+                    tone: BannerTone.warning),
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 Wrap(
                   spacing: NightshadeTokens.spaceMd,
@@ -228,7 +227,7 @@ class _ConnectedBody extends ConsumerWidget {
                   children: [
                     ConstellationSignOutButton(
                       onSignedOut: onRefresh,
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                     ),
                     NightshadeButton(
@@ -262,7 +261,7 @@ class _ConnectedBody extends ConsumerWidget {
                 NightshadeButton(
                   label: 'Share a target',
                   icon: LucideIcons.globe2,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: () => _shareTarget(context, ref),
                 ),
@@ -343,18 +342,17 @@ class _FollowTheNightSection extends StatelessWidget {
             subtitle: 'Where it is darkest for you and the swarm needs depth',
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Could not check tonight\'s handoffs',
-            message: describeConstellationError(error),
-          ),
+          NightshadeBanner(
+              title: 'Could not check tonight\'s handoffs',
+              message: describeConstellationError(error),
+              tone: BannerTone.warning),
           const SizedBox(height: NightshadeTokens.spaceSm),
           Align(
             alignment: Alignment.centerLeft,
             child: NightshadeButton(
               label: 'Retry handoffs',
               icon: NightshadeIcons.refresh,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: onRetry,
             ),
@@ -534,11 +532,10 @@ class _SharedTargetsSection extends StatelessWidget {
           ],
         ),
       ),
-      error: (error, _) => NightshadeAlert(
-        severity: NightshadeAlertSeverity.warning,
-        title: 'Could not list shared targets',
-        message: describeConstellationError(error),
-      ),
+      error: (error, _) => NightshadeBanner(
+          title: 'Could not list shared targets',
+          message: describeConstellationError(error),
+          tone: BannerTone.warning),
     );
   }
 }

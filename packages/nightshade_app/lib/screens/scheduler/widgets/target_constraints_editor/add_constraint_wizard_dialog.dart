@@ -11,7 +11,7 @@ class _AddConstraintButton extends StatelessWidget {
       label: 'Add constraint',
       icon: LucideIcons.plus,
       size: ButtonSize.small,
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       onPressed: onPressed,
     );
   }
@@ -175,7 +175,7 @@ class _AddConstraintWizardDialogState
             key: const ValueKey('wizard-back'),
             label: 'Back',
             icon: LucideIcons.chevronLeft,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => setState(() => _step -= 1),
           ),

@@ -26,7 +26,8 @@ class FramingControlsSection extends ConsumerWidget {
       children: [
         Text(
           'Frame',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+          style:
+              NightshadeTypography.eyebrow.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
 
@@ -75,9 +76,8 @@ class FramingControlsSection extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Configure equipment to see FOV overlay',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
               ],
@@ -90,9 +90,8 @@ class FramingControlsSection extends ConsumerWidget {
         // Preview FOV control (always available for browsing)
         Text(
           'Preview Field of View',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         FramingPreviewFovSlider(
@@ -130,9 +129,8 @@ class FramingControlsSection extends ConsumerWidget {
         // Survey source dropdown (always available - can browse sky without FOV)
         Text(
           'Survey Source',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         Container(
@@ -146,9 +144,8 @@ class FramingControlsSection extends ConsumerWidget {
             value: framingState.surveySource,
             isExpanded: true,
             underline: const SizedBox(),
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textPrimary),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textPrimary),
             dropdownColor: colors.surfaceAlt,
             items: SurveySource.values.map((source) {
               return DropdownMenuItem(
@@ -288,9 +285,8 @@ class FramingCoordinatesPanel extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     'Target below horizon',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.warning),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.warning),
                   ),
                 ],
               ),
@@ -340,9 +336,8 @@ class FramingAltitudePanel extends StatelessWidget {
             Center(
               child: Text(
                 'Select a target to view altitude chart',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textMuted),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
             ),
           ],
