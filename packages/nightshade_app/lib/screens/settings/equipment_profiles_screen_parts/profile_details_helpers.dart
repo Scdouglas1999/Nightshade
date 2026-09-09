@@ -70,17 +70,14 @@ extension _ProfileDetailsHelpers on _ProfileDetailsState {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: NightshadeColors.of(context).surfaceAlt,
+                  color: NightshadeColors.of(context).well,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Text(
                   filterName,
-                  style: TextStyle(
+                  style: NightshadeTypography.body.copyWith(
                     color: NightshadeColors.of(context).textPrimary,
-                    fontSize: widget.isMobile
-                        ? NightshadeTypography.fontSize13
-                        : NightshadeTypography.fontSize14,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -97,11 +94,8 @@ extension _ProfileDetailsHelpers on _ProfileDetailsState {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
                   ],
-                  style: TextStyle(
+                  style: NightshadeTypography.body.copyWith(
                     color: NightshadeColors.of(context).textPrimary,
-                    fontSize: widget.isMobile
-                        ? NightshadeTypography.fontSize13
-                        : NightshadeTypography.fontSize14,
                   ),
                   decoration: InputDecoration(
                     isDense: true,
@@ -110,11 +104,8 @@ extension _ProfileDetailsHelpers on _ProfileDetailsState {
                       vertical: 8,
                     ),
                     suffixText: widget.isMobile ? 'st' : 'steps',
-                    suffixStyle: TextStyle(
+                    suffixStyle: NightshadeTypography.caption.copyWith(
                       color: NightshadeColors.of(context).textMuted,
-                      fontSize: widget.isMobile
-                          ? NightshadeTypography.fontSize11
-                          : NightshadeTypography.fontSize12,
                     ),
                     border: OutlineInputBorder(
                       borderRadius:
@@ -141,11 +132,8 @@ extension _ProfileDetailsHelpers on _ProfileDetailsState {
             else
               Text(
                 '$offset steps',
-                style: TextStyle(
+                style: NightshadeTypography.body.copyWith(
                   color: NightshadeColors.of(context).textSecondary,
-                  fontSize: widget.isMobile
-                      ? NightshadeTypography.fontSize13
-                      : NightshadeTypography.fontSize14,
                 ),
               ),
           ],

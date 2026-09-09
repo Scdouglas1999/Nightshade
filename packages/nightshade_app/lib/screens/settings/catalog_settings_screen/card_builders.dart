@@ -59,11 +59,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Icon(icon, color: colors.primary, size: 24),
               ),
               const SizedBox(width: 16),
@@ -78,7 +75,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                       children: [
                         Text(
                           title,
-                          style: NightshadeTypography.h4
+                          style: NightshadeTypography.sectionTitle
                               .copyWith(color: colors.textPrimary),
                         ),
                         if (isInstalled)
@@ -323,11 +320,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
         const SizedBox(height: 2),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: NightshadeDecorations.statusChip(
-            colors.textPrimary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            bordered: false,
-          ),
+          decoration:
+              NightshadeDecorations.chip(colors, tone: colors.textPrimary),
           child: Text(
             value,
             style:

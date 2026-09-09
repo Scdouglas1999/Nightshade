@@ -423,7 +423,7 @@ class _FilterSettingsNumberInputState
     final input = Container(
       height: widget.height,
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         border:
             Border.all(color: _error == null ? colors.border : colors.error),

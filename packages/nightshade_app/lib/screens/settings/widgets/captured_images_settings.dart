@@ -280,8 +280,7 @@ class _CapturedImagesSettingsState
   }
 
   Widget _info(NightshadeColors colors, IconData icon, String text) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -299,8 +298,7 @@ class _CapturedImagesSettingsState
   }
 
   Widget _loadError(NightshadeColors colors) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

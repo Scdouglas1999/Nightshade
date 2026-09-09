@@ -118,15 +118,14 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
               Container(
                 width: 28,
                 height: 28,
-                decoration: NightshadeDecorations.tintedBadge(
-                  NightshadeColors.of(context).primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
+                decoration: NightshadeDecorations.chip(
+                    NightshadeColors.of(context),
+                    tone: NightshadeColors.of(context).primary),
                 child: Center(
                   child: Text(
                     '${widget.position}',
-                    style: NightshadeTypography.h6
+                    style: NightshadeTypography.caption
+                        .copyWith(fontWeight: FontWeight.w600)
                         .copyWith(color: NightshadeColors.of(context).primary),
                   ),
                 ),
@@ -134,7 +133,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
               const SizedBox(width: 10),
               Text(
                 widget.filterName,
-                style: NightshadeTypography.h5
+                style: NightshadeTypography.bodyStrong
                     .copyWith(color: NightshadeColors.of(context).textPrimary),
               ),
             ],

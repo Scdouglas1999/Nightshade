@@ -491,7 +491,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: NightshadeColors.of(context).surfaceAlt,
+              color: NightshadeColors.of(context).well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusButton),
             ),

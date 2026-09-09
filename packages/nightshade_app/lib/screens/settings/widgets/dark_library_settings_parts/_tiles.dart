@@ -16,10 +16,8 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Expanded(
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
-        padding: const EdgeInsets.all(12),
+      child: NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(
           children: [
             Icon(icon, size: 20, color: colors.primary),
@@ -70,7 +68,7 @@ class _ActionButton extends StatelessWidget {
         onPressed: onPressed,
         icon: icon,
         label: label,
-        variant: isDanger ? ButtonVariant.destructive : ButtonVariant.outline,
+        variant: isDanger ? ButtonVariant.destructive : ButtonVariant.secondary,
         isLoading: isLoading,
       ),
     );
@@ -94,9 +92,7 @@ class _DarkGroupTile extends StatelessWidget {
     final isD = group.frameType == 'dark';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
+      child: NightshadePanel(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
@@ -179,10 +175,7 @@ class _DarkEntryTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isMaster
-            ? NightshadeDecorations.tintedBadge(
-                colors.primary,
-                borderRadius: BorderRadius.zero,
-              ).color
+            ? NightshadeDecorations.chip(colors, tone: colors.primary).color
             : Colors.transparent,
         border: Border(
           bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),

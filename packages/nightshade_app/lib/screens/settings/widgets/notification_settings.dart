@@ -498,7 +498,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                     subtitle: userFacingError(pushConfigAsync.error),
                     trailing: NightshadeButton(
                       label: 'Retry',
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                       onPressed: () =>
                           ref.invalidate(pushNotificationConfigProvider),

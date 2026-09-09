@@ -627,10 +627,7 @@ class _OptionalNumericInputState<T extends num>
             controller: widget.controller,
             focusNode: _focusNode,
             keyboardType: widget.keyboardType,
-            style: TextStyle(
-              fontSize: widget.isMobile
-                  ? NightshadeTypography.fontSize13
-                  : NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textPrimary,
             ),
             decoration: InputDecoration(

@@ -33,7 +33,7 @@ class _RemoteAccessNoticeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
@@ -133,7 +133,7 @@ class _AccessActionCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
@@ -159,7 +159,7 @@ class _AccessActionCard extends StatelessWidget {
               NightshadeButton(
                 label: secondaryLabel,
                 icon: secondaryIcon,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: onSecondary,
               ),

@@ -441,7 +441,7 @@ class _CalibrationFileBrowseButtonState
       onPressed: _busy ? null : _selectFile,
       icon: _busy ? NightshadeIcons.loading : LucideIcons.folderOpen,
       label: _busy ? 'Selecting...' : 'Browse',
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       size: ButtonSize.small,
     );
   }
@@ -511,7 +511,7 @@ class _CalStatusCard extends StatelessWidget {
                     BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius:
                     BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),

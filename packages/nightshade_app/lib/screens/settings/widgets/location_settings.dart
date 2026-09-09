@@ -146,15 +146,20 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 // instead of printing `00h 00m 00s`.
                 if (!settings.hasObserverLocation)
                   const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: NightshadeAlert(
-                      severity: NightshadeAlertSeverity.warning,
+                    padding: EdgeInsets.fromLTRB(
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceLg,
+                      0,
+                    ),
+                    child: NightshadeBanner(
+                      tone: BannerTone.warning,
                       title: 'Observing site not set',
                       message:
                           'The 0° / 0° / 0 m below are placeholders, not your '
                           'location. Nightshade will not compute twilight, '
                           'altitude or a plan from them — enter your '
-                          'coordinates, or use Detect Location, to set a site.',
+                          'coordinates, or use Detect location, to set a site.',
                     ),
                   ),
                 SettingRow(
@@ -347,7 +352,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                       'Estimated naked-eye limit for Bortle ${settings.bortleClass}',
                   trailing: Text(
                     '${BortleScale.limitingMagnitude(settings.bortleClass).toStringAsFixed(1)}m',
-                    style: NightshadeTypography.h5.copyWith(
+                    style: NightshadeTypography.bodyStrong.copyWith(
                         color: NightshadeColors.of(context).textPrimary),
                   ),
                   isLast: true,
@@ -740,7 +745,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   for (final dir in horizonDirections)
                     Text(
                       '$dir ${imported.altitudeAt(dir).toStringAsFixed(0)}°',
-                      style: TextStyle(color: colors.textPrimary),
+                      style: NightshadeTypography.body.copyWith(
+                        color: colors.textPrimary,
+                      ),
                     ),
                 ],
               ),

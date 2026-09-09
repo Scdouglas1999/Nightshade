@@ -222,7 +222,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                       label: _isClearing
                           ? 'Clearing…'
                           : 'Clear all replay history',
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                       isLoading: _isClearing,
                     ),

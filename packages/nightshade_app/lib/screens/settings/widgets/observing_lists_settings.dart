@@ -69,7 +69,9 @@ class ObservingListsSettings extends ConsumerWidget {
                 padding: const EdgeInsets.all(32),
                 child: Text(
                   'Could not load observing lists.',
-                  style: TextStyle(color: colors.error),
+                  style: NightshadeTypography.body.copyWith(
+                    color: colors.error,
+                  ),
                 ),
               ),
             ),
@@ -81,9 +83,7 @@ class ObservingListsSettings extends ConsumerWidget {
 
   Widget _buildEmptyState(
       BuildContext context, WidgetRef ref, NightshadeColors colors) {
-    return NightshadeCard(
-      variant: CardVariant.standard,
-      borderRadius: NightshadeTokens.radiusInline8,
+    return NightshadePanel(
       padding: const EdgeInsets.all(32),
       child: Center(
         child: Column(
@@ -92,8 +92,8 @@ class ObservingListsSettings extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               'No observing lists yet',
-              style:
-                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.sectionTitle
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -142,10 +142,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
-        padding: const EdgeInsets.all(16),
+      child: NightshadePanel(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -530,11 +527,7 @@ class _ActionChip extends StatelessWidget {
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusMd),
                 )
-              : NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
+              : NightshadeDecorations.chip(colors, tone: colors.primary),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

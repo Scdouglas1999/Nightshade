@@ -25,7 +25,7 @@ class _NotificationCrossLinkSection extends StatelessWidget {
           trailing: NightshadeButton(
             label: 'Open Notification Routing',
             icon: LucideIcons.arrowUpRight,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: isMobile ? ButtonSize.small : ButtonSize.medium,
             onPressed: () =>
                 context.go('/settings?section=notification-routing'),
@@ -63,7 +63,7 @@ class _PluginsSection extends ConsumerWidget {
         action: NightshadeButton(
           label: 'Retry',
           icon: LucideIcons.refreshCw,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: () => ref.invalidate(pluginRegistrationProvider),
         ),

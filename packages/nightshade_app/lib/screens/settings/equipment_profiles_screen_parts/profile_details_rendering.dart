@@ -8,7 +8,6 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
   Widget _buildDetails(BuildContext context) {
     final padding = widget.isMobile ? 16.0 : 32.0;
-    final titleFontSize = widget.isMobile ? 20.0 : 24.0;
 
     Widget content = SingleChildScrollView(
       padding: EdgeInsets.all(padding),
@@ -25,18 +24,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                     if (widget.isEditing)
                       _EditableField(
                         controller: _nameController,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          fontWeight: FontWeight.w700,
+                        style: NightshadeTypography.pageTitle.copyWith(
                           color: NightshadeColors.of(context).textPrimary,
                         ),
                       )
                     else
                       Text(
                         widget.profile.name,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          fontWeight: FontWeight.w700,
+                        style: NightshadeTypography.pageTitle.copyWith(
                           color: NightshadeColors.of(context).textPrimary,
                         ),
                       ),
@@ -82,7 +77,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   NightshadeButton(
                     label: 'Set Active',
                     icon: LucideIcons.check,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     onPressed: widget.onSetActive,
                   ),
@@ -121,9 +116,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                   NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Edit',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context)
-                                      .textPrimary)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).textPrimary,
+                              )),
                         ],
                       ),
                     ),
@@ -145,9 +140,10 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                             // this is the longest item label on the menu.
                             Flexible(
                               child: Text('Set as default',
-                                  style: TextStyle(
-                                      color: NightshadeColors.of(context)
-                                          .textPrimary)),
+                                  style: NightshadeTypography.body.copyWith(
+                                    color: NightshadeColors.of(context)
+                                        .textPrimary,
+                                  )),
                             ),
                           ],
                         ),
@@ -162,9 +158,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                   NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Duplicate',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context)
-                                      .textPrimary)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).textPrimary,
+                              )),
                         ],
                       ),
                     ),
@@ -178,9 +174,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                   NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Export',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context)
-                                      .textPrimary)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).textPrimary,
+                              )),
                         ],
                       ),
                     ),
@@ -194,8 +190,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                               color: NightshadeColors.of(context).error),
                           const SizedBox(width: 8),
                           Text('Delete',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context).error)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).error,
+                              )),
                         ],
                       ),
                     ),
@@ -504,15 +501,16 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: NightshadeColors.of(context).surfaceAlt,
+                    color: NightshadeColors.of(context).well,
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No filters configured',
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textMuted),
+                      style: NightshadeTypography.body.copyWith(
+                        color: NightshadeColors.of(context).textMuted,
+                      ),
                     ),
                   ),
                 )
@@ -590,15 +588,16 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: NightshadeColors.of(context).surfaceAlt,
+                    color: NightshadeColors.of(context).well,
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No devices assigned. Connect devices from the Equipment tab.',
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textMuted),
+                      style: NightshadeTypography.body.copyWith(
+                        color: NightshadeColors.of(context).textMuted,
+                      ),
                     ),
                   ),
                 )

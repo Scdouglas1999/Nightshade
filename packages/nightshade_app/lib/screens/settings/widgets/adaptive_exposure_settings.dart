@@ -225,11 +225,8 @@ class _AdaptiveExposureSettingsState
               ),
               Container(
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.info,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.info),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -319,10 +316,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
     if (filterNames.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        decoration: NightshadeDecorations.tintedBadge(
-          colors.warning,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        ),
+        decoration: NightshadeDecorations.chip(colors, tone: colors.warning),
         child: Row(
           children: [
             Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),

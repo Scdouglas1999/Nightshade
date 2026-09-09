@@ -50,7 +50,7 @@ class _SettingsLinkButtonState extends State<SettingsLinkButton> {
           padding: EdgeInsets.symmetric(
               horizontal: horizontalPad, vertical: verticalPad),
           decoration: BoxDecoration(
-            color: _isHovered ? colors.surfaceAlt : colors.background,
+            color: _isHovered ? colors.surfaceHover : colors.background,
             borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(color: colors.border),
           ),

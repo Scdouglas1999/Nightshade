@@ -578,7 +578,7 @@ class _BackupFolderRow extends ConsumerWidget {
           NightshadeButton(
             label: 'Change…',
             icon: LucideIcons.folderOpen,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () async {
               final picked = await ref.read(filePathSettingsPickerProvider)(

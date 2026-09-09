@@ -398,8 +398,9 @@ class _MatchingPreviewState extends State<_MatchingPreview> {
               const SizedBox(width: 6),
               Expanded(
                 child: Text('Preview failed: $_error',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    )),
               ),
             ],
           ),
@@ -447,7 +448,9 @@ class _MatchingPreviewState extends State<_MatchingPreview> {
                 const SizedBox(width: 6),
                 Expanded(
                     child: Text(w,
-                        style: TextStyle(color: theme.colorScheme.error))),
+                        style: NightshadeTypography.body.copyWith(
+                          color: theme.colorScheme.error,
+                        ))),
               ],
             ),
         ],

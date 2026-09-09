@@ -287,7 +287,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                           ),
                         ),
                         filled: true,
-                        fillColor: NightshadeColors.of(context).surfaceAlt,
+                        fillColor: NightshadeColors.of(context).well,
                       ),
                       onTapOutside: (_) =>
                           _commitPort(settings, showFeedback: true),
@@ -400,11 +400,9 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: NightshadeDecorations.iconChip(
-                NightshadeColors.of(context).primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                borderAlpha: 0.2,
-              ),
+              decoration: NightshadeDecorations.chip(
+                  NightshadeColors.of(context),
+                  tone: NightshadeColors.of(context).primary),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

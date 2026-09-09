@@ -236,7 +236,7 @@ class _TailscaleReachableRow extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
@@ -275,8 +275,7 @@ class _TailscaleNotDetectedSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.info,
+        NightshadeBanner(
           icon: LucideIcons.globe2,
           title: _l10nOr(
             l10n,
@@ -293,7 +292,7 @@ class _TailscaleNotDetectedSection extends StatelessWidget {
           action: NightshadeButton(
             label: _l10nOr(l10n, 'remoteAccessTailscaleRecheck', 'Re-check'),
             icon: LucideIcons.refreshCw,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: onRecheck,
           ),
@@ -305,7 +304,8 @@ class _TailscaleNotDetectedSection extends StatelessWidget {
             'remoteAccessTailscaleManualLabel',
             'Tailscale address (manual)',
           ),
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.caption
+              .copyWith(fontWeight: FontWeight.w600, color: colors.textPrimary),
         ),
         const SizedBox(height: 6),
         NightshadeTextField(

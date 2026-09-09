@@ -435,8 +435,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
 
   Widget _buildVersionCard(NightshadeColors colors) {
     final v = _version;
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -481,8 +480,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
   Widget _buildStatusCard(NightshadeColors colors) {
     final s = _status;
     final pct = s?.progressPct;
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -633,14 +631,14 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           onPressed: canDownload ? () => _run('Download', _doDownload) : null,
           label: 'Download',
           icon: LucideIcons.download,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
         ),
         NightshadeButton(
           onPressed: canAct && hasStaged ? _confirmApply : null,
           label: 'Apply Staged',
           icon: LucideIcons.checkCircle,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
         ),
         if (hasStaged)
@@ -763,8 +761,7 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

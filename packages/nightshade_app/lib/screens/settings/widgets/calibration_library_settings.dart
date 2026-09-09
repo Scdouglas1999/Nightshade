@@ -218,7 +218,9 @@ class _CalibrationLibrarySettingsState
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Text('Failed to load calibration library: $_error',
-            style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            style: NightshadeTypography.body.copyWith(
+              color: Theme.of(context).colorScheme.error,
+            )),
       );
     }
     if (_records.isEmpty) {

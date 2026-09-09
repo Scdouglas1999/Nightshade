@@ -217,10 +217,8 @@ class AboutSettings extends ConsumerWidget {
               Container(
                 width: logoSize,
                 height: logoSize,
-                decoration: NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Icon(
                   LucideIcons.sparkles,
                   size: logoIconSize,
@@ -230,31 +228,21 @@ class AboutSettings extends ConsumerWidget {
               SizedBox(height: isMobile ? 16 : 20),
               Text(
                 'Nightshade',
-                style: TextStyle(
-                  fontSize: isMobile
-                      ? NightshadeTypography.fontSize20
-                      : NightshadeTypography.fontSize24,
-                  fontWeight: FontWeight.w700,
+                style: NightshadeTypography.pageTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Version ${appVersion.version} (build ${appVersion.buildNumber})',
-                style: TextStyle(
-                  fontSize: isMobile
-                      ? NightshadeTypography.fontSize13
-                      : NightshadeTypography.fontSize14,
+                style: NightshadeTypography.body.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
               SizedBox(height: isMobile ? 16 : 20),
               Text(
                 'Advanced astrophotography suite',
-                style: TextStyle(
-                  fontSize: isMobile
-                      ? NightshadeTypography.fontSize12
-                      : NightshadeTypography.fontSize13,
+                style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textMuted,
                 ),
               ),
@@ -397,10 +385,7 @@ class _SystemInformationCard extends ConsumerWidget {
       if (dataFolder != null) SupportFact('Data folder', dataFolder),
     ];
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.all(20),
+    return NightshadePanel(
       child: Column(
         children: [
           Row(
@@ -408,14 +393,14 @@ class _SystemInformationCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'System Information',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
               NightshadeButton(
                 label: 'Copy',
                 icon: LucideIcons.clipboard,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: () async {
                   await Clipboard.setData(
@@ -457,16 +442,14 @@ class _LicenseCard extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final appVersion = ref.watch(appVersionProvider);
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.all(20),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'License',
-            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.bodyStrong
+                .copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 12),
           Text(
@@ -484,7 +467,7 @@ class _LicenseCard extends ConsumerWidget {
               NightshadeButton(
                 label: 'Read the license',
                 icon: LucideIcons.scrollText,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: () => onOpenUrl(kNightshadeLicenseUrl),
               ),
@@ -593,16 +576,14 @@ class _SoftwareUpdateCardState extends ConsumerState<_SoftwareUpdateCard> {
     final isNewer = latest != null &&
         (compareReleaseVersions(latest.version, appVersion.version) ?? 0) > 0;
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.all(20),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Software Update',
-            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.bodyStrong
+                .copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 12),
           Text(
@@ -620,7 +601,7 @@ class _SoftwareUpdateCardState extends ConsumerState<_SoftwareUpdateCard> {
               NightshadeButton(
                 label: 'Check for updates',
                 icon: LucideIcons.refreshCw,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 isLoading: _checking,
                 onPressed: _checking ? null : _check,

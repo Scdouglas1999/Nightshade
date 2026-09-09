@@ -188,7 +188,7 @@ class _DiscordConfigDialogState extends State<_DiscordConfigDialog> {
         NightshadeButton(
           label: 'Test send',
           icon: LucideIcons.send,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           isLoading: _testing,
           onPressed: (_testing || _saving) ? null : _testSend,
         ),
@@ -214,8 +214,7 @@ class _DiscordConfigDialogState extends State<_DiscordConfigDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const NightshadeAlert(
-                  severity: NightshadeAlertSeverity.info,
+                const NightshadeBanner(
                   title: 'Per-node webhooks',
                   message:
                       'This plugin adds a "Discord Webhook" sequence node. Each '

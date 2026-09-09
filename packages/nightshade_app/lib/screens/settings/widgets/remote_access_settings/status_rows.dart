@@ -17,7 +17,7 @@ class _PairingCallout extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),

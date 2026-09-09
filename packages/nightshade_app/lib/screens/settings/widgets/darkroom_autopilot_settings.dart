@@ -76,7 +76,7 @@ Widget openSectionButton({
   return NightshadeButton(
     label: label,
     icon: LucideIcons.arrowRight,
-    variant: ButtonVariant.outline,
+    variant: ButtonVariant.secondary,
     size: ButtonSize.small,
     onPressed: () => openSettingsSection(context, sectionKey),
   );

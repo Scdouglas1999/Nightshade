@@ -367,7 +367,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                       const SizedBox(width: 8),
                       Text(
                         'Backup & Sync',
-                        style: NightshadeTypography.h4
+                        style: NightshadeTypography.sectionTitle
                             .copyWith(color: colors.textPrimary),
                       ),
                     ],
@@ -458,14 +458,14 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                       NightshadeButton(
                         label: _testing ? 'Testing...' : 'Test Connection',
                         icon: LucideIcons.plugZap,
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         isLoading: _testing,
                         onPressed: _busy ? null : _testConnection,
                       ),
                       NightshadeButton(
                         label: _pushing ? 'Working...' : 'Push Now',
                         icon: LucideIcons.uploadCloud,
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         isLoading: _pushing,
                         onPressed: _busy ? null : _pushNow,
                       ),
@@ -473,7 +473,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                         label:
                             _browsing ? 'Browsing...' : 'Browse Remote Backups',
                         icon: LucideIcons.folderSearch,
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         isLoading: _browsing,
                         onPressed: _busy ? null : _browseRemote,
                       ),

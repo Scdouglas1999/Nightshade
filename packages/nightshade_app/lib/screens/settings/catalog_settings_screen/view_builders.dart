@@ -132,9 +132,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                 child: Text(
                   '${isNetworkDownload ? 'Downloading' : 'Importing'}: '
                   '$_currentDownload',
-                  style: TextStyle(
+                  style: NightshadeTypography.bodyStrong.copyWith(
                     color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -174,16 +173,14 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
 
   Widget _buildDownloadSection(BuildContext context) {
     final colors = context.nightshadeColors;
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.all(20),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Download Catalogs',
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 16),
           // There is ONE dataset. The three-tier selector that stood here —
@@ -252,7 +249,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
       children: [
         Text(
           'Actions',
-          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.sectionTitle
+              .copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 16),
         widget.isMobile
@@ -262,7 +260,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   NightshadeButton(
                     label: 'Refresh Status',
                     icon: NightshadeIcons.refresh,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
                   ),
                   if (hasInstalledCatalogs) ...[
@@ -283,7 +281,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   NightshadeButton(
                     label: 'Refresh Status',
                     icon: NightshadeIcons.refresh,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
                   ),
                   const SizedBox(width: 12),
@@ -325,11 +323,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child:
                     Icon(NightshadeIcons.tag, color: colors.primary, size: 24),
               ),
@@ -345,7 +340,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                       children: [
                         Text(
                           'GLADE+ Galaxy Catalog',
-                          style: NightshadeTypography.h4
+                          style: NightshadeTypography.sectionTitle
                               .copyWith(color: colors.textPrimary),
                         ),
                         if (isInstalled)
@@ -474,7 +469,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
               child: NightshadeButton(
                 label: 'Or Import from File (CSV)',
                 icon: NightshadeIcons.folderOpen,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 onPressed: _isDownloading ? null : _importAnnotationCatalog,
               ),
             ),
@@ -538,7 +533,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                       Flexible(
                         child: Text(
                           package.displayName,
-                          style: NightshadeTypography.h5
+                          style: NightshadeTypography.bodyStrong
                               .copyWith(color: colors.textPrimary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

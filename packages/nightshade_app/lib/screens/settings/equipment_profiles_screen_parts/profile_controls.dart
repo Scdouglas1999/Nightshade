@@ -32,11 +32,7 @@ class _Section extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: TextStyle(
-                  fontSize: isMobile
-                      ? NightshadeTypography.fontSize13
-                      : NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -104,7 +100,7 @@ class _FieldCard extends StatelessWidget {
           Container(
             height: 36,
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border:
                   Border.all(color: hasError ? colors.error : colors.border),
@@ -115,14 +111,16 @@ class _FieldCard extends StatelessWidget {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
               ],
-              style:
-                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.bodyStrong
+                  .copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 hintText: hint,
-                hintStyle: TextStyle(color: colors.textMuted),
+                hintStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
                 suffixText: suffix,
                 suffixStyle: NightshadeTypography.caption.copyWith(
                   color: colors.textMuted,
@@ -147,7 +145,7 @@ class _FieldCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   value ?? 'Not set',
-                  style: NightshadeTypography.h5.copyWith(
+                  style: NightshadeTypography.bodyStrong.copyWith(
                       color:
                           value != null && value != 'Not set' && value != 'N/A'
                               ? colors.textPrimary
@@ -200,7 +198,7 @@ class _BinningSelector extends StatelessWidget {
         Container(
           height: 36,
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: colors.border),
           ),
@@ -225,7 +223,8 @@ class _BinningSelector extends StatelessWidget {
                       child: Center(
                         child: Text(
                           '$i',
-                          style: NightshadeTypography.h6.copyWith(
+                          style: NightshadeTypography.caption.copyWith(
+                              fontWeight: FontWeight.w600,
                               color: value == i
                                   ? colors.background
                                   : colors.textSecondary),
@@ -277,10 +276,7 @@ class _FilterChip extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: NightshadeDecorations.statusChip(
-        filterColor,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: filterColor),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -295,7 +291,8 @@ class _FilterChip extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             name,
-            style: NightshadeTypography.h6.copyWith(color: filterColor),
+            style: NightshadeTypography.caption
+                .copyWith(fontWeight: FontWeight.w600, color: filterColor),
           ),
         ],
       ),
@@ -327,7 +324,7 @@ class _EditableFilterChip extends StatelessWidget {
       width: 120,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
@@ -380,7 +377,7 @@ class _DeviceChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
@@ -430,7 +427,7 @@ class _EditableDeviceChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),

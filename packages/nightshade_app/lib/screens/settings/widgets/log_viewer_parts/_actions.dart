@@ -115,7 +115,8 @@ extension _LogViewerActions on _LogViewerState {
           ),
           title: Text(
             'Export logs',
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
           ),
           content: SizedBox(
             width: 420,
@@ -343,7 +344,8 @@ extension _LogViewerActions on _LogViewerState {
           ),
           title: Text(
             'Download log file',
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
           ),
           content: SizedBox(
             width: 420,
@@ -427,11 +429,8 @@ extension _LogViewerActions on _LogViewerState {
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: NightshadeDecorations.tintedBadge(
-                    colors.error,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  ),
+                  decoration:
+                      NightshadeDecorations.chip(colors, tone: colors.error),
                   child: Icon(
                     LucideIcons.alertTriangle,
                     color: colors.error,
@@ -441,7 +440,7 @@ extension _LogViewerActions on _LogViewerState {
                 const SizedBox(width: 12),
                 Text(
                   'Clear logs?',
-                  style: NightshadeTypography.h4
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ],

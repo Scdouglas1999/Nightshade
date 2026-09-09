@@ -100,7 +100,9 @@ class _ProfileList extends StatelessWidget {
               ? Center(
                   child: Text(
                     'No profiles yet',
-                    style: TextStyle(color: colors.textMuted),
+                    style: NightshadeTypography.body.copyWith(
+                      color: colors.textMuted,
+                    ),
                   ),
                 )
               : ListView.builder(
@@ -178,7 +180,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
             color: widget.isSelected
                 ? NightshadeColors.of(context).primary.withValues(alpha: 0.1)
                 : _isHovered
-                    ? NightshadeColors.of(context).surfaceAlt
+                    ? NightshadeColors.of(context).well
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: widget.isSelected
@@ -198,7 +200,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                       ? NightshadeColors.of(context)
                           .primary
                           .withValues(alpha: 0.2)
-                      : NightshadeColors.of(context).surfaceAlt,
+                      : NightshadeColors.of(context).well,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),

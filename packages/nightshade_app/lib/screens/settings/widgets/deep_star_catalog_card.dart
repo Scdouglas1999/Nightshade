@@ -210,7 +210,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
               Expanded(
                 child: Text(
                   'Deep-Star Tier (Tycho-2 / Gaia)',
-                  style: NightshadeTypography.h4
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -347,7 +347,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                   NightshadeButton(
                     label: 'Pause',
                     icon: NightshadeIcons.close,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _cancelRequested
                         ? null
                         : () => setState(() => _cancelRequested = true),
@@ -356,7 +356,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                   NightshadeButton(
                     label: 'Verify',
                     icon: NightshadeIcons.success,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     isLoading: _action == _DeepStarAction.verify,
                     onPressed:
                         (_busy || _deleteConfirmationOpen) ? null : _verify,
@@ -413,7 +413,7 @@ class _LoadError extends StatelessWidget {
         NightshadeButton(
           label: 'Retry',
           icon: NightshadeIcons.refresh,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           onPressed: onRetry,
         ),
       ],

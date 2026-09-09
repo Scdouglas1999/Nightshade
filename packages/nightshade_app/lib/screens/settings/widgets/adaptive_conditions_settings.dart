@@ -334,11 +334,7 @@ class _WeightTotalCallout extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: NightshadeDecorations.iconChip(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        borderAlpha: 0.24,
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

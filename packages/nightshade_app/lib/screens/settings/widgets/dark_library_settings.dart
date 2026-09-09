@@ -158,8 +158,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Could not load dark library stats.',
-                    style:
-                        TextStyle(color: NightshadeColors.of(context).error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: NightshadeColors.of(context).error,
+                    )),
               ),
               data: (stats) => Padding(
                 padding: const EdgeInsets.all(16),
@@ -326,8 +327,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Could not load dark frame groups.',
-                    style:
-                        TextStyle(color: NightshadeColors.of(context).error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: NightshadeColors.of(context).error,
+                    )),
               ),
               data: (groups) {
                 if (groups.isEmpty) {
@@ -398,8 +400,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Could not load dark library entries.',
-                    style:
-                        TextStyle(color: NightshadeColors.of(context).error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: NightshadeColors.of(context).error,
+                    )),
               ),
               data: (entries) {
                 if (entries.isEmpty) {
@@ -407,8 +410,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       'No entries',
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textMuted),
+                      style: NightshadeTypography.body.copyWith(
+                        color: NightshadeColors.of(context).textMuted,
+                      ),
                     ),
                   );
                 }
@@ -482,7 +486,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 );
               },
               child: Text('Clear',
-                  style: TextStyle(color: NightshadeColors.of(context).error)),
+                  style: NightshadeTypography.body.copyWith(
+                    color: NightshadeColors.of(context).error,
+                  )),
             ),
           ],
         ),
@@ -653,7 +659,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     )
                   : Text(
                       'Delete',
-                      style: TextStyle(
+                      style: NightshadeTypography.body.copyWith(
                         color: NightshadeColors.of(context).error,
                       ),
                     ),
@@ -712,7 +718,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 );
               },
               child: Text('Delete',
-                  style: TextStyle(color: NightshadeColors.of(context).error)),
+                  style: NightshadeTypography.body.copyWith(
+                    color: NightshadeColors.of(context).error,
+                  )),
             ),
           ],
         ),

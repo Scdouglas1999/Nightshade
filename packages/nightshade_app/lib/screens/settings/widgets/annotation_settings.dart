@@ -51,7 +51,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 NightshadeButton(
                   label: 'Retry annotation settings',
                   icon: LucideIcons.refreshCw,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: onRetry,
                 ),

@@ -279,10 +279,7 @@ class _LivePreviewCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      decoration: NightshadeDecorations.tintedBadge(
-        colors.info,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: colors.info),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

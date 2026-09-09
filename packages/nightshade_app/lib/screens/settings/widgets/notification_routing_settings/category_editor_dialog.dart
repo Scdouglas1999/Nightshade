@@ -89,11 +89,17 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                     onChanged: (v) => setState(() => _enabled = v),
                   ),
                   const SizedBox(width: 8),
-                  Text('Rule enabled', style: TextStyle(color: c.textPrimary)),
+                  Text('Rule enabled',
+                      style: NightshadeTypography.body.copyWith(
+                        color: c.textPrimary,
+                      )),
                 ],
               ),
               const SizedBox(height: 12),
-              Text('Transports', style: TextStyle(color: c.textSecondary)),
+              Text('Transports',
+                  style: NightshadeTypography.body.copyWith(
+                    color: c.textSecondary,
+                  )),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
@@ -137,7 +143,9 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
               ],
               const SizedBox(height: 12),
               Text('Minimum severity',
-                  style: TextStyle(color: c.textSecondary)),
+                  style: NightshadeTypography.body.copyWith(
+                    color: c.textSecondary,
+                  )),
               const SizedBox(height: 6),
               AccessibleDropdown<EventSeverity>(
                 value: _minSeverity,
@@ -164,11 +172,15 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
               ),
               const SizedBox(height: 12),
               Text('Title template (empty = default)',
-                  style: TextStyle(color: c.textSecondary)),
+                  style: NightshadeTypography.body.copyWith(
+                    color: c.textSecondary,
+                  )),
               const SizedBox(height: 6),
               TextField(
                 controller: _titleTemplateController,
-                style: TextStyle(color: c.textPrimary),
+                style: NightshadeTypography.body.copyWith(
+                  color: c.textPrimary,
+                ),
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   hintText: r'e.g. ${target.name} done',
@@ -176,12 +188,16 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
               ),
               const SizedBox(height: 12),
               Text('Body template (empty = default)',
-                  style: TextStyle(color: c.textSecondary)),
+                  style: NightshadeTypography.body.copyWith(
+                    color: c.textSecondary,
+                  )),
               const SizedBox(height: 6),
               TextField(
                 controller: _bodyTemplateController,
                 maxLines: 3,
-                style: TextStyle(color: c.textPrimary),
+                style: NightshadeTypography.body.copyWith(
+                  color: c.textPrimary,
+                ),
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   hintText: r'e.g. Finished ${target.name} at ${time.local}',
@@ -283,15 +299,18 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
       children: [
         Expanded(
           child: Text(label,
-              style:
-                  TextStyle(color: NightshadeColors.of(context).textSecondary)),
+              style: NightshadeTypography.body.copyWith(
+                color: NightshadeColors.of(context).textSecondary,
+              )),
         ),
         SizedBox(
           width: 80,
           child: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            style: TextStyle(color: NightshadeColors.of(context).textPrimary),
+            style: NightshadeTypography.body.copyWith(
+              color: NightshadeColors.of(context).textPrimary,
+            ),
             decoration: const InputDecoration(border: OutlineInputBorder()),
           ),
         ),

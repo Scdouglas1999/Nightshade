@@ -203,8 +203,7 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
           if (_loading && model == null)
             _info(colors, LucideIcons.loader, 'Loading…')
           else if (hasModel && m != null)
-            NightshadeCard(
-              padding: const EdgeInsets.all(16),
+            NightshadePanel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -298,8 +297,7 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
   }
 
   Widget _info(NightshadeColors colors, IconData icon, String text) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

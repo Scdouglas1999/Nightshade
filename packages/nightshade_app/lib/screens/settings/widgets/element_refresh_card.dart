@@ -64,7 +64,7 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
               Expanded(
                 child: Text(
                   'Minor Planets & Comets (MPC)',
-                  style: NightshadeTypography.h4
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -281,7 +281,7 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
         NightshadeButton(
           label: 'Retry',
           icon: NightshadeIcons.refresh,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: _retryConfig,
         ),

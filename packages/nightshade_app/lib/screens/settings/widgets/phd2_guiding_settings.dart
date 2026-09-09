@@ -350,7 +350,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                         ),
                       NightshadeButton(
                         label: 'Test connection',
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         size: ButtonSize.small,
                         isLoading: _testing,
                         onPressed:

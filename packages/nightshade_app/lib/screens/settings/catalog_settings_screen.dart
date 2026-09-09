@@ -536,7 +536,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           NightshadeButton(
             label: 'Manage rig catalogs',
             icon: NightshadeIcons.download,
-            variant: missing ? ButtonVariant.primary : ButtonVariant.outline,
+            variant: missing ? ButtonVariant.primary : ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: router == null
                 ? null

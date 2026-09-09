@@ -179,7 +179,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
                 label: _l10nOr(
                     l10n, 'remoteAccessQrStopButton', 'Stop pairing mode'),
                 icon: LucideIcons.x,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: onStopPairing,
               ),

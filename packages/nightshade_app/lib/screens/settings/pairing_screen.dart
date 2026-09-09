@@ -196,7 +196,7 @@ class PairingScreen extends ConsumerWidget {
         const SizedBox(height: 16),
         NightshadeButton(
           label: l10n.text('pairingCancel'),
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           isLoading: state.isLoading,
           onPressed: state.isLoading
               ? null
@@ -329,7 +329,7 @@ class PairingScreen extends ConsumerWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),

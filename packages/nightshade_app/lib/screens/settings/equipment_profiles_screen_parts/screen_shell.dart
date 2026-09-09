@@ -153,7 +153,7 @@ class _EquipmentProfilesScreenState
           action: NightshadeButton(
             label: 'Retry',
             icon: LucideIcons.refreshCw,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => ref.invalidate(equipmentProfilesProvider),
           ),
@@ -750,7 +750,9 @@ class _CreateProfileDialogState extends State<_CreateProfileDialog> {
       backgroundColor: colors.surface,
       title: Text(
         'Create New Profile',
-        style: TextStyle(color: colors.textPrimary),
+        style: NightshadeTypography.body.copyWith(
+          color: colors.textPrimary,
+        ),
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -769,13 +771,19 @@ class _CreateProfileDialogState extends State<_CreateProfileDialog> {
                   setState(() => _nameError = null);
                 }
               },
-              style: TextStyle(color: colors.textPrimary),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.textPrimary,
+              ),
               decoration: InputDecoration(
                 labelText: 'Profile Name',
                 errorText: _nameError,
-                labelStyle: TextStyle(color: colors.textSecondary),
+                labelStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textSecondary,
+                ),
                 hintText: 'e.g., Deep Sky Rig, Planetary Setup',
-                hintStyle: TextStyle(color: colors.textMuted),
+                hintStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
                 ),
@@ -787,13 +795,19 @@ class _CreateProfileDialogState extends State<_CreateProfileDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _descriptionController,
-              style: TextStyle(color: colors.textPrimary),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.textPrimary,
+              ),
               maxLines: 2,
               decoration: InputDecoration(
                 labelText: 'Description (optional)',
-                labelStyle: TextStyle(color: colors.textSecondary),
+                labelStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textSecondary,
+                ),
                 hintText: 'Brief description of this setup',
-                hintStyle: TextStyle(color: colors.textMuted),
+                hintStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
                 ),
@@ -882,7 +896,9 @@ class _DuplicateProfileDialogState extends State<_DuplicateProfileDialog> {
       backgroundColor: colors.surface,
       title: Text(
         'Duplicate Profile',
-        style: TextStyle(color: colors.textPrimary),
+        style: NightshadeTypography.body.copyWith(
+          color: colors.textPrimary,
+        ),
       ),
       content: TextField(
         controller: _nameController,
@@ -897,11 +913,15 @@ class _DuplicateProfileDialogState extends State<_DuplicateProfileDialog> {
             setState(() => _nameError = null);
           }
         },
-        style: TextStyle(color: colors.textPrimary),
+        style: NightshadeTypography.body.copyWith(
+          color: colors.textPrimary,
+        ),
         decoration: InputDecoration(
           labelText: 'New Profile Name',
           errorText: _nameError,
-          labelStyle: TextStyle(color: colors.textSecondary),
+          labelStyle: NightshadeTypography.body.copyWith(
+            color: colors.textSecondary,
+          ),
           enabledBorder: OutlineInputBorder(
             borderSide: BorderSide(color: colors.border),
           ),

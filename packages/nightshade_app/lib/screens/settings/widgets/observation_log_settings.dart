@@ -54,7 +54,7 @@ class _ObservationLogSettingsState
               NightshadeButton(
                 onPressed: _isExporting ? null : () => _exportCsv(context),
                 label: _isExporting ? 'Exporting...' : 'Export CSV',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 icon: LucideIcons.download,
               ),
@@ -68,7 +68,9 @@ class _ObservationLogSettingsState
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text(
               'Could not load observation log stats.',
-              style: TextStyle(color: colors.error),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.error,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -149,7 +151,9 @@ class _ObservationLogSettingsState
                               ? 'No observations logged yet.\nTap an object in the planetarium and use "Log Observation".'
                               : 'No observations match your search.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: colors.textSecondary),
+                          style: NightshadeTypography.body.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -172,7 +176,9 @@ class _ObservationLogSettingsState
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text(
               'Could not load observation logs.',
-              style: TextStyle(color: colors.error),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.error,
+              ),
             ),
           ),
         ],
@@ -254,7 +260,8 @@ class _ObservationLogSettingsState
               children: [
                 Text(
                   _formatDate(log.timestamp),
-                  style: NightshadeTypography.h6
+                  style: NightshadeTypography.caption
+                      .copyWith(fontWeight: FontWeight.w600)
                       .copyWith(color: colors.textPrimary),
                 ),
                 Text(
@@ -277,7 +284,7 @@ class _ObservationLogSettingsState
                   children: [
                     Text(
                       log.objectName,
-                      style: NightshadeTypography.h5
+                      style: NightshadeTypography.bodyStrong
                           .copyWith(color: colors.textPrimary),
                     ),
                     if (log.catalogId != null) ...[
@@ -285,12 +292,8 @@ class _ObservationLogSettingsState
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
-                        decoration: NightshadeDecorations.statusChip(
-                          colors.primary,
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                          bordered: false,
-                        ),
+                        decoration: NightshadeDecorations.chip(colors,
+                            tone: colors.primary),
                         child: Text(
                           log.catalogId!,
                           style: NightshadeTypography.eyebrow.copyWith(

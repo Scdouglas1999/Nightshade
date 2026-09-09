@@ -249,9 +249,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           ),
           // Log entries list
           Expanded(
-            child: NightshadeCard(
-              variant: CardVariant.subtle,
-              borderRadius: isMobile ? 10 : 12,
+            child: NightshadePanel(
               child: _filteredLogs.isEmpty
                   ? Center(
                       child: Text(
@@ -345,7 +343,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
                 borderSide: BorderSide(color: colors.primary),
               ),
               filled: true,
-              fillColor: colors.surfaceAlt,
+              fillColor: colors.well,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               isDense: true,
@@ -366,7 +364,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
@@ -428,14 +426,14 @@ class _LogViewerState extends ConsumerState<LogViewer>
         NightshadeButton(
           label: 'Copy All',
           icon: LucideIcons.copy,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: _filteredLogs.isEmpty ? null : _copyAllToClipboard,
         ),
         NightshadeButton(
           label: _isExporting ? 'Exporting...' : 'Export',
           icon: LucideIcons.download,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           isLoading: _isExporting,
           onPressed: _isActionBusy ? null : _exportLogs,
@@ -446,7 +444,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           NightshadeButton(
             label: _isDownloadingFile ? 'Downloading...' : 'Download file',
             icon: LucideIcons.fileDown,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: _isDownloadingFile,
             onPressed: _isActionBusy ? null : _downloadLogFile,
@@ -468,7 +466,6 @@ class _LogViewerState extends ConsumerState<LogViewer>
     final levelColor = _levelColor(entry.level);
     final levelLabel = _levelLabel(entry.level);
     final timeStr = _formatTimestamp(entry.timestamp);
-    final fontSize = isMobile ? 11.0 : 12.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
@@ -478,9 +475,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           // Timestamp
           Text(
             timeStr,
-            style: TextStyle(
-              fontSize: fontSize,
-              fontFamily: 'monospace',
+            style: NightshadeTypography.readoutXs.copyWith(
               color: colors.textMuted,
             ),
           ),
@@ -488,11 +483,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           // Level badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: NightshadeDecorations.statusChip(
-              levelColor,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
-              bordered: false,
-            ),
+            decoration: NightshadeDecorations.chip(colors, tone: levelColor),
             child: Text(
               levelLabel,
               style: NightshadeTypography.monoCaption.copyWith(
@@ -506,9 +497,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           if (entry.source != null) ...[
             Text(
               '[${entry.source}]',
-              style: TextStyle(
-                fontSize: fontSize,
-                fontFamily: 'monospace',
+              style: NightshadeTypography.readoutXs.copyWith(
                 color: colors.primary.withValues(alpha: 0.8),
                 fontWeight: FontWeight.w600,
               ),
@@ -519,9 +508,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           Expanded(
             child: Text(
               entry.message,
-              style: TextStyle(
-                fontSize: fontSize,
-                fontFamily: 'monospace',
+              style: NightshadeTypography.readoutXs.copyWith(
                 color: entry.level.index >= LogLevel.error.index
                     ? levelColor
                     : colors.textPrimary,

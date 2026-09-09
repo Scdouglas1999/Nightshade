@@ -471,16 +471,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     return Scaffold(
       body: Column(
         children: [
-          // Canonical screen chrome: title + subtitle route through the shared
-          // [ScreenHeader] (design-system typography + divider) instead of a
-          // hand-rolled icon-chip title row.
-          ScreenHeader(
+          // The subtitle is gone with ScreenHeader: "Manage your Nightshade
+          // data backups" under a heading that reads "Backup & restore" said
+          // nothing the title had not. Where the backups actually LIVE is a
+          // fact, so it stays, as the header's one muted context line.
+          PageHeader(
             icon: LucideIcons.save,
-            title: 'Backup & Restore',
-            subtitle: isRemoteMode
-                ? 'Manage backups stored on the connected Nightshade host'
-                : 'Manage your Nightshade data backups',
-            padding: const EdgeInsets.all(NightshadeTokens.spaceXl),
+            title: 'Backup & restore',
+            context: isRemoteMode ? 'On the connected host' : null,
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -610,8 +608,8 @@ class _AutoSaveStatusCard extends ConsumerWidget {
             children: [
               Text(
                 'Auto-Save Status',
-                style:
-                    NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.sectionTitle
+                    .copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 16),
               _StatusRow(
@@ -643,7 +641,9 @@ class _AutoSaveStatusCard extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Text(
             'Could not load auto-save status.',
-            style: TextStyle(color: colors.error),
+            style: NightshadeTypography.body.copyWith(
+              color: colors.error,
+            ),
           ),
         ),
       ),
@@ -678,8 +678,8 @@ class _QuickActionsCard extends StatelessWidget {
           children: [
             Text(
               'Quick Actions',
-              style:
-                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.sectionTitle
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Row(
@@ -702,7 +702,7 @@ class _QuickActionsCard extends StatelessWidget {
                             ? 'Restoring...'
                             : 'Import Backup',
                     icon: LucideIcons.upload,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     isLoading: isRestoring || isImportingBackup,
                     onPressed: onImportBackup,
                   ),
@@ -751,7 +751,7 @@ class _RecentBackupsCard extends StatelessWidget {
               children: [
                 Text(
                   'Recent Backups',
-                  style: NightshadeTypography.h4
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
@@ -784,13 +784,15 @@ class _RecentBackupsCard extends StatelessWidget {
                       Text(
                         errorMessage!,
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: colors.textSecondary),
+                        style: NightshadeTypography.body.copyWith(
+                          color: colors.textSecondary,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       NightshadeButton(
                         label: 'Retry',
                         icon: LucideIcons.refreshCw,
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         onPressed: onRefresh,
                       ),
                     ],
@@ -808,7 +810,9 @@ class _RecentBackupsCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       Text(
                         'No backups found',
-                        style: TextStyle(color: colors.textSecondary),
+                        style: NightshadeTypography.body.copyWith(
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -864,10 +868,8 @@ class _BackupTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: NightshadeDecorations.iconChip(
-          isAutoSave ? colors.warning : colors.primary,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        ),
+        decoration: NightshadeDecorations.chip(colors,
+            tone: isAutoSave ? colors.warning : colors.primary),
         child: Icon(
           isAutoSave ? LucideIcons.clock : LucideIcons.database,
           size: 20,

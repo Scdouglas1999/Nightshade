@@ -120,7 +120,7 @@ class _SecretFieldRowState extends State<_SecretFieldRow> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: colors.border),
               ),
@@ -137,7 +137,7 @@ class _SecretFieldRowState extends State<_SecretFieldRow> {
           const SizedBox(width: 8),
           NightshadeButton(
             label: 'Replace',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () {
               widget.controller.text = '';
@@ -207,7 +207,7 @@ Widget _transportErrorSection({
         trailing: NightshadeButton(
           label: 'Retry',
           icon: LucideIcons.refreshCw,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: onRetry,
         ),
@@ -402,7 +402,7 @@ class _SaveButtonState extends State<_SaveButton> {
   Widget build(BuildContext context) {
     return NightshadeButton(
       label: 'Save',
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       size: ButtonSize.small,
       isLoading: _busy,
       onPressed: _busy ? null : _run,

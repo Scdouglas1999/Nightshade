@@ -290,7 +290,9 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
               Text(
                 'Plate-solver detection failed. Check that your solver is '
                 'installed, then retry.',
-                style: TextStyle(color: colors.textPrimary),
+                style: NightshadeTypography.body.copyWith(
+                  color: colors.textPrimary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
@@ -311,7 +313,9 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
             padding: const EdgeInsets.all(24),
             child: Text(
               'Could not load plate-solver preferences.',
-              style: TextStyle(color: colors.error),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.error,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -372,7 +376,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
           child: NightshadeButton(
             label: uiState.rescanning ? 'Re-scanning…' : 'Re-scan',
             icon: LucideIcons.refreshCw,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             isLoading: uiState.rescanning,
             onPressed: uiState.rescanning ? null : _rescan,
           ),
@@ -417,7 +421,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
               trailing: NightshadeButton(
                 label: uiState.verifying ? 'Verifying…' : 'Verify',
                 icon: LucideIcons.play,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 isLoading: uiState.verifying,
                 onPressed: _resolveAstapTarget(detection, preference) == null
                     ? null
@@ -455,7 +459,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
               trailing: NightshadeButton(
                 label: uiState.verifying ? 'Verifying…' : 'Verify',
                 icon: LucideIcons.play,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 isLoading: uiState.verifying,
                 onPressed:
                     _resolveAstrometryTarget(detection, preference) == null
@@ -603,10 +607,7 @@ class _NoSolverQuickStart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusLg,
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -637,7 +638,7 @@ class _NoSolverQuickStart extends StatelessWidget {
               label: 'Open ASTAP download page',
               icon: LucideIcons.externalLink,
               size: ButtonSize.small,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               onPressed: () => _openUrl(context, _astapDownloadUrl),
             ),
             onTap: () => _openUrl(context, _astapDownloadUrl),
@@ -656,7 +657,7 @@ class _NoSolverQuickStart extends StatelessWidget {
               label: 'Open ASTAP catalog page',
               icon: LucideIcons.externalLink,
               size: ButtonSize.small,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               onPressed: () => _openUrl(context, _astapDownloadUrl),
             ),
             onTap: () => _openUrl(context, _astapDownloadUrl),
@@ -706,10 +707,8 @@ class _QuickStartStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final card = NightshadeCard(
-      variant: CardVariant.standard,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.all(12),
+    final card = NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -717,10 +716,8 @@ class _QuickStartStep extends StatelessWidget {
             width: 28,
             height: 28,
             alignment: Alignment.center,
-            decoration: NightshadeDecorations.iconChip(
-              colors.primary,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            ),
+            decoration:
+                NightshadeDecorations.chip(colors, tone: colors.primary),
             child: Text(
               '$stepNumber',
               style: NightshadeTypography.buttonSm.copyWith(
@@ -822,7 +819,7 @@ class _CatalogMissingHint extends StatelessWidget {
                 : 'Browse for catalog directory',
             icon: LucideIcons.folderOpen,
             size: ButtonSize.small,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             isLoading: isBrowsing,
             onPressed: onBrowseCatalog,
           ),

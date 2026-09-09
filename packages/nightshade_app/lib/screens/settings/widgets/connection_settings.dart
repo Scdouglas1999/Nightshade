@@ -90,12 +90,8 @@ class ConnectionSettings extends ConsumerWidget {
                 ),
                 child: Text(
                   connectionStatus,
-                  style: TextStyle(
-                    fontSize: isMobile
-                        ? NightshadeTypography.fontSize10
-                        : NightshadeTypography.fontSize11,
+                  style: NightshadeTypography.eyebrow.copyWith(
                     color: statusColor,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -108,12 +104,8 @@ class ConnectionSettings extends ConsumerWidget {
                 subtitle: 'Current host and port for this Nightshade server',
                 trailing: SelectableText(
                   serverAddress,
-                  style: TextStyle(
-                    fontSize: isMobile
-                        ? NightshadeTypography.fontSize11
-                        : NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.readoutXs.copyWith(
                     color: colors.textPrimary,
-                    fontFamily: 'monospace',
                   ),
                 ),
                 isMobile: isMobile,
@@ -170,7 +162,7 @@ class ConnectionSettings extends ConsumerWidget {
                       ' • host and port used for INDI discovery',
                   trailing: NightshadeButton(
                     label: 'Configure',
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     onPressed: () => showDialog<Map<String, dynamic>>(
                       context: context,
@@ -202,7 +194,7 @@ class ConnectionSettings extends ConsumerWidget {
                     ' • host and port used for Alpaca discovery',
                 trailing: NightshadeButton(
                   label: 'Configure',
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: () => showDialog<Map<String, dynamic>>(
                     context: context,
@@ -288,7 +280,7 @@ class ConnectionSettings extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Text(
                     disconnectError!,
-                    style: TextStyle(
+                    style: NightshadeTypography.body.copyWith(
                       color: Theme.of(ctx).colorScheme.error,
                     ),
                   ),
@@ -683,10 +675,7 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
                   isRemote
                       ? 'This device: $platformLabel (not the imaging host)'
                       : 'Current platform: $platformLabel',
-                  style: TextStyle(
-                    fontSize: isMobile
-                        ? NightshadeTypography.fontSize12
-                        : NightshadeTypography.fontSize13,
+                  style: NightshadeTypography.buttonSm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -699,10 +688,7 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
             Text(
               'Driver support shown is for this device. The imaging host may '
               'support different drivers.',
-              style: TextStyle(
-                fontSize: isMobile
-                    ? NightshadeTypography.fontSize11
-                    : NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textMuted,
               ),
             ),
@@ -756,7 +742,7 @@ class _PlatformCapabilityRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.all(isMobile ? 10 : 12),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt.withValues(alpha: 0.55),
+        color: colors.well.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
@@ -859,10 +845,7 @@ class _DriverLabel extends StatelessWidget {
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: NightshadeDecorations.statusChip(
-            statusColor,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          ),
+          decoration: NightshadeDecorations.chip(colors, tone: statusColor),
           child: Text(
             statusLabel,
             style: NightshadeTypography.eyebrow.copyWith(
@@ -897,10 +880,7 @@ class _DriverDetails extends StatelessWidget {
       children: [
         Text(
           driver.notes,
-          style: TextStyle(
-            fontSize: isMobile
-                ? NightshadeTypography.fontSize11
-                : NightshadeTypography.fontSize12,
+          style: NightshadeTypography.caption.copyWith(
             color: colors.textSecondary,
           ),
         ),
@@ -908,10 +888,7 @@ class _DriverDetails extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             unsupportedReason,
-            style: TextStyle(
-              fontSize: isMobile
-                  ? NightshadeTypography.fontSize11
-                  : NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.warning,
             ),
           ),
@@ -919,10 +896,7 @@ class _DriverDetails extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           driver.deviceCoverage,
-          style: TextStyle(
-            fontSize: isMobile
-                ? NightshadeTypography.fontSize10
-                : NightshadeTypography.fontSize11,
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textMuted,
           ),
         ),

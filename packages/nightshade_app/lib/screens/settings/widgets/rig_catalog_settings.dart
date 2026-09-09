@@ -421,8 +421,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   Widget _installedTile(NightshadeColors colors, RemoteCatalogStatus c) {
     final ok =
         c.status.toLowerCase() == 'ok' || c.status.toLowerCase() == 'installed';
-    return NightshadeCard(
-      padding: const EdgeInsets.all(12),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -479,8 +479,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     final installed = _installed.any(
       (c) => c.name.toLowerCase() == a.name.toLowerCase(),
     );
-    return NightshadeCard(
-      padding: const EdgeInsets.all(12),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Row(
         children: [
           Expanded(
@@ -536,8 +536,7 @@ class _NotConnected extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final router = GoRouter.maybeOf(context);
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -576,7 +575,7 @@ class _NotConnected extends StatelessWidget {
               NightshadeButton(
                 label: "This device's catalogs",
                 icon: LucideIcons.library,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: router == null
                     ? null
@@ -599,8 +598,7 @@ class _Info extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

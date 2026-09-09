@@ -199,7 +199,9 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
           const SizedBox(width: 12),
           Text(
             'Alpaca Server Configuration',
-            style: TextStyle(color: colors.textPrimary),
+            style: NightshadeTypography.body.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
         ],
       ),
@@ -238,7 +240,9 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
             TextField(
               key: const ValueKey('alpaca-host-field'),
               controller: _hostController,
-              style: TextStyle(color: colors.textPrimary),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.textPrimary,
+              ),
               onChanged: (_) {
                 _hostEdited = true;
                 setState(() {
@@ -248,10 +252,13 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
               },
               decoration: InputDecoration(
                 labelText: 'Alpaca Server Host',
-                labelStyle: TextStyle(color: colors.textMuted),
+                labelStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
                 hintText: 'localhost or IP address',
-                hintStyle:
-                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted.withValues(alpha: 0.5),
+                ),
                 errorText: _hostError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
@@ -265,7 +272,9 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
             TextField(
               key: const ValueKey('alpaca-port-field'),
               controller: _portController,
-              style: TextStyle(color: colors.textPrimary),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.textPrimary,
+              ),
               keyboardType: TextInputType.number,
               onChanged: (_) {
                 _portEdited = true;
@@ -276,10 +285,13 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
               },
               decoration: InputDecoration(
                 labelText: 'Port',
-                labelStyle: TextStyle(color: colors.textMuted),
+                labelStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
                 hintText: '11111 (default)',
-                hintStyle:
-                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted.withValues(alpha: 0.5),
+                ),
                 errorText: _portError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
@@ -296,7 +308,7 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
                 onPressed: (_isTesting || _isSaving) ? null : _testConnection,
                 icon: NightshadeIcons.refresh,
                 label: _isTesting ? 'Testing...' : 'Test Connection',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 isLoading: _isTesting,
               ),
             ),

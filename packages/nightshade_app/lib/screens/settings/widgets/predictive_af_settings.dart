@@ -581,7 +581,7 @@ class _ModelRowState extends State<_ModelRow> {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: c.surfaceAlt,
+        color: c.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: c.border),
       ),
@@ -763,10 +763,8 @@ class _SampleScatter extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return SizedBox(
       height: 140,
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        borderRadius: NightshadeTokens.radiusInline4,
-        padding: const EdgeInsets.all(8),
+      child: NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
         child: samples.isEmpty
             ? Center(
                 child: Text(

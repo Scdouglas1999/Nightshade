@@ -25,12 +25,9 @@ class _LevelFilterButton extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: isSelected
-            ? NightshadeDecorations.selectedSurface(
-                effectiveColor,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              )
+            ? NightshadeDecorations.chip(colors, tone: effectiveColor)
             : BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: colors.border),
               ),
@@ -68,12 +65,9 @@ class _ActionToggle extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: isActive
-            ? NightshadeDecorations.selectedSurface(
-                colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              )
+            ? NightshadeDecorations.chip(colors, tone: colors.primary)
             : BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: colors.border),
               ),
