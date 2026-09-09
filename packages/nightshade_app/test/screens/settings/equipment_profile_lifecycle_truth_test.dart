@@ -264,7 +264,7 @@ void main() {
     // The `0` sentinel must not be pre-loaded into a field the validator then
     // rejects.
     expect(
-        tester.widget<TextField>(_fieldUnder('Focal length')).controller!.text,
+        tester.widget<TextField>(_fieldUnder('Focal Length')).controller!.text,
         isEmpty);
     expect(tester.widget<TextField>(_fieldUnder('Aperture')).controller!.text,
         isEmpty);
@@ -289,7 +289,7 @@ void main() {
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(_fieldUnder('Focal length'), '0');
+    await tester.enterText(_fieldUnder('Focal Length'), '0');
     final save = find.text('Save');
     await tester.ensureVisible(save);
     await tester.tap(save);
@@ -302,7 +302,7 @@ void main() {
       find.descendant(
         of: find
             .ancestor(
-              of: find.text('Focal length'),
+              of: find.text('Focal Length'),
               matching: find.byType(Column),
             )
             .first,

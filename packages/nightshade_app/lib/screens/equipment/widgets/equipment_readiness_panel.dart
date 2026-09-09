@@ -26,9 +26,14 @@ class EquipmentReadinessPanel extends ConsumerWidget {
     // The title must count what the list below actually SHOWS. Blocked rows
     // cannot be hidden at all, so only caution rows can go missing — those are
     // subtracted here and reported as dismissed.
+    // A BLOCKER cannot be dismissed away. The dismissed set is session state
+    // that a caution row writes, but a stale or foreign entry in it must never
+    // hide something that is blocking first light — so only cautions are
+    // filtered, and the count below counts exactly what is listed.
     final dismissed = ref.watch(dismissedReadinessItemsProvider);
     final items = [
-      for (final item in [...report.blockedItems, ...report.cautionItems])
+      ...report.blockedItems,
+      for (final item in report.cautionItems)
         if (!dismissed.contains(item.id)) item,
     ];
     final hiddenCaution =

@@ -64,19 +64,17 @@ Widget _harness(ReadinessReport report) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('renders the section header + itemized checklist when not ready',
+  testWidgets('renders the section title + itemized blockers when not ready',
       (tester) async {
     await tester.pumpWidget(_harness(_blockedReport));
     // Blocked item has a forever-pulsing urgent dot; pump frames.
     await tester.pump();
 
-    expect(find.text('Ready to image'), findsOneWidget);
-    expect(find.byType(ReadinessPanel), findsOneWidget);
-    // The blocking item drives the "items are blocking" subtitle.
-    expect(
-      find.textContaining('blocking'),
-      findsWidgets,
-    );
+    // 06 §Equipment: a SectionTitle with the outstanding count, then one row
+    // per item that still needs action. The old SectionHeader sentence
+    // ("2 items are blocking first light") is the chip's job now.
+    expect(find.text('Readiness'), findsOneWidget);
+    expect(find.text('1 blocker'), findsOneWidget);
     // Per-item rows and their Fix actions render.
     expect(find.text('Critical devices'), findsOneWidget);
     expect(find.text('Set up equipment'), findsOneWidget);
@@ -86,21 +84,22 @@ void main() {
     await tester.pumpWidget(_harness(_readyReport));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ready to image'), findsOneWidget);
+    expect(find.text('Readiness'), findsOneWidget);
+    expect(find.text('All clear'), findsOneWidget);
+    // Outstanding-only: ONE confirmation row instead of repeating every green
+    // check back at the operator.
+    expect(find.text('Ready for first light'), findsOneWidget);
     expect(
-      find.text('Everything required for first light is in place.'),
+      find.text('Everything first light needs is in place.'),
       findsOneWidget,
     );
-    // Outstanding-only mode shows the compact "all set" confirmation row
-    // instead of repeating every green check.
-    expect(find.text('Ready for first light'), findsOneWidget);
   });
 
-  testWidgets(
-      'caps inline rows and offers "View all" when many are outstanding',
+  testWidgets('lists every outstanding item and counts the blockers among them',
       (tester) async {
-    // Five outstanding items (> maxItems: 3): the inline panel shows 3 and
-    // collapses the remaining 2 into a "View all (2 more)" button.
+    // Five outstanding items. The side panel scrolls (06 §Equipment), so the
+    // list is no longer capped at three with a "View all" escape hatch — a
+    // blocker the operator cannot see is a blocker they will not fix.
     const manyReport = ReadinessReport(
       items: [
         ReadinessItem(
@@ -149,15 +148,14 @@ void main() {
     await tester.pumpWidget(_harness(manyReport));
     await tester.pump();
 
-    // First three (blocked first) are inline; the 4th/5th are collapsed.
+    // Blocked first, then cautions; all five are listed.
     expect(find.text('Critical devices'), findsOneWidget);
     expect(find.text('Location'), findsOneWidget);
     expect(find.text('Capture folder'), findsOneWidget);
-    expect(find.text('Plate solver'), findsNothing);
-    expect(
-      find.widgetWithText(NightshadeButton, 'View all (2 more)'),
-      findsOneWidget,
-    );
+    expect(find.text('Plate solver'), findsOneWidget);
+    expect(find.text('Dark library'), findsOneWidget);
+    // The chip counts the BLOCKERS, which is what stops first light.
+    expect(find.text('3 blockers'), findsOneWidget);
   });
 
   testWidgets('puts Fix actions below row content in the narrow status rail',
