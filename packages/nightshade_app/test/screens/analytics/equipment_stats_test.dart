@@ -172,5 +172,5 @@ Readout _readout(WidgetTester tester, String label) {
   final wanted = label.toLowerCase();
   return tester
       .widgetList<Readout>(find.byType(Readout))
-      .firstWhere((r) => r.label.toLowerCase() == wanted);
+      .firstWhere((r) => r.label?.toLowerCase() == wanted);
 }
