@@ -59,7 +59,9 @@ class ImagingStatusStrip extends ConsumerWidget {
               icon: NightshadeIcons.mount,
               dotTone: _tone(mountState.connectionState),
               value: _mountValue(mountState),
-              semanticLabel: 'Mount ${_mountValue(mountState)}',
+              // Sentence case for the reader: "Mount not connected", not "Mount Not
+              // connected".
+              semanticLabel: 'Mount ${_lowerFirst(_mountValue(mountState))}',
               maxValueWidth: _valueMaxWidth,
             ),
             const InstrumentSeparator(),
@@ -114,3 +116,6 @@ class ImagingStatusStrip extends ConsumerWidget {
     };
   }
 }
+
+String _lowerFirst(String s) =>
+    s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);

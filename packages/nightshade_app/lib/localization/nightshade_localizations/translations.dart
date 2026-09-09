@@ -156,7 +156,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     // Short forms for the phone bottom nav — five slots at ~76dp each.
     'navEquipmentShort': 'Gear',
     'navImagingShort': 'Imaging',
-    'navSequencerShort': 'Sequence',
+    'navSequencerShort': 'Sequencer',
     'navGuidingShort': 'Guiding',
     'navYourSky': 'Your Sky',
     'navConstellation': 'Constellation',
