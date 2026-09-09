@@ -215,8 +215,10 @@ extension FocuserDeviceHandlers on DeviceHandlers {
         optionalInt(payload, 'focuserSettleTimeMs', min: 0, max: 10000) ?? 500;
     final backlashCompMethod =
         optionalString(payload, 'backlashCompMethod') ?? 'Overshoot';
+    // Zero, like every other backlash default: an API caller who omits it
+    // gets no compensation rather than 350 steps of someone else's focuser.
     final backlashIn =
-        optionalInt(payload, 'backlashIn', min: 0, max: 10000) ?? 350;
+        optionalInt(payload, 'backlashIn', min: 0, max: 10000) ?? 0;
     final backlashOut =
         optionalInt(payload, 'backlashOut', min: 0, max: 10000) ?? 0;
 
