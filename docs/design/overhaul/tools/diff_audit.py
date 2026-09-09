@@ -35,6 +35,8 @@ PATTERNS = {
     "Co-Authored-By trailer": re.compile(r"Co-Authored-By"),
 }
 FAIL_PREFIXES = ("packages/nightshade_ui/lib/", "packages/nightshade_app/lib/")
+# The theme directory DEFINES the literals everyone else must reference; report, never fail.
+EXEMPT_PREFIXES = ("packages/nightshade_ui/lib/src/theme/", "packages/nightshade_ui/lib/src/tokens/")
 
 
 def main() -> int:
@@ -72,7 +74,7 @@ def main() -> int:
                 if rx.search(text):
                     loc = f"{current}:{line_no}"
                     hits[name].append(loc)
-                    if current and current.startswith(FAIL_PREFIXES) and "/test/" not in current:
+                    if current and current.startswith(FAIL_PREFIXES) and not current.startswith(EXEMPT_PREFIXES) and "/test/" not in current:
                         fail = True
     total = 0
     for name, locs in hits.items():
