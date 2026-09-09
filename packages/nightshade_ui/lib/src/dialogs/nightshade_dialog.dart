@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../utils/adaptive_dialog_constraints.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+
+/// Size of the optional glyph beside a dialog title, in logical pixels.
+///
+/// A plain icon, NOT the tinted square the pre-overhaul dialog drew: an icon
+/// square beside a 15px title is a badge for a heading that needed no badge.
+const double _dialogTitleIconSize = 16;
 
 /// Standard dialog scaffold matching the Nightshade design system.
 ///
@@ -63,8 +70,20 @@ class NightshadeDialog extends StatelessWidget {
   /// Accessible label for the close button. Defaults to "Close dialog".
   final String closeButtonSemanticsLabel;
 
-  /// Fixed dialog width. Defaults to 600px.
+  /// Fixed dialog width. Defaults to [widthForm].
+  ///
+  /// There are three dialog widths and no others: [widthConfirm] for a
+  /// question, [widthForm] for a form, [widthWizard] for a multi-step flow.
   final double width;
+
+  /// A confirm or a question — one sentence and two buttons.
+  static const double widthConfirm = 480;
+
+  /// A form.
+  static const double widthForm = 640;
+
+  /// A wizard or anything with its own internal layout.
+  static const double widthWizard = 960;
 
   /// Fixed dialog height. If null, the dialog sizes to content (capped by
   /// the parent constraints).
@@ -88,9 +107,11 @@ class NightshadeDialog extends StatelessWidget {
     this.showCloseButton = true,
     this.closeEnabled = true,
     this.closeButtonSemanticsLabel = 'Close dialog',
-    this.width = 600,
+    this.width = widthForm,
     this.height,
-    this.bodyPadding = const EdgeInsets.all(NightshadeTokens.spaceXl),
+    this.bodyPadding = const EdgeInsets.symmetric(
+      horizontal: NightshadeTokens.space2xl,
+    ),
     this.scrollableBody = true,
   });
 
@@ -193,7 +214,9 @@ class NightshadeDialogSurface extends StatelessWidget {
     this.closeButtonSemanticsLabel = 'Close dialog',
     this.width,
     this.height,
-    this.bodyPadding = const EdgeInsets.all(NightshadeTokens.spaceXl),
+    this.bodyPadding = const EdgeInsets.symmetric(
+      horizontal: NightshadeTokens.space2xl,
+    ),
     this.scrollableBody = true,
     this.framed = false,
   });
@@ -240,16 +263,9 @@ class NightshadeDialogSurface extends StatelessWidget {
       child: Container(
         width: width,
         height: height,
-        decoration: framed
-            ? BoxDecoration(
-                color: colors.surfaceElevated,
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                border: Border.all(color: colors.border),
-                boxShadow: NightshadeTokens.shadowLg,
-              )
-            : null,
+        decoration: framed ? NightshadeDecorations.dialog(colors) : null,
         child: ClipRRect(
-          borderRadius: NightshadeTokens.borderRadiusMd,
+          borderRadius: NightshadeTokens.borderRadiusXl,
           child: column,
         ),
       ),
@@ -278,24 +294,21 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceXl,
-        vertical: NightshadeTokens.spaceMd + 2,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        border: Border(bottom: BorderSide(color: colors.border)),
+    // No tinted band and no rule under the title: the dialog is ONE surface at
+    // 24px padding, and a header stripe would be a second tone inside a
+    // container that is already the top of the stack.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.space2xl,
+        NightshadeTokens.space2xl,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceMd,
       ),
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(
-              icon,
-              color: colors.textSecondary,
-              size: NightshadeTokens.iconMd,
-            ),
-            const SizedBox(width: NightshadeTokens.spaceMd),
+            Icon(icon, color: colors.textMuted, size: _dialogTitleIconSize),
+            const SizedBox(width: NightshadeTokens.spaceSm),
           ],
           Expanded(
             // A node of its own, because the title is the one thing in this
@@ -307,7 +320,7 @@ class _Header extends StatelessWidget {
               container: true,
               child: Text(
                 title,
-                style: NightshadeTypography.h4.copyWith(
+                style: NightshadeTypography.sectionTitle.copyWith(
                   color: colors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -351,15 +364,16 @@ class _Footer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Right-aligned with an 8px gap, on the dialog's own surface: the reading
+    // order is [ghost Cancel] [secondary alternative] [primary confirm], and
+    // the caller supplies them in that order.
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceXl,
-        vertical: NightshadeTokens.spaceMd,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        border: Border(top: BorderSide(color: colors.border)),
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.space2xl,
+        NightshadeTokens.spaceXl,
+        NightshadeTokens.space2xl,
+        NightshadeTokens.space2xl,
       ),
       // The footer is a region of its own for the same reason the title is:
       // whatever the header leaves unclaimed lands on the surface node, and

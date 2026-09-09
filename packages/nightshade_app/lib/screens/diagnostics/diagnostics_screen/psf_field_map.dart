@@ -4,10 +4,7 @@ class _PsfFieldMapCard extends StatelessWidget {
   final List<PsfFieldTileRow> psfTiles;
   final NightshadeColors colors;
 
-  const _PsfFieldMapCard({
-    required this.psfTiles,
-    required this.colors,
-  });
+  const _PsfFieldMapCard({required this.psfTiles, required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -22,15 +19,17 @@ class _PsfFieldMapCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'PSF Field Map',
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.h5.copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
               const Spacer(),
               Text(
                 '${psfTiles.length} tiles',
                 style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted),
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted,
+                ),
               ),
             ],
           ),
@@ -42,7 +41,6 @@ class _PsfFieldMapCard extends StatelessWidget {
               icon: LucideIcons.grid,
               title: 'No PSF field tile data for this session.',
               body: 'Capture plate-solved frames to generate PSF maps.',
-              padding: EdgeInsets.symmetric(vertical: 32),
             )
           else
             AspectRatio(
@@ -104,8 +102,9 @@ class _LegendDot extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: colors.textMuted),
+            fontSize: NightshadeTypography.fontSize10,
+            color: colors.textMuted,
+          ),
         ),
       ],
     );

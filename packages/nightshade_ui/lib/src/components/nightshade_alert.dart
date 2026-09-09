@@ -1,3 +1,7 @@
+// This whole file is the pre-overhaul alert family, deprecated in favour of
+// NightshadeBanner; its internal cross-references are not separate mistakes.
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -22,11 +26,12 @@ enum NightshadeAlertSeverity {
 
 /// A styled alert/banner component for notifications and status messages.
 ///
-/// Features:
-/// - Multiple severity levels (info, success, warning, error)
-/// - Optional icon, title, and action button
-/// - Dismissible with callback
-/// - Animated entrance/exit
+/// Superseded by `NightshadeBanner` (05 §11), which is the one banner style:
+/// title and message on ONE line, tone fill at 8%, no outline, and at most one
+/// action. This class keeps its old face so the ~266 call sites in
+/// `nightshade_app` compile unchanged; wave 3 migrates them screen by screen
+/// and wave 4 deletes this.
+@Deprecated('Use NightshadeBanner (05 §11). Removed in wave 4.')
 class NightshadeAlert extends StatelessWidget {
   const NightshadeAlert({
     super.key,
