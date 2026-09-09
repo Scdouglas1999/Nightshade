@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -10,7 +9,7 @@ import '../tutorial_keys/weather_keys.dart';
 /// It carries no container of its own: the caller decides whether this sits in
 /// [Glass] over the map or in a [NightshadePanel] under it, so there is one
 /// block rendered two ways rather than two blocks (02 rule 4).
-class WeatherStatusCard extends ConsumerWidget {
+class WeatherStatusCard extends StatelessWidget {
   /// Current weather alert (if any)
   final WeatherAlert? alert;
 
@@ -111,7 +110,7 @@ class WeatherStatusCard extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
     // Default to clear if no alert
@@ -153,32 +152,47 @@ class WeatherStatusCard extends ConsumerWidget {
         ],
         if (motion != null) ...[
           const SizedBox(height: NightshadeTokens.spaceMd),
-          ReadoutRow(
+          // Two rows of two, not one row of four: "12.5 km/h" needs ~76 px at
+          // `readoutSm` and a 300 px HUD gives four readouts ~54 px each, which
+          // ellipsizes the unit off the number it belongs to.
+          Column(
             key: WeatherTutorialKeys.cloudMotion,
-            gap: NightshadeTokens.spaceXl,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Readout(
-                value: motion!.speedKmh.toStringAsFixed(1),
-                unit: 'km/h',
-                label: 'Speed',
-                size: ReadoutSize.sm,
+              ReadoutRow(
+                gap: NightshadeTokens.spaceXl,
+                children: [
+                  Readout(
+                    value: motion!.speedKmh.toStringAsFixed(1),
+                    unit: 'km/h',
+                    label: 'Speed',
+                    size: ReadoutSize.sm,
+                  ),
+                  Readout(
+                    value: _degreesToCardinal(motion!.directionDegrees),
+                    label: 'Toward',
+                    size: ReadoutSize.sm,
+                  ),
+                ],
               ),
-              Readout(
-                value: _degreesToCardinal(motion!.directionDegrees),
-                label: 'Toward',
-                size: ReadoutSize.sm,
-              ),
-              Readout(
-                value: motion!.distanceKm.toStringAsFixed(1),
-                unit: 'km',
-                label: 'Distance',
-                size: ReadoutSize.sm,
-              ),
-              Readout(
-                value: alert?.cloudDensityPercent.toStringAsFixed(0),
-                unit: '%',
-                label: 'Density',
-                size: ReadoutSize.sm,
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              ReadoutRow(
+                gap: NightshadeTokens.spaceXl,
+                children: [
+                  Readout(
+                    value: motion!.distanceKm.toStringAsFixed(1),
+                    unit: 'km',
+                    label: 'Distance',
+                    size: ReadoutSize.sm,
+                  ),
+                  Readout(
+                    value: alert?.cloudDensityPercent.toStringAsFixed(0),
+                    unit: '%',
+                    label: 'Density',
+                    size: ReadoutSize.sm,
+                  ),
+                ],
               ),
             ],
           ),
