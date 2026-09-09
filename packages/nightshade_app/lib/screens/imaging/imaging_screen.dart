@@ -332,6 +332,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
             onZoomIn: _zoomIn,
             onZoomOut: _zoomOut,
             onPanUpdate: _panPreview,
+            // Zero on narrow: this layout draws no capture bar, so nothing
+            // competes with the histogram for the bottom-right corner.
+            captureBarWidth: narrow ? 0 : ref.watch(captureBarWidthProvider),
           ),
         ),
         // The capture bar is glass over the frame, bottom-centre (05 §14). On

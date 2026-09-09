@@ -15,7 +15,6 @@ import 'frame_science_chip.dart';
 import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
 import 'image_display.dart';
-import 'imaging_capture_bar.dart' show captureBarWidthProvider;
 import 'imaging_hud.dart';
 import 'narrator_ticker.dart';
 import 'overlay_painters.dart';
@@ -39,6 +38,15 @@ class LivePreviewArea extends ConsumerStatefulWidget {
   /// [ExposureProgressOverlay.isAborting].
   final bool isStoppingCapture;
 
+  /// How wide the glass capture bar is on this canvas, or zero when the layout
+  /// does not draw one (below the shell breakpoint the controls sheet carries
+  /// the shutter instead).
+  ///
+  /// The canvas needs it to keep its bottom-right histogram off the bar; the
+  /// SCREEN is what knows both, so it passes the answer down rather than the
+  /// bar leaving a value behind for the canvas to misread.
+  final double captureBarWidth;
+
   /// Scroll-wheel zoom handlers. The discrete zoom/fit/1:1 buttons and overlay
   /// toggles now live in the off-canvas [ImagingPreviewToolbar] above the
   /// preview, so the canvas itself only needs the wheel handlers to keep
@@ -58,6 +66,7 @@ class LivePreviewArea extends ConsumerStatefulWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onPanUpdate,
+    this.captureBarWidth = 0,
   });
 
   @override
@@ -716,7 +725,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   Positioned(
                     bottom: _histogramBottom(
                       canvasWidth: viewportSize.width,
-                      captureBarWidth: ref.watch(captureBarWidthProvider),
+                      captureBarWidth: widget.captureBarWidth,
                     ),
                     right: _hudInset,
                     child: _readout(
