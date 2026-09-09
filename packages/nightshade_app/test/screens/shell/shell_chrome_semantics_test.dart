@@ -74,13 +74,6 @@ Matcher _publishes(String label) => predicate<List<String>>(
       'publishes a semantics label containing "$label"',
     );
 
-SemanticsData? _nodeLabelled(List<SemanticsData> nodes, String label) {
-  for (final node in nodes) {
-    if (node.label.contains(label)) return node;
-  }
-  return null;
-}
-
 /// Exact-match lookup, for rows whose whole name is the string.
 SemanticsData? _nodeLabelledExactly(List<SemanticsData> nodes, String label) {
   for (final node in nodes) {

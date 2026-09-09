@@ -1,30 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import '../shell_navigation.dart';
 
-List<SideNavTab> sideNavigationTabs(BuildContext context) {
-  final l10n = context.l10n;
-  return [
-    for (final dest in ShellNavigation.primaryDestinations)
-      SideNavTab(icon: dest.icon, label: dest.label(l10n)),
-    // Scheduler lives inside Plan Tonight as a tab. Reach it via
-    // Plan Tonight → Target Queue or `/planner?tab=scheduler`.
-    // Diagnostics lives inside Analytics as a tab. Reach it via
-    // Analytics → Diagnostics or `/analytics?tab=diagnostics`.
-  ];
+/// One rail row: a destination, or the heading above a group of them.
+sealed class SideNavEntry {
+  const SideNavEntry();
 }
 
-class SideNavigation extends StatelessWidget {
+class SideNavGroupHeading extends SideNavEntry {
+  final String label;
+  const SideNavGroupHeading(this.label);
+}
+
+class SideNavTab extends SideNavEntry {
+  final IconData icon;
+  final String label;
+
+  /// Index into [ShellNavigation.primaryDestinations] — the rail's selection
+  /// index. Carried explicitly because the group headings make the rendered
+  /// row position and the destination index different numbers.
+  final int index;
+
+  const SideNavTab({
+    required this.icon,
+    required this.label,
+    required this.index,
+  });
+}
+
+/// The rail's rows, in order, with a heading before each group (04 §3.2).
+List<SideNavEntry> sideNavigationEntries(BuildContext context) {
+  final l10n = context.l10n;
+  final entries = <SideNavEntry>[];
+  ShellNavGroup? currentGroup;
+  for (var i = 0; i < ShellNavigation.primaryDestinations.length; i++) {
+    final dest = ShellNavigation.primaryDestinations[i];
+    if (dest.group != currentGroup) {
+      currentGroup = dest.group;
+      entries.add(SideNavGroupHeading(currentGroup.label(l10n)));
+    }
+    entries.add(
+      SideNavTab(icon: dest.icon, label: dest.label(l10n), index: i),
+    );
+  }
+  return entries;
+}
+
+/// Every rail destination, ungrouped — the tutorial keys index by this.
+List<SideNavTab> sideNavigationTabs(BuildContext context) => [
+      for (final entry in sideNavigationEntries(context))
+        if (entry is SideNavTab) entry,
+    ];
+
+/// The left rail (04-shell §3).
+///
+/// 64 px of icons by default, 220 px with labels and group headings when
+/// expanded. `background`-toned with a hairline on its trailing edge, because
+/// it is window chrome and shares the top bar's tone rather than the panels'.
+class SideNavigation extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
   final bool isExpanded;
   final VoidCallback onToggleExpanded;
 
-  /// Optional list of GlobalKeys for tutorial targeting.
-  /// Index 0 = Dashboard, 1 = Equipment, etc.
+  /// Optional GlobalKeys for tutorial targeting, indexed by destination (not
+  /// by rendered row — the group headings are not targets).
   final List<GlobalKey?>? tutorialKeys;
 
   const SideNavigation({
@@ -36,181 +81,171 @@ class SideNavigation extends StatelessWidget {
     this.tutorialKeys,
   });
 
-  Widget _buildNavButton(
-    BuildContext context, {
-    required SideNavTab tab,
-    required int index,
-    required bool isSelected,
-  }) {
-    final button = NavItem(
-      key: tutorialKeys != null && index < tutorialKeys!.length
-          ? tutorialKeys![index]
-          : null,
-      icon: tab.icon,
-      label: tab.label,
-      isSelected: isSelected,
-      isExpanded: isExpanded,
-      onTap: () => onTabSelected(index),
-    );
+  /// The gap between two groups when the rail is collapsed and there is no
+  /// heading to separate them.
+  static const double _collapsedGroupGap = 14.0;
 
-    // When collapsed, wrap with tooltip to show label
-    if (!isExpanded) {
-      return NightshadeTooltip(
-        message: tab.label,
-        position: NightshadeTooltipPosition.right,
-        child: button,
-      );
-    }
+  /// Space above a group heading in the expanded rail. Below it is
+  /// [NightshadeTokens.spaceXs].
+  static const double _headingSpaceAbove = 10.0;
 
-    return button;
-  }
+  /// Rail items sit 2 px apart; anything more and nine of them stop reading as
+  /// one list.
+  static const double _itemGap = 2.0;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final tabs = sideNavigationTabs(context);
+    final l10n = context.l10n;
+    final entries = sideNavigationEntries(context);
+    final badgedRoutes = _badgedRoutes(ref);
 
     return AnimatedContainer(
       duration: NightshadeTokens.durationSmooth,
-      curve: NightshadeTokens.curveSnappy,
+      curve: NightshadeTokens.curveStandard,
       width: isExpanded
-          ? NightshadeTokens.sidebarExpanded
-          : NightshadeTokens.sidebarCollapsed,
+          ? ShellChromeMetrics.railWidthExpanded
+          : ShellChromeMetrics.railWidthCollapsed,
       decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(
-          right: BorderSide(
-            color: colors.border.withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
+        color: colors.background,
+        border: Border(right: BorderSide(color: colors.border, width: 1)),
       ),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-
-          // Navigation items
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              itemCount: tabs.length,
-              itemBuilder: (context, index) {
-                final tab = tabs[index];
-                final isSelected = index == currentIndex;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: _buildNavButton(
-                    context,
-                    tab: tab,
-                    index: index,
-                    isSelected: isSelected,
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Collapse/Expand button
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: _CollapseButton(
-              isExpanded: isExpanded,
-              onTap: onToggleExpanded,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SideNavTab {
-  final IconData icon;
-  final String label;
-
-  const SideNavTab({required this.icon, required this.label});
-}
-
-class _CollapseButton extends StatefulWidget {
-  final bool isExpanded;
-  final VoidCallback onTap;
-
-  const _CollapseButton({
-    required this.isExpanded,
-    required this.onTap,
-  });
-
-  @override
-  State<_CollapseButton> createState() => _CollapseButtonState();
-}
-
-class _CollapseButtonState extends State<_CollapseButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-
-    // A bare GestureDetector contributes a tap action with no role and no
-    // name, and when the rail is collapsed there is no label text under the
-    // glyph either — so the one control that changes the shape of the whole
-    // shell announced itself as nothing at all. The label states what the tap
-    // does, not what the icon looks like.
-    return Semantics(
-      button: true,
-      enabled: true,
-      label: widget.isExpanded
-          ? '${context.l10n.text('collapse')} navigation'
-          : 'Expand navigation',
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: _isHovered ? colors.surfaceAlt : Colors.transparent,
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-              border: Border.all(
-                color: _isHovered ? colors.border : Colors.transparent,
+      // Clipped because the width animates: mid-transition the 220 px row's
+      // label is wider than the box it is animating into, and an unclipped
+      // overflow paints it across the page body.
+      child: ClipRect(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  NightshadeTokens.spaceMd,
+                  NightshadeTokens.spaceMd,
+                  NightshadeTokens.spaceMd,
+                  NightshadeTokens.spaceSm,
+                ),
+                children: [
+                  for (var row = 0; row < entries.length; row++)
+                    _buildEntry(context, entries, row, badgedRoutes),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                AnimatedRotation(
-                  turns: widget.isExpanded ? 0 : 0.5,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    LucideIcons.panelLeftClose,
-                    size: 16,
-                    color: colors.textMuted,
-                  ),
-                ),
-                if (widget.isExpanded) ...[
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      context.l10n.text('collapse'),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textMuted,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-              ],
+
+            // The collapse toggle is a rail item like any other, at the foot
+            // of the rail. It is NAMED for what the tap does, not for the
+            // glyph: "Expand navigation" while collapsed.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                NightshadeTokens.spaceMd,
+                0,
+                NightshadeTokens.spaceMd,
+                NightshadeTokens.spaceSm,
+              ),
+              child: NavItem(
+                icon: isExpanded
+                    ? LucideIcons.panelLeftClose
+                    : LucideIcons.panelLeft,
+                label: isExpanded
+                    ? '${l10n.text('collapse')} navigation'
+                    : 'Expand navigation',
+                isSelected: false,
+                isExpanded: isExpanded,
+                onTap: onToggleExpanded,
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
+
+  Widget _buildEntry(
+    BuildContext context,
+    List<SideNavEntry> entries,
+    int row,
+    Set<String> badgedRoutes,
+  ) {
+    final entry = entries[row];
+    switch (entry) {
+      case SideNavGroupHeading():
+        // Collapsed there is no room for the word, so the group reads as a
+        // gap instead. The first group gets neither: it needs no separation
+        // from the rail's top edge.
+        if (!isExpanded) {
+          return SizedBox(height: row == 0 ? 0 : _collapsedGroupGap);
+        }
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            _NavItemMetrics.iconInset,
+            row == 0 ? 0 : _headingSpaceAbove,
+            _NavItemMetrics.iconInset,
+            NightshadeTokens.spaceXs,
+          ),
+          child: Text(
+            entry.label.toUpperCase(),
+            style: NightshadeTypography.eyebrow.copyWith(
+              color: NightshadeColors.of(context).textMuted,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        );
+      case SideNavTab():
+        final destination = ShellNavigation.primaryDestinations[entry.index];
+        final button = NavItem(
+          key: tutorialKeys != null && entry.index < tutorialKeys!.length
+              ? tutorialKeys![entry.index]
+              : null,
+          icon: entry.icon,
+          label: entry.label,
+          isSelected: entry.index == currentIndex,
+          isExpanded: isExpanded,
+          hasBadge: badgedRoutes.contains(destination.route),
+          onTap: () => onTabSelected(entry.index),
+        );
+        return Padding(
+          padding: const EdgeInsets.only(bottom: _itemGap),
+          // Collapsed, the label is the only thing that says where the glyph
+          // leads, so it becomes the tooltip. Expanded, the label is on
+          // screen and a tooltip repeating it is noise.
+          child: isExpanded
+              ? button
+              : NightshadeTooltip(
+                  message: entry.label,
+                  waitDuration: const Duration(milliseconds: 200),
+                  showArrow: false,
+                  position: NightshadeTooltipPosition.right,
+                  child: button,
+                ),
+        );
+    }
+  }
+
+  /// The rail items carrying the attention dot right now.
+  ///
+  /// Two cases, both from 04 §3.1: Equipment while no device is connected, and
+  /// Weather while conditions are unsafe. Both are read from the providers the
+  /// screens themselves read, so the dot cannot disagree with the screen.
+  Set<String> _badgedRoutes(WidgetRef ref) {
+    final routes = <String>{};
+    final anythingConnected = [
+      ref.watch(cameraStateProvider).connectionState,
+      ref.watch(mountStateProvider).connectionState,
+      ref.watch(guiderStateProvider).connectionState,
+      ref.watch(focuserStateProvider).connectionState,
+    ].any((s) => s == DeviceConnectionState.connected);
+    if (!anythingConnected) routes.add('/equipment');
+    if (ref.watch(weatherSafetyProvider).status == WeatherSafetyStatus.unsafe) {
+      routes.add('/weather');
+    }
+    return routes;
+  }
+}
+
+/// The one NavItem metric the rail needs to align its own group headings with
+/// the item glyphs beneath them.
+abstract final class _NavItemMetrics {
+  /// (railItemSize - 18) / 2, the same derivation NavItem uses.
+  static const double iconInset = (ShellChromeMetrics.railItemSize - 18.0) / 2;
 }

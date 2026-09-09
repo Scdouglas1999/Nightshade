@@ -1,17 +1,30 @@
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
-import '../utils/responsive_utils.dart';
+import '../tokens/shell_chrome_metrics.dart';
 
-/// Sidebar navigation row with flat icon, tonal selection, and left accent.
+/// One rail destination (04-shell §3.1).
+///
+/// 40 px tall in both states: a 40 x 40 square when the rail is collapsed, the
+/// full rail width with a label when it is expanded. Selection is tone, not a
+/// left accent bar — the fill and the icon colour carry it, and a 2 px rule on
+/// the leading edge is a line where the design language asks for tone.
 class NavItem extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool isSelected;
   final bool isExpanded;
   final VoidCallback onTap;
+
+  /// Draws the 7 px attention dot at the item's top-right corner.
+  ///
+  /// Equipment carries it while nothing is connected, Weather while conditions
+  /// are unsafe. It is a marker, not a count: the number belongs on the screen
+  /// the item leads to.
+  final bool hasBadge;
 
   const NavItem({
     super.key,
@@ -20,6 +33,7 @@ class NavItem extends StatefulWidget {
     required this.isSelected,
     required this.isExpanded,
     required this.onTap,
+    this.hasBadge = false,
   });
 
   @override
@@ -29,22 +43,30 @@ class NavItem extends StatefulWidget {
 class _NavItemState extends State<NavItem> {
   bool _isHovered = false;
 
+  /// 03-tokens §6 puts the rail and page-title glyph at 18; the icon scale
+  /// runs 14 / 16 / 20 / 24 and has no step for it.
+  // TODO(observatory): promote to NightshadeTokens.iconRail at merge.
+  static const double _iconSize = 18.0;
+
+  /// (40 - 18) / 2. Derived from the item and icon sizes so the glyph is
+  /// optically centred in the collapsed rail; not a spacing token, and it
+  /// stays correct if either size moves.
+  static const double _iconInset =
+      (ShellChromeMetrics.railItemSize - _iconSize) / 2;
+
+  /// The badge's inset from the item's top-right corner.
+  static const double _badgeInset = 8.0;
+  static const double _badgeSize = 7.0;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
 
-    final backgroundColor = widget.isSelected
-        ? colors.primary.withValues(alpha: 0.06)
+    final foreground = widget.isSelected
+        ? colors.primary
         : _isHovered
-        ? colors.surfaceHover
-        : Colors.transparent;
-
-    final horizontalPadding = widget.isExpanded
-        ? NightshadeTokens.panelSectionPadding
-        : NightshadeTokens.spaceXs;
-    final verticalPadding = widget.isExpanded ? NightshadeTokens.spaceMd : 10.0;
-    final iconSize = Responsive.iconSize(context, 18);
-    final labelFontSize = Responsive.fontSize(context, 13);
+        ? colors.textPrimary
+        : colors.textSecondary;
 
     return Semantics(
       // Semantics publishes isEnabled only when this field is given;
@@ -62,57 +84,74 @@ class _NavItemState extends State<NavItem> {
           child: InkWell(
             onTap: widget.onTap,
             hoverColor: Colors.transparent,
-            highlightColor: colors.primary.withValues(alpha: 0.06),
-            splashColor: colors.primary.withValues(alpha: 0.06),
-            borderRadius: NightshadeTokens.borderRadiusMd,
+            highlightColor: colors.primary.withValues(
+              alpha: NightshadeTokens.opacityAccentTint,
+            ),
+            splashColor: colors.primary.withValues(
+              alpha: NightshadeTokens.opacityAccentTint,
+            ),
+            borderRadius: NightshadeTokens.borderRadiusLg,
             child: AnimatedContainer(
               duration: NightshadeTokens.durationNormal,
-              curve: NightshadeTokens.curveSnappy,
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: verticalPadding,
-              ),
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                border: widget.isSelected
-                    ? Border(left: BorderSide(color: colors.primary, width: 2))
-                    : null,
-              ),
-              child: Row(
-                mainAxisAlignment: widget.isExpanded
-                    ? MainAxisAlignment.start
-                    : MainAxisAlignment.center,
-                mainAxisSize: widget.isExpanded
-                    ? MainAxisSize.max
-                    : MainAxisSize.min,
+              curve: NightshadeTokens.curveStandard,
+              height: ShellChromeMetrics.railItemSize,
+              decoration: widget.isSelected
+                  ? NightshadeDecorations.railItemSelected(colors)
+                  : BoxDecoration(
+                      color: _isHovered
+                          ? colors.surfaceHover
+                          : Colors.transparent,
+                      borderRadius: NightshadeTokens.borderRadiusLg,
+                    ),
+              // The Stack is the item's own box, so the badge's inset is
+              // measured from the item's corner rather than from inside the
+              // icon padding.
+              child: Stack(
+                alignment: Alignment.centerLeft,
                 children: [
-                  Icon(
-                    widget.icon,
-                    size: iconSize,
-                    color: widget.isSelected || _isHovered
-                        ? colors.textPrimary
-                        : colors.textSecondary,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _iconInset),
+                    child: Row(
+                      mainAxisSize: widget.isExpanded
+                          ? MainAxisSize.max
+                          : MainAxisSize.min,
+                      children: [
+                        Icon(widget.icon, size: _iconSize, color: foreground),
+                        if (widget.isExpanded) ...[
+                          const SizedBox(width: NightshadeTokens.spaceMd),
+                          Expanded(
+                            child: Text(
+                              widget.label,
+                              style: NightshadeTypography.button.copyWith(
+                                color: foreground,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  if (widget.isExpanded) ...[
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    Expanded(
-                      child: Text(
-                        widget.label,
-                        style: NightshadeTypography.label.copyWith(
-                          fontSize: labelFontSize,
-                          fontWeight: widget.isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: widget.isSelected || _isHovered
-                              ? colors.textPrimary
-                              : colors.textSecondary,
+                  if (widget.hasBadge)
+                    Positioned(
+                      top: _badgeInset,
+                      right: _badgeInset,
+                      child: Container(
+                        width: _badgeSize,
+                        height: _badgeSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colors.warning,
+                          // The ring is what stops the dot dissolving into a
+                          // selected item's tinted fill.
+                          border: Border.all(
+                            color: colors.background,
+                            width: 2,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
                       ),
                     ),
-                  ],
                 ],
               ),
             ),

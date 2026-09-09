@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
+import '../theme/nightshade_typography.dart';
 
 /// Position of the tooltip relative to the target widget
 enum NightshadeTooltipPosition { top, bottom, left, right }
@@ -112,6 +114,88 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
         curve: NightshadeTokens.curveSnappy,
       ),
     );
+  }
+
+  /// A rebuild of the trigger retires the label.
+  ///
+  /// `MouseRegion.onExit` does not fire when the widget under the cursor is
+  /// rebuilt with new configuration — the pointer never moved, so there is no
+  /// exit to report — and the tooltip then names a control that has changed
+  /// out from under it, or is gone. The rail reproduced it every time:
+  /// hovering a collapsed item and clicking it rebuilds the whole rail with a
+  /// new selection, and the old item's label stayed up over the page body
+  /// until the six-second lifetime clock retired it.
+  ///
+  /// Not gated on the message changing: it is the trigger's identity that is
+  /// in question, and a rail item whose label is unchanged is still a
+  /// different item once the rail has rebuilt around it.
+  ///
+  /// A PENDING show is deliberately left alone. Several triggers live under
+  /// parents that rebuild on a timer (the planetarium's clocks, the imaging
+  /// toolbars), and cancelling the hover delay on every one of those rebuilds
+  /// would mean their tooltips never appeared at all.
+  @override
+  void didUpdateWidget(NightshadeTooltip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_overlayController.isShowing) _retireImmediately();
+  }
+
+  /// Leaving the tree takes the overlay with it.
+  ///
+  /// `deactivate` runs before `dispose` and before the element is reparented,
+  /// which is the only hook that fires when a trigger is moved or removed
+  /// while the overlay is up. The overlay child is retired by the
+  /// `OverlayPortal` going down with this subtree; what this has to do is
+  /// release the app-wide visible slot and stop the clocks, so a tooltip that
+  /// was mid-hover cannot resurrect itself or block the next one.
+  ///
+  /// It must NOT call `hide()`: mutating the overlay from inside a
+  /// deactivation pass rebuilds an element that is already being taken down,
+  /// and Flutter asserts `_dependents.isEmpty` on the focus scope.
+  @override
+  void deactivate() {
+    _dismissTimer?.cancel();
+    _showTimer?.cancel();
+    _showTimer = null;
+    _hideTimer?.cancel();
+    _hideTimer = null;
+    _lifetimeTimer?.cancel();
+    _lifetimeTimer = null;
+    _isHovered = false;
+    if (identical(_visibleTooltip, this)) _visibleTooltip = null;
+    super.deactivate();
+  }
+
+  /// Takes the label off screen at the end of this frame, with no fade.
+  ///
+  /// The animated [_hideTooltip] is right for a pointer that left; it is wrong
+  /// for a trigger that has been rebuilt, because the 160 ms fade-out is
+  /// 160 ms of a label describing something that no longer exists.
+  ///
+  /// The teardown is deferred one frame because the caller is
+  /// [didUpdateWidget], which runs inside the build phase: both
+  /// `OverlayPortalController.hide()` and driving the fade controller assert
+  /// there — `hide()` on the scheduler phase, the controller because its
+  /// listeners would mark an already-building subtree dirty. The state that
+  /// decides is torn down synchronously, so a second retirement or a
+  /// resurrection cannot race the callback.
+  void _retireImmediately() {
+    _dismissTimer?.cancel();
+    _showTimer?.cancel();
+    _showTimer = null;
+    _hideTimer?.cancel();
+    _hideTimer = null;
+    _lifetimeTimer?.cancel();
+    _lifetimeTimer = null;
+    _isHovered = false;
+    if (identical(_visibleTooltip, this)) _visibleTooltip = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // The pointer coming back re-enters through _showTooltip, which owns
+      // the slot again; retiring here would then hide a live tooltip.
+      if (!mounted || _isHovered) return;
+      _animController.value = 0;
+      if (_overlayController.isShowing) _overlayController.hide();
+    });
   }
 
   @override
@@ -229,11 +313,22 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
           if (_overlayController.isShowing) _armLifetime();
         },
         onExit: (_) => _hideTooltip(),
-        child: GestureDetector(
-          onLongPress: _toggleTooltipForTouch,
-          child: Semantics(
-            tooltip: widget.message,
-            child: KeyedSubtree(key: _childKey, child: widget.child),
+        // A press anywhere retires the label, including a press on the
+        // trigger itself. A click on a hovered rail item rebuilds the rail
+        // under the cursor, and the label for the item as it WAS is the one
+        // thing on screen that has not moved. Listener, not GestureDetector:
+        // this must not compete for the gesture the child is claiming.
+        child: Listener(
+          behavior: HitTestBehavior.deferToChild,
+          onPointerUp: (_) {
+            if (_overlayController.isShowing) _hideTooltip();
+          },
+          child: GestureDetector(
+            onLongPress: _toggleTooltipForTouch,
+            child: Semantics(
+              tooltip: widget.message,
+              child: KeyedSubtree(key: _childKey, child: widget.child),
+            ),
           ),
         ),
       ),
@@ -385,18 +480,18 @@ class _TooltipOverlay extends StatelessWidget {
   ) {
     Widget content = Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.surfaceOverlay,
-        borderRadius: NightshadeTokens.borderRadiusMd,
-        border: Border.all(color: colors.border.withValues(alpha: 0.3)),
-        boxShadow: NightshadeTokens.shadowMd,
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm,
       ),
+      decoration: NightshadeDecorations.popover(colors),
       child:
           richMessage ??
           Text(
             message,
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
     );
 
@@ -421,8 +516,9 @@ class _TooltipOverlay extends StatelessWidget {
     return CustomPaint(
       size: const Size(16, 8),
       painter: _ArrowPainter(
-        color: colors.surfaceOverlay,
-        borderColor: colors.border.withValues(alpha: 0.3),
+        // Matches the popover decoration the bubble above it now uses.
+        color: colors.surfaceElevated,
+        borderColor: colors.border,
         isPointingUp: isPointingUp,
       ),
     );
