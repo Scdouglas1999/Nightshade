@@ -1,4 +1,4 @@
-// Notice band, headers, footers, step sidebar and step body chrome.
+// Notice band, step rail, progress eyebrow, footers and step body dispatch.
 part of '../onboarding_screen.dart';
 
 /// The wizard's inline message strip, shared by both layouts.
@@ -11,6 +11,10 @@ part of '../onboarding_screen.dart';
 /// Height is capped with an internal scroll so a long message (an exception
 /// string from a failed save) shrinks the step body instead of squeezing the
 /// Column into an overflow.
+///
+/// ONE banner per problem (05 §11): this is the only banner the wizard shell
+/// draws, and the steps below it do not draw a second copy of the same
+/// condition.
 class _NoticeBand extends StatelessWidget {
   const _NoticeBand({required this.notice, required this.onDismiss});
 
@@ -29,10 +33,9 @@ class _NoticeBand extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: _maxHeight),
         child: SingleChildScrollView(
-          child: NightshadeAlert(
-            message: current.message,
-            severity: current.severity,
-            compact: true,
+          child: NightshadeBanner(
+            title: current.message,
+            tone: current.tone,
             onDismiss: onDismiss,
           ),
         ),
@@ -41,157 +44,78 @@ class _NoticeBand extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.currentStep, required this.onExit});
+/// `STEP 3 OF 13` above the step panel (06 § Onboarding).
+///
+/// An eyebrow, not a headline: the progress is context for the panel beneath
+/// it, and the wizard's one loud line is the step's own title inside that
+/// panel.
+class _ProgressEyebrow extends StatelessWidget {
+  const _ProgressEyebrow({required this.currentStep});
 
   final OnboardingStep currentStep;
-  final VoidCallback? onExit;
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: NightshadeDecorations.iconChip(
-            colors.primary,
-            borderRadius: NightshadeTokens.borderRadiusLg,
-          ),
-          child: Icon(NightshadeIcons.sparkle, color: colors.primary, size: 20),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Set up your rig',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                'Step ${currentStep.order + 1} of ${OnboardingStepOrder.total}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        TextButton.icon(
-          onPressed: onExit,
-          icon: Icon(LucideIcons.logOut, size: 14, color: colors.textSecondary),
-          label: Text(
-            'Skip onboarding',
-            style: TextStyle(color: colors.textSecondary),
-          ),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+      child: Text(
+        'Step ${currentStep.order + 1} of ${OnboardingStepOrder.total}',
+        style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
+      ),
     );
   }
 }
 
-/// Compact phone header: icon + title, an inline "Skip onboarding" icon button
-/// (the full label would crowd a 360 px row), and a step progress bar. Replaces
-/// the wide layout's sidebar, which doesn't fit a phone column.
-class _PhoneHeader extends StatelessWidget {
-  const _PhoneHeader({
-    required this.currentStep,
-    required this.onExit,
-    this.compact = false,
-  });
+/// The wizard's page header action: leave setup for the dashboard.
+///
+/// Ghost, top right (06 § Onboarding). The wizard's single `primary` lives in
+/// the footer on "Next".
+class _SkipOnboardingAction extends StatelessWidget {
+  const _SkipOnboardingAction({required this.onExit});
 
-  final OnboardingStep currentStep;
   final VoidCallback? onExit;
 
-  /// Landscape-phone tier: slim the icon chip and tighten the gap between the
-  /// title row and progress bar so the header costs less vertical space.
-  final bool compact;
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeButton(
+      icon: LucideIcons.logOut,
+      label: 'Skip onboarding',
+      variant: ButtonVariant.ghost,
+      size: ButtonSize.small,
+      onPressed: onExit,
+    );
+  }
+}
+
+/// Phone progress track.
+///
+/// The phone column has no step rail, so the eyebrow's "Step 3 of 13" is the
+/// only statement of progress; this 4 px track gives it a shape. Kept as a
+/// [LinearProgressIndicator] because it is the wizard's existing progress
+/// element, restyled onto `well`/`primary` — the design system's own
+/// progress bar carries a label and a percentage the wizard does not want.
+class _PhoneProgress extends StatelessWidget {
+  const _PhoneProgress({required this.currentStep});
+
+  final OnboardingStep currentStep;
+
+  /// Track height. 4 px, the `spaceXs` step of the grid.
+  static const double _trackHeight = NightshadeTokens.spaceXs;
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
-    final stepNumber = currentStep.order + 1;
-    final total = OnboardingStepOrder.total;
-    final progress = stepNumber / total;
-    final chipSize = compact ? 30.0 : 36.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: chipSize,
-              height: chipSize,
-              decoration: NightshadeDecorations.iconChip(
-                colors.primary,
-                borderRadius: NightshadeTokens.borderRadiusLg,
-              ),
-              child: Icon(
-                NightshadeIcons.sparkle,
-                color: colors.primary,
-                size: compact ? 16 : 18,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Set up your rig',
-                    style: (compact
-                            ? theme.textTheme.titleSmall
-                            : theme.textTheme.titleMedium)
-                        ?.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    'Step $stepNumber of $total — ${_StepSidebar.labelFor(currentStep)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: onExit,
-              tooltip: 'Skip onboarding',
-              iconSize: 20,
-              constraints: const BoxConstraints(
-                minWidth: 48,
-                minHeight: 48,
-              ),
-              icon: Icon(LucideIcons.logOut, color: colors.textSecondary),
-            ),
-          ],
-        ),
-        SizedBox(height: compact ? 6 : 10),
-        ClipRRect(
-          borderRadius: NightshadeTokens.borderRadiusFull,
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 4,
-            backgroundColor: colors.surfaceAlt,
-            valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
-          ),
-        ),
-      ],
+    final progress =
+        (currentStep.order + 1) / OnboardingStepOrder.total;
+    return ClipRRect(
+      borderRadius: NightshadeTokens.borderRadiusFull,
+      child: LinearProgressIndicator(
+        value: progress,
+        minHeight: _trackHeight,
+        backgroundColor: colors.well,
+        valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+      ),
     );
   }
 }
@@ -222,30 +146,21 @@ class _PhoneFooter extends StatelessWidget {
   /// on the ~410 px tall viewport.
   final bool compact;
 
+  /// The phone primary action's tap surface. A touch-target floor, not a
+  /// button size: the button inside it is `large` (40) and the row it sits in
+  /// is 48.
+  static const double _touchTargetHeight = NightshadeTokens.space4xl;
+
   @override
   Widget build(BuildContext context) {
-    final isSummary = currentStep == OnboardingStep.summary;
-    final isNextSteps = currentStep == OnboardingStep.nextSteps;
-
-    final IconData primaryIcon;
-    final String primaryLabel;
-    if (isNextSteps) {
-      primaryIcon = LucideIcons.layoutDashboard;
-      primaryLabel = 'Go to dashboard';
-    } else if (isSummary) {
-      primaryIcon = NightshadeIcons.check;
-      primaryLabel = 'Save profile';
-    } else {
-      primaryIcon = NightshadeIcons.arrowRight;
-      primaryLabel = 'Next';
-    }
+    final actions = _FooterActions(currentStep);
 
     final secondary = <Widget>[
       if (onBack != null)
         NightshadeButton(
           icon: NightshadeIcons.arrowLeft,
           label: 'Back',
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           onPressed: onBack,
         ),
       if (onSkipStep != null)
@@ -254,21 +169,21 @@ class _PhoneFooter extends StatelessWidget {
           variant: ButtonVariant.ghost,
           onPressed: onSkipStep,
         ),
-      if (isNextSteps && onFirstLight != null)
+      if (actions.isNextSteps && onFirstLight != null)
         NightshadeButton(
           icon: NightshadeIcons.sparkle,
           label: 'Capture first light',
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           onPressed: isSaving ? null : onFirstLight,
         ),
     ];
 
     final primaryAction = SizedBox(
       key: phonePrimaryActionKey,
-      height: 48,
+      height: _touchTargetHeight,
       child: NightshadeButton(
-        icon: primaryIcon,
-        label: primaryLabel,
+        icon: actions.primaryIcon,
+        label: actions.primaryLabel,
         variant: ButtonVariant.primary,
         size: ButtonSize.large,
         isLoading: isSaving,
@@ -288,7 +203,7 @@ class _PhoneFooter extends StatelessWidget {
           ],
           const Spacer(),
           ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 160),
+            constraints: const BoxConstraints(minWidth: _compactPrimaryWidth),
             child: primaryAction,
           ),
         ],
@@ -312,17 +227,41 @@ class _PhoneFooter extends StatelessWidget {
       ],
     );
   }
+
+  /// Minimum width of the primary action in the landscape row, so "Go to
+  /// dashboard" keeps its label on one line beside the secondaries.
+  static const double _compactPrimaryWidth = 160;
 }
 
-class _StepSidebar extends ConsumerWidget {
-  const _StepSidebar({required this.currentStep, required this.draft});
+/// The step list beside the wizard body: 220 px, rail-style, one line per step.
+///
+/// Rail-style means the shell's expanded rail (04 §3.1): 40 px full-width
+/// items, an 18 px glyph inset 11, a `button`-styled label, and a 12 %
+/// `primary` wash on the current item. No panel wraps it — the list sits on
+/// `background` exactly as the rail does, which is also what keeps the wizard
+/// free of the full-height empty card that F5 records.
+class _StepRail extends ConsumerWidget {
+  const _StepRail({required this.currentStep, required this.draft});
+
   final OnboardingStep currentStep;
 
   /// The live draft, so a passed step is ticked only when it captured a value.
   final OnboardingDraft draft;
 
-  /// Human-readable label for [step], shared with the phone header.
+  /// Human-readable label for [step], shared with the page header.
   static String labelFor(OnboardingStep step) => _stepLabels[step] ?? '';
+
+  /// The rail's width — the shell rail's expanded width (04 §3.1).
+  static const double width = ShellChromeMetrics.railWidthExpanded;
+
+  /// 03 §6 puts the rail glyph at 18; the icon scale has no 18 and the rail
+  /// item's inset is derived from it, so it is named here as nav_item.dart
+  /// names its own.
+  static const double _glyphSize = 18.0;
+
+  /// (40 − 18) / 2, the inset that centres the glyph in the item.
+  static const double _glyphInset =
+      (ShellChromeMetrics.railItemSize - _glyphSize) / 2;
 
   static const _stepLabels = <OnboardingStep, String>{
     OnboardingStep.welcome: 'Welcome',
@@ -359,7 +298,6 @@ class _StepSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final currentIdx = currentStep.order;
 
     // The observing site is a global observer setting, so it is the only step
@@ -369,97 +307,115 @@ class _StepSidebar extends ConsumerWidget {
     final siteConfigured = settings != null && settings.hasObserverLocation;
 
     return SizedBox(
-      width: 220,
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        borderRadius: NightshadeTokens.radiusLg,
-        padding: const EdgeInsets.all(12),
-        child: ListView(
-          children: OnboardingStep.values.map((step) {
-            final idx = step.order;
-            final isActive = step == currentStep;
-            final isPassed = idx < currentIdx;
-            // A tick claims the step configured something. Steps the user
-            // walked past without supplying a value (a skipped focuser, a
-            // guider whose test failed) get a dash instead — the same answer
-            // the Review screen gives.
-            final isCompleted = isPassed &&
-                draft.producedValueFor(step, siteConfigured: siteConfigured);
-            final isSkipped = isPassed && !isCompleted;
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Tooltip(
-                    message: isCompleted
-                        ? 'Configured'
-                        : isSkipped
-                            ? 'Skipped — nothing was set'
-                            : isActive
-                                ? 'Current step'
-                                : 'Not reached yet',
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isActive || isCompleted
-                            ? colors.primary
-                            : colors.surfaceAlt,
-                        border: Border.all(
-                          color: isActive || isCompleted
-                              ? colors.primary
-                              : colors.border,
-                        ),
-                      ),
-                      child: Center(
-                        child: isCompleted
-                            ? Icon(NightshadeIcons.check,
-                                size: 12,
-                                color: Theme.of(context).colorScheme.onPrimary)
-                            : Icon(
-                                isSkipped
-                                    ? NightshadeIcons.remove
-                                    : (_stepIcons[step] ??
-                                        NightshadeIcons.circle),
-                                size: 12,
-                                color: isActive
-                                    ? Theme.of(context).colorScheme.onPrimary
-                                    : colors.textMuted,
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _stepLabels[step] ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: isActive
-                            ? colors.textPrimary
-                            : colors.textSecondary,
-                        fontWeight:
-                            isActive ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  // Only ahead of the cursor: once a step is behind you the
-                  // leading indicator already says configured vs skipped, and
-                  // a second dash on the same row just reads as noise.
-                  if (step.isOptional && !isPassed)
-                    Tooltip(
-                      message: 'Optional step',
-                      child: Icon(
-                        NightshadeIcons.remove,
-                        size: 10,
-                        color: colors.textMuted,
-                      ),
-                    ),
-                ],
+      width: width,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final step in OnboardingStep.values)
+              _StepRailItem(
+                label: _stepLabels[step] ?? '',
+                icon: _stepIcons[step] ?? NightshadeIcons.circle,
+                colors: colors,
+                isActive: step == currentStep,
+                // A tick claims the step configured something. Steps the user
+                // walked past without supplying a value (a skipped focuser, a
+                // guider whose test failed) get a dash instead — the same
+                // answer the Review screen gives.
+                isDone: step.order < currentIdx &&
+                    draft.producedValueFor(step,
+                        siteConfigured: siteConfigured),
+                isSkipped: step.order < currentIdx &&
+                    !draft.producedValueFor(step,
+                        siteConfigured: siteConfigured),
               ),
-            );
-          }).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One row of [_StepRail].
+class _StepRailItem extends StatelessWidget {
+  const _StepRailItem({
+    required this.label,
+    required this.icon,
+    required this.colors,
+    required this.isActive,
+    required this.isDone,
+    required this.isSkipped,
+  });
+
+  final String label;
+  final IconData icon;
+  final NightshadeColors colors;
+  final bool isActive;
+  final bool isDone;
+  final bool isSkipped;
+
+  @override
+  Widget build(BuildContext context) {
+    final IconData glyph;
+    final Color glyphColor;
+    final Color labelColor;
+    final String state;
+    if (isDone) {
+      glyph = NightshadeIcons.check;
+      glyphColor = colors.success;
+      labelColor = colors.textSecondary;
+      state = 'Configured';
+    } else if (isSkipped) {
+      glyph = NightshadeIcons.remove;
+      glyphColor = colors.textMuted;
+      labelColor = colors.textMuted;
+      state = 'Skipped — nothing was set';
+    } else if (isActive) {
+      glyph = icon;
+      glyphColor = colors.primary;
+      labelColor = colors.primary;
+      state = 'Current step';
+    } else {
+      glyph = icon;
+      glyphColor = colors.textMuted;
+      labelColor = colors.textSecondary;
+      state = 'Not reached yet';
+    }
+
+    return Semantics(
+      label: '$label. $state',
+      selected: isActive,
+      child: ExcludeSemantics(
+        child: NightshadeTooltip(
+          message: state,
+          child: Container(
+            height: ShellChromeMetrics.railItemSize,
+            padding:
+                const EdgeInsets.only(
+              left: _StepRail._glyphInset,
+              right: NightshadeTokens.spaceSm,
+            ),
+            decoration: isActive
+                ? NightshadeDecorations.railItemSelected(colors)
+                : null,
+            child: Row(
+              children: [
+                Icon(glyph, size: _StepRail._glyphSize, color: glyphColor),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: NightshadeTypography.button.copyWith(
+                      color: labelColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -512,6 +468,28 @@ class _StepBody extends StatelessWidget {
   }
 }
 
+/// The three footer labels, derived once for both footers.
+class _FooterActions {
+  _FooterActions(OnboardingStep step)
+      : isNextSteps = step == OnboardingStep.nextSteps,
+        isSummary = step == OnboardingStep.summary;
+
+  final bool isNextSteps;
+  final bool isSummary;
+
+  IconData get primaryIcon {
+    if (isNextSteps) return LucideIcons.layoutDashboard;
+    if (isSummary) return NightshadeIcons.check;
+    return NightshadeIcons.arrowRight;
+  }
+
+  String get primaryLabel {
+    if (isNextSteps) return 'Go to dashboard';
+    if (isSummary) return 'Save profile';
+    return 'Next';
+  }
+}
+
 class _Footer extends StatelessWidget {
   const _Footer({
     required this.currentStep,
@@ -534,21 +512,7 @@ class _Footer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSummary = currentStep == OnboardingStep.summary;
-    final isNextSteps = currentStep == OnboardingStep.nextSteps;
-
-    final IconData primaryIcon;
-    final String primaryLabel;
-    if (isNextSteps) {
-      primaryIcon = LucideIcons.layoutDashboard;
-      primaryLabel = 'Go to dashboard';
-    } else if (isSummary) {
-      primaryIcon = NightshadeIcons.check;
-      primaryLabel = 'Save profile';
-    } else {
-      primaryIcon = NightshadeIcons.arrowRight;
-      primaryLabel = 'Next';
-    }
+    final actions = _FooterActions(currentStep);
 
     return Row(
       children: [
@@ -561,7 +525,7 @@ class _Footer extends StatelessWidget {
           NightshadeButton(
             icon: NightshadeIcons.arrowLeft,
             label: 'Back',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             onPressed: onBack,
           ),
         const Spacer(),
@@ -571,20 +535,20 @@ class _Footer extends StatelessWidget {
             variant: ButtonVariant.ghost,
             onPressed: onSkipStep,
           ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
+          const SizedBox(width: NightshadeTokens.spaceSm),
         ],
-        if (isNextSteps && onFirstLight != null) ...[
+        if (actions.isNextSteps && onFirstLight != null) ...[
           NightshadeButton(
             icon: NightshadeIcons.sparkle,
             label: 'Capture first light',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             onPressed: isSaving ? null : onFirstLight,
           ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
+          const SizedBox(width: NightshadeTokens.spaceSm),
         ],
         NightshadeButton(
-          icon: primaryIcon,
-          label: primaryLabel,
+          icon: actions.primaryIcon,
+          label: actions.primaryLabel,
           variant: ButtonVariant.primary,
           isLoading: isSaving,
           onPressed: onNext,

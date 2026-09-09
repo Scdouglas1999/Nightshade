@@ -46,12 +46,12 @@ const Key onboardingNoticeKey = Key('onboarding.notice');
 class _WizardNotice {
   const _WizardNotice(
     this.message,
-    this.severity, {
+    this.tone, {
     this.fromValidation = false,
   });
 
   final String message;
-  final NightshadeAlertSeverity severity;
+  final BannerTone tone;
 
   /// True when this message states why the current step is blocked, as opposed
   /// to reporting an event that already happened ("Profile created", "Could not
@@ -92,12 +92,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _showNotice(
     String message,
-    NightshadeAlertSeverity severity, {
+    BannerTone tone, {
     bool fromValidation = false,
   }) {
     if (!mounted) return;
-    setState(() => _notice =
-        _WizardNotice(message, severity, fromValidation: fromValidation));
+    setState(() =>
+        _notice = _WizardNotice(message, tone, fromValidation: fromValidation));
   }
 
   void _clearNotice() {
@@ -125,7 +125,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (reason == current.message) return current;
     return _WizardNotice(
       reason,
-      NightshadeAlertSeverity.warning,
+      BannerTone.warning,
       fromValidation: true,
     );
   }
@@ -159,7 +159,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // on the message.
       _showNotice(
         validationError,
-        NightshadeAlertSeverity.warning,
+        BannerTone.warning,
         fromValidation: true,
       );
       return;
@@ -202,7 +202,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (blocked != null) {
       _showNotice(
         blocked,
-        NightshadeAlertSeverity.warning,
+        BannerTone.warning,
         fromValidation: true,
       );
       return;
@@ -234,38 +234,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   /// Confirm dropping an already-configured guider when the user taps "Skip
   /// this step". Returns true to remove it, false (the default) to keep it.
-  Future<bool> _confirmRemoveGuider() async {
-    final colors = NightshadeColors.of(context);
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(
-          'Remove guider?',
-          style: TextStyle(color: colors.textPrimary),
-        ),
-        content: Text(
-          'Skipping removes your configured guider. Keep it instead?',
-          style: TextStyle(color: colors.textSecondary),
-        ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            label: 'Remove',
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-          ),
-          NightshadeButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            label: 'Keep',
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
+  Future<bool> _confirmRemoveGuider() => ConfirmDialog.show(
+        context: context,
+        title: 'Remove guider?',
+        message: 'Skipping removes your configured guider. Keep it instead?',
+        confirmLabel: 'Remove',
+        cancelLabel: 'Keep',
+        isDestructive: true,
+      );
 
   /// Android system back / desktop Escape, routed to the wizard's own back
   /// affordance.
@@ -344,7 +320,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         _saving = false;
         _notice = const _WizardNotice(
           'Profile created. Welcome to Nightshade.',
-          NightshadeAlertSeverity.success,
+          BannerTone.success,
         );
       });
     } catch (e) {
@@ -355,7 +331,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         _saving = false;
         _notice = _WizardNotice(
           'Could not save profile: $e',
-          NightshadeAlertSeverity.error,
+          BannerTone.error,
         );
       });
     }
@@ -383,7 +359,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         _saving = false;
         _notice = _WizardNotice(
           'Could not finish setup: $e',
-          NightshadeAlertSeverity.error,
+          BannerTone.error,
         );
       });
     }
@@ -458,14 +434,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  /// The wizard's content column: 720 px (06 § Onboarding).
+  static const double _contentColumnWidth = 720;
+
+  /// Rail + gutter + content column. The block is centred on `background`;
+  /// nothing is stretched to fill the canvas, which is what retires the
+  /// full-height empty card of audit F5.
+  static const double _wizardMaxWidth =
+      _StepRail.width + NightshadeTokens.space2xl + _contentColumnWidth;
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.watch(onboardingDraftProvider.notifier);
     // The site step's blocking reason lives outside the draft (the in-progress
-    // field text never reaches it), so watch it too — otherwise a corrected
+    // field text never reaches it), so watch it too - otherwise a corrected
     // coordinate would leave the site step's notice stranded on screen.
     ref.watch(onboardingSiteEntryErrorProvider);
 
@@ -479,7 +463,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         backgroundColor: colors.background,
         body: SafeArea(
           child: notifier.isLoaded
-              ? _buildWizard(context, theme, colors, draft)
+              ? _buildWizard(context, draft)
               : Center(
                   child: CircularProgressIndicator(color: colors.primary),
                 ),
@@ -488,15 +472,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _buildWizard(BuildContext context, ThemeData theme,
-      NightshadeColors colors, OnboardingDraft draft) {
+  Widget _buildWizard(BuildContext context, OnboardingDraft draft) {
     // Drive the layout from the wizard's OWN width (not the raw window) so it
-    // reflows correctly when embedded and on every phone/tablet/desktop size —
+    // reflows correctly when embedded and on every phone/tablet/desktop size -
     // but ALSO treat a real phone held in landscape as a phone. A landscape
     // phone reports a tablet-ish width (~930) yet only ~410 px of height, where
-    // the wide layout's step sidebar + bordered body + horizontal footer is
-    // both mis-classified and far too tall. Device-class (orientation-stable
-    // short edge) catches that; the width check still handles a narrow embed on
+    // the wide layout's step rail + panel + horizontal footer is both
+    // mis-classified and far too tall. Device-class (orientation-stable short
+    // edge) catches that; the width check still handles a narrow embed on
     // desktop.
     final isPhoneDevice = Responsive.isPhone(context);
     return LayoutBuilder(
@@ -520,35 +503,52 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ? _finishToFirstLight
                 : null;
 
-        return isPhone
-            ? _buildPhoneWizard(
-                context,
-                theme,
-                colors,
-                draft,
-                onBack: onBack,
-                onSkipStep: onSkipStep,
-                onFirstLight: onFirstLight,
-              )
-            : _buildWideWizard(
-                context,
-                theme,
-                colors,
-                draft,
-                onBack: onBack,
-                onSkipStep: onSkipStep,
-                onFirstLight: onFirstLight,
-              );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PageHeader(
+              icon: NightshadeIcons.sparkle,
+              title: 'Set up your rig',
+              // The step rail names the current step on the wide layout; the
+              // phone column has no rail, so the header qualifies the title
+              // instead of repeating it.
+              context: isPhone ? _StepRail.labelFor(draft.currentStep) : null,
+              actions: [
+                _SkipOnboardingAction(onExit: busy ? null : _onExitWizard),
+              ],
+            ),
+            Expanded(
+              child: isPhone
+                  ? _buildPhoneWizard(
+                      context,
+                      draft,
+                      onBack: onBack,
+                      onSkipStep: onSkipStep,
+                      onFirstLight: onFirstLight,
+                    )
+                  : _buildWideWizard(
+                      context,
+                      draft,
+                      onBack: onBack,
+                      onSkipStep: onSkipStep,
+                      onFirstLight: onFirstLight,
+                    ),
+            ),
+          ],
+        );
       },
     );
   }
 
-  /// Tablet/desktop layout: step sidebar + bordered body + horizontal footer.
-  /// Unchanged from the original wizard so wide layouts do not regress.
+  /// Tablet/desktop layout: a centred block of step rail + content column.
+  ///
+  /// The block hugs its content in BOTH axes - the panel is `Flexible` and
+  /// loose, so a short step (Welcome) is a short panel and a tall one (a
+  /// device picker) takes the height it is given. Audit F5 recorded the
+  /// opposite: a bordered card stretched over 70 % of the canvas with nothing
+  /// in it.
   Widget _buildWideWizard(
     BuildContext context,
-    ThemeData theme,
-    NightshadeColors colors,
     OnboardingDraft draft, {
     required VoidCallback? onBack,
     required VoidCallback? onSkipStep,
@@ -557,49 +557,47 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: dialogMaxWidth(context, 1080),
+          maxWidth: dialogMaxWidth(context, _wizardMaxWidth),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
+          padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Header(
-                currentStep: draft.currentStep,
-                onExit: (_saving || _transitioning) ? null : _onExitWizard,
-              ),
-              const SizedBox(height: 16),
+              _StepRail(currentStep: draft.currentStep, draft: draft),
+              const SizedBox(width: NightshadeTokens.space2xl),
               Expanded(
-                child: Row(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _StepSidebar(currentStep: draft.currentStep, draft: draft),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: NightshadeCard(
-                        backgroundColor: colors.background,
-                        borderRadius: NightshadeTokens.radiusLg,
-                        padding: const EdgeInsets.all(20),
+                    _ProgressEyebrow(currentStep: draft.currentStep),
+                    Flexible(
+                      child: NightshadePanel(
                         child: _StepBody(
                           currentStep: draft.currentStep,
                           onFinishTo: _finishTo,
                         ),
                       ),
                     ),
+                    // The notice sits between the body and the footer, in the
+                    // layout flow: it displaces the footer rather than
+                    // covering it.
+                    _NoticeBand(
+                      notice: _resolveNotice(draft),
+                      onDismiss: _clearNotice,
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceLg),
+                    _Footer(
+                      currentStep: draft.currentStep,
+                      isSaving: _saving,
+                      onBack: onBack,
+                      onSkipStep: onSkipStep,
+                      onNext: (_saving || _transitioning) ? null : _onNext,
+                      onFirstLight: onFirstLight,
+                    ),
                   ],
                 ),
-              ),
-              // The notice sits between the body and the footer, in the layout
-              // flow: it displaces the footer rather than covering it.
-              _NoticeBand(
-                  notice: _resolveNotice(draft), onDismiss: _clearNotice),
-              const SizedBox(height: 16),
-              _Footer(
-                currentStep: draft.currentStep,
-                isSaving: _saving,
-                onBack: onBack,
-                onSkipStep: onSkipStep,
-                onNext: (_saving || _transitioning) ? null : _onNext,
-                onFirstLight: onFirstLight,
               ),
             ],
           ),
@@ -608,49 +606,48 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  /// Phone layout (portrait + landscape): no sidebar — a compact header with a
-  /// step progress bar, the step body filling the remaining height in a single
-  /// reflowed column, and a stacked footer whose primary action is full-width
-  /// and always reachable.
+  /// Phone layout (portrait + landscape): no rail - a progress track and the
+  /// step eyebrow, the step panel filling the remaining height, and a stacked
+  /// footer whose primary action is full-width and always reachable.
   ///
   /// The body stays inside a bounded region (not a scroll view) so steps that
-  /// rely on a finite height — e.g. the device picker's `Expanded` device list —
+  /// rely on a finite height - e.g. the device picker's `Expanded` device list -
   /// keep working; each step body scrolls its own content where needed.
   Widget _buildPhoneWizard(
     BuildContext context,
-    ThemeData theme,
-    NightshadeColors colors,
     OnboardingDraft draft, {
     required VoidCallback? onBack,
     required VoidCallback? onSkipStep,
     required VoidCallback? onFirstLight,
   }) {
     // A phone in landscape is only ~410 px tall. Tighten the chrome (less outer
-    // padding, slimmer header, single-row footer) so the step body keeps the
-    // height it needs and nothing clips. Portrait keeps the roomier spacing.
+    // padding, single-row footer) so the step body keeps the height it needs
+    // and nothing clips. Portrait keeps the roomier spacing.
     final compact = Responsive.isPhoneLandscape(context);
+    final gap =
+        compact ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd;
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: compact ? 8 : 12,
+        horizontal: NightshadeTokens.spaceLg,
+        vertical: gap,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PhoneHeader(
-            currentStep: draft.currentStep,
-            onExit: (_saving || _transitioning) ? null : _onExitWizard,
-            compact: compact,
-          ),
-          SizedBox(height: compact ? 8 : 12),
+          _PhoneProgress(currentStep: draft.currentStep),
+          SizedBox(height: gap),
+          _ProgressEyebrow(currentStep: draft.currentStep),
           Expanded(
-            child: _StepBody(
-              currentStep: draft.currentStep,
-              onFinishTo: _finishTo,
+            child: NightshadePanel(
+              padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+              child: _StepBody(
+                currentStep: draft.currentStep,
+                onFinishTo: _finishTo,
+              ),
             ),
           ),
           _NoticeBand(notice: _resolveNotice(draft), onDismiss: _clearNotice),
-          SizedBox(height: compact ? 8 : 12),
+          SizedBox(height: gap),
           _PhoneFooter(
             currentStep: draft.currentStep,
             isSaving: _saving,
