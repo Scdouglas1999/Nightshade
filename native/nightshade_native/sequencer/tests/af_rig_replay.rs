@@ -39,9 +39,11 @@ fn run(method: AutofocusMethod, points: Vec<FocusDataPoint>) -> (i32, f64) {
 
 #[test]
 fn rig_sweep_lands_near_the_focus_the_operator_had_to_nudge_to() {
-    // Ground truth: the best sample was 2500, a parabola through its two
-    // neighbours puts the vertex at 2490, and the operator nudged ~30 steps
-    // up from the 2471 this sweep chose to reach real focus.
+    // Ground truth, from the rig: the best sample was 2500 and a parabola
+    // through its two neighbours puts the vertex at 2490. The operator landed
+    // real focus at encoder 2441 — reached moving DOWN, so with that focuser's
+    // ~50 steps of backlash the optics were at ~2490 in this sweep's
+    // (approached-from-below) frame. The sweep chose 2471.
     for method in [
         AutofocusMethod::Hyperbolic,
         AutofocusMethod::VCurve,
