@@ -167,6 +167,11 @@ void main() {
 
     serviceB.result.complete(_solved());
     await tester.pump();
-    expect(find.textContaining('Frame solved'), findsOneWidget);
+    // findsWidgets, not findsOneWidget: NightshadeBanner composes its title
+    // and message into one Text.rich, and `textContaining` matches both the
+    // rich text and the span inside it. The assertion that matters is that the
+    // NEW host's result appears at all — the `findsNothing` above already
+    // proved the old host's did not.
+    expect(find.textContaining('Frame solved'), findsWidgets);
   });
 }
