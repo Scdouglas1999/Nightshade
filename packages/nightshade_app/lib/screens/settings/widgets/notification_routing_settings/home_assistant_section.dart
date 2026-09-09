@@ -62,7 +62,7 @@ class _HomeAssistantSectionState extends ConsumerState<_HomeAssistantSection> {
           _initialized = true;
         }
         return SettingsSection(
-          title: 'Home Assistant',
+          title: 'Home assistant',
           children: [
             SettingRow(
               icon: LucideIcons.home,

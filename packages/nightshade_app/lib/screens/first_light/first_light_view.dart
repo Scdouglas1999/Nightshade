@@ -55,7 +55,7 @@ class FirstLightView extends ConsumerWidget {
       children: [
         if (showHeader)
           const ScreenHeader(
-            title: 'First Light',
+            title: 'First light',
             icon: NightshadeIcons.sparkle,
           ),
         const _IntroStrip(),

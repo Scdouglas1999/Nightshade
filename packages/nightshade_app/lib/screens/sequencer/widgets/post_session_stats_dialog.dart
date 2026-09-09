@@ -187,7 +187,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                       const SizedBox(height: 20),
                       _Section(
                         colors: colors,
-                        title: 'Target Breakdown',
+                        title: 'Target breakdown',
                         icon: LucideIcons.target,
                         children: [
                           for (final te in stats.targetBreakdown.entries) ...[

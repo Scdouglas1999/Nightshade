@@ -176,7 +176,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Add Target').first);
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Add target').first);
     await tester.pumpAndSettle();
 
     // The empty state points at the action that works: search for the
@@ -251,7 +251,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Add Target').first);
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Add target').first);
     await tester.pumpAndSettle();
 
     expect(find.text('No sky catalog installed'), findsOneWidget);

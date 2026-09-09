@@ -170,7 +170,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
 
           // Manual Focus Section
           PanelSection(
-            title: 'Manual Focus',
+            title: 'Manual focus',
             colors: widget.colors,
             child: Column(
               children: [

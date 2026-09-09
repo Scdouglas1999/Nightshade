@@ -368,7 +368,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
 
           // Dithering Settings
           PanelSection(
-            title: 'Dither Settings',
+            title: 'Dither settings',
             colors: widget.colors,
             child: Column(
               children: [

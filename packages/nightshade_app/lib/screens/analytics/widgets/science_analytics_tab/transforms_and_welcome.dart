@@ -27,7 +27,7 @@ class _PhotometricTransformsCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              const _ScienceInfoButton(title: 'Photometric Transforms'),
+              const _ScienceInfoButton(title: 'Photometric transforms'),
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),

@@ -143,7 +143,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 ),
               ),
               const ScienceInfoButton(
-                title: 'Period Analysis',
+                title: 'Period analysis',
                 body: _kPeriodAnalysisInfo,
               ),
               if (analysisState.result != null)

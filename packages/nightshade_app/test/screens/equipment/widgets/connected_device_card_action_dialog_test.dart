@@ -95,12 +95,12 @@ void main() {
 
     await tapDeviceAction(tester, 'Move to…');
     await _pumpFrames(tester);
-    expect(find.text('Move Focuser'), findsOneWidget);
+    expect(find.text('Move focuser'), findsOneWidget);
 
     notifier.switchTo(hostB);
     await tester.pumpAndSettle();
 
-    expect(find.text('Move Focuser'), findsNothing);
+    expect(find.text('Move focuser'), findsNothing);
   });
 
   testWidgets(
@@ -139,7 +139,7 @@ void main() {
     await tester.enterText(find.byType(TextField), '123');
     await tester.tap(find.text('Move'));
     await _pumpFrames(tester);
-    expect(find.text('Move Focuser'), findsOneWidget);
+    expect(find.text('Move focuser'), findsOneWidget);
     expect(find.textContaining('motor jam'), findsOneWidget);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -147,8 +147,8 @@ void main() {
     );
 
     await tester.tap(find.text('Move'));
-    await _waitForDialogToClose(tester, 'Move Focuser');
-    expect(find.text('Move Focuser'), findsNothing);
+    await _waitForDialogToClose(tester, 'Move focuser');
+    expect(find.text('Move focuser'), findsNothing);
     verify(() => service.moveFocuserTo(123)).called(2);
   });
 
@@ -205,9 +205,9 @@ void main() {
     expect(find.text('Cancel'), findsNothing);
 
     await tester.tap(find.text('Stop'));
-    await _waitForDialogToClose(tester, 'Move Focuser');
+    await _waitForDialogToClose(tester, 'Move focuser');
     verify(() => service.haltFocuser()).called(1);
-    expect(find.text('Move Focuser'), findsNothing);
+    expect(find.text('Move focuser'), findsNothing);
 
     move.completeError(StateError('move cancelled by halt'));
     await tester.pump();

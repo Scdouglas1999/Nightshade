@@ -353,7 +353,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                     _ExportTypeCard(
                       key: _rowKeys[ScienceExportDataset.photometry],
                       colors: colors,
-                      title: 'Photometry Measurements',
+                      title: 'Photometry measurements',
                       description:
                           'Differential photometry: object ID, flux, magnitude, SNR, uncertainty, timestamp',
                       icon: LucideIcons.lineChart,
@@ -383,7 +383,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                     _ExportTypeCard(
                       key: _rowKeys[ScienceExportDataset.transparency],
                       colors: colors,
-                      title: 'Transparency Samples',
+                      title: 'Transparency samples',
                       description:
                           'Sky transparency %, extinction coefficient, quality bucket per frame',
                       icon: LucideIcons.cloud,
@@ -413,7 +413,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                     _ExportTypeCard(
                       key: _rowKeys[ScienceExportDataset.residuals],
                       colors: colors,
-                      title: 'Astrometric Residuals',
+                      title: 'Astrometric residuals',
                       description:
                           'Plate solve residual vectors: position, magnitude (arcsec), recommendation',
                       icon: LucideIcons.crosshair,
@@ -428,7 +428,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                     _ExportTypeCard(
                       key: _rowKeys[ScienceExportDataset.calibration],
                       colors: colors,
-                      title: 'Photometric Calibration',
+                      title: 'Photometric calibration',
                       description:
                           'Zero-point, limiting magnitude, matched star count, RMS per frame',
                       icon: LucideIcons.gauge,

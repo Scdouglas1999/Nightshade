@@ -165,7 +165,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
     final catalogAsync = ref.watch(installedCatalogSearchProvider(_query));
 
     return NightshadeDialog(
-      title: 'Add Target',
+      title: 'Add target',
       icon: LucideIcons.plus,
       width: 560,
       height: 560,

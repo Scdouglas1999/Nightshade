@@ -19,7 +19,7 @@ class _PresetNameDialogState extends State<_PresetNameDialog> {
   @override
   Widget build(BuildContext context) {
     return NightshadeDialog(
-      title: 'Save Preset',
+      title: 'Save preset',
       icon: NightshadeIcons.save,
       width: 420,
       actions: [

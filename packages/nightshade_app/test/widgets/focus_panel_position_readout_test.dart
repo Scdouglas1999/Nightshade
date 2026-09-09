@@ -149,7 +149,7 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Manual Focus'), findsOneWidget);
+      expect(find.text('Manual focus'), findsOneWidget);
       expect(find.text('Autofocus'), findsOneWidget);
     });
   }

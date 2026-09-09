@@ -578,7 +578,7 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
       builder: (context) {
         final colors = NightshadeColors.of(context);
         return NightshadeDialog(
-          title: 'Mosaic Warnings',
+          title: 'Mosaic warnings',
           icon: NightshadeIcons.warning,
           width: 480,
           actions: [

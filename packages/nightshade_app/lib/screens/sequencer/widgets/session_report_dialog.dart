@@ -59,7 +59,7 @@ class SessionReportDialog extends ConsumerWidget {
       data: (report) =>
           _ReportBody(report: report, colors: colors, runId: runId),
       loading: () => const NightshadeDialog(
-        title: 'Session Report',
+        title: 'Session report',
         icon: LucideIcons.fileBarChart,
         width: 720,
         child: SizedBox(
@@ -68,7 +68,7 @@ class SessionReportDialog extends ConsumerWidget {
         ),
       ),
       error: (err, _) => NightshadeDialog(
-        title: 'Session Report',
+        title: 'Session report',
         icon: LucideIcons.fileBarChart,
         width: 720,
         child: EmptyState(
@@ -108,7 +108,7 @@ class _ReportBody extends ConsumerWidget {
     // that owns none of the host's subs and pushed it onto the host-only wall.
     final isRemote = ref.watch(isRemoteClientProvider);
     return NightshadeDialog(
-      title: 'Session Report',
+      title: 'Session report',
       icon: LucideIcons.fileBarChart,
       width: 720,
       height: 760,
@@ -498,7 +498,7 @@ class _ReportBody extends ConsumerWidget {
           if (report.notes != null && report.notes!.isNotEmpty) ...[
             const SizedBox(height: 20),
             _SectionTitle(
-                title: 'Session Notes',
+                title: 'Session notes',
                 icon: LucideIcons.fileText,
                 colors: colors),
             Text(

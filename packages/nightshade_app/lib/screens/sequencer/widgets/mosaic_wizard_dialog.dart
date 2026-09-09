@@ -211,7 +211,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     final exposuresPerPanel = _exposuresPerPanel(exposure);
 
     return NightshadeDialog(
-      title: 'Mosaic Wizard',
+      title: 'Mosaic wizard',
       icon: NightshadeIcons.grid,
       closeEnabled: !_isBusy,
       width: 960,

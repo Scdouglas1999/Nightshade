@@ -282,7 +282,7 @@ class _TriggerConfigurationDialogState
     // widgets are invalid inside a Wrap and throw "Incorrect use of
     // ParentDataWidget" at mount.
     return NightshadeDialog(
-      title: 'Exposure Triggers',
+      title: 'Exposure triggers',
       icon: NightshadeIcons.notifications,
       width: 600,
       height: 500,
@@ -534,7 +534,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
     final colors = NightshadeColors.of(context);
 
     return NightshadeDialog(
-      title: 'Edit Trigger',
+      title: 'Edit trigger',
       icon: NightshadeIcons.edit,
       width: 440,
       actions: [

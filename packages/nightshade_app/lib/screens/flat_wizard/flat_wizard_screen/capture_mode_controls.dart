@@ -30,7 +30,7 @@ class _QuickCaptureControls extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Histogram target
-          _SectionHeader(title: 'Histogram Target', colors: colors),
+          _SectionHeader(title: 'Histogram target', colors: colors),
           const SizedBox(height: 8),
           _HistogramTargetSlider(
             value: state.globalSettings.histogramTarget,
@@ -49,7 +49,7 @@ class _QuickCaptureControls extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Frame count
-          _SectionHeader(title: 'Frame Count', colors: colors),
+          _SectionHeader(title: 'Frame count', colors: colors),
           const SizedBox(height: 8),
           _FrameCountInput(
             value: state.globalSettings.frameCount,
@@ -96,7 +96,7 @@ class _BatchCaptureControls extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Global settings
-          _SectionHeader(title: 'Global Settings', colors: colors),
+          _SectionHeader(title: 'Global settings', colors: colors),
           const SizedBox(height: 8),
           const _CaptureConfigSummary(),
           const SizedBox(height: 12),
@@ -149,7 +149,7 @@ class _SkyFlatsControls extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Twilight mode
-          _SectionHeader(title: 'Twilight Mode', colors: colors),
+          _SectionHeader(title: 'Twilight mode', colors: colors),
           const SizedBox(height: 8),
           _TwilightModeSelector(
             mode: state.twilightMode,
@@ -181,7 +181,7 @@ class _SkyFlatsControls extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Global settings
-          _SectionHeader(title: 'Global Settings', colors: colors),
+          _SectionHeader(title: 'Global settings', colors: colors),
           const SizedBox(height: 8),
           const _CaptureConfigSummary(),
           const SizedBox(height: 12),

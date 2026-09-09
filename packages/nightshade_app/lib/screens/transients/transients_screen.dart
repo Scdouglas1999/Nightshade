@@ -100,7 +100,7 @@ class TransientsView extends ConsumerWidget {
       children: [
         if (showHeader)
           ScreenHeader(
-            title: 'Observing Alerts',
+            title: 'Observing alerts',
             icon: NightshadeIcons.sparkle,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -637,7 +637,7 @@ class _TransientSettingsDialogState
     final notifier = ref.read(transientAlertSettingsProvider.notifier);
 
     return NightshadeDialog(
-      title: 'Alert Settings',
+      title: 'Alert settings',
       icon: NightshadeIcons.settings,
       width: 400,
       actions: [

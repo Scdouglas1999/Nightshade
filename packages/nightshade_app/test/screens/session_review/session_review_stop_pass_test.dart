@@ -209,7 +209,7 @@ void main() {
 
   // D3LC2-F1, the re-pushed-route shape. The screen is built fresh — every
   // per-screen latch starts clear, exactly as it did after Analytics → History
-  // → Review & Integrate — over a session that `darkroom_jobs` says is already
+  // → Review & integrate — over a session that `darkroom_jobs` says is already
   // being processed.
   testWidgets(
       'a freshly built screen over a session already being processed '

@@ -152,7 +152,7 @@ class TonightTab extends ConsumerWidget {
           if (twilight != null) ...[
             // Twilight card - Evening
             InfoCard(
-              title: 'Evening Twilight',
+              title: 'Evening twilight',
               icon: NightshadeIcons.sunset,
               color: colors.warning,
               colors: colors,

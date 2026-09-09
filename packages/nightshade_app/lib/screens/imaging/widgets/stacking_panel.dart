@@ -569,7 +569,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
 
           // Status and controls
           PanelSection(
-            title: 'Live Stacking',
+            title: 'Live stacking',
             colors: widget.colors,
             child: Column(
               children: [
@@ -777,7 +777,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
               stackState.previewWidth > 0 &&
               stackState.previewHeight > 0)
             PanelSection(
-              title: 'Stacked Preview',
+              title: 'Stacked preview',
               colors: widget.colors,
               child: _StackedPreview(
                 previewData: stackState.previewData!,
@@ -793,7 +793,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
 
           // Sigma Clipping config
           PanelSection(
-            title: 'Sigma Clipping',
+            title: 'Sigma clipping',
             colors: widget.colors,
             child: Column(
               children: [
@@ -848,7 +848,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
 
           // Star Matching config
           PanelSection(
-            title: 'Star Matching',
+            title: 'Star matching',
             colors: widget.colors,
             child: Column(
               children: [

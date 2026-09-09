@@ -91,7 +91,7 @@ class CalibrationSection extends ConsumerWidget {
         !isConnected || cameraId == null || cameraId.isEmpty;
 
     return PanelSection(
-      title: 'Image Calibration',
+      title: 'Image calibration',
       colors: colors,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

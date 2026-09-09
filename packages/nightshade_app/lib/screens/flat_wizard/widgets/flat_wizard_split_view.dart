@@ -42,7 +42,7 @@ class FlatWizardSplitView extends StatelessWidget {
             primarySegmentIcon: LucideIcons.image,
             secondary: [
               AdaptivePanel(
-                title: 'Capture Controls',
+                title: 'Capture controls',
                 icon: LucideIcons.sliders,
                 child: Container(
                   color: colors.surface,

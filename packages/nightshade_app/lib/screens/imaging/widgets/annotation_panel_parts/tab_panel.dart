@@ -254,7 +254,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => NightshadeDialog(
-        title: 'Delete Preset',
+        title: 'Delete preset',
         icon: NightshadeIcons.delete,
         width: 420,
         actions: [

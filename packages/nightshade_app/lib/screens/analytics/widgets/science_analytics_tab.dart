@@ -623,7 +623,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             ),
             _SeriesChartCard(
               colors: colors,
-              title: 'Transparency Trend',
+              title: 'Transparency trend',
               yLabel: '%',
               points: transparency
                   .map((point) =>

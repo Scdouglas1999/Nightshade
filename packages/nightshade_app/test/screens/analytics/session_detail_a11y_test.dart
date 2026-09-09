@@ -165,9 +165,9 @@ void main() {
     }
 
     expect(names, [
-      'Review & Integrate',
+      'Review & integrate',
       'Refine in Darkroom',
-      'Session Report',
+      'Session report',
       'Export to JSON',
       'Export to CSV',
       'Export HTML report',

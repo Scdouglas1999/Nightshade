@@ -242,7 +242,7 @@ void main() {
       expect(find.textContaining('Set an observing location to see'),
           findsOneWidget);
       // Twilight, darkness window and moon rise/set are all site-derived.
-      expect(find.text('Evening Twilight'), findsNothing);
+      expect(find.text('Evening twilight'), findsNothing);
       expect(find.text('Morning twilight'), findsNothing);
       expect(find.text('19:26'), findsNothing);
       expect(find.text('23:24'), findsNothing);
@@ -265,7 +265,7 @@ void main() {
         extra: [bestTargetsProvider.overrideWith((ref) async => [])],
       );
 
-      expect(find.text('Evening Twilight'), findsOneWidget);
+      expect(find.text('Evening twilight'), findsOneWidget);
       expect(find.text('Morning twilight'), findsOneWidget);
       expect(find.text('19:26'), findsOneWidget);
       expect(find.text('23:24'), findsOneWidget);

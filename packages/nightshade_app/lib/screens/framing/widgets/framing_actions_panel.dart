@@ -171,7 +171,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionHeader(
-              title: 'Guided Framing',
+              title: 'Guided framing',
               subtitle: 'Resolve, frame, solve, and slew in order',
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),

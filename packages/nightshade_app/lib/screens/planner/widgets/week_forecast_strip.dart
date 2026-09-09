@@ -96,7 +96,7 @@ class WeekForecastStrip extends ConsumerWidget {
                 0,
               ),
               child: SectionHeader(
-                title: 'This Week',
+                title: 'This week',
                 subtitle: 'Best nights for your project targets',
               ),
             ),

@@ -169,7 +169,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   // Merged cockpit tiles (density pass). self-chromed like the rest.
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitNowImaging,
-    title: 'Now Imaging',
+    title: 'Now imaging',
     subtitle: 'Active target, altitude, and run progress in one strip',
     icon: LucideIcons.target,
     defaultZone: DashboardZone.primary,
@@ -200,7 +200,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitLiveFrame,
-    title: 'Live Frame',
+    title: 'Live frame',
     subtitle: 'Most recent sub-exposure with quality readout',
     icon: LucideIcons.image,
     defaultZone: DashboardZone.primary,
@@ -209,7 +209,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitExposureProgress,
-    title: 'Exposure Progress',
+    title: 'Exposure progress',
     subtitle: 'Current exposure, dither, and download timing',
     icon: LucideIcons.timer,
     defaultZone: DashboardZone.primary,
@@ -218,7 +218,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitRecentFrames,
-    title: 'Recent Frames',
+    title: 'Recent frames',
     subtitle: 'Newest captures with filter, exposure, and time',
     icon: LucideIcons.galleryThumbnails,
     defaultZone: DashboardZone.primary,
@@ -227,7 +227,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitFilterIntegration,
-    title: 'Filter Integration',
+    title: 'Filter integration',
     subtitle: 'Accumulated integration time per filter',
     icon: LucideIcons.layers,
     defaultZone: DashboardZone.secondary,
@@ -236,7 +236,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitEquipmentTelemetry,
-    title: 'Equipment Telemetry',
+    title: 'Equipment telemetry',
     subtitle: 'Live device readouts (temp, position, status)',
     icon: LucideIcons.plug,
     defaultZone: DashboardZone.secondary,
@@ -266,7 +266,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitSessionWarnings,
-    title: 'Session Warnings',
+    title: 'Session warnings',
     subtitle: 'Active warnings and degraded-condition notices',
     icon: LucideIcons.alertTriangle,
     defaultZone: DashboardZone.secondary,
@@ -275,7 +275,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitTriggerFeed,
-    title: 'Trigger Feed',
+    title: 'Trigger feed',
     subtitle: 'Recent automation trigger activity',
     icon: LucideIcons.zap,
     defaultZone: DashboardZone.secondary,
@@ -294,7 +294,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitCloudMotion,
-    title: 'Cloud Motion',
+    title: 'Cloud motion',
     subtitle: 'Radar-derived cloud movement and trend',
     icon: LucideIcons.wind,
     defaultZone: DashboardZone.secondary,
@@ -303,7 +303,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitAdaptiveConditions,
-    title: 'Adaptive Conditions',
+    title: 'Adaptive conditions',
     subtitle: 'Adaptive exposure/condition responses',
     icon: LucideIcons.slidersHorizontal,
     defaultZone: DashboardZone.secondary,
@@ -312,7 +312,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitLightCurve,
-    title: 'Light Curve',
+    title: 'Light curve',
     subtitle: 'Photometric light curve for the active target',
     icon: LucideIcons.activity,
     defaultZone: DashboardZone.secondary,
@@ -330,7 +330,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitSecondaryRig,
-    title: 'Secondary Rig',
+    title: 'Secondary rig',
     subtitle: 'Piggyback camera loop with dither-coordinated capture',
     icon: LucideIcons.camera,
     defaultZone: DashboardZone.secondary,
@@ -348,7 +348,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitSessionVitals,
-    title: 'Session Vitals',
+    title: 'Session vitals',
     subtitle: 'Integration efficiency and live run counters',
     icon: LucideIcons.activity,
     defaultZone: DashboardZone.secondary,
@@ -357,7 +357,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitSkyContext,
-    title: 'Sky Context',
+    title: 'Sky context',
     subtitle: 'Altitude, airmass, moon, and darkness window',
     icon: LucideIcons.orbit,
     defaultZone: DashboardZone.secondary,
@@ -366,7 +366,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitForensics,
-    title: 'Frame Forensics',
+    title: 'Frame forensics',
     subtitle: 'Recent rejections grouped by likely cause',
     icon: LucideIcons.search,
     defaultZone: DashboardZone.secondary,
@@ -375,7 +375,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitNarrator,
-    title: 'Night Narrator',
+    title: 'Night narrator',
     subtitle: "Live interpretation of your session's science data",
     icon: LucideIcons.sparkles,
     defaultZone: DashboardZone.secondary,
@@ -384,7 +384,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitMorningReport,
-    title: 'Morning Report',
+    title: 'Morning report',
     subtitle: "Last night's accepted/rejected counts — tap to review",
     icon: LucideIcons.sunrise,
     defaultZone: DashboardZone.secondary,
@@ -396,7 +396,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   // Primary zone widgets (hero content)
   DashboardWidgetDefinition(
     id: DashboardWidgetId.livePreview,
-    title: 'Live Preview',
+    title: 'Live preview',
     subtitle: 'Current image, capture status, and image stats',
     icon: LucideIcons.image,
     defaultZone: DashboardZone.primary,
@@ -405,7 +405,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.captureSettings,
-    title: 'Capture Settings',
+    title: 'Capture settings',
     subtitle: 'Exposure, gain, filter, and capture controls',
     icon: LucideIcons.camera,
     defaultZone: DashboardZone.primary,
@@ -416,7 +416,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   // Secondary zone widgets (supporting info and controls)
   DashboardWidgetDefinition(
     id: DashboardWidgetId.sequenceStatus,
-    title: 'Sequence Status',
+    title: 'Sequence status',
     subtitle: 'Active sequence progress and timing',
     icon: LucideIcons.listOrdered,
     defaultZone: DashboardZone.secondary,
@@ -445,7 +445,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.quickActions,
-    title: 'Quick Actions',
+    title: 'Quick actions',
     subtitle: 'Snapshot, autofocus, centering, and parking',
     icon: LucideIcons.zap,
     defaultZone: DashboardZone.secondary,
@@ -456,7 +456,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   // Tertiary zone widgets (compact status cards)
   DashboardWidgetDefinition(
     id: DashboardWidgetId.mountControl,
-    title: 'Mount Control',
+    title: 'Mount control',
     subtitle: 'Mount connection and control actions',
     icon: LucideIcons.move3d,
     defaultZone: DashboardZone.tertiary,
@@ -501,7 +501,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.quickStats,
-    title: 'Quick Stats',
+    title: 'Quick stats',
     subtitle: 'Sensor temp, focus, HFR, and RMS',
     icon: LucideIcons.activity,
     defaultZone: DashboardZone.tertiary,

@@ -161,7 +161,7 @@ class LayersPanel extends ConsumerWidget {
                 ],
               ),
               _Group(
-                title: 'Solar System',
+                title: 'Solar system',
                 colors: colors,
                 children: [
                   _LayerSwitch(

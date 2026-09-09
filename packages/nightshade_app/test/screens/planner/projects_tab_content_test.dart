@@ -379,7 +379,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No targets yet'), findsOneWidget);
-    expect(find.widgetWithText(NightshadeButton, 'Add Target'), findsWidgets);
+    expect(find.widgetWithText(NightshadeButton, 'Add target'), findsWidgets);
   });
 
   testWidgets(
