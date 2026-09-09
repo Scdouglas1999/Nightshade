@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Equipment — profile with connected devices, discovery open</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  .work { display: grid; grid-template-columns: 1fr 320px; height: 100%; min-height: 0; }
+  .center { display: flex; flex-direction: column; min-height: 0; }
+  .devices { padding: 20px 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-content: start; }
+  .dev { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .dev .top { display: flex; align-items: center; gap: 10px; }
+  .dev .top .ic { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--well); color: var(--textSecondary); }
+  .dev .top .role { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--textMuted); font-weight: 600; }
+  .dev .top .name { font-weight: 600; }
+  .dev .top .trail { margin-left: auto; }
+  .dev .readouts { gap: 20px; }
+  .dev .acts { display: flex; gap: 6px; }
+  .dev .note { font-size: 12px; color: var(--textMuted); display: flex; gap: 6px; align-items: center; }
+  .dev .note a { color: var(--primary); }
+  .dev.empty-slot { border: 1px dashed var(--borderStrong); box-shadow: none; background: transparent; align-items: center; justify-content: center; color: var(--textMuted); gap: 6px; min-height: 150px; }
+  .disc { flex: none; border-top: 1px solid var(--hairline); max-height: 44%; display: flex; flex-direction: column; min-height: 0; }
+  .disc .hd { height: 44px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 24px; }
+  .disc .hd .eyebrow { font-size: 12px; }
+  .disc .rows { overflow: hidden; padding: 0 24px 12px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; }
+  .drow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+  .drow .i { color: var(--textMuted); font-size: 15px; }
+  .drow .k { color: var(--textMuted); font-size: 11px; font-family: var(--font-mono); }
+  .drow .trail { margin-left: auto; display: flex; gap: 6px; }
+  .side { border-left: 1px solid var(--hairline); padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+  .profile { display: flex; align-items: center; gap: 10px; }
+  .profile .ic { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: rgba(var(--primary-rgb), 0.14); color: var(--primary); }
+  .profile .n { font-weight: 600; }
+  .profile .d { font-size: 12px; color: var(--textMuted); }
+  .blk { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+  .blk:last-child { border-bottom: 0; }
+  .blk .dot { margin-top: 6px; }
+  .blk .t { font-weight: 500; }
+  .blk .d { color: var(--textSecondary); font-size: 12px; margin: 2px 0 6px; }
+</style>
+</head>
+<body data-selected="equipment" data-rail="collapsed" data-devices="connected" data-run="idle">
+<div class="app">
+  <main class="main">
+    <div class="pagehead">
+      <div class="title"><span class="i i-plug"></span><span class="t-pageTitle">Equipment</span></div>
+      <div class="tabs"><span class="tab selected">Devices</span><span class="tab">Profiles<span class="muted" style="font-weight:400">2</span></span><span class="tab">Optical train</span></div>
+      <div class="actions"><span class="chip ok"><span class="dot ok"></span>5 connected</span><span class="btn secondary sm"><span class="i i-unplug"></span>Disconnect all</span><span class="btn primary sm"><span class="i i-search"></span>Scan for devices</span></div>
+    </div>
+    <div class="pagebody flush">
+      <div class="work">
+        <div class="center">
+          <div class="devices">
+            <div class="panel dev"><div class="top"><span class="ic"><span class="i i-camera"></span></span><div><div class="role">Camera</div><div class="name">ZWO ASI2600MM Pro</div></div><span class="trail chip ok"><span class="dot ok"></span>Connected</span></div>
+              <div class="readouts"><div class="readout"><span class="v">-10.0<span class="u">°C</span></span><span class="l">Sensor</span></div><div class="readout"><span class="v">45<span class="u">%</span></span><span class="l">Cooler</span></div><div class="readout"><span class="v">Idle</span><span class="l">State</span></div></div>
+              <div class="acts"><span class="btn sm secondary">Warm up</span><span class="btn sm ghost icon"><span class="i i-settings"></span></span></div></div>
+            <div class="panel dev"><div class="top"><span class="ic"><span class="i i-mountain"></span></span><div><div class="role">Mount</div><div class="name">Sky-Watcher EQ6-R Pro</div></div><span class="trail chip ok"><span class="dot ok"></span>Tracking</span></div>
+              <div class="readouts"><div class="readout"><span class="v">13h 29m</span><span class="l">RA</span></div><div class="readout"><span class="v">+47° 11′</span><span class="l">Dec</span></div><div class="readout"><span class="v">W</span><span class="l">Pier</span></div></div>
+              <div class="acts"><span class="btn sm secondary">Park</span><span class="btn sm secondary">Home</span><span class="btn sm secondary">Flip</span><span class="btn sm ghost icon"><span class="i i-settings"></span></span></div></div>
+            <div class="panel dev"><div class="top"><span class="ic"><span class="i i-focus"></span></span><div><div class="role">Focuser</div><div class="name">ZWO EAF</div></div><span class="trail chip ok"><span class="dot ok"></span>Ready</span></div>
+              <div class="readouts"><div class="readout"><span class="v">25 000</span><span class="l">Position</span></div><div class="readout"><span class="v">8.4<span class="u">°C</span></span><span class="l">Temp</span></div></div>
+              <div class="acts"><span class="btn sm secondary"><span class="i i-focus"></span>Autofocus</span><span class="btn sm ghost icon"><span class="i i-settings"></span></span></div></div>
+            <div class="panel dev"><div class="top"><span class="ic"><span class="i i-disc"></span></span><div><div class="role">Filter wheel</div><div class="name">ZWO EFW 7×36</div></div><span class="trail chip ok"><span class="dot ok"></span>Connected</span></div>
+              <div class="readouts"><div class="readout"><span class="v">L</span><span class="l">Filter</span></div><div class="readout"><span class="v">1<span class="u">/7</span></span><span class="l">Slot</span></div></div>
+              <div class="acts"><span class="btn sm secondary">Change filter</span></div></div>
+            <div class="panel dev"><div class="top"><span class="ic"><span class="i i-crosshair"></span></span><div><div class="role">Guider</div><div class="name">PHD2 · ASI220MM</div></div><span class="trail chip warn"><span class="dot warn"></span>Session only</span></div>
+              <div class="readouts"><div class="readout"><span class="v">Stopped</span><span class="l">State</span></div></div>
+              <div class="note"><span class="i i-info"></span>Connected but not in this profile. <a>Add to profile</a></div>
+              <div class="acts"><span class="btn sm secondary">Open Guiding</span></div></div>
+            <div class="panel dev empty-slot"><span class="i i-plus" style="font-size:20px"></span><span>Add rotator, dome, flat panel, weather…</span></div>
+          </div>
+          <div class="disc">
+            <div class="hd"><span class="i i-radio" style="color:var(--textMuted)"></span><span class="eyebrow">Discovered devices</span><span class="muted" style="font-size:12px">11 found · scanned 2 min ago</span><span class="btn ghost sm" style="margin-left:auto"><span class="i i-refresh-cw"></span>Rescan</span><span class="btn ghost sm icon"><span class="i i-chevron-down"></span></span></div>
+            <div class="rows">
+              <div class="drow"><span class="i i-camera"></span>Simulated Camera<span class="k">sim</span><span class="trail"><span class="btn sm ghost">Connect</span><span class="btn sm secondary">Add to profile</span></span></div>
+              <div class="drow"><span class="i i-mountain"></span>Simulated Mount<span class="k">sim</span><span class="trail"><span class="btn sm ghost">Connect</span><span class="btn sm secondary">Add to profile</span></span></div>
+              <div class="drow"><span class="i i-focus"></span>Simulated Focuser<span class="k">sim</span><span class="trail"><span class="btn sm ghost">Connect</span><span class="btn sm secondary">Add to profile</span></span></div>
+              <div class="drow"><span class="i i-rotate-cw"></span>Simulated Rotator<span class="k">sim</span><span class="trail"><span class="btn sm ghost">Connect</span><span class="btn sm secondary">Add to profile</span></span></div>
+              <div class="drow"><span class="i i-cloud-sun"></span>Simulated Weather Station<span class="k">sim</span><span class="trail"><span class="btn sm ghost">Connect</span><span class="btn sm secondary">Add to profile</span></span></div>
+              <div class="drow"><span class="i i-shield-check"></span>Simulated Safety Monitor<span class="k">sim</span><span class="trail"><span class="btn sm ghost">Connect</span><span class="btn sm secondary">Add to profile</span></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="side">
+          <div class="profile"><span class="ic"><span class="i i-aperture"></span></span><div><div class="n">Backyard · ASI2600MM</div><div class="d">Default profile · 5 devices · 2 unsaved</div></div><span class="btn ghost sm icon" style="margin-left:auto"><span class="i i-more-vertical"></span></span></div>
+          <span class="btn secondary sm" style="align-self:flex-start"><span class="i i-save"></span>Save 2 devices to profile</span>
+          <div>
+            <div class="section-title"><span class="i i-list-checks"></span><h2>Readiness</h2><span class="trail chip warn">1 blocker</span></div>
+            <div class="blk"><span class="dot ok"></span><div><div class="t">Camera and mount connected</div></div></div>
+            <div class="blk"><span class="dot ok"></span><div><div class="t">Capture folder</div><div class="d">D:\Captures · 412 GB free</div></div></div>
+            <div class="blk"><span class="dot err"></span><div><div class="t">Plate solver</div><div class="d">Install ASTAP with a star catalog to enable centering and framing.</div><span class="btn sm secondary">Set up</span></div></div>
+            <div class="blk"><span class="dot warn"></span><div><div class="t">Optical train</div><div class="d">Focal length missing, so field of view previews are off.</div><span class="btn sm secondary">Edit</span></div></div>
+          </div>
+          <div>
+            <div class="section-title"><span class="i i-activity"></span><h2>System health</h2><span class="trail chip ok">100 · Excellent</span></div>
+            <div class="kv"><span class="k">USB bus</span><span class="v">3 devices · 0 drops</span><span class="k">Driver</span><span class="v">ASCOM 6.6</span><span class="k">Last self-test</span><span class="v">22:12 · pass</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

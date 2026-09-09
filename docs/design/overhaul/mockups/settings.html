@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings — Appearance</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  .work { display: grid; grid-template-columns: 240px 1fr; height: 100%; min-height: 0; }
+  .nav { border-right: 1px solid var(--hairline); padding: 12px 8px; overflow: hidden; }
+  .nav .field { height: 30px; margin: 0 4px 10px; }
+  .nav .eyebrow { padding: 12px 12px 4px; }
+  .nav .it { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; border-radius: 6px; font-size: 14px; color: var(--textSecondary); }
+  .nav .it .i { font-size: 15px; color: var(--textMuted); }
+  .nav .it.selected { background: rgba(var(--primary-rgb), var(--opacity-accentTint)); color: var(--primary); }
+  .nav .it.selected .i { color: var(--primary); }
+  .page { padding: 24px 32px; overflow: hidden; max-width: 880px; }
+  .page h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .page .lead { color: var(--textSecondary); font-size: 13px; margin: 0 0 20px; }
+  .group { margin-bottom: 24px; }
+  .group .eyebrow { margin-bottom: 8px; }
+  .srow { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+  .srow:last-child { border-bottom: 0; }
+  .srow .t { font-weight: 500; font-size: 14px; }
+  .srow .d { color: var(--textSecondary); font-size: 12px; margin-top: 2px; }
+  .srow .field { width: 160px; height: 30px; }
+  .swatches { display: flex; gap: 8px; }
+  .swatches span { width: 22px; height: 22px; border-radius: 50%; }
+  .swatches span.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--textPrimary); }
+  .themes { display: flex; gap: 10px; }
+  .themes .th { width: 132px; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--panel-outline); font-size: 12px; color: var(--textSecondary); }
+  .themes .th.sel { box-shadow: 0 0 0 2px var(--primary); color: var(--textPrimary); }
+  .themes .th .pv { height: 64px; display: grid; grid-template-columns: 20px 1fr; }
+  .themes .th .pv i { display: block; margin: 8px; border-radius: 3px; }
+  .themes .th .lab { padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body data-selected="" data-rail="collapsed" data-devices="connected" data-run="idle">
+<div class="app">
+  <main class="main">
+    <div class="pagehead">
+      <div class="title"><span class="i i-settings"></span><span class="t-pageTitle">Settings</span></div>
+      <div class="actions"><span class="btn ghost sm"><span class="i i-download"></span>Backup</span></div>
+    </div>
+    <div class="pagebody flush">
+      <div class="work">
+        <div class="nav">
+          <span class="field"><span class="i i-search"></span><span class="muted">Search settings</span></span>
+          <div class="eyebrow">General</div>
+          <div class="it"><span class="i i-settings"></span>General</div>
+          <div class="it selected"><span class="i i-palette"></span>Appearance</div>
+          <div class="it"><span class="i i-map-pin"></span>Location</div>
+          <div class="it"><span class="i i-folder"></span>Files &amp; storage</div>
+          <div class="eyebrow">Observing</div>
+          <div class="it"><span class="i i-plug"></span>Equipment</div>
+          <div class="it"><span class="i i-camera"></span>Imaging</div>
+          <div class="it"><span class="i i-list-ordered"></span>Automation &amp; safety</div>
+          <div class="it"><span class="i i-flask-conical"></span>Science</div>
+          <div class="eyebrow">System</div>
+          <div class="it"><span class="i i-bell"></span>Notifications &amp; remote</div>
+          <div class="it"><span class="i i-wrench"></span>Advanced</div>
+          <div class="it"><span class="i i-help-circle"></span>Help &amp; about</div>
+        </div>
+        <div class="page">
+          <h1>Appearance</h1>
+          <p class="lead">Theme, accent and density. Red night keeps every pixel on the red axis so your dark adaptation survives.</p>
+          <div class="group">
+            <div class="eyebrow">Theme</div>
+            <div class="panel flush">
+              <div class="srow"><div><div class="t">Theme</div><div class="d">Dark is the default at the telescope. Light suits daytime planning. Red night for the field.</div></div>
+                <div class="themes">
+                  <div class="th sel"><div class="pv" style="background:#0B0D12"><i style="background:#12151B"></i><i style="background:#12151B"></i></div><div class="lab"><span class="i i-check" style="font-size:12px;color:var(--primary)"></span>Dark</div></div>
+                  <div class="th"><div class="pv" style="background:#F3F5F8"><i style="background:#fff;box-shadow:0 0 0 1px #DCE1E7"></i><i style="background:#fff;box-shadow:0 0 0 1px #DCE1E7"></i></div><div class="lab">Light</div></div>
+                  <div class="th"><div class="pv" style="background:#0A0000"><i style="background:#140808"></i><i style="background:#140808"></i></div><div class="lab">Red night</div></div>
+                </div></div>
+              <div class="srow"><div><div class="t">Accent</div><div class="d">Used for the primary action, selection and links. Nothing else.</div></div>
+                <div class="swatches"><span class="sel" style="background:#6EB3EC"></span><span style="background:#43B67A"></span><span style="background:#E0A53E"></span><span style="background:#E86A6A"></span><span style="background:#A48CF2"></span><span style="background:#E77FB3"></span><span style="background:#4FC3C8"></span></div></div>
+            </div>
+          </div>
+          <div class="group">
+            <div class="eyebrow">Display</div>
+            <div class="panel flush">
+              <div class="srow"><div><div class="t">Text size</div><div class="d">Scales every label and readout.</div></div><span class="field">Medium<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+              <div class="srow"><div><div class="t">UI scale</div><div class="d">Auto follows the display. Compact (0.8×) for a laptop at the scope, Large (1.2×) or Extra large (1.4×) for a wall display.</div></div><span class="field">Auto<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+              <div class="srow"><div><div class="t">Start with the navigation rail collapsed</div></div><span class="switch on"></span></div>
+              <div class="srow"><div><div class="t">Glance mode</div><div class="d">Enlarges status readouts so they read from across the room.</div></div><span class="switch"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

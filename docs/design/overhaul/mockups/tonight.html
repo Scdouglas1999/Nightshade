@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tonight — running state</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  .hero { display: flex; align-items: flex-end; gap: 24px; margin-bottom: 14px; }
+  .hero .eyebrow { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .hero h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2; }
+  .hero h1 .muted { font-weight: 400; }
+  .hero .sub { color: var(--textSecondary); margin-top: 4px; font-size: 14px; display: flex; gap: 14px; }
+  .hero .cta { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .band { padding: 12px 16px 12px; margin-bottom: var(--shell-panelGap); }
+  .band svg { width: 100%; height: 52px; display: block; }
+  .band .legend { position: relative; height: 30px; font-size: 11px; color: var(--textMuted); font-family: var(--font-mono); margin-top: 6px; }
+  .band .legend span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .band .legend span.now { top: 15px; } .band .legend span:first-child { transform: none; } .band .legend span:last-child { transform: translateX(-100%); }
+  .preview { position: relative; flex: 1; min-height: 200px; }
+  .panel.flush.c8 { display: flex; flex-direction: column; }
+  .preview .hud { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; }
+  .preview .hud .glass { padding: 8px 12px; display: flex; gap: 18px; }
+  .preview .tl { position: absolute; right: 12px; top: 12px; }
+  .preview .tl .glass { padding: 6px 10px; font-size: 12px; color: var(--textSecondary); display: flex; gap: 8px; align-items: center; }
+  .thumbs { display: flex; gap: 6px; padding: 8px 12px; }
+  .thumbs .th { width: 52px; height: 32px; border-radius: 4px; background: #1a1e26; position: relative; }
+  .thumbs .th.sel { box-shadow: 0 0 0 2px var(--primary); }
+  .thumbs .th::after { content: attr(data-t); position: absolute; left: 4px; bottom: 2px; font-size: 11px; color: var(--textMuted); font-family: var(--font-mono); }
+  .devrow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+  .devrow:last-child { border-bottom: 0; }
+  .devrow .i { color: var(--textMuted); font-size: 15px; }
+  .devrow .name { font-weight: 500; }
+  .devrow .readouts { margin-left: auto; gap: 16px; }
+  .devrow .readout .v { font-size: 14px; letter-spacing: 0; }
+  .ring { width: 96px; height: 96px; position: relative; flex: none; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .c { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .bars .b { display: grid; grid-template-columns: 28px 1fr 64px; align-items: center; gap: 10px; font-size: 12px; margin: 6px 0; }
+  .bars .b .t { height: 6px; border-radius: 3px; background: var(--well); overflow: hidden; }
+  .bars .b .t i { display: block; height: 100%; background: var(--primary); border-radius: 3px; }
+  .bars .b .n { font-family: var(--font-mono); color: var(--textSecondary); text-align: right; }
+</style>
+</head>
+<body data-selected="tonight" data-rail="collapsed" data-devices="connected" data-run="ready">
+<div class="app">
+  <main class="main">
+    <div class="pagehead">
+      <div class="title"><span class="i i-moon-star"></span><span class="t-pageTitle">Tonight</span><span class="muted">Wed 9 Sep</span></div>
+      <div class="actions"><span class="btn ghost sm"><span class="i i-layout-grid"></span>Edit layout</span></div>
+    </div>
+    <div class="pagebody">
+      <div class="hero">
+        <div>
+          <div class="eyebrow"><span class="dot acc"></span>Sequence ready</div>
+          <h1>M51 <span class="muted">· Whirlpool Galaxy</span></h1>
+          <div class="sub"><span>Mono LRGB · 27 nodes · ~2 h 54 m</span><span>Astronomical dark in 5 h 31 m</span><span>Moon 3%, sets 22:10</span></div>
+        </div>
+        <div class="cta">
+          <span class="btn secondary"><span class="i i-list-ordered"></span>Open in Sequencer</span>
+          <span class="btn lg start"><span class="i i-play"></span>Start sequence</span>
+        </div>
+      </div>
+
+      <div class="panel band">
+        <svg viewBox="0 0 1200 64" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="sky" x1="0" x2="1">
+              <stop offset="0" style="stop-color:var(--band-dusk)"/><stop offset="0.14" style="stop-color:var(--band-twilight)"/><stop offset="0.5" style="stop-color:var(--band-dark)"/><stop offset="0.86" style="stop-color:var(--band-twilight)"/><stop offset="1" style="stop-color:var(--band-dawn)"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width="1200" height="64" rx="6" fill="url(#sky)"/>
+          <path d="M 240 60 C 400 8, 620 8, 780 60" fill="rgba(var(--primary-rgb),0.16)" stroke="var(--primary)" stroke-width="1.5"/>
+          <rect x="300" y="52" width="420" height="4" rx="2" fill="var(--primary)"/>
+          <line x1="150" y1="0" x2="150" y2="64" stroke="var(--hairline-strong)" stroke-dasharray="2 3"/>
+          <line x1="1050" y1="0" x2="1050" y2="64" stroke="var(--hairline-strong)" stroke-dasharray="2 3"/>
+          <line x1="212" y1="0" x2="212" y2="64" stroke="var(--textPrimary)" stroke-width="1.5"/>
+          <circle cx="212" cy="6" r="3" fill="var(--textPrimary)"/>
+        </svg>
+        <div class="legend"><span style="left:0">19:12 sunset</span><span style="left:12.5%">20:54 astro dark</span><span class="acc now" style="left:17.7%">▲ now 22:41</span><span style="left:42.5%">01:08 transit 85°</span><span style="left:87.5%">04:51 astro dawn</span><span style="left:100%">06:33 sunrise</span></div>
+      </div>
+
+      <div class="grid12">
+        <div class="panel flush c8">
+          <div class="preview starfield"><div class="neb"></div>
+            <div class="tl"><div class="glass"><span class="dot ok live"></span>Last sub 22:39:51 · L · 120 s</div></div>
+            <div class="hud">
+              <div class="glass">
+                <div class="readout"><span class="v">2.49<span class="u">px</span></span><span class="l">HFR</span></div>
+                <div class="readout"><span class="v">0.23</span><span class="l">Ecc</span></div>
+                <div class="readout"><span class="v">1 243</span><span class="l">Stars</span></div>
+                <div class="readout"><span class="v">0.42<span class="u">"</span></span><span class="l">RMS</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="thumbs"><span class="th sel" data-t="22:39"></span><span class="th" data-t="22:37"></span><span class="th" data-t="22:35"></span><span class="th" data-t="22:33"></span><span class="th" data-t="22:31"></span><span class="th" data-t="22:29"></span><span class="th" data-t="22:27"></span><span class="th" data-t="22:25"></span></div>
+        </div>
+
+        <div class="panel c4">
+          <div class="head"><span class="i i-plug"></span><span class="eyebrow">Equipment</span><span class="trail"><span class="chip ok">All connected</span></span></div>
+          <div class="devrow"><span class="i i-camera"></span><span class="name">ASI2600MM</span><div class="readouts"><div class="readout"><span class="v">-10.0<span class="u">°C</span></span><span class="l">Sensor</span></div><div class="readout"><span class="v">45<span class="u">%</span></span><span class="l">Cooler</span></div></div></div>
+          <div class="devrow"><span class="i i-mountain"></span><span class="name">EQ6-R Pro</span><div class="readouts"><div class="readout"><span class="v">13h 29m</span><span class="l">RA</span></div><div class="readout"><span class="v">+47° 11'</span><span class="l">Dec</span></div><div class="readout"><span class="v">64.8<span class="u">°</span></span><span class="l">Alt</span></div></div></div>
+          <div class="devrow"><span class="i i-focus"></span><span class="name">ZWO EAF</span><div class="readouts"><div class="readout"><span class="v">25 000</span><span class="l">Position</span></div><div class="readout"><span class="v">8.4<span class="u">°C</span></span><span class="l">Temp</span></div></div></div>
+          <div class="devrow"><span class="i i-disc"></span><span class="name">EFW 7×36</span><div class="readouts"><div class="readout"><span class="v">L</span><span class="l">Filter</span></div></div></div>
+          <div class="devrow"><span class="i i-crosshair"></span><span class="name">PHD2</span><div class="readouts"><div class="readout"><span class="v">0.42<span class="u">"</span></span><span class="l">Total RMS</span></div></div></div>
+        </div>
+
+        <div class="panel c4">
+          <div class="head"><span class="i i-crosshair"></span><span class="eyebrow">Guiding</span><span class="trail"><span class="chip ok"><span class="dot ok"></span>Guiding</span></span></div>
+          <div class="well" style="height:96px;padding:8px">
+            <svg viewBox="0 0 300 100" width="100%" height="100%" preserveAspectRatio="none">
+              <line x1="0" y1="50" x2="300" y2="50" stroke="var(--hairline)"/>
+              <polyline fill="none" stroke="var(--error)" stroke-width="1.2" points="0,52 20,47 40,55 60,49 80,44 100,53 120,50 140,46 160,56 180,51 200,48 220,54 240,50 260,45 280,52 300,49"/>
+              <polyline fill="none" stroke="var(--primary)" stroke-width="1.2" points="0,50 20,55 40,48 60,52 80,58 100,50 120,45 140,53 160,49 180,56 200,51 220,47 240,54 260,52 280,48 300,51"/>
+            </svg>
+          </div>
+          <div class="readouts" style="margin-top:12px"><div class="readout"><span class="v">0.31<span class="u">"</span></span><span class="l">RA rms</span></div><div class="readout"><span class="v">0.28<span class="u">"</span></span><span class="l">Dec rms</span></div><div class="readout"><span class="v">0.42<span class="u">"</span></span><span class="l">Total</span></div><div class="readout"><span class="v">4.1</span><span class="l">SNR</span></div></div>
+        </div>
+
+        <div class="panel c4">
+          <div class="head"><span class="i i-activity"></span><span class="eyebrow">Progress</span><span class="trail muted" style="font-size:12px">ends ~01:35</span></div>
+          <div class="row" style="gap:18px">
+            <div class="ring"><svg width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="42" fill="none" stroke="var(--well)" stroke-width="7"/><circle cx="48" cy="48" r="42" fill="none" stroke="var(--primary)" stroke-width="7" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="152"/></svg><div class="c"><div class="readout"><span class="v">42<span class="u">%</span></span></div></div></div>
+            <div class="bars grow">
+              <div class="b"><span class="muted">L</span><span class="t"><i style="width:70%"></i></span><span class="n">28 / 40</span></div>
+              <div class="b"><span class="muted">R</span><span class="t"><i style="width:35%"></i></span><span class="n">7 / 20</span></div>
+              <div class="b"><span class="muted">G</span><span class="t"><i style="width:0%"></i></span><span class="n">0 / 20</span></div>
+              <div class="b"><span class="muted">B</span><span class="t"><i style="width:0%"></i></span><span class="n">0 / 20</span></div>
+            </div>
+          </div>
+          <div class="readouts" style="margin-top:12px"><div class="readout"><span class="v">1h 12m</span><span class="l">Integrated</span></div><div class="readout"><span class="v">1h 42m</span><span class="l">Remaining</span></div><div class="readout"><span class="v">2<span class="u">/37</span></span><span class="l">Rejected</span></div></div>
+        </div>
+
+        <div class="panel c4">
+          <div class="head"><span class="i i-shield-check"></span><span class="eyebrow">Safety &amp; events</span><span class="trail"><span class="chip ok">Safe</span></span></div>
+          <div class="kv" style="margin-bottom:10px"><span class="k">Clouds</span><span class="v">4%</span><span class="k">Wind</span><span class="v">6 km/h</span><span class="k">Dew point</span><span class="v">3.1°C · 5.3° margin</span></div>
+          <div class="hr"></div>
+          <div class="list">
+            <div class="li"><span class="i i-check-circle ok"></span>Autofocus 25 000 · HFR 2.41<span class="t">22:31</span></div>
+            <div class="li"><span class="i i-info"></span>Dither 3.2 px settled 4 s<span class="t">22:27</span></div>
+            <div class="li"><span class="i i-alert-triangle warn"></span>Sub 22:19 rejected · HFR 3.9<span class="t">22:19</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sequencer — builder with a loaded sequence</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  .work { display: grid; grid-template-columns: 264px 1fr 300px; height: 100%; min-height: 0; }
+  .col-l, .col-r { border-right: 1px solid var(--hairline); display: flex; flex-direction: column; min-height: 0; }
+  .col-r { border-right: 0; border-left: 1px solid var(--hairline); }
+  .subtabs { display: flex; gap: 2px; padding: 8px 8px 0; }
+  .subtabs span { padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--textMuted); }
+  .subtabs span.selected { background: var(--surfaceHover); color: var(--textPrimary); }
+  .pal { padding: 10px 12px; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+  .pal .eyebrow { padding: 8px 4px 2px; }
+  .node { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; background: var(--surface); box-shadow: 0 0 0 1px var(--panel-outline); font-size: 13px; }
+  .node .ic { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; background: var(--well); color: var(--textSecondary); flex: none; }
+  .node .ic .i { font-size: 14px; }
+  .node .d { color: var(--textMuted); font-size: 12px; }
+  .node .plus { margin-left: auto; color: var(--textMuted); }
+  .bar { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--hairline); }
+  .bar .name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
+  .bar .name .i { color: var(--textMuted); }
+  .bar .meta { display: flex; gap: 6px; margin-left: 12px; }
+  .tree { padding: 16px 20px; overflow: hidden; }
+  .step { border-radius: 8px; background: var(--surface); box-shadow: 0 0 0 1px var(--panel-outline); margin-bottom: 8px; }
+  .step .hd { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+  .step .hd .ic { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; background: var(--well); color: var(--textSecondary); }
+  .step .hd .t { font-weight: 500; }
+  .step .hd .s { color: var(--textMuted); font-size: 12px; margin-left: 6px; font-family: var(--font-mono); }
+  .step .hd .trail { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .step.target { box-shadow: 0 0 0 1px rgba(var(--primary-rgb), var(--opacity-selectedRing)); }
+  .step.target > .hd .ic { background: rgba(var(--primary-rgb), 0.14); color: var(--primary); }
+  .step .body { padding: 0 12px 12px 50px; }
+  .step .child { border-radius: 6px; background: var(--well); padding: 8px 10px; display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; }
+  .step .child .i { color: var(--textMuted); font-size: 14px; }
+  .step .child .cnt { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--textSecondary); }
+  .step .child .prog { width: 80px; height: 4px; border-radius: 2px; background: var(--surfaceHover); overflow: hidden; }
+  .step .child .prog i { display: block; height: 100%; background: var(--primary); }
+  .alt { height: 96px; margin-top: 8px; }
+  .props { padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .props .form .row { grid-template-columns: 96px 1fr; }
+</style>
+</head>
+<body data-selected="sequencer" data-rail="collapsed" data-devices="connected" data-run="idle">
+<div class="app">
+  <main class="main">
+    <div class="pagehead">
+      <div class="title"><span class="i i-list-ordered"></span><span class="t-pageTitle">Sequencer</span></div>
+      <div class="tabs"><span class="tab selected">Builder</span><span class="tab">Templates</span><span class="tab">Saved</span><span class="tab">History</span></div>
+      <div class="actions">
+        <span class="btn ghost sm"><span class="i i-list-checks"></span>Preflight<span class="chip warn" style="height:18px;padding:0 6px">2</span></span>
+        <span class="btn start"><span class="i i-play"></span>Start</span>
+      </div>
+    </div>
+    <div class="pagebody flush">
+      <div class="work">
+        <div class="col-l">
+          <div class="subtabs"><span class="selected">Nodes</span><span>Snippets</span><span>Queue</span></div>
+          <div class="pal">
+            <span class="field" style="height:30px"><span class="i i-search"></span><span class="muted">Search nodes…</span></span>
+            <div class="eyebrow">Target</div>
+            <div class="node"><span class="ic"><span class="i i-target"></span></span><div><div>Target</div><div class="d">Root node with imaging instructions</div></div><span class="i i-plus plus"></span></div>
+            <div class="eyebrow">Imaging</div>
+            <div class="node"><span class="ic"><span class="i i-camera"></span></span><div><div>Take exposures</div><div class="d">Capture with specified settings</div></div><span class="i i-plus plus"></span></div>
+            <div class="node"><span class="ic"><span class="i i-disc"></span></span><div><div>Change filter</div><div class="d">Move the filter wheel</div></div><span class="i i-plus plus"></span></div>
+            <div class="node"><span class="ic"><span class="i i-layers"></span></span><div><div>Smart exposure</div><div class="d">One row per filter, handles rotation</div></div><span class="i i-plus plus"></span></div>
+            <div class="node"><span class="ic"><span class="i i-shuffle"></span></span><div><div>Dither</div><div class="d">Nudge guiding between subs</div></div><span class="i i-plus plus"></span></div>
+            <div class="node"><span class="ic"><span class="i i-layers"></span></span><div><div>Live stacking</div><div class="d">Broadcast a building stack</div></div><span class="i i-plus plus"></span></div>
+            <div class="eyebrow">Focus &amp; guiding</div>
+            <div class="node"><span class="ic"><span class="i i-focus"></span></span><div><div>Autofocus</div><div class="d">V-curve on the current filter</div></div><span class="i i-plus plus"></span></div>
+          </div>
+        </div>
+        <div class="col-m" style="display:flex;flex-direction:column;min-height:0">
+          <div class="bar">
+            <div class="name"><span class="i i-file-text"></span>Mono LRGB M51 <span class="muted" style="font-weight:400;font-size:13px">· unsaved changes</span></div>
+            <div class="meta"><span class="chip err"><span class="i i-x-circle"></span>2</span><span class="chip warn"><span class="i i-alert-triangle"></span>4</span><span class="chip">1 target · 27 nodes · ~2 h 54 m</span></div>
+            <div class="toolbar" style="margin-left:auto">
+              <div class="seg"><span class="btn ghost sm icon" title="Undo"><span class="i i-undo-2"></span></span><span class="btn ghost sm icon" title="Redo"><span class="i i-redo-2"></span></span></div>
+              <div class="seg"><span class="btn ghost sm"><span class="i i-clock"></span>Timeline</span><span class="btn ghost sm"><span class="i i-map"></span>Map</span></div>
+              <div class="seg"><span class="btn ghost sm icon"><span class="i i-save"></span></span><span class="btn ghost sm icon"><span class="i i-more-horizontal"></span></span></div>
+            </div>
+          </div>
+          <div class="tree">
+            <div class="step"><div class="hd"><span class="ic"><span class="i i-snowflake"></span></span><span class="t">Cool camera</span><span class="s">-10 °C · 6 min ramp</span><span class="trail"><span class="chip ok"><span class="i i-check"></span>Done</span></span></div></div>
+            <div class="step target">
+              <div class="hd"><span class="ic"><span class="i i-target"></span></span><span class="t">M51 · Whirlpool Galaxy</span><span class="s">13h 29m 54s  +47° 11′ 43″</span><span class="trail"><span class="chip acc">Transit 01:08 · 85°</span><span class="btn ghost sm icon"><span class="i i-more-vertical"></span></span></span></div>
+              <div class="body">
+                <div class="well alt" style="padding:8px"><svg viewBox="0 0 500 80" width="100%" height="100%" preserveAspectRatio="none"><line x1="0" y1="60" x2="500" y2="60" stroke="var(--hairline)" stroke-dasharray="3 3"/><path d="M0 70 C 120 10, 240 8, 300 22 S 440 62, 500 74" fill="rgba(var(--primary-rgb),0.12)" stroke="var(--primary)" stroke-width="1.5"/><line x1="120" y1="0" x2="120" y2="80" stroke="var(--hairline-strong)"/><rect x="60" y="76" width="300" height="3" fill="var(--primary)"/></svg></div>
+                <div class="child"><span class="i i-crosshair"></span>Slew, center and start guiding<span class="cnt">~3 min</span></div>
+                <div class="child"><span class="i i-focus"></span>Autofocus on L<span class="cnt">every 60 min · Δ2 °C</span></div>
+                <div class="child"><span class="i i-camera"></span>L · 40 × 120 s<span class="prog" style="margin-left:auto"><i style="width:70%"></i></span><span class="cnt" style="margin-left:0">28 / 40</span></div>
+                <div class="child"><span class="i i-camera"></span>R · 20 × 60 s<span class="prog" style="margin-left:auto"><i style="width:35%"></i></span><span class="cnt" style="margin-left:0">7 / 20</span></div>
+                <div class="child"><span class="i i-camera"></span>G · 20 × 60 s<span class="prog" style="margin-left:auto"><i style="width:0"></i></span><span class="cnt" style="margin-left:0">0 / 20</span></div>
+                <div class="child"><span class="i i-camera"></span>B · 20 × 60 s<span class="prog" style="margin-left:auto"><i style="width:0"></i></span><span class="cnt" style="margin-left:0">0 / 20</span></div>
+                <div class="child"><span class="i i-shuffle"></span>Dither 3 px every 5 subs<span class="cnt"></span></div>
+              </div>
+            </div>
+            <div class="step"><div class="hd"><span class="ic"><span class="i i-sunrise"></span></span><span class="t">End of night</span><span class="s">Warm camera · park mount</span><span class="trail"><span class="chip">At 04:51 or when done</span></span></div></div>
+            <div class="muted" style="font-size:13px;padding:12px 0 0 6px;display:flex;gap:8px;align-items:center"><span class="i i-plus"></span>Drop a node here, or double-click one in the palette</div>
+          </div>
+        </div>
+        <div class="col-r">
+          <div class="props">
+            <div class="section-title"><span class="i i-sliders"></span><h2>Take exposures</h2><span class="trail chip">L</span></div>
+            <div class="form">
+              <div class="row"><span>Filter</span><span class="field">L<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+              <div class="row"><span>Exposure</span><span class="field mono">120<span class="u">s</span></span></div>
+              <div class="row"><span>Count</span><span class="field mono">40</span></div>
+              <div class="row"><span>Gain / offset</span><span class="row" style="gap:6px"><span class="field mono grow">100</span><span class="field mono grow">30</span></span></div>
+              <div class="row"><span>Binning</span><span class="field">1 × 1<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+              <div class="row"><span>Dither</span><span class="row" style="justify-content:space-between"><span class="secondary" style="font-size:13px">Every 5 subs</span><span class="switch on"></span></span></div>
+            </div>
+            <div class="hr"></div>
+            <div class="eyebrow" style="margin-bottom:8px">Estimate</div>
+            <div class="readouts"><div class="readout"><span class="v">1h 20m</span><span class="l">Integration</span></div><div class="readout"><span class="v">1h 34m</span><span class="l">Wall time</span></div><div class="readout"><span class="v">2.1<span class="u">GB</span></span><span class="l">Disk</span></div></div>
+            <div class="banner warn" style="margin-top:auto"><span class="i i-alert-triangle"></span><span><b>Ends after astro dawn.</b> Reduce count to 32 to finish by 04:51.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

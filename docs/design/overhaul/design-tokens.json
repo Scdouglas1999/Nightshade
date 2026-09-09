@@ -1,0 +1,316 @@
+{
+  "$comment": "Single source of truth for the Observatory design language. 03-tokens.md section 0 maps every key here to its Dart name; tools/check_tokens.py validates contrast and emits mockups/tokens.css. Change values HERE first, run the script, then mirror into nightshade_ui.",
+  "version": "2.0.0",
+  "palettes": {
+    "dark": {
+      "bg": "#0B0D12",
+      "surface": "#12151B",
+      "well": "#0E1116",
+      "surfaceHover": "#1A1E26",
+      "surfaceElevated": "#1C2129",
+      "surfaceOverlay": "#222831",
+      "border": "#232830",
+      "borderStrong": "#343B46",
+      "textPrimary": "#EDEFF3",
+      "textSecondary": "#B3BAC5",
+      "textMuted": "#8E97A4",
+      "primary": "#6EB3EC",
+      "accent": "#8FC7F5",
+      "onPrimary": "#0B0D12",
+      "success": "#43B67A",
+      "warning": "#E0A53E",
+      "error": "#E86A6A",
+      "info": "#6EB3EC",
+      "useDarkOnPrimary": true,
+      "isRedNight": false,
+      "accentSwatches": [
+        "#6EB3EC",
+        "#43B67A",
+        "#E0A53E",
+        "#E86A6A",
+        "#A48CF2",
+        "#E77FB3",
+        "#4FC3C8"
+      ],
+      "bands": {
+        "dusk": "#3A3F66",
+        "twilight": "#151A2C",
+        "dark": "#0D1015",
+        "dawn": "#4A4160"
+      },
+      "startFill": "#43B67A",
+      "onStart": "#06140B"
+    },
+    "light": {
+      "bg": "#F3F5F8",
+      "surface": "#FFFFFF",
+      "well": "#EEF1F5",
+      "surfaceHover": "#E6EAEF",
+      "surfaceElevated": "#FFFFFF",
+      "surfaceOverlay": "#FFFFFF",
+      "border": "#DCE1E7",
+      "borderStrong": "#C6CED8",
+      "textPrimary": "#14181F",
+      "textSecondary": "#4F5966",
+      "textMuted": "#616873",
+      "primary": "#256F9E",
+      "accent": "#1F5F88",
+      "onPrimary": "#FFFFFF",
+      "success": "#277549",
+      "warning": "#8F5D14",
+      "error": "#BC3838",
+      "info": "#256E99",
+      "useDarkOnPrimary": false,
+      "isRedNight": false,
+      "accentSwatches": [
+        "#256F9E",
+        "#277549",
+        "#8F5D14",
+        "#BC3838",
+        "#6A4FD1",
+        "#B03A7A",
+        "#1B7278"
+      ],
+      "bands": {
+        "dusk": "#C9CFE8",
+        "twilight": "#4A5680",
+        "dark": "#1B2238",
+        "dawn": "#E2C9C0"
+      },
+      "startFill": "#1E7A47",
+      "onStart": "#FFFFFF"
+    },
+    "redNight": {
+      "bg": "#0A0000",
+      "surface": "#140808",
+      "well": "#0F0404",
+      "surfaceHover": "#241010",
+      "surfaceElevated": "#281212",
+      "surfaceOverlay": "#301616",
+      "border": "#2E1414",
+      "borderStrong": "#3A1A1A",
+      "textPrimary": "#FFB3B3",
+      "textSecondary": "#F59191",
+      "textMuted": "#E86A6A",
+      "primary": "#EF3B3B",
+      "accent": "#FF5A5A",
+      "onPrimary": "#0A0000",
+      "success": "#FF7373",
+      "warning": "#FF4040",
+      "error": "#EF5252",
+      "info": "#E57373",
+      "useDarkOnPrimary": true,
+      "isRedNight": true,
+      "accentSwatches": [],
+      "bands": {
+        "dusk": "#3A1414",
+        "twilight": "#140808",
+        "dark": "#0A0000",
+        "dawn": "#3A1414"
+      },
+      "startFill": "#EF3B3B",
+      "onStart": "#0A0000"
+    }
+  },
+  "typography": {
+    "fontFamily": "HankenGrotesk",
+    "fontFamilyMono": "SplineSansMono",
+    "styles": {
+      "display": {
+        "size": 28,
+        "weight": 600,
+        "lineHeight": 1.2,
+        "letterSpacing": -0.4,
+        "family": "sans"
+      },
+      "pageTitle": {
+        "size": 20,
+        "weight": 600,
+        "lineHeight": 1.3,
+        "letterSpacing": -0.2,
+        "family": "sans"
+      },
+      "sectionTitle": {
+        "size": 15,
+        "weight": 600,
+        "lineHeight": 1.4,
+        "letterSpacing": 0,
+        "family": "sans"
+      },
+      "eyebrow": {
+        "size": 11,
+        "weight": 600,
+        "lineHeight": 1.4,
+        "letterSpacing": 0.7,
+        "family": "sans",
+        "uppercase": true
+      },
+      "body": {
+        "size": 14,
+        "weight": 400,
+        "lineHeight": 1.5,
+        "letterSpacing": 0,
+        "family": "sans"
+      },
+      "bodyStrong": {
+        "size": 14,
+        "weight": 600,
+        "lineHeight": 1.5,
+        "letterSpacing": 0,
+        "family": "sans"
+      },
+      "bodySm": {
+        "size": 13,
+        "weight": 400,
+        "lineHeight": 1.45,
+        "letterSpacing": 0,
+        "family": "sans"
+      },
+      "caption": {
+        "size": 12,
+        "weight": 400,
+        "lineHeight": 1.4,
+        "letterSpacing": 0,
+        "family": "sans"
+      },
+      "readoutLg": {
+        "size": 28,
+        "weight": 500,
+        "lineHeight": 1.15,
+        "letterSpacing": -0.6,
+        "family": "mono",
+        "tabular": true
+      },
+      "readoutMd": {
+        "size": 20,
+        "weight": 500,
+        "lineHeight": 1.2,
+        "letterSpacing": -0.3,
+        "family": "mono",
+        "tabular": true
+      },
+      "readoutSm": {
+        "size": 14,
+        "weight": 500,
+        "lineHeight": 1.3,
+        "letterSpacing": 0,
+        "family": "mono",
+        "tabular": true
+      },
+      "readoutXs": {
+        "size": 12,
+        "weight": 500,
+        "lineHeight": 1.3,
+        "letterSpacing": 0,
+        "family": "mono",
+        "tabular": true
+      },
+      "readoutBadge": {
+        "size": 16,
+        "weight": 600,
+        "lineHeight": 1.2,
+        "letterSpacing": 0,
+        "family": "mono",
+        "tabular": true
+      },
+      "readoutLabel": {
+        "size": 11,
+        "weight": 500,
+        "lineHeight": 1.3,
+        "letterSpacing": 0.5,
+        "family": "sans",
+        "uppercase": true
+      },
+      "monoCaption": {
+        "size": 11,
+        "weight": 400,
+        "lineHeight": 1.3,
+        "letterSpacing": 0,
+        "family": "mono",
+        "tabular": true
+      },
+      "button": {
+        "size": 14,
+        "weight": 500,
+        "lineHeight": 1.4,
+        "letterSpacing": 0,
+        "family": "sans"
+      },
+      "buttonSm": {
+        "size": 13,
+        "weight": 500,
+        "lineHeight": 1.4,
+        "letterSpacing": 0,
+        "family": "sans"
+      },
+      "buttonLg": {
+        "size": 15,
+        "weight": 500,
+        "lineHeight": 1.4,
+        "letterSpacing": 0,
+        "family": "sans"
+      }
+    }
+  },
+  "space": {
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "5": 20,
+    "6": 24,
+    "8": 32,
+    "12": 48
+  },
+  "radius": {
+    "xs": 4,
+    "sm": 6,
+    "md": 6,
+    "lg": 8,
+    "xl": 12,
+    "full": 999
+  },
+  "shell": {
+    "topBarHeight": 44,
+    "railWidthCollapsed": 64,
+    "railWidthExpanded": 220,
+    "railItemSize": 40,
+    "instrumentBarHeight": 32,
+    "pageHeaderHeight": 56,
+    "pageGutter": 24,
+    "panelPadding": 16,
+    "panelGap": 16,
+    "sidePanelWidth": 320,
+    "narrowBreakpoint": 768,
+    "narrowTopBarHeight": 48,
+    "narrowBottomNavHeight": 64,
+    "windowControlWidth": 46,
+    "iconButtonSize": 32,
+    "iconButtonSizeSm": 28,
+    "iconButtonSizeStrip": 36
+  },
+  "motion": {
+    "hoverMs": 120,
+    "stateMs": 160,
+    "panelMs": 220,
+    "easing": "cubic-bezier(0.215, 0.61, 0.355, 1)",
+    "$comment": "easing == Flutter Curves.easeOutCubic"
+  },
+  "elevation": {
+    "$comment": "Surfaces separate by TONE (bg -> surface -> elevated -> overlay), not by border. Shadows only on floating layers.",
+    "popover": "0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
+    "dialog": "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)",
+    "glass": "surface at 72% with backdrop blur 12px and a 1px white 10% border; anchored to the image, so the DARK values apply in every theme except red night"
+  },
+  "opacity": {
+    "accentTint": 0.12,
+    "accentTintHover": 0.18,
+    "statusFill": 0.14,
+    "disabled": 0.4,
+    "hairline": 0.08,
+    "hairlineStrong": 0.22,
+    "panelOutline": 0.04,
+    "selectedRing": 0.5,
+    "liveHalo": 0.22
+  }
+}

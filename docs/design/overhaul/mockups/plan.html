@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan — tonight's candidates</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  .work { display: grid; grid-template-columns: 1fr 380px; height: 100%; min-height: 0; }
+  .list-col { display: flex; flex-direction: column; min-height: 0; }
+  .filters { display: flex; align-items: center; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--hairline); }
+  .filters .field { width: 300px; height: 30px; }
+  .cands { padding: 12px 24px; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+  .cand { display: grid; grid-template-columns: 44px 1.4fr 1fr 1fr 1fr 110px; align-items: center; gap: 16px; padding: 10px 14px; }
+  .cand.selected { box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.5); }
+  .cand .score { width: 44px; height: 44px; border-radius: 8px; display: grid; place-items: center; font-family: var(--font-mono); font-weight: 600; font-size: 16px; background: rgba(var(--success-rgb),var(--opacity-statusFill)); color: var(--success); }
+  .cand .score.mid { background: rgba(var(--warning-rgb),var(--opacity-statusFill)); color: var(--warning); }
+  .cand .nm { font-weight: 600; }
+  .cand .nm small { display: block; font-weight: 400; color: var(--textMuted); font-size: 12px; }
+  .cand .readout .v { font-size: 14px; letter-spacing: 0; }
+  .cand .win { height: 8px; border-radius: 4px; background: var(--well); position: relative; }
+  .cand .win i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--primary); opacity: 0.85; }
+  .cand .win b { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--textPrimary); left: 18%; }
+  .detail { border-left: 1px solid var(--hairline); padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .detail .hero { height: 150px; border-radius: 8px; }
+  .detail h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.2px; }
+  .detail .sub { color: var(--textSecondary); font-size: 13px; }
+  .fov { position: absolute; left: 22%; top: 18%; width: 56%; height: 64%; border: 1px solid rgba(var(--primary-rgb), 0.8); }
+</style>
+</head>
+<body data-selected="plan" data-rail="collapsed" data-devices="connected" data-run="idle">
+<div class="app">
+  <main class="main">
+    <div class="pagehead">
+      <div class="title"><span class="i i-compass"></span><span class="t-pageTitle">Plan</span></div>
+      <div class="tabs"><span class="tab selected">Tonight</span><span class="tab">Projects</span><span class="tab">Schedule</span><span class="tab">Framing</span><span class="tab">Planetarium</span><span class="tab">Your sky</span></div>
+      <div class="actions"><span class="chip"><span class="i i-moon"></span>Moon 3%</span><span class="chip"><span class="i i-clock"></span>Dark 20:54 – 04:51</span></div>
+    </div>
+    <div class="pagebody flush">
+      <div class="work">
+        <div class="list-col">
+          <div class="filters">
+            <span class="field"><span class="i i-search"></span><span class="muted">Search targets and catalogs</span></span>
+            <span class="filterchip">Type: Galaxy<span class="i i-chevron-down"></span></span>
+            <span class="filterchip">Min altitude 30°<span class="i i-chevron-down"></span></span>
+            <span class="filterchip">Fits my FOV<span class="i i-chevron-down"></span></span>
+            <span class="filterchip"><span class="i i-filter"></span>More</span>
+            <span class="muted" style="margin-left:auto;font-size:13px">Sort: <b style="color:var(--textPrimary);font-weight:500">Score</b></span>
+          </div>
+          <div class="cands">
+            <div class="cand" style="padding:2px 14px 4px"><span></span><span class="eyebrow">38 candidates · best 12 shown</span><span class="eyebrow">Transit</span><span class="eyebrow">Imageable</span><span class="eyebrow">Window tonight</span><span></span></div>
+            <div class="panel cand selected"><span class="score">94</span><div class="nm">M51<small>Whirlpool Galaxy · 11.2′ × 6.9′ · mag 8.4</small></div><div class="readout"><span class="v">01:08 · 85°</span><span class="l">Transit</span></div><div class="readout"><span class="v">6h 40m</span><span class="l">Above 30°</span></div><div class="win"><i style="left:14%;right:8%"></i><b></b></div><span class="btn sm secondary">Image tonight</span></div>
+            <div class="panel cand"><span class="score">91</span><div class="nm">NGC 7331<small>Deer Lick Group · 10.5′ × 3.7′ · mag 9.5</small></div><div class="readout"><span class="v">23:52 · 79°</span><span class="l">Transit</span></div><div class="readout"><span class="v">7h 10m</span><span class="l">Above 30°</span></div><div class="win"><i style="left:4%;right:22%"></i><b></b></div><span class="btn sm secondary">Add</span></div>
+            <div class="panel cand"><span class="score">88</span><div class="nm">M33<small>Triangulum Galaxy · 70.8′ × 41.7′ · mag 5.7</small></div><div class="readout"><span class="v">02:41 · 77°</span><span class="l">Transit</span></div><div class="readout"><span class="v">5h 55m</span><span class="l">Above 30°</span></div><div class="win"><i style="left:30%;right:2%"></i><b></b></div><span class="btn sm secondary">Add</span></div>
+            <div class="panel cand"><span class="score">83</span><div class="nm">NGC 891<small>Silver Sliver · 13.5′ × 2.5′ · mag 9.9</small></div><div class="readout"><span class="v">02:03 · 88°</span><span class="l">Transit</span></div><div class="readout"><span class="v">5h 10m</span><span class="l">Above 30°</span></div><div class="win"><i style="left:36%;right:6%"></i><b></b></div><span class="btn sm secondary">Add</span></div>
+            <div class="panel cand"><span class="score mid">71</span><div class="nm">M101<small>Pinwheel Galaxy · 28.8′ × 26.9′ · mag 7.9</small></div><div class="readout"><span class="v">19:30 · 82°</span><span class="l">Transit</span></div><div class="readout"><span class="v">2h 20m</span><span class="l">Above 30°</span></div><div class="win"><i style="left:0;right:66%"></i><b></b></div><span class="btn sm secondary">Add</span></div>
+            <div class="panel cand"><span class="score mid">64</span><div class="nm">M74<small>Phantom Galaxy · 10.5′ × 9.5′ · mag 9.4</small></div><div class="readout"><span class="v">03:12 · 63°</span><span class="l">Transit</span></div><div class="readout"><span class="v">3h 05m</span><span class="l">Above 30°</span></div><div class="win"><i style="left:58%;right:0"></i><b></b></div><span class="btn sm secondary">Add</span></div>
+          </div>
+        </div>
+        <div class="detail">
+          <div class="hero starfield" style="position:relative"><div class="neb" style="left:36%;top:30%;width:30%;height:40%"></div><div class="fov"></div></div>
+          <div><h2>M51 · Whirlpool Galaxy</h2><div class="sub">NGC 5194 · Canes Venatici · Interacting spiral, 23 Mly</div></div>
+          <div class="readouts"><div class="readout"><span class="v">64.8<span class="u">°</span></span><span class="l">Alt now</span></div><div class="readout"><span class="v">85<span class="u">°</span></span><span class="l">Transit</span></div><div class="readout"><span class="v">6h 40m</span><span class="l">Window</span></div><div class="readout"><span class="v">78<span class="u">°</span></span><span class="l">From moon</span></div></div>
+          <div class="well" style="height:110px;padding:8px"><svg viewBox="0 0 320 90" width="100%" height="100%" preserveAspectRatio="none"><line x1="0" y1="62" x2="320" y2="62" stroke="var(--hairline)" stroke-dasharray="3 3"/><rect x="44" y="0" width="230" height="90" fill="var(--panel-outline)"/><path d="M0 80 C 80 10, 180 6, 240 30 S 300 70, 320 84" fill="rgba(var(--primary-rgb),0.12)" stroke="var(--primary)" stroke-width="1.5"/><line x1="58" y1="0" x2="58" y2="90" stroke="var(--hairline-strong)"/></svg></div>
+          <div class="kv"><span class="k">Frames on disk</span><span class="v">0</span><span class="k">Fits sensor</span><span class="v">Yes · 18% of frame</span><span class="k">Suggested filters</span><span class="v">L R G B</span><span class="k">Best month</span><span class="v">May</span></div>
+          <div class="row" style="margin-top:auto;gap:8px"><span class="btn secondary grow" style="justify-content:center"><span class="i i-crop"></span>Frame it</span><span class="btn primary grow" style="justify-content:center"><span class="i i-list-ordered"></span>Build sequence</span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

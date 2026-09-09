@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Narrow window (below 768 px) — Imaging</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  .app { grid-template-rows: var(--shell-narrowTopBarHeight) 1fr var(--shell-narrowBottomNavHeight); grid-template-columns: 1fr; grid-template-areas: "top" "main" "nav"; }
+  .ntop { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--hairline); }
+  .ntop .t-pageTitle { font-size: 18px; }
+  .ntop .right { margin-left: auto; display: flex; }
+  .status { height: 28px; display: flex; align-items: center; gap: 4px; padding: 0 10px; background: var(--surface); border-bottom: 1px solid var(--hairline); font-size: 12px; overflow: hidden; white-space: nowrap; }
+  .status .pill { display: flex; align-items: center; gap: 5px; padding: 0 6px; height: 22px; }
+  .status .pill .i { font-size: 13px; color: var(--textMuted); }
+  .status b { font-weight: 500; }
+  .status .right { margin-left: auto; font-family: var(--font-mono); color: var(--textPrimary); }
+  .canvas { position: relative; flex: 1; min-height: 0; }
+  .canvas .img { position: absolute; inset: 0; }
+  .hud-bl { position: absolute; left: 10px; bottom: 10px; }
+  .hud-bl .glass { padding: 6px 10px; display: flex; gap: 14px; }
+  .hud-bl .readout .v { font-size: 16px; }
+  .capbar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: none; }
+  .sheet { flex: none; border-top: 1px solid var(--hairline); background: var(--surface); }
+  .sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--borderStrong); margin: 8px auto 4px; }
+  .sheet .strip { display: flex; gap: 2px; padding: 4px 8px 8px; overflow: hidden; }
+  .sheet .strip .item { flex: none; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--textMuted); }
+  .sheet .strip .item.selected { background: rgba(var(--primary-rgb), var(--opacity-accentTint)); color: var(--primary); }
+  .sheet .strip .item .i { font-size: 15px; }
+  .sheet .body { padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .sheet .form .row { grid-template-columns: 96px 1fr; }
+  .sheet .cta { display: flex; gap: 8px; }
+  .sheet .cta .btn { flex: 1; justify-content: center; height: 40px; }
+  .bnav { grid-area: nav; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; border-top: 1px solid var(--hairline); background: var(--surface); padding: 0 8px; }
+  .bnav .it { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 500; color: var(--textMuted); }
+  .bnav .it .i { font-size: 21px; }
+  .bnav .it.selected { color: var(--primary); }
+  .bnav .it.selected .ic { background: rgba(var(--primary-rgb), var(--opacity-accentTint)); }
+  .bnav .it .ic { width: 48px; height: 28px; border-radius: 14px; display: grid; place-items: center; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="ntop"><span class="i i-camera" style="color:var(--textSecondary)"></span><span class="t-pageTitle">Imaging</span><span class="right"><span class="iconbtn"><span class="i i-search"></span></span><span class="iconbtn"><span class="i i-bell"></span></span><span class="iconbtn"><span class="i i-settings"></span></span></span></header>
+  <main class="main">
+    <div class="status"><span class="pill"><span class="dot"></span><b>Idle</b></span><span class="pill"><span class="i i-camera"></span><span class="dot ok"></span><b>-10.0°C</b></span><span class="pill"><span class="i i-mountain"></span><span class="dot ok"></span><b>Tracking</b></span><span class="pill"><span class="i i-crosshair"></span><span class="dot"></span></span><span class="pill"><span class="i i-focus"></span><span class="dot ok"></span><b>25 000</b></span><span class="right">22:41:08</span></div>
+    <div class="canvas"><div class="img starfield"><div class="neb" style="left:40%;top:34%;width:30%;height:36%"></div></div>
+      <div class="glass" style="position:absolute;right:10px;top:10px;padding:5px 9px;font-size:12px;color:var(--textSecondary);display:flex;gap:6px;align-items:center"><span class="dot ok"></span>22:41:03 · 2.0 s</div>
+      <div class="hud-bl"><div class="glass"><div class="readout"><span class="v">2.49<span class="u">px</span></span><span class="l">HFR</span></div><div class="readout"><span class="v">43</span><span class="l">Stars</span></div><div class="readout"><span class="v">2 530</span><span class="l">Median</span></div></div></div>
+    </div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="strip"><span class="item selected"><span class="i i-camera"></span>Capture</span><span class="item"><span class="i i-thermometer"></span>Camera</span><span class="item"><span class="i i-focus"></span>Focus</span><span class="item"><span class="i i-crosshair"></span>Guiding</span><span class="item"><span class="i i-mountain"></span>Mount</span><span class="item"><span class="i i-disc"></span>Filter</span></div>
+      <div class="body">
+        <div class="form">
+          <div class="row"><span>Exposure</span><span class="row" style="gap:6px"><span class="field mono grow">2.0<span class="u">s</span></span><span class="field grow">Light<span class="i i-chevron-down" style="margin-left:auto"></span></span></span></div>
+          <div class="row"><span>Gain / bin</span><span class="row" style="gap:6px"><span class="field mono grow">100</span><span class="field grow">1 × 1<span class="i i-chevron-down" style="margin-left:auto"></span></span></span></div>
+        </div>
+        <div class="cta"><span class="btn secondary"><span class="i i-repeat"></span>Loop</span><span class="btn primary"><span class="i i-camera"></span>Snapshot</span></div>
+      </div>
+    </div>
+  </main>
+  <nav class="bnav">
+    <span class="it"><span class="ic"><span class="i i-moon-star"></span></span>Tonight</span>
+    <span class="it selected"><span class="ic"><span class="i i-camera"></span></span>Imaging</span>
+    <span class="it"><span class="ic"><span class="i i-list-ordered"></span></span>Sequencer</span>
+    <span class="it"><span class="ic"><span class="i i-crosshair"></span></span>Guiding</span>
+    <span class="it"><span class="ic"><span class="i i-more-horizontal"></span></span>More</span>
+  </nav>
+</div>
+</body>
+</html>

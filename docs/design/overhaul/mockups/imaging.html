@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Imaging — camera connected, frame on screen</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  .work { display: flex; height: 100%; min-height: 0; }
+  .viewer { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .vtool { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--hairline); }
+  .vtool .meta { display: flex; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--textSecondary); margin-right: 10px; }
+  .vtool .meta b { color: var(--textPrimary); font-weight: 500; }
+  .canvas { flex: 1; position: relative; min-height: 0; }
+  .canvas .img { position: absolute; inset: 0; }
+  .canvas .cross::before, .canvas .cross::after { content: ""; position: absolute; background: rgba(var(--primary-rgb), 0.35); }
+  .canvas .cross::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+  .canvas .cross::after { top: 50%; left: 0; right: 0; height: 1px; }
+  .canvas .ring { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px; border-radius: 50%; border: 1px solid rgba(var(--primary-rgb), 0.5); }
+  .hud-bl { position: absolute; left: 14px; top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .hud-bl .glass { padding: 8px 12px; }
+  .hud-bl .stats { display: flex; gap: 18px; }
+  .hud-br { position: absolute; right: 14px; bottom: 14px; }
+  .hud-br .glass { padding: 10px 12px; width: 220px; }
+  .hud-br .glass .eyebrow { margin-bottom: 6px; }
+  .hud-tr { position: absolute; right: 14px; top: 14px; display: flex; gap: 6px; }
+  .hud-tr .glass { padding: 6px 10px; font-size: 12px; color: var(--textSecondary); display: flex; align-items: center; gap: 8px; }
+  .capbar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px; }
+  .capbar .btn { height: 32px; }
+  .capbar .field { height: 32px; background: rgba(0,0,0,0.25); border-color: transparent; }
+  .capbar .sep { width: 1px; height: 20px; background: var(--glass-border); margin: 0 4px; }
+  .histo { display: flex; align-items: flex-end; gap: 1px; height: 44px; margin-top: 4px; }
+  .histo i { flex: 1; background: var(--textMuted); opacity: 0.6; border-radius: 1px 1px 0 0; }
+  .sp .form .row { grid-template-columns: 84px minmax(0,1fr); }
+  .sp .field { min-width: 0; overflow: hidden; white-space: nowrap; }
+  .sp .section-title { margin-bottom: 8px; }
+  .sp .hint { font-size: 12px; color: var(--textMuted); margin-top: -2px; }
+</style>
+</head>
+<body data-selected="imaging" data-rail="collapsed" data-devices="connected" data-run="idle">
+<div class="app">
+  <main class="main">
+    <div class="pagehead">
+      <div class="title"><span class="i i-camera"></span><span class="t-pageTitle">Imaging</span></div>
+      <div class="tabs"><span class="tab selected"><span class="i i-image"></span>Live view</span><span class="tab"><span class="i i-layers"></span>Live stack</span><span class="tab"><span class="i i-history"></span>Session frames<span class="chip" style="height:18px;padding:0 6px">1</span></span></div>
+      <div class="actions"><span class="btn ghost sm"><span class="i i-maximize-2"></span>Immersive</span><span class="btn ghost sm icon"><span class="i i-panel-right"></span></span></div>
+    </div>
+    <div class="pagebody flush">
+      <div class="work">
+        <div class="viewer">
+          <div class="vtool">
+            <div class="meta"><span><b>6248 × 4176</b></span><span>Bin <b>1×1</b></span><span>Zoom <b>55%</b></span><span>Sky <b>19.8</b> mag/″²</span></div>
+            <div class="toolbar" style="margin-left:auto">
+              <div class="seg"><span class="btn ghost sm"><span class="i i-layers"></span>Overlays<span class="i i-chevron-down" style="font-size:12px"></span></span><span class="btn ghost sm"><span class="i i-tag"></span>Annotate</span></div>
+              <div class="seg"><span class="btn ghost sm icon"><span class="i i-crosshair"></span></span><span class="btn ghost sm icon"><span class="i i-zoom-in"></span></span><span class="btn ghost sm icon"><span class="i i-zoom-out"></span></span><span class="btn ghost sm icon"><span class="i i-scan"></span></span><span class="btn ghost sm icon"><span class="i i-maximize"></span></span></div>
+            </div>
+          </div>
+          <div class="canvas">
+            <div class="img starfield"><div class="neb" style="left:44%;top:36%;width:26%;height:34%"></div></div>
+            <div class="cross"></div><div class="ring"></div>
+            <div class="hud-tr"><div class="glass"><span class="dot ok"></span>Snapshot 22:41:03 · 2.0 s · Light</div></div>
+            <div class="hud-bl">
+              <div class="glass"><div class="stats">
+                <div class="readout"><span class="v">2.49<span class="u">px</span></span><span class="l">HFR</span></div>
+                <div class="readout"><span class="v">0.23</span><span class="l">Ecc</span></div>
+                <div class="readout"><span class="v">43</span><span class="l">Stars</span></div>
+                <div class="readout"><span class="v">2 530</span><span class="l">Median</span></div>
+                <div class="readout"><span class="v">2 531</span><span class="l">Mean</span></div>
+              </div></div>
+            </div>
+            <div class="hud-br"><div class="glass"><div class="eyebrow">Histogram</div>
+              <div class="histo"><i style="height:4%"></i><i style="height:8%"></i><i style="height:22%"></i><i style="height:60%"></i><i style="height:100%"></i><i style="height:78%"></i><i style="height:40%"></i><i style="height:22%"></i><i style="height:12%"></i><i style="height:8%"></i><i style="height:5%"></i><i style="height:4%"></i><i style="height:3%"></i><i style="height:2%"></i><i style="height:2%"></i><i style="height:1%"></i><i style="height:1%"></i><i style="height:1%"></i><i style="height:1%"></i><i style="height:1%"></i></div>
+              <div class="row" style="justify-content:space-between;font-size:11px;color:var(--textMuted);font-family:var(--font-mono);margin-top:4px"><span>0</span><span>Stretch: auto</span><span>65 535</span></div>
+            </div></div>
+            <div class="glass capbar">
+              <span class="btn primary"><span class="i i-camera"></span>Snapshot</span>
+              <span class="btn secondary" style="border-color:var(--glass-border)"><span class="i i-repeat"></span>Loop</span>
+              <span class="sep"></span>
+              <span class="field mono" style="width:92px"><span class="i i-clock"></span>2.0<span class="u">s</span></span>
+              <span class="field mono" style="width:92px"><span class="i i-sliders"></span>G 100</span>
+              <span class="field" style="width:88px"><span class="i i-disc"></span>L<span class="i i-chevron-down" style="margin-left:auto"></span></span>
+              <span class="sep"></span>
+              <span class="btn ghost sm"><span class="i i-save"></span>Save</span>
+              <span class="row" style="gap:6px;font-size:12px;color:var(--textSecondary);padding:0 6px">Stretch<span class="switch on"></span></span>
+            </div>
+          </div>
+        </div>
+        <div class="sidepanel sp">
+          <div class="content">
+            <div>
+              <div class="section-title"><span class="i i-camera"></span><h2>Capture</h2><span class="trail chip ok"><span class="dot ok"></span>-10.0 °C</span></div>
+              <div class="form">
+                <div class="row"><span>Exposure</span><span class="field mono">2.0<span class="u">s</span></span></div>
+                <div class="row"><span>Frame type</span><span class="field">Light<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+                <div class="row"><span>Binning</span><span class="field">1 × 1<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+                <div class="row"><span>Gain / offset</span><span class="row" style="gap:6px"><span class="field mono grow">100</span><span class="field mono grow">30</span></span></div>
+              </div>
+            </div>
+            <div>
+              <div class="section-title"><span class="i i-folder"></span><h2>Files</h2></div>
+              <div class="form">
+                <div class="row"><span>Format</span><span class="field">FITS · 16-bit<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+                <div class="row"><span>Save to</span><span class="field mono" style="font-size:12px">D:\Captures\M51\<span class="i i-folder-open" style="margin-left:auto"></span></span></div>
+                <div class="row"><span>Name</span><span class="field mono" style="font-size:12px">{target}_{filter}_{exp}s_{n}</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="section-title"><span class="i i-activity"></span><h2>Session</h2></div>
+              <div class="readouts"><div class="readout"><span class="v">1</span><span class="l">Captured</span></div><div class="readout"><span class="v">2<span class="u">s</span></span><span class="l">Integration</span></div><div class="readout"><span class="v">412<span class="u">GB</span></span><span class="l">Free</span></div></div>
+            </div>
+          </div>
+          <div class="strip">
+            <span class="item selected" title="Capture"><span class="i i-camera"></span></span>
+            <span class="item" title="Camera"><span class="i i-thermometer"></span></span>
+            <span class="item" title="Focus"><span class="i i-focus"></span></span>
+            <span class="item" title="Guiding"><span class="i i-crosshair"></span></span>
+            <span class="item" title="Mount"><span class="i i-mountain"></span></span>
+            <span class="item" title="Filter wheel"><span class="i i-disc"></span></span>
+            <span class="item" title="Rotator"><span class="i i-rotate-cw"></span></span>
+            <span class="item" title="Annotations"><span class="i i-tag"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

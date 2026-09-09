@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Components — the Observatory kit on one page</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="observatory.css">
+<style>
+  body { overflow: auto; }
+  .sheet { padding: 28px 40px 60px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px 40px; max-width: 1520px; }
+  .sec { display: flex; flex-direction: column; gap: 12px; }
+  .sec > .eyebrow { border-bottom: 1px solid var(--hairline); padding-bottom: 6px; }
+  .demo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .type .t { display: grid; grid-template-columns: 130px 1fr; align-items: baseline; gap: 16px; }
+  .type .t small { color: var(--textMuted); font-family: var(--font-mono); font-size: 11px; }
+  .sw { display: flex; gap: 8px; }
+  .sw div { width: 64px; height: 44px; border-radius: 6px; display: flex; align-items: flex-end; padding: 4px; font-size: 9px; font-family: var(--font-mono); color: var(--textMuted); box-shadow: 0 0 0 1px var(--panel-outline); }
+  .nest { display: flex; gap: 12px; }
+  .nest .panel { width: 240px; }
+  .tabs.demo-tabs { height: 40px; border-bottom: 1px solid var(--hairline); }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="sec" style="grid-column: 1 / -1">
+    <div class="t-pageTitle">Observatory component sheet</div>
+    <div class="secondary">Everything an implementing agent needs to see side by side. Dark palette. Rendered from the same CSS as the screen mockups.</div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Surfaces · tone, not borders</div>
+    <div class="sw">
+      <div style="background:var(--bg)">bg</div><div style="background:var(--well)">well</div><div style="background:var(--surface)">surface</div><div style="background:var(--surfaceHover)">hover</div><div style="background:var(--surfaceElevated)">elevated</div><div style="background:var(--surfaceOverlay)">overlay</div>
+    </div>
+    <div class="nest">
+      <div class="panel"><div class="head"><span class="i i-activity"></span><span class="eyebrow">Panel on bg</span></div><div class="well" style="height:48px;display:grid;place-items:center;font-size:12px;color:var(--textMuted)">well inside a panel (max depth)</div></div>
+      <div class="panel" style="display:flex;flex-direction:column;gap:8px"><div class="eyebrow">Text ladder</div><div>Primary text for content</div><div class="secondary">Secondary for descriptions</div><div class="muted">Muted for labels, hints, timestamps</div><div class="acc">Accent only for links and selection</div></div>
+    </div>
+  </div>
+
+  <div class="sec type">
+    <div class="eyebrow">Type scale</div>
+    <div class="t"><small>display 28/600</small><span class="t-display">Whirlpool Galaxy</span></div>
+    <div class="t"><small>pageTitle 20/600</small><span class="t-pageTitle">Page title</span></div>
+    <div class="t"><small>sectionTitle 15/600</small><span class="t-sectionTitle">Section title</span></div>
+    <div class="t"><small>readoutXs 12 mono</small><span class="t-readoutXs">22:41:08</span></div>
+    <div class="t"><small>readoutBadge 16 mono</small><span class="t-readoutBadge">94</span></div>
+    <div class="t"><small>monoCaption 11 mono</small><span class="t-monoCaption muted">19:12 sunset</span></div>
+    <div class="t"><small>buttonLg 15/500</small><span class="t-buttonLg">Start sequence</span></div>
+    <div class="t"><small>eyebrow 11/600</small><span class="eyebrow">Panel label</span></div>
+    <div class="t"><small>body 14/400</small><span class="t-body">Body copy. Sentences, descriptions, settings help.</span></div>
+    <div class="t"><small>bodySm 13/400</small><span class="t-bodySm">Dense lists, table cells, chips.</span></div>
+    <div class="t"><small>caption 12/400</small><span class="t-caption muted">Hints and timestamps.</span></div>
+    <div class="t"><small>readoutLg 28 mono</small><span class="t-readoutLg">-10.0°C</span></div>
+    <div class="t"><small>readoutMd 20 mono</small><span class="t-readoutMd">13h 29m 54s</span></div>
+    <div class="t"><small>readoutSm 14 mono</small><span class="t-readoutSm">25 000</span></div>
+    <div class="t"><small>readoutLabel 11</small><span class="t-readoutLabel muted">Position</span></div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Buttons · one primary per view</div>
+    <div class="demo"><span class="btn primary"><span class="i i-play"></span>Primary</span><span class="btn secondary">Secondary</span><span class="btn ghost">Ghost</span><span class="btn danger"><span class="i i-square"></span>Stop</span><span class="btn start"><span class="i i-play"></span>Start</span><span class="btn primary disabled">Disabled</span></div>
+    <div class="demo"><span class="btn primary sm">Small</span><span class="btn secondary sm">Small</span><span class="btn ghost sm icon"><span class="i i-settings"></span></span><span class="btn secondary lg">Large</span></div>
+    <div class="eyebrow" style="margin-top:6px">Toolbar · grouped, labelled where it fits</div>
+    <div class="toolbar"><div class="seg"><span class="btn ghost sm icon"><span class="i i-undo-2"></span></span><span class="btn ghost sm icon"><span class="i i-redo-2"></span></span></div><div class="seg"><span class="btn ghost sm"><span class="i i-clock"></span>Timeline</span><span class="btn ghost sm"><span class="i i-map"></span>Map</span></div><div class="seg"><span class="btn ghost sm icon"><span class="i i-more-horizontal"></span></span></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Tabs · one style, in the page header</div>
+    <div class="tabs demo-tabs"><span class="tab selected">Builder</span><span class="tab">Templates</span><span class="tab">Saved</span><span class="tab">History<span class="chip" style="height:18px;padding:0 6px">3</span></span></div>
+    <div class="eyebrow" style="margin-top:6px">Segmented · inside a panel only</div>
+    <div class="subtabs" style="display:flex;gap:2px"><span style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;background:var(--surfaceHover)">Nodes</span><span style="padding:6px 10px;font-size:13px;font-weight:500;color:var(--textMuted)">Snippets</span><span style="padding:6px 10px;font-size:13px;font-weight:500;color:var(--textMuted)">Queue</span></div>
+    <div class="eyebrow" style="margin-top:6px">Chips and status</div>
+    <div class="demo"><span class="chip ok"><span class="dot ok"></span>Connected</span><span class="chip warn"><span class="dot warn"></span>Session only</span><span class="chip err"><span class="dot err"></span>Disconnected</span><span class="chip acc">Transit 01:08</span><span class="chip">27 nodes</span><span class="filterchip">Type: any<span class="i i-chevron-down"></span></span></div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Readouts · value loud, label quiet</div>
+    <div class="panel"><div class="readouts"><div class="readout"><span class="v lg">-10.0<span class="u">°C</span></span><span class="l">Sensor</span></div><div class="readout"><span class="v lg">2.49<span class="u">px</span></span><span class="l">HFR</span></div><div class="readout"><span class="v">0.42<span class="u">"</span></span><span class="l">RMS</span></div><div class="readout"><span class="v">25 000</span><span class="l">Position</span></div><div class="readout"><span class="v sm">13h 29m 54s</span><span class="l">RA</span></div></div></div>
+    <div class="panel"><div class="kv"><span class="k">Clouds</span><span class="v">4%</span><span class="k">Wind</span><span class="v">6 km/h</span><span class="k">Dew point margin</span><span class="v">5.3°</span></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Fields</div>
+    <div class="form" style="max-width:360px">
+      <div class="row"><span>Exposure</span><span class="field mono">120<span class="u">s</span></span></div>
+      <div class="row"><span>Frame type</span><span class="field">Light<span class="i i-chevron-down" style="margin-left:auto"></span></span></div>
+      <div class="row"><span>Search</span><span class="field"><span class="i i-search"></span><span class="muted">Search nodes…</span></span></div>
+      <div class="row"><span>Dither</span><span class="row" style="justify-content:space-between"><span class="secondary" style="font-size:13px">Every 5 subs</span><span class="switch on"></span></span></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Banners · inline, one per problem, dismissible</div>
+    <div class="banner"><span class="i i-info"></span><span><b>Catalogs not installed.</b> Annotations and plate solving need HYG + OpenNGC (60 MB).</span><span class="act"><span class="btn sm primary">Download</span><span class="btn sm ghost icon"><span class="i i-x"></span></span></span></div>
+    <div class="banner warn"><span class="i i-alert-triangle"></span><span><b>Ends after astro dawn.</b> Reduce count to 32 to finish by 04:51.</span></div>
+    <div class="eyebrow" style="margin-top:6px">Empty state · icon, title, one line, one action</div>
+    <div class="panel" style="height:170px"><div class="empty"><span class="i i-folder-open"></span><h3>Nothing captured yet</h3><p>Start a capture or a sequence and this fills in as frames arrive.</p><span class="btn secondary sm">Go to Imaging</span></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Dialog · overlay surface, 12 px radius, actions right</div>
+    <div style="position:relative;height:230px;border-radius:8px;overflow:hidden;background:var(--bg)"><div class="scrim"><div class="dialog"><h2>Replace the current sequence?</h2><p>Loading “Mono LRGB M51” discards 3 unsaved changes to “Untitled sequence”.</p><div class="foot"><span class="btn ghost">Cancel</span><span class="btn secondary">Save first</span><span class="btn primary">Replace</span></div></div></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="eyebrow">Glass HUD · floats over imagery only</div>
+    <div class="starfield" style="height:230px;border-radius:8px;position:relative"><div class="neb"></div>
+      <div class="glass" style="position:absolute;left:12px;bottom:12px;padding:8px 12px;display:flex;gap:18px"><div class="readout"><span class="v">2.49<span class="u">px</span></span><span class="l">HFR</span></div><div class="readout"><span class="v">43</span><span class="l">Stars</span></div></div>
+      <div class="glass" style="position:absolute;right:12px;top:12px;padding:6px 10px;font-size:12px;color:var(--textSecondary);display:flex;gap:8px;align-items:center"><span class="dot ok live"></span>Exposing 42 / 120 s</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
