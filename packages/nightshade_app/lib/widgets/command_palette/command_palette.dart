@@ -341,10 +341,6 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
               isSelected: index == selected,
               colors: colors,
               onTap: () => _invoke(entry),
-              onHover: () {
-                if (_selected == index) return;
-                setState(() => _selected = index);
-              },
             ),
           ],
         );
@@ -353,19 +349,29 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
   }
 }
 
-class _CommandRow extends StatelessWidget {
+/// One result row.
+///
+/// Hover is a HOVER, not a selection. The row used to move the palette's
+/// selection on `onEnter`, so a pointer resting anywhere over the list stole
+/// the Enter target from the keyboard: Ctrl+K, "weath", Enter opened "Weather
+/// safety" — the fifth row, the one under the cursor — instead of the first
+/// result. 04 §7 gives the arrows the selection and nothing else moves it.
+///
+/// The two states are therefore drawn differently, because they mean
+/// different things and one of them is what Enter will run: the selected row
+/// takes the `primary` tint every selected thing in this language takes, and
+/// a merely hovered row takes `surfaceHover`, like any hoverable row.
+class _CommandRow extends StatefulWidget {
   final CommandEntry entry;
   final bool isSelected;
   final NightshadeColors colors;
   final VoidCallback onTap;
-  final VoidCallback onHover;
 
   const _CommandRow({
     required this.entry,
     required this.isSelected,
     required this.colors,
     required this.onTap,
-    required this.onHover,
   });
 
   /// Fixed so the arrow keys can compute where the selection is without
@@ -373,7 +379,22 @@ class _CommandRow extends StatelessWidget {
   static const double height = 36.0;
 
   @override
+  State<_CommandRow> createState() => _CommandRowState();
+}
+
+class _CommandRowState extends State<_CommandRow> {
+  bool _hovered = false;
+
+  void _setHovered(bool value) {
+    if (!mounted || _hovered == value) return;
+    setState(() => _hovered = value);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final isSelected = widget.isSelected;
+    final colors = widget.colors;
     final foreground = entry.enabled
         ? (isSelected ? colors.textPrimary : colors.textSecondary)
         : colors.textMuted.withValues(
@@ -389,11 +410,12 @@ class _CommandRow extends StatelessWidget {
       child: MouseRegion(
         cursor:
             entry.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => onHover(),
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
         child: GestureDetector(
-          onTap: entry.enabled ? onTap : null,
+          onTap: entry.enabled ? widget.onTap : null,
           child: Container(
-            height: height,
+            height: _CommandRow.height,
             margin: const EdgeInsets.symmetric(
               horizontal: NightshadeTokens.spaceSm,
             ),
@@ -401,7 +423,13 @@ class _CommandRow extends StatelessWidget {
               horizontal: NightshadeTokens.spaceSm,
             ),
             decoration: BoxDecoration(
-              color: isSelected ? colors.surfaceHover : Colors.transparent,
+              color: isSelected
+                  ? colors.primary.withValues(
+                      alpha: NightshadeTokens.opacityAccentTint,
+                    )
+                  : (_hovered && entry.enabled
+                      ? colors.surfaceHover
+                      : Colors.transparent),
               borderRadius: NightshadeTokens.borderRadiusSm,
             ),
             child: Row(
