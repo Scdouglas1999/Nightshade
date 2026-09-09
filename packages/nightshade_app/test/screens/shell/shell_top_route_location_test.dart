@@ -80,7 +80,7 @@ void main() {
 
   testWidgets(
       'a pushed Darkroom answers with the Darkroom, so the rail lights '
-      'nothing', (tester) async {
+      'Darkroom', (tester) async {
     final built = buildRouter();
     addTearDown(built.router.dispose);
     await tester.pumpWidget(MaterialApp.router(routerConfig: built.router));
@@ -94,10 +94,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(topRouteLocation(built.router), '/darkroom');
+    // The Darkroom became a rail destination in the Observatory shell, so a
+    // pushed Darkroom lights Darkroom. What this case still protects is the
+    // reason it was written: `topRouteLocation` must descend to the LEAF
+    // match. Reading the shell's own `matchedLocation` answers `/analytics`
+    // here, which would light Analytics while the Darkroom is on screen.
     expect(
       ShellNavigation.primaryIndexForLocation(topRouteLocation(built.router)),
-      -1,
-      reason: 'the rail lights nothing while a pushed non-rail route is up',
+      ShellNavigation.primaryRoutes.indexOf('/darkroom'),
+      reason: 'the rail follows the route that is actually painted',
     );
     expect(locationToAppScreen(topRouteLocation(built.router)),
         AppScreen.darkroom);
@@ -115,9 +120,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(topRouteLocation(built.router), '/session-review');
+    // /session-review is a Darkroom surface (04 §3.2's alias table), and it
+    // shares no path prefix with /darkroom — which is exactly why the table
+    // exists and a prefix walk could not answer this.
     expect(
       ShellNavigation.primaryIndexForLocation(topRouteLocation(built.router)),
-      -1,
+      ShellNavigation.primaryRoutes.indexOf('/darkroom'),
     );
   });
 

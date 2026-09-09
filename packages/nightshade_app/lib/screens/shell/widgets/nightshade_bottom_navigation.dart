@@ -206,14 +206,22 @@ class _BottomNavItem extends StatelessWidget {
               // Spanish "Secuencia") scales down a few percent instead of
               // ellipsizing — an ellipsis in a five-slot bar reads as broken,
               // a 5% smaller glyph is invisible.
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: _labelStyle.copyWith(
-                    color: isSelected ? colors.primary : colors.textSecondary,
+              // The Semantics above already carries this word. Left to speak
+              // for itself the Text merges into that node and a screen reader
+              // says "More More"; excluded HERE rather than with
+              // `excludeSemantics` on the wrapper, which would also drop the
+              // InkWell's tap action and leave the slot visible but
+              // unactivatable.
+              ExcludeSemantics(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: _labelStyle.copyWith(
+                      color: isSelected ? colors.primary : colors.textSecondary,
+                    ),
                   ),
                 ),
               ),

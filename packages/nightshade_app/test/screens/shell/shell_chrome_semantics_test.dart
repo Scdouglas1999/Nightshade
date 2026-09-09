@@ -37,10 +37,17 @@ import '../../harness/pump_app_screen.dart';
 
 /// The real alert stream opens a 15-minute polling timer that outlives the
 /// widget tree; the chrome only cares that it resolves.
+/// The rail joined that list when it grew the attention dot. It reads the
+/// verdict through `railWeatherUnsafeProvider`, a one-bool view, precisely so
+/// a test about the rail's LABELS does not have to build the weather-safety
+/// subsystem — whose constructor schedules a re-evaluation that is still
+/// pending when the binding checks for leaked timers.
 final _quietAlerts = <Override>[
   activeTransientAlertsProvider.overrideWith(
     (ref) => Stream.value(const <TransientAlert>[]),
   ),
+  railWeatherUnsafeProvider.overrideWithValue(false),
+  railAnyDeviceConnectedProvider.overrideWithValue(true),
 ];
 
 /// Every label in the compiled semantics tree, in traversal order.
@@ -137,6 +144,7 @@ void main() {
         onToggleExpanded: () {},
       ),
       settle: false,
+      extraOverrides: _quietAlerts,
     );
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -157,6 +165,7 @@ void main() {
         onToggleExpanded: () {},
       ),
       settle: false,
+      extraOverrides: _quietAlerts,
     );
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -197,11 +206,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     final labels = _semanticsLabels(tester);
-    // The title-bar icons the live tree could not find.
+    // The title-bar icons the live tree could not find. The equipment-profile
+    // shortcut is no longer among them: profiles live on Equipment and in the
+    // instrument bar, and a third way in was a third thing to keep in sync.
     expect(labels, _publishes('Settings'));
-    expect(labels, _publishes('Equipment Profiles'));
+    expect(labels, _publishes('Help for this screen'));
     // A nav destination and the rail's own control.
-    expect(labels, _publishes('Dashboard'),
+    expect(labels, _publishes('Tonight'),
         reason: 'the rail must publish its destinations');
     expect(labels, _publishes('Collapse navigation'));
     // And the routed content, so the assertion above is not vacuous.
@@ -325,7 +336,6 @@ void main() {
     // The rail's own control and the title-bar action row, in the order a
     // reader meets them.
     expect(labels, _publishes('Collapse navigation'));
-    expect(labels, _publishes(l10n.text('settingsEquipmentProfiles')));
     expect(labels, _publishes(l10n.text('settingsTitle')));
     expect(labels, _publishes('Minimize'));
     expect(labels, _publishes('Maximize'));

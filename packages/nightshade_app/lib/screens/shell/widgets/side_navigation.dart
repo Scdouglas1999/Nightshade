@@ -229,19 +229,38 @@ class SideNavigation extends ConsumerWidget {
   /// screens themselves read, so the dot cannot disagree with the screen.
   Set<String> _badgedRoutes(WidgetRef ref) {
     final routes = <String>{};
-    final anythingConnected = [
-      ref.watch(cameraStateProvider).connectionState,
-      ref.watch(mountStateProvider).connectionState,
-      ref.watch(guiderStateProvider).connectionState,
-      ref.watch(focuserStateProvider).connectionState,
-    ].any((s) => s == DeviceConnectionState.connected);
-    if (!anythingConnected) routes.add('/equipment');
-    if (ref.watch(weatherSafetyProvider).status == WeatherSafetyStatus.unsafe) {
-      routes.add('/weather');
-    }
+    if (!ref.watch(railAnyDeviceConnectedProvider)) routes.add('/equipment');
+    if (ref.watch(railWeatherUnsafeProvider)) routes.add('/weather');
     return routes;
   }
 }
+
+/// Whether ANY device is attached, for the Equipment dot.
+///
+/// A provider rather than four `ref.watch`es inside the rail, so the rail
+/// rebuilds when the ANSWER changes rather than on any field of any device
+/// state changing: a slewing mount must not repaint the navigation.
+final railAnyDeviceConnectedProvider = Provider<bool>((ref) {
+  return [
+    ref.watch(cameraStateProvider.select((s) => s.connectionState)),
+    ref.watch(mountStateProvider.select((s) => s.connectionState)),
+    ref.watch(guiderStateProvider.select((s) => s.connectionState)),
+    ref.watch(focuserStateProvider.select((s) => s.connectionState)),
+  ].any((s) => s == DeviceConnectionState.connected);
+});
+
+/// Whether conditions are unsafe, for the Weather dot.
+///
+/// Narrowed to one bool on purpose. The rail wants a verdict, not the safety
+/// subsystem: watching `weatherSafetyProvider` from the rail builds the whole
+/// notifier — with its evaluation timers and its alert subscription — in every
+/// context that renders navigation, which includes widget tests that are about
+/// nothing but the rail's labels.
+final railWeatherUnsafeProvider = Provider<bool>((ref) {
+  return ref.watch(
+    weatherSafetyProvider.select((s) => s.status == WeatherSafetyStatus.unsafe),
+  );
+});
 
 /// The one NavItem metric the rail needs to align its own group headings with
 /// the item glyphs beneath them.

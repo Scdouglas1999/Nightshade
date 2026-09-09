@@ -1,10 +1,10 @@
 // Responsive widget tests for the shell bottom navigation.
 //
-// The bottom nav hosts exactly six fixed-width destinations. They must all fit
-// without overflow or horizontal scroll at the three reference phone sizes in
-// BOTH orientations, keep their tap targets at the touch-target floor, and
-// honor SafeArea (the home indicator). In landscape — where vertical space is
-// scarce — the bar shortens but still lays out cleanly.
+// The bottom nav hosts exactly five fixed-width slots — four routes plus the
+// More overflow (04-shell §3.3). They must all fit without overflow or
+// horizontal scroll at the three reference phone sizes in BOTH orientations,
+// keep their tap targets at the touch-target floor, and honor SafeArea (the
+// home indicator).
 //
 // See docs/plans/2026-06-01-mobile-responsive-standard.md.
 import 'package:flutter/material.dart';
@@ -69,13 +69,15 @@ void main() {
 
         expect(tester.takeException(), isNull);
 
-        // All six fixed destinations lay out at once (no horizontal scroll).
-        // The bar renders the SHORT label forms — the full labels
-        // ("Dashboard", "Plan Tonight") ellipsized at seven ~60dp slots.
+        // All five slots lay out at once (no horizontal scroll). Plan,
+        // Equipment and Weather are behind More now, which is what buys the
+        // remaining slots room for their full labels.
         expect(find.byType(NightshadeBottomNavigation), findsOneWidget);
-        expect(find.text('Home'), findsOneWidget);
+        expect(find.text('Tonight'), findsOneWidget);
         expect(find.text('Guiding'), findsOneWidget);
-        expect(find.text('Plan'), findsOneWidget);
+        expect(find.text('More'), findsOneWidget);
+        expect(find.text('Plan'), findsNothing,
+            reason: 'Plan reaches the phone through the More sheet');
         expect(find.byType(Scrollable), findsNothing);
       });
 

@@ -8,6 +8,10 @@
 // Greenwich's sidereal time. The chip renders that as a crisp "LST 21:14" in the
 // accent colour, indistinguishable from a real reading, and LST is precisely what
 // an imager reads to decide what is transiting.
+//
+// The pill renders the LABEL and the VALUE separately now (muted "LST", mono
+// value), so `formatLstChip` returns the value alone and an unknown one is the
+// em dash the design language uses for every unknown, not a row of hyphens.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';
@@ -34,22 +38,22 @@ void main() {
 
   group('formatLstChip', () {
     test('an unknown LST is shown as unknown, not as a number', () {
-      expect(formatLstChip(null), 'LST --:--');
+      expect(formatLstChip(null), '\u2014');
     });
 
     test('a known LST is formatted hh:mm', () {
-      expect(formatLstChip(12.5), 'LST 12:30');
-      expect(formatLstChip(0.0), 'LST 00:00');
-      expect(formatLstChip(23.99), 'LST 23:59');
+      expect(formatLstChip(12.5), '12:30');
+      expect(formatLstChip(0.0), '00:00');
+      expect(formatLstChip(23.99), '23:59');
     });
 
     test('an out-of-range value folds instead of rendering garbage', () {
-      expect(formatLstChip(-1.5), 'LST 22:30');
-      expect(formatLstChip(25.5), 'LST 01:30');
+      expect(formatLstChip(-1.5), '22:30');
+      expect(formatLstChip(25.5), '01:30');
     });
   });
 
-  testWidgets('with no observing site the bar shows LST --:--, not a number',
+  testWidgets('with no observing site the bar shows an em dash, not a number',
       (tester) async {
     await pumpAppScreen(
       tester,
@@ -70,10 +74,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(milliseconds: 50));
 
+    // The readout is still LABELLED — an unlabelled em dash beside the clock
+    // would be an unknown with nothing saying what is unknown.
+    expect(
+      find.descendant(of: find.byType(StatusBar), matching: find.text('LST')),
+      findsOneWidget,
+      reason: 'the sidereal readout keeps its label whether or not it has a '
+          'value',
+    );
     expect(
       find.descendant(
         of: find.byType(StatusBar),
-        matching: find.text('LST --:--'),
+        matching: find.text('\u2014'),
       ),
       findsOneWidget,
       reason: 'an unconfigured site must read as unknown',
@@ -81,7 +93,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(StatusBar),
-        matching: find.text('LST 12:30'),
+        matching: find.text('12:30'),
       ),
       findsNothing,
       reason: "the default observer's sidereal time must not be presented as "

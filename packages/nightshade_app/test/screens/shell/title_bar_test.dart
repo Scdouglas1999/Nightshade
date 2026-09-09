@@ -34,7 +34,10 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    for (final label in const ['Equipment Profiles', 'Settings']) {
+    // The equipment-profile shortcut left the top bar: profiles live on the
+    // Equipment screen and in the instrument bar's profile pill, and a third
+    // way in was a third thing to keep in sync. Help took its place.
+    for (final label in const ['Help for this screen', 'Settings']) {
       expect(
         find.bySemanticsLabel(label),
         findsOneWidget,

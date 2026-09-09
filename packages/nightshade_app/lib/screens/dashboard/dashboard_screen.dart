@@ -173,6 +173,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 /// - 1024-1280px: Two-column compact (primary + secondary, no inline tertiary split)
 /// - 768-1024px: Stacked (primary above secondary)
 /// - <768px: Single column with tabbed navigation
+/// Below this the dashboard's action row drops its button words.
+///
+/// 900, the threshold the deleted command bar used: it keeps room for full
+/// content on a 1024px laptop once the rail has taken its share.
+const double kDashboardActionsCompactWidth = 900.0;
+
 class _ZoneBasedDashboard extends StatelessWidget {
   final DashboardLayout layout;
   final NightshadeColors colors;
@@ -305,11 +311,16 @@ class _ZoneBasedDashboard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
           child: Align(
             alignment: Alignment.centerRight,
-            child: DashboardHeaderActions(
-              isEditing: isEditing,
-              onToggleEdit: onToggleEdit,
-              onManageWidgets: onManageWidgets,
-              onResetLayout: onResetLayout,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
             ),
           ),
         ),
@@ -477,11 +488,16 @@ class _ZoneBasedDashboard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Align(
             alignment: Alignment.centerRight,
-            child: DashboardHeaderActions(
-              isEditing: isEditing,
-              onToggleEdit: onToggleEdit,
-              onManageWidgets: onManageWidgets,
-              onResetLayout: onResetLayout,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
             ),
           ),
         ),
@@ -580,11 +596,16 @@ class _ZoneBasedDashboard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Align(
             alignment: Alignment.centerRight,
-            child: DashboardHeaderActions(
-              isEditing: isEditing,
-              onToggleEdit: onToggleEdit,
-              onManageWidgets: onManageWidgets,
-              onResetLayout: onResetLayout,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
             ),
           ),
         ),
@@ -718,12 +739,16 @@ class _ZoneBasedDashboard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
           child: Align(
             alignment: Alignment.centerRight,
-            child: DashboardHeaderActions(
-              isEditing: isEditing,
-              onToggleEdit: onToggleEdit,
-              onManageWidgets: onManageWidgets,
-              onResetLayout: onResetLayout,
-              compact: true,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
             ),
           ),
         ),

@@ -8,12 +8,16 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Pump the bar at [route] and return the labels of the selected slots.
 ///
-/// Selection is drawn by [NightshadeDecorations.navSelected] on the item's
-/// `AnimatedContainer`; an unselected slot has no decoration at all.
+/// Read from SEMANTICS rather than from the selected pill's decoration. The
+/// pill is a sibling of its label now, not its ancestor, so walking the render
+/// tree from the decoration finds no text — and `selected` on the semantics
+/// node is the contract that actually matters here: it is what tells an
+/// assistive-tech user which slot they are standing in.
 Future<List<String>> _selectedLabels(
   WidgetTester tester,
   String route,
 ) async {
+  final handle = tester.ensureSemantics();
   await tester.pumpWidget(
     MaterialApp(
       theme: NightshadeTheme.dark,
@@ -28,19 +32,21 @@ Future<List<String>> _selectedLabels(
   await tester.pumpAndSettle();
 
   final selected = <String>[];
-  for (final element in find.byType(AnimatedContainer).evaluate()) {
-    final container = element.widget as AnimatedContainer;
-    if (container.decoration == null) continue;
-    final text = find
-        .descendant(
-          of: find.byWidget(container),
-          matching: find.byType(Text),
-        )
-        .evaluate()
-        .map((e) => (e.widget as Text).data)
-        .whereType<String>();
-    selected.addAll(text);
+  void visit(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    if (data.flagsCollection.isSelected == Tristate.isTrue &&
+        data.label.isNotEmpty) {
+      selected.add(data.label);
+    }
+    node.visitChildren((child) {
+      visit(child);
+      return true;
+    });
   }
+
+  final root = tester.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
+  if (root != null) visit(root);
+  handle.dispose();
   return selected;
 }
 
@@ -57,12 +63,19 @@ void main() {
     );
   });
 
-  testWidgets('a route no slot owns lights nothing', (tester) async {
-    // Settings is the app-bar gear, not a bar slot; the Flat Wizard is a pushed
-    // screen. Neither may borrow another slot's highlight.
-    expect(await _selectedLabels(tester, '/settings'), isEmpty);
-    expect(await _selectedLabels(tester, '/settings/plate-solving'), isEmpty);
+  testWidgets('a route the More sheet owns lights More', (tester) async {
+    // Settings has no slot of its own, but it IS in the More sheet (04 §3.3),
+    // so More is where the operator actually is. Lighting nothing would leave
+    // the bar silent on a screen it can reach.
+    expect(await _selectedLabels(tester, '/settings'), ['More']);
+    expect(await _selectedLabels(tester, '/settings/plate-solving'), ['More']);
+  });
+
+  testWidgets('a route nothing owns lights nothing', (tester) async {
+    // The Flat Wizard is pushed from inside Equipment: no slot owns it and the
+    // More sheet does not list it, so no slot may borrow its highlight.
     expect(await _selectedLabels(tester, '/flat-wizard'), isEmpty);
+    expect(await _selectedLabels(tester, '/polar-alignment'), isEmpty);
   });
 
   // The bar is the rail's phone-width replacement, so it owes assistive tech
@@ -88,19 +101,30 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final labels = tester
-        .widgetList<Text>(find.descendant(
-          of: find.byType(NightshadeBottomNavigation),
-          matching: find.byType(Text),
-        ))
-        .map((t) => t.data)
-        .whereType<String>()
-        .toList();
+    // Walked from the semantics tree, not from `getSemantics(find.text(...))`:
+    // each slot's Semantics node EXCLUDES its Text child (otherwise the node
+    // merges into "More\nMore" and a screen reader says it twice), so the
+    // Text is no longer a node of its own to look up.
+    final nodes = <SemanticsData>[];
+    void visit(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      if (data.flagsCollection.isButton && data.label.isNotEmpty) {
+        nodes.add(data);
+      }
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    final root = tester.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
+    if (root != null) visit(root);
+    final labels = nodes.map((n) => n.label).toList();
     expect(labels, isNotEmpty);
 
     var selectedCount = 0;
-    for (final label in labels) {
-      final data = tester.getSemantics(find.text(label)).getSemanticsData();
+    for (final data in nodes) {
+      final label = data.label;
       final flags = data.flagsCollection;
       expect(
         flags.isButton,

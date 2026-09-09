@@ -112,8 +112,15 @@ void main() {
           'mini-player and the routed child on every unrelated settings write',
     );
 
-    // The one field it does read must still reach it.
-    settings.patch(const AppSettingsState(sidebarCollapsed: true));
+    // The one field it does read must still reach it. Derived from the
+    // default rather than hard-coded: the rail's default collapsed state is a
+    // design decision that has already moved once, and patching it to the
+    // value it already holds is a write that notifies nothing — which would
+    // pass this assertion for the wrong reason.
+    const defaults = AppSettingsState();
+    settings.patch(
+      AppSettingsState(sidebarCollapsed: !defaults.sidebarCollapsed),
+    );
     expect(shell.dirty, isTrue,
         reason:
             'narrowing the watch must not stop the sidebar from collapsing');

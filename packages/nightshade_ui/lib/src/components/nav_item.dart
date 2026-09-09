@@ -109,30 +109,53 @@ class _NavItemState extends State<NavItem> {
               child: Stack(
                 alignment: Alignment.centerLeft,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: _iconInset),
-                    child: Row(
-                      mainAxisSize: widget.isExpanded
-                          ? MainAxisSize.max
-                          : MainAxisSize.min,
-                      children: [
-                        Icon(widget.icon, size: _iconSize, color: foreground),
-                        if (widget.isExpanded) ...[
+                  // Collapsed, the glyph is CENTRED rather than padded. The
+                  // 11 px inset is a derivation of centring an 18 px glyph in
+                  // a 40 px square, and stating it as padding makes the item
+                  // demand exactly 40 px: the rail is 64 px INCLUDING its
+                  // trailing hairline, so the row it lays out in is 63, and a
+                  // padded item overflowed by exactly the 1 px the border
+                  // takes. Centring lands the glyph in the same place and
+                  // survives the shortfall.
+                  if (!widget.isExpanded)
+                    Center(
+                      child: Icon(
+                        widget.icon,
+                        size: _iconSize,
+                        color: foreground,
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _iconInset,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(widget.icon, size: _iconSize, color: foreground),
                           const SizedBox(width: NightshadeTokens.spaceMd),
+                          // The Semantics above already carries this word.
+                          // Left to speak for itself the Text merges into
+                          // that node and a screen reader says "Tonight
+                          // Tonight"; excluded HERE rather than with
+                          // `excludeSemantics` on the wrapper, which would
+                          // also drop the InkWell's tap action and leave the
+                          // destination visible but unactivatable.
                           Expanded(
-                            child: Text(
-                              widget.label,
-                              style: NightshadeTypography.button.copyWith(
-                                color: foreground,
+                            child: ExcludeSemantics(
+                              child: Text(
+                                widget.label,
+                                style: NightshadeTypography.button.copyWith(
+                                  color: foreground,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
                             ),
                           ),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
                   if (widget.hasBadge)
                     Positioned(
                       top: _badgeInset,

@@ -619,6 +619,15 @@ final Map<String, Map<String, String>> _localizedValues = {
     'statusGuider': 'Guider',
     'statusConnected': 'Connected',
     'statusReady': 'Ready',
+    // What an instrument pill says when the slot is empty. The pill renders
+    // its value and nothing else — the glyph carries the noun — so the value
+    // has to name the missing thing itself. "Disconnected" cannot: four pills
+    // all reading "Disconnected" say which STATE every device is in and which
+    // DEVICE none of them is.
+    'statusNoCamera': 'No camera',
+    'statusNoMount': 'No mount',
+    'statusNoGuider': 'No guider',
+    'statusNoFocuser': 'No focuser',
     // Not `sequenceStopping` — that one carries an ellipsis and this pill
     // does not.
     'statusSequenceStopping': 'Stopping',
@@ -1362,6 +1371,10 @@ final Map<String, Map<String, String>> _localizedValues = {
     'statusGuider': 'Guía',
     'statusConnected': 'Conectado',
     'statusReady': 'Listo',
+    'statusNoCamera': 'Sin cámara',
+    'statusNoMount': 'Sin montura',
+    'statusNoGuider': 'Sin guiado',
+    'statusNoFocuser': 'Sin enfocador',
     'statusSequenceStopping': 'Deteniendo',
     'statusSequenceCompleted': 'Completada',
     'statusSequenceFailed': 'Fallida',

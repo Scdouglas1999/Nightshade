@@ -7,6 +7,11 @@
 // "Camera Disconnected", "Mount Disconnected", "Guider Disconnected", "Focus",
 // "Idle", "No save path", "Dashboard" on every one of those screens. The
 // setting's own scoped claim was therefore still false.
+//
+// The instrument bar renders each pill's VALUE and nothing else — the glyph
+// carries the noun — so the strings under test are the ones that name the
+// empty slot ("No camera" / "Sin cámara") rather than a static label word
+// beside a state word.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';
@@ -42,29 +47,47 @@ Finder _inBar(String text) => find.descendant(
     );
 
 void main() {
+  testWidgets('no pill renders a raw translation key', (tester) async {
+    // `NightshadeLocalizations.text` falls back to the KEY when a string is
+    // missing, so a forgotten entry does not throw — it quietly paints
+    // "statusNoCamera" into the chrome on every screen. That is exactly what
+    // the four empty-slot strings did when they were first written.
+    await _pumpBar(tester);
+
+    for (final key in const [
+      'statusNoCamera',
+      'statusNoMount',
+      'statusNoGuider',
+      'statusNoFocuser',
+      'statusReady',
+      'statusConnected',
+    ]) {
+      expect(
+        _inBar(key),
+        findsNothing,
+        reason: '"$key" reached the screen, so its string is missing',
+      );
+    }
+
+    await _disposeBar(tester);
+  });
+
   testWidgets('the status bar follows the chosen language', (tester) async {
     await _pumpBar(tester, locale: const Locale('es'));
 
-    // Device pills: label and state, the exact strings the audit read off the
-    // Spanish build.
-    expect(_inBar('Cámara'), findsOneWidget);
-    expect(_inBar('Montura'), findsOneWidget);
-    expect(_inBar('Guía'), findsOneWidget);
-    expect(_inBar('Enfoque'), findsOneWidget);
-    expect(_inBar('Desconectado'), findsWidgets);
-    // Sequence-state pill and the save-path chip. The bar carries two
-    // idle readouts (the progress pill and the LED), hence findsWidgets.
-    expect(_inBar('Inactivo'), findsWidgets);
+    // The four device pills, with nothing attached.
+    expect(_inBar('Sin cámara'), findsOneWidget);
+    expect(_inBar('Sin montura'), findsOneWidget);
+    expect(_inBar('Sin guiado'), findsOneWidget);
+    expect(_inBar('Sin enfocador'), findsOneWidget);
+    // The run-state pill and the save-folder pill.
+    expect(_inBar('Inactivo'), findsOneWidget);
     expect(_inBar('Sin ruta de guardado'), findsOneWidget);
-    // The web-dashboard button.
-    expect(_inBar('Panel'), findsOneWidget);
 
-    expect(_inBar('Camera'), findsNothing);
-    expect(_inBar('Mount'), findsNothing);
-    expect(_inBar('Disconnected'), findsNothing);
+    expect(_inBar('No camera'), findsNothing);
+    expect(_inBar('No mount'), findsNothing);
     expect(_inBar('No save path'), findsNothing);
     expect(_inBar('Idle'), findsNothing);
-    expect(_inBar('Dashboard'), findsNothing);
 
     await _disposeBar(tester);
   });
@@ -72,13 +95,15 @@ void main() {
   testWidgets('an English build is untouched', (tester) async {
     await _pumpBar(tester);
 
-    expect(_inBar('Camera'), findsOneWidget);
-    expect(_inBar('Mount'), findsOneWidget);
-    expect(_inBar('Guider'), findsOneWidget);
-    expect(_inBar('Focus'), findsOneWidget);
-    expect(_inBar('Idle'), findsWidgets);
+    expect(_inBar('No camera'), findsOneWidget);
+    expect(_inBar('No mount'), findsOneWidget);
+    expect(_inBar('No guider'), findsOneWidget);
+    expect(_inBar('No focuser'), findsOneWidget);
     expect(_inBar('No save path'), findsOneWidget);
-    expect(_inBar('Dashboard'), findsOneWidget);
+    // Exactly ONE run-state word anywhere on screen (04 §8): the pill. The
+    // sequencer LED beside it no longer renders a label of its own, and the
+    // Tonight eyebrow is a different screen's business.
+    expect(_inBar('Idle'), findsOneWidget);
 
     await _disposeBar(tester);
   });
