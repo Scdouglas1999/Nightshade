@@ -121,8 +121,9 @@ class _WeatherBanner extends StatelessWidget {
 /// speed, and a toggle that reveals the opacity and contrast sliders in place
 /// rather than opening a fifth glass panel.
 class _RadarControlBar extends StatelessWidget {
+  /// Wide enough for the legend and one row of controls. Below it the legend
+  /// goes and the readouts move under the transport.
   final bool wide;
-  final bool showLegend;
   final List<RadarFrame> frames;
   final int currentIndex;
   final ValueChanged<int> onFrameChanged;
@@ -139,7 +140,6 @@ class _RadarControlBar extends StatelessWidget {
 
   const _RadarControlBar({
     required this.wide,
-    required this.showLegend,
     required this.frames,
     required this.currentIndex,
     required this.onFrameChanged,
@@ -163,7 +163,7 @@ class _RadarControlBar extends StatelessWidget {
       children: [
         Row(
           children: [
-            if (showLegend) ...[
+            if (wide) ...[
               const SatelliteLegend(compact: true),
               const SizedBox(width: NightshadeTokens.spaceLg),
             ],

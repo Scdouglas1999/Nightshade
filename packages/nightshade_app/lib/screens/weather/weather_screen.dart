@@ -280,7 +280,6 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
 
         final controlBar = _RadarControlBar(
           wide: wide,
-          showLegend: wide,
           frames: radarFrames,
           currentIndex: validFrameIndex,
           onFrameChanged: (index) =>
