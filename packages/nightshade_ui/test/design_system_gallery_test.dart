@@ -29,20 +29,25 @@ void main() {
     expect(find.text('Design System Gallery'), findsOneWidget);
     expect(find.text('Color Palette'), findsOneWidget);
     expect(find.text('Typography'), findsOneWidget);
-    expect(find.text('Telemetry Lg — Hero live values'), findsOneWidget);
-    expect(find.text('Buttons'), findsOneWidget);
-    expect(find.text('Inputs'), findsOneWidget);
-    expect(find.text('Status Dots'), findsOneWidget);
-    // Every remaining section is a component from 05; the pre-Observatory
-    // ones (Cards, the pill Tabs, Navigation, Decorations, the old chips and
-    // Alerts) are gone, and the sheet's own sections are what the gallery
-    // shows in their place.
-    expect(find.text('Cards'), findsNothing);
-    expect(find.text('Tabs'), findsNothing);
-    expect(find.text('Navigation'), findsNothing);
-    expect(find.text('Decorations'), findsNothing);
-    expect(find.text('Chips and Status Pills'), findsNothing);
-    expect(find.text('Alerts'), findsNothing);
+    expect(find.text('readoutLg — hero numbers'), findsOneWidget);
+    // Every remaining section is a component from 05 (plus the palette and
+    // type reference). The pre-Observatory ones are gone, and none of them is
+    // shown twice: the sheet's own sections are what the gallery teaches.
+    for (final retired in const <String>[
+      'Cards',
+      'Tabs',
+      'Navigation',
+      'Decorations',
+      'Chips and Status Pills',
+      'Alerts',
+      'Buttons',
+      'Inputs',
+      'Status Dots',
+    ]) {
+      expect(find.text(retired), findsNothing, reason: '"$retired" is retired');
+    }
+    expect(find.text('Buttons and icon buttons'), findsOneWidget);
+    expect(find.text('Fields and form rows'), findsOneWidget);
     expect(find.text('Panels and wells'), findsOneWidget);
     expect(find.text('Readouts'), findsOneWidget);
     expect(find.text('Underline tabs'), findsOneWidget);
@@ -67,8 +72,8 @@ void main() {
       size: const Size(390, 900),
     );
 
-    expect(find.text('Buttons'), findsOneWidget);
-    expect(find.text('Inputs'), findsOneWidget);
+    expect(find.text('Buttons and icon buttons'), findsOneWidget);
+    expect(find.text('Fields and form rows'), findsOneWidget);
     expect(find.text('Banner'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -92,15 +97,19 @@ void main() {
       size: const Size(1280, 2200),
     );
 
-    expect(find.text('Sample actions: 0'), findsOneWidget);
+    expect(find.text('Observatory sample actions: 0'), findsOneWidget);
 
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('gallery-button-primary')),
+    );
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('gallery-button-primary')));
     await tester.pump();
-    expect(find.text('Sample actions: 1'), findsOneWidget);
+    expect(find.text('Observatory sample actions: 1'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('gallery-button-secondary')));
     await tester.pump();
-    expect(find.text('Sample actions: 2'), findsOneWidget);
+    expect(find.text('Observatory sample actions: 2'), findsOneWidget);
 
     expect(
       tester
@@ -108,14 +117,16 @@ void main() {
             find.byKey(const ValueKey('gallery-dropdown')),
           )
           .value,
-      'Camera',
+      'Light',
     );
     // `pump`, never `pumpAndSettle`: the gallery renders a shimmer, which by
     // design never settles. The extra frame is the popover's 120ms fade.
+    await tester.ensureVisible(find.byKey(const ValueKey('gallery-dropdown')));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('gallery-dropdown')));
     await tester.pump();
     await tester.pump(NightshadeTokens.durationSmooth);
-    await tester.tap(find.text('Mount').last);
+    await tester.tap(find.text('Dark').last);
     await tester.pump();
     await tester.pump(NightshadeTokens.durationSmooth);
     expect(
@@ -124,13 +135,15 @@ void main() {
             find.byKey(const ValueKey('gallery-dropdown')),
           )
           .value,
-      'Mount',
+      'Dark',
     );
 
     expect(
       tester.widget<NightshadeCheckbox>(find.byType(NightshadeCheckbox)).value,
       isTrue,
     );
+    await tester.ensureVisible(find.byType(NightshadeCheckbox));
+    await tester.pump();
     await tester.tap(find.byType(NightshadeCheckbox));
     await tester.pump();
     expect(
@@ -146,6 +159,8 @@ void main() {
           .value,
       isTrue,
     );
+    await tester.ensureVisible(find.byKey(const ValueKey('gallery-switch')));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('gallery-switch')));
     await tester.pump();
     expect(

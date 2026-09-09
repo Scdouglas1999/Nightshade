@@ -525,8 +525,6 @@ Map<String, Object?> _designSystemGalleryEvidence() {
   // deleted those sections from the gallery, so holding the gallery to them
   // would have demanded the retired kit back.
   const requiredComponentMarkers = <String>[
-    'Buttons',
-    'Inputs',
     'Panels and wells',
     'Readouts',
     'Underline tabs',
@@ -542,6 +540,7 @@ Map<String, Object?> _designSystemGalleryEvidence() {
     'Candidate',
     'Checklist',
     'Night band',
+    'Buttons and icon buttons',
     'NightshadeButton',
     'NightshadeIconButton',
     'NightshadePanel',
@@ -552,6 +551,8 @@ Map<String, Object?> _designSystemGalleryEvidence() {
     'NightshadeToolbar',
     'NightshadeTextField',
     'NightshadeDropdown',
+    'NightshadeCheckbox',
+    'NightshadeSwitch',
     'FormRow',
     'NightshadeChip',
     'StatusDot',

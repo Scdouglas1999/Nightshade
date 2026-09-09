@@ -109,8 +109,6 @@ export 'src/widgets/design_system_gallery.dart';
     '''
 class NightshadeDesignSystemGallery {
   final markers = const [
-    'Buttons',
-    'Inputs',
     'Panels and wells',
     'Readouts',
     'Underline tabs',
@@ -126,6 +124,7 @@ class NightshadeDesignSystemGallery {
     'Candidate',
     'Checklist',
     'Night band',
+    'Buttons and icon buttons',
     'NightshadeButton',
     'NightshadeIconButton',
     'NightshadePanel',
@@ -136,6 +135,8 @@ class NightshadeDesignSystemGallery {
     'NightshadeToolbar',
     'NightshadeTextField',
     'NightshadeDropdown',
+    'NightshadeCheckbox',
+    'NightshadeSwitch',
     'FormRow',
     'NightshadeChip',
     'StatusDot',

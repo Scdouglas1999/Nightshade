@@ -48,11 +48,7 @@ class NightshadeDesignSystemGallery extends StatefulWidget {
 
 class _NightshadeDesignSystemGalleryState
     extends State<NightshadeDesignSystemGallery> {
-  bool _checkboxValue = true;
-  bool _switchValue = true;
-  String? _dropdownValue = 'Camera';
   int _actionCount = 0;
-  int _statusDotAttentionSeed = 0;
 
   void _recordAction() {
     setState(() => _actionCount += 1);
@@ -110,8 +106,8 @@ class _NightshadeDesignSystemGalleryState
                           color: colors.surface,
                         ),
                         ShowcaseSwatch.gallery(
-                          label: 'Surface Alt',
-                          color: colors.surfaceAlt,
+                          label: 'Well',
+                          color: colors.well,
                         ),
                         ShowcaseSwatch.gallery(
                           label: 'Success',
@@ -154,192 +150,92 @@ class _NightshadeDesignSystemGalleryState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _TypographySpecimen(
-                          label: 'H2 — Section title',
-                          sample: 'Sequence Run',
-                          style: NightshadeTypography.h2,
+                          label: 'display — the Tonight hero line',
+                          sample: 'M51 Whirlpool Galaxy',
+                          style: NightshadeTypography.display,
                           colors: colors,
                         ),
                         _TypographySpecimen(
-                          label: 'Telemetry Lg — Hero live values',
-                          sample: '02:45',
-                          style: NightshadeTypography.telemetryLg,
+                          label: 'pageTitle — the screen title',
+                          sample: 'Sequencer',
+                          style: NightshadeTypography.pageTitle,
                           colors: colors,
                         ),
                         _TypographySpecimen(
-                          label: 'Telemetry Md — Secondary live values',
-                          sample: '18 min',
-                          style: NightshadeTypography.telemetryMd,
+                          label: 'sectionTitle — panels, dialogs, empty states',
+                          sample: 'Sequence run',
+                          style: NightshadeTypography.sectionTitle,
                           colors: colors,
                         ),
                         _TypographySpecimen(
-                          label: 'Label Quiet — Sidebar descriptions',
-                          sample: 'Per-frame countdown and sequence totals',
-                          style: NightshadeTypography.labelQuiet,
+                          label: 'eyebrow — panel and column labels',
+                          sample: 'EQUIPMENT',
+                          style: NightshadeTypography.eyebrow,
                           colors: colors,
                           muted: true,
                         ),
                         _TypographySpecimen(
-                          label: 'Mono — Technical text',
-                          sample: 'RA 05h 35m 17s',
-                          style: NightshadeTypography.mono,
+                          label: 'body — default text',
+                          sample: 'Connect your camera and mount.',
+                          style: NightshadeTypography.body,
                           colors: colors,
                         ),
-                      ],
-                    ),
-                  ),
-                  ShowcaseSection.plain(
-                    title: 'Buttons',
-                    child: Wrap(
-                      spacing: NightshadeTokens.spaceMd,
-                      runSpacing: NightshadeTokens.spaceMd,
-                      children: [
-                        NightshadeButton(
-                          key: const ValueKey('gallery-button-primary'),
-                          label: 'Capture',
-                          icon: LucideIcons.camera,
-                          onPressed: _recordAction,
+                        _TypographySpecimen(
+                          label: 'bodyStrong — names in lists',
+                          sample: 'Simulated camera',
+                          style: NightshadeTypography.bodyStrong,
+                          colors: colors,
                         ),
-                        NightshadeButton(
-                          key: const ValueKey('gallery-button-secondary'),
-                          label: 'Secondary',
-                          icon: LucideIcons.settings,
-                          variant: ButtonVariant.outline,
-                          onPressed: _recordAction,
+                        _TypographySpecimen(
+                          label: 'bodySm — dense lists and table cells',
+                          sample: 'Per-frame countdown and sequence totals',
+                          style: NightshadeTypography.bodySm,
+                          colors: colors,
                         ),
-                        NightshadeButton(
-                          label: 'Ghost',
-                          icon: LucideIcons.moreHorizontal,
-                          variant: ButtonVariant.ghost,
-                          onPressed: _recordAction,
+                        _TypographySpecimen(
+                          label: 'caption — hints and timestamps',
+                          sample: 'Last frame 22:41:08',
+                          style: NightshadeTypography.caption,
+                          colors: colors,
+                          muted: true,
                         ),
-                        NightshadeButton(
-                          label: 'Stop',
-                          icon: LucideIcons.octagon,
-                          variant: ButtonVariant.destructive,
-                          onPressed: _recordAction,
+                        _TypographySpecimen(
+                          label: 'readoutLg — hero numbers',
+                          sample: '02:45',
+                          style: NightshadeTypography.readoutLg,
+                          colors: colors,
                         ),
-                        NightshadeButton(
-                          label: 'Saving',
-                          icon: LucideIcons.save,
-                          isLoading: true,
-                          onPressed: _recordAction,
+                        _TypographySpecimen(
+                          label: 'readoutMd — the standard readout',
+                          sample: '-10.0',
+                          style: NightshadeTypography.readoutMd,
+                          colors: colors,
                         ),
-                        const NightshadeButton(
-                          label: 'Disabled',
-                          icon: LucideIcons.lock,
+                        _TypographySpecimen(
+                          label: 'readoutSm — dense rows and key/value lists',
+                          sample: '18 min',
+                          style: NightshadeTypography.readoutSm,
+                          colors: colors,
                         ),
-                      ],
-                    ),
-                  ),
-                  ShowcaseSection.plain(
-                    title: 'Inputs',
-                    child: Wrap(
-                      spacing: NightshadeTokens.spaceMd,
-                      runSpacing: NightshadeTokens.spaceMd,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 260,
-                          child: NightshadeTextField(
-                            label: 'Target',
-                            initialValue: 'M31',
-                            prefixIcon: LucideIcons.search,
-                          ),
+                        _TypographySpecimen(
+                          label: 'readoutLabel — the label under a readout',
+                          sample: 'SENSOR',
+                          style: NightshadeTypography.readoutLabel,
+                          colors: colors,
+                          muted: true,
                         ),
-                        const SizedBox(
-                          width: 260,
-                          child: NightshadeTextField(
-                            label: 'Exposure',
-                            initialValue: '120',
-                            suffix: 'sec',
-                          ),
+                        _TypographySpecimen(
+                          label: 'monoCaption — legends, kbd hints, tags',
+                          sample: 'RA 05h 35m 17s',
+                          style: NightshadeTypography.monoCaption,
+                          colors: colors,
+                          muted: true,
                         ),
-                        SizedBox(
-                          width: 180,
-                          child: NightshadeDropdown(
-                            key: const ValueKey('gallery-dropdown'),
-                            value: _dropdownValue,
-                            items: const ['Camera', 'Mount', 'Focuser'],
-                            onChanged: (value) {
-                              setState(() => _dropdownValue = value);
-                            },
-                            isExpanded: true,
-                          ),
-                        ),
-                        _ControlRow(
-                          label: 'Autosave',
-                          child: NightshadeCheckbox(
-                            value: _checkboxValue,
-                            onChanged: (value) {
-                              setState(() => _checkboxValue = value ?? false);
-                            },
-                          ),
-                        ),
-                        _ControlRow(
-                          label: 'Cooling',
-                          child: NightshadeSwitch(
-                            key: const ValueKey('gallery-switch'),
-                            value: _switchValue,
-                            onChanged: (value) {
-                              setState(() => _switchValue = value);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: NightshadeTokens.spaceSm),
-                        NightshadeSwitchRow(
-                          label: 'Dew heater',
-                          subtitle: 'Expanded row with label and subtitle',
-                          value: _switchValue,
-                          onChanged: (value) {
-                            setState(() => _switchValue = value);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  ShowcaseSection.plain(
-                    title: 'Status Dots',
-                    child: Wrap(
-                      spacing: NightshadeTokens.spaceLg,
-                      runSpacing: NightshadeTokens.spaceMd,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _StatusDotSample(
-                          label: 'Static',
-                          dot: StatusDot(
-                            key: const ValueKey('gallery-status-dot-static'),
-                            color: colors.success,
-                          ),
-                        ),
-                        _StatusDotSample(
-                          label: 'Attention',
-                          dot: StatusDot(
-                            key: ValueKey(
-                              'gallery-status-dot-attention-'
-                              '$_statusDotAttentionSeed',
-                            ),
-                            color: _statusDotAttentionSeed.isEven
-                                ? colors.warning
-                                : colors.error,
-                            variant: StatusDotVariant.attention,
-                          ),
-                        ),
-                        NightshadeButton(
-                          key: const ValueKey('gallery-status-dot-flash'),
-                          label: 'Flash',
-                          size: ButtonSize.small,
-                          variant: ButtonVariant.outline,
-                          onPressed: () {
-                            setState(() => _statusDotAttentionSeed += 1);
-                          },
-                        ),
-                        _StatusDotSample(
-                          label: 'Urgent',
-                          dot: StatusDot(
-                            key: const ValueKey('gallery-status-dot-urgent'),
-                            color: colors.error,
-                            variant: StatusDotVariant.urgent,
-                          ),
+                        _TypographySpecimen(
+                          label: 'button — buttons, tabs, rail labels',
+                          sample: 'Start sequence',
+                          style: NightshadeTypography.button,
+                          colors: colors,
                         ),
                       ],
                     ),
@@ -449,58 +345,6 @@ class _NightshadeDesignSystemGalleryState
   }
 }
 
-class _ControlRow extends StatelessWidget {
-  final String label;
-  final Widget child;
-
-  const _ControlRow({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: NightshadeTypography.bodySm.copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
-        const SizedBox(width: NightshadeTokens.spaceSm),
-        child,
-      ],
-    );
-  }
-}
-
-class _StatusDotSample extends StatelessWidget {
-  final String label;
-  final Widget dot;
-
-  const _StatusDotSample({required this.label, required this.dot});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        dot,
-        const SizedBox(width: NightshadeTokens.spaceSm),
-        Text(
-          label,
-          style: NightshadeTypography.caption.copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _TypographySpecimen extends StatelessWidget {
   final String label;
   final String sample;
@@ -568,12 +412,14 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
   /// pattern it exists to prevent.
   int _actions = 0;
   void _act() => setState(() => _actions += 1);
-  void _actWith(Object? _) => _act();
 
   int _segment = 0;
   int _underlineTab = 0;
   int _stripSection = 1;
   bool _chipSelected = true;
+  String? _frameType = 'Light';
+  bool _autosave = true;
+  bool _cooling = true;
 
   static final DateTime _sunset = DateTime(2026, 9, 9, 19, 12);
   static final DateTime _astroDark = DateTime(2026, 9, 9, 20, 48);
@@ -636,6 +482,47 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                   ),
                 ),
               ),
+              SizedBox(
+                width: 260,
+                child: NightshadePanel(
+                  key: const ValueKey('gallery-panel-dashed'),
+                  dashed: true,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.plus,
+                        size: NightshadeTokens.iconRail,
+                        color: colors.textMuted,
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceSm),
+                      Text(
+                        'Empty slot — add a device',
+                        style: NightshadeTypography.bodySm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 260,
+                child: Container(
+                  padding: NightshadeTokens.paddingLg,
+                  decoration: NightshadeDecorations.panelTinted(
+                    colors,
+                    tone: colors.warning,
+                  ),
+                  child: Text(
+                    'A tinted panel, for the rare block whose TONE is the '
+                    'message.',
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -660,13 +547,17 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                       size: ReadoutSize.lg,
                     ),
                     Readout(value: '0.42', unit: '"', label: 'RMS'),
-                    Readout(value: '25 000', label: 'Position'),
+                    Readout(value: '25000', label: 'Position'),
                     Readout(
                       value: '13h 29m 54s',
                       label: 'RA',
                       size: ReadoutSize.sm,
                     ),
                     Readout(value: null, label: 'Guide star'),
+                    // No label and no row reserved for one: the value is the
+                    // whole widget, for a number that already has a label
+                    // beside it (the centre of a progress ring).
+                    Readout(value: '61%', size: ReadoutSize.sm),
                   ],
                 ),
               ),
@@ -716,13 +607,24 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               NightshadeButton(
+                key: const ValueKey('gallery-button-primary'),
                 label: 'Primary',
                 icon: LucideIcons.play,
                 onPressed: _act,
               ),
               NightshadeButton(
+                key: const ValueKey('gallery-button-secondary'),
                 label: 'Secondary',
                 variant: ButtonVariant.secondary,
+                onPressed: _act,
+              ),
+              NightshadeButton(
+                key: const ValueKey('gallery-button-badge'),
+                label: 'Preflight',
+                variant: ButtonVariant.secondary,
+                badge: '2',
+                badgeSemanticsLabel: '2 issues',
+                badgeTone: ChipTone.warning,
                 onPressed: _act,
               ),
               NightshadeButton(
@@ -844,9 +746,10 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                   FormRow(
                     label: 'Frame type',
                     child: NightshadeDropdown(
-                      value: 'Light',
+                      key: const ValueKey('gallery-dropdown'),
+                      value: _frameType,
                       items: const ['Light', 'Dark', 'Flat', 'Bias'],
-                      onChanged: _actWith,
+                      onChanged: (value) => setState(() => _frameType = value),
                     ),
                   ),
                   const SizedBox(height: FormRow.rowGap),
@@ -856,6 +759,53 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                       hint: 'Search nodes…',
                       prefixIcon: LucideIcons.search,
                     ),
+                  ),
+                  const SizedBox(height: FormRow.rowGap),
+                  FormRow(
+                    label: 'Autosave',
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: NightshadeCheckbox(
+                        value: _autosave,
+                        onChanged: (value) =>
+                            setState(() => _autosave = value ?? false),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: FormRow.rowGap),
+                  FormRow(
+                    label: 'Cooling',
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: NightshadeSwitch(
+                        key: const ValueKey('gallery-switch'),
+                        value: _cooling,
+                        onChanged: (value) => setState(() => _cooling = value),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: FormRow.rowGap),
+                  // The same row in a 150px pane: the label column gives way
+                  // rather than overflowing, which is what a side panel does
+                  // on every frame of its 220ms open.
+                  const SizedBox(
+                    width: 150,
+                    child: FormRow(
+                      key: ValueKey('gallery-formrow-narrow'),
+                      label: 'Exposure',
+                      child: NightshadeTextField(
+                        initialValue: '120',
+                        suffix: 's',
+                        mono: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: FormRow.rowGap),
+                  NightshadeSwitchRow(
+                    label: 'Dew heater',
+                    subtitle: 'A row that carries its own explanation',
+                    value: _cooling,
+                    onChanged: (value) => setState(() => _cooling = value),
                   ),
                 ],
               ),
@@ -1101,6 +1051,18 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                             size: ReadoutSize.sm,
                           ),
                         ],
+                      ),
+                      // A device with nothing to report says so in a word,
+                      // rather than in a row of em dashes.
+                      DeviceRow(
+                        name: 'Mount',
+                        leading: StatusDot(color: colors.textMuted),
+                        trailing: Text(
+                          'Not connected',
+                          style: NightshadeTypography.bodySm.copyWith(
+                            color: colors.textMuted,
+                          ),
+                        ),
                       ),
                     ],
                   ),
