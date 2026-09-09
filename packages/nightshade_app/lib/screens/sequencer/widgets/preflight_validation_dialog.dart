@@ -321,153 +321,135 @@ class _PreFlightValidationDialogState
   }
 
   Future<bool> _confirmStartWithoutHistory(Object error) async {
-    final colors = NightshadeColors.of(context);
     return await showDialog<bool>(
           context: context,
           barrierDismissible: false,
-          builder: (dialogContext) => AlertDialog(
-            backgroundColor: colors.surfaceElevated,
-            title: Row(
-              children: [
-                Icon(LucideIcons.database, color: colors.warning, size: 20),
-                const SizedBox(width: 10),
-                const Expanded(
-                    child: Text('Prior-session history unavailable')),
-              ],
-            ),
-            content: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Nightshade could not read the accepted frames from prior '
-                    'sessions. Starting without them can reset a multi-night '
-                    'integration budget to zero and recapture work you already '
-                    'completed. No hardware has started.',
-                    style: TextStyle(color: colors.textPrimary),
-                  ),
-                  const SizedBox(height: 12),
-                  SelectableText(
-                    error.toString(),
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          builder: (dialogContext) => NightshadeDialog(
+            title: 'Prior-session history unavailable',
+            icon: NightshadeIcons.database,
+            width: NightshadeDialog.widthConfirm,
+            onClose: () => Navigator.of(dialogContext).pop(false),
             actions: [
-              TextButton(
+              NightshadeButton(
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
                 onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancel'),
               ),
-              FilledButton(
+              NightshadeButton(
+                label: 'Start without prior progress',
+                variant: ButtonVariant.start,
                 onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('Start without prior progress'),
               ),
             ],
+            child: _confirmBody(
+              dialogContext,
+              'Nightshade could not read the accepted frames from prior '
+              'sessions. Starting without them can reset a multi-night '
+              'integration budget to zero and recapture work you already '
+              'completed. No hardware has started.',
+              error,
+            ),
           ),
         ) ??
         false;
   }
 
   Future<bool> _confirmRetrySettings(Object error) async {
-    final colors = NightshadeColors.of(context);
     return await showDialog<bool>(
           context: context,
           barrierDismissible: false,
-          builder: (dialogContext) => AlertDialog(
-            backgroundColor: colors.surfaceElevated,
-            title: Row(
-              children: [
-                Icon(LucideIcons.settings, color: colors.error, size: 20),
-                const SizedBox(width: 10),
-                const Expanded(child: Text('Sequence settings unavailable')),
-              ],
-            ),
-            content: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Nightshade could not load the settings that control '
-                    'multi-night carry-over. The sequence has not started.',
-                    style: TextStyle(color: colors.textPrimary),
-                  ),
-                  const SizedBox(height: 12),
-                  SelectableText(
-                    error.toString(),
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          builder: (dialogContext) => NightshadeDialog(
+            title: 'Sequence settings unavailable',
+            icon: NightshadeIcons.settings,
+            width: NightshadeDialog.widthConfirm,
+            onClose: () => Navigator.of(dialogContext).pop(false),
             actions: [
-              TextButton(
+              NightshadeButton(
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
                 onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancel'),
               ),
-              FilledButton.icon(
+              NightshadeButton(
+                label: 'Retry',
+                icon: NightshadeIcons.refresh,
                 onPressed: () => Navigator.of(dialogContext).pop(true),
-                icon: const Icon(LucideIcons.refreshCw, size: 16),
-                label: const Text('Retry'),
               ),
             ],
+            child: _confirmBody(
+              dialogContext,
+              'Nightshade could not load the settings that control '
+              'multi-night carry-over. The sequence has not started.',
+              error,
+            ),
           ),
         ) ??
         false;
   }
 
+  /// One sentence of explanation over the raw error in a `well`.
+  ///
+  /// The error text stays selectable — it is the string an operator pastes
+  /// into a bug report — but through a [SelectionArea] rather than a
+  /// `SelectableText`, so the sentence above it copies with it.
+  Widget _confirmBody(
+    BuildContext dialogContext,
+    String explanation,
+    Object error,
+  ) {
+    final colors = NightshadeColors.of(dialogContext);
+    return SelectionArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            explanation,
+            style: NightshadeTypography.bodySm
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+            decoration: NightshadeDecorations.well(colors),
+            child: Text(
+              error.toString(),
+              style:
+                  NightshadeTypography.monoXs.copyWith(color: colors.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The dialog's design height. Fixed so the verdict banner and the footer
+  /// keep their place while the body scrolls, rather than the whole dialog
+  /// resizing under the operator as sections expand and collapse.
+  static const double _designHeight = 600;
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final dialogSize = AdaptiveDialogConstraints.dialogSize(
-      context,
-      designWidth: 500,
-      designHeight: 600,
+
+    return NightshadeDialog(
+      title: 'Pre-flight check',
+      width: NightshadeDialog.widthForm,
+      height: _designHeight,
+      // Blocks the close button, the barrier and system-back for exactly as
+      // long as the carry-over lookup is in flight.
+      closeEnabled: !_preparing,
+      // Hidden while preparing so the operator cannot double-trigger the start
+      // while that lookup is still running.
+      actions: _preparing ? null : _buildActions(colors),
+      child: _preparing
+          ? _buildPreparingState(colors)
+          : _isValidating
+              ? _buildLoadingState(colors)
+              : _result == null
+                  ? _buildErrorState(colors)
+                  : _buildResults(colors),
     );
-
-    final dialog = Dialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: SizedBox(
-        width: dialogSize.width,
-        height: dialogSize.height,
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // Header
-            _buildHeader(colors),
-
-            // Content
-            Flexible(
-              child: _preparing
-                  ? _buildPreparingState(colors)
-                  : _isValidating
-                      ? _buildLoadingState(colors)
-                      : _result == null
-                          ? _buildErrorState(colors)
-                          : _buildResults(colors),
-            ),
-
-            // Actions — hidden while preparing so the operator can't double-
-            // trigger the start while the carry-over lookup is in flight.
-            if (!_preparing) _buildActions(colors),
-          ],
-        ),
-      ),
-    );
-    return PopScope(canPop: !_preparing, child: dialog);
   }
 
   String _formatClock(DateTime time) =>

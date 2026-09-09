@@ -1,53 +1,7 @@
 part of '../preflight_validation_dialog.dart';
 
-class _SimulationMetric extends StatelessWidget {
-  final NightshadeColors colors;
-  final String label;
-  final String value;
-  final Color? tone;
-
-  const _SimulationMetric({
-    required this.colors,
-    required this.label,
-    required this.value,
-    this.tone,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final valueColor = tone ?? colors.textPrimary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w700,
-              color: valueColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
+/// The segment bar: one proportional band per simulated node, inside the
+/// simulation `well`.
 class _SimulationTimeline extends StatelessWidget {
   final NightshadeColors colors;
   final PreSessionSimulationResult simulation;
@@ -57,15 +11,19 @@ class _SimulationTimeline extends StatelessWidget {
     required this.simulation,
   });
 
+  /// The bar's height in logical pixels — the same 18px band the visual
+  /// timeline uses, so the two read as one instrument.
+  static const double barHeight = 18;
+
   @override
   Widget build(BuildContext context) {
     final totalMs = simulation.duration.inMilliseconds;
     if (totalMs <= 0) return const SizedBox.shrink();
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+      borderRadius: NightshadeTokens.borderRadiusXs,
       child: SizedBox(
-        height: 18,
+        height: barHeight,
         child: Row(
           children: [
             for (final segment in simulation.segments)
@@ -103,6 +61,7 @@ class _SimulationTimeline extends StatelessWidget {
   }
 }
 
+/// One simulation issue, on the same row metrics as a validation issue.
 class _SimulationIssueRow extends StatelessWidget {
   final NightshadeColors colors;
   final PreSessionSimulationIssue issue;
@@ -120,23 +79,22 @@ class _SimulationIssueRow extends StatelessWidget {
       PreSessionSimulationSeverity.info => colors.info,
     };
     final icon = switch (issue.severity) {
-      PreSessionSimulationSeverity.error => LucideIcons.xCircle,
-      PreSessionSimulationSeverity.warning => LucideIcons.alertTriangle,
-      PreSessionSimulationSeverity.info => LucideIcons.info,
+      PreSessionSimulationSeverity.error => NightshadeIcons.error,
+      PreSessionSimulationSeverity.warning => NightshadeIcons.warning,
+      PreSessionSimulationSeverity.info => NightshadeIcons.info,
     };
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 12, color: tone),
-          const SizedBox(width: 8),
+          Icon(icon, size: NightshadeTokens.iconGlyphRow, color: tone),
+          const SizedBox(width: ListRow.gap),
           Expanded(
             child: Text(
               issue.message,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
         ],
@@ -144,5 +102,3 @@ class _SimulationIssueRow extends StatelessWidget {
     );
   }
 }
-
-/// Small count badge widget
