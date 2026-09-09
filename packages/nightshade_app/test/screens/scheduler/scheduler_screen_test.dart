@@ -329,7 +329,13 @@ void main() {
     // ONE button (05 §12). The old card offered three plus a "Learn more"
     // expander whose paragraph explained the scoring engine — exactly the
     // screen-explaining prose 07 "What NOT to do" routes to the help popover.
-    expect(find.byType(NightshadeButton), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(EmptyState),
+        matching: find.byType(NightshadeButton),
+      ),
+      findsOneWidget,
+    );
     expect(find.widgetWithText(NightshadeButton, 'Learn more'), findsNothing);
     expect(find.text('How the scheduler picks targets'), findsNothing);
     expect(find.byType(EmptyState), findsOneWidget);
