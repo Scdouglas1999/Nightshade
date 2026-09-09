@@ -42,25 +42,24 @@ class CockpitFrames extends ConsumerWidget {
     final resolvedFilter =
         _resolveFilter(currentImage?.settings.filter, sessionImages);
 
-    return NightshadeCard(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (currentImage != null)
-            _CurrentFrame(
-              colors: colors,
-              image: currentImage,
-              filterLabel: resolvedFilter,
-            )
-          else
-            _WaitingRow(colors: colors),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          const RecentFramesStrip(),
-        ],
-      ),
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (currentImage != null)
+              _CurrentFrame(
+                colors: colors,
+                image: currentImage,
+                filterLabel: resolvedFilter,
+              )
+            else
+              _WaitingRow(colors: colors),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            const RecentFramesStrip(),
+          ],
+        ));
   }
 
   static String? _resolveFilter(
@@ -133,25 +132,23 @@ class _WaitingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.image, size: 14, color: colors.textMuted),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            'Waiting for first frame…',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted),
-          ),
-        ],
-      ),
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceMd,
+          vertical: NightshadeTokens.spaceSm,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.image, size: 14, color: colors.textMuted),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Text(
+              'Waiting for first frame…',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+            ),
+          ],
+        ));
   }
 }
 

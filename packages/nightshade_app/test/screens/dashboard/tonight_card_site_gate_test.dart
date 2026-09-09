@@ -81,7 +81,10 @@ void main() {
 
     expect(find.text('15:22'), findsNothing);
     expect(find.text('9h 28m'), findsNothing);
-    expect(find.text('--:--'), findsNWidgets(2));
+    // 06 copy rules: an unknown value is an em dash. `--:--` was the old
+    // placeholder and is now forbidden everywhere in the app.
+    expect(find.text('--:--'), findsNothing);
+    expect(find.text(kReadoutUnknown), findsNWidgets(2));
     expect(find.text('90%'), findsOneWidget,
         reason: 'moon illumination is a phase, not a site quantity');
     await _dispose(tester, container);

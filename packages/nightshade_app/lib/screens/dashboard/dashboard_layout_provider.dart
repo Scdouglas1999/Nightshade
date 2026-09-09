@@ -59,12 +59,24 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
     //     old panels enabled would render both sets.
     // Ids absent from a stored layout take their default enabled state, so the
     // net result matches defaultLayout().
+    //   * The cockpit tiles the Observatory Tonight grid replaces (v7): the
+    //     five `tonight*` panels say the same things in the layout 06 specifies,
+    //     and leaving the old ones enabled would render both sets. They stay in
+    //     the widget picker for anyone who wants one back.
     const forceDisabled = <DashboardWidgetId>{
       DashboardWidgetId.quickStats,
       DashboardWidgetId.cockpitTargetHeader,
       DashboardWidgetId.cockpitLiveFrame,
       DashboardWidgetId.cockpitExposureProgress,
       DashboardWidgetId.cockpitRecentFrames,
+      DashboardWidgetId.cockpitNowImaging,
+      DashboardWidgetId.cockpitFrames,
+      DashboardWidgetId.cockpitGuiding,
+      DashboardWidgetId.cockpitEquipmentTelemetry,
+      DashboardWidgetId.cockpitWeatherSafety,
+      DashboardWidgetId.cockpitQuality,
+      DashboardWidgetId.cockpitTriggerFeed,
+      DashboardWidgetId.cockpitLightCurve,
     };
 
     final tiles = defaults.tiles.map((tile) {

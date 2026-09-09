@@ -95,7 +95,7 @@ class TonightCard extends ConsumerWidget {
     }
 
     // Format astro twilight time
-    String astroTwilightTime = '--:--';
+    String astroTwilightTime = kReadoutUnknown;
     if (hasSite && twilight.astronomicalDusk != null) {
       final dusk = twilight.astronomicalDusk!;
       // If dusk is in the future (relative to simulation time), show it
@@ -113,7 +113,7 @@ class TonightCard extends ConsumerWidget {
     final moonValue = '${moonInfo.illumination.toStringAsFixed(0)}%';
 
     // Calculate imaging window (darkness duration)
-    String imagingWindow = '--:--';
+    String imagingWindow = kReadoutUnknown;
     if (hasSite &&
         twilight.astronomicalDusk != null &&
         twilight.astronomicalDawn != null) {
@@ -188,11 +188,8 @@ class TonightCard extends ConsumerWidget {
               optimization.rationale.first,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textSecondary,
-                height: 1.35,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ],
           if (optimizationAsync.hasError) ...[
@@ -202,10 +199,8 @@ class TonightCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Couldn’t generate tonight’s plan.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.error,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.error),
                   ),
                 ),
                 TextButton.icon(
@@ -221,10 +216,8 @@ class TonightCard extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               '+ ${optimization.alternates.length} more target${optimization.alternates.length == 1 ? '' : 's'}',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
           if (optimization != null && optimization.hasRecommendation) ...[
@@ -589,59 +582,44 @@ class _TonightTargetActionsState extends State<_TonightTargetActions> {
             widget.target.catalogId ?? widget.target.targetName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: widget.colors.textMuted,
+            style: NightshadeTypography.caption
+                .copyWith(color: widget.colors.textMuted),
+          ),
+        ),
+        NightshadeIconButton(
+          icon: LucideIcons.frame,
+          tooltip: 'Frame target',
+          size: IconButtonSize.sm,
+          color: widget.colors.primary,
+          onPressed: _adding ? null : widget.onSendToFraming,
+        ),
+        NightshadeIconButton(
+          icon: LucideIcons.globe,
+          tooltip: context.l10n.text('plannerOpenPlanetarium'),
+          size: IconButtonSize.sm,
+          color: widget.colors.primary,
+          onPressed: _adding ? null : widget.onShowInSky,
+        ),
+        // Mid-add the button keeps its slot and shows the spinner in place of
+        // the glyph, so the row never reflows under the pointer.
+        if (_adding)
+          const SizedBox.square(
+            dimension: NightshadeTokens.iconButtonSizeSm,
+            child: Center(
+              child: SizedBox.square(
+                dimension: 15,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
+          )
+        else
+          NightshadeIconButton(
+            icon: LucideIcons.listPlus,
+            tooltip: 'Add to sequence',
+            size: IconButtonSize.sm,
+            color: widget.colors.primary,
+            onPressed: _addToSequencer,
           ),
-        ),
-        Tooltip(
-          message: 'Frame target',
-          child: IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-            padding: EdgeInsets.zero,
-            onPressed: _adding ? null : widget.onSendToFraming,
-            icon: Icon(
-              LucideIcons.frame,
-              size: 15,
-              color: widget.colors.primary,
-            ),
-          ),
-        ),
-        Tooltip(
-          message: context.l10n.text('plannerOpenPlanetarium'),
-          child: IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-            padding: EdgeInsets.zero,
-            onPressed: _adding ? null : widget.onShowInSky,
-            icon: Icon(
-              LucideIcons.globe,
-              size: 15,
-              color: widget.colors.primary,
-            ),
-          ),
-        ),
-        Tooltip(
-          message: 'Add to sequence',
-          child: IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-            padding: EdgeInsets.zero,
-            onPressed: _adding ? null : _addToSequencer,
-            icon: _adding
-                ? const SizedBox.square(
-                    dimension: 15,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    LucideIcons.listPlus,
-                    size: 15,
-                    color: widget.colors.primary,
-                  ),
-          ),
-        ),
       ],
     );
   }
@@ -669,9 +647,8 @@ class _TonightRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
             overflow: TextOverflow.ellipsis,
           ),
         ),

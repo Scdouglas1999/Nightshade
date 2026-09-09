@@ -6,17 +6,16 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import '../../../widgets/tutorial_keys/dashboard_keys.dart';
-import '../dashboard_layout_provider.dart';
 
-/// Why "Edit Dashboard" refuses in the standby briefing.
+/// Why "Edit layout" refuses in the first-run state.
 ///
 /// One string, used as the tooltip (pointer), the semantics hint (keyboard and
 /// screen reader) and the toast (a click that lands on the disabled control's
 /// row). A refusal the operator cannot read is indistinguishable from a broken
 /// button.
 const String standbyEditRefusalReason =
-    'Nothing to arrange yet — the briefing has no tiles. Connect a device or '
-    'load a sequence to arrange the session dashboard.';
+    'Nothing to arrange yet — the first-light checklist has no panels. '
+    'Connect a device or load a sequence to arrange tonight’s panels.';
 
 /// The accessible NAME the refusing control publishes.
 ///
@@ -33,32 +32,37 @@ const String standbyEditRefusalReason =
 String standbyEditSemanticLabel(String editLabel) =>
     '$editLabel, unavailable. $standbyEditRefusalReason';
 
+/// The page header's actions: "Edit layout", plus Widgets and Reset while
+/// editing.
+///
+/// These live in [PageHeader.actions] (06 §Tonight) — the screen no longer has
+/// an action row of its own — so they are always ghost buttons: the page's ONE
+/// primary is the hero's (02 rule 4).
 class DashboardHeaderActions extends ConsumerWidget {
   final bool isEditing;
+
+  /// False in the first-run state: a checklist is not made of arrangeable
+  /// tiles, so offering to edit it would swap the page for panels that are not
+  /// on it and leave the visible page unconfigurable.
+  final bool canEdit;
   final VoidCallback onToggleEdit;
   final VoidCallback onManageWidgets;
   final VoidCallback onResetLayout;
-  final bool compact;
 
   const DashboardHeaderActions({
     super.key,
     required this.isEditing,
+    required this.canEdit,
     required this.onToggleEdit,
     required this.onManageWidgets,
     required this.onResetLayout,
-    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final buttonSize = compact ? ButtonSize.small : ButtonSize.medium;
-    // The standby briefing is not made of arrangeable tiles, so offering to
-    // edit it would swap the page for cockpit tiles that are not on it and
-    // leave the visible dashboard unconfigurable.
-    final canEdit = !ref.watch(dashboardStandbyProvider);
-    final editLabel = l10n
-        .text(isEditing ? 'dbDone' : (compact ? 'dbEdit' : 'dbEditDashboard'));
+    const buttonSize = ButtonSize.small;
+    final editLabel = l10n.text(isEditing ? 'dbDone' : 'tnEditLayout');
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -94,10 +98,9 @@ class DashboardHeaderActions extends ConsumerWidget {
               child: NightshadeButton(
                 key: DashboardTutorialKeys.editButton,
                 label: editLabel,
-                icon:
-                    isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+                icon: isEditing ? LucideIcons.check : LucideIcons.layoutGrid,
                 variant:
-                    isEditing ? ButtonVariant.primary : ButtonVariant.outline,
+                    isEditing ? ButtonVariant.secondary : ButtonVariant.ghost,
                 size: buttonSize,
                 onPressed: canEdit ? onToggleEdit : null,
               ),
@@ -105,55 +108,24 @@ class DashboardHeaderActions extends ConsumerWidget {
           ),
         ),
         if (isEditing) ...[
-          SizedBox(width: compact ? 4 : 8),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           NightshadeButton(
-            label: compact ? '' : l10n.text('dbWidgets'),
+            label: l10n.text('dbWidgets'),
             icon: LucideIcons.layoutGrid,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.ghost,
             size: buttonSize,
             onPressed: onManageWidgets,
           ),
-          SizedBox(width: compact ? 4 : 8),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           NightshadeButton(
-            label: compact ? '' : l10n.text('dbReset'),
+            label: l10n.text('dbReset'),
             icon: LucideIcons.refreshCw,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.ghost,
             size: buttonSize,
             onPressed: onResetLayout,
           ),
         ],
       ],
-    );
-  }
-}
-
-class EditModeBanner extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const EditModeBanner({super.key, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: NightshadeDecorations.emphasisSurface(
-        colors.primary,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: Row(
-        children: [
-          Icon(LucideIcons.grip, size: 16, color: colors.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              context.l10n.text('dbEditModeHint'),
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -41,6 +41,19 @@ const _cockpitIds = <DashboardWidgetId>[
   DashboardWidgetId.cockpitNarrator,
 ];
 
+/// The cockpit tiles the Observatory Tonight grid replaces (v7). Present in the
+/// layout and in the widget picker, off by default.
+const _replacedByTonight = <DashboardWidgetId>[
+  DashboardWidgetId.cockpitNowImaging,
+  DashboardWidgetId.cockpitFrames,
+  DashboardWidgetId.cockpitGuiding,
+  DashboardWidgetId.cockpitEquipmentTelemetry,
+  DashboardWidgetId.cockpitWeatherSafety,
+  DashboardWidgetId.cockpitQuality,
+  DashboardWidgetId.cockpitTriggerFeed,
+  DashboardWidgetId.cockpitLightCurve,
+];
+
 /// The four individual cockpit panels superseded by the merged tiles. Present
 /// in the layout but disabled by default in v5.
 const _supersededIds = <DashboardWidgetId>[
@@ -117,34 +130,59 @@ void main() {
     });
   });
 
-  group('DashboardLayout.defaultLayout (v6 dense cockpit default)', () {
-    test('is version 6', () {
-      expect(DashboardLayout.currentVersion, 6);
-      expect(DashboardLayout.defaultLayout().version, 6);
+  group('DashboardLayout.defaultLayout (v7 Observatory Tonight grid)', () {
+    test('is version 7', () {
+      expect(DashboardLayout.currentVersion, 7);
+      expect(DashboardLayout.defaultLayout().version, 7);
     });
 
-    test('enables exactly the dense merged cockpit set (incl. v6 quality)', () {
+    test('enables exactly the five Observatory Tonight panels', () {
       final layout = DashboardLayout.defaultLayout();
       final enabledIds =
           layout.tiles.where((t) => t.enabled).map((t) => t.widgetId).toSet();
 
-      // The dense default: the merged now-imaging + frames tiles and guiding
-      // up top, supporting telemetry (incl. v6 Quality) and the light curve on
-      // the right rail. The superseded panels, the opt-in cockpit extras
-      // (session vitals, sky context, forensics), and ALL legacy cards are off.
+      // 06 §Tonight: live preview c8, then equipment / guiding / progress /
+      // safety at c4. Every cockpit tile they replace, every opt-in extra and
+      // every legacy card is off.
       expect(
         enabledIds,
         unorderedEquals(<DashboardWidgetId>{
-          DashboardWidgetId.cockpitNowImaging,
-          DashboardWidgetId.cockpitFrames,
-          DashboardWidgetId.cockpitGuiding,
-          DashboardWidgetId.cockpitEquipmentTelemetry,
-          DashboardWidgetId.cockpitWeatherSafety,
-          DashboardWidgetId.cockpitQuality,
-          DashboardWidgetId.cockpitTriggerFeed,
-          DashboardWidgetId.cockpitLightCurve,
+          DashboardWidgetId.tonightPreview,
+          DashboardWidgetId.tonightEquipment,
+          DashboardWidgetId.tonightGuiding,
+          DashboardWidgetId.tonightProgress,
+          DashboardWidgetId.tonightSafety,
         }),
       );
+    });
+
+    test('the Tonight panels lead the layout in the mockup\'s reading order',
+        () {
+      final layout = DashboardLayout.defaultLayout();
+      DashboardTileConfig tileFor(DashboardWidgetId id) =>
+          layout.tiles.firstWhere((t) => t.widgetId == id);
+
+      expect(tileFor(DashboardWidgetId.tonightPreview).order, 0);
+      expect(tileFor(DashboardWidgetId.tonightEquipment).order, 1);
+      expect(tileFor(DashboardWidgetId.tonightGuiding).order, 2);
+      expect(tileFor(DashboardWidgetId.tonightProgress).order, 3);
+      expect(tileFor(DashboardWidgetId.tonightSafety).order, 4);
+    });
+
+    test('the live preview is c8 and the rest are c4', () {
+      final layout = DashboardLayout.defaultLayout();
+      DashboardTileConfig tileFor(DashboardWidgetId id) =>
+          layout.tiles.firstWhere((t) => t.widgetId == id);
+
+      expect(tileFor(DashboardWidgetId.tonightPreview).size.columnSpan, 8);
+      for (final id in const <DashboardWidgetId>[
+        DashboardWidgetId.tonightEquipment,
+        DashboardWidgetId.tonightGuiding,
+        DashboardWidgetId.tonightProgress,
+        DashboardWidgetId.tonightSafety,
+      ]) {
+        expect(tileFor(id).size.columnSpan, 4, reason: '$id is a c4 panel.');
+      }
     });
 
     test('the new v6 opt-in panels are present but disabled by default', () {
@@ -206,34 +244,21 @@ void main() {
           reason: 'Tile orders must be unique.');
     });
 
-    test('hero merged cockpit tiles use the large tile size', () {
+    test('the Tonight hero panel uses the large tile size', () {
       final layout = DashboardLayout.defaultLayout();
-      DashboardTileConfig tileFor(DashboardWidgetId id) =>
-          layout.tiles.firstWhere((t) => t.widgetId == id);
-      expect(tileFor(DashboardWidgetId.cockpitNowImaging).size,
-          DashboardTileSize.large);
-      expect(tileFor(DashboardWidgetId.cockpitFrames).size,
-          DashboardTileSize.large);
+      final preview = layout.tiles
+          .firstWhere((t) => t.widgetId == DashboardWidgetId.tonightPreview);
+      expect(preview.size, DashboardTileSize.large);
     });
 
-    test(
-        'merged now-imaging + frames lead the primary zone, frames after '
-        'now-imaging', () {
+    test('the cockpit tiles the Tonight grid replaces are off by default', () {
       final layout = DashboardLayout.defaultLayout();
-      DashboardTileConfig tileFor(DashboardWidgetId id) =>
-          layout.tiles.firstWhere((t) => t.widgetId == id);
-
-      final nowImaging = tileFor(DashboardWidgetId.cockpitNowImaging);
-      final frames = tileFor(DashboardWidgetId.cockpitFrames);
-
-      expect(nowImaging.enabled, isTrue);
-      expect(frames.enabled, isTrue);
-      expect(nowImaging.zone, DashboardZone.primary);
-      expect(frames.zone, DashboardZone.primary);
-      expect(nowImaging.order, 0,
-          reason: 'Now-imaging is the lead tile in the dense default.');
-      expect(frames.order, nowImaging.order + 1,
-          reason: 'Frames is ordered directly after now-imaging.');
+      for (final id in _replacedByTonight) {
+        final tile = layout.tiles.firstWhere((t) => t.widgetId == id,
+            orElse: () => fail('Replaced id $id must remain present.'));
+        expect(tile.enabled, isFalse,
+            reason: '$id is superseded by a Tonight panel in v7.');
+      }
     });
 
     test('recent-frames is no longer enabled by default', () {
@@ -294,7 +319,7 @@ void main() {
     });
   });
 
-  group('v3/v4/v5 -> v6 migration', () {
+  group('v3/v4/v5/v6 -> v7 migration', () {
     late NightshadeDatabase database;
 
     setUp(() {
@@ -319,7 +344,8 @@ void main() {
       return container.read(dashboardLayoutProvider.future);
     }
 
-    test('moves the user onto the dense default and bumps to v6', () async {
+    test('moves the user onto the Observatory default and bumps to v7',
+        () async {
       // A representative v3 layout: the previous shipped default (live preview +
       // capture enabled, quick stats disabled).
       final storedV3 = {
@@ -354,13 +380,60 @@ void main() {
 
       expect(migrated.version, DashboardLayout.currentVersion);
 
-      // The merged cockpit tiles were never in the v3 layout, so they take
-      // their default enabled state — the dense hero tiles are now live.
+      // The Tonight panels were never in the v3 layout, so they take their
+      // default enabled state — the Observatory grid is now live.
       bool enabled(DashboardWidgetId id) =>
           migrated.tiles.any((t) => t.widgetId == id && t.enabled);
-      expect(enabled(DashboardWidgetId.cockpitNowImaging), isTrue);
-      expect(enabled(DashboardWidgetId.cockpitFrames), isTrue);
-      expect(enabled(DashboardWidgetId.cockpitGuiding), isTrue);
+      expect(enabled(DashboardWidgetId.tonightPreview), isTrue);
+      expect(enabled(DashboardWidgetId.tonightEquipment), isTrue);
+      expect(enabled(DashboardWidgetId.tonightGuiding), isTrue);
+      expect(enabled(DashboardWidgetId.tonightProgress), isTrue);
+      expect(enabled(DashboardWidgetId.tonightSafety), isTrue);
+    });
+
+    test('force-disables the cockpit tiles a v6 user had enabled', () async {
+      // The v6 dense default, stored. Migrating it must not leave the old
+      // panels rendering beside the Tonight panels that say the same things.
+      final storedV6 = {
+        'version': 6,
+        'secondaryZoneWidth': 0.4,
+        'tiles': [
+          for (final key in <String>[
+            'cockpitNowImaging',
+            'cockpitFrames',
+            'cockpitGuiding',
+            'cockpitEquipmentTelemetry',
+            'cockpitWeatherSafety',
+            'cockpitQuality',
+            'cockpitTriggerFeed',
+            'cockpitLightCurve',
+          ])
+            {
+              'id': key,
+              'size': 'medium',
+              'enabled': true,
+              'order': 0,
+              'zone': 'primary',
+            },
+        ],
+      };
+
+      final migrated = await migrate(storedV6);
+
+      expect(migrated.version, DashboardLayout.currentVersion);
+      for (final id in _replacedByTonight) {
+        expect(
+          migrated.tiles.firstWhere((t) => t.widgetId == id).enabled,
+          isFalse,
+          reason: '$id must be force-disabled by the v7 migration.',
+        );
+      }
+      expect(
+        migrated.tiles
+            .firstWhere((t) => t.widgetId == DashboardWidgetId.tonightPreview)
+            .enabled,
+        isTrue,
+      );
     });
 
     test(
@@ -414,9 +487,9 @@ void main() {
             reason: 'Superseded panel $id must be force-disabled in v5.');
       }
 
-      // And the merged tiles come in enabled from the defaults.
-      expect(tileFor(DashboardWidgetId.cockpitNowImaging).enabled, isTrue);
-      expect(tileFor(DashboardWidgetId.cockpitFrames).enabled, isTrue);
+      // And the Tonight panels come in enabled from the defaults.
+      expect(tileFor(DashboardWidgetId.tonightPreview).enabled, isTrue);
+      expect(tileFor(DashboardWidgetId.tonightEquipment).enabled, isTrue);
     });
 
     test('preserves the user enabled flag where ids overlap the default',

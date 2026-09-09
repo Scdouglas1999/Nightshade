@@ -59,9 +59,8 @@ class AlertsCard extends ConsumerWidget {
           if (recent.isEmpty && !hasOperation)
             Text(
               'No active alerts.',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             )
           else
             Column(

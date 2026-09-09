@@ -352,11 +352,8 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
             child: Text(
               'Smart Night will choose targets, exposures, and filters '
               'from your gear and the sky tonight.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11_5,
-                color: colors.textSecondary,
-                height: 1.35,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           const SizedBox(height: 12),

@@ -331,14 +331,14 @@ void main() {
     await _drainAsyncFrames(tester);
 
     // Pre-condition: "Edit" label is visible and "Done" is not.
-    expect(find.text('Edit'), findsOneWidget,
+    expect(find.text('Edit layout'), findsOneWidget,
         reason:
             'Compact DashboardHeaderActions starts in non-editing state with '
             'the "Edit" label.');
     expect(find.text('Done'), findsNothing,
         reason: '"Done" must not be present until the user enters edit mode.');
 
-    await tester.tap(find.text('Edit'));
+    await tester.tap(find.text('Edit layout'));
     await _drainAsyncFrames(tester);
 
     expect(find.text('Done'), findsOneWidget,
@@ -346,7 +346,7 @@ void main() {
             'Tapping the "Edit" button must call _toggleEdit and rebuild the '
             'header with the "Done" label; a stuck "Edit" label means the '
             'setState pathway is broken and edit mode is unreachable.');
-    expect(find.text('Edit'), findsNothing,
+    expect(find.text('Edit layout'), findsNothing,
         reason:
             'Once in edit mode, the toggle button must show "Done" instead of '
             '"Edit"; a both-labels match would indicate a duplicated header.');

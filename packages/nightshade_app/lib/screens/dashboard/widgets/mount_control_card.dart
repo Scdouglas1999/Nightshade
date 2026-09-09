@@ -63,11 +63,12 @@ class MountControlCard extends ConsumerWidget {
         ? CoordinateFormat.ra(mountState.ra!,
             style: SexagesimalStyle.paddedColons,
             seconds: SecondsPrecision.integerRounded)
-        : '---';
+        : kReadoutUnknown;
     final decText =
-        mountState.dec != null ? _formatDec(mountState.dec!) : '---';
-    final pierText =
-        isConnected ? (mountState.sideOfPier?.toUpperCase() ?? '---') : '---';
+        mountState.dec != null ? _formatDec(mountState.dec!) : kReadoutUnknown;
+    final pierText = isConnected
+        ? (mountState.sideOfPier?.toUpperCase() ?? kReadoutUnknown)
+        : kReadoutUnknown;
 
     // Status with color
     final (statusText, statusColor) = mountState.isSlewing
@@ -121,15 +122,11 @@ class MountControlCard extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(l10n.text('ra'),
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize9,
-                                  color: colors.textMuted)),
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: colors.textMuted)),
                           Text(raText,
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                  fontFamily: 'monospace')),
+                              style: NightshadeTypography.readoutXs
+                                  .copyWith(color: colors.textPrimary)),
                         ],
                       ),
                     ),
@@ -138,15 +135,11 @@ class MountControlCard extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(l10n.text('dec'),
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize9,
-                                  color: colors.textMuted)),
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: colors.textMuted)),
                           Text(decText,
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                  fontFamily: 'monospace')),
+                              style: NightshadeTypography.readoutXs
+                                  .copyWith(color: colors.textPrimary)),
                         ],
                       ),
                     ),
@@ -154,9 +147,8 @@ class MountControlCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(l10n.text('pier'),
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize9,
-                                color: colors.textMuted)),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: colors.textMuted)),
                         Text(pierText,
                             style: NightshadeTypography.h6
                                 .copyWith(color: colors.textPrimary)),
@@ -190,9 +182,8 @@ class MountControlCard extends ConsumerWidget {
                 Row(
                   children: [
                     Text('${l10n.text('rate')}:',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.textMuted)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Container(
@@ -210,9 +201,8 @@ class MountControlCard extends ConsumerWidget {
                             value: mountState.trackingRate,
                             isDense: true,
                             isExpanded: true,
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize11,
-                                color: colors.textPrimary),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: colors.textPrimary),
                             dropdownColor: colors.surface,
                             icon: Icon(LucideIcons.chevronDown,
                                 size: 12, color: colors.textMuted),
@@ -477,10 +467,8 @@ class _MountJogControlsState extends ConsumerState<MountJogControls> {
   /// of what the arrows do instead.
   Widget _modeRow(MountJogMode mode) {
     final colors = widget.colors;
-    final labelStyle = TextStyle(
-      fontSize: NightshadeTypography.fontSize10,
-      color: colors.textMuted,
-    );
+    final labelStyle =
+        NightshadeTypography.caption.copyWith(color: colors.textMuted);
 
     final inert = _inertReason;
     if (inert != null) {
@@ -508,9 +496,8 @@ class _MountJogControlsState extends ConsumerState<MountJogControls> {
                   value: _selectedRate,
                   isDense: true,
                   isExpanded: true,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textPrimary),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textPrimary),
                   dropdownColor: colors.surface,
                   icon: Icon(LucideIcons.chevronDown,
                       size: 12, color: colors.textMuted),

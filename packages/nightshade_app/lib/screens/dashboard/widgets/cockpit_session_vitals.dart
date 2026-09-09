@@ -34,11 +34,8 @@ class CockpitSessionVitals extends ConsumerWidget {
             Expanded(
               child: Text(
                 'No active session — vitals appear during a run.',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12_5,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -68,12 +65,8 @@ class CockpitSessionVitals extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 'SESSION VITALS',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textMuted),
               ),
               const Spacer(),
               Text(
@@ -275,12 +268,8 @@ class _StatTile extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9_5,
-                color: colors.textMuted,
-                letterSpacing: 0.3,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.eyebrow
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ),
@@ -288,11 +277,8 @@ class _StatTile extends StatelessWidget {
         Text(
           value,
           style: NightshadeTypography.withTabular(
-            TextStyle(
-              fontSize: NightshadeTypography.fontSize15,
-              fontWeight: FontWeight.w700,
-              color: valueColor ?? colors.textPrimary,
-            ),
+            NightshadeTypography.sectionTitle
+                .copyWith(color: valueColor ?? colors.textPrimary),
           ),
         ),
       ],
@@ -309,12 +295,11 @@ class _Shell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceLg,
-        vertical: NightshadeTokens.spaceMd,
-      ),
-      child: child,
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceLg,
+          vertical: NightshadeTokens.spaceMd,
+        ),
+        child: child);
   }
 }

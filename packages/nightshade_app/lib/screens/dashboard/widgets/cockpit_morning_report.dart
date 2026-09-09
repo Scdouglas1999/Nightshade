@@ -78,12 +78,8 @@ class _RunReportCard extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 'MORNING REPORT',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textMuted),
               ),
               const Spacer(),
               Icon(LucideIcons.chevronRight, size: 14, color: colors.textMuted),
@@ -191,42 +187,41 @@ class _ReportStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      child: Row(
-        children: [
-          Icon(icon,
-              size: 18, color: onRetry == null ? colors.info : colors.error),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: NightshadeTypography.bodyMedium.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                ),
-                if (detail != null) ...[
-                  const SizedBox(height: 2),
+    return NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 18, color: onRetry == null ? colors.info : colors.error),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    detail!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: NightshadeTypography.caption.copyWith(
-                      color: colors.textSecondary,
+                    title,
+                    style: NightshadeTypography.bodyMedium.copyWith(
+                      color: colors.textPrimary,
                     ),
                   ),
+                  if (detail != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      detail!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          if (onRetry != null)
-            TextButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
-      ),
-    );
+            if (onRetry != null)
+              TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ));
   }
 }
 
@@ -250,12 +245,7 @@ class _Metric extends StatelessWidget {
       children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
-            color: colors.textMuted,
-          ),
+          style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
         ),
         Text(
           value,

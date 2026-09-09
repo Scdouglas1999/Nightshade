@@ -181,16 +181,17 @@ class DashboardTileFrame extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _EditIconButton(
+                NightshadeIconButton(
                   icon: LucideIcons.maximize2,
                   tooltip: 'Resize (${size.label})',
-                  onTap: onResize,
+                  size: IconButtonSize.sm,
+                  onPressed: onResize,
                 ),
-                // Touch areas now adjacent at 40px each
-                _EditIconButton(
+                NightshadeIconButton(
                   icon: LucideIcons.eyeOff,
                   tooltip: 'Hide tile',
-                  onTap: onHide,
+                  size: IconButtonSize.sm,
+                  onPressed: onHide,
                 ),
               ],
             ),
@@ -201,58 +202,7 @@ class DashboardTileFrame extends StatelessWidget {
 }
 
 /// Edit mode icon button with expanded touch target (40x40px) for field use.
-class _EditIconButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _EditIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Tooltip(
-      message: tooltip,
-      // Expanded touch target: 40x40px for easier tapping
-      child: SizedBox(
-        width: 40,
-        height: 40,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            child: Center(
-              // Visual element stays compact at 26x26px
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt.withValues(alpha: 0.9),
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
-                child: Icon(
-                  icon,
-                  size: 14,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Drag handle indicator shown on tiles in edit mode.
-///
-/// Provides visual affordance that tiles can be long-pressed and dragged.
+/// The grip the operator drags a tile by in Edit layout.
 class _DragHandleIndicator extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -261,15 +211,12 @@ class _DragHandleIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: NightshadeDecorations.emphasisSurface(
-        colors.primary,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
+      padding: const EdgeInsets.all(NightshadeTokens.spaceXs + 2),
+      decoration: NightshadeDecorations.panelSelected(colors),
       child: Icon(
         LucideIcons.gripVertical,
         size: 14,
-        color: colors.primary.withValues(alpha: 0.8),
+        color: colors.primary,
       ),
     );
   }
@@ -282,13 +229,16 @@ class DashboardLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Center(
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
+        padding: EdgeInsets.symmetric(vertical: NightshadeTokens.space4xl),
         child: CircularProgressIndicator(),
       ),
     );
   }
 }
 
+/// The one error pattern: an [EmptyState] with ONE button (05 §12). It replaced
+/// a bordered glass card with its own title row, which was a second error style
+/// on a screen that already had one.
 class DashboardLayoutError extends StatelessWidget {
   final Object error;
   final VoidCallback onReset;
@@ -299,80 +249,22 @@ class DashboardLayoutError extends StatelessWidget {
     super.key,
     required this.error,
     required this.onReset,
-    this.title = 'Dashboard Layout Error',
-    this.buttonLabel = 'Reset Layout',
+    this.title = 'The dashboard layout could not be read',
+    this.buttonLabel = 'Reset layout',
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return DashboardGlassCardInline(
-      colors: colors,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.alertTriangle, color: colors.warning, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: NightshadeTypography.h5.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            error.toString(),
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: NightshadeButton(
-              label: buttonLabel,
-              icon: LucideIcons.refreshCw,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.medium,
-              onPressed: onReset,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Inline glass card used by DashboardLayoutError (avoids circular import with glass_card.dart)
-class DashboardGlassCardInline extends StatelessWidget {
-  final NightshadeColors colors;
-  final Widget child;
-  final EdgeInsets padding;
-
-  const DashboardGlassCardInline({
-    super.key,
-    required this.colors,
-    required this.child,
-    this.padding = const EdgeInsets.all(16),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-        boxShadow: NightshadeTokens.elevationLevel1,
-      ),
-      child: Padding(
-        padding: padding,
-        child: child,
+    return EmptyState(
+      icon: LucideIcons.alertTriangle,
+      title: title,
+      body: '$error',
+      action: NightshadeButton(
+        label: buttonLabel,
+        icon: LucideIcons.refreshCw,
+        variant: ButtonVariant.secondary,
+        size: ButtonSize.small,
+        onPressed: onReset,
       ),
     );
   }

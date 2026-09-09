@@ -56,11 +56,8 @@ class CockpitNowImaging extends ConsumerWidget {
                     ? 'No target set — sequence running without a target node.'
                     : 'No active target — load a sequence to begin.',
                 style: NightshadeTypography.glanceStyle(
-                  TextStyle(
-                    fontSize: NightshadeTypography.fontSize12_5,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textSecondary,
-                  ),
+                  NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                   enabled: glance,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -167,11 +164,8 @@ class _Identity extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 220),
           child: Text(
             target.displayName,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize16,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -231,12 +225,7 @@ class _StatChip extends StatelessWidget {
             Text(
               label,
               style: NightshadeTypography.glanceStyle(
-                TextStyle(
-                  fontSize: NightshadeTypography.fontSize9_5,
-                  color: colors.textMuted,
-                  letterSpacing: 0.3,
-                  fontWeight: FontWeight.w600,
-                ),
+                NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
                 enabled: glance,
               ),
             ),
@@ -246,11 +235,8 @@ class _StatChip extends StatelessWidget {
         Text(
           value,
           style: NightshadeTypography.withTabular(
-            TextStyle(
-              fontSize: NightshadeTypography.fontSize15,
-              fontWeight: FontWeight.w700,
-              color: valueColor ?? colors.textPrimary,
-            ),
+            NightshadeTypography.sectionTitle
+                .copyWith(color: valueColor ?? colors.textPrimary),
           ),
         ),
       ],
@@ -299,12 +285,8 @@ class _FrameChip extends ConsumerWidget {
               Text(
                 'This frame',
                 style: NightshadeTypography.glanceStyle(
-                  TextStyle(
-                    fontSize: NightshadeTypography.fontSize9_5,
-                    color: colors.textMuted,
-                    letterSpacing: 0.3,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  NightshadeTypography.eyebrow
+                      .copyWith(color: colors.textMuted),
                   enabled: glance,
                 ),
               ),
@@ -314,11 +296,7 @@ class _FrameChip extends ConsumerWidget {
           Text(
             valueText,
             style: NightshadeTypography.withTabular(
-              TextStyle(
-                fontSize: NightshadeTypography.fontSize15,
-                fontWeight: FontWeight.w700,
-                color: valueColor,
-              ),
+              NightshadeTypography.sectionTitle.copyWith(color: valueColor),
             ),
           ),
           const SizedBox(height: 3),
@@ -361,12 +339,7 @@ class _SequenceChip extends ConsumerWidget {
             Text(
               'Sequence',
               style: NightshadeTypography.glanceStyle(
-                TextStyle(
-                  fontSize: NightshadeTypography.fontSize9_5,
-                  color: colors.textMuted,
-                  letterSpacing: 0.3,
-                  fontWeight: FontWeight.w600,
-                ),
+                NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
                 enabled: glance,
               ),
             ),
@@ -381,11 +354,8 @@ class _SequenceChip extends ConsumerWidget {
             Text(
               '${seq.completedExposures}/${seq.totalExposures}',
               style: NightshadeTypography.withTabular(
-                TextStyle(
-                  fontSize: NightshadeTypography.fontSize15,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
+                NightshadeTypography.sectionTitle
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             const SizedBox(width: 6),
@@ -406,9 +376,8 @@ class _SequenceChip extends ConsumerWidget {
                 '~${formatSeconds(seq.estimatedRemainingSecs!)}',
                 style: NightshadeTypography.withTabular(
                   NightshadeTypography.glanceStyle(
-                    TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
+                    NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                     enabled: glance,
                   ),
                 ),
@@ -431,12 +400,11 @@ class _Shell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceLg,
-        vertical: NightshadeTokens.spaceMd,
-      ),
-      child: child,
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceLg,
+          vertical: NightshadeTokens.spaceMd,
+        ),
+        child: child);
   }
 }

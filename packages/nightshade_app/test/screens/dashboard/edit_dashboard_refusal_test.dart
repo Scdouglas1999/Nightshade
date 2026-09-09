@@ -1,6 +1,6 @@
-// "Edit Dashboard" must not be silently inert in the standby briefing: with 0
-// devices connected and the Dashboard showing TONIGHT'S BRIEFING, clicking it
-// changes nothing, so the control has to say why.
+// "Edit layout" must not be silently inert in the first-run state: with nothing
+// set up and Tonight showing the first-light checklist, clicking it changes
+// nothing, so the control has to say why.
 //
 // A `Semantics(hint:)` cannot carry that. It passes a widget test while the
 // LIVE AT-SPI probe of the node reads
@@ -16,7 +16,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/dashboard_header_actions.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -31,12 +30,12 @@ Future<HarnessHandle> _pumpEditButton(
     tester,
     DashboardHeaderActions(
       isEditing: false,
+      canEdit: !standby,
       onToggleEdit: onToggleEdit ?? () {},
       onManageWidgets: () {},
       onResetLayout: () {},
     ),
     settle: false,
-    extraOverrides: [dashboardStandbyProvider.overrideWithValue(standby)],
   );
 }
 
@@ -48,7 +47,7 @@ void main() {
     await _pumpEditButton(tester, standby: true);
     await tester.pump(const Duration(milliseconds: 200));
 
-    final node = tester.getSemantics(find.text('Edit Dashboard'));
+    final node = tester.getSemantics(find.text('Edit layout'));
 
     expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
     expect(
@@ -64,7 +63,7 @@ void main() {
       reason: 'the refusal must survive a bridge that exports only the name',
     );
     expect(node.label, contains('Nothing to arrange yet'));
-    // And the name must not be the doubled 'Edit Dashboard\nEdit Dashboard'
+    // And the name must not be the doubled 'Edit layout\nEdit layout'
     // the probe printed — that doubling is the signature of a descendant node
     // still publishing itself underneath the wrapper.
     expect(node.label, isNot(contains('\n')));
@@ -84,7 +83,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    await tester.tap(find.text('Edit Dashboard'), warnIfMissed: false);
+    await tester.tap(find.text('Edit layout'), warnIfMissed: false);
     await tester.pump();
 
     expect(toggles, 0, reason: 'it must still refuse');
@@ -105,7 +104,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    final node = tester.getSemantics(find.text('Edit Dashboard'));
+    final node = tester.getSemantics(find.text('Edit layout'));
     expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
     expect(
       node.label,
@@ -113,7 +112,7 @@ void main() {
       reason: 'the enabled and disabled names must be distinguishable',
     );
 
-    await tester.tap(find.text('Edit Dashboard'));
+    await tester.tap(find.text('Edit layout'));
     await tester.pump();
     expect(toggles, 1);
     expect(harness.container.read(uiNotificationProvider), isEmpty);
