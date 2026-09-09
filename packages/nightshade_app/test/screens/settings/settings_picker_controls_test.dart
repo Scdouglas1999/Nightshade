@@ -16,8 +16,13 @@ class _ColorHarness extends StatefulWidget {
   State<_ColorHarness> createState() => _ColorHarnessState();
 }
 
+/// The dark palette's first two accents (03 §1.4) — the swatch set the harness
+/// renders, since the test theme is dark.
+const String _firstAccent = '#6EB3EC';
+const String _secondAccent = '#43B67A';
+
 class _ColorHarnessState extends State<_ColorHarness> {
-  String color = '#5B9EC4';
+  String color = _firstAccent;
 
   Future<void> _save(String next) async {
     await widget.save(next);
@@ -33,13 +38,14 @@ class _ColorHarnessState extends State<_ColorHarness> {
   }
 }
 
-double _colorBorderWidth(WidgetTester tester, String color) {
+/// Whether the swatch for [color] is drawn with the selection ring.
+bool _colorIsRinged(WidgetTester tester, String color) {
   final circle = find.byKey(ValueKey('settings-color-$color'));
   final container = tester.widget<Container>(
     find.descendant(of: circle, matching: find.byType(Container)).first,
   );
   final decoration = container.decoration! as BoxDecoration;
-  return (decoration.border! as Border).top.width;
+  return (decoration.boxShadow ?? const <BoxShadow>[]).isNotEmpty;
 }
 
 void main() {
@@ -53,16 +59,17 @@ void main() {
       _ColorHarness(save: (_) => completion.future),
     );
 
-    await tester.tap(find.byKey(const ValueKey('settings-color-#10B981')));
+    await tester
+        .tap(find.byKey(const ValueKey('settings-color-$_secondAccent')));
     await tester.pump();
-    expect(_colorBorderWidth(tester, '#10B981'), 2);
+    expect(_colorIsRinged(tester, _secondAccent), isTrue);
 
     completion.completeError(StateError('write failed'));
     await tester.pump();
     await tester.pump();
 
-    expect(_colorBorderWidth(tester, '#5B9EC4'), 2);
-    expect(_colorBorderWidth(tester, '#10B981'), 1);
+    expect(_colorIsRinged(tester, _firstAccent), isTrue);
+    expect(_colorIsRinged(tester, _secondAccent), isFalse);
     expect(tester.takeException(), isNull);
   });
 
@@ -94,7 +101,7 @@ void main() {
       expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
       expect(
         node.hasFlag(SemanticsFlag.isSelected),
-        hex == '#5B9EC4',
+        hex == _firstAccent,
         reason: 'only the active accent may report itself as selected',
       );
     }

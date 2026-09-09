@@ -66,14 +66,25 @@ Future<void> tapInSettingsSidebar(
   await tester.pumpAndSettle(settle);
 }
 
-/// Expands a collapsed sidebar group by its (upper-cased) header. Expanding an
-/// earlier group lengthens the list, so a later group's header can start below
-/// the fold — hence the reveal.
+/// Brings a sidebar group's (upper-cased) header into view.
+///
+/// The groups no longer collapse — the Observatory nav is a flat list under
+/// three quiet eyebrows (06 §Settings) — so there is nothing to open. The
+/// helper stays because every caller's next step is to tap a row inside the
+/// group, and scrolling the header into view is still what puts that row within
+/// reach; it now also ASSERTS the group is present, which is the claim the old
+/// tap was making implicitly.
 Future<void> expandSettingsGroup(
   WidgetTester tester,
   String groupTitle,
 ) async {
-  await tapInSettingsSidebar(tester, find.text(groupTitle.toUpperCase()));
+  final header = find.text(groupTitle.toUpperCase());
+  await revealInSettingsSidebar(tester, header);
+  expect(
+    header,
+    findsOneWidget,
+    reason: 'the settings sidebar must show the "$groupTitle" group.',
+  );
 }
 
 /// Selects a section row (its group must already be expanded).
