@@ -27,13 +27,22 @@ class _WeatherHeader extends StatelessWidget {
         icon: NightshadeIcons.weather,
         title: 'Weather',
         actions: [
-          NightshadeChip(
-            label: weatherSafetyChipLabel(
-              status: status,
-              monitoring: monitoring,
+          // Flexible so the chip ellipsizes instead of pushing the header off
+          // its own right edge: "Not monitored" plus two 32 px buttons plus the
+          // title does not fit 360 px, and a header that overflows is worse
+          // than a label that shortens.
+          Flexible(
+            child: NightshadeChip(
+              label: weatherSafetyChipLabel(
+                status: status,
+                monitoring: monitoring,
+              ),
+              tone: weatherSafetyChipTone(
+                status: status,
+                monitoring: monitoring,
+              ),
+              dot: true,
             ),
-            tone: weatherSafetyChipTone(status: status, monitoring: monitoring),
-            dot: true,
           ),
           NightshadeIconButton(
             key: WeatherTutorialKeys.refreshBtn,

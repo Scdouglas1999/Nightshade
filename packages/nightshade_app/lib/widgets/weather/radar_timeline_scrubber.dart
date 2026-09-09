@@ -481,7 +481,11 @@ class _ScrubTrack extends StatelessWidget {
   });
 
   /// Canvas height: the track, its ticks and the NOW label above them.
-  static const double _height = 36;
+  ///
+  /// 40 is what the scrub-position regression test measures the track by (it
+  /// finds the CustomPaint by `size.height == 40`), and the painter's tick and
+  /// thumb geometry is laid out around it.
+  static const double _height = 40;
 
   @override
   Widget build(BuildContext context) {
