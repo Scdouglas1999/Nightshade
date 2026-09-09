@@ -17,8 +17,9 @@
   .band { padding: 12px 16px 12px; margin-bottom: var(--shell-panelGap); }
   .band svg { width: 100%; height: 52px; display: block; }
   .band .legend { position: relative; height: 30px; font-size: 11px; color: var(--textMuted); font-family: var(--font-mono); margin-top: 6px; }
-  .band .legend span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-  .band .legend span.now { top: 15px; } .band .legend span:first-child { transform: none; } .band .legend span:last-child { transform: translateX(-100%); }
+  .band .legend .i { width: 1em; height: 1em; vertical-align: -0.12em; }
+  .band .legend > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .band .legend > span.now { top: 15px; } .band .legend > span:first-child { transform: none; } .band .legend > span:last-child { transform: translateX(-100%); }
   .preview { position: relative; flex: 1; min-height: 200px; }
   .panel.flush.c8 { display: flex; flex-direction: column; }
   .preview .hud { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; }
@@ -79,7 +80,7 @@
           <line x1="212" y1="0" x2="212" y2="64" stroke="var(--textPrimary)" stroke-width="1.5"/>
           <circle cx="212" cy="6" r="3" fill="var(--textPrimary)"/>
         </svg>
-        <div class="legend"><span style="left:0">19:12 sunset</span><span style="left:12.5%">20:54 astro dark</span><span class="acc now" style="left:17.7%">▲ now 22:41</span><span style="left:42.5%">01:08 transit 85°</span><span style="left:87.5%">04:51 astro dawn</span><span style="left:100%">06:33 sunrise</span></div>
+        <div class="legend"><span style="left:0">19:12 sunset</span><span style="left:12.5%">20:54 astro dark</span><span class="acc now" style="left:17.7%"><span class="i i-chevron-up" style="font-size:11px"></span>now 22:41</span><span style="left:42.5%">01:08 transit 85°</span><span style="left:87.5%">04:51 astro dawn</span><span style="left:100%">06:33 sunrise</span></div>
       </div>
 
       <div class="grid12">
@@ -90,7 +91,7 @@
               <div class="glass">
                 <div class="readout"><span class="v">2.49<span class="u">px</span></span><span class="l">HFR</span></div>
                 <div class="readout"><span class="v">0.23</span><span class="l">Ecc</span></div>
-                <div class="readout"><span class="v">1 243</span><span class="l">Stars</span></div>
+                <div class="readout"><span class="v">1243</span><span class="l">Stars</span></div>
                 <div class="readout"><span class="v">0.42<span class="u">"</span></span><span class="l">RMS</span></div>
               </div>
             </div>
@@ -102,7 +103,7 @@
           <div class="head"><span class="i i-plug"></span><span class="eyebrow">Equipment</span><span class="trail"><span class="chip ok">All connected</span></span></div>
           <div class="devrow"><span class="i i-camera"></span><span class="name">ASI2600MM</span><div class="readouts"><div class="readout"><span class="v">-10.0<span class="u">°C</span></span><span class="l">Sensor</span></div><div class="readout"><span class="v">45<span class="u">%</span></span><span class="l">Cooler</span></div></div></div>
           <div class="devrow"><span class="i i-mountain"></span><span class="name">EQ6-R Pro</span><div class="readouts"><div class="readout"><span class="v">13h 29m</span><span class="l">RA</span></div><div class="readout"><span class="v">+47° 11'</span><span class="l">Dec</span></div><div class="readout"><span class="v">64.8<span class="u">°</span></span><span class="l">Alt</span></div></div></div>
-          <div class="devrow"><span class="i i-focus"></span><span class="name">ZWO EAF</span><div class="readouts"><div class="readout"><span class="v">25 000</span><span class="l">Position</span></div><div class="readout"><span class="v">8.4<span class="u">°C</span></span><span class="l">Temp</span></div></div></div>
+          <div class="devrow"><span class="i i-focus"></span><span class="name">ZWO EAF</span><div class="readouts"><div class="readout"><span class="v">25000</span><span class="l">Position</span></div><div class="readout"><span class="v">8.4<span class="u">°C</span></span><span class="l">Temp</span></div></div></div>
           <div class="devrow"><span class="i i-disc"></span><span class="name">EFW 7×36</span><div class="readouts"><div class="readout"><span class="v">L</span><span class="l">Filter</span></div></div></div>
           <div class="devrow"><span class="i i-crosshair"></span><span class="name">PHD2</span><div class="readouts"><div class="readout"><span class="v">0.42<span class="u">"</span></span><span class="l">Total RMS</span></div></div></div>
         </div>
@@ -138,7 +139,7 @@
           <div class="kv" style="margin-bottom:10px"><span class="k">Clouds</span><span class="v">4%</span><span class="k">Wind</span><span class="v">6 km/h</span><span class="k">Dew point</span><span class="v">3.1°C · 5.3° margin</span></div>
           <div class="hr"></div>
           <div class="list">
-            <div class="li"><span class="i i-check-circle ok"></span>Autofocus 25 000 · HFR 2.41<span class="t">22:31</span></div>
+            <div class="li"><span class="i i-check-circle ok"></span>Autofocus 25000 · HFR 2.41<span class="t">22:31</span></div>
             <div class="li"><span class="i i-info"></span>Dither 3.2 px settled 4 s<span class="t">22:27</span></div>
             <div class="li"><span class="i i-alert-triangle warn"></span>Sub 22:19 rejected · HFR 3.9<span class="t">22:19</span></div>
           </div>
