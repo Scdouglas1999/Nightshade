@@ -107,8 +107,7 @@ class InstrumentPill extends StatefulWidget {
   static const double dotSize = 7.0;
 
   /// 03-tokens §6 puts chip and instrument-pill glyphs at 13.
-  // TODO(observatory): promote to NightshadeTokens.iconChipGlyph at merge.
-  static const double iconSize = 13.0;
+  static const double iconSize = NightshadeTokens.iconPillGlyph;
 
   @override
   State<InstrumentPill> createState() => _InstrumentPillState();

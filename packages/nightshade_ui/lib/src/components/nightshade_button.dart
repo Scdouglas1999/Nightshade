@@ -44,22 +44,18 @@ enum ButtonVariant {
 /// The three button heights: 28 / 32 / 40.
 enum ButtonSize { small, medium, large }
 
-/// Button heights in logical pixels (03 §3.3). These live here rather than on
-/// `NightshadeTokens` because wave 0 owns that file and this wave owns the
-/// layout change.
-// TODO(observatory): fold into NightshadeTokens.buttonHeightSm/Height/HeightLg
-const double _buttonHeightSm = 28;
-const double _buttonHeightMd = 32;
-const double _buttonHeightLg = 40;
+/// Button heights in logical pixels (03 §3.3).
+const double _buttonHeightSm = NightshadeTokens.buttonHeightSm;
+const double _buttonHeightMd = NightshadeTokens.buttonHeight;
+const double _buttonHeightLg = NightshadeTokens.buttonHeightLg;
 
 /// Horizontal padding per size, in logical pixels (05 §6: 10 / 12 / 18).
-const double _buttonPadSm = 10;
-const double _buttonPadMd = NightshadeTokens.spaceMd;
-const double _buttonPadLg = 18;
+const double _buttonPadSm = NightshadeTokens.buttonPaddingSm;
+const double _buttonPadMd = NightshadeTokens.buttonPaddingMd;
+const double _buttonPadLg = NightshadeTokens.buttonPaddingLg;
 
 /// Icon size inside a button, in logical pixels (05 §6: 15, 16 in large).
-// TODO(observatory): promote to NightshadeTokens.iconGlyphButton
-const double _buttonIconSize = 15;
+const double _buttonIconSize = NightshadeTokens.iconGlyphButton;
 
 /// Gap between a button's icon and its label.
 const double _buttonIconGap = 7;

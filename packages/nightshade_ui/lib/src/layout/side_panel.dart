@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../components/nightshade_icon_button.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
+import '../tokens/shell_chrome_metrics.dart';
 
 /// One section of a [SidePanel]'s icon strip.
 @immutable
@@ -59,12 +60,10 @@ class SidePanel extends StatelessWidget {
   final bool collapsed;
 
   /// The default side-panel width (03 §3.4 `sidePanelWidth`).
-  // TODO(observatory): fold into ShellChromeMetrics.sidePanelWidth
-  static const double defaultWidth = 320;
+  static const double defaultWidth = ShellChromeMetrics.sidePanelWidth;
 
   /// The icon strip's width (03 §3.4 `sidePanelStripWidth`).
-  // TODO(observatory): fold into ShellChromeMetrics.sidePanelStripWidth
-  static const double stripWidth = 44;
+  static const double stripWidth = ShellChromeMetrics.sidePanelStripWidth;
 
   /// Padding inside the content area.
   static const EdgeInsets contentPadding = NightshadeTokens.paddingLg;

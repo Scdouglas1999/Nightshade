@@ -146,17 +146,7 @@ class _Brand extends StatelessWidget {
     );
   }
 
-  /// The wordmark: 12px / 700 / +1.6 tracking. Wider tracking and a heavier
-  /// weight than any label style in the ramp, because it is a logotype rather
-  /// than text.
-  // TODO(observatory): promote to NightshadeTypography.wordmark at merge.
-  static const TextStyle _wordmark = TextStyle(
-    fontFamily: NightshadeTypography.fontFamily,
-    fontSize: 12,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 1.6,
-    height: 1.3,
-  );
+  static const TextStyle _wordmark = NightshadeTypography.wordmark;
 }
 
 /// The global command field. Click it, or press Ctrl/Cmd+K, to open the
@@ -232,10 +222,7 @@ class _CommandFieldState extends State<_CommandField> {
     );
   }
 
-  /// 15, between iconXs (14) and iconSm (16): the field is 30 tall and 16
-  /// crowds it.
-  // TODO(observatory): promote to NightshadeTokens.iconField at merge.
-  static const double _searchIconSize = 15.0;
+  static const double _searchIconSize = NightshadeTokens.iconField;
 }
 
 /// The "Ctrl K" hint inside the command field.
@@ -379,10 +366,7 @@ class ShellIconButton extends StatefulWidget {
 class _ShellIconButtonState extends State<ShellIconButton> {
   bool _isHovered = false;
 
-  /// 17, the top bar's glyph size (03 §6 puts toolbar icons at 15-16 and the
-  /// rail at 18; the top bar sits between them).
-  // TODO(observatory): promote to NightshadeTokens.iconTopBar at merge.
-  static const double _iconSize = 17.0;
+  static const double _iconSize = NightshadeTokens.iconTopBar;
 
   @override
   Widget build(BuildContext context) {

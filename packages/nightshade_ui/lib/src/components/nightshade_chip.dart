@@ -199,12 +199,10 @@ class NightshadeChip extends StatelessWidget {
 }
 
 /// Icon size inside a chip, in logical pixels (`observatory.css` `.chip .i`).
-// TODO(observatory): promote to NightshadeTokens.iconChipGlyph
-const double _chipIconSize = 12;
+const double _chipIconSize = NightshadeTokens.iconChipGlyph;
 
 /// Icon size inside a filter chip's trailing chevron.
-// TODO(observatory): promote to NightshadeTokens.iconChipGlyph
-const double _filterChipIconSize = 13;
+const double _filterChipIconSize = NightshadeTokens.iconPillGlyph;
 
 /// A filter chip: a CONTROL that opens a menu, not a readout.
 ///

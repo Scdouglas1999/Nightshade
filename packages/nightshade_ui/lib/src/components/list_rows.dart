@@ -6,8 +6,7 @@ import '../theme/nightshade_typography.dart';
 import 'readout.dart';
 
 /// Icon size at the head of a list row, in logical pixels (05 §9: 15 muted).
-// TODO(observatory): promote to NightshadeTokens.iconGlyphRow
-const double _rowIconSize = 15;
+const double _rowIconSize = NightshadeTokens.iconGlyphRow;
 
 /// A row in a list: 13px text, 8px vertical padding, a hairline underneath,
 /// a 15px muted leading icon and a trailing mono timestamp.

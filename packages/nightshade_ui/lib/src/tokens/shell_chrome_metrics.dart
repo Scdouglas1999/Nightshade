@@ -55,11 +55,7 @@ abstract final class ShellChromeMetrics {
   static const Duration railTooltipDelay = Duration(milliseconds: 200);
 
   /// Rail width, icons only. The default.
-  ///
-  // TODO(observatory): promote to NightshadeTokens.sidebarCollapsed (72 -> 64)
-  // at merge. Wave 0 owns `theme/nightshade_tokens.dart` while it runs, so the
-  // new value lives here rather than racing that file.
-  static const double railWidthCollapsed = 64.0;
+  static const double railWidthCollapsed = NightshadeTokens.sidebarCollapsed;
 
   /// Rail width with labels.
   static const double railWidthExpanded = NightshadeTokens.sidebarExpanded;

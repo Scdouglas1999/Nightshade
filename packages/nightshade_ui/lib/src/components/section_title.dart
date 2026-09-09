@@ -33,8 +33,7 @@ class SectionTitle extends StatelessWidget {
   static const double bottomGap = NightshadeTokens.spaceSm;
 
   /// Icon size, in logical pixels.
-  // TODO(observatory): promote to NightshadeTokens.iconGlyphSection
-  static const double iconSize = 15;
+  static const double iconSize = NightshadeTokens.iconGlyphSection;
 
   @override
   Widget build(BuildContext context) {

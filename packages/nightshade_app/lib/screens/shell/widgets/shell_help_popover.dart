@@ -127,7 +127,7 @@ class ShellHelpButton extends ConsumerWidget {
     return PopupMenuItem<_HelpAction>(
       value: value,
       enabled: enabled,
-      height: NightshadeTokens.buttonHeightSm + NightshadeTokens.spaceSm,
+      height: NightshadeTokens.buttonHeight,
       child: Row(
         children: [
           Icon(

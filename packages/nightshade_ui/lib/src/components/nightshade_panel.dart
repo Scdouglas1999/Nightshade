@@ -138,6 +138,5 @@ class PanelHead extends StatelessWidget {
 }
 
 /// Icon size inside a panel head, in logical pixels (03 §6: 15–16 in panel
-/// heads; the scale has 14 and 16 but not 15).
-// TODO(observatory): promote to NightshadeTokens.iconPanelHead
-const double _panelHeadIconSize = 15;
+/// heads).
+const double _panelHeadIconSize = NightshadeTokens.iconGlyphPanelHead;

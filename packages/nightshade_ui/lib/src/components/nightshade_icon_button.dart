@@ -77,12 +77,10 @@ class NightshadeIconButton extends StatefulWidget {
 }
 
 /// Glyph sizes inside an icon button, in logical pixels (`observatory.css`
-/// `.iconbtn .i` 17, `.btn .i` 15, `.sidepanel .strip .item .i` 17). The icon
-/// scale has 14 and 16 but neither 15 nor 17.
-// TODO(observatory): promote to NightshadeTokens.iconGlyphMd/Sm/Strip
-const double _iconButtonGlyphMd = 17;
-const double _iconButtonGlyphSm = 15;
-const double _iconButtonGlyphStrip = 17;
+/// `.iconbtn .i` 17, `.btn .i` 15, `.sidepanel .strip .item .i` 17).
+const double _iconButtonGlyphMd = NightshadeTokens.iconGlyphMd;
+const double _iconButtonGlyphSm = NightshadeTokens.iconGlyphSm;
+const double _iconButtonGlyphStrip = NightshadeTokens.iconGlyphStrip;
 
 class _NightshadeIconButtonState extends State<NightshadeIconButton> {
   bool _hovered = false;

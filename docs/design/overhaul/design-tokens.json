@@ -281,13 +281,19 @@
     "panelPadding": 16,
     "panelGap": 16,
     "sidePanelWidth": 320,
+    "sidePanelStripWidth": 44,
     "narrowBreakpoint": 768,
     "narrowTopBarHeight": 48,
     "narrowBottomNavHeight": 64,
     "windowControlWidth": 46,
     "iconButtonSize": 32,
     "iconButtonSizeSm": 28,
-    "iconButtonSizeStrip": 36
+    "iconButtonSizeStrip": 36,
+    "buttonHeight": 32,
+    "buttonHeightSm": 28,
+    "buttonHeightLg": 40,
+    "inputHeight": 32,
+    "inputHeightSm": 28
   },
   "motion": {
     "hoverMs": 120,

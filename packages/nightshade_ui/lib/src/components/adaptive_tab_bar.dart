@@ -550,8 +550,7 @@ class _TabCount extends StatelessWidget {
 }
 
 /// Icon size inside a tab, in logical pixels (05 §4: leading icon 15).
-// TODO(observatory): promote to NightshadeTokens.iconGlyphTab
-const double _tabIconSize = 15;
+const double _tabIconSize = NightshadeTokens.iconGlyphTab;
 
 /// Gap between a tab's icon, its label and its count chip
 /// (`observatory.css` `.tab { gap: 7px }`).
