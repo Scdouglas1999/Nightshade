@@ -181,16 +181,17 @@ class DashboardTileFrame extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _EditIconButton(
+                NightshadeIconButton(
                   icon: LucideIcons.maximize2,
                   tooltip: 'Resize (${size.label})',
-                  onTap: onResize,
+                  size: IconButtonSize.sm,
+                  onPressed: onResize,
                 ),
-                // Touch areas now adjacent at 40px each
-                _EditIconButton(
+                NightshadeIconButton(
                   icon: LucideIcons.eyeOff,
                   tooltip: 'Hide tile',
-                  onTap: onHide,
+                  size: IconButtonSize.sm,
+                  onPressed: onHide,
                 ),
               ],
             ),
@@ -201,58 +202,7 @@ class DashboardTileFrame extends StatelessWidget {
 }
 
 /// Edit mode icon button with expanded touch target (40x40px) for field use.
-class _EditIconButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _EditIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Tooltip(
-      message: tooltip,
-      // Expanded touch target: 40x40px for easier tapping
-      child: SizedBox(
-        width: 40,
-        height: 40,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            child: Center(
-              // Visual element stays compact at 26x26px
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt.withValues(alpha: 0.9),
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
-                child: Icon(
-                  icon,
-                  size: 14,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Drag handle indicator shown on tiles in edit mode.
-///
-/// Provides visual affordance that tiles can be long-pressed and dragged.
+/// The grip the operator drags a tile by in Edit layout.
 class _DragHandleIndicator extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -261,22 +211,17 @@ class _DragHandleIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: NightshadeDecorations.emphasisSurface(
-        colors.primary,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
+      padding: const EdgeInsets.all(NightshadeTokens.spaceXs + 2),
+      decoration: NightshadeDecorations.panelSelected(colors),
       child: Icon(
         LucideIcons.gripVertical,
         size: 14,
-        color: colors.primary.withValues(alpha: 0.8),
+        color: colors.primary,
       ),
     );
   }
 }
 
-/// The one loading pattern (07 wave 3 checklist): a centred spinner, no card,
-/// no sentence explaining that something is loading.
 class DashboardLoading extends StatelessWidget {
   const DashboardLoading({super.key});
 

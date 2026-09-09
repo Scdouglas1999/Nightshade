@@ -34,7 +34,7 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
     // contradicted the command bar and quick-stats card, which both blank RMS
     // when not guiding. Follow that contract.
     String rmsOrDashes(double? value) =>
-        isGuiding && value != null ? value.toStringAsFixed(2) : '---';
+        isGuiding && value != null ? value.toStringAsFixed(2) : kReadoutUnknown;
     final rmsTotal = rmsOrDashes(guiderState.rmsTotal);
     final rmsRa = rmsOrDashes(guiderState.rmsRa);
     final rmsDec = rmsOrDashes(guiderState.rmsDec);

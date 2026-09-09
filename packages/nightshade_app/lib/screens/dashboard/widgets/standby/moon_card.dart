@@ -144,7 +144,7 @@ class MoonCard extends ConsumerWidget {
 
   /// HH:MM on the operator's chosen clock.
   static String _clock(DateTime? t, Clock clock) {
-    if (t == null) return '--:--';
+    if (t == null) return kReadoutUnknown;
     final shown = clock.fromUtc(t.toUtc());
     return '${shown.hour.toString().padLeft(2, '0')}:'
         '${shown.minute.toString().padLeft(2, '0')}';

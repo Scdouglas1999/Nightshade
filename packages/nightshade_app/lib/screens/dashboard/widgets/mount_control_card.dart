@@ -63,11 +63,12 @@ class MountControlCard extends ConsumerWidget {
         ? CoordinateFormat.ra(mountState.ra!,
             style: SexagesimalStyle.paddedColons,
             seconds: SecondsPrecision.integerRounded)
-        : '---';
+        : kReadoutUnknown;
     final decText =
-        mountState.dec != null ? _formatDec(mountState.dec!) : '---';
-    final pierText =
-        isConnected ? (mountState.sideOfPier?.toUpperCase() ?? '---') : '---';
+        mountState.dec != null ? _formatDec(mountState.dec!) : kReadoutUnknown;
+    final pierText = isConnected
+        ? (mountState.sideOfPier?.toUpperCase() ?? kReadoutUnknown)
+        : kReadoutUnknown;
 
     // Status with color
     final (statusText, statusColor) = mountState.isSlewing

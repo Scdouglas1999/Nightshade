@@ -38,7 +38,7 @@ class QuickStatsCard extends ConsumerWidget {
         ref.watch(focuserStateProvider.select((s) => s.position));
 
     // Format temperature (same logic as Imaging tab)
-    String tempValue = '---';
+    String tempValue = kReadoutUnknown;
     if (cameraConnected) {
       if (cameraTemp != null) {
         tempValue = '${cameraTemp.toStringAsFixed(1)}°C';
@@ -48,19 +48,19 @@ class QuickStatsCard extends ConsumerWidget {
     }
 
     // Format RMS (same logic as Imaging tab)
-    String rmsValue = '---';
+    String rmsValue = kReadoutUnknown;
     if (guiderConnected && guiderIsGuiding && guiderRms != null) {
       rmsValue = '${guiderRms.toStringAsFixed(2)}"';
     }
 
     // Format HFR (same logic as Imaging tab)
-    String hfrValue = '---';
+    String hfrValue = kReadoutUnknown;
     if (hfr != null) {
       hfrValue = hfr.toStringAsFixed(2);
     }
 
     // Format Focus position
-    String focusValue = '---';
+    String focusValue = kReadoutUnknown;
     if (focuserConnected) {
       if (focuserPosition != null) {
         focusValue = focuserPosition.toString();

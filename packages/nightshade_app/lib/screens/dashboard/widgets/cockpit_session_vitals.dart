@@ -295,12 +295,11 @@ class _Shell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceLg,
-        vertical: NightshadeTokens.spaceMd,
-      ),
-      child: child,
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceLg,
+          vertical: NightshadeTokens.spaceMd,
+        ),
+        child: child);
   }
 }

@@ -52,11 +52,9 @@ class WidgetPickerDialog extends ConsumerWidget {
               ),
             ),
           ),
-          IconButton(
-            icon: Icon(NightshadeIcons.close,
-                color: colors.textSecondary, size: 20),
+          NightshadeIconButton(
+            icon: NightshadeIcons.close,
             tooltip: 'Close',
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],

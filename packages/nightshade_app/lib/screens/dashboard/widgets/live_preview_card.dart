@@ -324,20 +324,20 @@ class _ImageStatsRow extends ConsumerWidget {
                   label: 'Size',
                   value: width != null && height != null
                       ? '${width}x$height'
-                      : '---',
+                      : kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Stars',
-                  value: lastStats?.starCount?.toString() ?? '---',
+                  value: lastStats?.starCount?.toString() ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'HFR',
-                  value: lastStats?.hfr?.toStringAsFixed(2) ?? '---',
+                  value: lastStats?.hfr?.toStringAsFixed(2) ?? kReadoutUnknown,
                   colors: colors,
                   highlight: true),
               _StatCell(
                   label: 'FWHM',
-                  value: lastStats?.fwhm?.toStringAsFixed(2) ?? '---',
+                  value: lastStats?.fwhm?.toStringAsFixed(2) ?? kReadoutUnknown,
                   colors: colors),
             ],
           ),
@@ -347,19 +347,20 @@ class _ImageStatsRow extends ConsumerWidget {
             children: [
               _StatCell(
                   label: 'Mean',
-                  value: lastStats?.mean?.toStringAsFixed(0) ?? '---',
+                  value: lastStats?.mean?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Median',
-                  value: lastStats?.median?.toStringAsFixed(0) ?? '---',
+                  value:
+                      lastStats?.median?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Min',
-                  value: lastStats?.min?.toStringAsFixed(0) ?? '---',
+                  value: lastStats?.min?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Max',
-                  value: lastStats?.max?.toStringAsFixed(0) ?? '---',
+                  value: lastStats?.max?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
             ],
           ),

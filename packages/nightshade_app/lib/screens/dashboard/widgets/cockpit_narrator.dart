@@ -37,64 +37,63 @@ class CockpitNarrator extends ConsumerWidget {
         ? ref.watch(narratorFeedProvider(dbSessionId))
         : ref.watch(recentNarratorFeedProvider);
 
-    return NightshadeCard(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.sparkles, size: 14, color: colors.primary),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Text(
-                'NIGHT NARRATOR',
-                style: NightshadeTypography.eyebrow
-                    .copyWith(color: colors.textMuted),
-              ),
-              const Spacer(),
-              feed.maybeWhen(
-                data: (events) => events.isEmpty
-                    ? const SizedBox.shrink()
-                    : Text(
-                        '${events.length}',
-                        style: NightshadeTypography.withTabular(
-                          NightshadeTypography.labelStrongSm.copyWith(
-                            color: colors.textMuted,
+    return NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.sparkles, size: 14, color: colors.primary),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Text(
+                  'NIGHT NARRATOR',
+                  style: NightshadeTypography.eyebrow
+                      .copyWith(color: colors.textMuted),
+                ),
+                const Spacer(),
+                feed.maybeWhen(
+                  data: (events) => events.isEmpty
+                      ? const SizedBox.shrink()
+                      : Text(
+                          '${events.length}',
+                          style: NightshadeTypography.withTabular(
+                            NightshadeTypography.labelStrongSm.copyWith(
+                              color: colors.textMuted,
+                            ),
                           ),
                         ),
-                      ),
-                orElse: () => const SizedBox.shrink(),
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: _maxFeedHeight),
-            child: feed.when(
-              data: (events) => NarratorFeed.compact(events: events),
-              loading: () => const NarratorFeed.compact(
-                events: <NarratorEvent>[],
-              ),
-              error: (_, __) => _ErrorRow(colors: colors),
+                  orElse: () => const SizedBox.shrink(),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              NightshadeButton(
-                label: 'View in Science',
-                icon: LucideIcons.arrowRight,
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.small,
-                onPressed: () => context.go('/science'),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: _maxFeedHeight),
+              child: feed.when(
+                data: (events) => NarratorFeed.compact(events: events),
+                loading: () => const NarratorFeed.compact(
+                  events: <NarratorEvent>[],
+                ),
+                error: (_, __) => _ErrorRow(colors: colors),
               ),
-            ],
-          ),
-        ],
-      ),
-    );
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                NightshadeButton(
+                  label: 'View in Science',
+                  icon: LucideIcons.arrowRight,
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                  onPressed: () => context.go('/science'),
+                ),
+              ],
+            ),
+          ],
+        ));
   }
 }
 

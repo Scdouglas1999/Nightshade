@@ -73,37 +73,36 @@ class CockpitRecentFrames extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final total = ref.watch(recentSessionFramesProvider).length;
 
-    return NightshadeCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.galleryThumbnails,
-                  size: 14, color: colors.textMuted),
-              const SizedBox(width: 8),
+    return NightshadePanel(
+        child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(LucideIcons.galleryThumbnails,
+                size: 14, color: colors.textMuted),
+            const SizedBox(width: 8),
+            Text(
+              'Recent Frames',
+              style: NightshadeTypography.eyebrow
+                  .copyWith(color: colors.textSecondary),
+            ),
+            const Spacer(),
+            if (total > 0)
               Text(
-                'Recent Frames',
-                style: NightshadeTypography.eyebrow
-                    .copyWith(color: colors.textSecondary),
-              ),
-              const Spacer(),
-              if (total > 0)
-                Text(
-                  total == 1 ? '1 frame' : '$total frames',
-                  style: NightshadeTypography.withTabular(
-                    NightshadeTypography.caption
-                        .copyWith(color: colors.textMuted),
-                  ),
+                total == 1 ? '1 frame' : '$total frames',
+                style: NightshadeTypography.withTabular(
+                  NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
                 ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const RecentFramesStrip(),
-        ],
-      ),
-    );
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const RecentFramesStrip(),
+      ],
+    ));
   }
 }
 
@@ -114,22 +113,20 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.imageOff, size: 20, color: colors.textMuted),
-          const SizedBox(height: 6),
-          Text(
-            'No frames captured this session yet',
-            style:
-                NightshadeTypography.caption.copyWith(color: colors.textMuted),
-          ),
-        ],
-      ),
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.imageOff, size: 20, color: colors.textMuted),
+            const SizedBox(height: 6),
+            Text(
+              'No frames captured this session yet',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+            ),
+          ],
+        ));
   }
 }
 

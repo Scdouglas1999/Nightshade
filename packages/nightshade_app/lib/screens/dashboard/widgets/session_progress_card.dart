@@ -40,10 +40,10 @@ class SessionProgressCard extends ConsumerWidget {
     final elapsedText = sessionState.startTime != null
         ? DurationFormat.of(DateTime.now().difference(sessionState.startTime!),
             style: DurationStyle.hoursMinutes)
-        : '---';
+        : kReadoutUnknown;
 
     // Calculate remaining time
-    String remainingText = '---';
+    String remainingText = kReadoutUnknown;
     if (isActive &&
         progressValue > 0 &&
         progressValue < 1.0 &&

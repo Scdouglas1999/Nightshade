@@ -95,7 +95,7 @@ class TonightCard extends ConsumerWidget {
     }
 
     // Format astro twilight time
-    String astroTwilightTime = '--:--';
+    String astroTwilightTime = kReadoutUnknown;
     if (hasSite && twilight.astronomicalDusk != null) {
       final dusk = twilight.astronomicalDusk!;
       // If dusk is in the future (relative to simulation time), show it
@@ -113,7 +113,7 @@ class TonightCard extends ConsumerWidget {
     final moonValue = '${moonInfo.illumination.toStringAsFixed(0)}%';
 
     // Calculate imaging window (darkness duration)
-    String imagingWindow = '--:--';
+    String imagingWindow = kReadoutUnknown;
     if (hasSite &&
         twilight.astronomicalDusk != null &&
         twilight.astronomicalDawn != null) {
@@ -586,53 +586,40 @@ class _TonightTargetActionsState extends State<_TonightTargetActions> {
                 .copyWith(color: widget.colors.textMuted),
           ),
         ),
-        Tooltip(
-          message: 'Frame target',
-          child: IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-            padding: EdgeInsets.zero,
-            onPressed: _adding ? null : widget.onSendToFraming,
-            icon: Icon(
-              LucideIcons.frame,
-              size: 15,
-              color: widget.colors.primary,
+        NightshadeIconButton(
+          icon: LucideIcons.frame,
+          tooltip: 'Frame target',
+          size: IconButtonSize.sm,
+          color: widget.colors.primary,
+          onPressed: _adding ? null : widget.onSendToFraming,
+        ),
+        NightshadeIconButton(
+          icon: LucideIcons.globe,
+          tooltip: context.l10n.text('plannerOpenPlanetarium'),
+          size: IconButtonSize.sm,
+          color: widget.colors.primary,
+          onPressed: _adding ? null : widget.onShowInSky,
+        ),
+        // Mid-add the button keeps its slot and shows the spinner in place of
+        // the glyph, so the row never reflows under the pointer.
+        if (_adding)
+          const SizedBox.square(
+            dimension: NightshadeTokens.iconButtonSizeSm,
+            child: Center(
+              child: SizedBox.square(
+                dimension: 15,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
+          )
+        else
+          NightshadeIconButton(
+            icon: LucideIcons.listPlus,
+            tooltip: 'Add to sequence',
+            size: IconButtonSize.sm,
+            color: widget.colors.primary,
+            onPressed: _addToSequencer,
           ),
-        ),
-        Tooltip(
-          message: context.l10n.text('plannerOpenPlanetarium'),
-          child: IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-            padding: EdgeInsets.zero,
-            onPressed: _adding ? null : widget.onShowInSky,
-            icon: Icon(
-              LucideIcons.globe,
-              size: 15,
-              color: widget.colors.primary,
-            ),
-          ),
-        ),
-        Tooltip(
-          message: 'Add to sequence',
-          child: IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-            padding: EdgeInsets.zero,
-            onPressed: _adding ? null : _addToSequencer,
-            icon: _adding
-                ? const SizedBox.square(
-                    dimension: 15,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    LucideIcons.listPlus,
-                    size: 15,
-                    color: widget.colors.primary,
-                  ),
-          ),
-        ),
       ],
     );
   }

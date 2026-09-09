@@ -28,12 +28,13 @@ class FocusCard extends ConsumerWidget {
     final isConnected =
         focuserState.connectionState == DeviceConnectionState.connected;
 
-    final positionText =
-        focuserState.position != null ? '${focuserState.position}' : '---';
+    final positionText = focuserState.position != null
+        ? '${focuserState.position}'
+        : kReadoutUnknown;
     final tempText = focuserState.temperature != null
         ? '${focuserState.temperature!.toStringAsFixed(1)}°C'
-        : '---';
-    final hfrText = hfr != null ? hfr.toStringAsFixed(2) : '---';
+        : kReadoutUnknown;
+    final hfrText = hfr != null ? hfr.toStringAsFixed(2) : kReadoutUnknown;
 
     return DashboardGlassCard(
       colors: colors,
