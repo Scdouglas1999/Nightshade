@@ -8,12 +8,16 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../localization/nightshade_localizations.dart';
+import '../../models/command_action_result.dart';
+import '../../services/sequence_action_service.dart';
 import '../../utils/sequence_mutator_helper.dart';
+import '../../utils/snackbar_helper.dart';
 import '../../widgets/animated_tab_bar_view.dart';
 import '../../widgets/tutorial_keys/sequencer_keys.dart';
 import 'widgets/batch_operations_toolbar.dart';
 import 'widgets/delete_node_confirmation.dart';
 import 'widgets/palette_icon_map.dart';
+import 'widgets/preflight_validation_dialog.dart';
 import 'widgets/sequence_toolbar.dart';
 import 'widgets/node_palette.dart';
 import 'widgets/node_palette_empty_state.dart';
@@ -27,7 +31,6 @@ import 'widgets/session_report_dialog.dart';
 import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
 import 'widgets/target_queue_panel.dart';
-import 'widgets/sequencer_tab_header.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/sequence_library_tab.dart';
 import 'tabs/templates_tab.dart';
@@ -56,7 +59,7 @@ const String kSequencerRoutePath = '/sequencer';
 enum SequencerTab {
   builder('Builder', LucideIcons.workflow),
   templates('Templates', LucideIcons.fileStack),
-  sequences('Sequences', LucideIcons.folderOpen),
+  sequences('Saved', LucideIcons.folderOpen),
   history('History', LucideIcons.history);
 
   const SequencerTab(this.label, this.icon);
@@ -506,9 +509,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
             final isPhone = BreakpointTokens.isPhone(shortSide);
             return Column(
               children: [
-                // Tab bar
-                _SequencerTabBar(
-                  colors: colors,
+                // The screen's one 56 px page header (06 §Sequencer).
+                _SequencerPageHeader(
                   controller: _tabController,
                   executionState: executionState,
                   isPhone: isPhone,

@@ -119,15 +119,9 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
         // Title row with save button
         Row(
           children: [
-            // The shared tab heading at every width, not only on the wide row
-            // — the stacked layout gives it the room the packed row cannot.
-            const Expanded(
-              child: SequencerTabTitle(
-                title: 'Sequence Templates',
-                subtitle:
-                    'Start with a template or save your sequences for reuse.',
-              ),
-            ),
+            // No title block: the page header names the screen and the
+            // underline tab names the tab.
+            const Spacer(),
             // Quick-start wizard
             NightshadeButton(
               label: 'Wizard',
@@ -209,21 +203,9 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
       children: [
         Row(
           children: [
-            // Title: the one Sequencer tab heading, shared by all four tabs so
-            // the type scale and the punctuation cannot drift.
-            //
-            // Expanded, not Flexible. Two Flexible children split the row's
-            // free space evenly, which at 1000x800 leaves the heading with
-            // "Sequence Te…" while the search box holds its 250 px — the tab
-            // stops naming itself so a filter field can keep its full width.
-            // The toolbar's width is fixed, so the heading takes the rest.
-            const Expanded(
-              child: SequencerTabTitle(
-                title: 'Sequence Templates',
-                subtitle:
-                    'Start with a template or save your sequences for reuse.',
-              ),
-            ),
+            // No title block: the page header names the screen and the
+            // underline tab names the tab. The filter row keeps the space.
+            const Spacer(),
 
             const SizedBox(width: 16),
 

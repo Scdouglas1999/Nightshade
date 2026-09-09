@@ -65,14 +65,25 @@ class _DesktopBuilderLayout extends ConsumerWidget {
   /// mid-string.
   static const double comfortableCenterWidth = 380.0;
 
+  /// The palette column's width (06 §Sequencer: 264 / 1fr / 300).
+  static const double paletteWidth = 264.0;
+
+  /// The properties column's width.
+  static const double propertiesWidth = 300.0;
+
   /// Bucket the raw available width to the nearest 64px before computing
   /// panel dimensions, so a continuous window-resize drag only steps the
   /// derived panel sizes occasionally instead of re-tweening every frame.
   static double _bucketWidth(double width) => (width / 64.0).round() * 64.0;
 
-  /// Compute responsive panel dimensions based on available screen width.
-  /// On a 2560px screen, panels grow proportionally wider so text doesn't
-  /// look cramped. On a 1024px tablet, sizes stay compact.
+  /// The three-column geometry.
+  ///
+  /// The columns are a FIXED 264 / 1fr / 300 at every width the layout is
+  /// used at, because the spec's widths are what the palette rows and the
+  /// property form were drawn against; the canvas takes the whole remainder.
+  /// The min/max are the bounds of the operator's own drag, not a responsive
+  /// scale — the previous scale-with-the-window rule made the same screen a
+  /// different shape on every monitor.
   static ({
     double leftExpanded,
     double leftMin,
@@ -81,16 +92,13 @@ class _DesktopBuilderLayout extends ConsumerWidget {
     double rightMin,
     double rightMax,
   }) _panelDimensions(double screenWidth) {
-    // Scale factor: 1.0 at 1024px, up to ~1.4 at 2560px, minimum 1.0
-    final scale = (screenWidth / 1024.0).clamp(1.0, 1.4);
-
     return (
-      leftExpanded: (260.0 * scale).clamp(260.0, 380.0),
-      leftMin: (220.0 * scale).clamp(220.0, 300.0),
-      leftMax: (400.0 * scale).clamp(400.0, 560.0),
-      rightExpanded: (320.0 * scale).clamp(320.0, 440.0),
-      rightMin: (270.0 * scale).clamp(270.0, 360.0),
-      rightMax: (500.0 * scale).clamp(500.0, 680.0),
+      leftExpanded: paletteWidth,
+      leftMin: 220.0,
+      leftMax: 400.0,
+      rightExpanded: propertiesWidth,
+      rightMin: 270.0,
+      rightMax: 500.0,
     );
   }
 
@@ -116,22 +124,9 @@ class _DesktopBuilderLayout extends ConsumerWidget {
 
     return Column(
       children: [
-        // Builder carries the same shared heading as its three sibling
-        // Sequencer tabs; the toolbar below still carries the live sequence's
-        // own name and actions.
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: SequencerTabTitle(
-              title: 'Sequence Builder',
-              subtitle: 'Assemble the instructions tonight\'s run executes.',
-            ),
-          ),
-        ),
-
-        // Top toolbar
-        SequenceToolbar(key: SequencerTutorialKeys.toolbar, colors: colors),
+        // The screen's title lives in the PageHeader; the canvas bar below
+        // carries the live sequence's own name and actions. A second title
+        // block here would be the app introducing itself twice.
 
         // Equipment telemetry strip (visible during execution)
         Consumer(
@@ -269,13 +264,25 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     ),
                   ),
 
-                  // Center - Sequence Tree
+                  // Center - the canvas: its own 44 px bar, then the tree.
                   Expanded(
                     child: ConstrainedBox(
                       constraints:
                           const BoxConstraints(minWidth: minCenterWidth),
-                      child: SequenceTree(
-                          key: SequencerTutorialKeys.canvas, colors: colors),
+                      child: Column(
+                        children: [
+                          SequenceToolbar(
+                            key: SequencerTutorialKeys.toolbar,
+                            colors: colors,
+                          ),
+                          Expanded(
+                            child: SequenceTree(
+                              key: SequencerTutorialKeys.canvas,
+                              colors: colors,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
