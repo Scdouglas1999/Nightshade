@@ -318,7 +318,10 @@ class _ChartShell extends StatelessWidget {
               if (summary != null) summary!,
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          // The well around the plot is painted by AdaptiveChartContainer,
+          // which every chart body here goes through (06: charts sit in
+          // wells).
           child,
         ],
       ),
@@ -345,33 +348,15 @@ class _ChartSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget stat(String label, String value) => Padding(
-          padding: const EdgeInsets.only(left: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: NightshadeTypography.caption
-                    .copyWith(color: colors.textMuted),
-              ),
-              Text(
-                value,
-                style: NightshadeTypography.labelSm
-                    .copyWith(color: colors.textPrimary),
-              ),
-            ],
-          ),
-        );
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Four measurements, so four Readouts (05 §3). They were a label above a
+    // `labelSm` value, which is a readout upside down.
+    return ReadoutRow(
+      gap: NightshadeTokens.spaceLg,
       children: [
-        stat('median', median),
-        stat('p90', p90),
-        stat('range', spread),
-        stat('n', '$count'),
+        Readout(label: 'Median', value: median, size: ReadoutSize.sm),
+        Readout(label: 'P90', value: p90, size: ReadoutSize.sm),
+        Readout(label: 'Range', value: spread, size: ReadoutSize.sm),
+        Readout(label: 'n', value: '$count', size: ReadoutSize.sm),
       ],
     );
   }

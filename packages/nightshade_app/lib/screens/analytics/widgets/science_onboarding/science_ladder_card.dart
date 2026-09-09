@@ -100,11 +100,10 @@ class ScienceLadderCard extends ConsumerWidget {
                 button: true,
                 enabled: true,
                 label: 'Collapse science guide',
-                child: IconButton(
+                child: NightshadeIconButton(
+                  icon: LucideIcons.x,
                   tooltip: 'Collapse',
                   onPressed: () => _setCollapsed(ref, true),
-                  icon: Icon(LucideIcons.x, color: colors.textMuted),
-                  splashRadius: 18,
                 ),
               ),
             ],

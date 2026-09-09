@@ -152,10 +152,10 @@ class _Body extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(LucideIcons.x, color: colors.textMuted),
+              NightshadeIconButton(
+                icon: LucideIcons.x,
                 tooltip: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
               ),
             ],
           ),

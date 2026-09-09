@@ -285,9 +285,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon:
-                        Icon(LucideIcons.x, size: 18, color: colors.textMuted),
+                  NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],

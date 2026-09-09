@@ -184,6 +184,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           if (analysisState.isRunning)
             AdaptiveChartContainer.fixed(
               height: 200,
+              // The skeleton is the well; `panel -> well` is as deep as the
+              // ladder goes.
+              well: false,
               child: ShimmerLoading(
                 child: Container(
                   decoration: BoxDecoration(
@@ -497,12 +500,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
       // that one point takes both of these titles onto an extra line — 21px in
       // the tall branch, 11px in the short one, both measured.
       height: tooFew ? 215 : 140,
+      well: false,
       child: Container(
-        decoration: BoxDecoration(
-          color: colors.well,
-          borderRadius: NightshadeTokens.borderRadiusLg,
-          border: Border.all(color: colors.border),
-        ),
+        decoration: NightshadeDecorations.well(colors),
         child: EmptyState.compact(
           icon: LucideIcons.activity,
           title: tooFew
