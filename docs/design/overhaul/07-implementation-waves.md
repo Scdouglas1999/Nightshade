@@ -258,8 +258,10 @@ agent, a route-only-screens agent and this docs pass. Every merge is recorded in
 | 4 — cleanup | `1e8706f71` screens phase 1, `4979e7a80` kit phase 1, then phase 2 | Token promotion, the bespoke select popover, 48 dp touch floors, `ReadoutRow` intrinsic widths, the gallery pruned to the Observatory kit, the Framing and Schedule panels, the `radiusInline*` fold and the deprecated-member deletion, the route-only screens (polar alignment, flat wizard, pairing, mosaic, diagnostics), and this documentation pass |
 
 `01-audit.md` now carries a **Resolved** column: of its 34 findings, 31 are resolved, 3 partially
-(C2, E4, E5 — each names what is left), 0 open. The evidence set is
-`reports/observatory/final/<theme>-<screen>-<width>.png`.
+(C2, E4, E5 — each names what is left), 0 open. The column is marked provisional there until the
+final screenshot set, `reports/observatory/final/<theme>-<screen>-<width>.png`, is captured and
+each row re-checked against its own image; today its verdicts rest on the code and on the drives
+in `reports/observatory/merge-log.md` / `integration-3/`.
 
 ### Deviations the merge log accepted
 

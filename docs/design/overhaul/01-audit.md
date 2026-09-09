@@ -30,19 +30,28 @@ understand what a change is fixing, then work from 03–07.
 Severity: **S1** = makes the app look amateur or confuses navigation; **S2** = visible polish debt;
 **S3** = defect found along the way.
 
-The **Resolved** column was filled in on 2026-09-09, after wave 4, from the final screenshot set in
-`reports/observatory/final/` — the same drive protocol as the audit above (release bundle, 1600 ×
-900 and 700 × 900, Boston site, simulated camera / mount / focuser, one snapshot taken), in dark,
-light and red night. `final/<theme>-<screen>-<width>.png` is the file that shows the fix; where a
-finding is only **partially** resolved the column names what is left and where it lives. Two
-findings resolve to something a screenshot cannot show — a tooltip that no longer stays painted
-(F4) and a deleted file (E1) — and cite the test or the commit instead.
+> **The Resolved column is PROVISIONAL as written (2026-09-09).** Its verdicts come from reading
+> the code at the wave-4 base and from the main loop's drives of each merged integration build,
+> which are recorded in `reports/observatory/merge-log.md` with their screenshots in
+> `reports/observatory/integration-3/`. The `final/<theme>-<screen>-<width>.png` names in the
+> column are **forward references**: they are the evidence set wave 4 item 4 will capture, not
+> files anyone has taken yet. When that set exists, each row is re-checked against its own image
+> and this note comes out. Until then, read the column as a claim with its reasoning attached, not
+> as a citation. One row is already sourced: A1 was verified by hand against
+> `integration-3/p_tonight_connected.png`.
+
+The **Resolved** column records, for each finding, whether the overhaul closed it: resolved,
+partially (with what is left and where it lives), or open. The final screenshot set follows the
+same drive protocol as the audit above — release bundle, 1600 × 900 and 700 × 900, Boston site
+(42.36 / 71 3 36 W / 40), simulated camera / mount / focuser, one snapshot taken — in dark, light
+and red night. Two findings resolve to something no screenshot can show, a tooltip that no longer
+stays painted (F4) and a deleted file (E1); those cite the test or the commit instead.
 
 ### A. Chrome: too much of it, and it repeats itself (S1)
 
 | # | Finding | Evidence | Resolved |
 |---|---|---|---|
-| A1 | Three status surfaces show the same facts. Clock + LST appear in the Dashboard command bar AND the bottom bar. "Idle" appears three times on the Dashboard (command bar, bottom-left, bottom-middle). | `audit/19_dashboard_connected.png` | **Resolved.** `DashboardCommandBar` is gone (wave 1); the instrument bar is the only status surface and each fact appears once. `final/dark-tonight-1600.png` |
+| A1 | Three status surfaces show the same facts. Clock + LST appear in the Dashboard command bar AND the bottom bar. "Idle" appears three times on the Dashboard (command bar, bottom-left, bottom-middle). | `audit/19_dashboard_connected.png` | **Resolved**, verified. `DashboardCommandBar` is gone (wave 1); the instrument bar is the only status surface and "Idle" appears once. `integration-3/p_tonight_connected.png`, and `final/dark-tonight-1600.png` when captured |
 | A2 | The Dashboard command bar (Idle / No Target / Temp / Focus / HFR / RMS / clock / Local / Edit Dashboard) exists ONLY on the Dashboard, so global status vanishes on every other screen. It is a screen header pretending to be shell chrome. | `audit/03_dashboard.png` vs `audit/10_equipment.png` | **Resolved.** Status is shell chrome now: the instrument bar is on every screen and the top bar carries the global command field. `final/dark-tonight-1600.png`, `final/dark-equipment-1600.png` |
 | A3 | Sequencer stacks three header layers before content: tab bar (48 px) + "Sequence Builder / Assemble the instructions tonight's run executes." title block (70 px) + 20-icon toolbar (48 px). Content starts 166 px down, 23% of a 720 px viewport. The title repeats the selected tab. | `audit/10_sequencer.png` | **Resolved.** One 56 px `PageHeader` (title + underline tabs + actions); the canvas bar tiers its own content by width instead of adding a row. `final/dark-sequencer-1600.png` |
 | A4 | Imaging stacks an info banner (40 px) + viewer toolbar + capture bar + status bar. The image, which is the point of the screen, gets ~65% of the height. | `audit/21b_imaging_image.png` | **Resolved.** Edge-to-edge canvas under a single 44 px toolbar, readouts in the glass HUD, no info banner. `final/dark-imaging-1600.png` |
@@ -84,8 +93,8 @@ findings resolve to something a screenshot cannot show — a tooltip that no lon
 | E1 | Every section fires its own "X Tour" toast in the bottom-right corner on first visit: Dashboard, Imaging, Sequencer, Guiding, Weather, Analytics, Settings, Equipment, Planetarium, Framing. Ten toasts, same spot, covering content (the Session panel in Imaging, Calibration in Guiding). | `audit/10_guiding.png`, `audit/21b_imaging_image.png`, `audit/24_framing.png` | **Resolved.** `contextual_tour_prompt.dart` and its 13 call sites deleted in wave 1; the tours are reachable from the help popover. `final/dark-tonight-1600.png` |
 | E2 | One missing catalog produces FOUR nags: Catalog Setup dialog at launch, info banner across Imaging, an in-image warning box, and a modal ("Annotation Catalogs Required") on the first snapshot. Plus a card on Plan. | `audit/02_after_skip.png`, `audit/21_imaging_snapshot.png` | **Resolved.** The launch-time Catalog Setup modal is retired; a missing catalog is one `EmptyState` on Plan, one banner on Imaging, and one checklist row. `final/dark-plan-1600.png` |
 | E3 | Two competing prompts at first launch: the Catalog Setup dialog AND the Dashboard Tour toast, simultaneously. | `audit/02_after_skip.png` | **Resolved.** Nothing competes at first launch: onboarding, then the checklist. `final/dark-onboarding-1600.png`, `final/dark-tonight-1600.png` |
-| E4 | `---` / `--:--` placeholders for every unavailable value (Temp, Focus, HFR, RMS, Moonrise, LST). Eleven dashes on the idle Dashboard. | `audit/03_dashboard.png` | **Partially.** Tonight, the instrument bar and Imaging render `—`. Two holdouts: the top bar's equipment menu still returns `'---'` (`widgets/equipment_status_indicator.dart:241,385,395,405,414,424,436`) and the planetarium overlays return `'--:--'` (`planetarium/widgets/top_overlay.dart:165`, `.../mobile_widgets/top_overlay.dart:100`) — the planetarium is outside the overhaul's scope. `final/dark-tonight-1600.png` |
-| E5 | An emoji (🔭) as the equipment-profile icon, in a Lucide-icon app. | `audit/15_equipment_manual.png` | **Partially.** The equipment-profile icon is a Lucide glyph. One colour emoji is left in chrome: the session-notes sentiment picker (`sequencer/widgets/notes_panel/sentiment_and_prompt.dart:16`, `😊 😐 😞`), which no theme can retint and which paints in full colour under red night. `final/dark-equipment-1600.png` |
+| E4 | `---` / `--:--` placeholders for every unavailable value (Temp, Focus, HFR, RMS, Moonrise, LST). Eleven dashes on the idle Dashboard. | `audit/03_dashboard.png` | **Partially.** Tonight, the instrument bar and Imaging render `—`. Two holdouts: the top bar's equipment menu still returns `'---'` (`widgets/equipment_status_indicator.dart:241,385,395,405,414,424,436`) and the planetarium overlays return `'--:--'` (`planetarium/widgets/top_overlay.dart:165`, `.../mobile_widgets/top_overlay.dart:100`) — the planetarium is outside the overhaul's scope. `final/dark-tonight-1600.png` **Routed to the wave-4 screens sweep; may close before the final set is captured.** |
+| E5 | An emoji (🔭) as the equipment-profile icon, in a Lucide-icon app. | `audit/15_equipment_manual.png` | **Partially.** The equipment-profile icon is a Lucide glyph. One colour emoji is left in chrome: the session-notes sentiment picker (`sequencer/widgets/notes_panel/sentiment_and_prompt.dart:16`, `😊 😐 😞`), which no theme can retint and which paints in full colour under red night. `final/dark-equipment-1600.png` **Routed to the wave-4 screens sweep; may close before the final set is captured.** |
 
 ### F. Layout defects (S3, fix during the overhaul)
 

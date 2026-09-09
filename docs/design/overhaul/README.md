@@ -6,9 +6,10 @@ needs is in this folder.
 
 **Status:** all four waves shipped on 2026-09-09. What landed, the deviations that were accepted
 and what is still owed are in `07-implementation-waves.md` § "Status 2026-09-09"; `01-audit.md`
-carries a Resolved column against the final screenshot set in `reports/observatory/final/`. This
-folder is the design contract from here on — `docs/architecture/ui-theming.md` points at it, and
-`archive/` holds the two pre-overhaul migration maps.
+carries a Resolved column (provisional until the final screenshot set in
+`reports/observatory/final/` is captured). This folder is the design contract from here on —
+`docs/architecture/ui-theming.md` points at it, and `archive/` holds the two pre-overhaul
+migration maps.
 
 ## Read in this order
 
