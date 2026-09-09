@@ -409,7 +409,7 @@ class _SmartNightTonightActionState
     final label = locked
         ? 'Sequence running'
         : draft == null
-            ? 'Plan Tonight'
+            ? 'Plan tonight'
             : 'View tonight\'s plan';
     final icon = locked
         ? LucideIcons.lock

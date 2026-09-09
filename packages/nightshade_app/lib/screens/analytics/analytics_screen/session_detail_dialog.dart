@@ -388,7 +388,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
       // View the rich Feature-A session report.
       _SessionHeaderAction(
         icon: LucideIcons.fileBarChart,
-        label: 'Session Report',
+        label: 'Session report',
         onPressed: () => SessionReportDialog.show(context, session.id),
       ),
       // Export buttons

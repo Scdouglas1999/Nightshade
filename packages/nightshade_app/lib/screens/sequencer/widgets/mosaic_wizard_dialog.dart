@@ -614,7 +614,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                 onPressed:
                     _checkpointAction == null ? _discardMosaicCheckpoint : null,
                 icon: NightshadeIcons.delete,
-                label: 'Start Over',
+                label: 'Start over',
                 isLoading: _checkpointAction == 'discard',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,

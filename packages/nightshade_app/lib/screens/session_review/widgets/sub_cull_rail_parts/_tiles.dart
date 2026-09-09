@@ -62,7 +62,8 @@ class _SubTile extends ConsumerWidget {
                     top: 4,
                     left: 4,
                     child: _Badge(
-                      text: (assessment?.label ?? 'N/A').toUpperCase(),
+                      text:
+                          (assessment?.label ?? kReadoutUnknown).toUpperCase(),
                       color: grade,
                     ),
                   ),

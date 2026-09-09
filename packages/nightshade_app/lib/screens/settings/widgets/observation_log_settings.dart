@@ -228,7 +228,7 @@ class _ObservationLogSettingsState
           ),
           const SizedBox(width: 16),
           _StatChip(
-            label: 'Avg Rating',
+            label: 'Avg rating',
             value: stats.averageRating > 0
                 ? stats.averageRating.toStringAsFixed(1)
                 : '-',

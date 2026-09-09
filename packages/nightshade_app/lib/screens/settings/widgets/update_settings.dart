@@ -636,7 +636,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
         ),
         NightshadeButton(
           onPressed: canAct && hasStaged ? _confirmApply : null,
-          label: 'Apply Staged',
+          label: 'Apply staged',
           icon: LucideIcons.checkCircle,
           variant: ButtonVariant.secondary,
           size: ButtonSize.small,
@@ -644,7 +644,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
         if (hasStaged)
           NightshadeButton(
             onPressed: canAct ? _confirmDiscard : null,
-            label: 'Discard Staged',
+            label: 'Discard staged',
             icon: LucideIcons.trash2,
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,

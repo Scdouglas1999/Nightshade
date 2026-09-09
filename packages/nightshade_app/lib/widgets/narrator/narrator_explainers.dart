@@ -213,11 +213,11 @@ const Map<String, NarratorAction> narratorActions = <String, NarratorAction>{
   // Equipment → the per-corner / diagnostics maps.
   'equipment.tilt': NarratorAction(
     route: '/analytics?tab=diagnostics',
-    label: 'Open Diagnostics',
+    label: 'Open diagnostics',
   ),
   'equipment.gradient': NarratorAction(
     route: '/analytics?tab=diagnostics',
-    label: 'Open Diagnostics',
+    label: 'Open diagnostics',
   ),
 
   // Quality → the grader thresholds that drive accept/reject.
@@ -233,7 +233,7 @@ const Map<String, NarratorAction> narratorActions = <String, NarratorAction>{
   // Pipeline failures → diagnostics.
   'quality.pipeline_failure': NarratorAction(
     route: '/analytics?tab=diagnostics',
-    label: 'Open Diagnostics',
+    label: 'Open diagnostics',
   ),
 };
 

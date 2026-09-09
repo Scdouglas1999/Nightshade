@@ -85,7 +85,7 @@ class _ActiveProjectProgress extends ConsumerWidget {
                       body: 'Add catalog targets to this project and set '
                           'per-filter integration goals to track progress.',
                       action: NightshadeButton(
-                        label: 'Add Target',
+                        label: 'Add target',
                         icon: LucideIcons.plus,
                         size: ButtonSize.small,
                         onPressed: mutationsEnabled
@@ -224,7 +224,7 @@ class _ProjectSummaryHeader extends StatelessWidget {
               ),
               const SizedBox(width: NightshadeTokens.spaceMd),
               NightshadeButton(
-                label: 'Add Target',
+                label: 'Add target',
                 icon: LucideIcons.plus,
                 variant: ButtonVariant.secondary,
                 size: ButtonSize.small,

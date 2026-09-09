@@ -7,7 +7,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
 
   Widget _buildOpticalTrainSection(NightshadeColors colors, ThemeData theme) {
     return _SectionCard(
-      title: 'Optical Train',
+      title: 'Optical train',
       icon: LucideIcons.target,
       isExpanded: _expandedSections['optical']!,
       onToggle: () => setState(
@@ -339,7 +339,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
 
           // Filter Wheel
           _DeviceRow(
-            type: 'Filter Wheel',
+            type: 'Filter wheel',
             icon: LucideIcons.disc,
             nameController: _filterWheelNameController,
             deviceId: _filterWheelId,

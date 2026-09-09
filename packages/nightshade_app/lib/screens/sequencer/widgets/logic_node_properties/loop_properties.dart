@@ -29,7 +29,7 @@ class LoopProperties extends ConsumerWidget {
           const SizedBox(height: 12),
           NodePropertyField(
             colors: colors,
-            label: 'Condition Type',
+            label: 'Condition type',
             child: NodeDropdown<LoopConditionType>(
               colors: colors,
               value: node.conditionType,
@@ -62,7 +62,7 @@ class LoopProperties extends ConsumerWidget {
           if (node.conditionType == LoopConditionType.count)
             NodePropertyField(
               colors: colors,
-              label: 'Repeat Count',
+              label: 'Repeat count',
               child: NodeNumberInput(
                 colors: colors,
                 value: (node.repeatCount ?? 1).toDouble(),
@@ -78,7 +78,7 @@ class LoopProperties extends ConsumerWidget {
           if (node.conditionType == LoopConditionType.untilTime)
             NodePropertyField(
               colors: colors,
-              label: 'Stop Time',
+              label: 'Stop time',
               child: Column(
                 children: [
                   GestureDetector(
@@ -135,7 +135,7 @@ class LoopProperties extends ConsumerWidget {
                     children: [
                       NodeQuickTimeButton(
                         colors: colors,
-                        label: 'Civil Dawn',
+                        label: 'Civil dawn',
                         onPressed: () {
                           // Twilight is a property of a place. With no site on
                           // record there is no dawn to set the loop against.
@@ -176,7 +176,7 @@ class LoopProperties extends ConsumerWidget {
                       const SizedBox(width: 8),
                       NodeQuickTimeButton(
                         colors: colors,
-                        label: 'Nautical Dawn',
+                        label: 'Nautical dawn',
                         onPressed: () {
                           // Twilight is a property of a place. With no site on
                           // record there is no dawn to set the loop against.

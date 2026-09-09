@@ -167,19 +167,19 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 child: Row(
                   children: [
                     _StatCard(
-                      label: 'Dark Frames',
+                      label: 'Dark frames',
                       value: '${stats.darkCount}',
                       icon: LucideIcons.moon,
                     ),
                     const SizedBox(width: 12),
                     _StatCard(
-                      label: 'Bias Frames',
+                      label: 'Bias frames',
                       value: '${stats.biasCount}',
                       icon: LucideIcons.zap,
                     ),
                     const SizedBox(width: 12),
                     _StatCard(
-                      label: 'Master Darks',
+                      label: 'Master darks',
                       value: '${stats.masterCount}',
                       icon: LucideIcons.layers,
                     ),
@@ -285,7 +285,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 children: [
                   _ActionButton(
                     icon: LucideIcons.scan,
-                    label: 'Clean Orphans',
+                    label: 'Clean orphans',
                     tooltip:
                         'Remove entries whose files no longer exist on disk',
                     onPressed: uiState.isBusy
@@ -298,7 +298,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                   ),
                   _ActionButton(
                     icon: LucideIcons.trash2,
-                    label: 'Clear Library',
+                    label: 'Clear library',
                     tooltip: 'Remove all entries from the library',
                     onPressed:
                         uiState.isBusy ? null : () => _showClearDialog(context),

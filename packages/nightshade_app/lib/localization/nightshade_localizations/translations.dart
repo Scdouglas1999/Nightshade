@@ -482,7 +482,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'pairingErrorRevokeAll':
         'Nightshade could not revoke access for every device. Check the list — some devices may still be paired.',
     'pairingErrorDelete': 'Nightshade could not delete that paired device.',
-    'plannerTitle': 'Plan Tonight',
+    'plannerTitle': 'Plan tonight',
     'plannerLoading': 'Analyzing tonight\'s conditions...',
     'plannerCreateSequence': 'Create Sequence',
     'plannerReviewInSequencer': 'Review in Sequencer',
@@ -505,7 +505,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerPlanFailedTitle': 'Failed to generate plan',
     'plannerPlanFailedBody':
         'Nightshade could not generate tonight\'s plan. Try again or review your observing settings and saved targets.',
-    'plannerOpenSettings': 'Open Settings',
+    'plannerOpenSettings': 'Open settings',
     'plannerRetry': 'Retry',
     'plannerNoTargetsTitle': 'No targets for tonight',
     'plannerNoTargetsBody':
@@ -676,7 +676,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dbBriefingOverline': "TONIGHT'S BRIEFING",
     'dbNoRunActive': 'No run active',
     'dbImageTonight': 'Image tonight',
-    'dbPlanTonight': 'Plan Tonight',
+    'dbPlanTonight': 'Plan tonight',
     'dbPlanTonightTooltip':
         'Build a plan you can see and edit — pick the target and exposures '
             'yourself with the Smart Night wizard',
@@ -910,7 +910,7 @@ final Map<String, Map<String, String>> _localizedValues = {
             'longitude to start.',
     'plannerNoSiteAction': 'Open settings',
     'plannerNoCatalogTitle': 'Install the object catalog',
-    'plannerNoCatalogBody': 'OpenNGC lets the planner score 13 000 targets.',
+    'plannerNoCatalogBody': 'OpenNGC lets the planner score 13000 targets.',
     'plannerNoCatalogAction': 'Open catalog settings',
     'plannerNoMatchesTitle': 'No targets match these filters',
     'plannerNoMatchesBody':
@@ -1839,7 +1839,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerNoSiteAction': 'Abrir ajustes',
     'plannerNoCatalogTitle': 'Instala el catálogo de objetos',
     'plannerNoCatalogBody':
-        'OpenNGC permite al planificador puntuar 13 000 objetivos.',
+        'OpenNGC permite al planificador puntuar 13000 objetivos.',
     'plannerNoCatalogAction': 'Abrir ajustes del catálogo',
     'plannerNoMatchesTitle': 'Ningún objetivo coincide con estos filtros',
     'plannerNoMatchesBody':

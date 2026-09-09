@@ -88,7 +88,7 @@ extension _PhotometricWizardSaveNavigation
                 _computedCoefficients != null && !isBusy ? _saveAndClose : null,
             icon: LucideIcons.save,
             isLoading: _isSaving,
-            label: 'Save Coefficients',
+            label: 'Save coefficients',
           ),
       ],
     );

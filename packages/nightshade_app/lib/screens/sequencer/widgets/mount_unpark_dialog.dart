@@ -330,7 +330,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                       // countdown unbeatable. [_cancelled] is what makes a
                       // press here win the race with the timer.
                       onPressed: _handleCancel,
-                      label: 'Cancel Sequence',
+                      label: 'Cancel sequence',
                       variant: ButtonVariant.ghost,
                       size: ButtonSize.small,
                     ),

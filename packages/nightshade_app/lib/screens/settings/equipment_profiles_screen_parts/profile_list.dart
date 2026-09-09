@@ -60,7 +60,7 @@ class _ProfileList extends StatelessWidget {
             children: [
               Expanded(
                 child: NightshadeButton(
-                  label: 'New Profile',
+                  label: 'New profile',
                   icon: LucideIcons.plus,
                   variant: ButtonVariant.primary,
                   onPressed: onCreateProfile,

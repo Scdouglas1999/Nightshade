@@ -710,7 +710,7 @@ class _NoPickCard extends ConsumerWidget {
         body: 'Nightshade cannot tell what is above your horizon until it '
             'knows where you are. Set your observing latitude and longitude '
             'in Settings.',
-        actionLabel: 'Open Settings',
+        actionLabel: 'Open settings',
         actionIcon: LucideIcons.mapPin,
         onAction: () => context.go('/settings?section=location'),
       );

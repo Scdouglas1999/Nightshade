@@ -23,7 +23,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
           ),
           const SizedBox(height: 12),
           NightshadeButton(
-            label: 'Retry Fit',
+            label: 'Retry fit',
             icon: LucideIcons.refreshCw,
             size: ButtonSize.small,
             onPressed: () {

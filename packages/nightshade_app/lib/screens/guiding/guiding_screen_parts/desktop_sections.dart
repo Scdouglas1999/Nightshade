@@ -519,7 +519,7 @@ mixin _GuidingDesktopSections
             : 'This guider exposes no PHD2 calibration or Brain controls. '
                 'Configure it from Equipment.',
         action: NightshadeButton(
-          label: 'Open Equipment',
+          label: 'Open equipment',
           icon: NightshadeIcons.settings,
           size: ButtonSize.small,
           variant: ButtonVariant.secondary,

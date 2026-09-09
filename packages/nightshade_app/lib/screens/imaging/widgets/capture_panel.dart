@@ -510,7 +510,7 @@ class CapturePanel extends ConsumerWidget {
                           setDialogState(() => isEnding = false);
                         }
                       },
-                label: 'End Session',
+                label: 'End session',
                 variant: ButtonVariant.destructive,
                 size: ButtonSize.small,
                 isLoading: isEnding,

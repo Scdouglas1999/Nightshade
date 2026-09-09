@@ -237,7 +237,7 @@ class _ExpandedStretchControls extends StatelessWidget {
 
         // Shadow clip slider
         _SliderSetting(
-          label: 'Shadow Clip',
+          label: 'Shadow clip',
           tooltip:
               'Controls shadow clipping in standard deviations from median. '
               'Lower values clip more shadows.',
@@ -257,7 +257,7 @@ class _ExpandedStretchControls extends StatelessWidget {
 
         // Highlight clip slider
         _SliderSetting(
-          label: 'Highlight Clip',
+          label: 'Highlight clip',
           tooltip:
               'Controls highlight clipping in standard deviations from median. '
               'Lower values clip more highlights.',
@@ -277,7 +277,7 @@ class _ExpandedStretchControls extends StatelessWidget {
 
         // Target median slider
         _SliderSetting(
-          label: 'Target Median',
+          label: 'Target median',
           tooltip: 'Target brightness level for the stretched image midtones. '
               'Higher values produce brighter images.',
           value: settings.targetMedian,
@@ -296,7 +296,7 @@ class _ExpandedStretchControls extends StatelessWidget {
 
         // Linked channels toggle
         NightshadeSwitchRow(
-          label: 'Linked Channels',
+          label: 'Linked channels',
           tooltip:
               'When enabled, uses the same stretch for all RGB channels to preserve color balance. '
               'Disable for independent channel stretching.',
@@ -313,7 +313,7 @@ class _ExpandedStretchControls extends StatelessWidget {
         if (settings.method == AutoStretchMethod.gamma) ...[
           const SizedBox(height: 12),
           _SliderSetting(
-            label: 'Gamma Value',
+            label: 'Gamma value',
             tooltip: 'Gamma correction factor. Standard display gamma is 2.2. '
                 'Lower values brighten the image, higher values darken it.',
             value: settings.gammaValue,

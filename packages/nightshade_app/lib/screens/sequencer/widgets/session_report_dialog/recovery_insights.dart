@@ -269,7 +269,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
   String get _actionLabel {
     final hint = widget.insight.applyHint;
     if (hint != null && hint.containsKey('autofocusInterval')) {
-      return 'Open Settings';
+      return 'Open settings';
     }
     return 'Apply';
   }

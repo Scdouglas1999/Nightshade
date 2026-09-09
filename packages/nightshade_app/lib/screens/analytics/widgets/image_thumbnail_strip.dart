@@ -196,7 +196,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
               color: colors.success,
             ),
             _SummaryChip(
-              label: 'Needs Review',
+              label: 'Needs review',
               value: summary.needsReview,
               color: colors.warning,
             ),

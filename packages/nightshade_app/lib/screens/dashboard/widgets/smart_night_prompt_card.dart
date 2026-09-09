@@ -368,7 +368,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
               ),
               const SizedBox(width: 8),
               NightshadeButton(
-                label: 'Plan Tonight',
+                label: 'Plan tonight',
                 icon: LucideIcons.sparkles,
                 variant: ButtonVariant.primary,
                 size: ButtonSize.small,

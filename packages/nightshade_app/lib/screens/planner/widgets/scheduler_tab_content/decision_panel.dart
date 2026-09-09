@@ -57,7 +57,7 @@ class _DecisionPanel extends ConsumerWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
-                        'Unattended Autopilot',
+                        'Unattended autopilot',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: NightshadeTypography.pageTitle

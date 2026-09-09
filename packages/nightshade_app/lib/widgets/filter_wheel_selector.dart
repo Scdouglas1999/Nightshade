@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import '../utils/snackbar_helper.dart';
 
 /// Style options for the filter wheel selector.
@@ -186,6 +187,7 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     // A bare InkWell publishes a tap action and nothing else, so the filter
     // row reached assistive tech as inert disabled panels with no indication
     // of which filter is mounted. The flags are only published when given.
@@ -208,9 +210,7 @@ class _FilterButton extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: compact ? 12 : 14,
-                color: isSelected
-                    ? const Color(0xFFFFFFFF)
-                    : const Color(0xB3FFFFFF),
+                color: isSelected ? colors.textPrimary : colors.textSecondary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),

@@ -228,7 +228,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
 
                 // Target temperature slider
                 SliderRowInteractive(
-                  label: 'Target Temperature',
+                  label: 'Target temperature',
                   value: targetTemp.clamp(coolerMinTempC, coolerMaxTempC),
                   min: coolerMinTempC,
                   max: coolerMaxTempC,
@@ -298,7 +298,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                     Expanded(
                       child: SmallButton(
                         label:
-                            cameraState.isWarming ? 'Cancel Warm' : 'Warm Up',
+                            cameraState.isWarming ? 'Cancel Warm' : 'Warm up',
                         icon: LucideIcons.flame,
                         isOutline: true,
                         colors: widget.colors,
@@ -399,7 +399,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                         ? readoutModes[selectedIndex]
                         : null;
                     return DropdownRow(
-                      label: 'Read Mode',
+                      label: 'Read mode',
                       helpId: FieldHelpId.cameraReadoutMode,
                       value: selectedMode,
                       items: readoutModes,

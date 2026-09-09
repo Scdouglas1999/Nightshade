@@ -158,7 +158,7 @@ class CalibrationSection extends ConsumerWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: NightshadeButton(
-              label: 'Flat Wizard',
+              label: 'Flat wizard',
               icon: LucideIcons.sun,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,

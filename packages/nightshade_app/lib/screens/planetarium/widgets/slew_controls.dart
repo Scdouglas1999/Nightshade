@@ -28,6 +28,7 @@ class SlewControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
     final mountState = ref.watch(mountStateProvider);
     final isConnected =
         mountState.connectionState == DeviceConnectionState.connected;
@@ -38,9 +39,7 @@ class SlewControls extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: slewMode
-            ? Border.all(color: const Color(0xFFFF9800), width: 2)
-            : null,
+        border: slewMode ? Border.all(color: colors.warning, width: 2) : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -70,12 +69,12 @@ class SlewControls extends ConsumerWidget {
           ),
           if (slewMode) ...[
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'SLEW',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize9,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFFF9800),
+                color: colors.warning,
               ),
             ),
           ],
@@ -110,10 +109,11 @@ class _SlewControlButtonState extends State<SlewControlButton> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final color = widget.isDestructive
-        ? const Color(0xFFE53935)
+        ? colors.error
         : widget.isActive
-            ? const Color(0xFFFF9800)
+            ? colors.warning
             : Colors.white70;
 
     return MouseRegion(
@@ -127,7 +127,8 @@ class _SlewControlButtonState extends State<SlewControlButton> {
           height: 28,
           decoration: BoxDecoration(
             color: widget.isActive
-                ? const Color(0xFFFF9800).withValues(alpha: 0.2)
+                ? colors.warning
+                    .withValues(alpha: NightshadeTokens.opacityStatusFill)
                 : _isHovered && widget.isEnabled
                     ? Colors.white.withValues(alpha: 0.1)
                     : Colors.transparent,

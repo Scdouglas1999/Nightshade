@@ -306,7 +306,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                             _StatusBadge(
                               colors: colors,
                               icon: LucideIcons.moonStar,
-                              label: 'Below Horizon',
+                              label: 'Below horizon',
                               color: colors.error,
                             ),
                         ],

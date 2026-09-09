@@ -258,7 +258,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   NightshadeButton(
-                    label: 'Refresh Status',
+                    label: 'Refresh status',
                     icon: NightshadeIcons.refresh,
                     variant: ButtonVariant.secondary,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
@@ -266,7 +266,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   if (hasInstalledCatalogs) ...[
                     const SizedBox(height: 8),
                     NightshadeButton(
-                      label: 'Delete Catalogs',
+                      label: 'Delete catalogs',
                       icon: NightshadeIcons.delete,
                       variant: ButtonVariant.destructive,
                       onPressed: _isDownloading ? null : _deleteCatalogs,
@@ -279,7 +279,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             : Row(
                 children: [
                   NightshadeButton(
-                    label: 'Refresh Status',
+                    label: 'Refresh status',
                     icon: NightshadeIcons.refresh,
                     variant: ButtonVariant.secondary,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
@@ -287,7 +287,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   const SizedBox(width: 12),
                   if (hasInstalledCatalogs)
                     NightshadeButton(
-                      label: 'Delete Catalogs',
+                      label: 'Delete catalogs',
                       icon: NightshadeIcons.delete,
                       variant: ButtonVariant.destructive,
                       onPressed: _isDownloading ? null : _deleteCatalogs,

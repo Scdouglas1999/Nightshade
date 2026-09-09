@@ -28,7 +28,7 @@ class ScienceOverlayLegend {
       gradientColors: NightshadeChartColors.uniformityGradient,
     ),
     'clip_high': _LegendEntry(
-      label: 'Clip High',
+      label: 'Clip high',
       icon: LucideIcons.arrowUpRightSquare,
       summary:
           'Tiles where pixels saturate. Red regions are losing highlight detail — drop exposure or gain.',
@@ -36,7 +36,7 @@ class ScienceOverlayLegend {
       gradientColors: NightshadeChartColors.clipHighGradient,
     ),
     'clip_low': _LegendEntry(
-      label: 'Clip Low',
+      label: 'Clip low',
       icon: LucideIcons.arrowDownLeftSquare,
       summary:
           'Tiles where pixels hit the noise floor. Blue regions show lost shadow signal — increase exposure.',

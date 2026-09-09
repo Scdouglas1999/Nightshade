@@ -282,7 +282,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
             children: [
               GuideStat(label: 'RA Peak', value: peakRa, colors: widget.colors),
               GuideStat(
-                label: 'Dec Peak',
+                label: 'Dec peak',
                 value: peakDec,
                 colors: widget.colors,
               ),
@@ -386,7 +386,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                 ),
                 const SizedBox(height: 12),
                 SliderRowInteractive(
-                  label: 'Settle Threshold',
+                  label: 'Settle threshold',
                   helpId: FieldHelpId.settleThreshold,
                   value: ditherSettings.settlePixels,
                   min: 0.3,
@@ -399,7 +399,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                 ),
                 const SizedBox(height: 12),
                 SliderRowInteractive(
-                  label: 'Settle Time',
+                  label: 'Settle time',
                   helpId: FieldHelpId.settleTime,
                   value: ditherSettings.settleTime,
                   min: 5,

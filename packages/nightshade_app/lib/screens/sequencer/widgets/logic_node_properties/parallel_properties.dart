@@ -23,7 +23,7 @@ class ParallelProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Required Successes',
+          label: 'Required successes',
           child: NodeNumberInput(
             colors: colors,
             value: (node.requiredSuccesses ?? 1).toDouble(),

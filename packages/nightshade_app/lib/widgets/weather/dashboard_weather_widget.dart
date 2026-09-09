@@ -179,7 +179,7 @@ class _CompactLayout extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: 'View Radar',
+              label: 'View radar',
               icon: LucideIcons.radar,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
@@ -264,7 +264,7 @@ class _MediumLayout extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: 'View Radar',
+              label: 'View radar',
               icon: LucideIcons.radar,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
@@ -414,7 +414,7 @@ class _ExpandedLayout extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: 'View Radar',
+              label: 'View radar',
               icon: LucideIcons.radar,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,

@@ -95,7 +95,7 @@ class LayersPanel extends ConsumerWidget {
                     onChanged: (_) => notifier.toggleConstellationArt(),
                   ),
                   _LayerSwitch(
-                    label: 'Milky Way',
+                    label: 'Milky way',
                     value: config.showMilkyWay,
                     onChanged: (_) => notifier.toggleMilkyWay(),
                   ),

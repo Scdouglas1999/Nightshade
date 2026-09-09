@@ -296,7 +296,7 @@ class _TriggerConfigurationDialogState
               NightshadeButton(
                 onPressed: _addTrigger,
                 icon: NightshadeIcons.add,
-                label: 'Add Trigger',
+                label: 'Add trigger',
                 variant: ButtonVariant.outline,
               ),
               const Spacer(),
@@ -652,7 +652,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
           _StableNumberField(
             key: const ValueKey('trigger_debounce_field'),
             value: _debounce,
-            label: 'Debounce Time',
+            label: 'Debounce time',
             suffix: 'seconds',
             helperText: 'Wait time before triggering again',
             onChanged: (v) => _debounce = v,

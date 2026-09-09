@@ -16,7 +16,7 @@ class _NoProjectsState extends StatelessWidget {
       body: 'Create a multi-night project to track targets and integration '
           'goals across clear nights.',
       action: NightshadeButton(
-        label: 'New Project',
+        label: 'New project',
         icon: LucideIcons.folderPlus,
         variant: ButtonVariant.primary,
         isLoading: creating,

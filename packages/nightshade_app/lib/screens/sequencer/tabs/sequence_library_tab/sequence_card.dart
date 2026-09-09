@@ -63,7 +63,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   String _formatDuration() {
     final totalSecs = _summary.totalIntegrationSecs;
-    if (totalSecs <= 0) return 'N/A';
+    if (totalSecs <= 0) return kReadoutUnknown;
     return DurationFormat.seconds(
       totalSecs,
       style: DurationStyle.compact,

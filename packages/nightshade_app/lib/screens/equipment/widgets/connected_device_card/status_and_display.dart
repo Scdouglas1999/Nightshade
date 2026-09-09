@@ -291,7 +291,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
         return _resolveDisplayName(
-            state.deviceName, state.deviceId, 'Filter Wheel');
+            state.deviceName, state.deviceId, 'Filter wheel');
       case ConnectedDeviceType.guider:
         final state = ref.watch(guiderStateProvider);
         return _resolveDisplayName(state.deviceName, state.deviceId, 'Guider');
@@ -687,7 +687,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       case CoverStatus.moving:
         return 'Moving';
       case CoverStatus.notPresent:
-        return 'N/A';
+        return 'Not present';
       case CoverStatus.unknown:
         return 'Unknown';
       case CoverStatus.error:
@@ -700,7 +700,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       CalibratorStatus.ready => 'ON',
       CalibratorStatus.notReady => 'WARMING',
       CalibratorStatus.off => 'OFF',
-      CalibratorStatus.notPresent => 'N/A',
+      CalibratorStatus.notPresent => 'NONE',
       CalibratorStatus.error => 'ERROR',
       CalibratorStatus.unknown || null => 'UNKNOWN',
     };

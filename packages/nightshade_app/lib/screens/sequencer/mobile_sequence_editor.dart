@@ -833,7 +833,7 @@ class _RecoveryActionsState extends State<_RecoveryActions> {
       children: [
         NightshadeButton(
           key: const Key('mobile_recovery_try_now'),
-          label: 'Try Now',
+          label: 'Try now',
           icon: LucideIcons.rotateCw,
           size: ButtonSize.small,
           isLoading: _tryNowBusy,

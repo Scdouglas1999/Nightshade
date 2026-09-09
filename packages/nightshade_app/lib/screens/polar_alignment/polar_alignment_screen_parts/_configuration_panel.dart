@@ -249,7 +249,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
 
             // Step size
             _SettingRow(
-              label: 'Step Size',
+              label: 'Step size',
               tooltip:
                   'Distance between measurement points. Larger = more accurate but may hit mount limits',
               colors: colors,
@@ -337,7 +337,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
           children: [
             // Manual rotation toggle
             _SettingRow(
-              label: 'Manual Rotation',
+              label: 'Manual rotation',
               tooltip: 'Enable for star trackers without GoTo capability',
               colors: colors,
               child: NightshadeSwitch(
@@ -351,7 +351,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
 
             // Solve timeout
             _SettingRow(
-              label: 'Solve Timeout',
+              label: 'Solve timeout',
               tooltip: 'Maximum time to wait for plate solve',
               colors: colors,
               child: Row(
@@ -383,7 +383,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
 
             // Start position
             _SettingRow(
-              label: 'Start From',
+              label: 'Start from',
               tooltip: 'Current: measure from where the scope points now. '
                   'Pole: slew to the pole region first (requires your site '
                   'location to be set).',

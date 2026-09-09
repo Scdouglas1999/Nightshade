@@ -140,7 +140,7 @@ class FilterSidebar extends ConsumerWidget {
                     ref.read(skyRenderConfigProvider.notifier).togglePlanets(),
               ),
               _FilterToggle(
-                label: 'Deep Sky',
+                label: 'Deep sky',
                 value: config.showDSOs,
                 onChanged: (_) =>
                     ref.read(skyRenderConfigProvider.notifier).toggleDSOs(),
@@ -167,7 +167,7 @@ class FilterSidebar extends ConsumerWidget {
                     .toggleConstellationBoundaries(),
               ),
               _FilterToggle(
-                label: 'Constellation Art',
+                label: 'Constellation art',
                 value: config.showConstellationArt,
                 onChanged: (_) => ref
                     .read(skyRenderConfigProvider.notifier)

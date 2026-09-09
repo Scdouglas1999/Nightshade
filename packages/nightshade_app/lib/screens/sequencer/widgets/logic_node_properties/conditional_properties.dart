@@ -23,7 +23,7 @@ class ConditionalProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Condition Type',
+          label: 'Condition type',
           child: NodeDropdown<ConditionalType>(
             colors: colors,
             value: node.conditionType,

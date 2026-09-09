@@ -166,19 +166,19 @@ class TonightTab extends ConsumerWidget {
                     ),
                   if (twilight.civilDusk != null)
                     TwilightRow(
-                      label: 'Civil Dusk',
+                      label: 'Civil dusk',
                       time: _siteHhmm(twilight.civilDusk!, clock),
                       colors: colors,
                     ),
                   if (twilight.nauticalDusk != null)
                     TwilightRow(
-                      label: 'Nautical Dusk',
+                      label: 'Nautical dusk',
                       time: _siteHhmm(twilight.nauticalDusk!, clock),
                       colors: colors,
                     ),
                   if (twilight.astronomicalDusk != null)
                     TwilightRow(
-                      label: 'Astro Dusk',
+                      label: 'Astro dusk',
                       time: _siteHhmm(twilight.astronomicalDusk!, clock),
                       isPrimary: true,
                       colors: colors,
@@ -201,28 +201,28 @@ class TonightTab extends ConsumerWidget {
 
             // Morning Twilight card
             InfoCard(
-              title: 'Morning Twilight',
+              title: 'Morning twilight',
               icon: NightshadeIcons.sunrise,
-              color: const Color(0xFFFF9F45),
+              color: colors.bandDawn,
               colors: colors,
               child: Column(
                 children: [
                   if (twilight.astronomicalDawn != null)
                     TwilightRow(
-                      label: 'Astro Dawn',
+                      label: 'Astro dawn',
                       time: _siteHhmm(twilight.astronomicalDawn!, clock),
                       isPrimary: true,
                       colors: colors,
                     ),
                   if (twilight.nauticalDawn != null)
                     TwilightRow(
-                      label: 'Nautical Dawn',
+                      label: 'Nautical dawn',
                       time: _siteHhmm(twilight.nauticalDawn!, clock),
                       colors: colors,
                     ),
                   if (twilight.civilDawn != null)
                     TwilightRow(
-                      label: 'Civil Dawn',
+                      label: 'Civil dawn',
                       time: _siteHhmm(twilight.civilDawn!, clock),
                       colors: colors,
                     ),
@@ -657,7 +657,8 @@ class _SatellitePassCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: pass.isBrightPass
-              ? const Color(0xFFFFD740).withValues(alpha: 0.3)
+              ? colors.warning
+                  .withValues(alpha: NightshadeTokens.opacityAccentTintHover)
               : colors.border,
         ),
       ),
@@ -672,16 +673,17 @@ class _SatellitePassCard extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   margin: const EdgeInsets.only(right: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFD740).withValues(alpha: 0.2),
+                    color: colors.warning
+                        .withValues(alpha: NightshadeTokens.opacityStatusFill),
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusXs),
                   ),
-                  child: const Text(
+                  child: Text(
                     'ISS',
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize9,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFFFFD740),
+                      color: colors.warning,
                     ),
                   ),
                 ),
@@ -697,7 +699,7 @@ class _SatellitePassCard extends StatelessWidget {
                 'Max ${pass.maxElevation.toStringAsFixed(0)}\u00b0',
                 style: NightshadeTypography.labelQuiet.copyWith(
                     color: pass.isBrightPass
-                        ? const Color(0xFFFFD740)
+                        ? colors.warning
                         : colors.textSecondary),
               ),
             ],
@@ -877,7 +879,7 @@ class _LocationIndicator extends StatelessWidget {
                       BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
-                  'Set Location',
+                  'Set location',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w500,

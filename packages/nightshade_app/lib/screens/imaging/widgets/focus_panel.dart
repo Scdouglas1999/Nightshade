@@ -375,7 +375,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   ),
                 const SizedBox(height: 12),
                 InputRowEditable(
-                  label: 'Step Size',
+                  label: 'Step size',
                   value: '${focusSettings.afStepSize}',
                   suffix: 'steps',
                   colors: widget.colors,
@@ -390,7 +390,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                 ),
                 const SizedBox(height: 12),
                 InputRowEditable(
-                  label: 'Steps Out',
+                  label: 'Steps out',
                   value: '${focusSettings.stepsOut}',
                   colors: widget.colors,
                   onChanged: (value) {

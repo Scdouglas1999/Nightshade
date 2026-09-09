@@ -677,7 +677,7 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
           // full row rather than half of one.
           PopupActionButton(
             icon: NightshadeIcons.book,
-            label: 'Log Observation',
+            label: 'Log observation',
             colors: widget.colors,
             onTap: () async {
               final saved = await showDialog<bool>(
@@ -713,7 +713,7 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
                 child: PopupActionButton(
                   key: const ValueKey('popup_add_to_target_queue'),
                   icon: LucideIcons.listChecks,
-                  label: 'Target Queue',
+                  label: 'Target queue',
                   colors: widget.colors,
                   onTap: widget.onAddToQueue,
                 ),

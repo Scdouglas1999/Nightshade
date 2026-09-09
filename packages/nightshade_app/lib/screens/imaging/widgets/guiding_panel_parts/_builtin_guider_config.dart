@@ -325,7 +325,7 @@ class _BuiltinGuiderConfigFormState
           ),
           const SizedBox(height: 10),
           _ConfigInputRow(
-            label: 'Min Pulse',
+            label: 'Min pulse',
             controller: _minPulseController,
             suffix: 'ms',
             helperText: pulseRangeHint,
@@ -336,7 +336,7 @@ class _BuiltinGuiderConfigFormState
           ),
           const SizedBox(height: 10),
           _ConfigInputRow(
-            label: 'Max Pulse',
+            label: 'Max pulse',
             controller: _maxPulseController,
             suffix: 'ms',
             helperText: pulseRangeHint,
@@ -346,7 +346,7 @@ class _BuiltinGuiderConfigFormState
           ),
           const SizedBox(height: 10),
           _ConfigInputRow(
-            label: 'Settle Sleep',
+            label: 'Settle sleep',
             controller: _settleSleepController,
             suffix: 'ms',
             colors: widget.colors,
@@ -369,7 +369,7 @@ class _BuiltinGuiderConfigFormState
               const SizedBox(width: 8),
               Expanded(
                 child: SmallButton(
-                  label: 'Reset Defaults',
+                  label: 'Reset defaults',
                   icon: NightshadeIcons.undo,
                   isOutline: true,
                   colors: widget.colors,

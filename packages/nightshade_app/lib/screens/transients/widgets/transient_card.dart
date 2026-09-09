@@ -206,7 +206,7 @@ class _TransientCardState extends State<TransientCard> {
             const SizedBox(height: NightshadeTokens.spaceSm),
             _DetailRow(
               icon: LucideIcons.trendingUp,
-              label: 'Peak Magnitude',
+              label: 'Peak magnitude',
               value: 'mag ${widget.alert.peakMagnitude!.toStringAsFixed(1)}',
               colors: colors,
             ),
@@ -214,7 +214,7 @@ class _TransientCardState extends State<TransientCard> {
           const SizedBox(height: NightshadeTokens.spaceSm),
           _DetailRow(
             icon: NightshadeIcons.refresh,
-            label: 'Last Updated',
+            label: 'Last updated',
             value: _formatDateTime(widget.alert.lastUpdated),
             colors: colors,
           ),
