@@ -10,95 +10,12 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
     return (value: raw, unit: ' px');
   }
 
-  /// Text for one RMS readout. `Phd2GuideStats` defaults every RMS field to
-  /// 0.0, which is indistinguishable from a real, perfect measurement — and
-  /// "Total: 0.00" reads as flawless guiding to someone glancing at the screen
-  /// half asleep. Until at least one guide step has been measured
-  /// (`frameCount > 0`, reset by `GuidingStopped`) there is no measurement to
-  /// report, so render the same em dash the Equipment and Dashboard guider
-  /// cards already use.
-  String _rmsText(double value, double pixelScale, {required bool hasSamples}) {
-    if (!hasSamples) return '—';
-    final readout = _rmsReadout(value, pixelScale);
-    return '${readout.value.toStringAsFixed(2)}${readout.unit}';
-  }
-
-  Widget _buildRmsChip(
-    String label,
-    double value,
-    double pixelScale,
-    Color color,
-    NightshadeColors colors, {
-    bool bold = false,
-    bool compact = false,
-    bool hasSamples = true,
-  }) {
-    final text = _rmsText(value, pixelScale, hasSamples: hasSamples);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 8,
-        vertical: compact ? 3 : 4,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusInline4,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$label: ',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: compact ? 10 : 12,
-            ),
-          ),
-          Text(
-            text,
-            style: NightshadeTypography.monoSm.copyWith(
-              color: hasSamples ? color : colors.textMuted,
-              fontWeight: bold ? FontWeight.bold : FontWeight.w500,
-              fontSize: compact ? 11 : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Pull a human-readable message out of whatever the brain-params fetch
   /// threw. `StateError` (our explicit empty-dump guard) carries a clean
   /// sentence; everything else falls back to its string form.
   String _brainErrorMessage(Object error) {
     if (error is StateError) return error.message;
     return error.toString();
-  }
-
-  Widget _buildStatRow(
-      String label, String value, Color valueColor, NightshadeColors colors) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(
-          flex: 1,
-          child: Text(
-            label,
-            style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize12),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: NightshadeTypography.monoSm.copyWith(
-            color: valueColor,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
   }
 
   Color _getSnrColor(double snr, NightshadeColors colors) {
@@ -142,11 +59,17 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
   }
 
   /// SNR / star-mass readouts share the "positive means measured" rule: the
-  /// guider only reports them once it has actually measured a star, so a 0
-  /// is an absence of data and is rendered as such instead of as a real,
-  /// alarming value.
-  String _starMetricText(double value, {int decimals = 1}) =>
-      value > 0 ? value.toStringAsFixed(decimals) : '—';
+  /// guider only reports them once it has actually measured a star, so a 0 is
+  /// an absence of data. Returning null lets [Readout] render the one em dash
+  /// the sheet allows instead of an invented placeholder string.
+  String? _starMetricValue(double value, {int decimals = 1}) =>
+      value > 0 ? value.toStringAsFixed(decimals) : null;
+
+  /// A calibration angle for a [Readout]; null when PHD2 has not reported one.
+  String? _angleValue(double? degrees) => degrees?.toStringAsFixed(1);
+
+  /// A calibration rate for a [Readout]; null when PHD2 has not reported one.
+  String? _rateValue(double? rate) => rate?.toStringAsFixed(2);
 
   /// The `Frame Count` readout, which counts whichever frames the guider is
   /// currently taking.
@@ -161,28 +84,38 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
           ? stats.loopFrameCount.toString()
           : stats.frameCount.toString();
 
-  Color _getStateColor(Phd2State state) {
-    final colors = NightshadeColors.of(context);
+  /// The chip tone for a guider state (05 §10: status colours mean status).
+  ChipTone _getStateTone(Phd2State state) {
     switch (state) {
-      case Phd2State.stopped:
-        return colors.textMuted;
-      case Phd2State.looping:
-        return colors.warning;
-      case Phd2State.calibrating:
-        return colors.warning;
       case Phd2State.guiding:
-        return colors.success;
-      case Phd2State.paused:
-        return colors.info;
-      case Phd2State.settling:
-        return colors.info;
-      case Phd2State.lostLock:
-        return colors.error;
+        return ChipTone.success;
+      case Phd2State.looping:
+      case Phd2State.calibrating:
       case Phd2State.unknown:
-        return colors.warning;
-      default:
-        return colors.textMuted;
+        return ChipTone.warning;
+      case Phd2State.paused:
+      case Phd2State.settling:
+        return ChipTone.primary;
+      case Phd2State.lostLock:
+        return ChipTone.error;
+      case Phd2State.stopped:
+      case Phd2State.selected:
+        return ChipTone.neutral;
     }
+  }
+
+  /// The one muted fact beside the page title: which guider, connected or not.
+  String _connectionLabel(bool isConnected) {
+    final guiderState = ref.watch(guiderStateProvider);
+    final guiderId = guiderState.deviceId;
+    final isPhd2Guider = guiderId == null || isPhd2DeviceId(guiderId);
+    final isBuiltinGuider = guiderId == builtinGuiderDeviceId;
+    final name = isBuiltinGuider
+        ? 'Built-in guider'
+        : isPhd2Guider
+            ? 'PHD2'
+            : (guiderState.deviceName ?? 'Guider');
+    return isConnected ? '$name connected' : '$name disconnected';
   }
 
   String _getStateLabel(Phd2State state) {
@@ -190,7 +123,7 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
       case Phd2State.stopped:
         return 'Stopped';
       case Phd2State.selected:
-        return 'Star Selected';
+        return 'Star selected';
       case Phd2State.looping:
         return 'Looping';
       case Phd2State.calibrating:
@@ -202,7 +135,7 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
       case Phd2State.settling:
         return 'Settling';
       case Phd2State.lostLock:
-        return 'Lost Lock';
+        return 'Lost lock';
       case Phd2State.unknown:
         return 'Unknown';
     }
@@ -318,7 +251,7 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
     final backend = ref.read(backendProvider);
     final confirmed = await ConfirmDialog.show(
       context: context,
-      title: 'Clear Calibration?',
+      title: 'Clear calibration?',
       message: 'This discards PHD2\'s current calibration. You will need to '
           'recalibrate before guiding is reliable again.',
       confirmLabel: 'Clear',

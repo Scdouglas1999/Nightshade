@@ -4,6 +4,7 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 import '../tokens/shell_chrome_metrics.dart';
+import '../utils/touch_target.dart';
 
 /// The 56 px row every routed screen starts with (04-shell §4).
 ///
@@ -61,16 +62,28 @@ class PageHeader extends StatelessWidget {
         MediaQuery.sizeOf(buildContext).width <
         ShellChromeMetrics.shellLayoutBreakpoint;
 
+    // The hairline is chrome, not content: a 48 px header with a 1 px bottom
+    // border leaves its row 47, one pixel short of the Android touch minimum,
+    // so a `NightshadeIconButton` action in a narrow header measured 48 x 47
+    // and failed the tap-target guideline. Add the hairline back on a touch
+    // platform. Desktop is unchanged.
+    final double hairline = NightshadeTouchTarget.isTouch(buildContext)
+        ? _hairlineWidth
+        : 0;
     final header = Container(
-      height: narrow
-          ? ShellChromeMetrics.pageHeaderHeightNarrow
-          : ShellChromeMetrics.pageHeaderHeight,
+      height:
+          (narrow
+              ? ShellChromeMetrics.pageHeaderHeightNarrow
+              : ShellChromeMetrics.pageHeaderHeight) +
+          hairline,
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.space2xl,
       ),
       decoration: BoxDecoration(
         color: colors.background,
-        border: Border(bottom: BorderSide(color: colors.border, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: colors.border, width: _hairlineWidth),
+        ),
       ),
       // The tab strip gets ALL the width the title and the actions do not use.
       //
@@ -165,6 +178,9 @@ class PageHeader extends StatelessWidget {
       ),
     );
   }
+
+  /// The header's bottom hairline, in logical pixels.
+  static const double _hairlineWidth = 1.0;
 
   /// 03-tokens §6 puts the rail and page-title glyph at 18.
   // TODO(observatory): promote to NightshadeTokens.iconRail at merge.

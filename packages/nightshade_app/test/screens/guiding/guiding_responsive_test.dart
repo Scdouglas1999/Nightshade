@@ -182,7 +182,7 @@ void main() {
 
       await tester.tap(_adaptiveTab('Settings'));
       await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('Show Brain Settings'));
+      await tester.tap(find.text('Show brain settings'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(
         guard.allOverflows,

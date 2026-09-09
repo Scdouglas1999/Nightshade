@@ -217,7 +217,7 @@ void main() {
     expect(_panel(tester).onSettleTimeoutChanged, isNull);
     expect(_settingsLoadAttempts, 1);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Retry'));
     await tester.pump();
     await tester.pump();
 

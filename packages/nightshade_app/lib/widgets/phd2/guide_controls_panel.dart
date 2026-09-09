@@ -232,28 +232,6 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     return error.toString().replaceFirst('Exception: ', '');
   }
 
-  Color _getStateColor(NightshadeColors colors) {
-    switch (widget.state) {
-      case Phd2GuidingState.disconnected:
-      case Phd2GuidingState.stopped:
-        return colors.textMuted;
-      case Phd2GuidingState.looping:
-        return colors.warning;
-      case Phd2GuidingState.calibrating:
-        return colors.warning;
-      case Phd2GuidingState.guiding:
-        return colors.success;
-      case Phd2GuidingState.paused:
-        return colors.info;
-      case Phd2GuidingState.settling:
-        return colors.info;
-      case Phd2GuidingState.lostLock:
-        return colors.error;
-      case Phd2GuidingState.unknown:
-        return colors.warning;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
@@ -267,7 +245,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildStatusHeader(colors),
+          // No state header here: the page header carries the guider state
+          // chip (06 §Guiding), and one screen states a fact once.
           Expanded(
             // At common laptop heights (e.g. a 1000 px-tall window) the panel
             // is taller than its slot, and the only hint that Settle Settings
@@ -358,67 +337,6 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     );
   }
 
-  Widget _buildStatusHeader(NightshadeColors colors) {
-    final stateColor = _getStateColor(colors);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Compact layout for narrow panels
-        final isCompact = constraints.maxWidth < 280;
-        final iconSize = isCompact ? 14.0 : 16.0;
-        final iconPadding = isCompact ? 4.0 : 6.0;
-        final fontSize = isCompact ? 12.0 : 14.0;
-        final horizontalPadding = isCompact ? 10.0 : 16.0;
-
-        return Container(
-          padding:
-              EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(NightshadeTokens.radiusLg)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(iconPadding),
-                decoration: BoxDecoration(
-                  color: stateColor.withValues(alpha: 0.15),
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusLg),
-                ),
-                child:
-                    Icon(widget.state.icon, color: stateColor, size: iconSize),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.state.displayName,
-                  style: TextStyle(
-                    color: stateColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: fontSize,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.visible,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: widget.isConnected ? colors.success : colors.error,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildMainControls(NightshadeColors colors) {
     // All enable/label decisions flow from the shared capability layer so the
     // desktop and mobile controls (which share this widget) can never disagree
@@ -441,43 +359,36 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSectionHeader('Guiding Controls', LucideIcons.target, colors),
+        _buildSectionHeader('Guiding controls', LucideIcons.target, colors),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildControlButton(
-                id: primaryId,
-                icon: primaryIsStop ? LucideIcons.square : LucideIcons.play,
-                label: primaryIsStop ? 'Stop' : 'Start',
-                color: primaryIsStop ? colors.error : colors.success,
-                colors: colors,
-                onPressed: primaryAction,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildControlButton(
-                id: state.canResume ? 'resume' : 'pause',
-                icon: state.canResume ? LucideIcons.play : LucideIcons.pause,
-                label: state.canResume ? 'Resume' : 'Pause',
-                color: colors.warning,
-                colors: colors,
-                onPressed: connected
-                    ? (state.canResume
-                        ? widget.onResumeGuiding
-                        : (state.canPause ? widget.onPauseGuiding : null))
-                    : null,
-                unavailableReason: widget.pauseUnavailableReason,
-              ),
-            ),
-          ],
+        _buttonPair(
+          _buildControlButton(
+            id: primaryId,
+            icon: primaryIsStop ? LucideIcons.square : LucideIcons.play,
+            label: primaryIsStop ? 'Stop' : 'Start',
+            color: primaryIsStop ? colors.error : colors.success,
+            colors: colors,
+            onPressed: primaryAction,
+          ),
+          _buildControlButton(
+            id: state.canResume ? 'resume' : 'pause',
+            icon: state.canResume ? LucideIcons.play : LucideIcons.pause,
+            label: state.canResume ? 'Resume' : 'Pause',
+            color: colors.warning,
+            colors: colors,
+            onPressed: connected
+                ? (state.canResume
+                    ? widget.onResumeGuiding
+                    : (state.canPause ? widget.onPauseGuiding : null))
+                : null,
+            unavailableReason: widget.pauseUnavailableReason,
+          ),
         ),
         const SizedBox(height: 10),
         _buildControlButton(
           id: 'loop',
           icon: LucideIcons.refreshCw,
-          label: 'Loop Exposures',
+          label: 'Loop exposures',
           color: colors.info,
           colors: colors,
           onPressed: connected && state.canLoop ? widget.onLoop : null,
@@ -565,36 +476,63 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSectionHeader('Star Selection', LucideIcons.star, colors),
+        _buildSectionHeader('Star selection', LucideIcons.star, colors),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildControlButton(
-                id: 'findStar',
-                icon: LucideIcons.search,
-                label: 'Auto Select',
-                color: colors.primary,
-                colors: colors,
-                onPressedReporting:
-                    widget.isConnected ? widget.onFindStar : null,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildControlButton(
-                id: 'deselectStar',
-                icon: LucideIcons.x,
-                label: 'Deselect',
-                color: colors.textSecondary,
-                colors: colors,
-                isOutline: true,
-                onPressed: widget.isConnected ? widget.onDeselectStar : null,
-              ),
-            ),
-          ],
+        _buttonPair(
+          _buildControlButton(
+            id: 'findStar',
+            icon: LucideIcons.search,
+            label: 'Auto select',
+            color: colors.primary,
+            colors: colors,
+            onPressedReporting: widget.isConnected ? widget.onFindStar : null,
+          ),
+          _buildControlButton(
+            id: 'deselectStar',
+            icon: LucideIcons.x,
+            label: 'Deselect',
+            color: colors.textSecondary,
+            colors: colors,
+            isOutline: true,
+            onPressed: widget.isConnected ? widget.onDeselectStar : null,
+          ),
         ),
       ],
+    );
+  }
+
+  /// Width at which two half-width control buttons stop holding their labels.
+  ///
+  /// Measured against the longest pair in this panel ("Auto select" beside
+  /// "Deselect"): in a 300 px side panel each button gets ~113 px, which
+  /// clipped "Auto select" to "Auto Sel...". A truncated control name is not a
+  /// name, so under this width the pair stacks and keeps both words.
+  static const double _buttonPairMinWidth = 260.0;
+
+  /// Two control buttons side by side, stacked when the column is too narrow
+  /// for their labels.
+  Widget _buttonPair(Widget first, Widget second) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _buttonPairMinWidth) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              first,
+              const SizedBox(height: 10),
+              second,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 10),
+            Expanded(child: second),
+          ],
+        );
+      },
     );
   }
 
@@ -672,7 +610,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                       height: 20,
                       child: Checkbox(
                         value: widget.ditherRaOnly,
-                        semanticLabel: 'RA Only',
+                        semanticLabel: 'RA only',
                         onChanged: (value) =>
                             widget.onDitherRaOnlyChanged?.call(value ?? false),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -685,7 +623,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'RA Only',
+                      'RA only',
                       style:
                           TextStyle(color: colors.textSecondary, fontSize: 12),
                     ),
@@ -698,7 +636,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               child: _buildControlButton(
                 id: 'dither',
                 icon: LucideIcons.shuffle,
-                label: 'Dither Now',
+                label: 'Dither now',
                 color: colors.accent,
                 colors: colors,
                 small: true,
@@ -744,7 +682,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Settle Settings',
+                        'Settle settings',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

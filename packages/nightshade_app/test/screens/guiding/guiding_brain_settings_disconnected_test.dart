@@ -79,11 +79,11 @@ void main() {
     await _drain(tester);
 
     // Default guiderState is disconnected — the reported starting condition.
-    expect(find.text('Brain Settings'), findsOneWidget);
-    await tester.tap(find.text('Brain Settings'));
+    expect(find.text('Brain settings'), findsOneWidget);
+    await tester.tap(find.text('Brain settings'));
     await _drain(tester);
 
-    expect(find.text('Hide Brain Settings'), findsOneWidget,
+    expect(find.text('Hide brain settings'), findsOneWidget,
         reason: 'The section must still expand — the defect was the content, '
             'not the toggle.');
 
@@ -133,7 +133,7 @@ void main() {
     );
     await _drain(tester);
 
-    await tester.tap(find.text('Brain Settings'));
+    await tester.tap(find.text('Brain settings'));
     await _drain(tester);
 
     expect(find.byType(ShimmerLoading), findsWidgets,
@@ -164,10 +164,10 @@ void main() {
     );
     await _drain(tester);
 
-    await tester.tap(find.text('Brain Settings'));
+    await tester.tap(find.text('Brain settings'));
     await _drain(tester);
 
-    expect(find.text('Failed to load brain settings'), findsOneWidget,
+    expect(find.text('Brain settings did not load'), findsOneWidget,
         reason: 'A real failure must still reach the error branch with its '
             'Retry button.');
     expect(find.text('Retry'), findsOneWidget);

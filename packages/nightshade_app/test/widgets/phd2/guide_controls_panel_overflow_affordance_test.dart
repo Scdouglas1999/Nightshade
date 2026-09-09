@@ -65,7 +65,7 @@ void main() {
     await _pumpPanel(tester, height: 1400);
 
     expect(_moreBelowChevron, findsNothing);
-    expect(find.text('Settle Settings'), findsOneWidget);
+    expect(find.text('Settle settings'), findsOneWidget);
   });
 
   testWidgets('scrolling to the settle section reveals it', (tester) async {
@@ -78,6 +78,6 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Settle Settings'), findsOneWidget);
+    expect(find.text('Settle settings'), findsOneWidget);
   });
 }

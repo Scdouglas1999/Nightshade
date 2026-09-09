@@ -1,5 +1,5 @@
-// The `Frame Count` row in Star Statistics sits directly beneath an SNR and a
-// Star Mass that update on every loop frame, so all three read as describing the
+// The `Frames` readout in Star statistics sits directly beside an SNR and a
+// Star mass that update on every loop frame, so all three read as describing the
 // same frames. `frameCount` counts guide STEPS and looping takes no corrections,
 // so reporting it during a Loop Exposures run prints `0` under two live rows.
 //
@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
@@ -84,19 +85,13 @@ List<Override> _overrides(Phd2State phd2State, Override stats) => [
       stats,
     ];
 
-/// The value rendered beside the `Frame Count` label in Star Statistics.
+/// The value carried by the `Frames` [Readout] in the Star statistics panel.
 String _frameCountValue(WidgetTester tester) {
-  final row = find.ancestor(
-    of: find.text('Frame Count'),
-    matching: find.byType(Row),
-  );
-  final texts = tester
-      .widgetList<Text>(
-          find.descendant(of: row.first, matching: find.byType(Text)))
-      .map((t) => t.data)
-      .toList();
-  expect(texts.first, 'Frame Count');
-  return texts.last!;
+  final readouts = tester.widgetList<Readout>(find.byType(Readout));
+  final frames = readouts.where((r) => r.label == 'Frames').toList();
+  expect(frames, hasLength(1),
+      reason: 'exactly one Frames readout must be mounted');
+  return frames.single.value!;
 }
 
 void main() {
