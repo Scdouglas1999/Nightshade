@@ -3,7 +3,7 @@
 // (that's covered by the rule unit tests in `nightshade_core`); instead
 // we override `sequenceValidatorProvider` with a fake that returns a
 // canned `ValidationResult` and verify the dialog renders the new
-// Dark Library / Equipment Health / Optical Train sections.
+// Dark library / Equipment health / Optical train sections.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -123,7 +123,7 @@ void main() {
     addTearDown(() => FlutterError.onError = original);
   }
 
-  testWidgets('renders Dark Library section with capture button',
+  testWidgets('renders the dark library section with capture button',
       (tester) async {
     ignoreLayoutOverflow();
     await pumpDialog(
@@ -195,7 +195,7 @@ void main() {
     );
   });
 
-  testWidgets('renders Equipment Health section', (tester) async {
+  testWidgets('renders the equipment health section', (tester) async {
     ignoreLayoutOverflow();
     await pumpDialog(
       tester: tester,
@@ -208,11 +208,11 @@ void main() {
         ),
       ],
     );
-    expect(find.text('Equipment Health'), findsOneWidget);
+    expect(find.text('Equipment health'), findsOneWidget);
     expect(find.text('USB Stability Concern'), findsOneWidget);
   });
 
-  testWidgets('renders Optical Train section', (tester) async {
+  testWidgets('renders the optical train section', (tester) async {
     ignoreLayoutOverflow();
     await pumpDialog(
       tester: tester,
@@ -225,7 +225,7 @@ void main() {
         ),
       ],
     );
-    expect(find.text('Optical Train'), findsOneWidget);
+    expect(find.text('Optical train'), findsOneWidget);
     expect(find.text('Optical Train Has Shifted'), findsOneWidget);
   });
 

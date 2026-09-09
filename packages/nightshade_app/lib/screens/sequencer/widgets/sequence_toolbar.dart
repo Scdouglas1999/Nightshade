@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,6 +76,37 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
   /// chips state facts that are only useful whole, so they take their
   /// intrinsic width and the name takes what is left, up to this fraction.
   static const double _nameWidthFraction = 0.4;
+
+  /// Everything in the wide row that is neither the name nor the toolbar: the
+  /// leading document glyph and the three gaps around it.
+  static const double _leadingCost = _canvasBarGlyph +
+      NightshadeTokens.spaceSm +
+      NightshadeTokens.spaceMd +
+      NightshadeTokens.spaceSm;
+
+  /// What the labelled Timeline / Map pair costs, measured at 1600 px
+  /// (148.8 + 2 + 83.3 = 234.1) and rounded up, because a pressed toggle is
+  /// `secondary` and carries a border the idle one does not.
+  static const double _labelledToggleGroupWidth = 260.0;
+
+  /// The width of a [NightshadeToolbar] holding [buttons] glyph buttons in
+  /// [groups] groups, each button [extent] wide.
+  ///
+  /// The tiers below cannot be constants alone: `NightshadeIconButton` grows
+  /// its box to Android's 48 dp touch floor, so the same six glyphs are 200 px
+  /// under a pointer and 320 px under a finger. A constant tuned on the
+  /// desktop overflows the phone by exactly that difference.
+  static double _toolbarWidth(int buttons, int groups, double extent) =>
+      buttons * extent +
+      (buttons - groups) * NightshadeToolbar.itemGap +
+      (groups - 1) *
+          (NightshadeToolbar.separatorWidth +
+              NightshadeToolbar.groupPadding * 2);
+
+  /// The narrowest bar that can host [toolbarWidth] and still give the name
+  /// its full [_nameWidthFraction] share.
+  static double _barWidthFor(double toolbarWidth) =>
+      (_leadingCost + toolbarWidth) / (1 - _nameWidthFraction);
 
   bool _fileActionRunning = false;
 
@@ -667,7 +700,24 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           // and 486 px in a 1000 px one with both side panels open. Below the
           // narrowest tier the bar is the sequence name and the menu, and the
           // menu still holds every action.
-          final isNarrowRow = constraints.maxWidth < _narrowBarWidth;
+          // A glyph button is 28 px under a pointer and 48 px under a finger
+          // (`NightshadeIconButton` lifts its box to the touch floor), so
+          // every tier below is a constant OR what the buttons actually cost,
+          // whichever is wider.
+          final glyphExtent = math.max(
+            NightshadeTokens.iconButtonSizeSm,
+            NightshadeTouchTarget.minExtent(context),
+          );
+          // Without the toggles the bar carries undo/redo and save/more.
+          final barToolbarWidth = _toolbarWidth(4, 2, glyphExtent);
+          // With them, three groups of two.
+          final toggledToolbarWidth = _toolbarWidth(6, 3, glyphExtent);
+          // Labelled, the middle group is two worded buttons.
+          final labelledToolbarWidth =
+              _toolbarWidth(4, 3, glyphExtent) + _labelledToggleGroupWidth;
+
+          final isNarrowRow = constraints.maxWidth <
+              math.max(_narrowBarWidth, _barWidthFor(barToolbarWidth));
 
           final validation = ref.watch(liveValidationProvider);
           final showTimeline = ref.watch(timelineVisibleProvider);
@@ -679,8 +729,11 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           // "Map" are ~90 px wider than their glyphs, and at 570 px even the
           // glyphs are 32 px too many. Nothing loses its name at either step:
           // the glyphs keep the tooltips and the menu entries keep the words.
-          final labelledToggles = constraints.maxWidth >= _labelledToolbarWidth;
-          final inlineToggles = constraints.maxWidth >= _toggleToolbarWidth;
+          final labelledToggles = constraints.maxWidth >=
+              math.max(
+                  _labelledToolbarWidth, _barWidthFor(labelledToolbarWidth));
+          final inlineToggles = constraints.maxWidth >=
+              math.max(_toggleToolbarWidth, _barWidthFor(toggledToolbarWidth));
 
           // When the bar cannot hold the toggle group, the toggles do not
           // vanish — they join the menu, with the words the buttons had.
@@ -778,30 +831,42 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               const SizedBox(width: NightshadeTokens.spaceSm),
               // The name is capped; the chips are whole. Nothing in this bar
               // may clip — a half-read count is worse than a shorter title.
+              //
+              // Two caps, the tighter one wins: the design share above, and
+              // what is left once the toolbar has been paid for. The second is
+              // what makes the row provably unable to overflow at ANY width,
+              // including the ones between the tiers.
               ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth * _nameWidthFraction,
+                  maxWidth: math.max(
+                    0,
+                    math.min(
+                      constraints.maxWidth * _nameWidthFraction,
+                      constraints.maxWidth -
+                          _leadingCost -
+                          (labelledToggles
+                              ? labelledToolbarWidth
+                              : inlineToggles
+                                  ? toggledToolbarWidth
+                                  : barToolbarWidth),
+                    ),
+                  ),
                 ),
                 child: _CanvasBarName(colors: colors, sequence: sequence),
               ),
               const SizedBox(width: NightshadeTokens.spaceMd),
-              // A scroll view is the last line of defence, not a ClipRect: a
-              // ClipRect hides the pixels but the Row inside it still asserts.
-              // The width tiers above mean this never actually clips at any
-              // window the app is used at; it is here so a width nobody
-              // anticipated cannot throw.
-              Flexible(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const NeverScrollableScrollPhysics(),
-                  child: _CanvasBarMeta(
-                    sequence: sequence,
-                    validation: validation,
-                    inSimulation: executorInSimulation,
-                  ),
+              // The chips take ALL the space the name and the toolbar leave,
+              // not a share of it. As `Flexible` beside a `Spacer` they were
+              // allotted half the slack, and half was never enough for the
+              // summary — it measured itself against a width the bar was not
+              // actually short of, and dropped itself on a 1800 px window.
+              Expanded(
+                child: _CanvasBarMeta(
+                  sequence: sequence,
+                  validation: validation,
+                  inSimulation: executorInSimulation,
                 ),
               ),
-              const Spacer(),
               const SizedBox(width: NightshadeTokens.spaceSm),
               NightshadeToolbar(
                 groups: <List<Widget>>[
@@ -1000,7 +1065,17 @@ class _CanvasBarMeta extends ConsumerWidget {
         final summaryWidth = _chipWidth(context, summary);
         final showSummary = constraints.hasBoundedWidth &&
             counts + summaryWidth <= constraints.maxWidth;
-        return _chips(context, summary: summary, showSummary: showSummary);
+        // A scroll view is the last line of defence, not a ClipRect: a
+        // ClipRect hides the pixels but the Row inside it still asserts. It
+        // is INSIDE this builder, not around it — wrapping the builder is
+        // what handed it an unbounded width, and an unbounded width is a
+        // measurement that always says "no room" and never shows the summary
+        // at all.
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          child: _chips(context, summary: summary, showSummary: showSummary),
+        );
       },
     );
   }
