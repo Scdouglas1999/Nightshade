@@ -182,12 +182,8 @@ class _StatusRow extends StatelessWidget {
           ),
           if (copyable != null) ...[
             const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(LucideIcons.copy, size: 14),
-              color: colors.textSecondary,
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              padding: EdgeInsets.zero,
+            NightshadeIconButton(
+              icon: LucideIcons.copy,
               tooltip: 'Copy the full error',
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: copyable));
@@ -199,6 +195,8 @@ class _StatusRow extends StatelessWidget {
                   ),
                 );
               },
+              size: IconButtonSize.sm,
+              color: colors.textSecondary,
             ),
           ],
         ],

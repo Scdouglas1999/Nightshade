@@ -244,9 +244,10 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     icon: LucideIcons.refreshCw,
                     title: 'Sync from Server',
                     subtitle: 'Fetch location from the connected imaging host',
-                    trailing: IconButton(
-                      icon: Icon(LucideIcons.downloadCloud,
-                          color: NightshadeColors.of(context).primary),
+                    trailing: NightshadeIconButton(
+                      icon: LucideIcons.downloadCloud,
+                      tooltip: 'Fetch the site from the imaging host',
+                      color: NightshadeColors.of(context).primary,
                       onPressed: () async {
                         try {
                           final actionAuthority = ref.read(backendProvider);
@@ -303,9 +304,10 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   title: 'Detect Location',
                   subtitle: 'Device GPS if this machine has it, otherwise a '
                       'city-level estimate from your IP address',
-                  trailing: IconButton(
-                    icon: Icon(LucideIcons.crosshair,
-                        color: NightshadeColors.of(context).primary),
+                  trailing: NightshadeIconButton(
+                    icon: LucideIcons.crosshair,
+                    tooltip: 'Detect this location',
+                    color: NightshadeColors.of(context).primary,
                     onPressed: () => _detectLocation(settings),
                   ),
                   isLast: true,

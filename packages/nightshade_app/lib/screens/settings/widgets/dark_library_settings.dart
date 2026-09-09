@@ -64,11 +64,12 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     ? '${librarySettingsAsync.error}'
                     : 'Reading settings from the imaging host',
                 trailing: librarySettingsAsync.hasError
-                    ? IconButton(
+                    ? NightshadeIconButton(
+                        icon: LucideIcons.refreshCw,
                         tooltip: 'Retry',
                         onPressed: () =>
                             ref.invalidate(darkLibrarySettingsProvider),
-                        icon: const Icon(LucideIcons.refreshCw),
+                        size: IconButtonSize.sm,
                       )
                     : const SizedBox(
                         width: 18,
@@ -221,15 +222,14 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                           fontSize: NightshadeTypography.fontSize13),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x,
-                        size: 14,
-                        color: NightshadeColors.of(context).textMuted),
+                  NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Dismiss this message',
                     onPressed: () => ref
                         .read(darkLibraryNotifierProvider.notifier)
                         .clearStatus(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                    size: IconButtonSize.sm,
+                    color: NightshadeColors.of(context).textMuted,
                   ),
                 ],
               ),
@@ -258,15 +258,14 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                           fontSize: NightshadeTypography.fontSize13),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x,
-                        size: 14,
-                        color: NightshadeColors.of(context).textMuted),
+                  NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Dismiss this error',
                     onPressed: () => ref
                         .read(darkLibraryNotifierProvider.notifier)
                         .clearError(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                    size: IconButtonSize.sm,
+                    color: NightshadeColors.of(context).textMuted,
                   ),
                 ],
               ),

@@ -220,9 +220,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                   children: [
                     if (calSettings.manualDarkPath != null &&
                         calSettings.manualDarkPath!.isNotEmpty)
-                      IconButton(
-                        icon:
-                            Icon(LucideIcons.x, size: 16, color: colors.error),
+                      NightshadeIconButton(
+                        icon: LucideIcons.x,
                         tooltip: 'Clear dark path',
                         onPressed: () => _clearPath(
                           context,
@@ -230,8 +229,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                               .read(calibrationSettingsProvider.notifier)
                               .setManualDarkPath(null),
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                        size: IconButtonSize.sm,
+                        color: colors.error,
                       ),
                     const SizedBox(width: 8),
                     CalibrationFileBrowseButton(
@@ -264,8 +263,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                 children: [
                   if (calSettings.masterFlatPath != null &&
                       calSettings.masterFlatPath!.isNotEmpty)
-                    IconButton(
-                      icon: Icon(LucideIcons.x, size: 16, color: colors.error),
+                    NightshadeIconButton(
+                      icon: LucideIcons.x,
                       tooltip: 'Clear flat path',
                       onPressed: () => _clearPath(
                         context,
@@ -273,8 +272,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                             .read(calibrationSettingsProvider.notifier)
                             .setMasterFlatPath(null),
                       ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      size: IconButtonSize.sm,
+                      color: colors.error,
                     ),
                   const SizedBox(width: 8),
                   CalibrationFileBrowseButton(
@@ -312,8 +311,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                 children: [
                   if (calSettings.masterBiasPath != null &&
                       calSettings.masterBiasPath!.isNotEmpty)
-                    IconButton(
-                      icon: Icon(LucideIcons.x, size: 16, color: colors.error),
+                    NightshadeIconButton(
+                      icon: LucideIcons.x,
                       tooltip: 'Clear bias path',
                       onPressed: () => _clearPath(
                         context,
@@ -321,8 +320,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                             .read(calibrationSettingsProvider.notifier)
                             .setMasterBiasPath(null),
                       ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      size: IconButtonSize.sm,
+                      color: colors.error,
                     ),
                   const SizedBox(width: 8),
                   CalibrationFileBrowseButton(

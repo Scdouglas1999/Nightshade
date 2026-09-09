@@ -477,17 +477,17 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                 NightshadeColors.of(context).primary),
                           ),
                         )
-                      : IconButton(
-                          icon: Icon(LucideIcons.refreshCw,
-                              size: 16,
-                              color: NightshadeColors.of(context).primary),
-                          onPressed: _syncFiltersFromHardware,
+                      : NightshadeIconButton(
+                          icon: LucideIcons.refreshCw,
                           tooltip: 'Sync from filter wheel',
+                          onPressed: _syncFiltersFromHardware,
+                          size: IconButtonSize.sm,
+                          color: NightshadeColors.of(context).primary,
                         ),
                 if (widget.isEditing)
-                  IconButton(
-                    icon: Icon(LucideIcons.plus,
-                        size: 16, color: NightshadeColors.of(context).primary),
+                  NightshadeIconButton(
+                    icon: LucideIcons.plus,
+                    tooltip: 'Add filter',
                     onPressed: () {
                       _update(() {
                         _filterControllers.add(TextEditingController());
@@ -495,7 +495,8 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                             .add(TextEditingController(text: '0'));
                       });
                     },
-                    tooltip: 'Add filter',
+                    size: IconButtonSize.sm,
+                    color: NightshadeColors.of(context).primary,
                   ),
               ],
             ),
@@ -683,10 +684,11 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: Icon(LucideIcons.arrowLeft,
-                          color: NightshadeColors.of(context).textPrimary),
+                    NightshadeIconButton(
+                      icon: LucideIcons.arrowLeft,
+                      tooltip: 'Back to profiles',
                       onPressed: widget.onBack,
+                      color: NightshadeColors.of(context).textPrimary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(

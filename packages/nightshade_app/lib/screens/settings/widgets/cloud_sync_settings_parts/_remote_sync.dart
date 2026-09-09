@@ -389,13 +389,14 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
       title: Row(
         children: [
           if (machine != null)
-            IconButton(
-              icon: const Icon(LucideIcons.arrowLeft, size: 18),
+            NightshadeIconButton(
+              icon: LucideIcons.arrowLeft,
               tooltip: 'Back to machines',
               onPressed: () => setState(() {
                 _selectedMachine = null;
                 _bundles = const [];
               }),
+              size: IconButtonSize.md,
             ),
           Expanded(
             child: Text(

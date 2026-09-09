@@ -26,12 +26,13 @@ class PairingScreen extends ConsumerWidget {
         title: Text(l10n.text('pairingTitle')),
         // The framework's back arrow carries a tooltip and no accessible NAME
         // — read off the live tree, the only way off this page was an unnamed
-        // button. AccessibleIconButton publishes one node that says what it is
-        // and how to press it.
+        // button. NightshadeIconButton requires the tooltip and publishes it
+        // as the control's name, so the node says what it is and how to press
+        // it.
         leading: Navigator.of(context).canPop()
-            ? AccessibleIconButton(
+            ? NightshadeIconButton(
                 icon: NightshadeIcons.arrowLeft,
-                label: 'Back to Remote Access',
+                tooltip: 'Back to Remote access',
                 onPressed: () => Navigator.of(context).maybePop(),
               )
             : null,
@@ -241,14 +242,15 @@ class PairingScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
-                IconButton(
+                NightshadeIconButton(
+                  icon: NightshadeIcons.refresh,
+                  tooltip: l10n.text('pairingRefresh'),
                   onPressed: state.isLoading
                       ? null
                       : () => ref
                           .read(pairingProvider.notifier)
                           .loadPairedDevices(),
-                  icon: const Icon(NightshadeIcons.refresh),
-                  tooltip: l10n.text('pairingRefresh'),
+                  size: IconButtonSize.sm,
                 ),
               ],
             ),

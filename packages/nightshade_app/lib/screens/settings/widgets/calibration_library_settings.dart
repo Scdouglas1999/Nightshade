@@ -197,10 +197,11 @@ class _CalibrationLibrarySettingsState
         const SizedBox(width: 12),
         Text('$_masterCount master${_masterCount == 1 ? '' : 's'}',
             style: theme.textTheme.bodySmall),
-        IconButton(
+        NightshadeIconButton(
+          icon: LucideIcons.refreshCw,
           tooltip: 'Refresh',
-          icon: const Icon(LucideIcons.refreshCw, size: 18),
           onPressed: _loading ? null : _reload,
+          size: IconButtonSize.md,
         ),
       ],
     );

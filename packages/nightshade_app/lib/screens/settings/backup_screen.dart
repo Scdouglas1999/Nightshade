@@ -756,13 +756,12 @@ class _RecentBackupsCard extends StatelessWidget {
                       .copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
-                IconButton(
-                  // Single-flight: disable refresh while a load is in flight so
-                  // rapid taps can't stack overlapping loads.
-                  onPressed: isLoading ? null : onRefresh,
-                  icon: Icon(LucideIcons.refreshCw,
-                      size: 18, color: colors.textSecondary),
+                NightshadeIconButton(
+                  icon: LucideIcons.refreshCw,
                   tooltip: 'Refresh',
+                  onPressed: isLoading ? null : onRefresh,
+                  size: IconButtonSize.md,
+                  color: colors.textSecondary,
                 ),
               ],
             ),
@@ -890,22 +889,27 @@ class _BackupTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            onPressed: onRestore,
-            icon: Icon(LucideIcons.upload, size: 18, color: colors.primary),
+          NightshadeIconButton(
+            icon: LucideIcons.upload,
             tooltip: 'Restore',
+            onPressed: onRestore,
+            size: IconButtonSize.md,
+            color: colors.primary,
           ),
           if (isRemoteMode)
-            IconButton(
-              onPressed: onDownload,
-              icon: Icon(LucideIcons.download,
-                  size: 18, color: colors.textSecondary),
+            NightshadeIconButton(
+              icon: LucideIcons.download,
               tooltip: 'Download',
+              onPressed: onDownload,
+              size: IconButtonSize.md,
+              color: colors.textSecondary,
             ),
-          IconButton(
-            onPressed: onDelete,
-            icon: Icon(LucideIcons.trash2, size: 18, color: colors.error),
+          NightshadeIconButton(
+            icon: LucideIcons.trash2,
             tooltip: 'Delete',
+            onPressed: onDelete,
+            size: IconButtonSize.md,
+            color: colors.error,
           ),
         ],
       ),

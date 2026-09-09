@@ -412,23 +412,28 @@ class _HostSettingsRefreshButtonState
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return IconButton(
-      tooltip: 'Refresh host settings',
-      onPressed: _refreshing ? null : _refresh,
-      icon: _refreshing
-          ? SizedBox(
-              width: widget.isMobile ? 20 : 18,
-              height: widget.isMobile ? 20 : 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.primary,
-              ),
-            )
-          : Icon(
-              LucideIcons.downloadCloud,
+    // The spinner keeps the button's footprint while the fetch is in flight,
+    // so the row does not reflow under the pointer.
+    if (_refreshing) {
+      return SizedBox.square(
+        dimension: NightshadeTokens.iconButtonSize,
+        child: Tooltip(
+          message: 'Refreshing the host settings…',
+          child: Padding(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
               color: colors.primary,
-              size: widget.isMobile ? 20 : 18,
             ),
+          ),
+        ),
+      );
+    }
+    return NightshadeIconButton(
+      icon: LucideIcons.downloadCloud,
+      tooltip: 'Refresh the host settings',
+      onPressed: _refresh,
+      color: colors.primary,
     );
   }
 }

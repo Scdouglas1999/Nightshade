@@ -375,18 +375,27 @@ class _ObservationLogSettingsState
 
           // Delete button
           const SizedBox(width: 8),
-          IconButton(
-            icon: isDeleting
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(LucideIcons.trash2, size: 16, color: colors.error),
-            iconSize: 16,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: isDeleting ? null : () => _confirmDelete(log),
-          ),
+          // The spinner keeps the button's footprint while the delete is in
+          // flight, so the row does not reflow under the pointer.
+          if (isDeleting)
+            SizedBox.square(
+              dimension: NightshadeTokens.iconButtonSizeSm,
+              child: Padding(
+                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.textMuted,
+                ),
+              ),
+            )
+          else
+            NightshadeIconButton(
+              icon: LucideIcons.trash2,
+              tooltip: 'Delete this observation',
+              onPressed: () => _confirmDelete(log),
+              size: IconButtonSize.sm,
+              color: colors.error,
+            ),
         ],
       ),
     );

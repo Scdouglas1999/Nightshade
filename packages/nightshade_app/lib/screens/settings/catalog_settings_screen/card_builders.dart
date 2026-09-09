@@ -118,11 +118,12 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(NightshadeIcons.folderOpen,
-                    color: colors.textSecondary),
-                onPressed: _isDownloading ? null : () => _importCatalog(type),
+              NightshadeIconButton(
+                icon: NightshadeIcons.folderOpen,
                 tooltip: 'Import from file',
+                onPressed: _isDownloading ? null : () => _importCatalog(type),
+                size: IconButtonSize.sm,
+                color: colors.textSecondary,
               ),
             ],
           ),

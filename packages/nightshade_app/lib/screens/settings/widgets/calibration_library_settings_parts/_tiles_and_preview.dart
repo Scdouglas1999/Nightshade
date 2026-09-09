@@ -47,27 +47,31 @@ class _MasterTile extends StatelessWidget {
                 ),
                 _FreshnessChip(freshness: freshness, ageDays: age),
                 if (onPublish != null)
-                  IconButton(
+                  NightshadeIconButton(
+                    icon: LucideIcons.share2,
                     tooltip: 'Share to hub',
-                    icon: const Icon(LucideIcons.share2, size: 18),
                     onPressed: onPublish,
+                    size: IconButtonSize.md,
                   ),
                 if (onRetract != null)
-                  IconButton(
+                  NightshadeIconButton(
+                    icon: LucideIcons.link2Off,
                     tooltip: 'Un-share from hub',
-                    icon: const Icon(LucideIcons.link2Off, size: 18),
                     onPressed: onRetract,
+                    size: IconButtonSize.md,
                   ),
-                IconButton(
+                NightshadeIconButton(
+                  icon: LucideIcons.tag,
                   tooltip: 'Edit tags / notes',
-                  icon: const Icon(LucideIcons.tag, size: 18),
                   onPressed: onEditTags,
+                  size: IconButtonSize.md,
                 ),
-                IconButton(
+                NightshadeIconButton(
+                  icon: LucideIcons.trash2,
                   tooltip: 'Delete',
-                  icon: Icon(LucideIcons.trash2,
-                      size: 18, color: theme.colorScheme.error),
                   onPressed: onDelete,
+                  size: IconButtonSize.md,
+                  color: theme.colorScheme.error,
                 ),
               ],
             ),

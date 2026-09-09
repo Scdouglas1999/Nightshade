@@ -70,33 +70,28 @@ class _ProfileList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
-                onPressed: onImportProfiles,
-                icon: isImportingProfiles
-                    ? SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.primary,
-                        ),
-                      )
-                    : Icon(
-                        LucideIcons.download,
-                        color: colors.textSecondary,
-                        size: 18,
+              // The spinner keeps the button's footprint while the import runs,
+              // so the row beside "New profile" does not reflow.
+              if (isImportingProfiles)
+                SizedBox.square(
+                  dimension: NightshadeTokens.iconButtonSize,
+                  child: Tooltip(
+                    message: 'Importing profiles…',
+                    child: Padding(
+                      padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.primary,
                       ),
-                tooltip: isImportingProfiles
-                    ? 'Importing profiles…'
-                    : 'Import profiles',
-                style: IconButton.styleFrom(
-                  backgroundColor: colors.surfaceAlt,
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                    side: BorderSide(color: colors.border),
+                    ),
                   ),
+                )
+              else
+                NightshadeIconButton(
+                  icon: LucideIcons.download,
+                  tooltip: 'Import profiles',
+                  onPressed: onImportProfiles,
                 ),
-              ),
             ],
           ),
         ),

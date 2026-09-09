@@ -202,10 +202,9 @@ class _DestinationRow extends ConsumerWidget {
                               _setEnabled(context, ref, id, value: value),
                     ),
                   ),
-                  AccessibleIconButton(
+                  NightshadeIconButton(
                     icon: LucideIcons.settings2,
-                    label: 'Edit ${destination.name}',
-                    size: 18,
+                    tooltip: 'Edit ${destination.name}',
                     onPressed: id == null
                         ? null
                         : () => _DestinationEditorDialog.edit(
