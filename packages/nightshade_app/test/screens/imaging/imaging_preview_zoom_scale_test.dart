@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
 import 'package:nightshade_app/screens/imaging/widgets/annotation_tooltip.dart';
 import 'package:nightshade_app/screens/imaging/widgets/image_display.dart';
-import 'package:nightshade_app/screens/imaging/widgets/overlay_widgets.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_app/screens/imaging/widgets/preview_display_scale.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -45,11 +45,12 @@ Future<void> _drain(WidgetTester tester) async {
   }
 }
 
-/// Invoke the preview toolbar's own `onTap` for the button carrying [tooltip].
+/// Invoke the viewer toolbar's own `onPressed` for the button carrying
+/// [tooltip].
 void _pressToolbarButton(WidgetTester tester, String tooltip) {
-  final button = tester.widget<OverlayIconButton>(find.byWidgetPredicate(
-      (w) => w is OverlayIconButton && w.tooltip == tooltip));
-  button.onTap!();
+  final button = tester.widget<NightshadeIconButton>(find.byWidgetPredicate(
+      (w) => w is NightshadeIconButton && w.tooltip == tooltip));
+  button.onPressed!();
 }
 
 void _swallowKnownOverflows() {

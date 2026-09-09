@@ -206,7 +206,8 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
     );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      // The SidePanel already pads its content by 16 (05 §15).
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -245,8 +246,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                           : (guiderState.deviceId != null
                               ? 'Guider ${guiderState.deviceName ?? guiderState.deviceId!} is not connected'
                               : 'No guider connected'),
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
+                      style: NightshadeTypography.caption.copyWith(
                           color: guiderState.lastError != null
                               ? widget.colors.error
                               : widget.colors.warning),

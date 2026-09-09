@@ -242,9 +242,8 @@ class _ApplyToggle extends ConsumerWidget {
         Expanded(
           child: Text(
             'Apply during capture',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textPrimary),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textPrimary),
           ),
         ),
         NightshadeSwitch(

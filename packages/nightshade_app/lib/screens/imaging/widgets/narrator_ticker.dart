@@ -286,11 +286,8 @@ class _TickerLine extends StatelessWidget {
             event.headline,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                fontWeight: FontWeight.w600, color: colors.textPrimary),
           ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),

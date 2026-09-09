@@ -39,11 +39,8 @@ class _CalibratedBadge extends ConsumerWidget {
             const SizedBox(width: 4),
             Text(
               'Calibrated',
-              style: TextStyle(
-                color: colors.onPrimary,
-                fontSize: NightshadeTypography.fontSize10,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  fontWeight: FontWeight.w600, color: colors.onPrimary),
             ),
           ],
         ),
@@ -124,7 +121,7 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
         pixelScaleArcsecPerPixel: plateSolve.pixelScale,
         imageWidthPixels: plateSolve.imageWidth.toDouble(),
         zoomLevel: zoomLevel,
-        bottomMargin: readoutsVisible ? PreviewReadoutInsets.histogram : null,
+        bottomMargin: readoutsVisible ? PreviewReadoutInsets.bottomLeft : null,
       );
 
   /// The compass painter this widget draws with.
@@ -134,7 +131,7 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
   /// draw would put that resolve on every frame.
   late final CompassOverlayPainter _compass = CompassOverlayPainter(
     rotationDegrees: plateSolve.rotation,
-    bottomMargin: readoutsVisible ? PreviewReadoutInsets.stats : null,
+    bottomMargin: readoutsVisible ? PreviewReadoutInsets.bottomRight : null,
     colors: colors,
   );
 

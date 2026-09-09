@@ -38,11 +38,9 @@ class AnnotationQuickSettingChip extends StatelessWidget {
               ),
         child: Text(
           label,
-          style: TextStyle(
-            color: isSelected ? colors.primary : colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          ),
+          style: NightshadeTypography.caption.copyWith(
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              color: isSelected ? colors.primary : colors.textSecondary),
         ),
       ),
     );

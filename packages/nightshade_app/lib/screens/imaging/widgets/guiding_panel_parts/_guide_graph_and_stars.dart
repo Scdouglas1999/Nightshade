@@ -65,10 +65,8 @@ class CompactGuidingGraph extends StatelessWidget {
                         : isConnected
                             ? 'Ready to guide'
                             : 'No guide data',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: isGuiding ? colors.success : colors.textMuted,
-                    ),
+                    style: NightshadeTypography.caption.copyWith(
+                        color: isGuiding ? colors.success : colors.textMuted),
                   ),
                 ],
               ),
@@ -86,9 +84,8 @@ class CompactGuidingGraph extends StatelessWidget {
                         NightshadeChartColors.seriesRed, colors)),
                 const SizedBox(width: 4),
                 Text('RA',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize9,
-                        color: colors.textMuted)),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted)),
                 const SizedBox(width: 12),
                 Container(
                     width: 12,
@@ -97,9 +94,8 @@ class CompactGuidingGraph extends StatelessWidget {
                         NightshadeChartColors.seriesBlue, colors)),
                 const SizedBox(width: 4),
                 Text('Dec',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize9,
-                        color: colors.textMuted)),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted)),
               ],
             ),
           ),
@@ -214,10 +210,8 @@ class GuideStarList extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'No stars tracked yet',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ),
                 ],
@@ -258,11 +252,9 @@ class GuideStarList extends ConsumerWidget {
     );
   }
 
-  static TextStyle _headerStyle(NightshadeColors colors) => TextStyle(
-        fontSize: NightshadeTypography.fontSize9,
-        fontWeight: FontWeight.w600,
-        color: colors.textMuted,
-      );
+  static TextStyle _headerStyle(NightshadeColors colors) =>
+      NightshadeTypography.caption
+          .copyWith(fontWeight: FontWeight.w600, color: colors.textMuted);
 }
 
 class _GuideStarRow extends StatelessWidget {
@@ -273,10 +265,8 @@ class _GuideStarRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final valueStyle = TextStyle(
-      fontSize: NightshadeTypography.fontSize11,
-      color: colors.textPrimary,
-    );
+    final valueStyle =
+        NightshadeTypography.caption.copyWith(color: colors.textPrimary);
     final residual = star.residual;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -350,10 +340,8 @@ class GuideStat extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: colors.textMuted,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),

@@ -325,12 +325,6 @@ void main() {
   });
 
   testWidgets('surface — imaging live-view overlay HUD', (tester) async {
-    const stats = ImageStats(
-      hfr: 2.13,
-      starCount: 1842,
-      median: 1180,
-      mean: 1304,
-    );
     await pumpAndCapture(
       tester,
       fileName: 'surface-imaging-overlay-hud.png',
@@ -377,11 +371,21 @@ void main() {
                 ],
               ),
             ),
+            // The frame's measurements are a Glass ReadoutRow now (05 §14);
+            // the values are inline because this surface has no provider
+            // scope of its own.
             Align(
               alignment: Alignment.topRight,
-              child: ImageStatsOverlay(
-                colors: NightshadeColors.dark,
-                stats: stats,
+              child: Glass(
+                child: ReadoutRow(
+                  gap: 18,
+                  children: [
+                    Readout(value: '2.13', unit: 'px', label: 'HFR'),
+                    Readout(value: '1842', label: 'Stars'),
+                    Readout(value: '1 180', label: 'Median'),
+                    Readout(value: '1 304', label: 'Mean'),
+                  ],
+                ),
               ),
             ),
           ],

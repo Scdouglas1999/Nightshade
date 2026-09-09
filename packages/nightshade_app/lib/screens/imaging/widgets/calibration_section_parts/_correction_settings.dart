@@ -73,10 +73,8 @@ class _CorrectionSettings extends ConsumerWidget {
           const SizedBox(width: 8),
           Text(
             'Loading correction settings…',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
         ],
       );
@@ -90,10 +88,7 @@ class _CorrectionSettings extends ConsumerWidget {
           Expanded(
             child: Text(
               'Could not load correction settings from the imaging host.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.error,
-              ),
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
             ),
           ),
           TextButton(
@@ -110,12 +105,10 @@ class _CorrectionSettings extends ConsumerWidget {
       children: [
         Text(
           'Correction settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-            letterSpacing: 0.5,
-          ),
+          style: NightshadeTypography.caption.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+              letterSpacing: 0.5),
         ),
         const SizedBox(height: 8),
         // Auto-apply: enables defect correction whenever a map exists for
@@ -125,9 +118,8 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Auto-apply when map exists',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textPrimary),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -189,9 +181,8 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Save original to Raw/ subdir',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textPrimary),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -229,10 +220,7 @@ class _ResponsiveDropdownSetting extends StatelessWidget {
   Widget build(BuildContext context) {
     final labelWidget = Text(
       label,
-      style: TextStyle(
-        fontSize: NightshadeTypography.fontSize12,
-        color: colors.textPrimary,
-      ),
+      style: NightshadeTypography.caption.copyWith(color: colors.textPrimary),
     );
 
     return LayoutBuilder(

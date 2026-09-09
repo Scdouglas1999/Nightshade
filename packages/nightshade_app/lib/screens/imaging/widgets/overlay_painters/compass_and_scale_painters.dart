@@ -1,17 +1,35 @@
 part of '../overlay_painters.dart';
 
-/// Bottom space the viewport's corner readouts occupy, so the painters anchored
-/// to the same corners can stay off them.
+/// Bottom space the canvas's corner HUD panels occupy, so the painters
+/// anchored to the same corners stay off them.
 ///
-/// Each is the readout's 16px anchor plus its height plus a gap. The histogram
-/// is a fixed 80px tall ([HistogramWidget]); the image-stats card is four
-/// [StatLine]s inside 12px padding, which measures 110px at the shipped type
-/// scale. Both are pinned by a layout test that measures the real widgets, so a
-/// readout that grows fails that test rather than silently colliding again.
+/// Each is the panel's 14px anchor plus its height plus a gap. Bottom-left is
+/// the at-a-glance quality stack (frame science chip, sub-quality badge,
+/// guiding indicator); bottom-right is the histogram glass — an eyebrow, 44px
+/// of bars and a caption inside 10px padding, which measures 104px at the
+/// shipped type scale. Both are pinned by a layout test that measures the real
+/// widgets, so a panel that grows fails that test rather than silently
+/// colliding again.
 abstract final class PreviewReadoutInsets {
-  static const double histogram = 16 + 80 + 8;
-  static const double stats = 16 + 110 + 8;
+  /// Clearance for the bottom-LEFT quality stack.
+  static const double bottomLeft = 14 + 80 + 8;
+
+  /// Clearance for the bottom-RIGHT histogram glass.
+  static const double bottomRight = 14 + 104 + 8;
 }
+
+/// Ink for text painted directly onto the frame.
+///
+/// image-anchored: painted over the frame, theme-blind by design (05 §14).
+/// The same rule that makes glass borrow the dark palette applies to a label
+/// drawn straight onto a photograph — there is no surface behind it to take a
+/// colour from.
+const Color _overlayInk = Colors.white;
+
+/// The drop shadow that keeps [_overlayInk] legible over a bright nebula.
+///
+/// image-anchored: painted over the frame, theme-blind by design (05 §14).
+const Color _overlayShadow = Colors.black;
 
 /// Compass rose: the North axis.
 @visibleForTesting
@@ -163,15 +181,11 @@ class CompassOverlayPainter extends CustomPainter {
       double arrowAngleRad, double compassRadius, Color color) {
     final textSpan = TextSpan(
       text: text,
-      style: TextStyle(
-        color: color,
-        fontSize: NightshadeTypography.fontSize13,
-        fontWeight: FontWeight.w700,
-        shadows: const [
-          Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
-          Shadow(blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
-        ],
-      ),
+      style: NightshadeTypography.bodySm
+          .copyWith(fontWeight: FontWeight.w700, color: color, shadows: const [
+        Shadow(blurRadius: 4, color: _overlayShadow, offset: Offset(0, 0)),
+        Shadow(blurRadius: 2, color: _overlayShadow, offset: Offset(1, 1)),
+      ]),
     );
     final textPainter = TextPainter(
       text: textSpan,
@@ -299,15 +313,11 @@ class ScaleBarPainter extends CustomPainter {
     // Measure text first so we can size the background
     final textSpan = TextSpan(
       text: bestLabel,
-      style: const TextStyle(
-        color: Color(0xFFFFFFFF),
-        fontSize: NightshadeTypography.fontSize12,
-        fontWeight: FontWeight.w600,
-        shadows: [
-          Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
-          Shadow(blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
-        ],
-      ),
+      style: NightshadeTypography.caption
+          .copyWith(fontWeight: FontWeight.w600, color: _overlayInk, shadows: [
+        Shadow(blurRadius: 4, color: _overlayShadow, offset: Offset(0, 0)),
+        Shadow(blurRadius: 2, color: _overlayShadow, offset: Offset(1, 1)),
+      ]),
     );
     final textPainter = TextPainter(
       text: textSpan,
@@ -334,7 +344,7 @@ class ScaleBarPainter extends CustomPainter {
 
     // Draw the horizontal bar
     final barPaint = Paint()
-      ..color = const Color(0xFFFFFFFF)
+      ..color = _overlayInk
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.square;

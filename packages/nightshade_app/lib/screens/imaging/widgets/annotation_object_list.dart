@@ -59,12 +59,10 @@ class AnnotationObjectListItem extends StatelessWidget {
                 children: [
                   Text(
                     object.commonName ?? object.name,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
-                    ),
+                    style: NightshadeTypography.caption.copyWith(
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.w500,
+                        color: colors.textPrimary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -74,20 +72,16 @@ class AnnotationObjectListItem extends StatelessWidget {
                       if (object.commonName != null) ...[
                         Text(
                           object.name,
-                          style: TextStyle(
-                            color: colors.textMuted,
-                            fontSize: NightshadeTypography.fontSize10,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textMuted),
                         ),
                         const SizedBox(width: 8),
                       ],
                       Text(
                         getTypeShortLabel(object.type),
-                        style: TextStyle(
-                          color:
-                              _getTypeColor(object.type).withValues(alpha: 0.8),
-                          fontSize: NightshadeTypography.fontSize10,
-                        ),
+                        style: NightshadeTypography.caption.copyWith(
+                            color: _getTypeColor(object.type)
+                                .withValues(alpha: 0.8)),
                       ),
                     ],
                   ),
@@ -105,11 +99,8 @@ class AnnotationObjectListItem extends StatelessWidget {
                 ),
                 child: Text(
                   'm${object.magnitude!.toStringAsFixed(1)}',
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontFamily: 'monospace',
-                  ),
+                  style: NightshadeTypography.monoCaption.copyWith(
+                      color: colors.textMuted, fontFamily: 'monospace'),
                 ),
               ),
           ],

@@ -96,12 +96,9 @@ extension _CenteringDialogSectionBuilders on _CenteringDialogState {
                 ),
                 child: Text(
                   '${imageData.width}x${imageData.height}',
-                  style: const TextStyle(
-                    // absolute: HUD label over the preview image canvas
-                    color: Colors.white70,
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
+                  style: NightshadeTypography.monoCaption.copyWith(
+                      // absolute: HUD label over the preview image canvas
+                      color: Colors.white70),
                 ),
               ),
             ),
@@ -391,11 +388,8 @@ extension _CenteringDialogSectionBuilders on _CenteringDialogState {
                   child: Center(
                     child: Text(
                       '${iter.iterationNumber}',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(fontWeight: FontWeight.bold, color: color),
                     ),
                   ),
                 ),

@@ -128,6 +128,24 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
     }
   }
 
+  /// Opens the catalog settings for the section's one setup banner, then
+  /// re-reads the install state so the banner clears itself.
+  void _openCatalogSettings() {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext context) => Dialog(
+        child: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 800,
+            designMaxHeight: 700,
+          ),
+          child: const CatalogSettingsScreen(),
+        ),
+      ),
+    ).then((_) => ref.invalidate(annotationCatalogInstalledProvider));
+  }
+
   void _onObjectSelected(CelestialObjectAnnotation object) {
     ref.read(selectedAnnotationObjectProvider.notifier).state = object;
   }
@@ -402,27 +420,24 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     value: AnnotationPanelSortMode.brightness,
                     child: Text(
                       'Sort: Brightness',
-                      style: TextStyle(
-                          color: widget.colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize12),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.textPrimary),
                     ),
                   ),
                   PopupMenuItem(
                     value: AnnotationPanelSortMode.name,
                     child: Text(
                       'Sort: Name',
-                      style: TextStyle(
-                          color: widget.colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize12),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.textPrimary),
                     ),
                   ),
                   PopupMenuItem(
                     value: AnnotationPanelSortMode.type,
                     child: Text(
                       'Sort: Type',
-                      style: TextStyle(
-                          color: widget.colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize12),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.textPrimary),
                     ),
                   ),
                 ],
@@ -525,9 +540,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                             size: 14, color: widget.colors.textPrimary),
                         const SizedBox(width: 8),
                         Text('Export CSV',
-                            style: TextStyle(
-                                color: widget.colors.textPrimary,
-                                fontSize: NightshadeTypography.fontSize12)),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: widget.colors.textPrimary)),
                       ],
                     ),
                   ),
@@ -539,9 +553,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                             size: 14, color: widget.colors.textPrimary),
                         const SizedBox(width: 8),
                         Text('Export DS9 Regions',
-                            style: TextStyle(
-                                color: widget.colors.textPrimary,
-                                fontSize: NightshadeTypography.fontSize12)),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: widget.colors.textPrimary)),
                       ],
                     ),
                   ),
@@ -594,10 +607,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                           Expanded(
                             child: Text(
                               preset.name,
-                              style: TextStyle(
-                                color: widget.colors.textPrimary,
-                                fontSize: NightshadeTypography.fontSize12,
-                              ),
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: widget.colors.textPrimary),
                             ),
                           ),
                           if (!preset.isBuiltIn)
@@ -625,10 +636,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                         enabled: false,
                         child: Text(
                           'Saved presets unavailable: ${presetsAsync.error}',
-                          style: TextStyle(
-                            color: widget.colors.error,
-                            fontSize: NightshadeTypography.fontSize11,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: widget.colors.error),
                         ),
                       ),
                     );
@@ -637,10 +646,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                         value: '_retry_presets',
                         child: Text(
                           'Retry saved presets',
-                          style: TextStyle(
-                            color: widget.colors.primary,
-                            fontSize: NightshadeTypography.fontSize12,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: widget.colors.primary),
                         ),
                       ),
                     );
@@ -670,13 +677,11 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                           const SizedBox(width: 8),
                           Text(
                             'Save as Preset',
-                            style: TextStyle(
-                              color: presetsAsync.hasValue &&
-                                      !presetsAsync.hasError
-                                  ? widget.colors.primary
-                                  : widget.colors.textMuted,
-                              fontSize: NightshadeTypography.fontSize12,
-                            ),
+                            style: NightshadeTypography.caption.copyWith(
+                                color: presetsAsync.hasValue &&
+                                        !presetsAsync.hasError
+                                    ? widget.colors.primary
+                                    : widget.colors.textMuted),
                           ),
                         ],
                       ),
@@ -885,10 +890,23 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
 
         Divider(height: 1, color: widget.colors.border),
 
-        // Annotation status indicator
+        // The section's status block: the ONE catalog banner, the live
+        // annotation status and the re-annotate suggestion. All three used to
+        // float over the frame; they belong beside the list they describe.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: AnnotationStatusIndicator(colors: widget.colors),
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceSm,
+            vertical: NightshadeTokens.spaceXs,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              AnnotationCatalogBanner(onSetup: () => _openCatalogSettings()),
+              AnnotationStatusIndicator(colors: widget.colors),
+              ReAnnotateSuggestionBanner(colors: widget.colors),
+            ],
+          ),
         ),
 
         // Objects list

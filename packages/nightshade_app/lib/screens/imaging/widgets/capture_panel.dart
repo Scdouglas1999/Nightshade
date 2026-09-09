@@ -9,7 +9,9 @@ import '../../../services/mount_command_service.dart';
 import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/help/field_help_copy.dart';
+import '../../../widgets/help/field_help_label.dart';
 import '../../../widgets/remote_directory_picker_dialog.dart';
+import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'panel_widgets.dart';
 
 // Provider for park mount on end setting
@@ -114,280 +116,286 @@ class CapturePanel extends ConsumerWidget {
         ? exposureSettings.binning
         : binningOptions.first;
 
+    final diskFree = ref.watch(captureDirDiskSpaceProvider).valueOrNull;
+    final savePathUnset = namingPattern.baseDir.trim().isEmpty ||
+        namingPattern.baseDir.trim() == '.';
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (captureActions != null) ...[
             captureActions!,
-            const SizedBox(height: 20),
+            const SizedBox(height: SidePanel.sectionGap),
           ],
-          // Exposure Settings
-          PanelSection(
-            title: 'Exposure Settings$hostSuffix',
-            colors: colors,
-            child: Column(
-              children: [
-                InputRowEditable(
-                  label: 'Exposure',
-                  value: exposureSettings.exposureTime.toStringAsFixed(1),
-                  suffix: 'sec',
-                  colors: colors,
-                  onChanged: (value) {
-                    final parsed = double.tryParse(value);
-                    if (parsed != null && parsed > 0) {
-                      ref.read(manualExposureSettingsUpdaterProvider).update(
-                            exposureSettings.copyWith(exposureTime: parsed),
-                          );
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownRow(
-                  label: 'Frame Type',
-                  helpId: FieldHelpId.captureFrameType,
-                  value: exposureSettings.frameType.displayName,
-                  items: FrameType.values.map((t) => t.displayName).toList(),
-                  colors: colors,
-                  onChanged: (value) {
-                    if (value != null) {
-                      final type = FrameType.values.firstWhere(
-                        (t) => t.displayName == value,
-                        orElse: () => FrameType.light,
+          SectionTitle(
+            icon: NightshadeIcons.camera,
+            title: 'Capture$hostSuffix',
+            trailing: cameraState.temperature == null
+                ? null
+                : NightshadeChip(
+                    label: '${cameraState.temperature!.toStringAsFixed(1)} °C',
+                    tone: ChipTone.success,
+                    dot: true,
+                  ),
+          ),
+          FormRow(
+            label: 'Exposure',
+            child: InlineNumberField(
+              value: exposureSettings.exposureTime.toStringAsFixed(1),
+              suffix: 's',
+              semanticLabel: 'Exposure seconds',
+              onChanged: (value) {
+                final parsed = double.tryParse(value);
+                if (parsed != null && parsed > 0) {
+                  ref.read(manualExposureSettingsUpdaterProvider).update(
+                        exposureSettings.copyWith(exposureTime: parsed),
                       );
-                      ref.read(manualExposureSettingsUpdaterProvider).update(
-                            exposureSettings.copyWith(frameType: type),
-                          );
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownRow(
-                  label: 'Binning',
-                  helpId: FieldHelpId.captureBinning,
-                  value: currentBinning,
-                  items: binningOptions,
-                  colors: colors,
-                  onChanged: (value) {
-                    if (value != null) {
-                      final parts = value.split('x');
-                      ref.read(manualExposureSettingsUpdaterProvider).update(
-                            exposureSettings.copyWith(
-                              binningX: int.parse(parts[0]),
-                              binningY: int.parse(parts[1]),
-                            ),
-                          );
-                    }
-                  },
-                ),
-              ],
+                }
+              },
             ),
           ),
-          const SizedBox(height: 20),
-
-          // File Settings
-          PanelSection(
-            title: 'File Settings',
-            colors: colors,
-            child: Column(
+          const SizedBox(height: FormRow.rowGap),
+          FormRow(
+            label: 'Frame type',
+            // The explanation rides behind the help glyph, not under the row: a
+            // FormRow is one line, and a paragraph of prose between two fields
+            // is the screen explaining itself on every visit.
+            child: _WithHelp(
+              helpId: FieldHelpId.captureFrameType,
+              child: NightshadeDropdown(
+                value: exposureSettings.frameType.displayName,
+                items: FrameType.values.map((t) => t.displayName).toList(),
+                isExpanded: true,
+                onChanged: (value) {
+                  if (value == null) return;
+                  final type = FrameType.values.firstWhere(
+                    (t) => t.displayName == value,
+                    orElse: () => FrameType.light,
+                  );
+                  ref.read(manualExposureSettingsUpdaterProvider).update(
+                        exposureSettings.copyWith(frameType: type),
+                      );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: FormRow.rowGap),
+          FormRow(
+            label: 'Binning',
+            child: _WithHelp(
+              helpId: FieldHelpId.captureBinning,
+              child: NightshadeDropdown(
+                value: currentBinning,
+                items: binningOptions,
+                isExpanded: true,
+                onChanged: (value) {
+                  if (value == null) return;
+                  final parts = value.split('x');
+                  ref.read(manualExposureSettingsUpdaterProvider).update(
+                        exposureSettings.copyWith(
+                          binningX: int.parse(parts[0]),
+                          binningY: int.parse(parts[1]),
+                        ),
+                      );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: FormRow.rowGap),
+          FormRow(
+            label: 'Gain / offset',
+            child: Row(
               children: [
-                InputRow(
-                  label: 'Format',
-                  value: '$kCaptureImageFormat · $kCaptureBitDepth',
-                  colors: colors,
+                Expanded(
+                  child: InlineNumberField(
+                    key: ImagingTutorialKeys.gainControl,
+                    value: exposureSettings.gain.toString(),
+                    semanticLabel: 'Gain',
+                    onChanged: (value) {
+                      final parsed = int.tryParse(value);
+                      if (parsed != null && parsed >= 0) {
+                        ref.read(manualExposureSettingsUpdaterProvider).update(
+                              exposureSettings.copyWith(gain: parsed),
+                            );
+                      }
+                    },
+                  ),
                 ),
-                const SizedBox(height: 12),
-                // Remote paths live on the imaging host; browse via the API.
-                InputRow(
-                  label: isRemoteMode ? 'Save Path (Host)' : 'Save Path',
-                  // An unset capture directory persists as '.' — surface it
-                  // as an actionable prompt instead of a bare dot.
-                  value: namingPattern.baseDir.trim().isEmpty ||
-                          namingPattern.baseDir.trim() == '.'
-                      ? 'Not set — choose a folder'
-                      : namingPattern.baseDir,
-                  colors: colors,
-                  trailing: CaptureSavePathButton(
-                    colors: colors,
-                    currentPath: namingPattern.baseDir,
-                    isRemote: isRemoteMode,
+                const SizedBox(width: NightshadeTokens.spaceSm - 2),
+                Expanded(
+                  child: InlineNumberField(
+                    value: exposureSettings.offset.toString(),
+                    semanticLabel: 'Offset',
+                    onChanged: (value) {
+                      final parsed = int.tryParse(value);
+                      if (parsed != null && parsed >= 0) {
+                        ref.read(manualExposureSettingsUpdaterProvider).update(
+                              exposureSettings.copyWith(offset: parsed),
+                            );
+                      }
+                    },
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-
-          // Session Statistics
-          PanelSection(
+          const SizedBox(height: SidePanel.sectionGap),
+          const SectionTitle(icon: NightshadeIcons.folder, title: 'Files'),
+          FormRow(
+            label: 'Format',
+            child: ReadOnlyField(
+              value: '$kCaptureImageFormat · $kCaptureBitDepth',
+            ),
+          ),
+          const SizedBox(height: FormRow.rowGap),
+          FormRow(
+            // Remote paths live on the imaging host; browse via the API.
+            label: isRemoteMode ? 'Save to (host)' : 'Save to',
+            child: Row(
+              children: [
+                Expanded(
+                  child: ReadOnlyField(
+                    // An unset capture directory persists as '.' — surface it
+                    // as an actionable prompt instead of a bare dot.
+                    value: savePathUnset ? 'Not set' : namingPattern.baseDir,
+                    mono: !savePathUnset,
+                    muted: savePathUnset,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm - 2),
+                CaptureSavePathButton(
+                  colors: colors,
+                  currentPath: namingPattern.baseDir,
+                  isRemote: isRemoteMode,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: FormRow.rowGap),
+          FormRow(
+            label: 'Name',
+            child: ReadOnlyField(value: namingPattern.pattern, mono: true),
+          ),
+          const SizedBox(height: SidePanel.sectionGap),
+          SectionTitle(
+            icon: NightshadeIcons.activity,
             title: 'Session',
-            colors: colors,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Captured',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: colors.textSecondary)),
-                    Flexible(
-                      child: Text(
-                        '$capturedCount '
-                        '${capturedCount == 1 ? 'frame' : 'frames'}',
-                        textAlign: TextAlign.end,
-                        overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.labelSm
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Integration',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: colors.textSecondary)),
-                    Flexible(
-                      child: Text(
-                        formatIntegrationSeconds(integrationSecs),
-                        textAlign: TextAlign.end,
-                        overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.labelSm
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Session status and duration
-                if (sessionState.isActive) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Status',
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: colors.textSecondary)),
-                      Row(
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: colors.success,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Active',
-                            style: NightshadeTypography.labelSm
-                                .copyWith(color: colors.success),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Duration',
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: colors.textSecondary)),
-                      Text(
-                        sessionState.duration != null
-                            ? _formatSessionDuration(sessionState.duration!)
-                            : '--:--:--',
-                        style: NightshadeTypography.labelSm
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                Row(
-                  children: [
-                    Expanded(
-                      // Ad-hoc Snapshot/Loop captures never open a database
-                      // session — only the sequencer calls startSession — so
-                      // gating this button on dbSessionId made it assert "no
-                      // active session" while the counter above it reported a
-                      // real, non-zero frame count. Those frames are not
-                      // stranded: they are persisted as standalone rows and
-                      // Analytics renders them under "Quick Capture". Route
-                      // there instead of denying they exist, and when there is
-                      // genuinely nothing to show, disable the button rather
-                      // than offer an action that cannot work.
-                      child: SmallButton(
-                        label: sessionState.dbSessionId != null
-                            ? 'View Gallery'
-                            : 'View Quick Captures',
-                        icon: LucideIcons.galleryHorizontal,
-                        colors: colors,
-                        isEnabled: sessionState.dbSessionId != null ||
-                            sessionImages.isNotEmpty,
-                        onTap: () {
+            trailing: sessionState.isActive
+                ? const NightshadeChip(
+                    label: 'Active',
+                    tone: ChipTone.success,
+                    dot: true,
+                  )
+                : null,
+          ),
+          ReadoutRow(
+            // Not DeviceRow.readoutGap (18): ReadoutRow gives every child an
+            // equal share of the row rather than its natural width, so in a
+            // side panel the gap comes straight out of the widest label.
+            gap: NightshadeTokens.spaceMd,
+            children: [
+              Readout(value: '$capturedCount', label: 'Captured'),
+              Readout(
+                value: formatIntegrationSeconds(integrationSecs),
+                label: 'Integration',
+              ),
+              Readout(
+                // Null while the poll is in flight or the path is unset, and a
+                // readout renders that as an em dash rather than inventing a
+                // number.
+                value: diskFree == null
+                    ? null
+                    : (diskFree.freeBytes / (1024 * 1024 * 1024))
+                        .toStringAsFixed(0),
+                unit: 'GB',
+                label: 'Free',
+              ),
+            ],
+          ),
+          if (sessionState.isActive && sessionState.duration != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            KeyValueList(
+              rows: [
+                ('Running for', _formatSessionDuration(sessionState.duration!)),
+              ],
+            ),
+          ],
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          // Stacked, not side by side: "View quick captures" and "Clear
+          // session" both ellipsized to nine characters when they shared a
+          // 244 px panel.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                // Ad-hoc Snapshot/Loop captures never open a database session
+                // — only the sequencer calls startSession — so gating this
+                // button on dbSessionId made it assert "no active session"
+                // while the counter above it reported a real, non-zero frame
+                // count. Those frames are not stranded: they are persisted as
+                // standalone rows and Analytics renders them under "Quick
+                // Capture". Route there instead of denying they exist.
+                child: NightshadeButton(
+                  label: sessionState.dbSessionId != null
+                      ? 'View gallery'
+                      : 'View quick captures',
+                  icon: LucideIcons.galleryHorizontal,
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: sessionState.dbSessionId != null ||
+                          sessionImages.isNotEmpty
+                      ? () {
                           final sessionId = sessionState.dbSessionId;
                           if (sessionId != null) {
                             context.push('/session-review?session=$sessionId');
                           } else {
                             context.push('/analytics?tab=session');
                           }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SmallButton(
-                        label: 'Clear Session',
-                        icon: NightshadeIcons.delete,
-                        isOutline: true,
-                        colors: colors,
-                        // Confirm before wiping: clearing drops the in-memory
-                        // frame strip and integration stats shown here, which
-                        // cannot be reconstructed from the UI. Captured files
-                        // on disk are untouched.
-                        onTap: () async {
-                          final confirmed = await ConfirmDialog.show(
-                            context: context,
-                            title: 'Clear Session View?',
-                            message: 'This clears the session frame list and '
-                                'integration stats shown here. Your captured '
-                                'files stay on disk.',
-                            confirmLabel: 'Clear',
-                            isDestructive: true,
-                          );
-                          if (!confirmed || !context.mounted) return;
-                          ref
-                              .read(sessionImagesProvider.notifier)
-                              .clearSession();
-                        },
-                      ),
-                    ),
-                  ],
+                        }
+                      : null,
                 ),
-                if (sessionState.isActive) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SmallButton(
-                      label: 'End Session',
-                      icon: NightshadeIcons.stopCircle,
-                      colors: colors,
-                      onTap: () => _showEndSessionDialog(context, ref, colors),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: NightshadeButton(
+                  label: 'Clear session',
+                  icon: NightshadeIcons.delete,
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                  // Confirm before wiping: clearing drops the in-memory frame
+                  // strip and integration stats shown here, which cannot be
+                  // reconstructed from the UI. Captured files on disk are
+                  // untouched.
+                  onPressed: () async {
+                    final confirmed = await ConfirmDialog.show(
+                      context: context,
+                      title: 'Clear the session view?',
+                      message: 'This clears the session frame list and '
+                          'integration stats shown here. Your captured files '
+                          'stay on disk.',
+                      confirmLabel: 'Clear',
+                      isDestructive: true,
+                    );
+                    if (!confirmed || !context.mounted) return;
+                    ref.read(sessionImagesProvider.notifier).clearSession();
+                  },
+                ),
+              ),
+            ],
           ),
+          if (sessionState.isActive) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            NightshadeButton(
+              label: 'End session',
+              icon: NightshadeIcons.stopCircle,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: () => _showEndSessionDialog(context, ref, colors),
+            ),
+          ],
         ],
       ),
     );
@@ -425,59 +433,30 @@ class CapturePanel extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Are you sure you want to end the current imaging session?',
-                  style: TextStyle(color: colors.textPrimary),
-                ),
-                const SizedBox(height: 16),
-                NightshadeCard(
-                  variant: CardVariant.subtle,
-                  padding: const EdgeInsets.all(12),
-                  borderRadius: NightshadeTokens.radiusInline8,
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Images Captured:',
-                              style: TextStyle(color: colors.textSecondary)),
-                          Text('${sessionState.completedExposures}',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colors.textPrimary)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Total Integration:',
-                              style: TextStyle(color: colors.textSecondary)),
-                          Text(
-                              formatIntegrationSeconds(
-                                  sessionState.totalIntegrationSecs),
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colors.textPrimary)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Duration:',
-                              style: TextStyle(color: colors.textSecondary)),
-                          Text(
-                              sessionState.duration != null
-                                  ? _formatSessionDuration(
-                                      sessionState.duration!)
-                                  : '--:--:--',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colors.textPrimary)),
-                        ],
-                      ),
-                    ],
+                  'This closes the session and stops counting frames into it.',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
                   ),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceLg),
+                KeyValueList(
+                  rows: [
+                    ('Images captured', '${sessionState.completedExposures}'),
+                    (
+                      'Total integration',
+                      formatIntegrationSeconds(
+                        sessionState.totalIntegrationSecs,
+                      ),
+                    ),
+                    (
+                      'Duration',
+                      // A session with no measured duration renders an em
+                      // dash, never '--:--:--'.
+                      sessionState.duration != null
+                          ? _formatSessionDuration(sessionState.duration!)
+                          : '\u2014',
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Consumer(
@@ -497,12 +476,10 @@ class CapturePanel extends ConsumerWidget {
                           : null,
                       title: Text(
                         'Park mount after ending session',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          color: mountConnected
-                              ? colors.textPrimary
-                              : colors.textSecondary,
-                        ),
+                        style: NightshadeTypography.body.copyWith(
+                            color: mountConnected
+                                ? colors.textPrimary
+                                : colors.textSecondary),
                       ),
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
@@ -695,5 +672,29 @@ class _CaptureSavePathButtonState extends ConsumerState<CaptureSavePathButton> {
     return mounted &&
         generation == _operationGeneration &&
         identical(ref.read(backendProvider), authority);
+  }
+}
+
+/// A form control with its explanation behind a help glyph.
+///
+/// `FormRow.help` renders the copy inline under the row, which turns a form of
+/// one-line rows into a wall of prose. The glyph keeps the explanation one
+/// hover away and the row one line tall.
+class _WithHelp extends StatelessWidget {
+  const _WithHelp({required this.helpId, required this.child});
+
+  final FieldHelpId helpId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = helpFor(helpId);
+    return Row(
+      children: [
+        Expanded(child: child),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        helpAffordance(context, title: copy.title, body: copy.body),
+      ],
+    );
   }
 }

@@ -13,7 +13,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
-import 'package:nightshade_app/screens/imaging/widgets/imaging_bottom_banner.dart';
+import 'package:nightshade_app/screens/imaging/widgets/imaging_capture_bar.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/imaging_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -96,12 +96,12 @@ void main() {
   _LoopSpyImagingService spy(HarnessHandle handle) =>
       handle.container.read(imagingServiceProvider) as _LoopSpyImagingService;
 
-  testWidgets('Loop discards frames by default and says so in the banner',
+  testWidgets('Loop discards frames by default and says so on the capture bar',
       (tester) async {
     final handle = await pumpImaging(tester);
     final service = spy(handle);
 
-    expect(find.byType(ImagingBottomBanner), findsOneWidget);
+    expect(find.byType(ImagingCaptureBar), findsOneWidget);
     expect(handle.container.read(loopSavesFramesProvider), isFalse,
         reason: 'live view must not fill the light-frame folder by default');
     // Visible and reachable next to Loop, not buried in a popover.
@@ -129,7 +129,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('turning the banner toggle on makes Loop keep its frames',
+  testWidgets('turning the capture-bar toggle on makes Loop keep its frames',
       (tester) async {
     final handle = await pumpImaging(tester);
     final service = spy(handle);

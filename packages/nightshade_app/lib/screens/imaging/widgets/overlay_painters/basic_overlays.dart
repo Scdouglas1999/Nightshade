@@ -29,6 +29,12 @@ class StarFieldPainter extends CustomPainter {
 class CrosshairOverlayPainter extends CustomPainter {
   final Color color;
 
+  /// Radius of the centre ring (`mockups/imaging.html`: 64px across).
+  static const double ringRadius = 32;
+
+  /// The ring sits at the top of the 35-50% band the axes sit at the bottom of.
+  static const double ringAlpha = NightshadeTokens.opacitySelectedRing;
+
   CrosshairOverlayPainter({required this.color});
 
   @override
@@ -54,10 +60,13 @@ class CrosshairOverlayPainter extends CustomPainter {
       paint,
     );
 
-    // Center circle
-    paint.style = PaintingStyle.stroke;
-    canvas.drawCircle(Offset(centerX, centerY), 20, paint);
-    canvas.drawCircle(Offset(centerX, centerY), 40, paint);
+    // One centre ring, brighter than the axes (06 §Imaging: "Crosshair and
+    // centre ring in primary 35-50%"). Two concentric rings read as a target
+    // reticle the app does not own.
+    paint
+      ..style = PaintingStyle.stroke
+      ..color = color.withValues(alpha: ringAlpha);
+    canvas.drawCircle(Offset(centerX, centerY), ringRadius, paint);
   }
 
   @override

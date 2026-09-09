@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_app/screens/imaging/widgets/capture_panel.dart';
-import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
@@ -71,11 +70,13 @@ class _SeededSessionState extends SessionStateNotifier {
   }
 }
 
-SmallButton _galleryButton(WidgetTester tester) {
-  return tester.widgetList<SmallButton>(find.byType(SmallButton)).firstWhere(
+NightshadeButton _galleryButton(WidgetTester tester) {
+  return tester
+      .widgetList<NightshadeButton>(find.byType(NightshadeButton))
+      .firstWhere(
         (button) =>
-            button.label == 'View Gallery' ||
-            button.label == 'View Quick Captures',
+            button.label == 'View gallery' ||
+            button.label == 'View quick captures',
       );
 }
 
@@ -112,12 +113,12 @@ void main() {
 
     // The counter and the button must never disagree: 11 frames means the
     // review affordance is live.
-    expect(find.text('11 frames'), findsOneWidget);
+    expect(find.text('11'), findsWidgets);
     final button = _galleryButton(tester);
-    expect(button.isEnabled, isTrue);
-    expect(button.label, 'View Quick Captures');
+    expect(button.onPressed, isNotNull);
+    expect(button.label, 'View quick captures');
 
-    await tester.tap(find.text('View Quick Captures'));
+    await tester.tap(find.text('View quick captures'));
     await tester.pumpAndSettle();
 
     // It must land on the view that actually holds these frames, and must not
@@ -145,10 +146,10 @@ void main() {
     await tester.pumpWidget(_app(h.router, container));
     await tester.pumpAndSettle();
 
-    expect(find.text('0 frames'), findsOneWidget);
-    expect(_galleryButton(tester).isEnabled, isFalse);
+    expect(find.text('0'), findsWidgets);
+    expect(_galleryButton(tester).onPressed, isNull);
 
-    await tester.tap(find.text('View Quick Captures'), warnIfMissed: false);
+    await tester.tap(find.text('View quick captures'), warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(h.visited.value, isNull);
@@ -191,9 +192,9 @@ void main() {
     await tester.pumpWidget(_app(h.router, container));
     await tester.pumpAndSettle();
 
-    expect(_galleryButton(tester).label, 'View Gallery');
+    expect(_galleryButton(tester).label, 'View gallery');
 
-    await tester.tap(find.text('View Gallery'));
+    await tester.tap(find.text('View gallery'));
     await tester.pumpAndSettle();
 
     expect(h.visited.value, '/session-review?session=46');
