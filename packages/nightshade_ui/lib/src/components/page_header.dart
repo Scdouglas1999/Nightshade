@@ -1,0 +1,153 @@
+import 'package:flutter/material.dart';
+
+import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
+import '../theme/nightshade_typography.dart';
+import '../tokens/shell_chrome_metrics.dart';
+
+/// The 56 px row every routed screen starts with (04-shell §4).
+///
+/// ```
+/// | 24 | [icon 18] [Title 20/600] [context 14]   [tab] [tab]   …   [actions] | 24 |
+/// ```
+///
+/// There is deliberately no `subtitle`. A sentence under a page title is the
+/// app explaining itself on every visit to an operator who has read it once;
+/// the help button in the top bar is where an explanation belongs. Replaces
+/// [ScreenHeader], which is deprecated.
+class PageHeader extends StatelessWidget {
+  /// The screen's name. One noun phrase, sentence case, no punctuation.
+  final String title;
+
+  /// 18 px, `textSecondary`, to the left of the title.
+  final IconData? icon;
+
+  /// One short muted fact that qualifies the title — the target being framed,
+  /// the profile in use. NOT a description of the screen.
+  final String? context;
+
+  /// The underline tab strip. The ONLY tab style allowed in a page header;
+  /// pass an `AdaptiveTabBar`.
+  final Widget? tabs;
+
+  /// Right-aligned, 8 px apart. At most one `primary` button, and only when it
+  /// is the screen's main action.
+  final List<Widget> actions;
+
+  /// Replaces the whole header body below the hairline — used by the narrow
+  /// Tonight and Imaging headers for their 28 px status strip.
+  final Widget? bottom;
+
+  const PageHeader({
+    super.key,
+    required this.title,
+    this.icon,
+    this.context,
+    this.tabs,
+    this.actions = const [],
+    this.bottom,
+  });
+
+  /// Gap between the title block and the tab strip.
+  static const double _titleToTabsGap = 28.0;
+
+  @override
+  Widget build(BuildContext buildContext) {
+    final colors = NightshadeColors.of(buildContext);
+    // Below the breakpoint the header is 48 and the tabs move to their own
+    // scrollable row, because a title, a tab strip and an action will not
+    // share 700 px without one of them being cut.
+    final narrow =
+        MediaQuery.sizeOf(buildContext).width <
+        ShellChromeMetrics.shellLayoutBreakpoint;
+
+    final header = Container(
+      height: narrow
+          ? ShellChromeMetrics.pageHeaderHeightNarrow
+          : ShellChromeMetrics.pageHeaderHeight,
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.space2xl,
+      ),
+      decoration: BoxDecoration(
+        color: colors.background,
+        border: Border(bottom: BorderSide(color: colors.border, width: 1)),
+      ),
+      child: Row(
+        children: [
+          _titleBlock(colors),
+          if (tabs != null && !narrow) ...[
+            const SizedBox(width: _titleToTabsGap),
+            Flexible(child: tabs!),
+          ],
+          const Spacer(),
+          for (var i = 0; i < actions.length; i++) ...[
+            if (i > 0) const SizedBox(width: NightshadeTokens.spaceSm),
+            actions[i],
+          ],
+        ],
+      ),
+    );
+
+    if ((tabs == null || !narrow) && bottom == null) return header;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        header,
+        if (tabs != null && narrow)
+          Container(
+            decoration: BoxDecoration(
+              color: colors.background,
+              border: Border(
+                bottom: BorderSide(color: colors.border, width: 1),
+              ),
+            ),
+            child: tabs,
+          ),
+        if (bottom != null) bottom!,
+      ],
+    );
+  }
+
+  Widget _titleBlock(NightshadeColors colors) {
+    return Flexible(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: _iconSize, color: colors.textSecondary),
+            const SizedBox(width: NightshadeTokens.spaceSm + 2),
+          ],
+          Flexible(
+            child: Text(
+              title,
+              style: NightshadeTypography.pageTitle.copyWith(
+                color: colors.textPrimary,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          if (context != null) ...[
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Flexible(
+              child: Text(
+                context!,
+                style: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 03-tokens §6 puts the rail and page-title glyph at 18.
+  // TODO(observatory): promote to NightshadeTokens.iconRail at merge.
+  static const double _iconSize = 18.0;
+}

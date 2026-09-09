@@ -1,102 +1,27 @@
-part of '../status_bar.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
-class _ShareSessionButton extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
-
-  const _ShareSessionButton({required this.colors});
-
-  @override
-  ConsumerState<_ShareSessionButton> createState() =>
-      _ShareSessionButtonState();
-}
-
-class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final webState = ref.watch(webServerStateProvider);
-    // This chip is the remote-access indicator (its tap target is the Remote
-    // Access dialog), so it counts attached remote clients.
-    final hasViewers = webState.connectedClients > 0;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Tooltip(
-        message: webState.isRunning
-            ? webState.bindLocalOnly
-                ? 'Remote access is limited to this machine'
-                : webState.requiresAuthentication
-                    ? 'Remote access details and pairing'
-                    : 'Remote access details'
-            : 'Remote access is not running',
-        child: InkWell(
-          onTap: webState.isRunning
-              ? () => _showShareDialog(context, webState)
-              : null,
-          borderRadius: NightshadeTokens.borderRadiusInline4,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              color: _isHovered && webState.isRunning
-                  ? widget.colors.surfaceAlt
-                  : Colors.transparent,
-              borderRadius: NightshadeTokens.borderRadiusInline4,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  NightshadeIcons.share,
-                  size: 12,
-                  color: hasViewers
-                      ? widget.colors.success
-                      : webState.isRunning
-                          ? widget.colors.textSecondary
-                          : widget.colors.textMuted,
-                ),
-                if (hasViewers) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: widget.colors.success.withValues(alpha: 0.2),
-                      borderRadius: NightshadeTokens.borderRadiusInline8,
-                    ),
-                    child: Text(
-                      '${webState.connectedClients}',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize9,
-                        fontWeight: FontWeight.w600,
-                        color: widget.colors.success,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showShareDialog(BuildContext context, WebServerState webState) {
-    final colors = NightshadeColors.of(context);
-
-    showDialog(
-      context: context,
-      builder: (context) => _ShareSessionDialog(
-        webState: webState,
-        colors: colors,
-      ),
-    );
-  }
+/// Opens the Remote Access sheet: the local and LAN URLs, the pairing state
+/// and the attached-viewer count.
+///
+/// It used to hang off a share glyph in the status bar. The status bar reports
+/// state and nothing else now (04 §5), and sharing a session is an action on
+/// the remote connection, so it lives on the top bar's remote indicator, which
+/// is already the control for everything else about that connection.
+Future<void> showShareSessionDialog(BuildContext context) {
+  final colors = NightshadeColors.of(context);
+  final webState = ProviderScope.containerOf(
+    context,
+  ).read(webServerStateProvider);
+  return showDialog<void>(
+    context: context,
+    builder: (context) =>
+        _ShareSessionDialog(webState: webState, colors: colors),
+  );
 }
 
 class _ShareSessionDialog extends ConsumerWidget {

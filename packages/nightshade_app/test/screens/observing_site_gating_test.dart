@@ -19,7 +19,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/cockpit_sky_context.dart';
-import 'package:nightshade_app/screens/dashboard/widgets/command_bar.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/standby/night_timeline.dart';
 import 'package:nightshade_app/screens/planetarium/widgets/tonight_tab.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
@@ -157,31 +156,6 @@ void main() {
           findsNothing);
       expect(find.text('IMAGING WINDOW'), findsOneWidget);
       expect(find.text('9h 28m'), findsOneWidget);
-    });
-  });
-
-  group('NightContextChip', () {
-    testWidgets('self-hides entirely when no site is on record',
-        (tester) async {
-      await _pump(
-        tester,
-        site: null,
-        child: const NightContextChip(colors: NightshadeColors.dark),
-      );
-
-      expect(find.byType(Text), findsNothing);
-      expect(find.textContaining('Dark'), findsNothing);
-    });
-
-    testWidgets('states the darkness fact for a real site', (tester) async {
-      await _pump(
-        tester,
-        site: _realSite,
-        child: const NightContextChip(colors: NightshadeColors.dark),
-      );
-
-      // 22:00 sits between dusk 19:26 and dawn 04:54 → 6h 54m of dark left.
-      expect(find.text('Dark 6h 54m left'), findsOneWidget);
     });
   });
 

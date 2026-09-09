@@ -5,6 +5,14 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../localization/nightshade_localizations.dart';
 import '../shell_navigation.dart';
 
+/// The narrow shell's navigation (04-shell §3.3).
+///
+/// Five slots, 64 px: Tonight, Imaging, Sequencer, Guiding, More. Four of them
+/// route; the fifth opens a sheet holding everything without a slot.
+///
+/// It is the ONLY bottom chrome below the tablet breakpoint — the instrument
+/// bar is not mounted there at all — so it does not share the edge with a
+/// second bar the way the six-slot version did.
 class NightshadeBottomNavigation extends StatelessWidget {
   final String currentRoute;
   final ValueChanged<String> onRouteSelected;
@@ -21,86 +29,60 @@ class NightshadeBottomNavigation extends StatelessWidget {
     final l10n = context.l10n;
     final currentPath = currentRoute.split('?').first;
 
-    // In landscape vertical space is scarce (a phone is only ~360–430 px tall),
-    // so shorten the bar and tighten the item's internal padding.
-    final isLandscape =
-        MediaQuery.orientationOf(context) == Orientation.landscape;
-    final barHeight = isLandscape ? 64.0 : BottomNavMetrics.barHeight;
+    final overflowIsCurrent = ShellNavigation.overflowDestinations.any(
+      (d) => ShellNavigation.locationIsUnder(currentPath, d.route),
+    );
 
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        border: Border(
-          top: BorderSide(color: colors.border, width: 1),
-        ),
+        border: Border(top: BorderSide(color: colors.border, width: 1)),
       ),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: barHeight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: BottomNavMetrics.listHorizontalPadding,
-              vertical: BottomNavMetrics.listVerticalPadding,
-            ),
-            child: Row(
-              children: [
-                for (final dest in ShellNavigation.bottomNavigationDestinations)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: BottomNavMetrics.itemGap / 2,
-                      ),
-                      child: _BottomNavItem(
-                        icon: dest.icon,
-                        label: dest.bottomNavLabel(l10n),
-                        // Sub-route aware: the image-ready deep link
-                        // (/imaging/preview/:id) renders the Imaging screen, so
-                        // the Imaging slot must own it. Exact matching left the
-                        // whole bar unlit on those routes.
-                        isSelected: ShellNavigation.locationIsUnder(
-                          currentPath,
-                          dest.route,
-                        ),
-                        compact: isLandscape,
-                        colors: colors,
-                        onTap: () => onRouteSelected(dest.route),
-                      ),
-                    ),
-                  ),
-                // "More" overflow so the primary features without a fixed slot
-                // (Weather, Analytics) are reachable on phone.
+          height: BottomNavMetrics.barHeight,
+          child: Row(
+            children: [
+              for (final dest in ShellNavigation.bottomNavigationDestinations)
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: BottomNavMetrics.itemGap / 2,
+                  child: _BottomNavItem(
+                    icon: dest.icon,
+                    label: dest.bottomNavLabel(l10n),
+                    // Sub-route aware: the image-ready deep link
+                    // (/imaging/preview/:id) renders the Imaging screen, so
+                    // the Imaging slot must own it. Exact matching left the
+                    // whole bar unlit on those routes.
+                    isSelected: ShellNavigation.locationIsUnder(
+                      currentPath,
+                      dest.route,
                     ),
-                    child: _BottomNavItem(
-                      icon: LucideIcons.menu,
-                      label: l10n.text('navMore'),
-                      isSelected: ShellNavigation.overflowDestinations.any(
-                        (d) => ShellNavigation.locationIsUnder(
-                          currentPath,
-                          d.route,
-                        ),
-                      ),
-                      compact: isLandscape,
-                      colors: colors,
-                      onTap: () => _showMoreSheet(context, l10n, colors),
-                    ),
+                    colors: colors,
+                    onTap: () => onRouteSelected(dest.route),
                   ),
                 ),
-              ],
-            ),
+              Expanded(
+                child: _BottomNavItem(
+                  icon: LucideIcons.menu,
+                  label: l10n.text('navMore'),
+                  isSelected: overflowIsCurrent,
+                  colors: colors,
+                  onTap: () => _showMoreSheet(context, l10n, colors),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// Bottom-sheet overflow listing the primary destinations without a fixed
-  /// bottom-nav slot (today: Weather and Analytics — Your Sky and Constellation
-  /// are Plan Tonight tabs). Selecting one routes to it and dismisses the sheet.
+  /// The sheet behind "More": Plan, Equipment, Weather, Darkroom, Analytics
+  /// and Settings, in rail order.
+  ///
+  /// Every top-level surface is reachable on a phone this way, which is what
+  /// lets the bar hold five slots instead of seven — five is what a thumb can
+  /// hit without looking.
   void _showMoreSheet(
     BuildContext context,
     NightshadeLocalizations l10n,
@@ -118,29 +100,35 @@ class NightshadeBottomNavigation extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final dest in ShellNavigation.overflowDestinations)
-                Builder(builder: (context) {
-                  final isCurrent =
-                      ShellNavigation.locationIsUnder(currentPath, dest.route);
-                  return ListTile(
-                    leading: Icon(
-                      dest.icon,
-                      color: isCurrent ? colors.primary : colors.textSecondary,
-                    ),
-                    title: Text(
-                      dest.label(l10n),
-                      style: NightshadeTypography.body.copyWith(
-                        color: colors.textPrimary,
-                        fontWeight:
-                            isCurrent ? FontWeight.w700 : FontWeight.w500,
+                Builder(
+                  builder: (context) {
+                    final isCurrent = ShellNavigation.locationIsUnder(
+                      currentPath,
+                      dest.route,
+                    );
+                    return ListTile(
+                      leading: Icon(
+                        dest.icon,
+                        color:
+                            isCurrent ? colors.primary : colors.textSecondary,
                       ),
-                    ),
-                    selected: isCurrent,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      onRouteSelected(dest.route);
-                    },
-                  );
-                }),
+                      title: Text(
+                        dest.label(l10n),
+                        style: NightshadeTypography.body.copyWith(
+                          color:
+                              isCurrent ? colors.primary : colors.textPrimary,
+                          fontWeight:
+                              isCurrent ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                      ),
+                      selected: isCurrent,
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        onRouteSelected(dest.route);
+                      },
+                    );
+                  },
+                ),
             ],
           ),
         );
@@ -149,6 +137,11 @@ class NightshadeBottomNavigation extends StatelessWidget {
   }
 }
 
+/// One slot: a 48 x 28 pill behind a 21 px glyph, with an 11 px label under it.
+///
+/// The pill is what carries selection, not a colour change on the glyph alone:
+/// at arm's length in the dark a tinted icon and an untinted one are the same
+/// icon, and the filled shape is legible from further away than the colour is.
 class _BottomNavItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -156,28 +149,24 @@ class _BottomNavItem extends StatelessWidget {
   final VoidCallback onTap;
   final NightshadeColors colors;
 
-  /// Tighter vertical metrics for the shorter landscape bar.
-  final bool compact;
-
   const _BottomNavItem({
     required this.icon,
     required this.label,
     required this.isSelected,
     required this.onTap,
     required this.colors,
-    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Same annotation the rail's NavItem carries, because the bar is the rail's
-    // phone-width replacement and has to answer the same three questions. A
-    // bare InkWell contributes a tap action and nothing else: measured on the
-    // running app at 420x900, all seven destinations came back as `panel` with
-    // states [focusable, showing, visible] — no role, no `selected` on the one
-    // the operator is standing in, and no `enabled`, which reads to assistive
-    // tech as a disabled control. `enabled` is published only when the field is
-    // given, so it is given.
+    // Same annotation the rail's NavItem carries, because the bar is the
+    // rail's phone-width replacement and has to answer the same three
+    // questions. A bare InkWell contributes a tap action and nothing else:
+    // measured on the running app at 420x900, every destination came back as
+    // `panel` with states [focusable, showing, visible] — no role, no
+    // `selected` on the one the operator is standing in, and no `enabled`,
+    // which reads to assistive tech as a disabled control. `enabled` is
+    // published only when the field is given, so it is given.
     return Semantics(
       enabled: true,
       button: true,
@@ -186,71 +175,63 @@ class _BottomNavItem extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(
-            BottomNavMetrics.itemBorderRadius,
-          ),
           onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
-            child: AnimatedContainer(
-              duration: BottomNavMetrics.itemSelectionAnimationDuration,
-              // Horizontal 4 (not itemPadding's 10): seven slots on a 430dp
-              // phone leave ~50dp per item, and 20dp of internal padding
-              // ellipsized even the short labels ("Ho…", "Guid…").
-              padding: compact
-                  ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4)
-                  : const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: isSelected
-                  ? NightshadeDecorations.navSelected(
-                      colors,
-                      borderRadius: BorderRadius.circular(
-                        BottomNavMetrics.itemBorderRadius,
-                      ),
-                    )
-                  : null,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    size: BottomNavMetrics.itemIconSize,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: BottomNavMetrics.itemSelectionAnimationDuration,
+                curve: NightshadeTokens.curveStandard,
+                width: BottomNavMetrics.itemPillWidth,
+                height: BottomNavMetrics.itemPillHeight,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colors.primary.withValues(
+                          alpha: NightshadeTokens.opacityAccentTint,
+                        )
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(
+                    BottomNavMetrics.itemBorderRadius,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  size: BottomNavMetrics.itemIconSize,
+                  color: isSelected ? colors.primary : colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: BottomNavMetrics.itemIconLabelGap),
+              // FittedBox: a label a shade too wide for its slot ("Sequence",
+              // Spanish "Secuencia") scales down a few percent instead of
+              // ellipsizing — an ellipsis in a five-slot bar reads as broken,
+              // a 5% smaller glyph is invisible.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: _labelStyle.copyWith(
                     color: isSelected ? colors.primary : colors.textSecondary,
                   ),
-                  SizedBox(
-                      height: compact
-                          ? BottomNavMetrics.itemIconLabelGap - 3
-                          : BottomNavMetrics.itemIconLabelGap),
-                  // FittedBox: a label a shade too wide for its slot
-                  // ("Sequence", Spanish "Secuencia") scales down a few
-                  // percent instead of ellipsizing — an ellipsis in a 7-slot
-                  // bar reads as broken, a 5% smaller glyph is invisible.
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      textAlign: TextAlign.center,
-                      // itemLabelFontSize (10px), not captionSm: the metrics
-                      // already define the bar's label size; captionSm's
-                      // larger glyphs were the other half of the ellipsis
-                      // problem.
-                      style: NightshadeTypography.captionSm.copyWith(
-                        fontSize: BottomNavMetrics.itemLabelFontSize,
-                        fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color:
-                            isSelected ? colors.primary : colors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  /// 11 px / 500 (04 §3.3). `captionSm` is 12; the bar's five labels need the
+  /// extra pixel back.
+  // TODO(observatory): promote to NightshadeTypography.navLabel at merge.
+  static const TextStyle _labelStyle = TextStyle(
+    fontFamily: NightshadeTypography.fontFamily,
+    fontSize: BottomNavMetrics.itemLabelFontSize,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+    letterSpacing: 0.2,
+  );
 }

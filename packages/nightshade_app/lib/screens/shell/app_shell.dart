@@ -582,20 +582,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                               },
                             ),
 
-                          // Main content area
+                          // The page body. `background`-toned like the rail
+                          // and the top bar; the rail draws the hairline
+                          // between them on its own trailing edge, so the
+                          // body no longer paints a second one on its leading
+                          // edge over the top of it (04 §1: one hairline
+                          // right of the rail, not two abutting).
                           Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: colors.background,
-                                border: Border(
-                                  left: useBottomNav
-                                      ? BorderSide.none
-                                      : BorderSide(
-                                          color: colors.border,
-                                          width: 1,
-                                        ),
-                                ),
-                              ),
+                            child: ColoredBox(
+                              color: colors.background,
                               child: Stack(
                                 children: [
                                   // Both chromes own the top inset above this
@@ -643,40 +638,40 @@ class _AppShellState extends ConsumerState<AppShell> {
                     if (!keyboardVisible)
                       RunningSequenceMiniBar(currentLocation: currentLocation),
 
-                    // Bottom chrome. On phone the status bar + bottom nav live in
-                    // one auto-hiding block (immersive) so they reclaim the short
-                    // cover-screen height when idle; on desktop the status bar is
-                    // pinned and navigation is the side rail (no bottom nav).
+                    // Bottom chrome. On phone the bottom nav auto-hides when
+                    // idle so it reclaims the short cover-screen height; on
+                    // desktop the instrument bar is pinned and navigation is
+                    // the rail.
+                    //
+                    // The narrow shell carries NO instrument bar (04 §5). The
+                    // compact one used to sit above the nav, which spent 40px
+                    // of a 640px-tall phone restating what the device pills on
+                    // Tonight already said, and pushed the bar the operator
+                    // navigates with further from their thumb.
                     if (useBottomNav && !keyboardVisible)
                       ImmersiveBottomChrome(
                         visible: chromeVisible,
                         onToggle: immersive.toggle,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const StatusBar(compact: true),
-                            NightshadeBottomNavigation(
-                              currentRoute: currentLocation,
-                              onRouteSelected: (route) {
-                                try {
-                                  context.go(route);
-                                } catch (e, stack) {
-                                  developer.log(
-                                    '[AppShell] Bottom nav could not navigate '
-                                    'to $route: $e',
-                                    name: 'AppShell',
-                                    level: 900,
-                                    error: e,
-                                    stackTrace: stack,
-                                  );
-                                }
-                              },
-                            ),
-                          ],
+                        child: NightshadeBottomNavigation(
+                          currentRoute: currentLocation,
+                          onRouteSelected: (route) {
+                            try {
+                              context.go(route);
+                            } catch (e, stack) {
+                              developer.log(
+                                '[AppShell] Bottom nav could not navigate '
+                                'to $route: $e',
+                                name: 'AppShell',
+                                level: 900,
+                                error: e,
+                                stackTrace: stack,
+                              );
+                            }
+                          },
                         ),
                       )
                     else if (!useBottomNav)
-                      const StatusBar(compact: false),
+                      const StatusBar(),
                   ],
                 ),
               ),

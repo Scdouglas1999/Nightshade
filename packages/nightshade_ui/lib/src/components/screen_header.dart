@@ -5,6 +5,12 @@ import '../theme/nightshade_typography.dart';
 import '../utils/responsive_utils.dart';
 
 /// Typography-led screen header with a crisp bottom divider.
+///
+/// Superseded by `PageHeader` (04-shell §4), which is a fixed 56 px, carries
+/// the underline tab strip, and has no `subtitle` — the sentence under the
+/// title is the thing the overhaul is removing. Screens migrate one at a time
+/// in wave 3; this is deleted in wave 4.
+@Deprecated('Use PageHeader (04-shell §4). Removed in wave 4.')
 class ScreenHeader extends StatelessWidget {
   final String title;
   final String? subtitle;

@@ -69,3 +69,7 @@ export 'src/widgets/phd2/guide_star_view.dart';
 export 'src/widgets/phd2/guide_graph_advanced.dart';
 export 'src/widgets/phd2/brain_settings_panel.dart';
 export 'src/widgets/phd2/calibration_panel.dart';
+
+// Observatory wave 1
+export 'src/components/instrument_pill.dart';
+export 'src/components/page_header.dart';

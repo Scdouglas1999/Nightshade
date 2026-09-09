@@ -83,7 +83,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_screen.dart';
-import 'package:nightshade_app/screens/dashboard/widgets/command_bar.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/dashboard_tile.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -253,76 +252,6 @@ void main() {
             'DashboardTile widgets — no more (would mean a hard-coded tile '
             'leaked into the layout) and no fewer (would mean a tile was '
             'silently dropped from the zone columns).');
-  });
-
-  testWidgets(
-      'desktop_uses_full_command_bar: above breakpointTablet the full '
-      'DashboardCommandBar renders and CompactDashboardCommandBar does not',
-      (tester) async {
-    _swallowKnownOverflows();
-    // 800 wide sits in the stacked layout band (>= 768, < 1024) which uses
-    // the desktop `DashboardCommandBar` class. We intentionally stay under
-    // 900 so the command bar's own LayoutBuilder takes its inner compact
-    // branch and never builds DashboardClockWidget — that's what lets us
-    // skip overriding observationTimeProvider while still proving the
-    // outer responsive switch picked the desktop bar (not the compact
-    // mobile bar). The class-level distinction (DashboardCommandBar vs.
-    // CompactDashboardCommandBar) is the load-bearing assertion here.
-    await pumpAppScreen(
-      tester,
-      const DashboardScreen(),
-      size: const Size(800, 1000),
-      settle: false,
-      extraOverrides: [
-        dashboardLayoutProvider.overrideWith(
-          _AllDisabledDashboardLayoutNotifier.new,
-        ),
-      ],
-    );
-    await _drainAsyncFrames(tester);
-
-    expect(find.byType(DashboardCommandBar), findsOneWidget,
-        reason:
-            'Widths >= breakpointTablet must use the full DashboardCommandBar '
-            'class; the screen falls back to CompactDashboardCommandBar only '
-            'below breakpointTablet (< 768).');
-    expect(find.byType(CompactDashboardCommandBar), findsNothing,
-        reason: 'CompactDashboardCommandBar is exclusive to the < 768 mobile '
-            'branch; rendering it at 800 wide would mean the responsive '
-            'switch lost its breakpointTablet guard.');
-  });
-
-  testWidgets(
-      'compact_uses_compact_command_bar: at 400x800 the '
-      'CompactDashboardCommandBar renders and the full DashboardCommandBar '
-      'does not', (tester) async {
-    _swallowKnownOverflows();
-    await pumpAppScreen(
-      tester,
-      const DashboardScreen(),
-      // 400x800 sits well below breakpointTablet (768) so the screen
-      // takes _buildCompactLayout, which uses CompactDashboardCommandBar.
-      // That bar never embeds the clock, so no observationTimeProvider
-      // override is required.
-      size: const Size(400, 800),
-      settle: false,
-      extraOverrides: [
-        dashboardLayoutProvider.overrideWith(
-          _AllDisabledDashboardLayoutNotifier.new,
-        ),
-      ],
-    );
-    await _drainAsyncFrames(tester);
-
-    expect(find.byType(CompactDashboardCommandBar), findsOneWidget,
-        reason:
-            'Mobile-width layouts must use the CompactDashboardCommandBar; if '
-            'the full command bar leaks down here the responsive switch in '
-            '_ZoneBasedDashboard.build is broken.');
-    expect(find.byType(DashboardCommandBar), findsNothing,
-        reason: 'The full DashboardCommandBar must not appear below '
-            'breakpointTablet; rendering it on a phone-width surface would '
-            'overflow the row and trip the wide-only DashboardClockWidget.');
   });
 
   testWidgets(

@@ -33,14 +33,14 @@ class _TempCompIndicator extends ConsumerWidget {
     final hasReliableModel = model != null && model.isReliable;
 
     // Determine state
-    Color indicatorColor;
+    InstrumentTone indicatorTone;
     String tooltip;
 
     if (!tempCompEnabled) {
-      indicatorColor = colors.textMuted;
+      indicatorTone = InstrumentTone.idle;
       tooltip = l10n.text('statusTempCompOff');
     } else if (!hasReliableModel) {
-      indicatorColor = colors.warning;
+      indicatorTone = InstrumentTone.warning;
       tooltip = model == null
           ? l10n.text('statusTempCompNoModel')
           : l10n.text(
@@ -52,7 +52,7 @@ class _TempCompIndicator extends ConsumerWidget {
         profileId: profileId,
         currentTemperature: focuserState.temperature!,
       );
-      indicatorColor = colors.success;
+      indicatorTone = InstrumentTone.success;
       final slope = model.slope.toStringAsFixed(1);
       tooltip = prediction != null
           ? l10n.text(
@@ -70,27 +70,11 @@ class _TempCompIndicator extends ConsumerWidget {
 
     return Tooltip(
       message: tooltip,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        decoration: NightshadeDecorations.tintedBadge(
-          indicatorColor,
-          borderRadius: NightshadeTokens.borderRadiusInline4,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.thermometerSun, size: 10, color: indicatorColor),
-            const SizedBox(width: 3),
-            Text(
-              'TC',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9,
-                fontWeight: FontWeight.w600,
-                color: indicatorColor,
-              ),
-            ),
-          ],
-        ),
+      child: InstrumentPill(
+        icon: LucideIcons.thermometerSun,
+        dotTone: indicatorTone,
+        value: 'TC',
+        semanticLabel: tooltip,
       ),
     );
   }
@@ -110,14 +94,16 @@ class _TempCompIndicator extends ConsumerWidget {
 /// LST: sidereal time is exactly what you read to decide what is transiting.
 @visibleForTesting
 String formatLstChip(double? lstHours) {
-  if (lstHours == null) return 'LST --:--';
+  // An em dash, not '--:--'. A row of hyphens looks like a value that failed
+  // to render; an em dash is the app's word for "not known" everywhere else.
+  if (lstHours == null) return '\u2014';
   // Normalized to [0, 24) upstream; fold defensively so a bad input can never
   // render as "-1:-30".
   var hours = lstHours % 24;
   if (hours < 0) hours += 24;
   final h = hours.floor();
   final m = ((hours - h) * 60).floor();
-  return 'LST ${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 }
 
 /// Wall-clock and LST chip that owns its per-second tick.
@@ -188,7 +174,6 @@ class _TimeDisplayState extends ConsumerState<_TimeDisplay>
 
   @override
   Widget build(BuildContext context) {
-    final colors = widget.colors;
     final now = _now;
     final settings = ref.watch(appSettingsProvider).valueOrNull;
     final siteIsSet = settings != null &&
@@ -215,47 +200,21 @@ class _TimeDisplayState extends ConsumerState<_TimeDisplay>
     // The boundary is the point of the exercise: without it, repainting one
     // digit marks the parent layer dirty and the whole window re-rasterises
     // once a second.
+    //
+    // ONE pill, not two: local time and sidereal time are a single glance,
+    // and a hover boundary between them would say they are separate facts.
     return RepaintBoundary(
-      child: Row(
-        children: [
-          Icon(
-            NightshadeIcons.clock,
-            size: 12,
-            color: colors.textMuted,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            timeStr,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w500,
-              color: colors.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Tooltip(
-            message: lstTooltip,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: NightshadeDecorations.statusChip(
-                // An unknown LST must not wear the confident accent colour.
-                lst == null ? colors.textMuted : colors.primary,
-                borderRadius: NightshadeTokens.borderRadiusInline4,
-                bordered: false,
-              ),
-              child: Text(
-                formatLstChip(lst),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  fontWeight: FontWeight.w500,
-                  color: lst == null ? colors.textMuted : colors.primary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ),
-          ),
-        ],
+      child: Tooltip(
+        message: lstTooltip,
+        child: InstrumentPill(
+          icon: NightshadeIcons.clock,
+          value: timeStr,
+          mono: true,
+          trailingLabel: 'LST',
+          trailingValue: formatLstChip(lst),
+          semanticLabel: 'Local time $timeStr, '
+              '${lst == null ? 'sidereal time unknown' : 'LST ${formatLstChip(lst)}'}',
+        ),
       ),
     );
   }

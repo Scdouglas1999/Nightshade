@@ -20,7 +20,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_screen.dart';
-import 'package:nightshade_app/screens/dashboard/widgets/command_bar.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/cockpit_run_controls.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/dashboard_tile.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -137,12 +136,9 @@ void main() {
             '(${size.width.toInt()}x${size.height.toInt()}).',
       );
 
-      // Every phone width takes the compact layout (phones in landscape can be
-      // wider than the tablet breakpoint but still route to compact), so the
-      // CompactDashboardCommandBar is the primary status header and is pinned
-      // above the scroll view — reachable without scrolling.
-      expect(find.byType(CompactDashboardCommandBar), findsOneWidget,
-          reason: 'Phone layouts use the compact command bar at $name.');
+      // The dashboard command bar is gone (04-shell §5): its facts moved to
+      // the instrument bar and the Tonight hero. What still has to be true is
+      // that the pinned strip below stays reachable without scrolling.
 
       // The run-control strip is pinned (above the scroll view). With a
       // completed (terminal) execution state it self-hides, but the widget is
@@ -182,8 +178,6 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.byType(CompactDashboardCommandBar), findsOneWidget,
-        reason: 'Wide phone landscape still routes to the compact layout.');
     expect(guard.appOverflows, isEmpty,
         reason: 'Two-column landscape reflow must not overflow.');
 

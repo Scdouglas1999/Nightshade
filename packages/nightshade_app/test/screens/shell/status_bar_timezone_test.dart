@@ -148,46 +148,4 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('the dashboard header clock follows the chosen site timezone',
-      (tester) async {
-    final timezone = _fiveHoursAheadOfHost();
-    final hostBefore = DateTime.now();
-
-    final handle = await pumpAppScreen(
-      tester,
-      Builder(
-        builder: (context) => DashboardClockWidget(
-          colors: NightshadeColors.of(context),
-        ),
-      ),
-      size: const Size(1600, 900),
-      extraOverrides: [
-        appSettingsProvider.overrideWith(
-          () => _StubAppSettingsNotifier(
-            AppSettingsState(timezone: timezone, useSystemTime: false),
-          ),
-        ),
-      ],
-      settle: false,
-    );
-    await tester.pump(const Duration(milliseconds: 50));
-
-    final shown = _parseClock(
-      _clockTextIn(tester, find.byType(DashboardClockWidget)),
-    );
-    final hostSeconds =
-        hostBefore.hour * 3600 + hostBefore.minute * 60 + hostBefore.second;
-
-    expect(
-      _diffSeconds(shown, hostSeconds),
-      inInclusiveRange(5 * 3600 - 5, 5 * 3600 + 5),
-      reason: 'the header chip must read the site clock, not the host',
-    );
-
-    // ObservationTimeNotifier's 1 s timer belongs to the PROVIDER, so
-    // unmounting the tree alone leaves it pending and trips !timersPending.
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    handle.container.dispose();
-  });
 }

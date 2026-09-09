@@ -10,7 +10,6 @@ import 'dashboard_layout.dart';
 import 'dashboard_layout_provider.dart';
 import 'widgets/cockpit_run_controls.dart';
 import 'widgets/cockpit_standby.dart';
-import 'widgets/command_bar.dart';
 import 'widgets/dashboard_header_actions.dart';
 import 'widgets/dashboard_tile.dart';
 import 'widgets/glass_card.dart';
@@ -297,16 +296,21 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Command Bar (fixed)
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: DashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: DashboardHeaderActions(
+              isEditing: isEditing,
+              onToggleEdit: onToggleEdit,
+              onManageWidgets: onManageWidgets,
+              onResetLayout: onResetLayout,
+            ),
           ),
         ),
 
@@ -464,17 +468,24 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: DashboardHeaderActions(
+              isEditing: isEditing,
+              onToggleEdit: onToggleEdit,
+              onManageWidgets: onManageWidgets,
+              onResetLayout: onResetLayout,
+            ),
           ),
         ),
+
         _buildPinnedStrip(horizontalPadding: 16),
         if (isEditing)
           Padding(
@@ -560,16 +571,21 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Command Bar (fixed)
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: DashboardHeaderActions(
+              isEditing: isEditing,
+              onToggleEdit: onToggleEdit,
+              onManageWidgets: onManageWidgets,
+              onResetLayout: onResetLayout,
+            ),
           ),
         ),
 
@@ -693,16 +709,22 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Compact Command Bar
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-          child: CompactDashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: DashboardHeaderActions(
+              isEditing: isEditing,
+              onToggleEdit: onToggleEdit,
+              onManageWidgets: onManageWidgets,
+              onResetLayout: onResetLayout,
+              compact: true,
+            ),
           ),
         ),
 
