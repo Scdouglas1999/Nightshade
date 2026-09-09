@@ -11,7 +11,6 @@ import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
 import '../../../widgets/help/field_help_label.dart';
 import '../utils/profile_save_errors.dart';
-import '../../accessible_dropdown.dart';
 import '../../../utils/count_label.dart';
 
 part 'profile_editor_dialog/profile_data_operations.dart';
@@ -339,44 +338,6 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final isEditing = widget.profile != null;
     final isPhone = Responsive.isPhone(context);
 
-    final content = Column(
-      mainAxisSize: isPhone ? MainAxisSize.max : MainAxisSize.min,
-      children: [
-        // Header
-        _buildHeader(colors, theme, isEditing),
-
-        // Scrollable content
-        Flexible(
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildValidationBanner(colors),
-                  _buildIdentitySection(colors, theme),
-                  const SizedBox(height: 16),
-                  _buildOpticalTrainSection(colors, theme),
-                  const SizedBox(height: 16),
-                  _buildDevicesSection(colors, theme),
-                  if (_filterWheelId != null) ...[
-                    const SizedBox(height: 16),
-                    _buildFiltersSection(colors, theme),
-                  ],
-                  const SizedBox(height: 16),
-                  _buildCameraDefaultsSection(colors, theme),
-                ],
-              ),
-            ),
-          ),
-        ),
-
-        // Footer
-        _buildFooter(colors),
-      ],
-    );
-
     // Embedded as the Equipment screen's Optical train tab: only that section,
     // on the page's own background, with no dialog chrome.
     if (widget.mode == ProfileEditorMode.opticalTrainPage) {
@@ -414,44 +375,58 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       );
     }
 
-    // Phone: the editor is presented as a full-screen route (see [show]). Fill
-    // the screen with a Scaffold + SafeArea instead of a small centered card.
+    // The form itself — the same body whether it is shown as a dialog or as a
+    // full-screen route.
+    final body = Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildValidationBanner(colors),
+          _buildIdentitySection(colors, theme),
+          const SizedBox(height: NightshadeTokens.space2xl),
+          _buildOpticalTrainSection(colors, theme),
+          const SizedBox(height: NightshadeTokens.space2xl),
+          _buildDevicesSection(colors, theme),
+          if (_filterWheelId != null) ...[
+            const SizedBox(height: NightshadeTokens.space2xl),
+            _buildFiltersSection(colors, theme),
+          ],
+          const SizedBox(height: NightshadeTokens.space2xl),
+          _buildCameraDefaultsSection(colors, theme),
+        ],
+      ),
+    );
+
+    final title = isEditing ? 'Edit profile' : 'New profile';
+
+    // Phone: the editor is presented as a full-screen route (see [show]). The
+    // dialog's own chrome — title, scrolling body, right-aligned footer — is
+    // reused without the card frame, so the two presentations cannot drift.
     if (isPhone) {
-      return PopScope(
-        canPop: !_isSaving,
-        child: Scaffold(
-          backgroundColor: colors.background,
-          body: SafeArea(child: content),
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(
+          child: NightshadeDialogSurface(
+            title: title,
+            closeEnabled: !_isSaving,
+            onClose: () => Navigator.of(context).pop(false),
+            actions: _footerActions(),
+            child: body,
+          ),
         ),
       );
     }
 
-    // Tablet/desktop: a centered, viewport-capped dialog card.
-    return PopScope(
-      canPop: !_isSaving,
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: dialogMaxWidth(context, 600),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-          ),
-          decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            border: Border.all(color: colors.border),
-            boxShadow: [
-              BoxShadow(
-                // absolute: drop-shadow tone is a theme-independent black scrim
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: content,
-        ),
-      ),
+    // Tablet/desktop: the standard dialog anatomy (05 §13) at the form width.
+    return NightshadeDialog(
+      title: title,
+      width: NightshadeDialog.widthForm,
+      closeEnabled: !_isSaving,
+      onClose: () => Navigator.of(context).pop(false),
+      actions: _footerActions(),
+      child: body,
     );
   }
 }

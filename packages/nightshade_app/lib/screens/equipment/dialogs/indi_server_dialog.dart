@@ -5,7 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../utils/user_facing_error.dart';
 
-/// INDI Server Configuration Dialog (Linux/macOS)
+/// INDI server address configuration (Linux/macOS).
 class IndiServerDialog extends ConsumerStatefulWidget {
   const IndiServerDialog({super.key});
 
@@ -106,7 +106,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
     return (host: host, port: port);
   }
 
-  /// Drop a Test Connection verdict once the address it describes is gone.
+  /// Drop a Test connection verdict once the address it describes is gone.
   ///
   /// The status line names the endpoint it probed ("No response on
   /// localhost:7624."). Leaving it up while the operator retypes the host
@@ -207,179 +207,107 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final busy = _isTesting || _isSaving;
 
-    final dialog = AlertDialog(
-      backgroundColor: colors.surface,
-      title: Row(
-        children: [
-          Icon(NightshadeIcons.power, color: colors.primary, size: 24),
-          const SizedBox(width: 12),
-          Text(
-            'INDI Server Configuration',
-            style:
-                NightshadeTypography.body.copyWith(color: colors.textPrimary),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: dialogMaxWidth(context, 400),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Info about INDI
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: NightshadeDecorations.emphasisSurface(
-                colors.primary,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(NightshadeIcons.info, color: colors.primary, size: 16),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'INDI (Instrument Neutral Distributed Interface) provides '
-                      'cross-platform access to astronomical equipment on Linux and macOS.',
-                      style: NightshadeTypography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Host input
-            TextField(
-              key: const ValueKey('indi-host-field'),
-              controller: _hostController,
-              style:
-                  NightshadeTypography.body.copyWith(color: colors.textPrimary),
-              onChanged: (_) {
-                _hostEdited = true;
-                setState(() {
-                  _hostError = null;
-                  _clearStaleProbeResult();
-                });
-              },
-              decoration: InputDecoration(
-                labelText: 'INDI Server Host',
-                labelStyle: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textMuted),
-                hintText: 'localhost or IP address',
-                hintStyle: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textMuted.withValues(alpha: 0.5)),
-                errorText: _hostError,
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.primary),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Port input
-            TextField(
-              key: const ValueKey('indi-port-field'),
-              controller: _portController,
-              style:
-                  NightshadeTypography.body.copyWith(color: colors.textPrimary),
-              keyboardType: TextInputType.number,
-              onChanged: (_) {
-                _portEdited = true;
-                setState(() {
-                  _portError = null;
-                  _clearStaleProbeResult();
-                });
-              },
-              decoration: InputDecoration(
-                labelText: 'Port',
-                labelStyle: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textMuted),
-                hintText: '7624 (default)',
-                hintStyle: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textMuted.withValues(alpha: 0.5)),
-                errorText: _portError,
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.primary),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Test connection button
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                onPressed: (_isTesting || _isSaving) ? null : _testConnection,
-                icon: NightshadeIcons.refresh,
-                label: _isTesting ? 'Testing...' : 'Test Connection',
-                variant: ButtonVariant.secondary,
-                isLoading: _isTesting,
-              ),
-            ),
-
-            // Status message
-            if (_statusMessage != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: NightshadeDecorations.emphasisSurface(
-                  (_statusSuccess ?? false) ? colors.success : colors.error,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      (_statusSuccess ?? false)
-                          ? NightshadeIcons.success
-                          : NightshadeIcons.error,
-                      size: 16,
-                      color: (_statusSuccess ?? false)
-                          ? colors.success
-                          : colors.error,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _statusMessage!,
-                        style: NightshadeTypography.caption
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return NightshadeDialog(
+      title: 'INDI server',
+      width: NightshadeDialog.widthConfirm,
+      closeEnabled: !busy,
       actions: [
         NightshadeButton(
-          onPressed:
-              (_isSaving || _isTesting) ? null : () => Navigator.pop(context),
+          onPressed: busy ? null : () => Navigator.pop(context),
           label: 'Cancel',
           variant: ButtonVariant.ghost,
-          size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: (_isSaving || _isTesting) ? null : _save,
-          label: _isSaving ? 'Saving...' : 'Save',
+          onPressed: busy ? null : _save,
+          label: _isSaving ? 'Saving…' : 'Save',
           variant: ButtonVariant.primary,
           isLoading: _isSaving,
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // One line of context under the title (05 §13), not a tinted card.
+          Text(
+            'INDI gives Linux and macOS a common interface to astronomical '
+            'equipment. Nightshade reads devices from the server at this '
+            'address.',
+            style: NightshadeTypography.bodySm
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          FormRow(
+            label: 'Host',
+            child: Semantics(
+              label: 'Host',
+              child: NightshadeTextField(
+                key: const ValueKey('indi-host-field'),
+                controller: _hostController,
+                hint: 'localhost or IP address',
+                errorText: _hostError,
+                onChanged: (_) {
+                  _hostEdited = true;
+                  setState(() {
+                    _hostError = null;
+                    _clearStaleProbeResult();
+                  });
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: FormRow.rowGap),
+          FormRow(
+            label: 'Port',
+            child: Semantics(
+              label: 'Port',
+              child: NightshadeTextField(
+                key: const ValueKey('indi-port-field'),
+                controller: _portController,
+                hint: '7624',
+                mono: true,
+                errorText: _portError,
+                keyboardType: TextInputType.number,
+                onChanged: (_) {
+                  _portEdited = true;
+                  setState(() {
+                    _portError = null;
+                    _clearStaleProbeResult();
+                  });
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              onPressed: busy ? null : _testConnection,
+              icon: NightshadeIcons.refresh,
+              label: _isTesting ? 'Testing…' : 'Test connection',
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              isLoading: _isTesting,
+            ),
+          ),
+
+          // The probe's verdict, as the one banner this dialog has.
+          if (_statusMessage != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            NightshadeBanner(
+              tone: (_statusSuccess ?? false)
+                  ? BannerTone.success
+                  : BannerTone.error,
+              icon: (_statusSuccess ?? false)
+                  ? NightshadeIcons.success
+                  : NightshadeIcons.error,
+              title: _statusMessage!,
+            ),
+          ],
+        ],
+      ),
     );
-    return PopScope(canPop: !_isTesting && !_isSaving, child: dialog);
   }
 }

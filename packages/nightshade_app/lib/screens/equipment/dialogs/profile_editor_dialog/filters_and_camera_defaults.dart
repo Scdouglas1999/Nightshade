@@ -2,15 +2,24 @@
 
 part of '../profile_editor_dialog.dart';
 
+/// The binning factors this editor offers. Square only (binX == binY).
+const List<int> _binningFactors = [1, 2, 3, 4];
+
+/// Width of the label column in the SDK recommendation well.
+const double _recommendationLabelWidth = 104;
+
+/// Widest the "connect a camera" note beside the auto-detect buttons gets.
+const double _autoDetectNoteMaxWidth = 240;
+
 extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
-  // Section 4: Filters
+  // Section 4: filters
 
   Widget _buildFiltersSection(NightshadeColors colors, ThemeData theme) {
     final filterWheelState = ref.watch(filterWheelStateProvider);
     final wheelConnected =
         filterWheelState.connectionState == DeviceConnectionState.connected &&
             (filterWheelState.deviceId?.isNotEmpty ?? false);
-    return _SectionCard(
+    return _SectionBlock(
       title: 'Filters (${_filterControllers.length} slots)',
       icon: LucideIcons.filter,
       isExpanded: _expandedSections['filters']!,
@@ -21,63 +30,59 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
           : countLabel(_filterControllers.length, 'filter'),
       colors: colors,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Table header
+          // The table sits in a well — the one level of nesting a dialog
+          // surface is allowed (02 §2).
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            decoration: BoxDecoration(
-              color: colors.well,
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(NightshadeTokens.radiusLg)),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 36,
-                  child: Text(
-                    '#',
-                    style: NightshadeTypography.body
-                        .copyWith(color: colors.textMuted),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Filter Name',
-                    style: NightshadeTypography.body
-                        .copyWith(color: colors.textMuted),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: dialogMaxWidth(context, 100),
-                  child: Text(
-                    'Focus Offset',
-                    style: NightshadeTypography.body
-                        .copyWith(color: colors.textMuted),
-                  ),
-                ),
-                const SizedBox(width: 36), // Space for delete button
-              ],
-            ),
-          ),
-
-          // Filter rows
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: colors.border),
-              borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(NightshadeTokens.radiusLg)),
-            ),
+            decoration: NightshadeDecorations.well(colors),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                // Column headings
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    NightshadeTokens.spaceSm,
+                    NightshadeTokens.spaceSm,
+                    NightshadeTokens.spaceSm,
+                    NightshadeTokens.spaceXs,
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: _filterIndexWidth),
+                      Expanded(
+                        child: Text(
+                          'Filter name'.toUpperCase(),
+                          style: NightshadeTypography.eyebrow
+                              .copyWith(color: colors.textMuted),
+                        ),
+                      ),
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      SizedBox(
+                        width: _filterOffsetWidth,
+                        child: Text(
+                          'Focus offset'.toUpperCase(),
+                          style: NightshadeTypography.eyebrow
+                              .copyWith(color: colors.textMuted),
+                        ),
+                      ),
+                      // Space for the remove button.
+                      const SizedBox(
+                        width: NightshadeTokens.iconButtonSizeSm +
+                            NightshadeTokens.spaceXs,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Filter rows
                 if (_filterControllers.isEmpty)
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: NightshadeTokens.paddingLg,
                     child: Text(
                       'No filters configured',
-                      style: NightshadeTypography.body
+                      style: NightshadeTypography.bodySm
                           .copyWith(color: colors.textMuted),
                     ),
                   )
@@ -97,7 +102,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: NightshadeTokens.spaceMd),
 
           // Action buttons
           Row(
@@ -110,7 +115,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                 onPressed: _addFilter,
               ),
               const Spacer(),
-              Tooltip(
+              NightshadeTooltip(
                 message: wheelConnected
                     ? 'Read the filter names from the connected wheel.'
                     : 'Connect the filter wheel to auto-detect filters',
@@ -131,8 +136,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
   // Section 5: camera defaults
 
   Widget _buildCameraDefaultsSection(NightshadeColors colors, ThemeData theme) {
-    return _SectionCard(
-      title: 'Camera Defaults',
+    return _SectionBlock(
+      title: 'Camera defaults',
       icon: LucideIcons.settings2,
       isExpanded: _expandedSections['camera']!,
       onToggle: () => setState(
@@ -143,171 +148,96 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
               : 'Configured',
       colors: colors,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Gain, Offset, Binning row
-          Row(
-            children: [
-              Expanded(
-                child: NightshadeTextField(
-                  label: 'Gain',
-                  controller: _gainController,
-                  hint: 'e.g., 100',
-                  errorText: _fieldErrors[ProfileEditorField.gain],
-                  onChanged: (_) => clearFieldError(ProfileEditorField.gain),
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: NightshadeTextField(
-                  label: 'Offset',
-                  controller: _offsetController,
-                  hint: 'e.g., 10',
-                  errorText: _fieldErrors[ProfileEditorField.offset],
-                  onChanged: (_) => clearFieldError(ProfileEditorField.offset),
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Binning',
-                      style: NightshadeTypography.labelSm
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(
-                            NightshadeTokens.radiusInline8),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: AccessibleDropdown<int>(
-                          value: _binning,
-                          isExpanded: true,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          dropdownColor: colors.well,
-                          style: NightshadeTypography.bodySm
-                              .copyWith(color: colors.textPrimary),
-                          items: [1, 2, 3, 4].map((b) {
-                            return DropdownMenuItem(
-                              value: b,
-                              child: Text('${b}x$b'),
-                            );
-                          }).toList(),
-                          onChanged: (v) => setState(() => _binning = v ?? 1),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          _EditorRow(
+            label: 'Gain',
+            child: NightshadeTextField(
+              controller: _gainController,
+              hint: 'e.g., 100',
+              mono: true,
+              errorText: _fieldErrors[ProfileEditorField.gain],
+              onChanged: (_) => clearFieldError(ProfileEditorField.gain),
+              keyboardType: TextInputType.number,
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
+          _EditorRow(
+            label: 'Offset',
+            child: NightshadeTextField(
+              controller: _offsetController,
+              hint: 'e.g., 10',
+              mono: true,
+              errorText: _fieldErrors[ProfileEditorField.offset],
+              onChanged: (_) => clearFieldError(ProfileEditorField.offset),
+              keyboardType: TextInputType.number,
+            ),
+          ),
+          const SizedBox(height: _rowGap),
+          _EditorRow(
+            label: 'Binning',
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: NightshadeDropdown(
+                value: _binning.toString(),
+                items: [for (final b in _binningFactors) b.toString()],
+                itemLabels: [for (final b in _binningFactors) '$b×$b'],
+                onChanged: (v) => setState(
+                  () => _binning = int.tryParse(v ?? '') ?? 1,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
 
-          // SDK auto-detect button + recommendation card.
+          // SDK auto-detect button + recommendation well.
           // The button is only useful when a camera is selected on this
           // profile (so we have a device_id to query).
           _buildAutoDetectRow(colors),
           if (_recommendedSettings != null)
             _buildRecommendationCard(colors, _recommendedSettings!),
-          const SizedBox(height: 16),
+          const SizedBox(height: NightshadeTokens.spaceLg),
 
-          // Cooling row
-          Row(
-            children: [
-              Expanded(
-                child: NightshadeTextField(
-                  label: 'Cooling target',
-                  controller: _coolingTargetController,
-                  hint: 'e.g., -10',
-                  suffix: '\u00B0C',
-                  errorText: _fieldErrors[ProfileEditorField.coolingTarget],
-                  onChanged: (_) =>
-                      clearFieldError(ProfileEditorField.coolingTarget),
-                  keyboardType: const TextInputType.numberWithOptions(
-                      signed: true, decimal: true),
-                ),
+          _EditorRow(
+            label: 'Cooling target',
+            child: NightshadeTextField(
+              controller: _coolingTargetController,
+              hint: 'e.g., -10',
+              suffix: '°C',
+              mono: true,
+              errorText: _fieldErrors[ProfileEditorField.coolingTarget],
+              onChanged: (_) =>
+                  clearFieldError(ProfileEditorField.coolingTarget),
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: true,
+                decimal: true,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 18), // Align with text field
-                    Container(
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(
-                            NightshadeTokens.radiusInline8),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: CheckboxListTile(
-                          value: _coolOnConnect,
-                          onChanged: (v) =>
-                              setState(() => _coolOnConnect = v ?? false),
-                          title: Text(
-                            'Cool on connect',
-                            style: NightshadeTypography.bodySm
-                                .copyWith(color: colors.textPrimary),
-                          ),
-                          activeColor: colors.primary,
-                          checkColor: Theme.of(context).colorScheme.onPrimary,
-                          controlAffinity: ListTileControlAffinity.trailing,
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 12),
-                          dense: true,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 16),
-
-          // Centering exposure
-          Row(
-            children: [
-              Expanded(
-                child: NightshadeTextField(
-                  label: 'Centering exposure',
-                  controller: _centeringExposureController,
-                  hint: 'e.g., 5',
-                  suffix: 's',
-                  errorText: _fieldErrors[ProfileEditorField.centeringExposure],
-                  onChanged: (_) =>
-                      clearFieldError(ProfileEditorField.centeringExposure),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
+          const SizedBox(height: _rowGap),
+          NightshadeSwitchRow(
+            label: 'Cool on connect',
+            value: _coolOnConnect,
+            onChanged: (v) => setState(() => _coolOnConnect = v),
+          ),
+          const SizedBox(height: _rowGap),
+          _EditorRow(
+            label: 'Centering exposure',
+            help: 'Used for plate-solve centering; adjustable per session in '
+                'the centering dialog.',
+            child: NightshadeTextField(
+              controller: _centeringExposureController,
+              hint: 'e.g., 5',
+              suffix: 's',
+              mono: true,
+              errorText: _fieldErrors[ProfileEditorField.centeringExposure],
+              onChanged: (_) =>
+                  clearFieldError(ProfileEditorField.centeringExposure),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 18),
-                    Text(
-                      'Default exposure time used for plate-solve centering. '
-                      'Can be adjusted per-session in the centering dialog.',
-                      style: NightshadeTypography.caption
-                          .copyWith(color: colors.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -339,11 +269,11 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
         : null;
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 8,
+      spacing: NightshadeTokens.spaceMd,
+      runSpacing: NightshadeTokens.spaceSm,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Tooltip(
+        NightshadeTooltip(
           message: disabledReason ??
               'Query the connected camera SDK for the '
                   'manufacturer-recommended unity gain and offset.',
@@ -369,7 +299,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
         ),
         if (disabledReason != null)
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 240),
+            constraints:
+                const BoxConstraints(maxWidth: _autoDetectNoteMaxWidth),
             child: Text(
               disabledReason,
               style: NightshadeTypography.caption
@@ -404,10 +335,10 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
     });
   }
 
-  /// Build the info card that surfaces the SDK-reported recommendation.
+  /// The well that surfaces the SDK-reported recommendation.
   ///
-  /// All values are shown verbatim — the field is "Not reported" when the SDK
-  /// returns null for it (we never invent a value to fill the gap).
+  /// All values are shown verbatim — a field the SDK returned null for reads as
+  /// [kReadoutUnknown], never as an invented number.
   Widget _buildRecommendationCard(
       NightshadeColors colors, CameraRecommendedSettings rec) {
     final hasAny = rec.unityGain != null || rec.defaultOffset != null;
@@ -417,56 +348,59 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
         rec.defaultOffset.toString() != _offsetController.text;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: NightshadePanel(
-        padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+      child: Container(
+        padding: NightshadeTokens.paddingMd,
+        decoration: NightshadeDecorations.well(colors),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
                 Icon(
                   hasAny ? LucideIcons.info : LucideIcons.alertCircle,
-                  size: 14,
+                  size: NightshadeTokens.iconXs,
                   color: hasAny ? colors.primary : colors.textMuted,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  hasAny
-                      ? 'Camera SDK reported:'
-                      : 'Camera SDK did not report any recommendation',
-                  style: NightshadeTypography.body
-                      .copyWith(color: colors.textPrimary),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Text(
+                    hasAny
+                        ? 'The camera SDK reports'
+                        : 'The camera SDK reported no recommendation',
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textPrimary),
+                  ),
                 ),
               ],
             ),
             if (hasAny) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: NightshadeTokens.spaceSm),
               _buildRecRow('Unity gain', rec.unityGain, colors),
               _buildRecRow('HCG gain', rec.hcgGain, colors),
               _buildRecRow('Default offset', rec.defaultOffset, colors),
             ],
             if (rec.notes.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
                 rec.notes,
-                style: NightshadeTypography.caption.copyWith(
-                    fontStyle: FontStyle.italic, color: colors.textMuted),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
             ],
             if (canApplyGain || canApplyOffset) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  NightshadeButton(
-                    onPressed: () => _applyRecommendation(rec),
-                    icon: LucideIcons.check,
-                    label:
-                        'Apply${(canApplyGain && canApplyOffset) ? ' both' : canApplyGain ? ' gain' : ' offset'}',
-                    variant: ButtonVariant.ghost,
-                    size: ButtonSize.small,
-                  ),
-                ],
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: NightshadeButton(
+                  onPressed: () => _applyRecommendation(rec),
+                  icon: LucideIcons.check,
+                  label:
+                      'Apply${(canApplyGain && canApplyOffset) ? ' both' : canApplyGain ? ' gain' : ' offset'}',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
               ),
             ],
           ],
@@ -481,19 +415,18 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
       child: Row(
         children: [
           SizedBox(
-            width: 110,
+            width: _recommendationLabelWidth,
             child: Text(
-              '$label:',
+              label,
               style: NightshadeTypography.caption
                   .copyWith(color: colors.textSecondary),
             ),
           ),
           Text(
-            value == null ? 'Not reported' : value.toString(),
-            style: NightshadeTypography.caption.copyWith(
-                color: value == null ? colors.textMuted : colors.textPrimary,
-                fontWeight:
-                    value == null ? FontWeight.normal : FontWeight.w600),
+            value == null ? kReadoutUnknown : value.toString(),
+            style: NightshadeTypography.monoCaption.copyWith(
+              color: value == null ? colors.textMuted : colors.textPrimary,
+            ),
           ),
         ],
       ),

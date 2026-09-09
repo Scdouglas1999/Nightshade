@@ -11,6 +11,9 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
   /// a measured 2.00:1 contrast ratio, and disappeared after a few seconds. The
   /// banner stays until the form validates, sits where the user is already
   /// looking, and is not subject to the scrim.
+  ///
+  /// ONE banner (05 §11), never a stack: a single problem is stated as the
+  /// banner's title, several are counted in the title and listed in its message.
   Widget _buildValidationBanner(NightshadeColors colors) {
     final messages = <String>[
       if (_nameError != null) _nameError!,
@@ -20,132 +23,52 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
     if (messages.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.error.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(color: colors.error.withValues(alpha: 0.45)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(LucideIcons.alertTriangle, size: 16, color: colors.error),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    messages.length == 1
-                        ? 'Fix 1 problem before saving'
-                        : 'Fix ${messages.length} problems before saving',
-                    style: NightshadeTypography.labelStrong
-                        .copyWith(color: colors.error),
-                  ),
-                  const SizedBox(height: 4),
-                  for (final message in messages)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        '• $message',
-                        style: NightshadeTypography.caption
-                            .copyWith(color: colors.textPrimary, height: 1.35),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
+      child: NightshadeBanner(
+        tone: BannerTone.error,
+        title: messages.length == 1
+            ? messages.single
+            : 'Fix ${messages.length} problems before saving',
+        message: messages.length == 1 ? null : messages.join(' • '),
       ),
     );
   }
 
-  Widget _buildHeader(
-      NightshadeColors colors, ThemeData theme, bool isEditing) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
+  /// The dialog's footer: `[ghost Cancel] [primary Save]`, right-aligned with an
+  /// 8px gap (05 §13). The chrome supplies the alignment and the gap; this only
+  /// supplies the buttons, in reading order.
+  List<Widget> _footerActions() {
+    return [
+      if (widget.mode == ProfileEditorMode.full)
+        NightshadeButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+        ),
+      NightshadeButton(
+        onPressed: _isSaving ? null : _save,
+        label: 'Save changes',
+        variant: ButtonVariant.primary,
+        isLoading: _isSaving,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: NightshadeDecorations.emphasisSurface(
-              colors.primary,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            ),
-            child: Icon(
-              isEditing ? LucideIcons.edit : LucideIcons.plus,
-              color: colors.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isEditing ? 'Edit Profile' : 'New Profile',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isEditing
-                      ? 'Modify your equipment configuration'
-                      : 'Create a new equipment configuration',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (widget.mode == ProfileEditorMode.full)
-            NightshadeIconButton(
-              icon: LucideIcons.x,
-              tooltip: 'Close',
-              onPressed:
-                  _isSaving ? null : () => Navigator.of(context).pop(false),
-            ),
-        ],
-      ),
-    );
+    ];
   }
 
+  /// The same footer for the embedded Optical train page, which has no dialog
+  /// chrome to lay the actions out for it.
   Widget _buildFooter(NightshadeColors colors) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: colors.border)),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.space2xl,
+        NightshadeTokens.spaceLg,
+        NightshadeTokens.space2xl,
+        NightshadeTokens.spaceLg,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          if (widget.mode == ProfileEditorMode.full)
-            NightshadeButton(
-              onPressed:
-                  _isSaving ? null : () => Navigator.of(context).pop(false),
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-            ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          NightshadeButton(
-            onPressed: _isSaving ? null : _save,
-            label: 'Save changes',
-            icon: LucideIcons.check,
-            variant: ButtonVariant.primary,
-            isLoading: _isSaving,
-          ),
-        ],
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: NightshadeTokens.spaceSm,
+        runSpacing: NightshadeTokens.spaceSm,
+        children: _footerActions(),
       ),
     );
   }
@@ -153,8 +76,8 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
   // Section 1: profile identity
 
   Widget _buildIdentitySection(NightshadeColors colors, ThemeData theme) {
-    return _SectionCard(
-      title: 'Profile Identity',
+    return _SectionBlock(
+      title: 'Profile identity',
       icon: LucideIcons.user,
       isExpanded: _expandedSections['identity']!,
       onToggle: () => setState(() =>
@@ -162,108 +85,76 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
       summary: _nameController.text.isEmpty ? 'Unnamed' : _nameController.text,
       colors: colors,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Name field
-          NightshadeTextField(
-            label: 'Profile name *',
-            controller: _nameController,
-            hint: 'e.g., Main Imaging Rig, Widefield Setup',
-            errorText: _nameError,
-            onChanged: (_) {
-              // Clear a standing validation error the moment the user edits,
-              // and refresh the section summary that mirrors the name.
-              if (_nameError != null) {
-                setState(() => _nameError = null);
-              } else {
-                setState(() {});
-              }
-            },
+          _EditorRow(
+            label: 'Profile name',
+            child: NightshadeTextField(
+              controller: _nameController,
+              hint: 'e.g. Main imaging rig',
+              errorText: _nameError,
+              onChanged: (_) {
+                // Clear a standing validation error the moment the user edits,
+                // and refresh the section summary that mirrors the name.
+                if (_nameError != null) {
+                  setState(() => _nameError = null);
+                } else {
+                  setState(() {});
+                }
+              },
+            ),
           ),
-          const SizedBox(height: 20),
-
-          // Icon picker
-          Text(
-            'Icon',
-            style: NightshadeTypography.labelSm
-                .copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _ProfileEditorDialogState._availableIcons.map((icon) {
-              final isSelected = _selectedIcon == icon;
-              return _IconOption(
-                icon: icon,
-                isSelected: isSelected,
-                onTap: () => setState(() => _selectedIcon = icon),
-                colors: colors,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-
-          // Color picker
-          Text(
-            'Accent Color',
-            style: NightshadeTypography.labelSm
-                .copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              // None option
-              _ColorOption(
-                color: null,
-                isSelected: _selectedColor == null,
-                onTap: () => setState(() => _selectedColor = null),
-                colors: colors,
-              ),
-              ..._ProfileEditorDialogState._accentColors.map((color) {
-                final isSelected = _selectedColor == color;
-                return _ColorOption(
-                  color: color,
+          const SizedBox(height: _rowGap),
+          _EditorRow(
+            label: 'Icon',
+            child: Wrap(
+              spacing: NightshadeTokens.spaceSm,
+              runSpacing: NightshadeTokens.spaceSm,
+              children: _ProfileEditorDialogState._availableIcons.map((icon) {
+                final isSelected = _selectedIcon == icon;
+                return _IconOption(
+                  icon: icon,
                   isSelected: isSelected,
-                  onTap: () => setState(() => _selectedColor = color),
+                  onTap: () => setState(() => _selectedIcon = icon),
                   colors: colors,
                 );
-              }),
-            ],
+              }).toList(),
+            ),
           ),
-          const SizedBox(height: 16),
-
-          // Default checkbox
-          Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: colors.border),
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: CheckboxListTile(
-                value: _isDefault,
-                onChanged: (v) => setState(() => _isDefault = v ?? false),
-                title: Text(
-                  'Default profile',
-                  style: NightshadeTypography.body
-                      .copyWith(color: colors.textPrimary),
+          const SizedBox(height: _rowGap),
+          _EditorRow(
+            label: 'Accent colour',
+            child: Wrap(
+              spacing: NightshadeTokens.spaceSm,
+              runSpacing: NightshadeTokens.spaceSm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // None option
+                _ColorOption(
+                  color: null,
+                  isSelected: _selectedColor == null,
+                  onTap: () => setState(() => _selectedColor = null),
+                  colors: colors,
                 ),
-                subtitle: Text(
-                  'Set as active profile on startup',
-                  style: NightshadeTypography.caption
-                      .copyWith(color: colors.textSecondary),
-                ),
-                activeColor: colors.primary,
-                checkColor: Theme.of(context).colorScheme.onPrimary,
-                controlAffinity: ListTileControlAffinity.trailing,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
+                ..._ProfileEditorDialogState._accentColors.map((color) {
+                  final isSelected = _selectedColor == color;
+                  return _ColorOption(
+                    color: color,
+                    isSelected: isSelected,
+                    onTap: () => setState(() => _selectedColor = color),
+                    colors: colors,
+                  );
+                }),
+              ],
             ),
+          ),
+          const SizedBox(height: _rowGap),
+          NightshadeSwitchRow(
+            label: 'Default profile',
+            subtitle: 'Set as the active profile on startup',
+            value: _isDefault,
+            onChanged: (v) => setState(() => _isDefault = v),
           ),
         ],
       ),
