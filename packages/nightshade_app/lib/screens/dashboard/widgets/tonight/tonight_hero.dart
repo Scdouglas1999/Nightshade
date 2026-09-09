@@ -350,8 +350,7 @@ class _HeroActions extends ConsumerWidget {
         // remote controller whose host has gone away must not offer to launch
         // a night it cannot start.
         final canCommand = ref.watch(backendCanCommandProvider);
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+        return _ActionRow(
           children: <Widget>[
             NightshadeButton(
               label: l10n.text('tnOpenInSequencer'),
@@ -359,7 +358,6 @@ class _HeroActions extends ConsumerWidget {
               variant: ButtonVariant.secondary,
               onPressed: () => context.go('/sequencer'),
             ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
             NightshadeButton(
               label: l10n.text('tnStartSequence'),
               icon: LucideIcons.play,
@@ -377,8 +375,7 @@ class _HeroActions extends ConsumerWidget {
         // untrue, so a connected rig with nothing loaded is sent to the
         // Sequencer instead. Same state, same slot, honest verb.
         final connected = ref.watch(anyCoreDeviceConnectedProvider);
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+        return _ActionRow(
           children: <Widget>[
             NightshadeButton(
               label: l10n.text('tnPlanTarget'),
@@ -386,7 +383,6 @@ class _HeroActions extends ConsumerWidget {
               variant: ButtonVariant.secondary,
               onPressed: () => context.go('/planner'),
             ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
             if (connected)
               NightshadeButton(
                 label: l10n.text('tnBuildSequence'),
@@ -478,19 +474,33 @@ class _RunActions extends ConsumerWidget {
       ),
     );
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return _ActionRow(
       children: running
-          ? <Widget>[
-              pauseButton,
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              stopButton,
-            ]
-          : <Widget>[
-              stopButton,
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              pauseButton,
-            ],
+          ? <Widget>[pauseButton, stopButton]
+          : <Widget>[stopButton, pauseButton],
+    );
+  }
+}
+
+/// The hero's pair of actions.
+///
+/// A `Wrap`, not a `Row`: at a phone width two buttons do not fit side by side,
+/// and a `Row(mainAxisSize: min)` there overflows by ~240 px rather than
+/// reflowing. `alignment: end` keeps the pair right-aligned beside the headline
+/// on a wide page and left-aligned under it once the hero has stacked.
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: NightshadeTokens.spaceSm,
+      runSpacing: NightshadeTokens.spaceSm,
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: children,
     );
   }
 }
