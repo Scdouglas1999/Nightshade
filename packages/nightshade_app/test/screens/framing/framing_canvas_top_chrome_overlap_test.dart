@@ -23,7 +23,6 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 // ignore: implementation_imports
 import 'package:nightshade_core/src/models/framing_plate_scale.dart';
 import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
-import '../settings/settings_finders.dart' show findByTooltip;
 
 const _target = FramingTarget(
   name: 'Custom Location',
@@ -105,13 +104,13 @@ void main() {
     // The reported repro width. The toolbar wraps here.
     await pumpCanvas(tester, const Size(1100, 720));
 
-    final chip = findByTooltip('HiPS tiles');
+    final chip = find.byTooltip('HiPS tiles');
     expect(chip, findsOneWidget, reason: 'the tile toggle should be offered');
 
     // The chip's own centre must actually hit the chip — not a card painted
     // over it. hitTestable() resolves through the real Stack hit-test order.
     expect(
-      findByTooltip('HiPS tiles').hitTestable(),
+      find.byTooltip('HiPS tiles').hitTestable(),
       findsOneWidget,
       reason: 'the chip is covered by later Stack chrome and cannot be clicked',
     );
@@ -125,7 +124,7 @@ void main() {
       (tester) async {
         await pumpCanvas(tester, Size(width, 720));
 
-        final toolbarRect = tester.getRect(findByTooltip('HiPS tiles'));
+        final toolbarRect = tester.getRect(find.byTooltip('HiPS tiles'));
         final cardRect = tester.getRect(find.text('Custom Location'));
 
         expect(
