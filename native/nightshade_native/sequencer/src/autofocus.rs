@@ -371,9 +371,22 @@ impl VCurveAutofocus {
         let sigma = mad * 1.4826;
         let threshold = self.config.outlier_rejection_sigma * sigma;
 
+        // One-sided, and this is the whole point: in a focus sweep the median
+        // is a WING value, because most positions are away from focus. Clipping
+        // symmetrically therefore treats the focus region as the outlier and
+        // deletes the very minimum the sweep exists to find — and the cleaner
+        // the sweep, the smaller the MAD and the more certain that deletion.
+        // Seen on the rig: a nine-point sweep bottoming at 4.30 px had its
+        // three best points cut, leaving only wings, and autofocus reported
+        // success with a "best HFR" of 11.01 px.
+        //
+        // A frame can read spuriously HIGH for reasons that have nothing to do
+        // with focus (cloud crossing, satellite trail, a lost guide star), and
+        // those are worth rejecting. Nothing makes a frame read spuriously LOW
+        // except being closer to focus.
         let filtered: Vec<FocusDataPoint> = points
             .iter()
-            .filter(|p| (p.hfr - median).abs() <= threshold)
+            .filter(|p| p.hfr <= median || p.hfr - median <= threshold)
             .cloned()
             .collect();
 
