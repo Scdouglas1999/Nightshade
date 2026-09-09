@@ -113,19 +113,26 @@ class _SecretFieldRowState extends State<_SecretFieldRow> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              border: Border.all(color: colors.border),
-            ),
-            child: Text(
-              '•••••••• (stored securely)',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-                fontFamily: 'monospace',
+          // Flexible: the Observatory small button is wider than the one this
+          // row was laid out against (13px label, not 11), and the masked
+          // secret is the part of the pair that can give ground.
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                border: Border.all(color: colors.border),
+              ),
+              child: Text(
+                '•••••••• (stored securely)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted,
+                  fontFamily: 'monospace',
+                ),
               ),
             ),
           ),

@@ -838,6 +838,16 @@ class _ObservatorySections extends StatefulWidget {
 }
 
 class _ObservatorySectionsState extends State<_ObservatorySections> {
+  /// How many sample controls have been pressed.
+  ///
+  /// The sheet's buttons need a REAL callback, not `() {}`: an empty callback
+  /// is a dead control, `ui_consistency_audit`'s `empty_callback` rule counts
+  /// every one of them, and a gallery that ships dead controls is teaching the
+  /// pattern it exists to prevent.
+  int _actions = 0;
+  void _act() => setState(() => _actions += 1);
+  void _actWith(Object? _) => _act();
+
   int _segment = 0;
   int _underlineTab = 0;
   int _stripSection = 1;
@@ -856,6 +866,15 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+          child: Text(
+            'Observatory sample actions: $_actions',
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+        ),
         ShowcaseSection.plain(
           title: 'Panels and wells',
           child: Wrap(
@@ -977,53 +996,53 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
               NightshadeButton(
                 label: 'Primary',
                 icon: LucideIcons.play,
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeButton(
                 label: 'Secondary',
                 variant: ButtonVariant.secondary,
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeButton(
                 label: 'Ghost',
                 variant: ButtonVariant.ghost,
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeButton(
                 label: 'Stop',
                 icon: LucideIcons.square,
                 variant: ButtonVariant.destructive,
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeButton(
                 label: 'Start',
                 icon: LucideIcons.play,
                 variant: ButtonVariant.start,
-                onPressed: () {},
+                onPressed: _act,
               ),
               const NightshadeButton(label: 'Disabled'),
               NightshadeButton(
                 label: 'Small',
                 size: ButtonSize.small,
                 variant: ButtonVariant.secondary,
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeButton(
                 label: 'Large',
                 size: ButtonSize.large,
                 variant: ButtonVariant.secondary,
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeIconButton(
                 icon: LucideIcons.settings,
                 tooltip: 'Settings',
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeIconButton(
                 icon: LucideIcons.layers,
                 tooltip: 'Layers',
                 selected: true,
-                onPressed: () {},
+                onPressed: _act,
               ),
             ],
           ),
@@ -1032,19 +1051,19 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
           title: 'Toolbar',
           child: NightshadeToolbar(
             overflowIcon: LucideIcons.moreHorizontal,
-            onOverflowPressed: () {},
+            onOverflowPressed: _act,
             overflow: [
               NightshadeIconButton(
                 icon: LucideIcons.share2,
                 tooltip: 'Share',
                 size: IconButtonSize.sm,
-                onPressed: () {},
+                onPressed: _act,
               ),
               NightshadeIconButton(
                 icon: LucideIcons.download,
                 tooltip: 'Export',
                 size: IconButtonSize.sm,
-                onPressed: () {},
+                onPressed: _act,
               ),
             ],
             groups: [
@@ -1053,13 +1072,13 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                   icon: LucideIcons.undo2,
                   tooltip: 'Undo',
                   size: IconButtonSize.sm,
-                  onPressed: () {},
+                  onPressed: _act,
                 ),
                 NightshadeIconButton(
                   icon: LucideIcons.redo2,
                   tooltip: 'Redo',
                   size: IconButtonSize.sm,
-                  onPressed: () {},
+                  onPressed: _act,
                 ),
               ],
               [
@@ -1068,14 +1087,14 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                   icon: LucideIcons.clock,
                   size: ButtonSize.small,
                   variant: ButtonVariant.ghost,
-                  onPressed: () {},
+                  onPressed: _act,
                 ),
                 NightshadeButton(
                   label: 'Map',
                   icon: LucideIcons.map,
                   size: ButtonSize.small,
                   variant: ButtonVariant.ghost,
-                  onPressed: () {},
+                  onPressed: _act,
                 ),
               ],
             ],
@@ -1105,7 +1124,7 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                     child: NightshadeDropdown(
                       value: 'Light',
                       items: const ['Light', 'Dark', 'Flat', 'Bias'],
-                      onChanged: (_) {},
+                      onChanged: _actWith,
                     ),
                   ),
                   const SizedBox(height: FormRow.rowGap),
@@ -1153,7 +1172,7 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
               NightshadeFilterChip(
                 label: 'Type: any',
                 trailingIcon: LucideIcons.chevronDown,
-                onTap: () {},
+                onTap: _act,
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1182,9 +1201,9 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                 action: NightshadeButton(
                   label: 'Download',
                   size: ButtonSize.small,
-                  onPressed: () {},
+                  onPressed: _act,
                 ),
-                onDismiss: () {},
+                onDismiss: _act,
               ),
               const SizedBox(height: NightshadeTokens.spaceSm),
               const NightshadeBanner(
@@ -1213,7 +1232,7 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                   label: 'Go to Imaging',
                   size: ButtonSize.small,
                   variant: ButtonVariant.secondary,
-                  onPressed: () {},
+                  onPressed: _act,
                 ),
               ),
             ),
@@ -1233,14 +1252,14 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                   NightshadeButton(
                     label: 'Cancel',
                     variant: ButtonVariant.ghost,
-                    onPressed: () {},
+                    onPressed: _act,
                   ),
                   NightshadeButton(
                     label: 'Save first',
                     variant: ButtonVariant.secondary,
-                    onPressed: () {},
+                    onPressed: _act,
                   ),
-                  NightshadeButton(label: 'Replace', onPressed: () {}),
+                  NightshadeButton(label: 'Replace', onPressed: _act),
                 ],
                 child: Text(
                   'Loading “Mono LRGB M51” discards 3 unsaved changes '
@@ -1336,13 +1355,13 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                         title: 'M51 Whirlpool',
                         icon: LucideIcons.star,
                         trailing: '22:41',
-                        onTap: () {},
+                        onTap: _act,
                       ),
                       ListRow(
                         title: 'NGC 7000',
                         icon: LucideIcons.star,
                         trailing: '23:04',
-                        onTap: () {},
+                        onTap: _act,
                       ),
                       const SizedBox(height: SidePanel.sectionGap),
                       const SectionTitle(
@@ -1387,7 +1406,7 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                   label: 'Plan',
                   size: ButtonSize.small,
                   variant: ButtonVariant.secondary,
-                  onPressed: () {},
+                  onPressed: _act,
                 ),
               ),
             ),
@@ -1411,7 +1430,7 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                     label: 'Open Equipment',
                     size: ButtonSize.small,
                     variant: ButtonVariant.secondary,
-                    onPressed: () {},
+                    onPressed: _act,
                   ),
                 ),
                 const ChecklistStep(

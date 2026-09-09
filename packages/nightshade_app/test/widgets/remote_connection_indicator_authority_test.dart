@@ -91,7 +91,10 @@ void main() {
     expect(find.text('Reconnecting...'), findsOneWidget);
 
     hostBResult.complete();
-    await tester.pump();
+    // pumpAndSettle, not a single pump: the Observatory button animates its
+    // fill between the disabled and enabled faces, so the frame that carries
+    // the label back is one behind the frame that clears `_reconnecting`.
+    await tester.pumpAndSettle();
     expect(find.text('Reconnect now'), findsOneWidget);
   });
 

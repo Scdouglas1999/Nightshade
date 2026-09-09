@@ -73,7 +73,11 @@ void _expectNoSlab(WidgetTester tester, String title) {
 
   expect(card.height, lessThan(_viewport.height * 0.9),
       reason: 'a modal card that fills the window is the slab');
-  expect(titleRect.top - card.top, lessThan(32),
+  // 40, not 32: 05 §13 sets the dialog's own padding at 24 all round, and a
+  // 15px title's line box adds the rest. The guard is here to catch a SLAB -
+  // the full-height card with the content floating in it, which measured in
+  // the hundreds - not to hold the padding to a number the spec has moved.
+  expect(titleRect.top - card.top, lessThan(40),
       reason: 'empty painted surface above the dialog title is the slab');
   expect(card.bottom - footerRect.bottom, lessThan(32),
       reason: 'empty painted surface below the dialog buttons is the slab');

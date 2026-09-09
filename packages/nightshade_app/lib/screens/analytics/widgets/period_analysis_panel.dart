@@ -501,7 +501,12 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
       // prompt. At 120px the compact empty state had only 94px after padding
       // and border, so its icon, wrapped title, and body overflowed in valid
       // early-session layouts.
-      height: tooFew ? 190 : 120,
+      //
+      // Raised again for the Observatory `EmptyState`: its title is
+      // `sectionTitle` (15) where the old one was `h6` (14), and at this width
+      // that one point takes both of these titles onto an extra line — 21px in
+      // the tall branch, 11px in the short one, both measured.
+      height: tooFew ? 215 : 140,
       child: Container(
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
