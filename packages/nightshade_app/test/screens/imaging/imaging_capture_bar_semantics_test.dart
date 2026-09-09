@@ -63,8 +63,11 @@ Future<void> _pumpBar(WidgetTester tester, double width) async {
       cameraStateProvider.overrideWith(_ConnectedCamera.new),
     ],
   );
-  await tester.pump(const Duration(milliseconds: 50));
+  await tester.pump(_settleFrame);
 }
+
+/// One frame, long enough for the async provider overrides to land.
+const Duration _settleFrame = Duration(milliseconds: 50);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -142,7 +145,7 @@ void main() {
         cameraStateProvider.overrideWith(_ConnectedCamera.new),
       ],
     );
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(_settleFrame);
 
     // Nothing has been chosen yet, so the dropdown falls back to the first
     // filter rather than showing a blank control.

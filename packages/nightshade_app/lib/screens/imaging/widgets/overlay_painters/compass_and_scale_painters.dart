@@ -24,12 +24,12 @@ abstract final class PreviewReadoutInsets {
 /// The same rule that makes glass borrow the dark palette applies to a label
 /// drawn straight onto a photograph — there is no surface behind it to take a
 /// colour from.
-const Color _overlayInk = Color(0xFFFFFFFF);
+const Color _overlayInk = Colors.white;
 
 /// The drop shadow that keeps [_overlayInk] legible over a bright nebula.
 ///
 /// image-anchored: painted over the frame, theme-blind by design (05 §14).
-const Color _overlayShadow = Color(0xFF000000);
+const Color _overlayShadow = Colors.black;
 
 /// Compass rose: the North axis.
 @visibleForTesting

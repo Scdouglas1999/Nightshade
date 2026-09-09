@@ -58,7 +58,7 @@ Future<void> _pumpBar(
         autoStretchSettingsProvider.overrideWith(_StretchOn.new),
     ],
   );
-  await tester.pump(const Duration(milliseconds: 50));
+  await tester.pump(_settleFrame);
 }
 
 void _noop() {}
@@ -69,6 +69,9 @@ Finder get _barScrollable => find
       matching: find.byType(Scrollable),
     )
     .first;
+
+/// One frame, long enough for the async provider overrides to land.
+const Duration _settleFrame = Duration(milliseconds: 50);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

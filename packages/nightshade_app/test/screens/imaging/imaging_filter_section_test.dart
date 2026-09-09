@@ -45,6 +45,9 @@ class _AcceptingDeviceService extends DeviceService {
   }
 }
 
+/// One frame, long enough for the async provider overrides to land.
+const Duration _settleFrame = Duration(milliseconds: 50);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -71,13 +74,13 @@ void main() {
         }),
       ],
     );
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(_settleFrame);
 
     expect(handle.container.read(exposureSettingsProvider).filter, isNull);
 
     await tester.tap(find.text('Ha'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(_settleFrame);
 
     expect(deviceService.lastPosition, 4);
     expect(handle.container.read(exposureSettingsProvider).filter, 'Ha');
@@ -96,7 +99,7 @@ void main() {
       size: const Size(1400, 700),
       settle: false,
     );
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(_settleFrame);
 
     // The single empty-state pattern, not a banner and not a stack of cards.
     expect(find.byType(EmptyState), findsOneWidget);
