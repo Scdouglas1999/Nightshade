@@ -41,6 +41,23 @@ pub struct FocusDataPoint {
     pub star_count: u32,
 }
 
+/// Fewest points a narrowed refit may use. Three points always fit a
+/// parabola exactly (R²=1.0), which would make the narrowing rule pick
+/// noise over data.
+const NARROW_FIT_MIN_POINTS: usize = 5;
+
+/// How much better a narrowed fit must be before it displaces the full-sweep
+/// fit. Small enough to catch a wing that has stopped describing the curve,
+/// large enough that ordinary fit-quality jitter does not reshape the sweep.
+const NARROW_FIT_R2_MARGIN: f64 = 0.05;
+
+struct NarrowedFit {
+    position: i32,
+    quality: f64,
+    span: (i32, i32),
+    points_used: usize,
+}
+
 /// Autofocus method selection
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AutofocusMethod {
@@ -177,11 +194,7 @@ impl VCurveAutofocus {
         // the minimum-HFR *sampled* position with quality 0.0 mirrors
         // N.I.N.A.'s behaviour; downstream only warns on low R² and the
         // verification exposure remains the backstop.
-        let fit_result = match self.config.method {
-            AutofocusMethod::VCurve => self.fit_vcurve(&filtered_points),
-            AutofocusMethod::Quadratic => self.fit_parabola(&filtered_points),
-            AutofocusMethod::Hyperbolic => self.fit_hyperbola(&filtered_points),
-        };
+        let fit_result = self.fit_with_method(&filtered_points);
         let (best_position, curve_quality) = match fit_result {
             Ok(fit) => fit,
             Err(e) => {
@@ -202,6 +215,39 @@ impl VCurveAutofocus {
                 (min_point.position, 0.0)
             }
         };
+
+        // Both fitted models are SYMMETRIC about the focus position, and a
+        // sweep's outer points stop obeying that symmetry once the stars are
+        // too defocused to measure: the HFR that comes back is the median of
+        // whichever few tight stars survived the validity window, so the wing
+        // flattens — or reverses, which no real defocus curve does. A
+        // symmetric model fitted through such a wing splits the difference
+        // and lands the vertex off toward the flatter side.
+        //
+        // So: if a symmetric window around the best sample describes the
+        // curve materially better than the whole sweep, the wings were not
+        // describing the same curve and the narrower fit is the honest one.
+        // Widest qualifying window wins, and nothing changes when the full
+        // sweep already fits well — which is the common case.
+        let (best_position, curve_quality) =
+            match self.refit_near_focus(&filtered_points, curve_quality) {
+                Some(narrowed) => {
+                    tracing::info!(
+                        "Curve fit over the full sweep was R²={:.3}; the {} points from {} to {} \
+                         fit R²={:.3}, so the outer samples are not on the same curve. \
+                         Using the narrower fit: {} (was {})",
+                        curve_quality,
+                        narrowed.points_used,
+                        narrowed.span.0,
+                        narrowed.span.1,
+                        narrowed.quality,
+                        narrowed.position,
+                        best_position
+                    );
+                    (narrowed.position, narrowed.quality)
+                }
+                None => (best_position, curve_quality),
+            };
 
         // The reported best_hfr is the minimum sampled HFR, not the
         // curve's analytic minimum: the user sees a number that actually
@@ -225,6 +271,74 @@ impl VCurveAutofocus {
             backlash_applied: self.config.backlash_compensation > 0
                 || self.config.backlash_out_compensation > 0,
         })
+    }
+
+    fn fit_with_method(&self, points: &[FocusDataPoint]) -> Result<(i32, f64), String> {
+        match self.config.method {
+            AutofocusMethod::VCurve => self.fit_vcurve(points),
+            AutofocusMethod::Quadratic => self.fit_parabola(points),
+            AutofocusMethod::Hyperbolic => self.fit_hyperbola(points),
+        }
+    }
+
+    /// Refit on the widest symmetric window around the best sample that beats
+    /// the full-sweep fit by [`NARROW_FIT_R2_MARGIN`]. `None` keeps the full
+    /// fit, which is what happens whenever the sweep is well behaved.
+    fn refit_near_focus(
+        &self,
+        points: &[FocusDataPoint],
+        full_quality: f64,
+    ) -> Option<NarrowedFit> {
+        let mut sorted = points.to_vec();
+        sorted.sort_by_key(|p| p.position);
+
+        let min_idx = sorted
+            .iter()
+            .enumerate()
+            .min_by(|a, b| {
+                a.1.hfr
+                    .partial_cmp(&b.1.hfr) /* f64 NaN orders Equal — see module-level policy */
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(i, _)| i)?;
+
+        // A window is only symmetric if the minimum has that many samples on
+        // BOTH sides; a minimum sitting at the edge of the sweep gives none.
+        let max_reach = min_idx.min(sorted.len().saturating_sub(1) - min_idx);
+
+        // Best-fitting window, not merely the first that clears the margin:
+        // on a sweep with a bad wing the ±3 window can beat the full sweep
+        // and still be dragged by the same wing the ±2 window excludes.
+        // Widest wins ties, so equal quality keeps the most data.
+        let mut best: Option<NarrowedFit> = None;
+        for half in (2..=max_reach).rev() {
+            let window = &sorted[min_idx - half..=min_idx + half];
+            if window.len() < NARROW_FIT_MIN_POINTS || window.len() == sorted.len() {
+                continue;
+            }
+
+            let Ok((position, quality)) = self.fit_with_method(window) else {
+                continue;
+            };
+
+            let span = (window[0].position, window[window.len() - 1].position);
+            // A vertex outside the window it was fitted from is an
+            // extrapolation, not a better answer.
+            if !(span.0..=span.1).contains(&position) {
+                continue;
+            }
+
+            if best.as_ref().is_none_or(|b| quality > b.quality) {
+                best = Some(NarrowedFit {
+                    position,
+                    quality,
+                    span,
+                    points_used: window.len(),
+                });
+            }
+        }
+
+        best.filter(|b| b.quality >= full_quality + NARROW_FIT_R2_MARGIN)
     }
 
     /// Reject outliers using sigma clipping on HFR values
