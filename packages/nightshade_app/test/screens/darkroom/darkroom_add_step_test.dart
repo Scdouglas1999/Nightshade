@@ -851,7 +851,8 @@ void main() {
         find.byKey(const ValueKey('darkroom_insert_refusal')),
         findsOneWidget,
       );
-      expect(find.text('That step was not added'), findsOneWidget);
+      expect(find.textContaining('That step was not added', findRichText: true),
+          findsOneWidget);
       await drain(tester);
     });
 

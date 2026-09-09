@@ -751,7 +751,10 @@ void main() {
     // dialog used to quote the child count, state that the delete would be
     // refused, and still put "Delete" under it — one guaranteed failure before
     // the operator was offered the escalation.
-    expect(find.text('One branch diverges from this one'), findsOneWidget);
+    expect(
+        find.textContaining('One branch diverges from this one',
+            findRichText: true),
+        findsOneWidget);
     expect(find.textContaining('Warmer'), findsWidgets);
     expect(
       find.widgetWithText(NightshadeButton, 'Delete "Draft" and its 1 branch'),
@@ -858,7 +861,10 @@ void main() {
 
     // Both rows, in one step, with no refusal in between.
     expect(await recipes.listForMaster(_masterPath), isEmpty);
-    expect(find.text('That branch has branches of its own'), findsNothing);
+    expect(
+        find.textContaining('That branch has branches of its own',
+            findRichText: true),
+        findsNothing);
     await drain(tester);
   });
 
@@ -887,7 +893,10 @@ void main() {
         .deleteBranch(root);
     await settle(tester);
 
-    expect(find.text('That branch has branches of its own'), findsOneWidget);
+    expect(
+        find.textContaining('That branch has branches of its own',
+            findRichText: true),
+        findsOneWidget);
     expect(
       find.textContaining('cannot be deleted while 1 branch'),
       findsOneWidget,
@@ -1092,7 +1101,10 @@ void main() {
     await openExport(tester);
 
     expect(
-      find.text('PNG, JPEG and TIFF are unavailable for this stage'),
+      find.textContaining(
+        'PNG, JPEG and TIFF are unavailable for this stage',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     // The reason is READ, not hovered: a tooltip says nothing on a touch
@@ -1135,7 +1147,10 @@ void main() {
     await openExport(tester);
 
     expect(
-      find.text('PNG, JPEG and TIFF are unavailable for this stage'),
+      find.textContaining(
+        'PNG, JPEG and TIFF are unavailable for this stage',
+        findRichText: true,
+      ),
       findsNothing,
     );
     expect(
@@ -1179,7 +1194,7 @@ void main() {
     expect((args['renderId'] as String), startsWith('darkroom-export-$root-'));
 
     // The reply's own numbers are reported back, sidecar included.
-    expect(find.text('Written'), findsOneWidget);
+    expect(find.textContaining('Written', findRichText: true), findsOneWidget);
     expect(
       find.textContaining('/tmp/nightshade-test/out.fits.nsrecipe'),
       findsOneWidget,
@@ -1239,7 +1254,7 @@ void main() {
       find.textContaining('stopped during render. No file was written.'),
       findsOneWidget,
     );
-    expect(find.text('Written'), findsNothing);
+    expect(find.textContaining('Written', findRichText: true), findsNothing);
     await drain(tester);
   });
 
@@ -1265,9 +1280,10 @@ void main() {
     // screen and in the accessible name — the shape this sheet already uses for
     // a raster of a linear stage.
     expect(
-      find.text(
+      find.textContaining(
         'This stack does not validate, so only the linear master can be '
         'written',
+        findRichText: true,
       ),
       findsOneWidget,
     );
@@ -1316,7 +1332,7 @@ void main() {
     final sent =
         (jsonDecode(darkroom.exportRecipes.single) as Map<String, dynamic>);
     expect((sent['steps'] as List), hasLength(2));
-    expect(find.text('Written'), findsOneWidget);
+    expect(find.textContaining('Written', findRichText: true), findsOneWidget);
 
     await drain(tester);
     handle.dispose();
@@ -1360,7 +1376,7 @@ void main() {
     expect(find.textContaining('Rendering the'), findsNothing);
     expect(find.text('Stop'), findsNothing);
     expect(find.byType(NightshadeProgressBar), findsNothing);
-    expect(find.text('Written'), findsNothing);
+    expect(find.textContaining('Written', findRichText: true), findsNothing);
 
     await tester.tap(
       find.descendant(
@@ -1395,7 +1411,7 @@ void main() {
     expect(revealCalls, 1, reason: 'the hand-off was attempted');
     // The export happened, and the sheet says so.
     expect(darkroom.exportArgs, hasLength(1));
-    expect(find.text('Written'), findsOneWidget);
+    expect(find.textContaining('Written', findRichText: true), findsOneWidget);
     expect(
       find.textContaining('/tmp/nightshade-test/out.fits.nsrecipe'),
       findsOneWidget,
@@ -1477,7 +1493,7 @@ void main() {
 
     expect(pickerCalls, hasLength(1));
     expect(darkroom.exportArgs, isEmpty);
-    expect(find.text('Written'), findsNothing);
+    expect(find.textContaining('Written', findRichText: true), findsNothing);
     await drain(tester);
   });
 
@@ -1589,7 +1605,10 @@ void main() {
     // Escape is answered with the truth about the chooser, not about a render.
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
-    expect(find.text('The save chooser is still open'), findsOneWidget);
+    expect(
+        find.textContaining('The save chooser is still open',
+            findRichText: true),
+        findsOneWidget);
     expect(
       find.textContaining('nothing has been sent to the engine yet'),
       findsWidgets,
@@ -1635,7 +1654,8 @@ void main() {
 
     expect(find.textContaining('Export "Draft"'), findsOneWidget);
     expect(
-      find.text('This sheet stays up while the export runs'),
+      find.textContaining('This sheet stays up while the export runs',
+          findRichText: true),
       findsOneWidget,
     );
     expect(
@@ -1647,7 +1667,8 @@ void main() {
     held.complete();
     await settle(tester);
     expect(
-      find.text('This sheet stays up while the export runs'),
+      find.textContaining('This sheet stays up while the export runs',
+          findRichText: true),
       findsNothing,
     );
     await drain(tester);
@@ -1803,7 +1824,8 @@ void main() {
 
     // On screen for a touch screen, which has neither hover nor a pointer.
     expect(
-      find.text('"After a step" is unavailable for this recipe'),
+      find.textContaining('"After a step" is unavailable for this recipe',
+          findRichText: true),
       findsOneWidget,
     );
     expect(
@@ -1893,7 +1915,10 @@ void main() {
 
     expect(find.text(switchLabel), findsOneWidget);
     expect(
-      find.text('PNG, JPEG and TIFF are unavailable for this stage'),
+      find.textContaining(
+        'PNG, JPEG and TIFF are unavailable for this stage',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
 
@@ -1907,7 +1932,10 @@ void main() {
       isTrue,
     );
     expect(
-      find.text('PNG, JPEG and TIFF are rendered through the auto stretch'),
+      find.textContaining(
+        'PNG, JPEG and TIFF are rendered through the auto stretch',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(
@@ -1929,7 +1957,10 @@ void main() {
       isFalse,
     );
     expect(
-      find.text('PNG, JPEG and TIFF are unavailable for this stage'),
+      find.textContaining(
+        'PNG, JPEG and TIFF are unavailable for this stage',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(
@@ -1991,7 +2022,10 @@ void main() {
       findsNothing,
     );
     expect(
-      find.text('PNG, JPEG and TIFF are rendered through the auto stretch'),
+      find.textContaining(
+        'PNG, JPEG and TIFF are rendered through the auto stretch',
+        findRichText: true,
+      ),
       findsNothing,
     );
 
@@ -2025,9 +2059,13 @@ void main() {
     // Scoped to the sheet's own alert, because the viewport under the modal is
     // showing that same sentence, which is the whole point of composing it from
     // the same helper.
-    final refusal = find.widgetWithText(
-      NightshadeAlert,
-      'This master cannot be read',
+    // Matched on the banner's own title rather than with `widgetWithText`:
+    // NightshadeBanner paints title and message as ONE `Text.rich`, which
+    // `find.text` (and so `widgetWithText`) does not read.
+    final refusal = find.byWidgetPredicate(
+      (widget) =>
+          widget is NightshadeBanner &&
+          widget.title == 'This master cannot be read',
     );
     expect(refusal, findsOneWidget);
     expect(
@@ -2089,7 +2127,9 @@ void main() {
     await tester.tap(find.widgetWithText(NightshadeButton, 'Close').last);
     await settle(tester);
 
-    expect(find.text('This master cannot be read'), findsOneWidget);
+    expect(
+        find.textContaining('This master cannot be read', findRichText: true),
+        findsOneWidget);
     final export = tester.widget<NightshadeButton>(
       find.widgetWithText(NightshadeButton, 'Export'),
     );

@@ -62,7 +62,7 @@ class GrowthCurvePanel extends StatelessWidget {
       colors,
     );
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Padding(
         padding: NightshadeTokens.cardPadding,
         child: Column(
@@ -217,7 +217,7 @@ class GrowthCurvePanel extends StatelessWidget {
             children: [
               Text(
                 'Project growth',
-                style: NightshadeTypography.h5.copyWith(
+                style: NightshadeTypography.sectionTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -248,8 +248,7 @@ class GrowthCurvePanel extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    return const NightshadeCard(
-      variant: CardVariant.subtle,
+    return const NightshadePanel(
       child: Padding(
         padding: NightshadeTokens.cardPadding,
         child: AdaptiveChartContainer.fixed(

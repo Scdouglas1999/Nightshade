@@ -229,6 +229,16 @@ class _DarkroomZoomControls extends StatelessWidget {
   /// Tags the enclosing view adds after the readout.
   final List<Widget> trailing;
 
+  /// Draw as a glass panel floating OVER the picture rather than as a bordered
+  /// bar above it.
+  ///
+  /// 02's first rule gives the image the largest uninterrupted area it can,
+  /// with the controls floating over it; 05 §14 allows glass only inside an
+  /// image stack. The single-recipe viewport is that stack. The A/B compare is
+  /// not: it lays out two panes, and one glass element per pane per corner
+  /// would blow the four-element ceiling — so compare keeps the bar.
+  final bool overImage;
+
   const _DarkroomZoomControls({
     required this.zoom,
     required this.preview,
@@ -236,6 +246,7 @@ class _DarkroomZoomControls extends StatelessWidget {
     this.measuredOn,
     this.leading = const [],
     this.trailing = const [],
+    this.overImage = false,
   });
 
   @override
@@ -253,6 +264,60 @@ class _DarkroomZoomControls extends StatelessWidget {
             ? kDarkroomOneToOneNeedsLevel
             : null;
     final on = measuredOn == null ? '' : ', measured on pane $measuredOn';
+    final controls = Wrap(
+      spacing: NightshadeTokens.spaceXs,
+      runSpacing: NightshadeTokens.spaceXs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ...leading,
+        _iconControl(
+          NightshadeIcons.remove,
+          'Zoom out',
+          dead,
+          () => zoom.zoomBy(1 / kDarkroomZoomStep),
+        ),
+        _iconControl(
+          NightshadeIcons.add,
+          'Zoom in',
+          dead,
+          () => zoom.zoomBy(kDarkroomZoomStep),
+        ),
+        _labelControl('Fit', dead, () => zoom.fit(preview)),
+        _labelControl('1:1', oneToOneDead, () => zoom.oneToOne(preview)),
+        Semantics(
+          // Its own node: with the annotation merged into whatever encloses
+          // it, the percentage joined the row's other words into one run and
+          // stopped being a readout anybody could find.
+          container: true,
+          label: switch ((dead, masterScale)) {
+            // No pixels: the readout says the same thing the four controls
+            // say, rather than "unknown" over a row whose refusal is a
+            // different sentence.
+            (final String reason, _) => 'Zoom is unavailable — $reason',
+            (null, null) => 'Zoom relative to the master is unknown',
+            (null, final double scale) =>
+              'Zoom ${(scale * 100).round()} percent of the master$on',
+          },
+          child: ExcludeSemantics(
+            child: Text(
+              masterScale == null
+                  ? '—'
+                  : '${(masterScale * 100).round()}% of master'
+                      '${measuredOn == null ? '' : ' · $measuredOn'}',
+              style: NightshadeTypography.monoSm.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        ...trailing,
+      ],
+    );
+
+    // Over the picture the controls are the only chrome, so the zoom percentage
+    // is a Readout rather than a line of mono text beside four buttons.
+    if (overImage) return Glass(child: controls);
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -262,55 +327,7 @@ class _DarkroomZoomControls extends StatelessWidget {
         horizontal: NightshadeTokens.spaceMd,
         vertical: NightshadeTokens.spaceXs,
       ),
-      child: Wrap(
-        spacing: NightshadeTokens.spaceXs,
-        runSpacing: NightshadeTokens.spaceXs,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          ...leading,
-          _iconControl(
-            NightshadeIcons.remove,
-            'Zoom out',
-            dead,
-            () => zoom.zoomBy(1 / kDarkroomZoomStep),
-          ),
-          _iconControl(
-            NightshadeIcons.add,
-            'Zoom in',
-            dead,
-            () => zoom.zoomBy(kDarkroomZoomStep),
-          ),
-          _labelControl('Fit', dead, () => zoom.fit(preview)),
-          _labelControl('1:1', oneToOneDead, () => zoom.oneToOne(preview)),
-          Semantics(
-            // Its own node: with the annotation merged into whatever encloses
-            // it, the percentage joined the row's other words into one run and
-            // stopped being a readout anybody could find.
-            container: true,
-            label: switch ((dead, masterScale)) {
-              // No pixels: the readout says the same thing the four controls
-              // say, rather than "unknown" over a row whose refusal is a
-              // different sentence.
-              (final String reason, _) => 'Zoom is unavailable — $reason',
-              (null, null) => 'Zoom relative to the master is unknown',
-              (null, final double scale) =>
-                'Zoom ${(scale * 100).round()} percent of the master$on',
-            },
-            child: ExcludeSemantics(
-              child: Text(
-                masterScale == null
-                    ? '—'
-                    : '${(masterScale * 100).round()}% of master'
-                        '${measuredOn == null ? '' : ' · $measuredOn'}',
-                style: NightshadeTypography.monoSm.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-          ),
-          ...trailing,
-        ],
-      ),
+      child: controls,
     );
   }
 
@@ -340,7 +357,7 @@ class _DarkroomZoomControls extends StatelessWidget {
   Widget _labelControl(String label, String? reason, VoidCallback onPressed) {
     final button = NightshadeButton(
       label: label,
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       size: ButtonSize.small,
       onPressed: reason == null ? onPressed : null,
     );
@@ -441,34 +458,132 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
     final masterScale = _zoom.masterScale(state.preview);
     if (masterScale != null) _publishDisplayScale(masterScale);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _DarkroomZoomControls(
-          zoom: _zoom,
-          preview: state.preview,
-          noRenderReason: _darkroomNoRenderReason(state),
-          trailing: [
-            if (state.preview?.level != null)
-              _DarkroomTag(
-                label: 'Level ${state.preview!.level}',
-                tooltip:
-                    'The pyramid level this preview was rendered from. Level 0 '
-                    'is the master\'s own pixels; export always renders at full '
-                    'resolution.',
+    // The picture is the screen (02, rule 1): it runs edge to edge and the
+    // chrome floats over it in glass. It used to be sandwiched between a
+    // bordered control bar above and a bordered encoding strip below, which
+    // took ~72 px off the one thing this screen exists to show.
+    //
+    // Four glass elements, which is the ceiling 05 §14 sets, in the corners it
+    // names: top-left frame stats, top-right the render's status, bottom-left
+    // the display transfer, bottom-centre the controls.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _zoom.box = Size(constraints.maxWidth, constraints.maxHeight);
+        return Stack(
+          children: [
+            Positioned.fill(child: _canvas(colors, state)),
+            // The controls are present even with no pixels to zoom. All four
+            // go dead together on a null preview and each states WHY in its
+            // accessible name — dropping the row would take that sentence off
+            // the screen along with the controls, and the canvas's own empty
+            // state is a different sentence about a different thing.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: NightshadeTokens.spaceMd,
+              child: Center(
+                child: _DarkroomZoomControls(
+                  zoom: _zoom,
+                  preview: state.preview,
+                  noRenderReason: _darkroomNoRenderReason(state),
+                  overImage: true,
+                ),
               ),
+            ),
+            if (state.preview != null) ...[
+              Positioned(
+                left: NightshadeTokens.spaceMd,
+                top: NightshadeTokens.spaceMd,
+                child: _frameStats(state),
+              ),
+              Positioned(
+                left: NightshadeTokens.spaceMd,
+                right: NightshadeTokens.spaceMd,
+                bottom: _hudBottomInset,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: _encodingHud(state),
+                ),
+              ),
+            ],
           ],
-        ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              _zoom.box = Size(constraints.maxWidth, constraints.maxHeight);
-              return _canvas(colors, state);
-            },
+        );
+      },
+    );
+  }
+
+  /// How far above the control bar the display-transfer note sits, so the two
+  /// bottom-corner elements never overlap on a narrow viewport.
+  static const double _hudBottomInset = 64;
+
+  /// The frame's own numbers, top-left, in the corner 05 §14 gives them.
+  Widget _frameStats(DarkroomState state) {
+    final preview = state.preview!;
+    final scale = _zoom.masterScale(preview);
+    return Glass(
+      child: ReadoutRow(
+        gap: NightshadeTokens.spaceLg,
+        children: [
+          Readout(
+            // Null renders an em dash: a render that did not say which pyramid
+            // level it answered at cannot be placed against the master, and the
+            // readout says so rather than printing 100%.
+            value: scale == null ? null : '${(scale * 100).round()}',
+            unit: '%',
+            label: 'Of master',
+            size: ReadoutSize.sm,
           ),
-        ),
-        _encodingStrip(colors, state),
-      ],
+          Readout(
+            value: '${preview.width} × ${preview.height}',
+            label: 'Rendered',
+            size: ReadoutSize.sm,
+          ),
+          Readout(
+            value: preview.level?.toString(),
+            label: 'Level',
+            size: ReadoutSize.sm,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// What the engine did to the pixels for the screen, bottom-left.
+  Widget _encodingHud(DarkroomState state) {
+    final preview = state.preview!;
+    final encoding = preview.encoding;
+    final screenTransfer = encoding.screenTransfer;
+    return Glass(
+      child: Wrap(
+        spacing: NightshadeTokens.spaceSm,
+        runSpacing: NightshadeTokens.spaceXs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            // The strip describes the render whose pixels are on screen. When
+            // a later render failed, those pixels are the previous render's,
+            // and saying so here keeps it from reading as an account of the
+            // stack the operator is now editing.
+            state.renderError == null || state.rendering
+                ? 'Display transfer: ${encoding.sentence}'
+                : 'Display transfer of the last render that finished: '
+                    '${encoding.sentence}',
+            style: NightshadeTypography.caption.copyWith(
+              color: NightshadeColors.dark.textSecondary,
+            ),
+          ),
+          // The lift's own numbers, behind the tag rather than on the strip:
+          // they are what makes "display only" checkable, and they are the
+          // engine's, not the recipe's.
+          if (screenTransfer != null)
+            _DarkroomTag(
+              label: 'Screen transfer',
+              tooltip: 'The display lift the engine applied, in its own '
+                  'numbers: ${_describeParams(screenTransfer)}. It is not a '
+                  'step of this recipe, so no export carries it.',
+            ),
+        ],
+      ),
     );
   }
 
@@ -544,13 +659,15 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         // empty on every slider frame is unreadable.
         if (state.rendering)
           Positioned(
-            top: NightshadeTokens.spaceSm,
-            right: NightshadeTokens.spaceSm,
-            child: _DarkroomTag(
-              label: state.cancelRequested ? 'Stopping…' : 'Rendering…',
-              tooltip:
-                  'The picture below is the previous render until this one '
-                  'lands.',
+            top: NightshadeTokens.spaceMd,
+            right: NightshadeTokens.spaceMd,
+            child: Glass(
+              child: _DarkroomTag(
+                label: state.cancelRequested ? 'Stopping…' : 'Rendering…',
+                tooltip:
+                    'The picture below is the previous render until this one '
+                    'lands.',
+              ),
             ),
           ),
         // A render that FAILED leaves the same superseded picture up, so it
@@ -561,13 +678,15 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
         // sentence in a view that is not on screen.
         if (!state.rendering && failure != null) ...[
           Positioned(
-            top: NightshadeTokens.spaceSm,
-            right: NightshadeTokens.spaceSm,
-            child: _DarkroomTag(
-              label: 'Stale — the render did not finish',
-              tooltip:
-                  'The picture below is the last render that finished, not the '
-                  'stack as it stands now: $failure',
+            top: NightshadeTokens.spaceMd,
+            right: NightshadeTokens.spaceMd,
+            child: Glass(
+              child: _DarkroomTag(
+                label: 'Stale — the render did not finish',
+                tooltip:
+                    'The picture below is the last render that finished, not '
+                    'the stack as it stands now: $failure',
+              ),
             ),
           ),
           // Positioned.fill, so the alert is laid out inside the canvas rather
@@ -594,12 +713,11 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
                 ),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                  child: NightshadeAlert(
-                    severity: NightshadeAlertSeverity.error,
+                  child: NightshadeBanner(
+                    tone: BannerTone.error,
                     title: 'The render did not finish',
                     message: '$failure\n\nThis picture is the last render that '
                         'finished, so it does not show the stack as it stands.',
-                    compact: true,
                   ),
                 ),
               ),
@@ -607,54 +725,6 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
           ),
         ],
       ],
-    );
-  }
-
-  Widget _encodingStrip(NightshadeColors colors, DarkroomState state) {
-    final preview = state.preview;
-    if (preview == null) return const SizedBox.shrink();
-    final encoding = preview.encoding;
-    final screenTransfer = encoding.screenTransfer;
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceXs,
-      ),
-      child: Wrap(
-        spacing: NightshadeTokens.spaceSm,
-        runSpacing: NightshadeTokens.spaceXs,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            // The strip describes the render whose pixels are on screen. When
-            // a later render failed, those pixels are the previous render's,
-            // and saying so here keeps the strip from reading as an account of
-            // the stack the operator is now editing.
-            state.renderError == null || state.rendering
-                ? 'Display transfer: ${encoding.sentence}'
-                : 'Display transfer of the last render that finished: '
-                    '${encoding.sentence}',
-            style: NightshadeTypography.captionSm.copyWith(
-              color: colors.textSecondary,
-            ),
-          ),
-          // The lift's own numbers, behind the tag rather than on the strip:
-          // they are what makes "display only" checkable, and they are the
-          // engine's, not the recipe's.
-          if (screenTransfer != null)
-            _DarkroomTag(
-              label: 'Screen transfer',
-              tooltip: 'The display lift the engine applied, in its own '
-                  'numbers: ${_describeParams(screenTransfer)}. It is not a '
-                  'step of this recipe, so no export carries it.',
-            ),
-        ],
-      ),
     );
   }
 
@@ -678,26 +748,9 @@ class _DarkroomTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceSm,
-          vertical: 2,
-        ),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: NightshadeTokens.borderRadiusSm,
-          border: Border.all(color: colors.border),
-        ),
-        child: Text(
-          label,
-          style: NightshadeTypography.captionSm.copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
-      ),
-    );
+    // A chip is a chip (05 §10): 22 px, solid `surfaceHover`, `radiusXs`, no
+    // border. It was a hand-rolled bordered box with its own padding and text
+    // size, which is the "second style of something" 02's fourth rule forbids.
+    return Tooltip(message: tooltip, child: NightshadeChip(label: label));
   }
 }

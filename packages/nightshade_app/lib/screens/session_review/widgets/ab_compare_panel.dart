@@ -108,7 +108,7 @@ class _AbComparePanelState extends State<AbComparePanel> {
     final colors = NightshadeColors.of(context);
     final recipeA = _recipeA;
     final recipeB = _recipeB;
-    return NightshadeCard(
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
         child: Column(
@@ -121,7 +121,7 @@ class _AbComparePanelState extends State<AbComparePanel> {
                 const SizedBox(width: NightshadeTokens.spaceSm),
                 Text(
                   'A / B recipe compare',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
@@ -139,8 +139,9 @@ class _AbComparePanelState extends State<AbComparePanel> {
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             if (_error != null) ...[
-              NightshadeAlert(
-                severity: NightshadeAlertSeverity.error,
+              NightshadeBanner(
+                title: 'The comparison could not be built',
+                tone: BannerTone.error,
                 message: _error!,
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
@@ -222,8 +223,7 @@ class _RecipeColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(
@@ -261,7 +261,7 @@ class _RecipeColumn extends StatelessWidget {
                 NightshadeButton(
                   label: 'Run',
                   icon: NightshadeIcons.refresh,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   isLoading: running,
                   onPressed: running ? null : onRun,
@@ -368,7 +368,7 @@ class _Chip extends StatelessWidget {
         vertical: NightshadeTokens.spaceXs,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: colors.border),
       ),
@@ -512,13 +512,13 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: NightshadeTypography.statValue
+          style: NightshadeTypography.readoutMd
               .copyWith(color: colors.textPrimary),
         ),
         Text(
           label.toUpperCase(),
-          style:
-              NightshadeTypography.statLabel.copyWith(color: colors.textMuted),
+          style: NightshadeTypography.readoutLabel
+              .copyWith(color: colors.textMuted),
         ),
       ],
     );
@@ -535,8 +535,7 @@ class _DiffStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(

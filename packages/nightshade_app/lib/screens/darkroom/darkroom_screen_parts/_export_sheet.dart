@@ -464,7 +464,7 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
         else
           NightshadeButton(
             label: 'Close',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             // The chooser is a modal window of its own: a Close that reads live
             // underneath it cannot be pressed, so it says it cannot.
@@ -483,39 +483,36 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
           _provenanceNote(colors),
           if (_masterFailure case final failure?) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
+            NightshadeBanner(
+              tone: BannerTone.error,
               title: 'This master cannot be read',
               message: failure,
-              compact: true,
             ),
           ],
           if (_dismissRefused != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
+            NightshadeBanner(
+              tone: BannerTone.warning,
               title: _phase == _DarkroomExportPhase.choosingFile
                   ? 'The save chooser is still open'
                   : 'This sheet stays up while the export runs',
               message: _dismissRefused!,
-              compact: true,
             ),
           ],
           if (_stopped != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.info,
+            NightshadeBanner(
+              title: 'The export was stopped',
+              tone: BannerTone.info,
               message: _stopped!,
-              compact: true,
             ),
           ],
           if (_result != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.success,
+            NightshadeBanner(
+              tone: BannerTone.success,
               title: 'Written',
               message: _result!,
-              compact: true,
             ),
           ],
           if (_phase case final phase?) ...[
@@ -724,20 +721,18 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
         // equivalent.
         if (replayRefusal != null) ...[
           const SizedBox(height: NightshadeTokens.spaceSm),
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
+          NightshadeBanner(
+            tone: BannerTone.warning,
             title: 'This stack does not validate, so only the linear master '
                 'can be written',
             message: replayRefusal,
-            compact: true,
           ),
         ] else if (afterStepRefusal != null) ...[
           const SizedBox(height: NightshadeTokens.spaceSm),
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.info,
+          NightshadeBanner(
+            tone: BannerTone.info,
             title: '"After a step" is unavailable for this recipe',
             message: afterStepRefusal,
-            compact: true,
           ),
         ],
         if (_stageKind == _DarkroomExportStageKind.afterStep) ...[
@@ -822,15 +817,14 @@ class _DarkroomExportSheetState extends ConsumerState<_DarkroomExportSheet> {
           // The state is on screen, not only in a tooltip: a chip whose reason
           // lives behind a hover says nothing on a touch screen. Both answers
           // get a sentence — refused, and rendered through the auto stretch.
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.info,
+          NightshadeBanner(
+            tone: BannerTone.info,
             title: _screenTransfer
                 ? 'PNG, JPEG and TIFF are rendered through the auto stretch'
                 : 'PNG, JPEG and TIFF are unavailable for this stage',
             message: _screenTransfer
                 ? _rasterTransferNote(domain)
                 : _rasterRefusalMessage(domain),
-            compact: true,
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           NightshadeSwitchRow(
