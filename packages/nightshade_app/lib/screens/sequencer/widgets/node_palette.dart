@@ -103,9 +103,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                   const SizedBox(width: 10),
                   Text(
                     'Add Node',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize18,
-                      fontWeight: FontWeight.w700,
+                    style: NightshadeTypography.sectionTitle.copyWith(
                       color: widget.colors.textPrimary,
                     ),
                   ),
@@ -134,14 +132,12 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                         controller: _searchController,
                         onChanged: (value) =>
                             setState(() => _searchQuery = value),
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
+                        style: NightshadeTypography.body.copyWith(
                           color: widget.colors.textPrimary,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Search nodes...',
-                          hintStyle: TextStyle(
-                            fontSize: NightshadeTypography.fontSize14,
+                          hintText: 'Search nodes…',
+                          hintStyle: NightshadeTypography.body.copyWith(
                             color: widget.colors.textMuted,
                           ),
                           border: InputBorder.none,
@@ -213,9 +209,6 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
   Widget _buildDesktopSidebarContent(
       List<NodePaletteCategory> filteredCategories) {
     return Builder(builder: (context) {
-      final headerFontSize = Responsive.fontSize(context, 14);
-      final searchFontSize = Responsive.fontSize(context, 13);
-      final tipFontSize = Responsive.fontSize(context, 11);
       final headerIconSize = Responsive.iconSize(context, 16);
       final searchIconSize = Responsive.iconSize(context, 15);
       final tipIconSize = Responsive.iconSize(context, 14);
@@ -251,9 +244,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                       Expanded(
                         child: Text(
                           'Node Palette',
-                          style: TextStyle(
-                            fontSize: headerFontSize,
-                            fontWeight: FontWeight.w600,
+                          style: NightshadeTypography.sectionTitle.copyWith(
                             color: widget.colors.textPrimary,
                           ),
                         ),
@@ -300,14 +291,12 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                             controller: _searchController,
                             onChanged: (value) =>
                                 setState(() => _searchQuery = value),
-                            style: TextStyle(
-                              fontSize: searchFontSize,
+                            style: NightshadeTypography.bodySm.copyWith(
                               color: widget.colors.textPrimary,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Search nodes...',
-                              hintStyle: TextStyle(
-                                fontSize: searchFontSize,
+                              hintText: 'Search nodes…',
+                              hintStyle: NightshadeTypography.bodySm.copyWith(
                                 color: widget.colors.textMuted,
                               ),
                               border: InputBorder.none,
@@ -401,8 +390,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                   Expanded(
                     child: Text(
                       'Drag nodes to the tree, or tap + to add',
-                      style: TextStyle(
-                        fontSize: tipFontSize,
+                      style: NightshadeTypography.caption.copyWith(
                         color: widget.colors.info,
                       ),
                     ),
@@ -447,7 +435,6 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
 
     final badgeSize = isMobile ? 32.0 : Responsive.spacing(context, 28);
     final badgeIconSize = isMobile ? 16.0 : Responsive.iconSize(context, 14);
-    final categoryFontSize = isMobile ? 14.0 : Responsive.fontSize(context, 13);
     final chevronSize = isMobile ? 18.0 : Responsive.iconSize(context, 15);
     final hPadding = isMobile ? 16.0 : Responsive.spacing(context, 16);
     final vPadding = isMobile ? 12.0 : Responsive.spacing(context, 10);
@@ -486,10 +473,8 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
                 Expanded(
                   child: Text(
                     widget.category.name,
-                    style: TextStyle(
-                      fontSize: categoryFontSize,
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.textPrimary,
+                    style: NightshadeTypography.eyebrow.copyWith(
+                      color: widget.colors.textMuted,
                     ),
                   ),
                 ),
@@ -656,8 +641,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                       const SizedBox(height: 2),
                       Text(
                         widget.item.description,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
+                        style: NightshadeTypography.caption.copyWith(
                           color: widget.colors.textMuted,
                         ),
                         maxLines: 1,
@@ -681,9 +665,6 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
 
   Widget _buildDesktopItem() {
     return Builder(builder: (context) {
-      final nameFontSize = Responsive.fontSize(context, 12);
-      final descFontSize = Responsive.fontSize(context, 10);
-      final feedbackFontSize = Responsive.fontSize(context, 12);
       final iconBoxSize = Responsive.spacing(context, 30);
       final itemIconSize = Responsive.iconSize(context, 15);
       final feedbackIconSize = Responsive.iconSize(context, 14);
@@ -715,9 +696,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                 SizedBox(width: Responsive.spacing(context, 8)),
                 Text(
                   widget.item.name,
-                  style: TextStyle(
-                    fontSize: feedbackFontSize,
-                    fontWeight: FontWeight.w500,
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: widget.colors.textPrimary,
                   ),
                 ),
@@ -775,9 +754,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                         children: [
                           Text(
                             widget.item.name,
-                            style: TextStyle(
-                              fontSize: nameFontSize,
-                              fontWeight: FontWeight.w500,
+                            style: NightshadeTypography.bodySm.copyWith(
                               color: _isHovered
                                   ? widget.colors.textPrimary
                                   : widget.colors.textSecondary,
@@ -785,8 +762,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                           ),
                           Text(
                             widget.item.description,
-                            style: TextStyle(
-                              fontSize: descFontSize,
+                            style: NightshadeTypography.caption.copyWith(
                               color: widget.colors.textMuted,
                             ),
                             maxLines: 1,
@@ -850,16 +826,13 @@ class _AddTargetIndicator extends ConsumerWidget {
                 children: [
                   TextSpan(
                     text: 'Adds to: ',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textMuted,
                     ),
                   ),
                   TextSpan(
                     text: targetLabel,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w600,
+                    style: NightshadeTypography.buttonSm.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
@@ -918,8 +891,7 @@ class _PaletteColorLegend extends StatelessWidget {
                 const SizedBox(width: 5),
                 Text(
                   name,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textMuted,
                   ),
                 ),

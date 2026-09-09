@@ -73,8 +73,7 @@ class _ToolbarOverflowMenu extends StatelessWidget {
                     child: Text(
                       a.label!,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
+                      style: NightshadeTypography.bodySm.copyWith(
                         color: a.onPressed == null
                             ? colors.textMuted
                             : colors.textPrimary,

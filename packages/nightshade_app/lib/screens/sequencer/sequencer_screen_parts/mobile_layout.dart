@@ -195,9 +195,8 @@ class _LandscapePropertiesPane extends ConsumerWidget {
                 child: Text(
                   'Select a node to edit',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: colors.textMuted),
+                  style: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textMuted),
                 ),
               ),
             )

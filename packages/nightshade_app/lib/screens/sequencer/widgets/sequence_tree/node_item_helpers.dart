@@ -27,9 +27,7 @@ extension _NodeItemHelpers on _NodeItemState {
               const SizedBox(width: 12),
               Text(
                 'Save as Template',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize18,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.sectionTitle.copyWith(
                   color: widget.colors.textPrimary,
                 ),
               ),
@@ -51,14 +49,12 @@ extension _NodeItemHelpers on _NodeItemState {
                 TextField(
                   controller: nameController,
                   autofocus: true,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      color: widget.colors.textPrimary),
+                  style: NightshadeTypography.body
+                      .copyWith(color: widget.colors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Template name',
-                    hintStyle: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        color: widget.colors.textMuted),
+                    hintStyle: NightshadeTypography.body
+                        .copyWith(color: widget.colors.textMuted),
                     filled: true,
                     fillColor: widget.colors.surfaceAlt,
                     border: OutlineInputBorder(
@@ -88,14 +84,12 @@ extension _NodeItemHelpers on _NodeItemState {
                 TextField(
                   controller: descController,
                   maxLines: 2,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      color: widget.colors.textPrimary),
+                  style: NightshadeTypography.body
+                      .copyWith(color: widget.colors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'What does this template do?',
-                    hintStyle: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        color: widget.colors.textMuted),
+                    hintStyle: NightshadeTypography.body
+                        .copyWith(color: widget.colors.textMuted),
                     filled: true,
                     fillColor: widget.colors.surfaceAlt,
                     border: OutlineInputBorder(
@@ -135,9 +129,8 @@ extension _NodeItemHelpers on _NodeItemState {
                       value: selectedCategory,
                       isExpanded: true,
                       dropdownColor: widget.colors.surfaceOverlay,
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          color: widget.colors.textPrimary),
+                      style: NightshadeTypography.body
+                          .copyWith(color: widget.colors.textPrimary),
                       items: SnippetCategory.values.map((cat) {
                         return DropdownMenuItem(
                           value: cat,

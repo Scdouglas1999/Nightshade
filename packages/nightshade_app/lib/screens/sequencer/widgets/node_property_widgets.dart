@@ -52,9 +52,7 @@ class NodeQuickTimeButton extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: Responsive.fontSize(context, 12),
-              fontWeight: FontWeight.w500,
+            style: NightshadeTypography.buttonSm.copyWith(
               color: colors.textSecondary,
             ),
           ),
@@ -174,7 +172,6 @@ class _NodeTextInputState extends State<NodeTextInput> {
 
   @override
   Widget build(BuildContext context) {
-    final inputFontSize = Responsive.fontSize(context, 13);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
     final variables = widget.variables;
@@ -193,14 +190,12 @@ class _NodeTextInputState extends State<NodeTextInput> {
         onChanged: widget.onChanged,
         maxLines: widget.maxLines ?? 1,
         minLines: widget.maxLines != null ? 1 : null,
-        style: TextStyle(
-          fontSize: inputFontSize,
+        style: NightshadeTypography.bodySm.copyWith(
           color: widget.colors.textPrimary,
         ),
         decoration: InputDecoration(
           hintText: widget.hint,
-          hintStyle: TextStyle(
-            fontSize: inputFontSize,
+          hintStyle: NightshadeTypography.bodySm.copyWith(
             color: widget.colors.textMuted,
           ),
           border: InputBorder.none,
@@ -364,9 +359,6 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
 
   @override
   Widget build(BuildContext context) {
-    final inputFontSize = Responsive.fontSize(context, 13);
-    final suffixFontSize = Responsive.fontSize(context, 12);
-    final helperFontSize = Responsive.fontSize(context, 11);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
     final helperText = _resolvedHelperText;
@@ -394,10 +386,8 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
                     signed: (widget.min ?? 0) < 0,
                   ),
                   onChanged: _handleChanged,
-                  style: TextStyle(
-                    fontSize: inputFontSize,
+                  style: NightshadeTypography.inputMono.copyWith(
                     color: widget.colors.textPrimary,
-                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                   decoration: InputDecoration(
                     border: InputBorder.none,
@@ -410,8 +400,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
               if (widget.suffix != null)
                 Text(
                   widget.suffix!,
-                  style: TextStyle(
-                    fontSize: suffixFontSize,
+                  style: NightshadeTypography.caption.copyWith(
                     color: widget.colors.textMuted,
                   ),
                 ),
@@ -426,8 +415,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
             ),
             child: Text(
               helperText,
-              style: TextStyle(
-                fontSize: helperFontSize,
+              style: NightshadeTypography.caption.copyWith(
                 color: _invalid ? widget.colors.error : widget.colors.textMuted,
               ),
             ),
@@ -557,9 +545,6 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
         ? widget.colors.textSecondary
         : widget.colors.textPrimary;
 
-    final inputFontSize = Responsive.fontSize(context, 13);
-    final hintFontSize = Responsive.fontSize(context, 12);
-    final profileFontSize = Responsive.fontSize(context, 10);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
 
@@ -585,18 +570,15 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
                 signed: (widget.min ?? 0) < 0,
               ),
               onChanged: _handleChanged,
-              style: TextStyle(
-                fontSize: inputFontSize,
+              style: NightshadeTypography.inputMono.copyWith(
                 color: textColor,
-                fontFeatures: const [FontFeature.tabularFigures()],
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.symmetric(vertical: inputPaddingV),
                 hintText: widget.hintText,
-                hintStyle: TextStyle(
-                  fontSize: hintFontSize,
+                hintStyle: NightshadeTypography.inputMono.copyWith(
                   color: widget.colors.textMuted,
                 ),
               ),
@@ -608,9 +590,7 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
               padding: const EdgeInsets.only(left: 4),
               child: Text(
                 'profile',
-                style: TextStyle(
-                  fontSize: profileFontSize,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.caption.copyWith(
                   color: widget.colors.textMuted,
                   fontStyle: FontStyle.italic,
                 ),
@@ -661,7 +641,6 @@ class NodeDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dropdownFontSize = Responsive.fontSize(context, 13);
     final dropdownIconSize = Responsive.iconSize(context, 16);
     final dropdownPaddingH = Responsive.spacing(context, 12);
 
@@ -682,8 +661,7 @@ class NodeDropdown<T> extends StatelessWidget {
             color: colors.textMuted,
           ),
           dropdownColor: colors.surface,
-          style: TextStyle(
-            fontSize: dropdownFontSize,
+          style: NightshadeTypography.bodySm.copyWith(
             color: colors.textPrimary,
           ),
           items: items.map((item) {
@@ -727,7 +705,6 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
 
   @override
   Widget build(BuildContext context) {
-    final btnFontSize = Responsive.fontSize(context, 13);
     final btnIconSize = Responsive.iconSize(context, 15);
     final btnPaddingV = Responsive.spacing(context, 12);
 
@@ -765,9 +742,7 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
               SizedBox(width: Responsive.spacing(context, 8)),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: btnFontSize,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.buttonSm.copyWith(
                   color: _isHovered
                       ? widget.colors.error
                       : widget.colors.textSecondary,
@@ -799,8 +774,7 @@ class NodeSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: TextStyle(
-        fontSize: Responsive.fontSize(context, 13),
+      style: NightshadeTypography.bodySm.copyWith(
         fontWeight: FontWeight.w600,
         color: colors.textPrimary,
       ),

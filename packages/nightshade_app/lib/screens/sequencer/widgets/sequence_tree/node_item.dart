@@ -673,8 +673,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                               enabled: canEdit,
                               child: Text(
                                 widget.node.isEnabled ? 'Disable' : 'Enable',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize13,
+                                style: NightshadeTypography.bodySm.copyWith(
                                   color: canEdit
                                       ? widget.colors.textPrimary
                                       : widget.colors.textMuted,
@@ -687,8 +686,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                               enabled: canEdit,
                               child: Text(
                                 'Duplicate',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize13,
+                                style: NightshadeTypography.bodySm.copyWith(
                                   color: canEdit
                                       ? widget.colors.textPrimary
                                       : widget.colors.textMuted,
@@ -701,8 +699,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                               enabled: canEdit,
                               child: Text(
                                 'Delete',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize13,
+                                style: NightshadeTypography.bodySm.copyWith(
                                   color: canEdit
                                       ? widget.colors.error
                                       : widget.colors.textMuted,
@@ -717,8 +714,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                               height: 32,
                               enabled: canEdit,
                               child: Text('Move Up',
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize13,
+                                  style: NightshadeTypography.bodySm.copyWith(
                                     color: canEdit
                                         ? widget.colors.textPrimary
                                         : widget.colors.textMuted,
@@ -730,8 +726,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                               height: 32,
                               enabled: canEdit,
                               child: Text('Move Down',
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize13,
+                                  style: NightshadeTypography.bodySm.copyWith(
                                     color: canEdit
                                         ? widget.colors.textPrimary
                                         : widget.colors.textMuted,
@@ -749,8 +744,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                             value: 'save_snippet',
                             height: 32,
                             child: Text('Save as Template',
-                                style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize13,
+                                style: NightshadeTypography.bodySm.copyWith(
                                     color: widget.colors.textPrimary)),
                           ),
                         ],

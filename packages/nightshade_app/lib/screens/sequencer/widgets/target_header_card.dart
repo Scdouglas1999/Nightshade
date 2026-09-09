@@ -300,7 +300,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                         size: 16, color: widget.colors.error),
                     const SizedBox(width: 8),
                     Text('Delete',
-                        style: TextStyle(color: widget.colors.error)),
+                        style: NightshadeTypography.body
+                            .copyWith(color: widget.colors.error)),
                   ],
                 ),
               ),
@@ -376,9 +377,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               ),
               child: Text(
                 'P${node.priority}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.caption.copyWith(
                   color: widget.colors.textMuted,
                 ),
               ),
@@ -593,8 +592,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                   const SizedBox(height: 2),
                   Text(
                     planLabel,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
+                    style: NightshadeTypography.caption.copyWith(
                       color: widget.colors.textMuted,
                     ),
                     maxLines: 1,
@@ -647,16 +645,14 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               ),
               const SizedBox(width: 6),
               Text('•',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: widget.colors.textMuted)),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.textMuted)),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   '$completedElapsed / $totalElapsed',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: widget.colors.textMuted),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.textMuted),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -731,11 +727,8 @@ class _CoordinateChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.readoutXs.copyWith(
             color: isPlaceholder ? colors.warning : colors.textPrimary,
-            fontFamily: 'monospace',
           ),
         ),
       ],
@@ -769,8 +762,7 @@ class _ConstraintChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
             ),
           ),

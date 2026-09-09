@@ -125,17 +125,11 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
             ),
             child: Column(
               children: [
-                const SizedBox(height: 8),
-                Tooltip(
-                  message: widget.collapsedTooltip,
-                  child: IconButton(
-                    icon: Icon(
-                      widget.collapsedIcon,
-                      size: 20,
-                      color: widget.colors.textSecondary,
-                    ),
-                    onPressed: widget.onToggle,
-                  ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                NightshadeIconButton(
+                  icon: widget.collapsedIcon,
+                  tooltip: widget.collapsedTooltip,
+                  onPressed: widget.onToggle,
                 ),
               ],
             ),

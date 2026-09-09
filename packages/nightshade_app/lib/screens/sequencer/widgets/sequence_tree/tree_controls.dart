@@ -71,8 +71,7 @@ class _NodeValidationWrapper extends StatelessWidget {
                   ),
                   TextSpan(
                     text: ': ${validationIssues![i].description}',
-                    style: const TextStyle(
-                        fontSize: NightshadeTypography.fontSize11),
+                    style: NightshadeTypography.caption,
                   ),
                 ],
               ],
@@ -95,9 +94,7 @@ class _NodeValidationWrapper extends StatelessWidget {
                 child: validationIssues!.length > 1
                     ? Text(
                         '${validationIssues!.length}',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize9,
-                          fontWeight: FontWeight.w700,
+                        style: NightshadeTypography.monoCaption.copyWith(
                           color: badgeForeground,
                         ),
                       )

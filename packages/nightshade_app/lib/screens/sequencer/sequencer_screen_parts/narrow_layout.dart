@@ -131,16 +131,10 @@ class _NarrowNodePaletteRail extends ConsumerWidget {
             ),
           ),
           Divider(height: 1, color: colors.border),
-          Tooltip(
-            message: 'More nodes…',
-            child: IconButton(
-              icon: Icon(
-                LucideIcons.moreHorizontal,
-                size: 18,
-                color: colors.textSecondary,
-              ),
-              onPressed: onShowFullPalette,
-            ),
+          NightshadeIconButton(
+            icon: LucideIcons.moreHorizontal,
+            tooltip: 'More nodes…',
+            onPressed: onShowFullPalette,
           ),
         ],
       ),
