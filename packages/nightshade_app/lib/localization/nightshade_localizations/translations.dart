@@ -755,6 +755,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     // rules require sentence case, so this replaces 'Equipment Stats' at the
     // call site. The old key stays; other surfaces still read it.
     'analyticsEquipmentTab': 'Equipment',
+    // The live dot's chip. One word, because the panel head beside it
+    // already says which session this is.
+    'analyticsLive': 'Live',
   },
   'es': {
     'appTitle': 'Nightshade',
@@ -1508,5 +1511,6 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dbSunsetAt': 'Puesta de sol a las',
     'dbTonight': 'Esta noche',
     'analyticsEquipmentTab': 'Equipo',
+    'analyticsLive': 'En vivo',
   },
 };

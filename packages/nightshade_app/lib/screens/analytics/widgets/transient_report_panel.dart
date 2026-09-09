@@ -257,13 +257,15 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
             settings.hasError
                 ? 'Reporting settings unavailable'
                 : 'Loading reporting settings…',
-            style: TextStyle(color: widget.colors.error),
+            style:
+                NightshadeTypography.body.copyWith(color: widget.colors.error),
           ),
           if (settings.hasError) ...[
             const SizedBox(height: 6),
             Text(
               settings.error.toString(),
-              style: TextStyle(color: widget.colors.textMuted),
+              style: NightshadeTypography.body
+                  .copyWith(color: widget.colors.textMuted),
             ),
             const SizedBox(height: 10),
             NightshadeButton(

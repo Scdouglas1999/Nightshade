@@ -121,13 +121,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('New Sequence'), findsOneWidget);
+    // The card's label is a PanelHead eyebrow, which 03 §2 renders uppercase.
     expect(
-      find.text('Quick captures'),
+      find.text('QUICK CAPTURES'),
       findsOneWidget,
       reason: 'the 32 frames the profile actually owns cannot be missing from '
           'the tab that claims to list the night',
     );
-    expect(find.textContaining('32 light frames'), findsOneWidget);
+    // The count is a Readout now, not a number buried in a sentence.
+    expect(
+      tester
+          .widgetList<Readout>(find.byType(Readout))
+          .where((r) => r.label == 'Frames' && r.value == '32'),
+      hasLength(1),
+    );
   });
 
   testWidgets('History with only quick captures does not claim it is empty',
@@ -139,7 +146,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('No session history'), findsNothing);
-    expect(find.text('Quick captures'), findsOneWidget);
+    expect(find.text('QUICK CAPTURES'), findsOneWidget);
     expect(find.textContaining('No sequence runs'), findsOneWidget);
   });
 

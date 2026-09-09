@@ -59,10 +59,8 @@ class CampaignRollupDialog extends ConsumerWidget {
                 const SizedBox(height: 12),
                 Text(
                   'Could not build campaign rollup',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -301,7 +299,8 @@ class _Body extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
                   'Close',
-                  style: TextStyle(color: colors.textSecondary),
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textSecondary),
                 ),
               ),
             ],

@@ -212,7 +212,8 @@ class _SeriesChartCard extends StatelessWidget {
           child: Center(
             child: Text(
               '$title has no data yet',
-              style: TextStyle(color: colors.textMuted),
+              style:
+                  NightshadeTypography.body.copyWith(color: colors.textMuted),
             ),
           ),
         ),
@@ -260,10 +261,8 @@ class _SeriesChartCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               if (hubExportButton != null) hubExportButton!,

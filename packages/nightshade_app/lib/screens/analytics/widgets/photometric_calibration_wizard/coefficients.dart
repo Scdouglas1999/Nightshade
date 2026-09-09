@@ -143,7 +143,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
     if (coeff.fitData.isEmpty) {
       return Center(
         child: Text('No fit data available',
-            style: TextStyle(color: colors.textMuted)),
+            style: NightshadeTypography.body.copyWith(color: colors.textMuted)),
       );
     }
 

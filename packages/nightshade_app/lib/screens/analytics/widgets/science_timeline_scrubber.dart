@@ -42,10 +42,8 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
         children: [
           Text(
             'Timeline Scrubber',
-            style: TextStyle(
-              color: widget.colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
+            style: NightshadeTypography.bodyStrong
+                .copyWith(color: widget.colors.textPrimary),
           ),
           const SizedBox(height: 10),
           if (!hasData)
@@ -54,7 +52,8 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
               child: Center(
                 child: Text(
                   'No frame quality metrics yet.',
-                  style: TextStyle(color: widget.colors.textMuted),
+                  style: NightshadeTypography.body
+                      .copyWith(color: widget.colors.textMuted),
                 ),
               ),
             )

@@ -169,7 +169,7 @@ class SessionChart extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 6.0),
                     child: Text(
                       elapsedAxisLabel(value),
-                      style: NightshadeTypography.caption
+                      style: NightshadeTypography.monoCaption
                           .copyWith(color: colors.textSecondary),
                     ),
                   ),
@@ -182,7 +182,7 @@ class SessionChart extends StatelessWidget {
                   interval: axis.interval,
                   getTitlesWidget: (value, meta) => Text(
                     axis.label(value),
-                    style: NightshadeTypography.caption
+                    style: NightshadeTypography.monoCaption
                         .copyWith(color: colors.textSecondary),
                   ),
                 ),

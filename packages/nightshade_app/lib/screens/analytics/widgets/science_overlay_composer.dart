@@ -31,7 +31,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
             else ...[
               Text(
                 'Could not load science overlay preferences',
-                style: TextStyle(color: colors.error),
+                style: NightshadeTypography.body.copyWith(color: colors.error),
               ),
               const SizedBox(height: 6),
               Text(
@@ -64,10 +64,8 @@ class ScienceOverlayComposer extends ConsumerWidget {
             children: [
               Text(
                 'Overlay Composer',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: NightshadeTypography.bodyStrong
+                    .copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(

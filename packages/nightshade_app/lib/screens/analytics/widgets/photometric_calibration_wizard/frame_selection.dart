@@ -198,7 +198,7 @@ extension _PhotometricWizardFrameSelection
               'Error loading images: $error',
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: colors.error),
+              style: NightshadeTypography.body.copyWith(color: colors.error),
             ),
           ),
           TextButton(

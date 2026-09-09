@@ -55,7 +55,7 @@ class AnalyticsEmptyState extends StatelessWidget {
     // button, internal padding. What survives here is the Analytics-specific
     // CONTRACT — the punctuation rules above and the default "Go to Imaging"
     // destination — not a second visual pattern.
-    return EmptyState(
+    final state = EmptyState(
       icon: icon,
       title: _label,
       body: _sentence,
@@ -65,6 +65,23 @@ class AnalyticsEmptyState extends StatelessWidget {
         size: ButtonSize.small,
         onPressed: onAction ?? () => GoRouter.maybeOf(context)?.go('/imaging'),
       ),
+    );
+
+    // An empty state is a Column of fixed-height parts, so a short viewport
+    // overflows it -- a landscape phone gives this slot 167 px and the state
+    // wants 174. 07 says not to scale the type down to make something fit and
+    // to let it scroll instead, so it scrolls, and still centres whenever
+    // there is room.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) return state;
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: state,
+          ),
+        );
+      },
     );
   }
 }

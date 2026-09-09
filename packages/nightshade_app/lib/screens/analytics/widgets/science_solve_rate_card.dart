@@ -50,10 +50,8 @@ class ScienceSolveRateCard extends ConsumerWidget {
               const SizedBox(width: 8),
               Text(
                 'Plate solve health',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: NightshadeTypography.bodyStrong
+                    .copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               _StatusPill(tier: tier, colors: colors),

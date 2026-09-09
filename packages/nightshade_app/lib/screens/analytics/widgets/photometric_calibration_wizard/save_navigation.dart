@@ -7,7 +7,7 @@ extension _PhotometricWizardSaveNavigation
     if (coeff == null) {
       return Text(
         'No coefficients to save.',
-        style: TextStyle(color: colors.error),
+        style: NightshadeTypography.body.copyWith(color: colors.error),
       );
     }
 

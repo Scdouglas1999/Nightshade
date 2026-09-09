@@ -132,7 +132,7 @@ class _ScienceJumpNav extends ConsumerWidget {
           _JumpChip(
             colors: colors,
             icon: LucideIcons.grid,
-            label: 'Field Quality',
+            label: 'Field quality',
             onTap: onFieldQuality,
           ),
           const SizedBox(width: 8),

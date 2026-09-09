@@ -24,10 +24,8 @@ class _MovingObjectCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Moving Object Candidates',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               if (hubExportButton != null) hubExportButton!,
@@ -152,10 +150,8 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
               Expanded(
                 child: Text(
                   'Narrowband Ratios',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: widget.colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: widget.colors.textPrimary),
                 ),
               ),
               const _ScienceInfoButton(title: 'Narrowband Ratios'),

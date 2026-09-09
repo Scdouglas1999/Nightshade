@@ -70,10 +70,8 @@ class ScienceInsightsPanel extends ConsumerWidget {
               const SizedBox(width: 8),
               Text(
                 'Insights',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: NightshadeTypography.bodyStrong
+                    .copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               if (insights.isNotEmpty)

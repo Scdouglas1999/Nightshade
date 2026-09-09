@@ -66,6 +66,9 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
     // the quick captures, otherwise whichever session is under review.
     final reviewSelectionId =
         quickCapturesPinned ? kQuickCaptureSessionSelection : reviewSessionId;
+    // Non-null when the frame stream failed. Read once so the tab raises ONE
+    // banner rather than one per surface that needed the frames.
+    final Object? framesError = imagesAsyncValue.error;
     void retryImages() {
       if (reviewSessionId != null) {
         ref.invalidate(dbSessionImagesProvider(reviewSessionId));
@@ -342,7 +345,7 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                   trailing: [
                     if (isLive)
                       NightshadeChip(
-                        label: l10n.text('analyticsInProgress'),
+                        label: l10n.text('analyticsLive'),
                         tone: ChipTone.success,
                         dot: true,
                       ),
@@ -376,57 +379,61 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
 
               const SizedBox(height: NightshadeTokens.space2xl),
 
-              // Graph grid
-              imagesAsyncValue.when(
-                data: chartGrid,
-                loading: () => const _AnalyticsLoading(
-                  height: _chartGridSkeletonHeight,
-                ),
-                error: (err, stack) => _AnalyticsError(
-                  title: 'Analytics charts did not load',
-                  message: err.toString(),
+              // ONE banner for ONE problem (05 §11). The charts and the
+              // thumbnail strip are both drawn FROM the frames, so a failed
+              // frame stream used to raise two identical banners for the same
+              // failure; now it raises one and neither surface is drawn.
+              if (framesError != null)
+                _AnalyticsError(
+                  title: 'Frames did not load',
+                  message: framesError.toString(),
                   onRetry: retryImages,
+                )
+              else ...[
+                // Graph grid
+                imagesAsyncValue.when(
+                  data: chartGrid,
+                  loading: () => const _AnalyticsLoading(
+                    height: _chartGridSkeletonHeight,
+                  ),
+                  error: (_, __) => const SizedBox.shrink(),
                 ),
-              ),
 
-              const SizedBox(height: NightshadeTokens.space2xl),
+                const SizedBox(height: NightshadeTokens.space2xl),
 
-              // Captured images strip
-              NightshadePanel(
-                head: PanelHead(
-                  icon: LucideIcons.image,
-                  label: l10n.text('analyticsCapturedImages'),
+                // Captured images strip
+                NightshadePanel(
+                  head: PanelHead(
+                    icon: LucideIcons.image,
+                    label: l10n.text('analyticsCapturedImages'),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // One line, not the four-sentence reassurance that used
+                      // to sit here: the only fact a reader cannot get from
+                      // the badges themselves is WHERE the bulk grader lives.
+                      Text(
+                        'Quality badges are advisory. To reject frames in '
+                        'bulk, use Science ▸ Field quality ▸ Grade frames.',
+                        style: NightshadeTypography.caption.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceMd),
+                      imagesAsyncValue.when(
+                        data: (images) => ImageThumbnailStrip(
+                            key: AnalyticsTutorialKeys.thumbnails,
+                            images: images),
+                        loading: () => const _AnalyticsLoading(
+                          height: kAnalyticsThumbnailRailHeight,
+                        ),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // One line, not the four-sentence reassurance that used to
-                    // sit here: the only fact a reader cannot get from the
-                    // badges themselves is WHERE the bulk grader lives.
-                    Text(
-                      'Quality badges are advisory. To reject frames in bulk, '
-                      'use Science ▸ Field quality ▸ Grade frames.',
-                      style: NightshadeTypography.caption.copyWith(
-                        color: colors.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: NightshadeTokens.spaceMd),
-                    imagesAsyncValue.when(
-                      data: (images) => ImageThumbnailStrip(
-                          key: AnalyticsTutorialKeys.thumbnails,
-                          images: images),
-                      loading: () => const _AnalyticsLoading(
-                        height: kAnalyticsThumbnailRailHeight,
-                      ),
-                      error: (err, stack) => _AnalyticsError(
-                        title: 'Frames did not load',
-                        message: err.toString(),
-                        onRetry: retryImages,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ],
           ),
         );
@@ -459,12 +466,22 @@ class _AnalyticsLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return ShimmerLoading(
-      child: Container(
-        width: double.infinity,
-        height: height,
-        decoration: NightshadeDecorations.well(colors),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Never taller than the box it was handed. A skeleton that overflows
+        // is a worse lie than a short one: it reports a layout error for
+        // content that has not arrived yet.
+        final resolved = constraints.hasBoundedHeight
+            ? math.min(height, constraints.maxHeight)
+            : height;
+        return ShimmerLoading(
+          child: Container(
+            width: double.infinity,
+            height: resolved,
+            decoration: NightshadeDecorations.well(colors),
+          ),
+        );
+      },
     );
   }
 }

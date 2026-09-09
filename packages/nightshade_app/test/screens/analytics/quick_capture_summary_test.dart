@@ -62,11 +62,17 @@ Widget _app(Stream<List<DbCapturedImage>> standalone) {
   );
 }
 
-List<String> _summaryValues(WidgetTester tester) {
-  final strip = tester.widget<ResponsiveStatStrip>(
-    find.byType(ResponsiveStatStrip).first,
-  );
-  return strip.stats.map((stat) => stat.value).toList(growable: false);
+/// The four summary numbers, as the widgets that carry them.
+///
+/// They are [Readout]s since the Observatory pass: a null value is how a
+/// readout says "not known", and it renders the one em dash rather than a word
+/// parked in a value slot.
+List<String?> _summaryValues(WidgetTester tester) {
+  return tester
+      .widgetList<Readout>(find.byType(Readout))
+      .take(4)
+      .map((readout) => readout.value)
+      .toList(growable: false);
 }
 
 void main() {
@@ -101,7 +107,7 @@ void main() {
     // instead reported "3" next to an integration of a single 45 s sub, because
     // the rejected light and the flat contributed to one stat but not the
     // others.
-    expect(_summaryValues(tester), ['—', '1/2', '45s', '2.00']);
+    expect(_summaryValues(tester), [null, '1/2', '45s', '2.00']);
   });
 
   testWidgets('standalone image failures stay distinct from empty data',
@@ -111,8 +117,12 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(_summaryValues(tester),
-        ['—', 'Unavailable', 'Unavailable', 'Unavailable']);
-    expect(find.textContaining('Failed to load images'), findsOneWidget);
+    // The four numbers are unknown, and a readout says that with the em dash.
+    // They used to read 'Unavailable', which is a word standing where a
+    // measurement goes; the DISTINCTION from empty data is carried by the
+    // banner below, which is the screen's one error surface.
+    expect(_summaryValues(tester), [null, null, null, null]);
+    expect(find.textContaining('Frames did not load'), findsOneWidget);
+    expect(find.textContaining('image catalog offline'), findsOneWidget);
   });
 }

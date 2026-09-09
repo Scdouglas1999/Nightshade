@@ -84,7 +84,9 @@ void main() {
         find.text('Complete an imaging session to see history here.'),
         findsOneWidget,
       );
-      expect(find.byType(TextButton), findsOneWidget);
+      // The action is the sheet's own button now (05 §12: an empty state
+      // ends in ONE button), not a bare Material TextButton.
+      expect(find.byType(NightshadeButton), findsOneWidget);
     });
 
     testWidgets('does not double-punctuate a body that is already a sentence',

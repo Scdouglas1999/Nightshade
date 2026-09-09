@@ -271,10 +271,8 @@ class _TrendCardShell extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               if (points.isNotEmpty)

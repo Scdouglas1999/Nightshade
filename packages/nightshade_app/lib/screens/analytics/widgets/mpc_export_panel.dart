@@ -47,13 +47,15 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
               scienceSettingsAsync.hasError
                   ? 'MPC reporting settings unavailable'
                   : 'Loading MPC reporting settings…',
-              style: TextStyle(color: widget.colors.error),
+              style: NightshadeTypography.body
+                  .copyWith(color: widget.colors.error),
             ),
             if (scienceSettingsAsync.hasError) ...[
               const SizedBox(height: 6),
               Text(
                 scienceSettingsAsync.error.toString(),
-                style: TextStyle(color: widget.colors.textMuted),
+                style: NightshadeTypography.body
+                    .copyWith(color: widget.colors.textMuted),
               ),
               const SizedBox(height: 10),
               NightshadeButton(
@@ -85,10 +87,8 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
               Expanded(
                 child: Text(
                   'MPC Report Export',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: widget.colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: widget.colors.textPrimary),
                 ),
               ),
               if (_selectedIds.isNotEmpty)

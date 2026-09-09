@@ -94,7 +94,9 @@ void main() {
     // Grade frames" is not a place — the bulk grader is the "Grade N frames"
     // button on Analytics ▸ Science ▸ Field Quality.
     expect(caption, isNot(contains('Science > Grade frames')));
-    expect(caption, contains('Field Quality'));
+    // Sentence case (06 copy rules) on both the jump-nav chip and the
+    // caption that points at it: they still have to be the same words.
+    expect(caption, contains('Field quality'));
     expect(
       tester
           .widgetList<Text>(find.byType(Text))

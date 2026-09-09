@@ -301,10 +301,8 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
             children: [
               Text(
                 '3D Surface Explorer',
-                style: TextStyle(
-                  color: widget.colors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: NightshadeTypography.bodyStrong
+                    .copyWith(color: widget.colors.textPrimary),
               ),
               const Spacer(),
               if (layerNames.isNotEmpty)
@@ -341,7 +339,8 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
                   child: Center(
                     child: Text(
                       'No tile metrics available for this frame.',
-                      style: TextStyle(color: widget.colors.textMuted),
+                      style: NightshadeTypography.body
+                          .copyWith(color: widget.colors.textMuted),
                     ),
                   ),
                 );

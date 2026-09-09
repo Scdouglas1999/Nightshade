@@ -54,10 +54,8 @@ class ScienceCampaignStrip extends ConsumerWidget {
                     children: [
                       Text(
                         rollup.targetName,
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: NightshadeTypography.bodyStrong
+                            .copyWith(color: colors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

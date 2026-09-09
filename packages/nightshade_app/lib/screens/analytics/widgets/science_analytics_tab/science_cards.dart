@@ -181,7 +181,8 @@ class _LightCurveChartCard extends StatelessWidget {
           child: Center(
             child: Text(
               'Differential Photometry has no data yet',
-              style: TextStyle(color: colors.textMuted),
+              style:
+                  NightshadeTypography.body.copyWith(color: colors.textMuted),
             ),
           ),
         ),
@@ -233,10 +234,8 @@ class _LightCurveChartCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Differential Photometry',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               if (hubExportButton != null) hubExportButton!,
@@ -394,10 +393,8 @@ class _PsfHeatmapCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'PSF Field Map',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               if (hubExportButton != null) hubExportButton!,
@@ -411,7 +408,8 @@ class _PsfHeatmapCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   'No PSF tiles computed yet',
-                  style: TextStyle(color: colors.textMuted),
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textMuted),
                 ),
               ),
             )
@@ -558,10 +556,8 @@ class _ResidualCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Astrometric Residuals',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               if (hubExportButton != null) hubExportButton!,

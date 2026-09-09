@@ -199,7 +199,6 @@ class _StatusContainer extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: style.background,
-        border: Border.all(color: style.border),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
@@ -308,40 +307,37 @@ class _StageTicker extends StatelessWidget {
   }
 }
 
+/// The three tones this banner takes, as tokens rather than as a decoration
+/// it takes apart.
+///
+/// It used to read its own colours back out of a [BoxDecoration] and cast
+/// `decoration.border` to a `Border`. That was already fragile, and it broke
+/// outright when the deprecated `emphasisSurface` collapsed into
+/// `NightshadeDecorations.chip`, which has no border at all -- because in this
+/// language a tinted fill IS its own boundary (02 rule 2: tone, not lines).
 class _BannerStyle {
   final Color background;
-  final Color border;
   final Color accent;
 
-  const _BannerStyle({
-    required this.background,
-    required this.border,
-    required this.accent,
-  });
+  const _BannerStyle({required this.background, required this.accent});
 
-  factory _BannerStyle._fromSurface(
-    BoxDecoration surface,
-    Color accent,
-  ) =>
-      _BannerStyle(
-        background: surface.color!,
-        border: (surface.border as Border).top.color,
-        accent: accent,
+  /// A tone at the status-fill alpha, which is what every tinted status
+  /// surface in the sheet is made of.
+  factory _BannerStyle._ofTone(Color tone) => _BannerStyle(
+        background: tone.withValues(alpha: NightshadeTokens.opacityStatusFill),
+        accent: tone,
       );
 
-  factory _BannerStyle.busy(NightshadeColors c) => _BannerStyle._fromSurface(
-        NightshadeDecorations.chip(c, tone: c.primary),
+  factory _BannerStyle.busy(NightshadeColors c) => _BannerStyle._ofTone(
         c.primary,
       );
 
   factory _BannerStyle.idle(NightshadeColors c) => _BannerStyle(
         background: c.well,
-        border: c.border,
         accent: c.textSecondary,
       );
 
-  factory _BannerStyle.error(NightshadeColors c) => _BannerStyle._fromSurface(
-        NightshadeDecorations.chip(c, tone: c.error),
+  factory _BannerStyle.error(NightshadeColors c) => _BannerStyle._ofTone(
         c.error,
       );
 }
