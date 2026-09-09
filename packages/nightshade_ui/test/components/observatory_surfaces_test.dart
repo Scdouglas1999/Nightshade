@@ -300,7 +300,7 @@ void main() {
       expect(find.byType(CustomPaint), findsWidgets);
     });
 
-    testWidgets('the legend renders every label in full', (tester) async {
+    testWidgets('the legend renders each shown label in full', (tester) async {
       await tester.pumpWidget(
         _host(
           SizedBox(
@@ -331,13 +331,16 @@ void main() {
         ),
       );
 
-      // Every label is laid out at its natural width — the first golden clipped
-      // "20:48 astro dark" to "20:48 astro dar" inside a fixed 96px slot.
-      for (final label in <String>[
-        '19:12 sunset',
-        '20:48 astro dark',
-        '06:24 sunrise',
-      ]) {
+      // At 700px the band shows only its first and last labels: the middle
+      // ones overlapped into a smear there, and the canvas already draws
+      // astro dark and astro dawn as dashed verticals (see
+      // `kit_gaps_test.dart` for the width rule itself).
+      expect(find.text('20:48 astro dark'), findsNothing);
+
+      // Every label that IS shown is laid out at its natural width — the first
+      // golden clipped "20:48 astro dark" to "20:48 astro dar" inside a fixed
+      // 96px slot.
+      for (final label in <String>['19:12 sunset', '06:24 sunrise']) {
         final painter = tester.renderObject<RenderBox>(find.text(label));
         expect(painter.size.width, greaterThan(0));
         expect(

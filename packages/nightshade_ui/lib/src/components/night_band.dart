@@ -81,6 +81,17 @@ class NightBand extends StatelessWidget {
   /// The legend's height (two rows: the event labels and the "now" line).
   static const double legendHeight = 30;
 
+  /// Below this width the legend keeps only its first and last labels.
+  ///
+  /// The labels are `monoCaption` strings like "20:48 astro dark" positioned
+  /// at their own times, so at a 700px window the four of them overlap into an
+  /// unreadable smear — `reports/observatory/w3-tonight/shots/tonight-narrow-
+  /// 700x900.png`. Sunset and sunrise are the two that give the band its
+  /// meaning; the middle ones are already drawn on the canvas as the dashed
+  /// astro-dark and astro-dawn verticals, so dropping their words loses no
+  /// information the picture does not carry.
+  static const double legendCompactWidth = 800;
+
   /// The second legend row, which carries the caret and "now hh:mm" so it can
   /// never collide with an event label.
   static const double nowRowHeight = 15;
@@ -357,23 +368,24 @@ class _NightBandLegend extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        final shown = _labelsFor(width);
         return Stack(
           clipBehavior: Clip.none,
           children: <Widget>[
-            for (var i = 0; i < labels.length; i++)
+            for (var i = 0; i < shown.length; i++)
               _positioned(
                 width: width,
-                fraction: labels[i].$1,
+                fraction: shown[i].$1,
                 // The first label is left-aligned and the last right-aligned,
                 // so neither hangs off the end of the band; the rest are
                 // centred on their own time.
                 anchor: i == 0
                     ? _LabelAnchor.start
-                    : (i == labels.length - 1
+                    : (i == shown.length - 1
                           ? _LabelAnchor.end
                           : _LabelAnchor.centre),
                 child: Text(
-                  labels[i].$2,
+                  shown[i].$2,
                   style: NightshadeTypography.monoCaption.copyWith(
                     color: colors.textMuted,
                   ),
@@ -411,6 +423,17 @@ class _NightBandLegend extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// The labels that fit in [width].
+  ///
+  /// Narrow, that is the first and the last — never all of them squeezed
+  /// together. 07 is explicit: reduce content, do not shrink type.
+  List<(double, String)> _labelsFor(double width) {
+    if (width >= NightBand.legendCompactWidth || labels.length <= 2) {
+      return labels;
+    }
+    return <(double, String)>[labels.first, labels.last];
   }
 
   Widget _positioned({

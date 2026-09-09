@@ -4,6 +4,7 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/touch_target.dart';
 import 'status_dot.dart';
 
 /// The semantic tones a chip, dot or instrument pill can take.
@@ -170,9 +171,12 @@ class NightshadeChip extends StatelessWidget {
         enabled: false,
         selected: selected,
         label: label,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.forbidden,
-          child: ExcludeSemantics(child: chip),
+        child: NightshadeTouchTarget.hitBox(
+          context,
+          MouseRegion(
+            cursor: SystemMouseCursors.forbidden,
+            child: ExcludeSemantics(child: chip),
+          ),
         ),
       );
     }
@@ -189,22 +193,27 @@ class NightshadeChip extends StatelessWidget {
       enabled: true,
       selected: selected,
       label: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: NightshadeTokens.borderRadiusXs,
-        child: ExcludeSemantics(child: chip),
+      // 22px is a POINTER size. A finger needs 48, so the interactive box
+      // grows while the painted chip stays the height the sheet specifies —
+      // the planner's "More" chip measured 112x28 in the Android tap-target
+      // audit.
+      child: NightshadeTouchTarget.hitBox(
+        context,
+        InkWell(
+          onTap: onTap,
+          borderRadius: NightshadeTokens.borderRadiusXs,
+          child: ExcludeSemantics(child: chip),
+        ),
       ),
     );
   }
 }
 
 /// Icon size inside a chip, in logical pixels (`observatory.css` `.chip .i`).
-// TODO(observatory): promote to NightshadeTokens.iconChipGlyph
-const double _chipIconSize = 12;
+const double _chipIconSize = NightshadeTokens.iconChipGlyph;
 
 /// Icon size inside a filter chip's trailing chevron.
-// TODO(observatory): promote to NightshadeTokens.iconChipGlyph
-const double _filterChipIconSize = 13;
+const double _filterChipIconSize = NightshadeTokens.iconPillGlyph;
 
 /// A filter chip: a CONTROL that opens a menu, not a readout.
 ///
@@ -298,15 +307,18 @@ class _NightshadeFilterChipState extends State<NightshadeFilterChip> {
       button: true,
       enabled: !disabled,
       label: widget.label,
-      child: MouseRegion(
-        onEnter: (_) => _setHovered(true),
-        onExit: (_) => _setHovered(false),
-        cursor: disabled
-            ? SystemMouseCursors.forbidden
-            : SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: ExcludeSemantics(child: chip),
+      child: NightshadeTouchTarget.hitBox(
+        context,
+        MouseRegion(
+          onEnter: (_) => _setHovered(true),
+          onExit: (_) => _setHovered(false),
+          cursor: disabled
+              ? SystemMouseCursors.forbidden
+              : SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: ExcludeSemantics(child: chip),
+          ),
         ),
       ),
     );

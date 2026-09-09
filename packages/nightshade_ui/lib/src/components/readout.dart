@@ -36,7 +36,7 @@ class Readout extends StatelessWidget {
   const Readout({
     super.key,
     required this.value,
-    required this.label,
+    this.label,
     this.unit,
     this.size = ReadoutSize.md,
     this.valueColor,
@@ -46,7 +46,14 @@ class Readout extends StatelessWidget {
   final String? value;
 
   /// The label beneath the value. Rendered uppercase.
-  final String label;
+  ///
+  /// Null means there is no label AND no row reserved for one — the value is
+  /// the whole widget. That is the case where the value already has a label
+  /// beside it: the number at the centre of Tonight's progress ring, a value
+  /// inside a `FormRow` whose label column has already named it. Without this
+  /// those call sites reached for a bare `readoutMd` `Text` and lost the
+  /// tabular figures and the muted unit with it.
+  final String? label;
 
   /// An optional unit attached to the value at 60% size in `textMuted`.
   final String? unit;
@@ -109,21 +116,33 @@ class Readout extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: labelGap),
-        Text(
-          label.toUpperCase(),
-          style: NightshadeTypography.readoutLabel.copyWith(
-            color: colors.textMuted,
+        if (label != null) ...<Widget>[
+          const SizedBox(height: labelGap),
+          Text(
+            label!.toUpperCase(),
+            style: NightshadeTypography.readoutLabel.copyWith(
+              color: colors.textMuted,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        ],
       ],
     );
   }
 }
 
 /// A horizontal run of [Readout]s, top-aligned, with a 28px default gap.
+///
+/// Each readout takes the width its own words need. A `Row` of `Flexible`
+/// children does not: flex splits the free space EQUALLY, so three readouts in
+/// a 320px side panel got 69px each and "INTEGRATION" ellipsized while the
+/// three of them together fitted with room to spare.
+///
+/// When the run genuinely does not fit, it wraps to a second line rather than
+/// truncating — 07's rule is to reduce content or let it flow, never to shrink
+/// what a number says. A single readout wider than the whole row still
+/// ellipsizes, because at that point there is nowhere else for it to go.
 class ReadoutRow extends StatelessWidget {
   const ReadoutRow({super.key, required this.children, this.gap = 28});
 
@@ -133,17 +152,16 @@ class ReadoutRow extends StatelessWidget {
   /// Horizontal gap between readouts.
   final double gap;
 
+  /// Vertical gap between wrapped lines.
+  static const double runGap = NightshadeTokens.spaceSm;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        for (var i = 0; i < children.length; i++) ...<Widget>[
-          if (i > 0) SizedBox(width: gap),
-          Flexible(child: children[i]),
-        ],
-      ],
+    return Wrap(
+      spacing: gap,
+      runSpacing: runGap,
+      crossAxisAlignment: WrapCrossAlignment.start,
+      children: children,
     );
   }
 }

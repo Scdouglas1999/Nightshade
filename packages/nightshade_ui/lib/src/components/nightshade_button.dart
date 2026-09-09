@@ -3,6 +3,7 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 import '../utils/touch_target.dart';
+import 'nightshade_chip.dart';
 
 /// The five button faces.
 ///
@@ -44,22 +45,18 @@ enum ButtonVariant {
 /// The three button heights: 28 / 32 / 40.
 enum ButtonSize { small, medium, large }
 
-/// Button heights in logical pixels (03 §3.3). These live here rather than on
-/// `NightshadeTokens` because wave 0 owns that file and this wave owns the
-/// layout change.
-// TODO(observatory): fold into NightshadeTokens.buttonHeightSm/Height/HeightLg
-const double _buttonHeightSm = 28;
-const double _buttonHeightMd = 32;
-const double _buttonHeightLg = 40;
+/// Button heights in logical pixels (03 §3.3).
+const double _buttonHeightSm = NightshadeTokens.buttonHeightSm;
+const double _buttonHeightMd = NightshadeTokens.buttonHeight;
+const double _buttonHeightLg = NightshadeTokens.buttonHeightLg;
 
 /// Horizontal padding per size, in logical pixels (05 §6: 10 / 12 / 18).
-const double _buttonPadSm = 10;
-const double _buttonPadMd = NightshadeTokens.spaceMd;
-const double _buttonPadLg = 18;
+const double _buttonPadSm = NightshadeTokens.buttonPaddingSm;
+const double _buttonPadMd = NightshadeTokens.buttonPaddingMd;
+const double _buttonPadLg = NightshadeTokens.buttonPaddingLg;
 
 /// Icon size inside a button, in logical pixels (05 §6: 15, 16 in large).
-// TODO(observatory): promote to NightshadeTokens.iconGlyphButton
-const double _buttonIconSize = 15;
+const double _buttonIconSize = NightshadeTokens.iconGlyphButton;
 
 /// Gap between a button's icon and its label.
 const double _buttonIconGap = 7;
@@ -89,6 +86,24 @@ class NightshadeButton extends StatefulWidget {
   /// broken.
   final String? semanticsHint;
 
+  /// A count carried on the button's trailing edge — Sequencer's "Preflight 2".
+  ///
+  /// A count is part of what the button SAYS, not a second control beside it,
+  /// which is why it is a slot here rather than a `Row` at the call site:
+  /// hand-rolled, it lands outside the button's hit box and outside its
+  /// semantics node, so the number is neither pressable nor announced.
+  final String? badge;
+
+  /// What the [badge] means, in words, for assistive tech — "2 issues".
+  ///
+  /// Required in spirit whenever [badge] is set: a screen reader that hears
+  /// "Preflight, 2" learns nothing. Falls back to the bare number.
+  final String? badgeSemanticsLabel;
+
+  /// The badge's tone. Defaults to the button's own ink, which is right for a
+  /// neutral count; a warning or error count says so in colour.
+  final ChipTone? badgeTone;
+
   const NightshadeButton({
     super.key,
     required this.label,
@@ -98,6 +113,9 @@ class NightshadeButton extends StatefulWidget {
     this.size = ButtonSize.medium,
     this.isLoading = false,
     this.semanticsHint,
+    this.badge,
+    this.badgeSemanticsLabel,
+    this.badgeTone,
   });
 
   /// The button's height in logical pixels.
@@ -260,7 +278,9 @@ class _NightshadeButtonState extends State<NightshadeButton>
     return Semantics(
       button: true,
       enabled: !isDisabled,
-      label: widget.label,
+      label: widget.badge == null
+          ? widget.label
+          : '${widget.label}, ${widget.badgeSemanticsLabel ?? widget.badge}',
       hint: widget.semanticsHint,
       child: MouseRegion(
         onEnter: (_) => _setHovered(true),
@@ -401,6 +421,14 @@ class _NightshadeButtonState extends State<NightshadeButton>
                   maxLines: 1,
                 ),
               ),
+              if (widget.badge != null) ...<Widget>[
+                const SizedBox(width: _buttonIconGap),
+                _Badge(
+                  value: widget.badge!,
+                  ink: face.ink,
+                  tone: widget.badgeTone,
+                ),
+              ],
             ],
           ),
         ),
@@ -427,6 +455,53 @@ class _NightshadeButtonState extends State<NightshadeButton>
             ),
           ),
       ],
+    );
+  }
+}
+
+/// The count on a button's trailing edge.
+///
+/// A chip's face at a chip's radius, sized from the button's own ink so it
+/// belongs to the control rather than sitting on it. It carries no semantics:
+/// the button's node already says what the number means.
+class _Badge extends StatelessWidget {
+  const _Badge({required this.value, required this.ink, this.tone});
+
+  final String value;
+  final Color ink;
+  final ChipTone? tone;
+
+  /// The badge's height in logical pixels — the chip scale, minus the air a
+  /// chip needs when it stands alone.
+  static const double height = 18;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final toneColor = tone?.resolve(colors) ?? ink;
+    return ExcludeSemantics(
+      child: Container(
+        height: height,
+        constraints: const BoxConstraints(minWidth: height),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceXs + 1,
+        ),
+        decoration: BoxDecoration(
+          color: toneColor.withValues(
+            alpha: NightshadeTokens.opacityStatusFill,
+          ),
+          borderRadius: NightshadeTokens.borderRadiusXs,
+        ),
+        child: Text(
+          value,
+          style: NightshadeTypography.monoCaption.copyWith(
+            color: toneColor,
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 1,
+        ),
+      ),
     );
   }
 }

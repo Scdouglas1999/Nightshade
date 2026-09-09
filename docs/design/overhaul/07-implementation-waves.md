@@ -93,8 +93,23 @@ Done when:
 - [ ] `check_tokens.py` passes and its numbers match the comments in the Dart palettes.
 - [ ] `grep -rcE "(BorderRadius|Radius)\.circular\([0-9]" packages/nightshade_app/lib | awk -F: '{s+=$2} END {print s}'` prints 0 (from 110 + 29).
 - [ ] `design_tokens_sync_test.dart` passes.
-- [ ] `Color(0x` in `packages/nightshade_app/lib` ≤ 40 (from 120; the rest are chart /
-      image-data colours, list them in notes.md).
+- [ ] No `Color(0x…)` in chrome; the data colours are listed below.
+      The original box asked for "≤ 40 (from 120)". Wave 0 surveyed every one: the real count is
+      177, none of them is a chrome colour standing in for a palette token, and the seven that
+      equal a PRE-overhaul palette value are all data. Making any of them follow the theme would
+      turn a data colour into a chrome colour, which is worse than the literal, so the box is
+      "no `Color(0x…)` outside painters, charts and imagery" — already true.
+
+      | Literal | Was | Where | Why it stays |
+      |---|---|---|---|
+      | `#B91C1C` ×3 | red-night `accent` | `analytics/widgets/project_tracking_panel_parts/_project_card.dart:374`, `planetarium/widgets/info_tab.dart:739`, `sequencer/widgets/sequence_timeline.dart:205` | the H-alpha entry in three filter-colour maps, beside L/R/G/B/OIII/SII. 02 allows the filter palette in charts and thumbnails |
+      | `#DC2626` | red-night `primary` | `analytics/widgets/science_surface_explorer.dart:26` | the high endpoint of a diverging ramp, resolved before interpolation |
+      | `#5B9EC4`, `#3A9BC4` | dark `primary`, light `accent` | `equipment/dialogs/profile_editor_dialog.dart:183-184` | two of nine equipment-profile IDENTITY swatches. A profile's colour is the user's label for it, not the theme's |
+      | `#EF5350` | red-night `error` | `imaging/widgets/custom_annotation_drawing.dart:814` | a fixed-palette annotation dialog that matches the image-overlay tool; deliberately theme-blind |
+
+      The other ~170 are overlay painters, planetarium chrome, chart series, QR grounds, gradient
+      masks and pure black/white, listed by file in `reports/observatory/w0/notes.md`. Reducing
+      them is a chart/overlay/planetarium job, and README's scope note excludes all three.
 - [ ] App runs; screenshots of Dashboard, Imaging, Sequencer, Settings in all three themes show
       the new palette (darker canvas, brighter accent) and radii with NO layout change (chrome
       heights, button heights and rail width are identical to the audit screenshots; this is

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/touch_target.dart';
 
 /// A second-level switch INSIDE a panel — Sequencer's Nodes / Snippets / Queue.
 ///
@@ -95,35 +96,40 @@ class _SegmentState extends State<_Segment> {
       enabled: true,
       selected: widget.selected,
       label: widget.label,
-      child: MouseRegion(
-        onEnter: (_) => _setHovered(true),
-        onExit: (_) => _setHovered(false),
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          behavior: HitTestBehavior.opaque,
-          child: ExcludeSemantics(
-            child: AnimatedContainer(
-              duration: NightshadeTokens.durationFast,
-              curve: NightshadeTokens.curveStandard,
-              height: SegmentedControl.segmentHeight,
-              padding: const EdgeInsets.symmetric(
-                horizontal: SegmentedControl.segmentPadding,
-              ),
-              // No `alignment:` — it would make the segment expand to the
-              // width of the row instead of to its own label.
-              decoration: BoxDecoration(
-                color: widget.selected || _hovered
-                    ? colors.surfaceHover
-                    : Colors.transparent,
-                borderRadius: NightshadeTokens.borderRadiusSm,
-              ),
-              child: Center(
-                widthFactor: 1,
-                child: Text(
-                  widget.label,
-                  style: NightshadeTypography.buttonSm.copyWith(
-                    color: foreground,
+      // 30px is a POINTER size; a finger needs 48. The box grows, the
+      // painted segment does not.
+      child: NightshadeTouchTarget.hitBox(
+        context,
+        MouseRegion(
+          onEnter: (_) => _setHovered(true),
+          onExit: (_) => _setHovered(false),
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            behavior: HitTestBehavior.opaque,
+            child: ExcludeSemantics(
+              child: AnimatedContainer(
+                duration: NightshadeTokens.durationFast,
+                curve: NightshadeTokens.curveStandard,
+                height: SegmentedControl.segmentHeight,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SegmentedControl.segmentPadding,
+                ),
+                // No `alignment:` — it would make the segment expand to the
+                // width of the row instead of to its own label.
+                decoration: BoxDecoration(
+                  color: widget.selected || _hovered
+                      ? colors.surfaceHover
+                      : Colors.transparent,
+                  borderRadius: NightshadeTokens.borderRadiusSm,
+                ),
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(
+                    widget.label,
+                    style: NightshadeTypography.buttonSm.copyWith(
+                      color: foreground,
+                    ),
                   ),
                 ),
               ),

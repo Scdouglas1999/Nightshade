@@ -44,10 +44,8 @@ Future<void> showCommandPalette(BuildContext context) {
   );
 }
 
-/// The dim behind a dialog or the palette. 03-tokens has no scrim step yet;
-/// the mockups use black at 50%.
-// TODO(observatory): promote to NightshadeTokens.opacityScrim at merge.
-const double _scrimOpacity = 0.5;
+/// The dim behind a dialog or the palette.
+const double _scrimOpacity = NightshadeTokens.opacityScrim;
 
 class _CommandPaletteRoute extends StatelessWidget {
   const _CommandPaletteRoute();

@@ -16,7 +16,6 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
-import 'settings_finders.dart';
 
 class _MockBackupService extends Mock implements BackupService {}
 
@@ -75,7 +74,7 @@ void main() {
     // The row's Restore action, then the confirmation's. Bounded pumps, not
     // pumpAndSettle: the Restore button spins while the work is in flight and
     // an indeterminate spinner never settles.
-    await tester.tap(findByTooltip('Restore'));
+    await tester.tap(find.byTooltip('Restore'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.widgetWithText(NightshadeButton, 'Restore'));
@@ -141,7 +140,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(findByTooltip('Restore'));
+    await tester.tap(find.byTooltip('Restore'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.widgetWithText(NightshadeButton, 'Restore'));

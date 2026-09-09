@@ -35,8 +35,8 @@ void main() {
       // drops it from the update and the ancestor it merged into carries its
       // flags and its actions instead. Judging one on its own would fail a
       // control that merges DELIBERATELY — [NightshadeDropdown] publishes the
-      // button role above Material's own annotation, and Material's inner node
-      // is merged away — over a node no screen reader can reach.
+      // button role above the node that carries the value's words, and that
+      // inner node is merged away — over a node no screen reader can reach.
       if (node.isMergedIntoParent) return;
       final data = node.getSemanticsData();
       final isRole =
@@ -163,7 +163,7 @@ void main() {
       );
 
       assertOperableNodes(tester, what: 'NightshadeDropdown closed');
-      final node = nodeOf(tester, find.byType(DropdownButton<String>));
+      final node = nodeOf(tester, find.byType(NightshadeDropdown));
       final data = node.getSemanticsData();
       expect(data.label, 'Light');
       expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
@@ -186,7 +186,7 @@ void main() {
 
       final data = nodeOf(
         tester,
-        find.byType(DropdownButton<String>),
+        find.byType(NightshadeDropdown),
       ).getSemanticsData();
       expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
       expect(data.hasFlag(SemanticsFlag.isEnabled), isFalse);
@@ -280,7 +280,7 @@ void main() {
       assertOperableNodes(tester, what: 'NightshadeDropdown hint + value');
       final data = nodeOf(
         tester,
-        find.byType(DropdownButton<String>),
+        find.byType(NightshadeDropdown),
       ).getSemanticsData();
       expect(data.label, '4. Stretch');
       expect(
@@ -312,7 +312,7 @@ void main() {
       assertOperableNodes(tester, what: 'NightshadeDropdown hint only');
       final data = nodeOf(
         tester,
-        find.byType(DropdownButton<String>),
+        find.byType(NightshadeDropdown),
       ).getSemanticsData();
       // Both halves on ONE node: the hint used to be named on a node with no
       // tap and operable on a node with no name, which leaves assistive tech

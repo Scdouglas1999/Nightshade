@@ -222,6 +222,20 @@ abstract final class NightshadeTypography {
     letterSpacing: 0,
   );
 
+  /// Wordmark - the brand mark in the top bar, and nothing else.
+  /// 12px, Bold, +1.6 tracking.
+  ///
+  /// Wider tracking and a heavier weight than any label in the ramp, because
+  /// it is a logotype rather than text. It is deliberately NOT reachable from
+  /// the type scale: nothing else in the app is allowed to look like the brand.
+  static const TextStyle wordmark = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    height: 1.3,
+    letterSpacing: 1.6,
+  );
+
   // Heading styles
 
   /// H1 - Page titles, hero text

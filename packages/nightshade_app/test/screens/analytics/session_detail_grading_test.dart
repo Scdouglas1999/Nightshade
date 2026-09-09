@@ -193,7 +193,7 @@ List<Readout> _readouts(WidgetTester tester, String label, {Finder? within}) {
       : find.descendant(of: within, matching: find.byType(Readout));
   return tester
       .widgetList<Readout>(finder)
-      .where((r) => r.label.toLowerCase() == wanted)
+      .where((r) => r.label?.toLowerCase() == wanted)
       .toList(growable: false);
 }
 

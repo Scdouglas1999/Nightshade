@@ -6,8 +6,7 @@ import '../theme/nightshade_typography.dart';
 import 'readout.dart';
 
 /// Icon size at the head of a list row, in logical pixels (05 §9: 15 muted).
-// TODO(observatory): promote to NightshadeTokens.iconGlyphRow
-const double _rowIconSize = 15;
+const double _rowIconSize = NightshadeTokens.iconGlyphRow;
 
 /// A row in a list: 13px text, 8px vertical padding, a hairline underneath,
 /// a 15px muted leading icon and a trailing mono timestamp.
@@ -140,9 +139,10 @@ class DeviceRow extends StatelessWidget {
   const DeviceRow({
     super.key,
     required this.name,
-    required this.readouts,
+    this.readouts = const <Readout>[],
     this.icon,
     this.leading,
+    this.trailing,
     this.onTap,
   });
 
@@ -157,6 +157,15 @@ class DeviceRow extends StatelessWidget {
 
   /// A leading widget used instead of [icon] — a `StatusDot`, a chip.
   final Widget? leading;
+
+  /// A trailing widget at the end of the row, after [readouts].
+  ///
+  /// A device that is NOT connected has no values to report, and a row of
+  /// `Readout(value: null)` says "three things I cannot measure" where the
+  /// truth is one thing: it is not connected. 06 Tonight asks for that as a
+  /// word, so the row takes one — [trailing] is where it goes. Style it at the
+  /// call site; the row does not assume it is text.
+  final Widget? trailing;
 
   /// Non-null makes the row tappable.
   final VoidCallback? onTap;
@@ -193,6 +202,10 @@ class DeviceRow extends StatelessWidget {
           if (readouts.isNotEmpty) ...<Widget>[
             const SizedBox(width: ListRow.gap),
             ReadoutRow(gap: readoutGap, children: readouts),
+          ],
+          if (trailing != null) ...<Widget>[
+            const SizedBox(width: ListRow.gap),
+            trailing!,
           ],
         ],
       ),

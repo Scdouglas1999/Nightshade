@@ -7,7 +7,6 @@ import 'package:nightshade_app/screens/settings/equipment_profiles_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
-import 'settings_finders.dart';
 
 const _originalProfile = EquipmentProfileModel(
   id: 7,
@@ -73,7 +72,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final syncButton = findByTooltip('Sync from filter wheel');
+    final syncButton = find.byTooltip('Sync from filter wheel');
     expect(syncButton, findsOneWidget);
     await tester.ensureVisible(syncButton);
     await tester.tap(syncButton);

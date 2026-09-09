@@ -348,6 +348,50 @@ void main() {
       );
     });
 
+    /// The component sizes wave 2 applied and wave 4 promoted onto
+    /// [NightshadeTokens]. They are held to the JSON for the same reason the
+    /// colours are: a height that only exists in Dart drifts from the mockups
+    /// the moment someone edits one of them.
+    test('the component sizes match the JSON', () {
+      final shell = tokens['shell'] as Map<String, dynamic>;
+      expect(
+        NightshadeTokens.buttonHeight,
+        (shell['buttonHeight'] as num).toDouble(),
+      );
+      expect(
+        NightshadeTokens.buttonHeightSm,
+        (shell['buttonHeightSm'] as num).toDouble(),
+      );
+      expect(
+        NightshadeTokens.buttonHeightLg,
+        (shell['buttonHeightLg'] as num).toDouble(),
+      );
+      expect(
+        NightshadeTokens.inputHeight,
+        (shell['inputHeight'] as num).toDouble(),
+      );
+      expect(
+        NightshadeTokens.inputHeightSm,
+        (shell['inputHeightSm'] as num).toDouble(),
+      );
+      expect(
+        NightshadeTokens.sidebarCollapsed,
+        (shell['railWidthCollapsed'] as num).toDouble(),
+      );
+      expect(
+        NightshadeTokens.sidebarExpanded,
+        (shell['railWidthExpanded'] as num).toDouble(),
+      );
+      expect(
+        ShellChromeMetrics.sidePanelWidth,
+        (shell['sidePanelWidth'] as num).toDouble(),
+      );
+      expect(
+        ShellChromeMetrics.sidePanelStripWidth,
+        (shell['sidePanelStripWidth'] as num).toDouble(),
+      );
+    });
+
     /// The type scale, by the same rule as the colours. `body`, `bodySm`,
     /// `caption`, `button` and `buttonSm` predate the overhaul and carry line
     /// heights and tracking from the old scale; wave 0 does not move them,
