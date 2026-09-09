@@ -349,42 +349,40 @@ class _SwarmSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.elevated,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            formatCenter(target.raDeg, target.decDeg),
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textMuted,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              formatCenter(target.raDeg, target.decDeg),
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          ResponsiveStatStrip(
-            stats: [
-              ResponsiveStat(
-                label: 'FUSED DEPTH',
-                value: formatIntegration(target.integrationSeconds),
-                icon: LucideIcons.layers,
-                valueColor: colors.accent,
-              ),
-              ResponsiveStat(
-                label: 'CONTRIBUTORS',
-                value: '${target.contributors}',
-                icon: LucideIcons.users,
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          ContributionBar(
-            yourSeconds: yourSeconds,
-            swarmSeconds: target.integrationSeconds,
-          ),
-        ],
-      ),
-    );
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            ResponsiveStatStrip(
+              stats: [
+                ResponsiveStat(
+                  label: 'FUSED DEPTH',
+                  value: formatIntegration(target.integrationSeconds),
+                  icon: LucideIcons.layers,
+                  valueColor: colors.accent,
+                ),
+                ResponsiveStat(
+                  label: 'CONTRIBUTORS',
+                  value: '${target.contributors}',
+                  icon: LucideIcons.users,
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            ContributionBar(
+              yourSeconds: yourSeconds,
+              swarmSeconds: target.integrationSeconds,
+            ),
+          ],
+        ));
   }
 }
 
@@ -402,47 +400,46 @@ class _JoinCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      padding: NightshadeTokens.cardPadding,
-      child: Row(
-        children: [
-          Icon(
-            joined ? LucideIcons.checkCircle2 : LucideIcons.userPlus,
-            size: NightshadeTokens.iconMd,
-            color: joined ? colors.success : colors.textSecondary,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  joined ? 'Joined' : 'Join this target',
-                  style: NightshadeTypography.labelStrong.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  joined
-                      ? 'Contribute and pull are unlocked.'
-                      : 'Track this field so you can contribute and pull.',
-                  style: NightshadeTypography.captionSm.copyWith(
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Row(
+          children: [
+            Icon(
+              joined ? LucideIcons.checkCircle2 : LucideIcons.userPlus,
+              size: NightshadeTokens.iconMd,
+              color: joined ? colors.success : colors.textSecondary,
             ),
-          ),
-          NightshadeButton(
-            label: joined ? 'Leave' : 'Join',
-            variant: joined ? ButtonVariant.secondary : ButtonVariant.primary,
-            size: ButtonSize.small,
-            onPressed: onToggle,
-          ),
-        ],
-      ),
-    );
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    joined ? 'Joined' : 'Join this target',
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    joined
+                        ? 'Contribute and pull are unlocked.'
+                        : 'Track this field so you can contribute and pull.',
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            NightshadeButton(
+              label: joined ? 'Leave' : 'Join',
+              variant: joined ? ButtonVariant.secondary : ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: onToggle,
+            ),
+          ],
+        ));
   }
 }
 
@@ -459,53 +456,52 @@ class _CoImageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                LucideIcons.radio,
-                size: NightshadeTokens.iconMd,
-                color: colors.accent,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'Co-image this target live',
-                  style: NightshadeTypography.labelStrong.copyWith(
-                    color: colors.textPrimary,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  LucideIcons.radio,
+                  size: NightshadeTokens.iconMd,
+                  color: colors.accent,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'Co-image this target live',
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              'Open a live session so other rigs can pool their integration into '
+              'the same combined stack across the night. You stay the anchor and '
+              'can end it anytime.',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                height: 1.4,
               ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          Text(
-            'Open a live session so other rigs can pool their integration into '
-            'the same combined stack across the night. You stay the anchor and '
-            'can end it anytime.',
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Align(
-            alignment: Alignment.centerRight,
-            child: NightshadeButton(
-              label: starting ? 'Starting…' : 'Co-image this target',
-              icon: LucideIcons.radio,
-              size: ButtonSize.small,
-              isLoading: starting,
-              onPressed: starting ? null : onCoImage,
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerRight,
+              child: NightshadeButton(
+                label: starting ? 'Starting…' : 'Co-image this target',
+                icon: LucideIcons.radio,
+                size: ButtonSize.small,
+                isLoading: starting,
+                onPressed: starting ? null : onCoImage,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }
 
@@ -524,56 +520,54 @@ class _ContributeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final hasLocal = yourSeconds > 0;
-    return NightshadeCard(
-      variant: enabled ? CardVariant.standard : CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                LucideIcons.upload,
-                size: NightshadeTokens.iconMd,
-                color: enabled ? colors.accent : colors.textMuted,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'Contribute your light',
-                  style: NightshadeTypography.labelStrong.copyWith(
-                    color: enabled ? colors.textPrimary : colors.textMuted,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  LucideIcons.upload,
+                  size: NightshadeTokens.iconMd,
+                  color: enabled ? colors.accent : colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'Contribute your light',
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      color: enabled ? colors.textPrimary : colors.textMuted,
+                    ),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              hasLocal
+                  ? 'Add your ${formatIntegration(yourSeconds)} of imaging on this '
+                      'field to the swarm. You will confirm exactly what leaves '
+                      'your device first.'
+                  : 'You have not imaged this field yet. Image and fold it into '
+                      'Your Sky, then contribute.',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                height: 1.4,
               ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          Text(
-            hasLocal
-                ? 'Add your ${formatIntegration(yourSeconds)} of imaging on this '
-                    'field to the swarm. You will confirm exactly what leaves '
-                    'your device first.'
-                : 'You have not imaged this field yet. Image and fold it into '
-                    'Your Sky, then contribute.',
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Align(
-            alignment: Alignment.centerRight,
-            child: NightshadeButton(
-              label: 'Contribute',
-              icon: LucideIcons.upload,
-              size: ButtonSize.small,
-              onPressed: enabled && hasLocal ? onContribute : null,
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerRight,
+              child: NightshadeButton(
+                label: 'Contribute',
+                icon: LucideIcons.upload,
+                size: ButtonSize.small,
+                onPressed: enabled && hasLocal ? onContribute : null,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }
 
@@ -594,63 +588,61 @@ class _BlendCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final blendedCount = blended.length;
-    return NightshadeCard(
-      variant: enabled ? CardVariant.standard : CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                LucideIcons.download,
-                size: NightshadeTokens.iconMd,
-                color: enabled ? colors.accent : colors.textMuted,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'Pull the fused image',
-                  style: NightshadeTypography.labelStrong.copyWith(
-                    color: enabled ? colors.textPrimary : colors.textMuted,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  LucideIcons.download,
+                  size: NightshadeTokens.iconMd,
+                  color: enabled ? colors.accent : colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'Pull the fused image',
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      color: enabled ? colors.textPrimary : colors.textMuted,
+                    ),
                   ),
                 ),
+                if (blendedCount > 0)
+                  StatusPill(
+                    icon: LucideIcons.combine,
+                    label: 'BLENDED',
+                    value: '$blendedCount',
+                    status: StatusPillStatus.success,
+                  ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              blendedCount > 0
+                  ? 'The swarm co-add is cached locally and blended into Your Sky '
+                      'for this field — see the depth gained below.'
+                  : 'Download the swarm\'s combined co-add for this field and blend '
+                      'it into Your Sky alongside your own integration.',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                height: 1.4,
               ),
-              if (blendedCount > 0)
-                StatusPill(
-                  icon: LucideIcons.combine,
-                  label: 'BLENDED',
-                  value: '$blendedCount',
-                  status: StatusPillStatus.success,
-                ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          Text(
-            blendedCount > 0
-                ? 'The swarm co-add is cached locally and blended into Your Sky '
-                    'for this field — see the depth gained below.'
-                : 'Download the swarm\'s combined co-add for this field and blend '
-                    'it into Your Sky alongside your own integration.',
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Align(
-            alignment: Alignment.centerRight,
-            child: NightshadeButton(
-              label: blendedCount > 0 ? 'Refresh blend' : 'Pull & blend',
-              icon: LucideIcons.combine,
-              size: ButtonSize.small,
-              isLoading: pulling,
-              onPressed: enabled && !pulling ? onPull : null,
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerRight,
+              child: NightshadeButton(
+                label: blendedCount > 0 ? 'Refresh blend' : 'Pull & blend',
+                icon: LucideIcons.combine,
+                size: ButtonSize.small,
+                isLoading: pulling,
+                onPressed: enabled && !pulling ? onPull : null,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }
 
@@ -674,85 +666,83 @@ class _BlendPayoffCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final after = ownSecondsBefore + swarmSeconds;
-    return NightshadeCard(
-      variant: CardVariant.standard,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                LucideIcons.trendingUp,
-                size: NightshadeTokens.iconMd,
-                color: colors.success,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'Depth gained',
-                  style: NightshadeTypography.labelStrong.copyWith(
-                    color: colors.textPrimary,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  LucideIcons.trendingUp,
+                  size: NightshadeTokens.iconMd,
+                  color: colors.success,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'Depth gained',
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          Row(
-            children: [
-              Text(
-                formatIntegration(ownSecondsBefore),
-                style: NightshadeTypography.bodyStrong.copyWith(
-                  color: colors.textSecondary,
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Row(
+              children: [
+                Text(
+                  formatIntegration(ownSecondsBefore),
+                  style: NightshadeTypography.bodyStrong.copyWith(
+                    color: colors.textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Icon(
-                LucideIcons.arrowRight,
-                size: NightshadeTokens.iconSm,
-                color: colors.textMuted,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Text(
-                formatIntegration(after),
-                style: NightshadeTypography.bodyStrong.copyWith(
-                  color: colors.accent,
-                ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Text(
-                'fused',
-                style: NightshadeTypography.caption.copyWith(
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Icon(
+                  LucideIcons.arrowRight,
+                  size: NightshadeTokens.iconSm,
                   color: colors.textMuted,
                 ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Text(
+                  formatIntegration(after),
+                  style: NightshadeTypography.bodyStrong.copyWith(
+                    color: colors.accent,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Text(
+                  'fused',
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              'The swarm added ${formatIntegration(swarmSeconds)} of community '
+              'integration to your ${formatIntegration(ownSecondsBefore)} on this '
+              'field.',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                height: 1.4,
               ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            'The swarm added ${formatIntegration(swarmSeconds)} of community '
-            'integration to your ${formatIntegration(ownSecondsBefore)} on this '
-            'field.',
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Align(
-            alignment: Alignment.centerRight,
-            child: NightshadeButton(
-              label: 'Open in Your Sky',
-              icon: LucideIcons.sparkles,
-              variant: ButtonVariant.secondary,
-              size: ButtonSize.small,
-              onPressed: onOpenInYourSky,
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerRight,
+              child: NightshadeButton(
+                label: 'Open in Your Sky',
+                icon: LucideIcons.sparkles,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                onPressed: onOpenInYourSky,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }
 
@@ -796,49 +786,48 @@ class _ContributionsCard extends ConsumerWidget {
     return contributionsAsync.when(
       data: (records) {
         if (records.isEmpty) return const SizedBox.shrink();
-        return NightshadeCard(
-          padding: NightshadeTokens.cardPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    LucideIcons.shieldCheck,
-                    size: NightshadeTokens.iconMd,
-                    color: colors.accent,
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceMd),
-                  Expanded(
-                    child: Text(
-                      'Your contributions',
-                      style: NightshadeTypography.labelStrong.copyWith(
-                        color: colors.textPrimary,
+        return NightshadePanel(
+            padding: NightshadeTokens.cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      LucideIcons.shieldCheck,
+                      size: NightshadeTokens.iconMd,
+                      color: colors.accent,
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceMd),
+                    Expanded(
+                      child: Text(
+                        'Your contributions',
+                        style: NightshadeTypography.labelStrong.copyWith(
+                          color: colors.textPrimary,
+                        ),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                Text(
+                  'You only shared additive co-add sums, so retracting a tile '
+                  'subtracts your contribution exactly — the shared depth returns '
+                  'to what it was before.',
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.4,
                   ),
-                ],
-              ),
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                'You only shared additive co-add sums, so retracting a tile '
-                'subtracts your contribution exactly — the shared depth returns '
-                'to what it was before.',
-                style: NightshadeTypography.caption.copyWith(
-                  color: colors.textSecondary,
-                  height: 1.4,
                 ),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              for (final r in records)
-                _ContributionRow(
-                  record: r,
-                  onRetract: () => onRetract(r),
-                  busy: busy,
-                ),
-            ],
-          ),
-        );
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                for (final r in records)
+                  _ContributionRow(
+                    record: r,
+                    onRetract: () => onRetract(r),
+                    busy: busy,
+                  ),
+              ],
+            ));
       },
       loading: () => const SkeletonBox(
         width: double.infinity,
@@ -932,29 +921,27 @@ class _SwarmTrustCard extends ConsumerWidget {
     final records = ref.watch(myContributionsProvider).valueOrNull;
     if (records == null || records.isEmpty) return const SizedBox.shrink();
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Row(
-        children: [
-          Icon(
-            LucideIcons.shieldCheck,
-            size: NightshadeTokens.iconSm,
-            color: colors.textMuted,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Text(
-              'You only ever shared additive co-add sums, so the hub can subtract '
-              'your contribution exactly to restore the prior depth.',
-              style: NightshadeTypography.captionSm.copyWith(
-                color: colors.textMuted,
-                height: 1.4,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.shieldCheck,
+              size: NightshadeTokens.iconSm,
+              color: colors.textMuted,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Text(
+                'You only ever shared additive co-add sums, so the hub can subtract '
+                'your contribution exactly to restore the prior depth.',
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: colors.textMuted,
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }

@@ -198,7 +198,7 @@ class _SortBar extends StatelessWidget {
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
               border: Border.all(color: colors.border),
             ),
@@ -260,155 +260,152 @@ class _ProgressRow extends StatelessWidget {
     final framesLabel =
         '${progress.totalCapturedFrames} / ${progress.totalGoalFrames}';
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusLg,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          onTap: onToggleExpand,
-          child: Padding(
-            padding: NightshadeTokens.cardPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            progress.targetName,
-                            style: NightshadeTypography.bodyStrong.copyWith(
-                              color: colors.textPrimary,
+    return NightshadePanel(
+        child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        onTap: onToggleExpand,
+        child: Padding(
+          padding: NightshadeTokens.cardPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          progress.targetName,
+                          style: NightshadeTypography.bodyStrong.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        if (!progress.hasGoals)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'No integration goals set',
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: colors.textMuted),
+                            ),
+                          )
+                        else if (!progress.hasCaptures)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'No frames captured yet',
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: colors.textMuted),
                             ),
                           ),
-                          if (!progress.hasGoals)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                'No integration goals set',
-                                style: NightshadeTypography.caption
-                                    .copyWith(color: colors.textMuted),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    flex: 6,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final metrics = Row(
+                          children: [
+                            Flexible(
+                              flex: 4,
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: 100),
+                                child: _ProgressBar(
+                                  percent: progress.percentComplete,
+                                  colors: colors,
+                                  label: '${pct.toStringAsFixed(0)}%',
+                                ),
                               ),
-                            )
-                          else if (!progress.hasCaptures)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceMd),
+                            Flexible(
+                              flex: 3,
                               child: Text(
-                                'No frames captured yet',
+                                integrationLabel,
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                                style: NightshadeTypography.caption.copyWith(
+                                    color: colors.textSecondary,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ]),
+                              ),
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceMd),
+                            Flexible(
+                              flex: 2,
+                              child: Text(
+                                etaLabel,
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                                style: NightshadeTypography.caption.copyWith(
+                                    color: colors.textSecondary,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ]),
+                              ),
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceMd),
+                            Flexible(
+                              flex: 3,
+                              child: Text(
+                                lastImagedLabel,
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
                                 style: NightshadeTypography.caption
                                     .copyWith(color: colors.textMuted),
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    Expanded(
-                      flex: 6,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final metrics = Row(
-                            children: [
-                              Flexible(
-                                flex: 4,
-                                child: ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(minWidth: 100),
-                                  child: _ProgressBar(
-                                    percent: progress.percentComplete,
-                                    colors: colors,
-                                    label: '${pct.toStringAsFixed(0)}%',
-                                  ),
-                                ),
+                          ],
+                        );
+                        if (constraints.maxWidth < 420) {
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minWidth: constraints.maxWidth,
                               ),
-                              const SizedBox(width: NightshadeTokens.spaceMd),
-                              Flexible(
-                                flex: 3,
-                                child: Text(
-                                  integrationLabel,
-                                  textAlign: TextAlign.right,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: NightshadeTypography.caption.copyWith(
-                                      color: colors.textSecondary,
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures(),
-                                      ]),
-                                ),
-                              ),
-                              const SizedBox(width: NightshadeTokens.spaceMd),
-                              Flexible(
-                                flex: 2,
-                                child: Text(
-                                  etaLabel,
-                                  textAlign: TextAlign.right,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: NightshadeTypography.caption.copyWith(
-                                      color: colors.textSecondary,
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures(),
-                                      ]),
-                                ),
-                              ),
-                              const SizedBox(width: NightshadeTokens.spaceMd),
-                              Flexible(
-                                flex: 3,
-                                child: Text(
-                                  lastImagedLabel,
-                                  textAlign: TextAlign.right,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: NightshadeTypography.caption
-                                      .copyWith(color: colors.textMuted),
-                                ),
-                              ),
-                            ],
+                              child: metrics,
+                            ),
                           );
-                          if (constraints.maxWidth < 420) {
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minWidth: constraints.maxWidth,
-                                ),
-                                child: metrics,
-                              ),
-                            );
-                          }
-                          return metrics;
-                        },
-                      ),
+                        }
+                        return metrics;
+                      },
                     ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      isExpanded
-                          ? LucideIcons.chevronUp
-                          : LucideIcons.chevronDown,
-                      size: 14,
-                      color: colors.textMuted,
-                    ),
-                  ],
-                ),
-                if (isExpanded) ...[
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-                  Divider(color: colors.border, height: 1),
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-                  _PerFilterTable(
-                    rows: progress.perFilter,
-                    colors: colors,
-                    totalFramesLabel: framesLabel,
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    isExpanded
+                        ? LucideIcons.chevronUp
+                        : LucideIcons.chevronDown,
+                    size: 14,
+                    color: colors.textMuted,
                   ),
                 ],
+              ),
+              if (isExpanded) ...[
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                Divider(color: colors.border, height: 1),
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                _PerFilterTable(
+                  rows: progress.perFilter,
+                  colors: colors,
+                  totalFramesLabel: framesLabel,
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),
-    );
+    ));
   }
 
   String _formatEta(int? nights) {
@@ -467,7 +464,7 @@ class _ProgressBar extends StatelessWidget {
         Container(
           height: 16,
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),

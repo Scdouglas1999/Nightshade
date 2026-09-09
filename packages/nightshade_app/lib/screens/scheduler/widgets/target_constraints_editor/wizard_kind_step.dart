@@ -161,7 +161,7 @@ class _KindCard extends StatelessWidget {
         ? colors.primary.withValues(alpha: 0.08)
         : disabled
             ? colors.surfaceHover
-            : colors.surfaceAlt;
+            : colors.well;
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       child: Material(

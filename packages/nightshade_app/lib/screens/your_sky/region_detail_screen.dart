@@ -231,9 +231,8 @@ class _CutoutPanel extends ConsumerWidget {
           dayKey(f.foldedAt),
     };
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: EdgeInsets.zero,
-      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -339,7 +338,7 @@ class _EmptyCutout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: colors.surfaceAlt,
+      color: colors.well,
       alignment: Alignment.center,
       padding: NightshadeTokens.cardPadding,
       child: Column(
@@ -592,7 +591,7 @@ class _ScrubPanel extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final stops = scrubStopsFromFolds(folds);
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: NightshadeTokens.cardPadding,
       child: stops.length < 2
           ? Row(
@@ -650,8 +649,7 @@ class _ChangedPanel extends StatelessWidget {
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         if (visible.isEmpty)
-          NightshadeCard(
-            variant: CardVariant.subtle,
+          NightshadePanel(
             padding: NightshadeTokens.cardPadding,
             child: Text(
               'No folds at this point in time.',
@@ -683,14 +681,13 @@ class _FoldRow extends StatelessWidget {
     final isSwarm = fold.contributor.isNotEmpty;
     final tint = isSwarm ? colors.info : colors.primary;
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       padding: NightshadeTokens.cardPadding,
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-            decoration: NightshadeDecorations.tintedBadge(tint),
+            decoration: NightshadeDecorations.chip(colors, tone: tint),
             child: Icon(
               isSwarm ? LucideIcons.users : LucideIcons.image,
               size: NightshadeTokens.iconSm,
@@ -800,7 +797,7 @@ class _ProvenancePanel extends ConsumerWidget {
           subtitle: 'How this region was built, tile by tile.',
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
-        NightshadeCard(
+        NightshadePanel(
           padding: NightshadeTokens.cardPadding,
           child: Column(
             children: [
@@ -873,8 +870,7 @@ class _ProvenanceTrail extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     final ordered = [...folds]..sort((a, b) => b.label.compareTo(a.label));
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       padding: NightshadeTokens.cardPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

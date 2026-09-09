@@ -296,29 +296,27 @@ class _EmptyTargets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Row(
-        children: [
-          Icon(
-            LucideIcons.star,
-            size: NightshadeTokens.iconMd,
-            color: colors.textMuted,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Text(
-              'You have no targets in your catalog yet. Add a target you image, '
-              'then share it with the swarm.',
-              style: NightshadeTypography.caption.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.star,
+              size: NightshadeTokens.iconMd,
+              color: colors.textMuted,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Text(
+                'You have no targets in your catalog yet. Add a target you image, '
+                'then share it with the swarm.',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }

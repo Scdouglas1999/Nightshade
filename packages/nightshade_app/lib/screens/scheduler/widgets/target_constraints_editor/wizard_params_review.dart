@@ -226,7 +226,7 @@ class _Step3Review extends StatelessWidget {
           width: double.infinity,
           padding: NightshadeTokens.paddingMd,
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),

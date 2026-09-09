@@ -423,9 +423,8 @@ class _PrivacyOption extends StatelessWidget {
                             horizontal: NightshadeTokens.spaceSm,
                             vertical: 2,
                           ),
-                          decoration: NightshadeDecorations.tintedBadge(
-                            colors.success,
-                          ),
+                          decoration: NightshadeDecorations.chip(colors,
+                              tone: colors.success),
                           child: Text(
                             'DEFAULT',
                             style: NightshadeTypography.captionSm.copyWith(

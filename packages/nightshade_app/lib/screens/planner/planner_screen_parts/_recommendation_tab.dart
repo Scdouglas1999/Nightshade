@@ -3,6 +3,11 @@
 // empty / loading / error pattern around it.
 part of '../planner_screen.dart';
 
+/// How the stacked (narrow) Tonight tab splits its height between the selected
+/// target's detail and the candidate list.
+const int _kNarrowDetailFlex = 4;
+const int _kNarrowListFlex = 6;
+
 /// "Tonight" tab — the planner's scoring surface.
 ///
 /// Two columns: the filtered candidate list on the left, and the selected
@@ -194,20 +199,29 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (selected != null)
-            DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: colors.border)),
-              ),
-              child: _TargetDetailColumn(
-                target: selected,
-                plan: plan,
-                bottomPinned: false,
-                onFrameIt: () => _sendToFraming(context, ref, selected),
-                onBuildSequence: () =>
-                    _createSequence(context, colors, selected, plan),
+            // Flex, not intrinsic height: the detail is ~450px of content and a
+            // short landscape viewport is less than that, so it takes a share
+            // of the column and scrolls inside it rather than overflowing.
+            Flexible(
+              flex: _kNarrowDetailFlex,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(bottom: BorderSide(color: colors.border)),
+                ),
+                child: Padding(
+                  padding: SidePanel.contentPadding,
+                  child: _TargetDetailColumn(
+                    target: selected,
+                    plan: plan,
+                    onFrameIt: () => _sendToFraming(context, ref, selected),
+                    onBuildSequence: () =>
+                        _createSequence(context, colors, selected, plan),
+                  ),
+                ),
               ),
             ),
-          Expanded(child: list),
+          Expanded(flex: _kNarrowListFlex, child: list),
         ],
       );
     }
@@ -223,7 +237,6 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
               : _TargetDetailColumn(
                   target: selected,
                   plan: plan,
-                  bottomPinned: true,
                   onFrameIt: () => _sendToFraming(context, ref, selected),
                   onBuildSequence: () =>
                       _createSequence(context, colors, selected, plan),

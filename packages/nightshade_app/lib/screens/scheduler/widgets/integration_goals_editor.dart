@@ -295,14 +295,13 @@ class _IntegrationGoalsEditorState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (progress.isEmpty)
-                NightshadeCard(
-                  padding: NightshadeTokens.paddingMd,
-                  child: Text(
-                    'No integration goals yet. Add filters below to tell the scheduler what to image.',
-                    style: NightshadeTypography.caption
-                        .copyWith(color: colors.textMuted),
-                  ),
-                ),
+                NightshadePanel(
+                    padding: NightshadeTokens.paddingMd,
+                    child: Text(
+                      'No integration goals yet. Add filters below to tell the scheduler what to image.',
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
+                    )),
               for (final p in progress)
                 _GoalRow(
                   progress: p,
@@ -405,7 +404,7 @@ class _GoalRowState extends State<_GoalRow> {
         decoration: BoxDecoration(
           color: p.isComplete
               ? colors.success.withValues(alpha: 0.08)
-              : colors.surfaceAlt,
+              : colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(
             color: p.isComplete
@@ -618,75 +617,75 @@ class _AddGoalRowState extends State<_AddGoalRow> {
       );
     }
 
-    return NightshadeCard(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: AccessibleDropdown<String>(
-              isExpanded: true,
-              value: _selectedFilter,
-              hint: const Text('Filter'),
-              items: [
-                for (final f in remaining)
-                  DropdownMenuItem(value: f, child: Text(_goalFilterLabel(f))),
-              ],
-              onChanged: widget.busy ? null : _selectFilter,
-            ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          SizedBox(
-            width: 100,
-            child: TextField(
-              controller: _exposureCtl,
-              enabled: !widget.busy,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                isDense: true,
-                labelText: 'Exposure (s)',
-                border: OutlineInputBorder(),
+    return NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 110,
+              child: AccessibleDropdown<String>(
+                isExpanded: true,
+                value: _selectedFilter,
+                hint: const Text('Filter'),
+                items: [
+                  for (final f in remaining)
+                    DropdownMenuItem(
+                        value: f, child: Text(_goalFilterLabel(f))),
+                ],
+                onChanged: widget.busy ? null : _selectFilter,
               ),
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          SizedBox(
-            width: 96,
-            child: TextField(
-              controller: _frameCtl,
-              enabled: !widget.busy,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                isDense: true,
-                labelText: 'Frames',
-                border: OutlineInputBorder(),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            SizedBox(
+              width: 100,
+              child: TextField(
+                controller: _exposureCtl,
+                enabled: !widget.busy,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Exposure (s)',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          SizedBox(
-            width: 80,
-            child: TextField(
-              controller: _priorityCtl,
-              enabled: !widget.busy,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                isDense: true,
-                labelText: 'Prio',
-                border: OutlineInputBorder(),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            SizedBox(
+              width: 96,
+              child: TextField(
+                controller: _frameCtl,
+                enabled: !widget.busy,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Frames',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
-          ),
-          const Spacer(),
-          NightshadeButton(
-            label: 'Add',
-            icon: LucideIcons.plus,
-            size: ButtonSize.small,
-            onPressed: widget.busy || !_canAdd ? null : _submit,
-          ),
-        ],
-      ),
-    );
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            SizedBox(
+              width: 80,
+              child: TextField(
+                controller: _priorityCtl,
+                enabled: !widget.busy,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Prio',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const Spacer(),
+            NightshadeButton(
+              label: 'Add',
+              icon: LucideIcons.plus,
+              size: ButtonSize.small,
+              onPressed: widget.busy || !_canAdd ? null : _submit,
+            ),
+          ],
+        ));
   }
 
   Future<void> _submit() async {

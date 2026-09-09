@@ -43,7 +43,7 @@ class _ConstraintRowState extends State<_ConstraintRow> {
           vertical: NightshadeTokens.spaceSm,
         ),
         decoration: BoxDecoration(
-          color: c.enabled ? colors.surfaceAlt : colors.surfaceHover,
+          color: c.enabled ? colors.well : colors.surfaceHover,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),

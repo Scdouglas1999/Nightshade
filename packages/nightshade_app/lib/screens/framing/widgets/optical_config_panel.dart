@@ -203,13 +203,13 @@ class OpticalConfigPanel extends ConsumerWidget {
         // FOV and Scale
         _buildMetricRow(
           'FOV',
-          config.fovString ?? '---',
+          config.fovString ?? kReadoutUnknown,
           colors,
         ),
         const SizedBox(height: 8),
         _buildMetricRow(
           'Scale',
-          config.scaleString ?? '---',
+          config.scaleString ?? kReadoutUnknown,
           colors,
         ),
 
@@ -281,7 +281,7 @@ class _ProfileSwitcher extends ConsumerWidget {
         return PopupMenuButton<int>(
           tooltip: 'Switch equipment profile',
           offset: const Offset(0, 40),
-          color: colors.surfaceAlt,
+          color: colors.well,
           shape: RoundedRectangleBorder(
             borderRadius: NightshadeTokens.borderRadiusInline8,
             side: BorderSide(color: colors.border),

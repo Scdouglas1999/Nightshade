@@ -224,7 +224,7 @@ class _GoalSummary extends StatelessWidget {
             decoration: BoxDecoration(
               color: p.isComplete
                   ? colors.success.withValues(alpha: 0.12)
-                  : colors.surfaceAlt,
+                  : colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(

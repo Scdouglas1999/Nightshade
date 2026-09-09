@@ -172,54 +172,53 @@ class YourSkyView extends ConsumerWidget {
 
   Widget _buildNoRegionsHint(BuildContext context, bool canNameRegions) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.info),
-                child: Icon(LucideIcons.info,
-                    size: NightshadeTokens.iconSm, color: colors.info),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  canNameRegions
-                      ? 'Your atlas is filling in tile by tile. Image a target '
-                          'and it becomes a named region automatically — or '
-                          'name one yourself (a target, mosaic, or polar field) '
-                          'to track its depth and scrub it through time.'
-                      : 'Your atlas is filling in tile by tile. Regions appear '
-                          'here automatically as your host images targets.',
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.4,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                  decoration:
+                      NightshadeDecorations.chip(colors, tone: colors.info),
+                  child: Icon(LucideIcons.info,
+                      size: NightshadeTokens.iconSm, color: colors.info),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    canNameRegions
+                        ? 'Your atlas is filling in tile by tile. Image a target '
+                            'and it becomes a named region automatically — or '
+                            'name one yourself (a target, mosaic, or polar field) '
+                            'to track its depth and scrub it through time.'
+                        : 'Your atlas is filling in tile by tile. Regions appear '
+                            'here automatically as your host images targets.',
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
                   ),
+                ),
+              ],
+            ),
+            if (canNameRegions) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: NightshadeButton(
+                  label: 'Name a region',
+                  icon: LucideIcons.plus,
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: () => NameRegionSheet.show(context),
                 ),
               ),
             ],
-          ),
-          if (canNameRegions) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: NightshadeButton(
-                label: 'Name a region',
-                icon: LucideIcons.plus,
-                variant: ButtonVariant.secondary,
-                size: ButtonSize.small,
-                onPressed: () => NameRegionSheet.show(context),
-              ),
-            ),
           ],
-        ],
-      ),
-    );
+        ));
   }
 
   Widget _buildEmpty(BuildContext context, bool canNameRegions) {

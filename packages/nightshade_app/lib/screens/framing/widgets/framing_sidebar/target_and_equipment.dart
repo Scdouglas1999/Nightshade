@@ -90,7 +90,7 @@ class FramingTargetSearch extends ConsumerWidget {
                         )
                       : null,
               filled: true,
-              fillColor: colors.surfaceAlt,
+              fillColor: colors.well,
               border: OutlineInputBorder(
                 borderRadius: NightshadeTokens.borderRadiusInline8,
                 borderSide: BorderSide(color: colors.border),
@@ -148,7 +148,7 @@ class FramingTargetSearch extends ConsumerWidget {
               margin: const EdgeInsets.only(top: 4),
               constraints: const BoxConstraints(maxHeight: 200),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius: NightshadeTokens.borderRadiusInline8,
                 border: Border.all(color: colors.border),
               ),
@@ -220,7 +220,7 @@ class FramingTargetSearch extends ConsumerWidget {
                     hintStyle: NightshadeTypography.caption
                         .copyWith(color: colors.textMuted),
                     filled: true,
-                    fillColor: colors.surfaceAlt,
+                    fillColor: colors.well,
                     border: OutlineInputBorder(
                       borderRadius: NightshadeTokens.borderRadiusMd,
                       borderSide: BorderSide(color: colors.border),
@@ -244,7 +244,7 @@ class FramingTargetSearch extends ConsumerWidget {
                     hintStyle: NightshadeTypography.caption
                         .copyWith(color: colors.textMuted),
                     filled: true,
-                    fillColor: colors.surfaceAlt,
+                    fillColor: colors.well,
                     border: OutlineInputBorder(
                       borderRadius: NightshadeTokens.borderRadiusMd,
                       borderSide: BorderSide(color: colors.border),
@@ -448,10 +448,8 @@ class FramingEquipmentSection extends StatelessWidget {
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: NightshadeDecorations.emphasisSurface(
-                          colors.warning,
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                        ),
+                        decoration: NightshadeDecorations.chip(colors,
+                            tone: colors.warning),
                         child: Row(
                           children: [
                             Icon(NightshadeIcons.info,

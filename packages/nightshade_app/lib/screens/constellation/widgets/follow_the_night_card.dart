@@ -47,127 +47,125 @@ class FollowTheNightCard extends StatelessWidget {
     final held = suggestion.heldByMe;
     final accent = (ready || held) ? colors.accent : colors.textMuted;
 
-    return NightshadeCard(
-      variant: (ready || held) ? CardVariant.standard : CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(accent),
-                child: Icon(
-                  held
-                      ? LucideIcons.flag
-                      : ready
-                          ? LucideIcons.moonStar
-                          : LucideIcons.moon,
-                  size: NightshadeTokens.iconSm,
-                  color: accent,
-                ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      suggestion.targetName,
-                      style: NightshadeTypography.labelStrong.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatCenter(suggestion.raDeg, suggestion.decDeg),
-                      style: NightshadeTypography.captionSm.copyWith(
-                        color: colors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (held)
-                const StatusPill(
-                  icon: LucideIcons.flag,
-                  label: 'BATON',
-                  value: 'yours',
-                  status: StatusPillStatus.success,
-                )
-              else if (ready)
-                const StatusPill(
-                  icon: LucideIcons.sparkles,
-                  label: 'NOW',
-                  value: 'dark',
-                  status: StatusPillStatus.active,
-                ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Text(
-            formatFollowHint(
-              targetName: suggestion.targetName,
-              isReadyNow: ready,
-              altitudeOk: suggestion.handoff.altitudeOk,
-              swarmSeconds: suggestion.swarmIntegrationSeconds,
-            ),
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          if (suggestion.swarmIntegrationSeconds > 0) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              '${formatIntegration(suggestion.swarmIntegrationSeconds)} fused so far',
-              style: NightshadeTypography.captionSm.copyWith(
-                color: colors.textMuted,
-              ),
-            ),
-          ],
-          if (_hasActions) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: NightshadeTokens.spaceSm,
-              runSpacing: NightshadeTokens.spaceSm,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                if (onPlanTonight != null)
-                  NightshadeButton(
-                    label: 'Plan tonight',
-                    icon: LucideIcons.calendarPlus,
-                    variant: ButtonVariant.secondary,
-                    size: ButtonSize.small,
-                    isLoading: planning,
-                    onPressed: planning ? null : onPlanTonight,
+                Container(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                  decoration: NightshadeDecorations.chip(colors, tone: accent),
+                  child: Icon(
+                    held
+                        ? LucideIcons.flag
+                        : ready
+                            ? LucideIcons.moonStar
+                            : LucideIcons.moon,
+                    size: NightshadeTokens.iconSm,
+                    color: accent,
                   ),
-                if (held && onRelease != null)
-                  NightshadeButton(
-                    label: 'Release',
-                    icon: LucideIcons.flagOff,
-                    variant: ButtonVariant.secondary,
-                    size: ButtonSize.small,
-                    isLoading: releasing,
-                    onPressed: releasing ? null : onRelease,
-                  )
-                else if (onClaim != null)
-                  NightshadeButton(
-                    label: 'Take the baton',
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        suggestion.targetName,
+                        style: NightshadeTypography.labelStrong.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatCenter(suggestion.raDeg, suggestion.decDeg),
+                        style: NightshadeTypography.captionSm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (held)
+                  const StatusPill(
                     icon: LucideIcons.flag,
-                    size: ButtonSize.small,
-                    isLoading: claiming,
-                    onPressed: claiming ? null : onClaim,
+                    label: 'BATON',
+                    value: 'yours',
+                    status: StatusPillStatus.success,
+                  )
+                else if (ready)
+                  const StatusPill(
+                    icon: LucideIcons.sparkles,
+                    label: 'NOW',
+                    value: 'dark',
+                    status: StatusPillStatus.active,
                   ),
               ],
             ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Text(
+              formatFollowHint(
+                targetName: suggestion.targetName,
+                isReadyNow: ready,
+                altitudeOk: suggestion.handoff.altitudeOk,
+                swarmSeconds: suggestion.swarmIntegrationSeconds,
+              ),
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            if (suggestion.swarmIntegrationSeconds > 0) ...[
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                '${formatIntegration(suggestion.swarmIntegrationSeconds)} fused so far',
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: colors.textMuted,
+                ),
+              ),
+            ],
+            if (_hasActions) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: NightshadeTokens.spaceSm,
+                runSpacing: NightshadeTokens.spaceSm,
+                children: [
+                  if (onPlanTonight != null)
+                    NightshadeButton(
+                      label: 'Plan tonight',
+                      icon: LucideIcons.calendarPlus,
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.small,
+                      isLoading: planning,
+                      onPressed: planning ? null : onPlanTonight,
+                    ),
+                  if (held && onRelease != null)
+                    NightshadeButton(
+                      label: 'Release',
+                      icon: LucideIcons.flagOff,
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.small,
+                      isLoading: releasing,
+                      onPressed: releasing ? null : onRelease,
+                    )
+                  else if (onClaim != null)
+                    NightshadeButton(
+                      label: 'Take the baton',
+                      icon: LucideIcons.flag,
+                      size: ButtonSize.small,
+                      isLoading: claiming,
+                      onPressed: claiming ? null : onClaim,
+                    ),
+                ],
+              ),
+            ],
           ],
-        ],
-      ),
-    );
+        ));
   }
 
   bool get _hasActions =>

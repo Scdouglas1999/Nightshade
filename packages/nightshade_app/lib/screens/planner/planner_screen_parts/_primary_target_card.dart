@@ -10,18 +10,12 @@ class _TargetDetailColumn extends ConsumerWidget {
   final TargetSuggestion target;
   final SessionOptimizationPlan plan;
 
-  /// Pins the action pair to the bottom of the column. False when the column
-  /// is stacked above the list on a narrow window, where there is no bottom to
-  /// pin to.
-  final bool bottomPinned;
-
   final VoidCallback onFrameIt;
   final VoidCallback onBuildSequence;
 
   const _TargetDetailColumn({
     required this.target,
     required this.plan,
-    required this.bottomPinned,
     required this.onFrameIt,
     required this.onBuildSequence,
   });
@@ -89,15 +83,9 @@ class _TargetDetailColumn extends ConsumerWidget {
         ],
       ),
       const SizedBox(height: NightshadeTokens.spaceMd),
-      Container(
+      SizedBox(
         height: _altitudeHeight,
-        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-        decoration: NightshadeDecorations.well(colors),
-        child: AltitudeChart(
-          raHours: target.raHours,
-          decDegrees: target.decDegrees,
-          targetName: target.targetName,
-        ),
+        child: _TargetAltitudeWell(target: target, minAltitude: minAltitude),
       ),
       const SizedBox(height: NightshadeTokens.spaceMd),
       KeyValueList(rows: _facts(context, ref, minAltitude)),
@@ -136,18 +124,6 @@ class _TargetDetailColumn extends ConsumerWidget {
         ),
       ],
     );
-
-    if (!bottomPinned) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ...content,
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          actions,
-        ],
-      );
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -223,6 +199,196 @@ class _TargetDetailColumn extends ConsumerWidget {
         return BannerTone.info;
     }
   }
+}
+
+/// The compact altitude curve in the middle of the detail column.
+///
+/// One `well`, one `primary` path, a dashed line at the minimum altitude the
+/// filters ask for, the astronomical-dark span shaded, and a `textPrimary`
+/// "now" tick. `AltitudeChart` (the Framing tab's) is the full instrument —
+/// a header, an airmass toggle, its own Alt/Airmass chips and a
+/// rise/transit/set block, some 350px of it — so it would both overflow this
+/// 110px slot and repeat the four readouts directly above it.
+class _TargetAltitudeWell extends ConsumerWidget {
+  final TargetSuggestion target;
+  final double minAltitude;
+
+  const _TargetAltitudeWell({required this.target, required this.minAltitude});
+
+  /// How many points the curve is sampled at across the night.
+  static const int _samples = 60;
+
+  /// How far either side of the night the curve is sampled, so it enters and
+  /// leaves the frame instead of starting mid-air at the dusk edge.
+  static const Duration _margin = Duration(hours: 1);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final location = ref.watch(appObserverLocationProvider);
+    final night = ref.watch(_plannerNightWindowProvider);
+
+    // No site means no altitude at all. Say so, rather than draw a flat line at
+    // zero that reads as "your target is on the horizon".
+    if (plannerSiteUnset(location) || night == null) {
+      return DecoratedBox(
+        decoration: NightshadeDecorations.well(colors),
+        child: Center(
+          child: Text(
+            context.l10n.text('plannerNoSiteTitle'),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textMuted,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final from = night.start.subtract(_margin);
+    final to = night.end.add(_margin);
+    final span = to.difference(from).inSeconds;
+    final points = <double>[];
+    for (var i = 0; i < _samples; i++) {
+      final t = from.add(
+        Duration(seconds: (span * i / (_samples - 1)).round()),
+      );
+      final (alt, _) = AstronomyCalculations.objectAltAz(
+        raDeg: target.raHours * 15.0,
+        decDeg: target.decDegrees,
+        dt: t,
+        latitudeDeg: location!.latitude,
+        longitudeDeg: location.longitude,
+      );
+      points.add(alt);
+    }
+
+    double fraction(DateTime t) =>
+        (t.difference(from).inSeconds / span).clamp(0.0, 1.0);
+
+    return DecoratedBox(
+      decoration: NightshadeDecorations.well(colors),
+      child: CustomPaint(
+        painter: _AltitudeCurvePainter(
+          altitudes: points,
+          minAltitude: minAltitude,
+          darkFrom: fraction(night.start),
+          darkTo: fraction(night.end),
+          now: fraction(DateTime.now()),
+          curve: colors.primary,
+          hairline: colors.border,
+          marker: colors.textPrimary,
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints [_TargetAltitudeWell]'s curve. Altitude 0–90° maps to the full
+/// height; anything below the horizon is clamped to the floor rather than
+/// drawn underground.
+class _AltitudeCurvePainter extends CustomPainter {
+  final List<double> altitudes;
+  final double minAltitude;
+  final double darkFrom;
+  final double darkTo;
+  final double now;
+  final Color curve;
+  final Color hairline;
+  final Color marker;
+
+  const _AltitudeCurvePainter({
+    required this.altitudes,
+    required this.minAltitude,
+    required this.darkFrom,
+    required this.darkTo,
+    required this.now,
+    required this.curve,
+    required this.hairline,
+    required this.marker,
+  });
+
+  /// The altitude the top of the well represents.
+  static const double _ceiling = 90;
+
+  /// Stroke width of the curve and the now marker.
+  static const double _curveStroke = 1.5;
+
+  /// Dash geometry of the minimum-altitude line.
+  static const double _dashOn = 3;
+  static const double _dashOff = 3;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (altitudes.length < 2 || size.width <= 0 || size.height <= 0) return;
+
+    double y(double altitude) =>
+        size.height * (1 - (altitude.clamp(0.0, _ceiling) / _ceiling));
+
+    // The astronomical-dark span, so the useful part of the curve is obvious.
+    canvas.drawRect(
+      Rect.fromLTRB(darkFrom * size.width, 0, darkTo * size.width, size.height),
+      Paint()
+        ..color = curve.withValues(alpha: NightshadeTokens.opacityPanelOutline),
+    );
+
+    // The minimum altitude the filters ask for, dashed.
+    final horizonY = y(minAltitude);
+    final dash = Paint()
+      ..color = hairline
+      ..strokeWidth = 1;
+    for (var x = 0.0; x < size.width; x += _dashOn + _dashOff) {
+      canvas.drawLine(
+        Offset(x, horizonY),
+        Offset((x + _dashOn).clamp(0.0, size.width), horizonY),
+        dash,
+      );
+    }
+
+    final path = Path();
+    final fill = Path();
+    for (var i = 0; i < altitudes.length; i++) {
+      final x = size.width * i / (altitudes.length - 1);
+      final py = y(altitudes[i]);
+      if (i == 0) {
+        path.moveTo(x, py);
+        fill.moveTo(x, size.height);
+        fill.lineTo(x, py);
+      } else {
+        path.lineTo(x, py);
+        fill.lineTo(x, py);
+      }
+    }
+    fill.lineTo(size.width, size.height);
+    fill.close();
+
+    canvas.drawPath(
+      fill,
+      Paint()
+        ..color = curve.withValues(alpha: NightshadeTokens.opacityAccentTint),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = curve
+        ..strokeWidth = _curveStroke
+        ..style = PaintingStyle.stroke,
+    );
+
+    canvas.drawLine(
+      Offset(now * size.width, 0),
+      Offset(now * size.width, size.height),
+      Paint()
+        ..color = marker
+        ..strokeWidth = _curveStroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_AltitudeCurvePainter old) =>
+      old.altitudes != altitudes ||
+      old.minAltitude != minAltitude ||
+      old.now != now ||
+      old.curve != curve;
 }
 
 /// The field preview at the top of the detail column.

@@ -38,110 +38,108 @@ class _DecisionPanel extends ConsumerWidget {
     final SchedulerStartReadiness readiness =
         readinessOverride ?? ref.watch(schedulerStartReadinessProvider);
     final canStart = candidateAvailable && !readiness.blocked;
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(LucideIcons.brain,
-                  size: NightshadeTokens.iconLg, color: colors.primary),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Expanded(
-                child: Wrap(
-                  spacing: NightshadeTokens.spaceSm,
-                  runSpacing: NightshadeTokens.spaceXs,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      'Unattended Autopilot',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: NightshadeTypography.pageTitle
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                    _StateBadge(state: status.state, colors: colors),
-                  ],
+    return NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(LucideIcons.brain,
+                    size: NightshadeTokens.iconLg, color: colors.primary),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Wrap(
+                    spacing: NightshadeTokens.spaceSm,
+                    runSpacing: NightshadeTokens.spaceXs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        'Unattended Autopilot',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: NightshadeTypography.pageTitle
+                            .copyWith(color: colors.textPrimary),
+                      ),
+                      _StateBadge(state: status.state, colors: colors),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              // This card LIVES on Plan Tonight, so the copy must not send the
+              // reader to Plan Tonight, and it must name a surface this build
+              // has: the Scheduler queue, on this same tab. It also cannot
+              // promise a direction — the queue is below this card when stacked
+              // and beside it at 1600x900 — so the copy names the surface and the
+              // tab and stops there.
+              'Runs hands-off and re-picks the best target all night as the sky '
+              'changes. For a plan you can see and edit before it runs, build '
+              'one in the Scheduler queue on this tab.',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
+            ),
+            if (status.pausedByOperatorStop) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              _OperatorStopBanner(
+                colors: colors,
+                busy: controlsBusy,
+                onResume: onResume,
               ),
             ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            // This card LIVES on Plan Tonight, so the copy must not send the
-            // reader to Plan Tonight, and it must name a surface this build
-            // has: the Scheduler queue, on this same tab. It also cannot
-            // promise a direction — the queue is below this card when stacked
-            // and beside it at 1600x900 — so the copy names the surface and the
-            // tab and stops there.
-            'Runs hands-off and re-picks the best target all night as the sky '
-            'changes. For a plan you can see and edit before it runs, build '
-            'one in the Scheduler queue on this tab.',
-            style: NightshadeTypography.caption
-                .copyWith(color: colors.textSecondary),
-          ),
-          if (status.pausedByOperatorStop) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            _OperatorStopBanner(
-              colors: colors,
+            _CurrentTargetSummary(
+                status: status, decision: decision, colors: colors),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            _Countdown(status: status, colors: colors),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _ControlsRow(
+              status: status,
               busy: controlsBusy,
+              canStart: canStart,
+              onStart: onStart,
+              startWarnings: readiness.warnings,
+              onPause: onPause,
               onResume: onResume,
+              onStop: onStop,
+              onForceReeval: onForceReeval,
+            ),
+            if (status.state == SchedulerState.idle && readiness.blocked) ...[
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                'Cannot start unattended until: ${readiness.blockers.map((item) => item.title).join(', ')}.',
+                style:
+                    NightshadeTypography.caption.copyWith(color: colors.error),
+              ),
+            ] else if (status.state == SchedulerState.idle &&
+                !candidateAvailable) ...[
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                decision == null
+                    ? 'Loading scheduler targets…'
+                    : 'Add at least one target before starting unattended '
+                        'autopilot.',
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.warning),
+              ),
+            ],
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _ReasoningList(decision: decision, colors: colors),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _RejectedCandidatesSection(decision: decision, colors: colors),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _ConfigExpansion(
+              config: config,
+              onWeightsChanged: onWeightsChanged,
+              onMinAltitudeChanged: onMinAltitudeChanged,
+              onHysteresisChanged: onHysteresisChanged,
             ),
           ],
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          _CurrentTargetSummary(
-              status: status, decision: decision, colors: colors),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          _Countdown(status: status, colors: colors),
-          const SizedBox(height: NightshadeTokens.spaceLg),
-          _ControlsRow(
-            status: status,
-            busy: controlsBusy,
-            canStart: canStart,
-            onStart: onStart,
-            startWarnings: readiness.warnings,
-            onPause: onPause,
-            onResume: onResume,
-            onStop: onStop,
-            onForceReeval: onForceReeval,
-          ),
-          if (status.state == SchedulerState.idle && readiness.blocked) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              'Cannot start unattended until: ${readiness.blockers.map((item) => item.title).join(', ')}.',
-              style: NightshadeTypography.caption.copyWith(color: colors.error),
-            ),
-          ] else if (status.state == SchedulerState.idle &&
-              !candidateAvailable) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              decision == null
-                  ? 'Loading scheduler targets…'
-                  : 'Add at least one target before starting unattended '
-                      'autopilot.',
-              style:
-                  NightshadeTypography.caption.copyWith(color: colors.warning),
-            ),
-          ],
-          const SizedBox(height: NightshadeTokens.spaceLg),
-          _ReasoningList(decision: decision, colors: colors),
-          const SizedBox(height: NightshadeTokens.spaceLg),
-          _RejectedCandidatesSection(decision: decision, colors: colors),
-          const SizedBox(height: NightshadeTokens.spaceLg),
-          _ConfigExpansion(
-            config: config,
-            onWeightsChanged: onWeightsChanged,
-            onMinAltitudeChanged: onMinAltitudeChanged,
-            onHysteresisChanged: onHysteresisChanged,
-          ),
-        ],
-      ),
-    );
+        ));
   }
 }
 
@@ -226,10 +224,7 @@ class _StateBadge extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: NightshadeDecorations.statusChip(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         label,
         style: NightshadeTypography.caption
@@ -467,23 +462,22 @@ class _ReasoningList extends StatelessWidget {
         const SizedBox(height: NightshadeTokens.spaceSm),
         SizedBox(
           width: double.infinity,
-          child: NightshadeCard(
-            padding: NightshadeTokens.paddingMd,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final line in lines)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      line,
-                      style: NightshadeTypography.monoCaption
-                          .copyWith(color: colors.textSecondary),
+          child: NightshadePanel(
+              padding: NightshadeTokens.paddingMd,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final line in lines)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        line,
+                        style: NightshadeTypography.monoCaption
+                            .copyWith(color: colors.textSecondary),
+                      ),
                     ),
-                  ),
-              ],
-            ),
-          ),
+                ],
+              )),
         ),
       ],
     );
@@ -592,7 +586,7 @@ class _RejectedRow extends StatelessWidget {
               vertical: 6,
             ),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(
                 color: hardFailed
@@ -690,51 +684,49 @@ class _RejectedDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        padding: NightshadeTokens.paddingMd,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (rejection.hardConstraintFailures.isNotEmpty) ...[
+      child: NightshadePanel(
+          padding: NightshadeTokens.paddingMd,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (rejection.hardConstraintFailures.isNotEmpty) ...[
+                Text(
+                  'Failed hard constraints',
+                  style: NightshadeTypography.eyebrow
+                      .copyWith(color: colors.textPrimary),
+                ),
+                const SizedBox(height: 4),
+                for (final r in rejection.hardConstraintFailures)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      '• $r',
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.error),
+                    ),
+                  ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+              ],
               Text(
-                'Failed hard constraints',
+                'Score breakdown',
                 style: NightshadeTypography.eyebrow
                     .copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 4),
-              for (final r in rejection.hardConstraintFailures)
+              for (final f in rejection.factors)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),
                   child: Text(
-                    '• $r',
-                    style: NightshadeTypography.caption
-                        .copyWith(color: colors.error),
+                    '  ${f.name}: value=${f.value.toStringAsFixed(3)} '
+                    'weight=${f.weight.toStringAsFixed(2)} '
+                    '-> ${f.weighted.toStringAsFixed(3)}'
+                    '${f.detail != null ? "  ${f.detail}" : ""}',
+                    style: NightshadeTypography.monoCaption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
-              const SizedBox(height: NightshadeTokens.spaceSm),
             ],
-            Text(
-              'Score breakdown',
-              style: NightshadeTypography.eyebrow
-                  .copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: 4),
-            for (final f in rejection.factors)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  '  ${f.name}: value=${f.value.toStringAsFixed(3)} '
-                  'weight=${f.weight.toStringAsFixed(2)} '
-                  '-> ${f.weighted.toStringAsFixed(3)}'
-                  '${f.detail != null ? "  ${f.detail}" : ""}',
-                  style: NightshadeTypography.monoCaption
-                      .copyWith(color: colors.textSecondary),
-                ),
-              ),
-          ],
-        ),
-      ),
+          )),
     );
   }
 }

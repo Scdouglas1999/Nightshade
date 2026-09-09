@@ -137,31 +137,29 @@ class _SignedOutBody extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          padding: NightshadeTokens.cardPadding,
-          child: Row(
-            children: [
-              Icon(
-                LucideIcons.shieldCheck,
-                size: NightshadeTokens.iconMd,
-                color: colors.info,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'LAN-only and self-hosted: every shared artifact carries '
-                  'provenance and consent, and scoped roles enforce '
-                  'contribute-vs-admin. There is no Nightshade cloud.',
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.4,
+        NightshadePanel(
+            padding: NightshadeTokens.cardPadding,
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.shieldCheck,
+                  size: NightshadeTokens.iconMd,
+                  color: colors.info,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'LAN-only and self-hosted: every shared artifact carries '
+                    'provenance and consent, and scoped roles enforce '
+                    'contribute-vs-admin. There is no Nightshade cloud.',
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            )),
       ],
     );
   }
@@ -742,25 +740,23 @@ class _EmptySectionHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Row(
-        children: [
-          Icon(icon, size: NightshadeTokens.iconMd, color: colors.info),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Text(
-              message,
-              style: NightshadeTypography.caption.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Row(
+          children: [
+            Icon(icon, size: NightshadeTokens.iconMd, color: colors.info),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Text(
+                message,
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }
 

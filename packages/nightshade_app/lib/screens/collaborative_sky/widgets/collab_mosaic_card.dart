@@ -62,7 +62,8 @@ class CollabMosaicCard extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.primary),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Icon(
                   LucideIcons.grid,
                   size: NightshadeTokens.iconSm,

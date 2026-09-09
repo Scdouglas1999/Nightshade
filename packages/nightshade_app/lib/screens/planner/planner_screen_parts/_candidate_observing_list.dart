@@ -228,7 +228,7 @@ class _CandidateObservingListDialogState
                       )
                     : ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxHeight: clampPanelWidth(
+                          maxHeight: panelWidthFromFraction(
                             MediaQuery.sizeOf(context).height,
                             fraction: 0.35,
                             min: 120,
@@ -351,7 +351,7 @@ class _ObservingListRow extends StatelessWidget {
               vertical: NightshadeTokens.spaceSm,
             ),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(color: colors.border),
             ),

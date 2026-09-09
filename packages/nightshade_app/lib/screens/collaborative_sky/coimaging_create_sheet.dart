@@ -469,7 +469,7 @@ class _LookupResults extends ConsumerWidget {
         return Container(
           constraints: const BoxConstraints(maxHeight: 170),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),

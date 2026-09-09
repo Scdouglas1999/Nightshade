@@ -7,7 +7,6 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     hide FramingView;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../framing/altitude_chart.dart';
 import '../framing/framing_screen.dart';
 import '../planetarium/planetarium_screen.dart';
 import '../planetarium/show_in_sky.dart';

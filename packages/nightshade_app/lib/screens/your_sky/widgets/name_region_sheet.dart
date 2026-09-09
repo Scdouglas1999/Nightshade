@@ -240,16 +240,14 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
     return targetsAsync.when(
       data: (targets) {
         if (targets.isEmpty) {
-          return NightshadeCard(
-            variant: CardVariant.subtle,
-            padding: NightshadeTokens.cardPadding,
-            child: Text(
-              'No targets in your library yet — switch to Custom to enter a '
-              'sky position by hand.',
-              style: NightshadeTypography.caption
-                  .copyWith(color: colors.textMuted),
-            ),
-          );
+          return NightshadePanel(
+              padding: NightshadeTokens.cardPadding,
+              child: Text(
+                'No targets in your library yet — switch to Custom to enter a '
+                'sky position by hand.',
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
+              ));
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

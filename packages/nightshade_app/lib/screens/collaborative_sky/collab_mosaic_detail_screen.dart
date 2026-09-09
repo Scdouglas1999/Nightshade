@@ -175,59 +175,58 @@ class _Body extends ConsumerWidget {
     return ListView(
       padding: NightshadeTokens.screenPadding,
       children: [
-        NightshadeCard(
-          padding: NightshadeTokens.cardPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Combined progress',
-                style: NightshadeTypography.labelStrong.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              NightshadeProgressBar(
-                value:
-                    mosaicCompletionFraction(uploaded: uploaded, total: total),
-                state: mosaic.isComplete
-                    ? NightshadeProgressState.success
-                    : NightshadeProgressState.normal,
-                indeterminate: mosaic.isAssembling,
-                showPercentage: true,
-              ),
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                mosaic.isAssembling
-                    ? 'All panels in — the owner is stitching the mosaic'
-                    : '${formatPanelProgress(uploaded: uploaded, total: total)} '
-                        '· ${formatMosaicStatus(mosaic.status)}',
-                style: NightshadeTypography.captionSm.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              Row(
-                children: [
-                  Icon(
-                    LucideIcons.users,
-                    size: NightshadeTokens.iconXs,
-                    color: colors.textMuted,
+        NightshadePanel(
+            padding: NightshadeTokens.cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Combined progress',
+                  style: NightshadeTypography.labelStrong.copyWith(
+                    color: colors.textPrimary,
                   ),
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  Expanded(
-                    child: Text(
-                      'Contributors: $credits',
-                      style: NightshadeTypography.captionSm.copyWith(
-                        color: colors.textSecondary,
+                ),
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                NightshadeProgressBar(
+                  value: mosaicCompletionFraction(
+                      uploaded: uploaded, total: total),
+                  state: mosaic.isComplete
+                      ? NightshadeProgressState.success
+                      : NightshadeProgressState.normal,
+                  indeterminate: mosaic.isAssembling,
+                  showPercentage: true,
+                ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                Text(
+                  mosaic.isAssembling
+                      ? 'All panels in — the owner is stitching the mosaic'
+                      : '${formatPanelProgress(uploaded: uploaded, total: total)} '
+                          '· ${formatMosaicStatus(mosaic.status)}',
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                Row(
+                  children: [
+                    Icon(
+                      LucideIcons.users,
+                      size: NightshadeTokens.iconXs,
+                      color: colors.textMuted,
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    Expanded(
+                      child: Text(
+                        'Contributors: $credits',
+                        style: NightshadeTypography.captionSm.copyWith(
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+                  ],
+                ),
+              ],
+            )),
         if (!mosaic.isComplete) ...[
           const SizedBox(height: NightshadeTokens.spaceLg),
           _JoinMosaicButton(mosaic: mosaic),
@@ -239,18 +238,16 @@ class _Body extends ConsumerWidget {
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         if (mosaic.panels.isEmpty)
-          NightshadeCard(
-            variant: CardVariant.subtle,
-            padding: NightshadeTokens.cardPadding,
-            child: Text(
-              'This mosaic has ${mosaic.rows * mosaic.cols} panels. Panel '
-              'detail loads once the owner publishes the grid.',
-              style: NightshadeTypography.captionSm.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
-              ),
-            ),
-          )
+          NightshadePanel(
+              padding: NightshadeTokens.cardPadding,
+              child: Text(
+                'This mosaic has ${mosaic.rows * mosaic.cols} panels. Panel '
+                'detail loads once the owner publishes the grid.',
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
+              ))
         else
           for (final panel in mosaic.panels)
             Padding(
@@ -332,39 +329,37 @@ class _JoinMosaicButtonState extends ConsumerState<_JoinMosaicButton> {
       icon = LucideIcons.userPlus;
     }
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: NightshadeTypography.labelStrong.copyWith(
-              color: colors.textPrimary,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: NightshadeTypography.labelStrong.copyWith(
+                color: colors.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            body,
-            style: NightshadeTypography.captionSm.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              body,
+              style: NightshadeTypography.captionSm.copyWith(
+                color: colors.textSecondary,
+                height: 1.4,
+              ),
             ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: NightshadeButton(
-              label: label,
-              icon: icon,
-              isLoading: _joining,
-              onPressed: _joining || !canJoin ? null : _join,
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NightshadeButton(
+                label: label,
+                icon: icon,
+                isLoading: _joining,
+                onPressed: _joining || !canJoin ? null : _join,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 
   Future<void> _join() async {
@@ -428,63 +423,62 @@ class _PanelRow extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     final credit = (panel.assignedDisplayName ?? '').trim();
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceLg,
-        vertical: NightshadeTokens.spaceMd,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: NightshadeDecorations.tintedBadge(colors.primary),
-            child: Text(
-              '${panel.panelIndex + 1}',
-              style: NightshadeTypography.labelStrongSm.copyWith(
-                color: colors.primary,
+    return NightshadePanel(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceLg,
+          vertical: NightshadeTokens.spaceMd,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration:
+                  NightshadeDecorations.chip(colors, tone: colors.primary),
+              child: Text(
+                '${panel.panelIndex + 1}',
+                style: NightshadeTypography.labelStrongSm.copyWith(
+                  color: colors.primary,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  formatCenter(panel.centerRaDeg, panel.centerDecDeg),
-                  style: NightshadeTypography.captionSm.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (credit.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    credit,
+                    formatCenter(panel.centerRaDeg, panel.centerDecDeg),
                     style: NightshadeTypography.captionSm.copyWith(
-                      color: colors.textMuted,
+                      color: colors.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (credit.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      credit,
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          StatusPill(
-            icon: _panelIcon(panel.status),
-            label: '',
-            value: _panelLabel(panel.status),
-            status: _panelVariant(panel.status),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            StatusPill(
+              icon: _panelIcon(panel.status),
+              label: '',
+              value: _panelLabel(panel.status),
+              status: _panelVariant(panel.status),
+            ),
+          ],
+        ));
   }
 
   IconData _panelIcon(String status) {

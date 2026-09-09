@@ -258,7 +258,7 @@ class _RotationStepButton extends StatelessWidget {
           height: 26,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: NightshadeTokens.borderRadiusInline4,
             border: Border.all(color: colors.border),
           ),

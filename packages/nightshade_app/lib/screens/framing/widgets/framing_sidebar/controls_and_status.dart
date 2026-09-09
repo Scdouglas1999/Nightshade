@@ -65,24 +65,22 @@ class FramingControlsSection extends ConsumerWidget {
             colors: colors,
           ),
         ] else ...[
-          NightshadeCard(
-            variant: CardVariant.standard,
-            borderRadius: NightshadeTokens.radiusInline8,
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Icon(NightshadeIcons.frame, size: 16, color: colors.textMuted),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Configure equipment to see FOV overlay',
-                    style: NightshadeTypography.caption
-                        .copyWith(color: colors.textMuted),
+          NightshadePanel(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(NightshadeIcons.frame,
+                      size: 16, color: colors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Configure equipment to see FOV overlay',
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              )),
         ],
 
         const SizedBox(height: 16),
@@ -136,7 +134,7 @@ class FramingControlsSection extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(color: colors.border),
           ),
@@ -146,7 +144,7 @@ class FramingControlsSection extends ConsumerWidget {
             underline: const SizedBox(),
             style: NightshadeTypography.caption
                 .copyWith(color: colors.textPrimary),
-            dropdownColor: colors.surfaceAlt,
+            dropdownColor: colors.surfaceElevated,
             items: SurveySource.values.map((source) {
               return DropdownMenuItem(
                 value: source,
@@ -215,85 +213,82 @@ class FramingCoordinatesPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = framingState.target;
 
-    return NightshadeCard(
-      key: FramingTutorialKeys.coordinates,
-      variant: CardVariant.standard,
-      borderRadius: NightshadeTokens.radiusLg,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Coordinates',
-                style: NightshadeTypography.labelStrongSm
-                    .copyWith(color: colors.textPrimary),
-              ),
-              if (target != null)
-                NightshadeIconButton(
-                  icon: NightshadeIcons.copy,
-                  tooltip: 'Copy coordinates',
-                  size: IconButtonSize.sm,
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(
-                      text: '${target.raFormatted}, ${target.decFormatted}',
-                    ));
-                    context.showInfoSnackBar('Coordinates copied');
-                  },
+    return NightshadePanel(
+        key: FramingTutorialKeys.coordinates,
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Coordinates',
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.textPrimary),
                 ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          FramingCoordRow(
-            label: 'RA',
-            value: target?.raFormatted ?? '--',
-            colors: colors,
-          ),
-          const SizedBox(height: 6),
-          FramingCoordRow(
-            label: 'Dec',
-            value: target?.decFormatted ?? '--',
-            colors: colors,
-          ),
-          const Divider(height: 20),
-          FramingCoordRow(
-            label: 'Alt',
-            value: currentAltAz != null
-                ? '${currentAltAz!.$1.toStringAsFixed(1)}°'
-                : '--',
-            colors: colors,
-            isGood: currentAltAz != null && currentAltAz!.$1 > 30,
-            isBad: currentAltAz != null && currentAltAz!.$1 < 15,
-          ),
-          const SizedBox(height: 6),
-          FramingCoordRow(
-            label: 'Az',
-            value: currentAltAz != null
-                ? '${currentAltAz!.$2.toStringAsFixed(1)}°'
-                : '--',
-            colors: colors,
-          ),
-          if (currentAltAz != null && currentAltAz!.$1 < 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                children: [
-                  Icon(NightshadeIcons.warning,
-                      size: 12, color: colors.warning),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Target below horizon',
-                    style: NightshadeTypography.caption
-                        .copyWith(color: colors.warning),
+                if (target != null)
+                  NightshadeIconButton(
+                    icon: NightshadeIcons.copy,
+                    tooltip: 'Copy coordinates',
+                    size: IconButtonSize.sm,
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(
+                        text: '${target.raFormatted}, ${target.decFormatted}',
+                      ));
+                      context.showInfoSnackBar('Coordinates copied');
+                    },
                   ),
-                ],
-              ),
+              ],
             ),
-        ],
-      ),
-    );
+            const SizedBox(height: 12),
+            FramingCoordRow(
+              label: 'RA',
+              value: target?.raFormatted ?? kReadoutUnknown,
+              colors: colors,
+            ),
+            const SizedBox(height: 6),
+            FramingCoordRow(
+              label: 'Dec',
+              value: target?.decFormatted ?? kReadoutUnknown,
+              colors: colors,
+            ),
+            const Divider(height: 20),
+            FramingCoordRow(
+              label: 'Alt',
+              value: currentAltAz != null
+                  ? '${currentAltAz!.$1.toStringAsFixed(1)}°'
+                  : kReadoutUnknown,
+              colors: colors,
+              isGood: currentAltAz != null && currentAltAz!.$1 > 30,
+              isBad: currentAltAz != null && currentAltAz!.$1 < 15,
+            ),
+            const SizedBox(height: 6),
+            FramingCoordRow(
+              label: 'Az',
+              value: currentAltAz != null
+                  ? '${currentAltAz!.$2.toStringAsFixed(1)}°'
+                  : kReadoutUnknown,
+              colors: colors,
+            ),
+            if (currentAltAz != null && currentAltAz!.$1 < 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Icon(NightshadeIcons.warning,
+                        size: 12, color: colors.warning),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Target below horizon',
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.warning),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ));
   }
 }
 
@@ -314,47 +309,42 @@ class FramingAltitudePanel extends StatelessWidget {
     final target = framingState.target;
 
     if (target == null) {
-      return NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusLg,
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.trendingUp, size: 14, color: colors.textMuted),
-                const SizedBox(width: 8),
-                Text(
-                  'Altitude',
-                  style: NightshadeTypography.labelStrongSm
-                      .copyWith(color: colors.textPrimary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                'Select a target to view altitude chart',
-                style: NightshadeTypography.caption
-                    .copyWith(color: colors.textMuted),
+      return NightshadePanel(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.trendingUp,
+                      size: 14, color: colors.textMuted),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Altitude',
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-      );
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  'Select a target to view altitude chart',
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
+                ),
+              ),
+            ],
+          ));
     }
 
-    return NightshadeCard(
-      variant: CardVariant.standard,
-      borderRadius: NightshadeTokens.radiusLg,
-      padding: const EdgeInsets.all(14),
-      child: AltitudeChart(
-        key: FramingTutorialKeys.altitudeChart,
-        raHours: target.raHours,
-        decDegrees: target.decDegrees,
-        targetName: target.name,
-      ),
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.all(14),
+        child: AltitudeChart(
+          key: FramingTutorialKeys.altitudeChart,
+          raHours: target.raHours,
+          decDegrees: target.decDegrees,
+          targetName: target.name,
+        ));
   }
 }

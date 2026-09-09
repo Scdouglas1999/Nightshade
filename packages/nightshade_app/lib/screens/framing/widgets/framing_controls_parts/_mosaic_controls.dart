@@ -132,7 +132,7 @@ class _FramingOptionButtonState extends State<FramingOptionButton> {
             color: widget.isSelected
                 ? widget.colors.primary.withValues(alpha: 0.15)
                 : _isHovered
-                    ? widget.colors.surfaceAlt
+                    ? widget.colors.well
                     : widget.colors.background,
             borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(

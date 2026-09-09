@@ -143,31 +143,29 @@ class _SignedOutBody extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          padding: NightshadeTokens.cardPadding,
-          child: Row(
-            children: [
-              Icon(
-                LucideIcons.shieldCheck,
-                size: NightshadeTokens.iconMd,
-                color: colors.info,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'LAN-only and self-hosted: there is no Nightshade cloud and '
-                  'no central account. You federate directly with a hub you '
-                  'or your group runs.',
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.4,
+        NightshadePanel(
+            padding: NightshadeTokens.cardPadding,
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.shieldCheck,
+                  size: NightshadeTokens.iconMd,
+                  color: colors.info,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'LAN-only and self-hosted: there is no Nightshade cloud and '
+                    'no central account. You federate directly with a hub you '
+                    'or your group runs.',
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            )),
       ],
     );
   }
@@ -498,11 +496,9 @@ class _SharedTargetsSection extends StatelessWidget {
     return targetsAsync.when(
       data: (targets) {
         if (targets.isEmpty) {
-          return NightshadeCard(
-            variant: CardVariant.subtle,
-            padding: NightshadeTokens.cardPadding,
-            child: _EmptySwarmHint(onShare: onShare),
-          );
+          return NightshadePanel(
+              padding: NightshadeTokens.cardPadding,
+              child: _EmptySwarmHint(onShare: onShare));
         }
         return LayoutBuilder(
           builder: (context, constraints) {

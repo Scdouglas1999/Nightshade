@@ -144,11 +144,10 @@ class _NightCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: WeekForecastStrip._cardWidth,
-      child: NightshadeCard(
-        isSelected: isBest,
-        padding: NightshadeTokens.cardPadding,
-        child: _buildBody(context),
-      ),
+      child: NightshadePanel(
+          selected: isBest,
+          padding: NightshadeTokens.cardPadding,
+          child: _buildBody(context)),
     );
   }
 
@@ -416,7 +415,7 @@ class _ForecastSkeletonStrip extends StatelessWidget {
             width: WeekForecastStrip._cardWidth,
             padding: NightshadeTokens.cardPadding,
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: NightshadeTokens.borderRadiusMd,
               border: Border.all(color: colors.border),
             ),

@@ -111,7 +111,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
 
     final lat = settings.latitude;
     final lon = settings.longitude;
-    // No observing site: the chips already say '--' and there is nothing to
+    // No observing site: the chips already say an em dash and there is nothing to
     // refresh them to.
     if (!settings.hasObserverLocation) return;
 
@@ -364,7 +364,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
 
   Widget _buildCurrentValues(NightshadeColors colors) {
     final altitude = _currentAltitude;
-    // Unknown altitude: show the same '--' the Coordinates card uses, with no
+    // Unknown altitude: show the same em dash the Coordinates card uses, with no
     // severity colouring. A red "0.0°" here read as "your target is on the
     // horizon", which the app cannot know without an observing site.
     // Wrap, not Row: these chips size to their own content, so in a narrow
@@ -377,8 +377,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         spacing: 8,
         runSpacing: 8,
         children: [
-          _buildValueChip(colors, 'Alt', '--', colors.textMuted),
-          _buildValueChip(colors, 'Airmass', '--', colors.textMuted),
+          _buildValueChip(colors, 'Alt', kReadoutUnknown, colors.textMuted),
+          _buildValueChip(colors, 'Airmass', kReadoutUnknown, colors.textMuted),
         ],
       );
     }
@@ -416,7 +416,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(
@@ -442,7 +442,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       height: 120,
       child: Container(
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: NightshadeTokens.borderRadiusInline8,
         ),
         child: Center(
@@ -784,7 +784,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(

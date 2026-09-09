@@ -365,7 +365,7 @@ class _CatalogTargetTile extends StatelessWidget {
             vertical: NightshadeTokens.spaceMd,
           ),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: NightshadeTokens.borderRadiusSm,
             border: Border.all(color: colors.border),
           ),
