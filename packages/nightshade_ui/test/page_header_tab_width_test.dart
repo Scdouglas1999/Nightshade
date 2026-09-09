@@ -158,5 +158,50 @@ class _NoTabs {
       expect(chip.right, greaterThan(1600 - 24 - 2));
       expect(tester.takeException(), isNull);
     });
+
+    // A 360 px phone header carrying a long title and four icon actions: the
+    // title must give way (ellipsize) before a single action leaves the row.
+    // A fixed half-width title cap once pushed the actions 62 px past the
+    // right edge on Imaging, Guiding, Weather and Plan.
+    testWidgets('on a phone the title yields to the actions', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(360, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: Scaffold(
+            body: PageHeader(
+              icon: Icons.camera_alt,
+              title: 'Imaging with a deliberately long title',
+              actions: [
+                for (var i = 0; i < 4; i++)
+                  NightshadeIconButton(
+                    key: Key("a$i"),
+                    icon: Icons.settings,
+                    tooltip: 'Action $i',
+                    onPressed: () {},
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final last = tester.getRect(find.byKey(const Key('a3')));
+      expect(last.right, lessThanOrEqualTo(360 - 24 + 1));
+      expect(last.right, greaterThan(360 - 24 - 2));
+      final title = tester.getRect(
+        find.text('Imaging with a deliberately long title'),
+      );
+      expect(
+        title.right,
+        lessThan(tester.getRect(find.byKey(const Key('a0'))).left),
+      );
+    });
   }
 }

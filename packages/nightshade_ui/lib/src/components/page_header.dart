@@ -101,12 +101,28 @@ class PageHeader extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
           children: [
-            _titleBlock(colors, maxWidth: _titleCap(constraints.maxWidth)),
             if (tabs != null && !narrow) ...[
+              _titleBlock(colors, maxWidth: _titleCap(constraints.maxWidth)),
               const SizedBox(width: _titleToTabsGap),
               Expanded(child: tabs!),
             ] else
-              const Spacer(),
+              // No strip: the title owns whatever the actions leave, sits at
+              // the left edge of that space, and shrinks (ellipsizes) before a
+              // single action is pushed off a 360 px phone header.
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    right: NightshadeTokens.spaceMd,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _titleBlock(
+                      colors,
+                      maxWidth: _titleCap(constraints.maxWidth),
+                    ),
+                  ),
+                ),
+              ),
             for (var i = 0; i < actions.length; i++) ...[
               if (i > 0) const SizedBox(width: NightshadeTokens.spaceSm),
               actions[i],
