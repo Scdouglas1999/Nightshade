@@ -58,21 +58,15 @@ class OpticalConfigPanel extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 14,
-                      tooltip: 'Hide optical config panel',
-                      icon: Icon(NightshadeIcons.close,
-                          size: 14, color: colors.textMuted),
-                      onPressed: () {
-                        ref
-                            .read(framingProvider.notifier)
-                            .setOpticalConfigPanelVisible(false);
-                      },
-                    ),
+                  NightshadeIconButton(
+                    icon: NightshadeIcons.close,
+                    tooltip: 'Hide optical config panel',
+                    size: IconButtonSize.sm,
+                    onPressed: () {
+                      ref
+                          .read(framingProvider.notifier)
+                          .setOpticalConfigPanelVisible(false);
+                    },
                   ),
                 ],
               ),

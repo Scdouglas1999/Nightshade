@@ -103,54 +103,26 @@ class _CollabMosaicDetailScreenState
         bottom: false,
         child: Column(
           children: [
-            // ScreenHeader has no leading slot, so the back affordance is its
-            // own row above it (same shape as the mosaic project screen).
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  left: NightshadeTokens.spaceSm,
-                  top: NightshadeTokens.spaceXs,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        NightshadeIcons.chevronLeft,
-                        size: NightshadeTokens.iconMd,
-                      ),
-                      color: colors.textSecondary,
-                      tooltip: 'Back',
-                      onPressed: _back,
-                    ),
-                    Text(
-                      'Collaborate',
-                      style: NightshadeTypography.bodySm
-                          .copyWith(color: colors.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            ScreenHeader(
-              title: mosaicName.isEmpty ? 'Mosaic' : mosaicName,
-              subtitle: 'Collaborative mosaic — panels split across the club',
+            // One header. The route is PUSHED, so the back affordance has to
+            // live on it; PageHeader has no leading slot, so it is the first
+            // action, next to refresh.
+            PageHeader(
               icon: LucideIcons.grid,
-              trailing: IconButton(
-                icon: const Icon(
-                  NightshadeIcons.refresh,
-                  size: NightshadeTokens.iconMd,
+              title: mosaicName.isEmpty ? 'Mosaic' : mosaicName,
+              context: 'Collaborative mosaic',
+              actions: [
+                NightshadeIconButton(
+                  icon: NightshadeIcons.chevronLeft,
+                  tooltip: 'Back to Collaborate',
+                  onPressed: _back,
                 ),
-                tooltip: 'Refresh',
-                color: colors.textSecondary,
-                constraints: const BoxConstraints(
-                  minWidth: NightshadeTokens.minTouchTarget,
-                  minHeight: NightshadeTokens.minTouchTarget,
+                NightshadeIconButton(
+                  icon: NightshadeIcons.refresh,
+                  tooltip: 'Refresh',
+                  onPressed: () => ref
+                      .invalidate(collaborativeMosaicDetailProvider(mosaicId)),
                 ),
-                onPressed: () =>
-                    ref.invalidate(collaborativeMosaicDetailProvider(mosaicId)),
-              ),
+              ],
             ),
             Expanded(
               child: detailAsync.when(

@@ -144,25 +144,12 @@ class TargetScoreRow extends StatelessWidget {
               ),
               if (onDelete != null) ...[
                 const SizedBox(width: NightshadeTokens.spaceSm),
-                Tooltip(
-                  message: 'Remove from scheduler',
-                  child: IconButton(
-                    key: ValueKey('scheduler-delete-row-${score.targetId}'),
-                    icon: Icon(
-                      LucideIcons.x,
-                      size: NightshadeTokens.iconSm,
-                      color: colors.textSecondary,
-                      semanticLabel:
-                          'Remove ${score.targetName} from scheduler',
-                    ),
-                    splashRadius: 16,
-                    constraints: const BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: onDelete,
-                  ),
+                NightshadeIconButton(
+                  key: ValueKey('scheduler-delete-row-${score.targetId}'),
+                  icon: LucideIcons.x,
+                  tooltip: 'Remove ${score.targetName} from scheduler',
+                  size: IconButtonSize.sm,
+                  onPressed: onDelete,
                 ),
               ],
             ],

@@ -235,18 +235,16 @@ class FramingCoordinatesPanel extends StatelessWidget {
                     .copyWith(color: colors.textPrimary),
               ),
               if (target != null)
-                IconButton(
-                  icon: Icon(NightshadeIcons.copy,
-                      size: 12, color: colors.textMuted),
+                NightshadeIconButton(
+                  icon: NightshadeIcons.copy,
                   tooltip: 'Copy coordinates',
+                  size: IconButtonSize.sm,
                   onPressed: () {
                     Clipboard.setData(ClipboardData(
                       text: '${target.raFormatted}, ${target.decFormatted}',
                     ));
                     context.showInfoSnackBar('Coordinates copied');
                   },
-                  constraints: const BoxConstraints(),
-                  padding: EdgeInsets.zero,
                 ),
             ],
           ),

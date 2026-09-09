@@ -524,11 +524,12 @@ class _GoalRowState extends State<_GoalRow> {
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
-            IconButton(
+            NightshadeIconButton(
+              icon: LucideIcons.trash2,
               tooltip: 'Delete goal',
+              size: IconButtonSize.sm,
+              color: colors.error,
               onPressed: widget.busy ? null : () => widget.onDelete(),
-              icon: Icon(LucideIcons.trash2,
-                  size: NightshadeTokens.iconSm, color: colors.error),
             ),
           ],
         ),

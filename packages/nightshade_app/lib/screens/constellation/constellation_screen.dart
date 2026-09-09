@@ -44,31 +44,10 @@ class ConstellationView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final configuredAsync = ref.watch(constellationConfiguredProvider);
 
     return Column(
       children: [
-        ScreenHeader(
-          title: 'Constellation',
-          subtitle:
-              'Join the swarm — pool your photons with other imagers into one '
-              'deeper sky, and follow the night where it is darkest.',
-          icon: LucideIcons.users,
-          trailing: IconButton(
-            icon: const Icon(
-              NightshadeIcons.refresh,
-              size: NightshadeTokens.iconMd,
-            ),
-            tooltip: 'Refresh swarm',
-            color: colors.textSecondary,
-            constraints: const BoxConstraints(
-              minWidth: NightshadeTokens.minTouchTarget,
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
-            onPressed: () => _refresh(ref),
-          ),
-        ),
         Expanded(
           child: configuredAsync.when(
             data: (configured) => configured
@@ -82,7 +61,14 @@ class ConstellationView extends ConsumerWidget {
     );
   }
 
-  void _refresh(WidgetRef ref) {
+  void _refresh(WidgetRef ref) => ConstellationView.refreshConstellation(ref);
+
+  /// Re-reads everything the swarm view shows.
+  ///
+  /// Public because the view no longer carries a header of its own: the Plan
+  /// screen's "Your sky" tab owns the one refresh button for all three
+  /// discovery surfaces (06 §Plan removes the second header row).
+  static void refreshConstellation(WidgetRef ref) {
     ref.invalidate(constellationConfiguredProvider);
     ref.invalidate(constellationHubInfoProvider);
     ref.invalidate(sharedTargetsProvider);

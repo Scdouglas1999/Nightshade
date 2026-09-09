@@ -80,9 +80,10 @@ class FramingTargetSearch extends ConsumerWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(NightshadeIcons.close,
-                              size: 14, color: colors.textMuted),
+                      ? NightshadeIconButton(
+                          icon: NightshadeIcons.close,
+                          tooltip: 'Clear search',
+                          size: IconButtonSize.sm,
                           onPressed: () {
                             searchController.clear();
                             ref.read(targetSearchProvider.notifier).clear();

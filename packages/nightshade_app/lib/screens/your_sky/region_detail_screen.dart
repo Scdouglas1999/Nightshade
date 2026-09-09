@@ -100,16 +100,16 @@ class RegionDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: colors.surface,
         elevation: 0,
-        leading: IconButton(
-          icon:
-              const Icon(LucideIcons.arrowLeft, size: NightshadeTokens.iconMd),
-          color: colors.textPrimary,
+        leading: NightshadeIconButton(
+          icon: LucideIcons.arrowLeft,
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(
           regionAsync.valueOrNull?.name ?? 'Region',
-          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.pageTitle.copyWith(
+            color: colors.textPrimary,
+          ),
         ),
       ),
       body: SafeArea(

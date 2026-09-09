@@ -81,12 +81,9 @@ class _TargetEditorOverlay extends ConsumerWidget {
                                     ),
                                   ),
                                   const Spacer(),
-                                  IconButton(
-                                    icon: Icon(
-                                      LucideIcons.x,
-                                      size: NightshadeTokens.iconMd,
-                                      color: colors.textSecondary,
-                                    ),
+                                  NightshadeIconButton(
+                                    icon: LucideIcons.x,
+                                    tooltip: 'Close',
                                     onPressed: onClose,
                                   ),
                                 ],

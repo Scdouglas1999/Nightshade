@@ -35,31 +35,10 @@ class CollaborativeSkyView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final configuredAsync = ref.watch(constellationConfiguredProvider);
 
     return Column(
       children: [
-        ScreenHeader(
-          title: 'Collaborative Sky',
-          subtitle:
-              'Image the sky together — pool integration on one target across '
-              'rigs, split a mosaic across your club, and share calibration.',
-          icon: LucideIcons.users,
-          trailing: IconButton(
-            icon: const Icon(
-              NightshadeIcons.refresh,
-              size: NightshadeTokens.iconMd,
-            ),
-            tooltip: 'Refresh',
-            color: colors.textSecondary,
-            constraints: const BoxConstraints(
-              minWidth: NightshadeTokens.minTouchTarget,
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
-            onPressed: () => _refresh(ref),
-          ),
-        ),
         Expanded(
           child: configuredAsync.when(
             data: (configured) => configured
@@ -73,7 +52,14 @@ class CollaborativeSkyView extends ConsumerWidget {
     );
   }
 
-  void _refresh(WidgetRef ref) {
+  void _refresh(WidgetRef ref) => refreshCollaborativeSky(ref);
+
+  /// Re-reads everything the collaborative view shows.
+  ///
+  /// Public because the view no longer carries a header of its own: the Plan
+  /// screen's "Your sky" tab owns the one refresh button for all three
+  /// discovery surfaces (06 §Plan removes the second header row).
+  static void refreshCollaborativeSky(WidgetRef ref) {
     ref.invalidate(constellationConfiguredProvider);
     ref.invalidate(constellationHubInfoProvider);
     ref.invalidate(coImagingSessionsProvider);

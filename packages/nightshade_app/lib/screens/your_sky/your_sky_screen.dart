@@ -41,9 +41,18 @@ class YourSkyScreen extends StatelessWidget {
 class YourSkyView extends ConsumerWidget {
   const YourSkyView({super.key});
 
+  /// Re-reads the atlas.
+  ///
+  /// Public because the view no longer carries a header of its own: the Plan
+  /// screen's "Your sky" tab owns the one refresh button for all three
+  /// discovery surfaces (06 §Plan removes the second header row).
+  static void refreshYourSky(WidgetRef ref) {
+    ref.invalidate(skyAtlasRegionsProvider);
+    ref.invalidate(skyAtlasCoverageProvider);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final regionsAsync = ref.watch(skyAtlasRegionsProvider);
     final coverageAsync = ref.watch(skyAtlasCoverageProvider);
     final backend = ref.watch(backendProvider);
@@ -51,26 +60,6 @@ class YourSkyView extends ConsumerWidget {
 
     return Column(
       children: [
-        ScreenHeader(
-          title: 'Your Sky',
-          subtitle:
-              'Every photon you capture becomes a brick in your growing all-sky atlas.',
-          icon: LucideIcons.orbit,
-          trailing: IconButton(
-            icon: const Icon(NightshadeIcons.refresh,
-                size: NightshadeTokens.iconMd),
-            tooltip: 'Refresh atlas',
-            color: colors.textSecondary,
-            constraints: const BoxConstraints(
-              minWidth: NightshadeTokens.minTouchTarget,
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
-            onPressed: () {
-              ref.invalidate(skyAtlasRegionsProvider);
-              ref.invalidate(skyAtlasCoverageProvider);
-            },
-          ),
-        ),
         Expanded(
           child: regionsAsync.when(
             data: (regions) => _buildBody(
