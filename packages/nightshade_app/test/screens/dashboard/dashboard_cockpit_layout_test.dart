@@ -110,7 +110,7 @@ void main() {
         (d) => d.id == DashboardWidgetId.cockpitNarrator,
         orElse: () => fail('cockpitNarrator must have a registry definition.'),
       );
-      expect(def.title, 'Night Narrator');
+      expect(def.title, 'Night narrator');
       expect(
           def.subtitle, "Live interpretation of your session's science data");
       expect(def.icon, LucideIcons.sparkles);
