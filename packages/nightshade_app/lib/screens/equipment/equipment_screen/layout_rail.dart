@@ -81,12 +81,14 @@ class _DashboardHeader extends StatelessWidget {
         children: [
           Expanded(child: profileTitle),
           const SizedBox(width: 8),
-          // Recovery Mode — sequencer status LED. Always visible so
-          // an operator scanning the Equipment screen knows at a glance
-          // whether a sequence is running, paused, or recovering. Pulses
-          // red in recovering state.
-          const SequencerStatusLed(showLabel: true),
-          const SizedBox(width: 12),
+          // The run state is the instrument bar's, and only the instrument
+          // bar's (04-shell §5 and §8: exactly one element on any screen is
+          // named "Idle", "Ready" or "Running"). This header said "Idle" 40 px
+          // above a bar already saying it, and two statements of one fact are
+          // two things that can disagree.
+          //
+          // The LED itself is unchanged and still lives in the instrument bar;
+          // what is gone is this screen's second copy of its label.
           // Connection status summary
           _ConnectionStatusSummary(),
           const SizedBox(width: 12),

@@ -13,8 +13,8 @@ abstract final class ShellChromeMetrics {
   /// Width at which desktop shell switches side nav ↔ bottom nav.
   static const double shellLayoutBreakpoint = NightshadeTokens.breakpointTablet;
 
-  /// Custom window title bar height (desktop shell).
-  static const double titleBarHeight = 40.0;
+  /// The top bar: brand, command field, global actions, window controls.
+  static const double titleBarHeight = 44.0;
 
   /// Windows-style caption button width.
   static const double windowControlWidth = 46.0;
@@ -22,11 +22,47 @@ abstract final class ShellChromeMetrics {
   /// Caption button height; matches [titleBarHeight].
   static const double windowControlHeight = titleBarHeight;
 
-  /// Desktop status bar height (non-compact shell).
-  static const double statusBarHeight = 36.0;
+  /// The instrument bar — the app's ONE persistent status surface.
+  static const double statusBarHeight = 32.0;
 
-  /// Compact status bar height (bottom-nav / narrow shell).
-  static const double statusBarHeightCompact = 40.0;
+  /// The page header row every routed screen starts with.
+  static const double pageHeaderHeight = 56.0;
+
+  /// The page header below [shellLayoutBreakpoint], where the tabs move to
+  /// their own scrollable second row.
+  static const double pageHeaderHeightNarrow = 48.0;
+
+  /// The 28px status strip that stands in for the instrument bar inside the
+  /// Tonight and Imaging page headers below [shellLayoutBreakpoint].
+  static const double narrowStatusStripHeight = 28.0;
+
+  /// A right-hand side panel column.
+  static const double sidePanelWidth = 320.0;
+
+  /// The vertical icon strip that selects a side panel's sections.
+  static const double sidePanelStripWidth = 44.0;
+
+  /// One rail destination: a 40x40 square when collapsed, 40 high when
+  /// expanded.
+  static const double railItemSize = 40.0;
+
+  /// How long the pointer rests on a collapsed rail item before its label
+  /// appears (04 §3.1).
+  ///
+  /// A hover DELAY, not a transition, which is why it is not on the motion
+  /// scale (120 / 160 / 220): those say how long a change takes, this says how
+  /// long to wait before deciding the pointer meant to stop there.
+  static const Duration railTooltipDelay = Duration(milliseconds: 200);
+
+  /// Rail width, icons only. The default.
+  ///
+  // TODO(observatory): promote to NightshadeTokens.sidebarCollapsed (72 -> 64)
+  // at merge. Wave 0 owns `theme/nightshade_tokens.dart` while it runs, so the
+  // new value lives here rather than racing that file.
+  static const double railWidthCollapsed = 64.0;
+
+  /// Rail width with labels.
+  static const double railWidthExpanded = NightshadeTokens.sidebarExpanded;
 
   /// Base max width for device-name text in status pills before ellipsis.
   static const double statusPillValueMaxWidth = 120.0;
@@ -34,15 +70,16 @@ abstract final class ShellChromeMetrics {
   /// Preferred width for the remote-access share dialog content.
   static const double shareDialogPreferredWidth = 420.0;
 
-  /// Status divider height inside the status bar.
-  static const double statusBarDividerHeight = 20.0;
+  /// Instrument separator height inside the instrument bar.
+  static const double statusBarDividerHeight = 14.0;
 
-  /// Chrome below the main content [Stack]: status bar plus bottom nav when
-  /// active. Excludes system safe-area padding.
+  /// Chrome below the main content [Stack].
+  ///
+  /// Below [shellLayoutBreakpoint] that is the bottom nav ALONE: the narrow
+  /// shell has no instrument bar at all (04 §5), so adding a status-bar height
+  /// there reserved 40px of empty window for a surface that is not mounted.
   static double contentStackBottomChromeHeight({required bool useBottomNav}) {
-    final statusBar = useBottomNav ? statusBarHeightCompact : statusBarHeight;
-    final bottomNav = useBottomNav ? BottomNavMetrics.barHeight : 0.0;
-    return statusBar + bottomNav;
+    return useBottomNav ? BottomNavMetrics.barHeight : statusBarHeight;
   }
 
   /// Minimum bottom offset for floating overlays in the content stack
@@ -68,7 +105,12 @@ abstract final class ShellChromeMetrics {
 abstract final class BottomNavMetrics {
   BottomNavMetrics._();
 
-  static const double barHeight = 78.0;
+  static const double barHeight = 64.0;
+
+  /// The selected-state pill behind a slot's icon: 48 x 28, fully rounded.
+  static const double itemPillWidth = 48.0;
+  static const double itemPillHeight = 28.0;
+
   static const double itemGap = 8.0;
   static const double listHorizontalPadding = 10.0;
   static const double listVerticalPadding = 8.0;
@@ -102,10 +144,11 @@ abstract final class BottomNavMetrics {
     vertical: 8,
   );
 
-  static const double itemBorderRadius = 8.0;
-  static const double itemIconSize = 18.0;
-  static const double itemIconLabelGap = 6.0;
-  static const double itemLabelFontSize = 10.0;
+  /// The pill is fully rounded, so its radius is half its height.
+  static const double itemBorderRadius = itemPillHeight / 2;
+  static const double itemIconSize = 21.0;
+  static const double itemIconLabelGap = 4.0;
+  static const double itemLabelFontSize = 11.0;
 
   /// Computes per-item width from viewport and screen size.
   static double itemWidth(Size screenSize, double viewportWidth) {

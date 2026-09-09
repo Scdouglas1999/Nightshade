@@ -5,7 +5,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/flat_wizard_keys.dart';
 import 'flat_failure_diagnosis.dart';
 import 'widgets/flat_wizard_split_view.dart';
@@ -63,37 +62,29 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
 
-    return ContextualTourPrompt(
-      screenId: 'flat_wizard',
-      tourCategory: TutorialCategory.flatWizardTour,
-      title: 'Flat Wizard Tour',
-      description: 'Learn how to capture calibration frames for your images.',
-      durationMinutes: 2,
-      alignment: Alignment.bottomRight,
-      child: Column(
-        children: [
-          // Title + mode tabs share ONE row: the title folds inline to the
-          // left of the tab strip — icon-only on a phone — and the live
-          // "Capturing" badge rides at the right end of the same row.
-          _buildTabBar(colors, state),
+    return Column(
+      children: [
+        // Title + mode tabs share ONE row: the title folds inline to the
+        // left of the tab strip — icon-only on a phone — and the live
+        // "Capturing" badge rides at the right end of the same row.
+        _buildTabBar(colors, state),
 
-          // Split view content
-          Expanded(
-            child: FlatWizardSplitView(
-              controlsPanel: TabBarView(
-                controller: _tabController,
-                children: const [
-                  _QuickCaptureControls(),
-                  _BatchCaptureControls(),
-                  _SkyFlatsControls(),
-                ],
-              ),
-              previewPanel:
-                  FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
+        // Split view content
+        Expanded(
+          child: FlatWizardSplitView(
+            controlsPanel: TabBarView(
+              controller: _tabController,
+              children: const [
+                _QuickCaptureControls(),
+                _BatchCaptureControls(),
+                _SkyFlatsControls(),
+              ],
             ),
+            previewPanel:
+                FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

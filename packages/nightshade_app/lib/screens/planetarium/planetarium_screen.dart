@@ -41,7 +41,6 @@ import 'widgets/redesign/command_bar.dart';
 import 'widgets/redesign/layers_panel.dart';
 import 'show_in_sky.dart';
 import '../imaging/centering_dialog.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 
 part 'planetarium_screen/actions.dart';
 part 'planetarium_screen/layouts.dart';
@@ -264,37 +263,25 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
     // the observation clock is what the Dashboard's "Local" time, astro-dark
     // countdown and moon phase are evaluated against.
     return SimulatedTimeScope(
-      child: ContextualTourPrompt(
-        screenId: 'planetarium',
-        tourCategory: TutorialCategory.planetariumTour,
-        title: 'Planetarium Tour',
-        description: 'Learn how to navigate the sky and find targets.',
-        durationMinutes: 3,
-        alignment: Alignment.bottomRight,
-        // The sky is a full-bleed canvas: float the nudge over its empty
-        // bottom-right corner instead of insetting the map by the card's
-        // height.
-        reserveSpaceForCard: false,
-        child: _NightVisionFilter(
-          enabled: nightVision,
-          child: SkyHotkeyScope(
-            onHotkey: _handleKeyEvent,
-            child: GestureDetector(
-              onTapDown: (details) {
-                if (_showPopup) {
-                  final popupRect = resolveObjectInfoPopupLayout(
-                    context,
-                    _popupPosition,
-                  ).rect;
-                  if (!popupRect.contains(details.globalPosition)) {
-                    _dismissPopup();
-                  }
+      child: _NightVisionFilter(
+        enabled: nightVision,
+        child: SkyHotkeyScope(
+          onHotkey: _handleKeyEvent,
+          child: GestureDetector(
+            onTapDown: (details) {
+              if (_showPopup) {
+                final popupRect = resolveObjectInfoPopupLayout(
+                  context,
+                  _popupPosition,
+                ).rect;
+                if (!popupRect.contains(details.globalPosition)) {
+                  _dismissPopup();
                 }
-              },
-              // Redesigned "top command bar + dockable panels" shell — ONE
-              // adaptive layout for desktop and phone.
-              child: _buildShell(context, colors, selectedObject),
-            ),
+              }
+            },
+            // Redesigned "top command bar + dockable panels" shell — ONE
+            // adaptive layout for desktop and phone.
+            child: _buildShell(context, colors, selectedObject),
           ),
         ),
       ),

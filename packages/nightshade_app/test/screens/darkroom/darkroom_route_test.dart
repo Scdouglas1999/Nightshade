@@ -23,16 +23,18 @@ void main() {
     );
   });
 
-  test('the rail lights nothing while the Darkroom is up', () {
-    // −1 is the correct answer for every route no rail destination hosts. The
-    // Darkroom is always about one master, so a rail slot would lead to a
-    // screen with nothing to open; defaulting to 0 would light Dashboard and
-    // make the rail claim the operator is somewhere they are not.
-    expect(ShellNavigation.primaryIndexForLocation('/darkroom'), -1);
+  test('the rail lights the Darkroom while the Darkroom is up', () {
+    // The Darkroom became a rail destination in the Observatory shell (04
+    // §3.2), under Review. It was route-only before, when a rail slot would
+    // have led to a screen with nothing to open.
+    final darkroom = ShellNavigation.primaryRoutes.indexOf('/darkroom');
+    expect(darkroom, isNonNegative);
+    expect(ShellNavigation.primaryIndexForLocation('/darkroom'), darkroom);
     expect(
       ShellNavigation.primaryIndexForLocation('/darkroom?recipe=12'),
-      -1,
+      darkroom,
     );
+    // On phone it reaches the operator through the More sheet, not a slot.
     expect(ShellNavigation.isBottomNavRoute('/darkroom'), isFalse);
   });
 

@@ -3,7 +3,8 @@ import 'dart:developer' as developer;
 import 'dart:io' show Directory, File, Platform;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemNavigator;
+import 'package:flutter/services.dart'
+    show LogicalKeyboardKey, SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -14,6 +15,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/startup_surface_coordinator.dart';
 import '../../widgets/catalog_setup_dialog.dart';
+import '../../widgets/command_palette/command_palette.dart';
 import '../../widgets/onboarding_tour_replay_launcher.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
@@ -482,183 +484,196 @@ class _AppShellState extends ConsumerState<AppShell> {
         // live side-navigation TutorialKeys.
         final Widget shell = OnboardingTourReplayLauncher(
           child: TutorialOverlay(
-            child: Scaffold(
-              backgroundColor: colors.background,
-              body: Column(
-                children: [
-                  // Desktop title bar (window drag + global actions). Hidden on
-                  // mobile — bottom nav covers primary routes; saves vertical space.
-                  if (!useBottomNav) const TitleBar(),
+            // Ctrl/Cmd+K anywhere in the shell. BOTH activators are bound
+            // rather than one chosen from the platform: a Mac with an external
+            // PC keyboard sends Control, and an operator who has learned one of
+            // the two should not have the app decide which one their keyboard
+            // is allowed to send.
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+                    () => showCommandPalette(context),
+                const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () =>
+                    showCommandPalette(context),
+              },
+              child: Scaffold(
+                backgroundColor: colors.background,
+                body: Column(
+                  children: [
+                    // Desktop title bar (window drag + global actions). Hidden on
+                    // mobile — bottom nav covers primary routes; saves vertical space.
+                    if (!useBottomNav) const TitleBar(),
 
-                  // Mobile gear strip. Settings left the bottom bar in the
-                  // six-tab consolidation, so this thin app-bar action keeps it
-                  // one tap away on phones.
-                  if (useBottomNav && !keyboardVisible)
-                    SafeArea(
-                      bottom: false,
-                      child: _MobileSettingsBar(
-                        onOpenSettings: () => context.go('/settings'),
+                    // Mobile gear strip. Settings left the bottom bar in the
+                    // six-tab consolidation, so this thin app-bar action keeps it
+                    // one tap away on phones.
+                    if (useBottomNav && !keyboardVisible)
+                      SafeArea(
+                        bottom: false,
+                        child: _MobileSettingsBar(
+                          onOpenSettings: () => context.go('/settings'),
+                        ),
                       ),
-                    ),
 
-                  // Desktop keeps the full recovery banner; mobile uses the
-                  // compact status-bar connection indicator.
-                  if (!useBottomNav) const DisconnectedBackendBanner(),
+                    // Desktop keeps the full recovery banner; mobile uses the
+                    // compact status-bar connection indicator.
+                    if (!useBottomNav) const DisconnectedBackendBanner(),
 
-                  // iOS background-monitoring advisory. Renders
-                  // above the weather banner so it's the first thing the
-                  // operator sees while a sequence is running on iOS.
-                  const IosBackgroundBanner(),
+                    // iOS background-monitoring advisory. Renders
+                    // above the weather banner so it's the first thing the
+                    // operator sees while a sequence is running on iOS.
+                    const IosBackgroundBanner(),
 
-                  // Android POST_NOTIFICATIONS advisory. Visible
-                  // whenever the runtime permission is denied on Android 13+
-                  // so the operator knows sequence/safety alerts will not
-                  // wake them and points to System Settings.
-                  const AndroidNotificationsBanner(),
+                    // Android POST_NOTIFICATIONS advisory. Visible
+                    // whenever the runtime permission is denied on Android 13+
+                    // so the operator knows sequence/safety alerts will not
+                    // wake them and points to System Settings.
+                    const AndroidNotificationsBanner(),
 
-                  // Stale-connection advisory. Visible during
-                  // the WS reconnect grace window so the operator knows
-                  // controls may be momentarily out of date.
-                  const ConnectionStaleBanner(),
+                    // Stale-connection advisory. Visible during
+                    // the WS reconnect grace window so the operator knows
+                    // controls may be momentarily out of date.
+                    const ConnectionStaleBanner(),
 
-                  // Weather Alert Banner
-                  const WeatherAlertBanner(),
+                    // Weather Alert Banner
+                    const WeatherAlertBanner(),
 
-                  // Main content
-                  Expanded(
-                    child: Row(
-                      children: [
-                        // Side navigation (Desktop only)
-                        if (!useBottomNav)
-                          SideNavigation(
-                            key: TutorialKeys.sideNavigation,
-                            tutorialKeys: [
-                              TutorialKeys.navDashboard,
-                              TutorialKeys.navEquipment,
-                              TutorialKeys.navImaging,
-                              TutorialKeys.navSequencer,
-                              TutorialKeys.navGuiding,
-                              null,
-                              TutorialKeys.navPlanner,
-                              TutorialKeys.navAnalytics,
-                            ],
-                            currentIndex: currentIndex,
-                            onTabSelected: (index) =>
-                                _onTabSelected(index, context),
-                            isExpanded: isSideNavExpanded,
-                            onToggleExpanded: () {
-                              final currentSettings =
-                                  ref.read(appSettingsProvider).valueOrNull;
-                              if (currentSettings != null) {
-                                ref
-                                    .read(appSettingsProvider.notifier)
-                                    .setSidebarCollapsed(
-                                        !currentSettings.sidebarCollapsed);
-                              } else {
-                                setState(() {
-                                  _fallbackSideNavExpanded =
-                                      !_fallbackSideNavExpanded;
-                                });
-                              }
-                            },
-                          ),
+                    // Main content
+                    Expanded(
+                      child: Row(
+                        children: [
+                          // Side navigation (Desktop only)
+                          if (!useBottomNav)
+                            SideNavigation(
+                              key: TutorialKeys.sideNavigation,
+                              // Positional, so it tracks the rail order in
+                              // ShellNavigation.primaryDestinations (04 §3.2):
+                              // Tonight, Imaging, Sequencer, Guiding | Plan,
+                              // Equipment, Weather | Darkroom, Analytics.
+                              tutorialKeys: [
+                                TutorialKeys.navDashboard,
+                                TutorialKeys.navImaging,
+                                TutorialKeys.navSequencer,
+                                TutorialKeys.navGuiding,
+                                TutorialKeys.navPlanner,
+                                TutorialKeys.navEquipment,
+                                null,
+                                null,
+                                TutorialKeys.navAnalytics,
+                              ],
+                              currentIndex: currentIndex,
+                              onTabSelected: (index) =>
+                                  _onTabSelected(index, context),
+                              isExpanded: isSideNavExpanded,
+                              onToggleExpanded: () {
+                                final currentSettings =
+                                    ref.read(appSettingsProvider).valueOrNull;
+                                if (currentSettings != null) {
+                                  ref
+                                      .read(appSettingsProvider.notifier)
+                                      .setSidebarCollapsed(
+                                          !currentSettings.sidebarCollapsed);
+                                } else {
+                                  setState(() {
+                                    _fallbackSideNavExpanded =
+                                        !_fallbackSideNavExpanded;
+                                  });
+                                }
+                              },
+                            ),
 
-                        // Main content area
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
+                          // The page body. `background`-toned like the rail
+                          // and the top bar; the rail draws the hairline
+                          // between them on its own trailing edge, so the
+                          // body no longer paints a second one on its leading
+                          // edge over the top of it (04 §1: one hairline
+                          // right of the rail, not two abutting).
+                          Expanded(
+                            child: ColoredBox(
                               color: colors.background,
-                              border: Border(
-                                left: useBottomNav
-                                    ? BorderSide.none
-                                    : BorderSide(
-                                        color: colors.border,
-                                        width: 1,
-                                      ),
+                              child: Stack(
+                                children: [
+                                  // Both chromes own the top inset above this
+                                  // content: desktop via the TitleBar, mobile via
+                                  // the gear strip, so the content never re-insets
+                                  // the notch/status-bar edge itself.
+                                  SafeArea(
+                                    top: false,
+                                    bottom: false,
+                                    child: _ContentSemanticsBoundary(
+                                      child: widget.child,
+                                    ),
+                                  ),
+                                  // Mobile sequence overlay (only on mobile and
+                                  // sequencer screen). Gated on the shared route
+                                  // constant instead of a literal string so the
+                                  // router and this check stay in sync. The
+                                  // app-wide running-sequence mini-player (run
+                                  // controls reachable off the sequencer route)
+                                  // lives in the bottom chrome below as
+                                  // [RunningSequenceMiniBar].
+                                  if (useBottomNav &&
+                                      currentLocation.split('?').first ==
+                                          kSequencerRoutePath)
+                                    const MobileSequenceOverlay(),
+                                  // Autofocus progress overlay
+                                  const AutofocusProgressOverlay(),
+                                  // Toast notifications - always on top
+                                  const NotificationToastOverlay(),
+                                ],
                               ),
                             ),
-                            child: Stack(
-                              children: [
-                                // Both chromes own the top inset above this
-                                // content: desktop via the TitleBar, mobile via
-                                // the gear strip, so the content never re-insets
-                                // the notch/status-bar edge itself.
-                                SafeArea(
-                                  top: false,
-                                  bottom: false,
-                                  child: _ContentSemanticsBoundary(
-                                    child: widget.child,
-                                  ),
-                                ),
-                                // Mobile sequence overlay (only on mobile and
-                                // sequencer screen). Gated on the shared route
-                                // constant instead of a literal string so the
-                                // router and this check stay in sync. The
-                                // app-wide running-sequence mini-player (run
-                                // controls reachable off the sequencer route)
-                                // lives in the bottom chrome below as
-                                // [RunningSequenceMiniBar].
-                                if (useBottomNav &&
-                                    currentLocation.split('?').first ==
-                                        kSequencerRoutePath)
-                                  const MobileSequenceOverlay(),
-                                // Autofocus progress overlay
-                                const AutofocusProgressOverlay(),
-                                // Toast notifications - always on top
-                                const NotificationToastOverlay(),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // App-wide running-sequence mini-player. Persistent across
-                  // every route so pause/stop/skip stay reachable after the
-                  // operator navigates away from the sequencer mid-run; it
-                  // self-hides on the sequencer route (full controls live there)
-                  // and whenever no sequence is active. Sits just above the
-                  // bottom chrome so it reads as part of the persistent
-                  // run-control surface.
-                  if (!keyboardVisible)
-                    RunningSequenceMiniBar(currentLocation: currentLocation),
-
-                  // Bottom chrome. On phone the status bar + bottom nav live in
-                  // one auto-hiding block (immersive) so they reclaim the short
-                  // cover-screen height when idle; on desktop the status bar is
-                  // pinned and navigation is the side rail (no bottom nav).
-                  if (useBottomNav && !keyboardVisible)
-                    ImmersiveBottomChrome(
-                      visible: chromeVisible,
-                      onToggle: immersive.toggle,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const StatusBar(compact: true),
-                          NightshadeBottomNavigation(
-                            currentRoute: currentLocation,
-                            onRouteSelected: (route) {
-                              try {
-                                context.go(route);
-                              } catch (e, stack) {
-                                developer.log(
-                                  '[AppShell] Bottom nav could not navigate '
-                                  'to $route: $e',
-                                  name: 'AppShell',
-                                  level: 900,
-                                  error: e,
-                                  stackTrace: stack,
-                                );
-                              }
-                            },
                           ),
                         ],
                       ),
-                    )
-                  else if (!useBottomNav)
-                    const StatusBar(compact: false),
-                ],
+                    ),
+
+                    // App-wide running-sequence mini-player. Persistent across
+                    // every route so pause/stop/skip stay reachable after the
+                    // operator navigates away from the sequencer mid-run; it
+                    // self-hides on the sequencer route (full controls live there)
+                    // and whenever no sequence is active. Sits just above the
+                    // bottom chrome so it reads as part of the persistent
+                    // run-control surface.
+                    if (!keyboardVisible)
+                      RunningSequenceMiniBar(currentLocation: currentLocation),
+
+                    // Bottom chrome. On phone the bottom nav auto-hides when
+                    // idle so it reclaims the short cover-screen height; on
+                    // desktop the instrument bar is pinned and navigation is
+                    // the rail.
+                    //
+                    // The narrow shell carries NO instrument bar (04 §5). The
+                    // compact one used to sit above the nav, which spent 40px
+                    // of a 640px-tall phone restating what the device pills on
+                    // Tonight already said, and pushed the bar the operator
+                    // navigates with further from their thumb.
+                    if (useBottomNav && !keyboardVisible)
+                      ImmersiveBottomChrome(
+                        visible: chromeVisible,
+                        onToggle: immersive.toggle,
+                        child: NightshadeBottomNavigation(
+                          currentRoute: currentLocation,
+                          onRouteSelected: (route) {
+                            try {
+                              context.go(route);
+                            } catch (e, stack) {
+                              developer.log(
+                                '[AppShell] Bottom nav could not navigate '
+                                'to $route: $e',
+                                name: 'AppShell',
+                                level: 900,
+                                error: e,
+                                stackTrace: stack,
+                              );
+                            }
+                          },
+                        ),
+                      )
+                    else if (!useBottomNav)
+                      const StatusBar(),
+                  ],
+                ),
               ),
             ),
           ),

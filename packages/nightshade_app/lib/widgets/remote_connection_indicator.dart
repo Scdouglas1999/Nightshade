@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'share_session_dialog.dart';
+
 import 'work_locally.dart';
 
 /// Four-state model for the shared remote-connection indicator.
@@ -528,6 +530,22 @@ class _RemoteConnectionSheetState
                   icon: LucideIcons.logOut,
                   label: _disconnecting ? 'Disconnecting...' : 'Disconnect',
                   variant: ButtonVariant.destructive,
+                ),
+              ),
+            ),
+          // Sharing the session is an action ON this connection, so it lives
+          // on the control that owns the connection. It used to be a separate
+          // glyph in the status bar, which is now status and only status.
+          if (ref.watch(webServerStateProvider).isRunning)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: NightshadeButton(
+                  onPressed: () => showShareSessionDialog(context),
+                  icon: NightshadeIcons.share,
+                  label: 'Share this session',
+                  variant: ButtonVariant.outline,
                 ),
               ),
             ),

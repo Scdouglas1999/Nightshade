@@ -85,3 +85,6 @@ export 'src/components/candidate_row.dart';
 export 'src/components/checklist.dart';
 export 'src/components/night_band.dart';
 export 'src/layout/side_panel.dart';
+// Observatory wave 1
+export 'src/components/instrument_pill.dart';
+export 'src/components/page_header.dart';

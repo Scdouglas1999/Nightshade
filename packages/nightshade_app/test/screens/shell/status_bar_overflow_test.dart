@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
 
@@ -120,40 +121,42 @@ void main() {
   // with no scrollbar and no fade is close to undiscoverable, and its viewport
   // edge sliced the pill label mid-word — live at 800x600 the bar read
   // "Mount Dis", which looks like a rendering fault rather than "there is more
-  // over here". Below the desktop breakpoint each pill therefore shows one word
-  // instead of two.
+  // over here".
   //
-  // WHICH word matters: dropping the label leaves the Camera, Mount and Guider
-  // pills all reading the identical value "Disconnected" at 900x800,
-  // distinguished only by a 12 px monochrome glyph. The state is already carried
-  // by the dot and the muted icon, so the device name — the part that differs
-  // per pill — keeps the slot until the device connects and its value starts
-  // carrying information.
-  testWidgets('a narrow bar names the devices instead of repeating the state',
+  // The instrument pill answers that structurally: it renders ONE string, the
+  // value, and the glyph carries the noun. What matters is that the string is
+  // the one that DIFFERS per pill. Rendering the state instead left the Camera,
+  // Mount and Guider pills all reading the identical word "Disconnected",
+  // distinguished only by a small monochrome glyph — three pills' worth of
+  // width spent saying nothing. So an empty slot names the thing that is
+  // missing, at every width.
+  testWidgets('every device pill names its own device, at any width',
       (tester) async {
-    await _pumpBar(tester, const Size(800, 600));
+    for (final size in const [Size(800, 600), Size(2600, 900)]) {
+      await _pumpBar(tester, size);
 
-    for (final label in ['Camera', 'Mount', 'Guider', 'Focus']) {
+      for (final value in ['No camera', 'No mount', 'No guider', 'No focuser']) {
+        expect(
+          find.descendant(
+            of: find.byType(StatusBar),
+            matching: find.text(value),
+          ),
+          findsOneWidget,
+          reason: '"$value" has to stay identifiable at ${size.width.toInt()}px',
+        );
+      }
       expect(
         find.descendant(
           of: find.byType(StatusBar),
-          matching: find.text(label),
+          matching: find.text('Disconnected'),
         ),
-        findsOneWidget,
-        reason: 'the $label pill has to stay identifiable',
+        findsNothing,
+        reason: 'the same word on three pills is width spent saying nothing',
       );
-    }
-    expect(
-      find.descendant(
-        of: find.byType(StatusBar),
-        matching: find.text('Disconnected'),
-      ),
-      findsNothing,
-      reason: 'the same word on three pills is width spent saying nothing',
-    );
-    expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNull);
 
-    await _disposeBar(tester);
+      await _disposeBar(tester);
+    }
   });
 
   // Shedding the labels is not always enough (a long profile name can still
@@ -193,32 +196,6 @@ void main() {
     await _disposeBar(tester);
   });
 
-  testWidgets('a wide bar keeps both the label and the state', (tester) async {
-    await _pumpBar(tester, const Size(2600, 900));
-
-    for (final label in ['Camera', 'Mount', 'Guider', 'Focus']) {
-      expect(
-        find.descendant(
-          of: find.byType(StatusBar),
-          matching: find.text(label),
-        ),
-        findsWidgets,
-        reason: 'a wide bar has room for "$label" and must not be degraded',
-      );
-    }
-    expect(
-      find.descendant(
-        of: find.byType(StatusBar),
-        matching: find.text('Disconnected'),
-      ),
-      findsNWidgets(3),
-      reason: 'with room for both words the state is still spelled out',
-    );
-    expect(tester.takeException(), isNull);
-
-    await _disposeBar(tester);
-  });
-
   testWidgets('a wide window keeps the trailing group right-aligned',
       (tester) async {
     // Deliberately far wider than any real window: widget tests render with a
@@ -237,7 +214,14 @@ void main() {
     // right edge instead of drifting left.
     final barRect = tester.getRect(find.byType(StatusBar));
     final scrollerRect = tester.getRect(_pillScroller().first);
-    expect(scrollerRect.left, closeTo(barRect.left, 0.5));
+    // Inside the bar's own horizontal padding, not flush to the window edge:
+    // what is being pinned is that the group starts at the LEADING edge and
+    // grows rightwards, so the readouts keep the trailing edge.
+    expect(
+      scrollerRect.left - barRect.left,
+      lessThanOrEqualTo(NightshadeTokens.spaceMd),
+      reason: 'the pill group must start at the leading edge of the bar',
+    );
 
     var rightMost = barRect.left;
     final texts = _lastReadout();

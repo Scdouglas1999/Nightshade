@@ -8,7 +8,6 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../localization/nightshade_localizations.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_catalog.dart';
 import 'settings_search_index.g.dart';
@@ -287,34 +286,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               (constraints.hasBoundedWidth &&
                   constraints.maxWidth < _splitPaneMinWidth);
           return singlePane
-              ? settingsTourPrompt(
-                  context,
-                  child: _buildMobileLayout(colors, groups),
-                )
+              ? _buildMobileLayout(colors, groups)
               : _buildDesktopLayout(colors, groups);
         },
       ),
-    );
-  }
-
-  /// The "Settings Tour" nudge, anchored over the pane it can safely cover.
-  ///
-  /// The reserved band is held INSIDE the pane the card sits over — the detail
-  /// pane on desktop, the single pane on a phone — so the section navigator
-  /// keeps its full height. A floating card over the whole screen covers
-  /// controls beneath it, and reserving the band across the whole screen pushes
-  /// the sidebar's last group off-screen.
-  Widget settingsTourPrompt(BuildContext context, {required Widget child}) {
-    final l10n = context.l10n;
-    return ContextualTourPrompt(
-      screenId: 'settings',
-      tourCategory: TutorialCategory.settingsTour,
-      title: l10n.text('settingsTourTitle'),
-      description: l10n.text('settingsTourDescription'),
-      durationMinutes: 3,
-      alignment: Alignment.bottomRight,
-      reserveSpaceForCard: true,
-      child: child,
     );
   }
 
@@ -469,14 +444,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         Expanded(
-          child: Builder(
-            builder: (context) => settingsTourPrompt(
-              context,
-              child: SettingsRowHighlight(
-                rowTitle: _highlightRow,
-                child: _selectedSection(groups).build(false),
-              ),
-            ),
+          child: SettingsRowHighlight(
+            rowTitle: _highlightRow,
+            child: _selectedSection(groups).build(false),
           ),
         ),
       ],

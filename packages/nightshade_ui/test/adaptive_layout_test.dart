@@ -93,26 +93,37 @@ void main() {
     });
 
     test('bottom nav height is tokenized', () {
-      expect(BottomNavMetrics.barHeight, 78.0);
+      expect(BottomNavMetrics.barHeight, 64.0);
     });
 
     test('bottom nav item metrics are tokenized', () {
-      expect(BottomNavMetrics.itemIconSize, 18.0);
-      expect(BottomNavMetrics.itemLabelFontSize, 10.0);
+      expect(BottomNavMetrics.itemIconSize, 21.0);
+      expect(BottomNavMetrics.itemLabelFontSize, 11.0);
       expect(
         BottomNavMetrics.itemSelectionAnimationDuration,
         const Duration(milliseconds: 180),
       );
     });
 
-    test('content stack bottom chrome sums status bar and nav', () {
+    test('shell chrome heights match the Observatory grid', () {
+      expect(ShellChromeMetrics.titleBarHeight, 44.0);
+      expect(ShellChromeMetrics.statusBarHeight, 32.0);
+      expect(ShellChromeMetrics.pageHeaderHeight, 56.0);
+      expect(ShellChromeMetrics.railWidthCollapsed, 64.0);
+      expect(ShellChromeMetrics.railItemSize, 40.0);
+    });
+
+    // Below the breakpoint the instrument bar is not mounted at all, so the
+    // bottom chrome is the nav alone. Adding a status-bar height there
+    // reserved 40px of window for a surface that is not there.
+    test('content stack bottom chrome is the nav alone when narrow', () {
       expect(
         ShellChromeMetrics.contentStackBottomChromeHeight(useBottomNav: false),
         ShellChromeMetrics.statusBarHeight,
       );
       expect(
         ShellChromeMetrics.contentStackBottomChromeHeight(useBottomNav: true),
-        ShellChromeMetrics.statusBarHeightCompact + BottomNavMetrics.barHeight,
+        BottomNavMetrics.barHeight,
       );
     });
   });

@@ -1,15 +1,19 @@
 import 'dart:developer' as developer;
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
+import '../../../widgets/command_palette/command_palette.dart';
 import '../../../widgets/remote_connection_indicator.dart';
 import '../../../widgets/transient_alert_badge.dart';
 import '../../../widgets/tutorial_overlay.dart' show TutorialKeys;
-import '../../settings/settings_screen.dart' show SettingsSectionRequest;
 import '../shell_chrome.dart';
+import 'shell_help_popover.dart';
 
 // Conditional import for window_manager (desktop only)
 import 'title_bar_stub.dart' if (dart.library.io) 'title_bar_desktop.dart'
@@ -38,182 +42,397 @@ class WindowDragArea extends StatelessWidget {
   }
 }
 
+/// The top bar (04-shell §2): brand, the global command field, four global
+/// actions, and the window controls.
+///
+/// `background`-toned rather than `surface`: it and the rail are the window's
+/// own edge, and the instrument bar is the one piece of chrome that lifts off
+/// the canvas.
 class TitleBar extends ConsumerWidget {
   const TitleBar({super.key});
+
+  /// Width held clear on each side for the brand and the action cluster, so
+  /// the centred field cannot land on top of either.
+  ///
+  /// The action cluster is the wider of the two: four 32 px buttons, three
+  /// 46 px window controls and the gaps between them.
+  static const double _sideReserve = 300.0;
+
+  /// Below this the field is not worth showing; the search button in the
+  /// action cluster takes over and opens the same palette.
+  static const double _minFieldWidth = 220.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     return WindowDragArea(
       child: Container(
         height: ShellChromeMetrics.titleBarHeight,
-        color: colors.surface,
-        child: Row(
-          children: [
-            const SizedBox(width: NightshadeTokens.spaceLg),
-
-            // Logo and app name
-            Row(
+        decoration: BoxDecoration(
+          color: colors.background,
+          border: Border(bottom: BorderSide(color: colors.border, width: 1)),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final fieldWidth = (constraints.maxWidth - _sideReserve * 2).clamp(
+              0.0,
+              _CommandField.maxWidth,
+            );
+            final showsField = fieldWidth >= _minFieldWidth;
+            return Stack(
               children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: colors.primary,
-                    borderRadius: NightshadeTokens.borderRadiusMd,
-                  ),
-                  child: Icon(
-                    NightshadeIcons.sparkle,
-                    size: 14,
-                    color: onPrimary,
-                  ),
+                Row(
+                  children: [
+                    const SizedBox(width: NightshadeTokens.spaceLg),
+                    const _Brand(),
+                    const Spacer(),
+                    _Actions(showSearchButton: !showsField),
+                  ],
                 ),
-                const SizedBox(width: NightshadeTokens.spaceSm + 2),
-                Text(
-                  'NIGHTSHADE',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.5,
+                // Centred on the WINDOW, not on the space between the brand
+                // and the actions: the mockup's grid is 1fr / field / 1fr and
+                // the field reads as the window's own, not as the brand's
+                // trailing control.
+                if (showsField)
+                  Center(
+                    child: SizedBox(
+                      width: fieldWidth,
+                      child: const _CommandField(),
+                    ),
                   ),
-                ),
               ],
-            ),
-
-            const Spacer(),
-
-            // Persistent remote connection indicator.
-            // Tap opens the details sheet with the "Reconnect now" button
-            // so the operator can force an immediate retry without
-            // waiting for the exponential-backoff timer.
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: RemoteConnectionIndicator(compact: true),
-            ),
-
-            // Transient Alert Badge - shows count of new alerts
-            Builder(
-              builder: (context) => TransientAlertBadge(
-                showDropdown: true,
-                onTap: () {
-                  try {
-                    context.go('/transients');
-                  } catch (e) {
-                    developer.log(
-                        '[TitleBar] Could not navigate to transients: $e',
-                        name: 'TitleBar',
-                        level: 900,
-                        error: e);
-                  }
-                },
-              ),
-            ),
-
-            const SizedBox(width: NightshadeTokens.spaceSm),
-
-            // Profile button - navigates to Settings > Equipment Profiles
-            Builder(
-              builder: (context) => _TitleBarButton(
-                icon: NightshadeIcons.user,
-                tooltip: context.l10n.text('settingsEquipmentProfiles'),
-                onPressed: () {
-                  try {
-                    // Deep-link to the Equipment Profiles section so this
-                    // shortcut opens where it says, not the generic root.
-                    // Raised as an event as well as a route, because a second
-                    // click while Settings is open carries an identical route
-                    // and would otherwise move nothing.
-                    SettingsSectionRequest.raise('equipment-profiles');
-                    context.go('/settings?section=equipment-profiles');
-                  } catch (e) {
-                    // Fallback for when router is not available
-                    developer.log(
-                        '[TitleBar] Could not navigate to settings: $e',
-                        name: 'TitleBar',
-                        level: 900,
-                        error: e);
-                  }
-                },
-              ),
-            ),
-
-            // Settings button — keyed for the onboarding overlay so the
-            // first-launch tour can spotlight where Plate Solving lives.
-            Builder(
-              builder: (context) => _TitleBarButton(
-                key: TutorialKeys.navSettings,
-                icon: NightshadeIcons.settings,
-                tooltip: context.l10n.text('settingsTitle'),
-                onPressed: () {
-                  try {
-                    context.go('/settings');
-                  } catch (e, stack) {
-                    developer.log(
-                        '[TitleBar] Could not navigate to settings: $e',
-                        name: 'TitleBar',
-                        level: 900,
-                        error: e,
-                        stackTrace: stack);
-                  }
-                },
-              ),
-            ),
-
-            const SizedBox(width: NightshadeTokens.spaceSm),
-
-            // Window controls (desktop only)
-            if (ShellChrome.isDesktopWindow) WindowControls(colors: colors),
-          ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-class _TitleBarButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
+class _Brand extends StatelessWidget {
+  const _Brand();
 
-  const _TitleBarButton({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
+  /// The rounded square that carries the mark.
+  static const double _markSize = 22.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final isEnabled = onPressed != null;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: _markSize,
+          height: _markSize,
+          decoration: BoxDecoration(
+            color: colors.primary,
+            borderRadius: NightshadeTokens.borderRadiusSm,
+          ),
+          child: Icon(
+            LucideIcons.sparkles,
+            size: NightshadeTokens.iconXs,
+            color: onPrimary,
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm + 2),
+        Text(
+          'NIGHTSHADE',
+          style: _wordmark.copyWith(color: colors.textPrimary),
+        ),
+      ],
+    );
+  }
+
+  /// The wordmark: 12px / 700 / +1.6 tracking. Wider tracking and a heavier
+  /// weight than any label style in the ramp, because it is a logotype rather
+  /// than text.
+  // TODO(observatory): promote to NightshadeTypography.wordmark at merge.
+  static const TextStyle _wordmark = TextStyle(
+    fontFamily: NightshadeTypography.fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 1.6,
+    height: 1.3,
+  );
+}
+
+/// The global command field. Click it, or press Ctrl/Cmd+K, to open the
+/// palette (04 §7).
+class _CommandField extends StatefulWidget {
+  const _CommandField();
+
+  static const double maxWidth = 520.0;
+  static const double height = 30.0;
+
+  @override
+  State<_CommandField> createState() => _CommandFieldState();
+}
+
+class _CommandFieldState extends State<_CommandField> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final l10n = context.l10n;
+    final placeholder = l10n.text('commandPalettePlaceholder');
+
+    // Not a TextField: the field is a BUTTON that opens the palette, and the
+    // palette owns the real input. Two live text fields for one search would
+    // mean deciding which one the keystrokes belong to on every frame.
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: placeholder,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: () => showCommandPalette(context),
+          child: Container(
+            height: _CommandField.height,
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm + 2,
+            ),
+            // The field decoration, but filled `surface` rather than `well`:
+            // this one sits on the `background` bar, where a well-toned fill
+            // reads as a hole rather than as an inset.
+            decoration: NightshadeDecorations.field(colors).copyWith(
+              color: _isHovered ? colors.surfaceHover : colors.surface,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.search,
+                  size: _searchIconSize,
+                  color: colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Text(
+                    placeholder,
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textMuted,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                _KbdChip(label: commandPaletteShortcutLabel),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 15, between iconXs (14) and iconSm (16): the field is 30 tall and 16
+  /// crowds it.
+  // TODO(observatory): promote to NightshadeTokens.iconField at merge.
+  static const double _searchIconSize = 15.0;
+}
+
+/// The "Ctrl K" hint inside the command field.
+class _KbdChip extends StatelessWidget {
+  final String label;
+
+  const _KbdChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        borderRadius: NightshadeTokens.borderRadiusXs,
+        border: Border.all(color: colors.border),
+      ),
+      child: Text(
+        label,
+        style: NightshadeTypography.monoCaption.copyWith(
+          color: colors.textMuted,
+        ),
+      ),
+    );
+  }
+}
+
+/// The four global actions, then the window controls.
+class _Actions extends StatelessWidget {
+  /// Shown in place of the command field when the window is too narrow to
+  /// hold one; it opens the same palette.
+  final bool showSearchButton;
+
+  const _Actions({required this.showSearchButton});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final l10n = context.l10n;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showSearchButton)
+          ShellIconButton(
+            icon: LucideIcons.search,
+            tooltip: l10n.text('commandPalettePlaceholder'),
+            onPressed: () => showCommandPalette(context),
+          ),
+
+        // Remote connection. Tap opens the details sheet, which carries the
+        // "Reconnect now" button and the share action the instrument bar used
+        // to hold.
+        const RemoteConnectionIndicator(compact: true),
+
+        // Transient alerts.
+        Builder(
+          builder: (context) => TransientAlertBadge(
+            showDropdown: true,
+            onTap: () {
+              try {
+                context.go('/transients');
+              } catch (e) {
+                developer.log(
+                  '[TitleBar] Could not navigate to transients: $e',
+                  name: 'TitleBar',
+                  level: 900,
+                  error: e,
+                );
+              }
+            },
+          ),
+        ),
+
+        // Help for this screen: the tour, the shortcuts, the manual. Replaces
+        // the per-screen tour nudges that used to appear unbidden in the
+        // bottom-right corner of ten screens.
+        const ShellHelpButton(),
+
+        // Settings — keyed for the onboarding overlay so the first-launch
+        // tour can spotlight where Plate Solving lives.
+        Builder(
+          builder: (context) => ShellIconButton(
+            key: TutorialKeys.navSettings,
+            icon: LucideIcons.settings,
+            tooltip: l10n.text('settingsTitle'),
+            onPressed: () {
+              try {
+                context.go('/settings');
+              } catch (e, stack) {
+                developer.log(
+                  '[TitleBar] Could not navigate to settings: $e',
+                  name: 'TitleBar',
+                  level: 900,
+                  error: e,
+                  stackTrace: stack,
+                );
+              }
+            },
+          ),
+        ),
+
+        if (ShellChrome.isDesktopWindow) ...[
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          WindowControls(colors: colors),
+        ] else
+          const SizedBox(width: NightshadeTokens.spaceMd),
+      ],
+    );
+  }
+}
+
+/// The shell's 32 x 32 ghost icon button.
+///
+/// Square, no fill at rest, `surfaceHover` and `textPrimary` on hover, and a
+/// tooltip that is REQUIRED — an unlabelled glyph in the top bar is a control
+/// that assistive tech cannot name and a new operator cannot guess.
+// TODO(observatory): replace with NightshadeIconButton at merge (05 §6). Wave
+// 2 builds it; this is the same spec, kept private so the two waves do not
+// race the same file.
+class ShellIconButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  /// Draws the selected state: a `primary` tint and a `primary` glyph.
+  final bool selected;
+
+  const ShellIconButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.selected = false,
+  });
+
+  @override
+  State<ShellIconButton> createState() => _ShellIconButtonState();
+}
+
+class _ShellIconButtonState extends State<ShellIconButton> {
+  bool _isHovered = false;
+
+  /// 17, the top bar's glyph size (03 §6 puts toolbar icons at 15-16 and the
+  /// rail at 18; the top bar sits between them).
+  // TODO(observatory): promote to NightshadeTokens.iconTopBar at merge.
+  static const double _iconSize = 17.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final isEnabled = widget.onPressed != null;
+
+    final Color background;
+    final Color foreground;
+    if (widget.selected) {
+      background = colors.primary.withValues(
+        alpha: NightshadeTokens.opacityAccentTint,
+      );
+      foreground = colors.primary;
+    } else if (_isHovered && isEnabled) {
+      background = colors.surfaceHover;
+      foreground = colors.textPrimary;
+    } else {
+      background = Colors.transparent;
+      foreground = isEnabled ? colors.textSecondary : colors.textMuted;
+    }
 
     // Named and typed for assistive tech. An InkWell contributes a tap ACTION
     // but no role and no name, and a Tooltip contributes a tooltip rather than
     // a label — so the whole icon group, the Settings gear included, was absent
     // from the accessibility tree, which made Settings unreachable without
-    // sight of the four unlabelled glyphs.
+    // sight of the unlabelled glyphs.
     //
     // `enabled` is the other half of that. A button node with no enabled state
     // resolves none, and the AT-SPI bridge publishes ENABLED only for a node
-    // that resolves one — so Orca read the app's own Settings and profile
-    // shortcuts as unavailable while a click on either of them navigated.
+    // that resolves one — so Orca read the app's own Settings shortcut as
+    // unavailable while a click on it navigated.
     final button = Semantics(
       button: true,
-      label: tooltip,
+      label: widget.tooltip,
       enabled: isEnabled,
       focusable: isEnabled,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: NightshadeTokens.borderRadiusInline4,
-        child: Padding(
-          padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-          child: Icon(
-            icon,
-            size: NightshadeTokens.iconSm,
-            color: isEnabled ? colors.textSecondary : colors.textMuted,
+      selected: widget.selected,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: Container(
+            width: NightshadeTokens.iconButtonSize,
+            height: NightshadeTokens.iconButtonSize,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: NightshadeTokens.borderRadiusSm,
+            ),
+            child: Icon(widget.icon, size: _iconSize, color: foreground),
           ),
         ),
       ),
@@ -221,14 +440,23 @@ class _TitleBarButton extends StatelessWidget {
 
     // Only show tooltip if Overlay is available
     if (Overlay.maybeOf(context) != null) {
-      return Tooltip(
-        message: tooltip,
-        child: button,
-      );
+      return Tooltip(message: widget.tooltip, child: button);
     }
     return button;
   }
 }
+
+/// The label on the command field's keyboard hint.
+///
+/// macOS reads the Meta key as Cmd; every other desktop reads Control. The
+/// binding itself accepts both (see `app_shell.dart`), so the hint names the
+/// one the operator's keyboard actually has.
+String get commandPaletteShortcutLabel =>
+    !kIsWebLike && Platform.isMacOS ? 'Cmd K' : 'Ctrl K';
+
+/// `Platform` throws on web; the desktop shell never runs there, but the
+/// mobile app shares this file.
+const bool kIsWebLike = bool.fromEnvironment('dart.library.js_util');
 
 /// Minimize / maximize / close caption buttons for the frameless desktop
 /// window. Public so every desktop shell layout can render them — see
@@ -300,7 +528,7 @@ class _WindowButtonState extends State<_WindowButton> {
       // Minimize, maximize and close are the window's own controls and they
       // published no enabled state, so assistive tech announced all three as
       // unavailable — on the one bar an operator reaches for when the window is
-      // in their way. See [_TitleBarButton] for why the field is what decides.
+      // in their way. See [ShellIconButton] for why the field is what decides.
       child: Semantics(
         button: true,
         label: widget.label,
@@ -314,12 +542,10 @@ class _WindowButtonState extends State<_WindowButton> {
             color: _isHovered ? widget.hoverColor : Colors.transparent,
             child: Icon(
               widget.icon,
-              size: 14,
+              size: NightshadeTokens.iconXs,
               color: !isEnabled
                   ? colors.textMuted
-                  : (_isHovered && widget.isClose
-                      ? onError
-                      : colors.textSecondary),
+                  : (_isHovered && widget.isClose ? onError : colors.textMuted),
             ),
           ),
         ),

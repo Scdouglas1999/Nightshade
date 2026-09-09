@@ -14,6 +14,10 @@ import '../components/nav_item.dart';
 import '../components/status_pill.dart';
 import '../components/status_dot.dart';
 import '../components/sub_tab_button.dart';
+// Observatory wave 1
+import '../components/instrument_pill.dart';
+import '../components/page_header.dart';
+import '../tokens/shell_chrome_metrics.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
@@ -387,20 +391,11 @@ class _NightshadeDesignSystemGalleryState
                           child: Column(
                             children: [
                               for (final entry in const [
-                                MapEntry(0, (
-                                  LucideIcons.layoutDashboard,
-                                  'Dashboard',
-                                  'Overview and status',
-                                )),
-                                MapEntry(1, (
-                                  LucideIcons.camera,
-                                  'Imaging',
-                                  'Capture and review',
-                                )),
+                                MapEntry(0, (LucideIcons.moonStar, 'Tonight')),
+                                MapEntry(1, (LucideIcons.camera, 'Imaging')),
                                 MapEntry(2, (
                                   LucideIcons.listOrdered,
                                   'Sequencer',
-                                  'Run automation',
                                 )),
                               ])
                                 Padding(
@@ -417,7 +412,6 @@ class _NightshadeDesignSystemGalleryState
                                     ),
                                     icon: entry.value.$1,
                                     label: entry.value.$2,
-                                    description: entry.value.$3,
                                     isSelected: _selectedNavItem == entry.key,
                                     isExpanded: _navExpanded,
                                     onTap: () {
@@ -615,6 +609,98 @@ class _NightshadeDesignSystemGalleryState
                   ),
                   // Observatory wave 2
                   const _ObservatorySections(),
+
+                  // Observatory wave 1
+                  ShowcaseSection.plain(
+                    title: 'Instrument bar',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: ShellChromeMetrics.statusBarHeight,
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            border: Border(
+                              top: BorderSide(color: colors.border),
+                            ),
+                          ),
+                          // The specimen scrolls the way the real bar's left
+                          // group does, so a narrow gallery viewport shows a
+                          // cut strip rather than an overflow stripe.
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: NightshadeTokens.spaceMd,
+                            ),
+                            children: [
+                              InstrumentPill(
+                                dotTone: InstrumentTone.success,
+                                value: 'Running',
+                                live: true,
+                                onTap: _recordAction,
+                              ),
+                              const InstrumentSeparator(),
+                              InstrumentPill(
+                                icon: LucideIcons.camera,
+                                dotTone: InstrumentTone.success,
+                                value: 'ASI2600MM',
+                                onTap: _recordAction,
+                              ),
+                              InstrumentPill(
+                                icon: LucideIcons.mountain,
+                                dotTone: InstrumentTone.success,
+                                value: 'EQ6-R',
+                                onTap: _recordAction,
+                              ),
+                              InstrumentPill(
+                                icon: LucideIcons.crosshair,
+                                dotTone: InstrumentTone.idle,
+                                value: 'No guider',
+                                onTap: _recordAction,
+                              ),
+                              const SizedBox(width: NightshadeTokens.space3xl),
+                              const InstrumentPill(
+                                icon: LucideIcons.thermometer,
+                                value: '-10.0\u00B0C',
+                                mono: true,
+                              ),
+                              const InstrumentSeparator(),
+                              const InstrumentPill(
+                                icon: LucideIcons.clock,
+                                value: '22:41:08',
+                                mono: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ShowcaseSection.plain(
+                    title: 'Page header',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        PageHeader(
+                          title: 'Sequencer',
+                          icon: LucideIcons.listOrdered,
+                          actions: [
+                            NightshadeButton(
+                              label: 'Start',
+                              size: ButtonSize.small,
+                              onPressed: _recordAction,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: NightshadeTokens.spaceLg),
+                        const PageHeader(
+                          title: 'Equipment',
+                          icon: LucideIcons.plug,
+                          context: 'My Equipment',
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

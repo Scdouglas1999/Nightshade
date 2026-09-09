@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-import '../../localization/nightshade_localizations.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 import '../sequencer/widgets/run_dashboard/critical_event_banner.dart';
 import '../sequencer/widgets/run_dashboard/recovery_banner.dart';
 import '../sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
@@ -12,7 +10,6 @@ import 'dashboard_layout.dart';
 import 'dashboard_layout_provider.dart';
 import 'widgets/cockpit_run_controls.dart';
 import 'widgets/cockpit_standby.dart';
-import 'widgets/command_bar.dart';
 import 'widgets/dashboard_header_actions.dart';
 import 'widgets/dashboard_tile.dart';
 import 'widgets/glass_card.dart';
@@ -98,62 +95,54 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       _pulseController.stop();
     }
 
-    return ContextualTourPrompt(
-      screenId: 'dashboard',
-      tourCategory: TutorialCategory.dashboardTour,
-      title: context.l10n.text('dashboardTourTitle'),
-      description: context.l10n.text('dashboardTourDescription'),
-      durationMinutes: 3,
-      alignment: Alignment.bottomRight,
-      child: layoutAsync.when(
-        data: (layout) => Stack(
-          children: [
-            _ZoneBasedDashboard(
-              layout: layout,
-              colors: colors,
-              pulseController: _pulseController,
-              isEditing: _isEditing,
-              showStandby: showStandby,
-              onToggleEdit: _toggleEdit,
-              onManageWidgets: _showWidgetPicker,
-              onResetLayout: _resetLayout,
-              onReorder: (dragged, target) {
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .reorder(dragged, target);
-              },
-              onResize: (id) {
-                final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .setTileSize(id, tile.size.next());
-              },
-              onToggleEnabled: (id, enabled) {
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .setTileEnabled(id, enabled);
-              },
-              onSetZone: (id, zone) {
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .setTileZone(id, zone);
-              },
-            ),
-            // Both prompt cards anchor bottom-centre. They are mutually
-            // exclusive by construction: NextUsePromptCard reads the same Smart
-            // Night base-eligibility signal and stands down whenever Smart
-            // Night is eligible, so at most one occupies the slot. Smart Night
-            // ("plan tonight") wins; otherwise the next-use nudge walks the
-            // user through framing, solving, focus, and first light.
-            SmartNightPromptCard(colors: colors),
-            NextUsePromptCard(colors: colors),
-          ],
-        ),
-        loading: () => const DashboardLoading(),
-        error: (error, _) => DashboardLayoutError(
-          error: error,
-          onReset: _resetLayout,
-        ),
+    return layoutAsync.when(
+      data: (layout) => Stack(
+        children: [
+          _ZoneBasedDashboard(
+            layout: layout,
+            colors: colors,
+            pulseController: _pulseController,
+            isEditing: _isEditing,
+            showStandby: showStandby,
+            onToggleEdit: _toggleEdit,
+            onManageWidgets: _showWidgetPicker,
+            onResetLayout: _resetLayout,
+            onReorder: (dragged, target) {
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .reorder(dragged, target);
+            },
+            onResize: (id) {
+              final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .setTileSize(id, tile.size.next());
+            },
+            onToggleEnabled: (id, enabled) {
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .setTileEnabled(id, enabled);
+            },
+            onSetZone: (id, zone) {
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .setTileZone(id, zone);
+            },
+          ),
+          // Both prompt cards anchor bottom-centre. They are mutually
+          // exclusive by construction: NextUsePromptCard reads the same Smart
+          // Night base-eligibility signal and stands down whenever Smart
+          // Night is eligible, so at most one occupies the slot. Smart Night
+          // ("plan tonight") wins; otherwise the next-use nudge walks the
+          // user through framing, solving, focus, and first light.
+          SmartNightPromptCard(colors: colors),
+          NextUsePromptCard(colors: colors),
+        ],
+      ),
+      loading: () => const DashboardLoading(),
+      error: (error, _) => DashboardLayoutError(
+        error: error,
+        onReset: _resetLayout,
       ),
     );
   }
@@ -184,6 +173,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 /// - 1024-1280px: Two-column compact (primary + secondary, no inline tertiary split)
 /// - 768-1024px: Stacked (primary above secondary)
 /// - <768px: Single column with tabbed navigation
+/// Below this the dashboard's action row drops its button words.
+///
+/// 900, the threshold the deleted command bar used: it keeps room for full
+/// content on a 1024px laptop once the rail has taken its share.
+const double kDashboardActionsCompactWidth = 900.0;
+
 class _ZoneBasedDashboard extends StatelessWidget {
   final DashboardLayout layout;
   final NightshadeColors colors;
@@ -307,16 +302,26 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Command Bar (fixed)
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: DashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
+            ),
           ),
         ),
 
@@ -474,17 +479,29 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
+            ),
           ),
         ),
+
         _buildPinnedStrip(horizontalPadding: 16),
         if (isEditing)
           Padding(
@@ -570,16 +587,26 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Command Bar (fixed)
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
+            ),
           ),
         ),
 
@@ -703,16 +730,26 @@ class _ZoneBasedDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Compact Command Bar
+        // The dashboard's own actions — Edit, Manage widgets, Reset layout —
+        // used to ride inside the command bar. The bar is gone (04 §5) but
+        // the actions are not: without them edit mode and the widget picker
+        // have no entry point at all. Wave 3 folds this row into the
+        // PageHeader's `actions` slot.
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-          child: CompactDashboardCommandBar(
-            colors: colors,
-            pulseController: pulseController,
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: LayoutBuilder(
+              builder: (context, constraints) => DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                // The width decides, as it did inside the command bar: below
+                // this the buttons shed their words and keep their glyphs.
+                compact: constraints.maxWidth < kDashboardActionsCompactWidth,
+              ),
+            ),
           ),
         ),
 

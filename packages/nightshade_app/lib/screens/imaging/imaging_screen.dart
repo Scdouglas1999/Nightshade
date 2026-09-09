@@ -23,7 +23,6 @@ import 'widgets/preview_display_scale.dart' show previewFitScaleProvider;
 import 'widgets/rotator_panel.dart';
 import 'widgets/stacking_panel.dart';
 import '../../widgets/tutorial_keys/imaging_keys.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 
 part 'imaging_screen/imaging_screen_actions.dart';
 
@@ -152,151 +151,143 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     // Snapshot / Loop, the exact defect this declaration exists to prevent.
     return TransientBottomInsetPublisher(
       inset: _captureBarHeight,
-      child: ContextualTourPrompt(
-        screenId: 'imaging',
-        tourCategory: TutorialCategory.imagingTour,
-        title: 'Imaging Tour',
-        description: 'Learn how to capture, preview, and manage your images.',
-        durationMinutes: 4,
-        alignment: Alignment.bottomRight,
-        child: Column(
-          children: [
-            // Annotation catalog banner
-            if (showBanner)
-              AnnotationCatalogBanner(
-                colors: colors,
-                onDismiss: () => _dismissCatalogPrompt(),
-                onSetup: () {
-                  _dismissCatalogPrompt();
-                  // Show catalog settings dialog
-                  showDialog(
-                    context: context,
-                    builder: (context) => Dialog(
-                      child: ConstrainedBox(
-                        constraints: AdaptiveDialogConstraints.hybrid(
-                          context,
-                          designMaxWidth: 800,
-                          designMaxHeight: 700,
-                        ),
-                        child: const CatalogSettingsScreen(),
+      child: Column(
+        children: [
+          // Annotation catalog banner
+          if (showBanner)
+            AnnotationCatalogBanner(
+              colors: colors,
+              onDismiss: () => _dismissCatalogPrompt(),
+              onSetup: () {
+                _dismissCatalogPrompt();
+                // Show catalog settings dialog
+                showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    child: ConstrainedBox(
+                      constraints: AdaptiveDialogConstraints.hybrid(
+                        context,
+                        designMaxWidth: 800,
+                        designMaxHeight: 700,
                       ),
+                      child: const CatalogSettingsScreen(),
                     ),
-                  ).then((_) {
-                    // Refresh catalog status after dialog closes
-                    ref.invalidate(annotationCatalogInstalledProvider);
-                  });
-                },
-              ),
-
-            // Live meridian-flip countdown. Self-hides (SizedBox.shrink, zero
-            // height) whenever a flip is not armed, so it adds no chrome on idle
-            // nights and never pushes the live preview down. As a child of this
-            // top-level Column it appears on both the desktop and mobile layouts.
-            const MeridianFlipCountdownBanner(),
-
-            // Main content. One AdaptivePanelLayout covers every tier:
-            //
-            //   * Desktop (w >= 768): resizable split — preview column on the
-            //     left, the tab panel on the right with a draggable divider.
-            //   * Tablet (600..768): fixed-ratio side-by-side split.
-            //   * Phone portrait (w < 600): the tab panel collapses into a bottom
-            //     sheet so the live preview keeps the whole screen; a persistent
-            //     compact capture bar under the preview keeps Snapshot / Loop /
-            //     duration reachable WITHOUT opening the sheet.
-            //   * Phone landscape (enough width): automatic side-by-side split
-            //     (preview left, controls right).
-            //
-            // The phone tier is computed on the screen's OWN constraints (not
-            // the raw window) so an embedded/remote layout still reflows.
-            //
-            // On phone the persistent capture bar is a SIBLING below the
-            // AdaptivePanelLayout (not inside its primary): the bottom-sheet
-            // strategy floats a "Controls" handle at the bottom edge of its
-            // primary region, so anchoring the capture bar below the panel keeps
-            // that handle from overlapping the Snapshot/Loop buttons.
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isPhone =
-                      constraints.maxWidth < BreakpointTokens.breakpointPhone;
-                  // A phone held in landscape reports a tablet-ish WIDTH (e.g.
-                  // 640) but a very SHORT height (~360). Stacking the desktop
-                  // bottom control panel under the preview there squeezes the
-                  // image and overflows, so we treat a short viewport the same as
-                  // a phone: the live preview keeps the column, the tabs sit
-                  // beside it (AdaptivePanelLayout's landscape/tablet split), and
-                  // the persistent capture bar carries Snapshot/Loop below.
-                  final isShort = constraints.maxHeight.isFinite &&
-                      constraints.maxHeight < 500;
-                  final compact = isPhone || isShort;
-                  // Mirrors AdaptivePanelLayout's own landscape-split condition
-                  // (landscape && width >= landscapeSplitMinWidth, default 560):
-                  // in that band the controls are already beside the image, and
-                  // stacking the bottom capture bar under them overflows the
-                  // short (~390 px) landscape height, so the Capture TAB carries
-                  // the shutter there instead. CapturePanel has no Snapshot or
-                  // Loop button of its own and _takeSnapshot has no keyboard
-                  // shortcut, so without these actions the band offers NO way to
-                  // start an exposure at all. Omitting the bottom bar on exactly
-                  // this branch also keeps the tutorial GlobalKeys unique.
-                  final controlsInLandscapeSplit = compact &&
-                      constraints.maxWidth > constraints.maxHeight &&
-                      constraints.maxWidth >= 560;
-                  final panel = AdaptivePanelLayout(
-                    phoneStrategy: PhonePanelStrategy.bottomSheet,
-                    panelSide: PanelSide.end,
-                    initialPanelWidth: 320,
-                    minPanelWidth: 250,
-                    maxPanelWidth: 500,
-                    primarySegmentLabel: 'Image',
-                    primarySegmentIcon: NightshadeIcons.image,
-                    primary: _buildPreviewColumn(
-                      colors,
-                      viewerState,
-                      phone: compact,
-                    ),
-                    secondary: [
-                      AdaptivePanel(
-                        title: 'Controls',
-                        icon: NightshadeIcons.sliders,
-                        child: _buildTabsPanel(
-                          colors,
-                          selectedPanel,
-                          phone: compact,
-                          captureActions: controlsInLandscapeSplit
-                              ? _buildCaptureActions(colors)
-                              : null,
-                        ),
-                      ),
-                    ],
-                  );
-                  if (!compact) return panel;
-                  // The Capture tab now owns the shutter in the landscape split
-                  // (see above), so the bottom bar stays out of that band where
-                  // it would overflow the short height.
-                  if (controlsInLandscapeSplit) return panel;
-                  return Column(
-                    // Stretch, for the same reason _buildPreviewColumn stretches:
-                    // a Column defaults to CrossAxisAlignment.center and hands
-                    // its children LOOSE width constraints. The capture bar then
-                    // shrink-wrapped to its Wrap's widest run (292dp) and sat
-                    // CENTRED on a 411dp phone, so its surface fill and top
-                    // border stopped ~60dp short of each edge and the preview's
-                    // black showed through either side of the toolbar.
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: panel),
-                      MeasuredBottomInsetReporter(
-                        onHeight: _setCaptureBarHeight,
-                        child: _buildPhoneCaptureBar(colors),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                  ),
+                ).then((_) {
+                  // Refresh catalog status after dialog closes
+                  ref.invalidate(annotationCatalogInstalledProvider);
+                });
+              },
             ),
-          ],
-        ),
+
+          // Live meridian-flip countdown. Self-hides (SizedBox.shrink, zero
+          // height) whenever a flip is not armed, so it adds no chrome on idle
+          // nights and never pushes the live preview down. As a child of this
+          // top-level Column it appears on both the desktop and mobile layouts.
+          const MeridianFlipCountdownBanner(),
+
+          // Main content. One AdaptivePanelLayout covers every tier:
+          //
+          //   * Desktop (w >= 768): resizable split — preview column on the
+          //     left, the tab panel on the right with a draggable divider.
+          //   * Tablet (600..768): fixed-ratio side-by-side split.
+          //   * Phone portrait (w < 600): the tab panel collapses into a bottom
+          //     sheet so the live preview keeps the whole screen; a persistent
+          //     compact capture bar under the preview keeps Snapshot / Loop /
+          //     duration reachable WITHOUT opening the sheet.
+          //   * Phone landscape (enough width): automatic side-by-side split
+          //     (preview left, controls right).
+          //
+          // The phone tier is computed on the screen's OWN constraints (not
+          // the raw window) so an embedded/remote layout still reflows.
+          //
+          // On phone the persistent capture bar is a SIBLING below the
+          // AdaptivePanelLayout (not inside its primary): the bottom-sheet
+          // strategy floats a "Controls" handle at the bottom edge of its
+          // primary region, so anchoring the capture bar below the panel keeps
+          // that handle from overlapping the Snapshot/Loop buttons.
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isPhone =
+                    constraints.maxWidth < BreakpointTokens.breakpointPhone;
+                // A phone held in landscape reports a tablet-ish WIDTH (e.g.
+                // 640) but a very SHORT height (~360). Stacking the desktop
+                // bottom control panel under the preview there squeezes the
+                // image and overflows, so we treat a short viewport the same as
+                // a phone: the live preview keeps the column, the tabs sit
+                // beside it (AdaptivePanelLayout's landscape/tablet split), and
+                // the persistent capture bar carries Snapshot/Loop below.
+                final isShort = constraints.maxHeight.isFinite &&
+                    constraints.maxHeight < 500;
+                final compact = isPhone || isShort;
+                // Mirrors AdaptivePanelLayout's own landscape-split condition
+                // (landscape && width >= landscapeSplitMinWidth, default 560):
+                // in that band the controls are already beside the image, and
+                // stacking the bottom capture bar under them overflows the
+                // short (~390 px) landscape height, so the Capture TAB carries
+                // the shutter there instead. CapturePanel has no Snapshot or
+                // Loop button of its own and _takeSnapshot has no keyboard
+                // shortcut, so without these actions the band offers NO way to
+                // start an exposure at all. Omitting the bottom bar on exactly
+                // this branch also keeps the tutorial GlobalKeys unique.
+                final controlsInLandscapeSplit = compact &&
+                    constraints.maxWidth > constraints.maxHeight &&
+                    constraints.maxWidth >= 560;
+                final panel = AdaptivePanelLayout(
+                  phoneStrategy: PhonePanelStrategy.bottomSheet,
+                  panelSide: PanelSide.end,
+                  initialPanelWidth: 320,
+                  minPanelWidth: 250,
+                  maxPanelWidth: 500,
+                  primarySegmentLabel: 'Image',
+                  primarySegmentIcon: NightshadeIcons.image,
+                  primary: _buildPreviewColumn(
+                    colors,
+                    viewerState,
+                    phone: compact,
+                  ),
+                  secondary: [
+                    AdaptivePanel(
+                      title: 'Controls',
+                      icon: NightshadeIcons.sliders,
+                      child: _buildTabsPanel(
+                        colors,
+                        selectedPanel,
+                        phone: compact,
+                        captureActions: controlsInLandscapeSplit
+                            ? _buildCaptureActions(colors)
+                            : null,
+                      ),
+                    ),
+                  ],
+                );
+                if (!compact) return panel;
+                // The Capture tab now owns the shutter in the landscape split
+                // (see above), so the bottom bar stays out of that band where
+                // it would overflow the short height.
+                if (controlsInLandscapeSplit) return panel;
+                return Column(
+                  // Stretch, for the same reason _buildPreviewColumn stretches:
+                  // a Column defaults to CrossAxisAlignment.center and hands
+                  // its children LOOSE width constraints. The capture bar then
+                  // shrink-wrapped to its Wrap's widest run (292dp) and sat
+                  // CENTRED on a 411dp phone, so its surface fill and top
+                  // border stopped ~60dp short of each edge and the preview's
+                  // black showed through either side of the toolbar.
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: panel),
+                    MeasuredBottomInsetReporter(
+                      onHeight: _setCaptureBarHeight,
+                      child: _buildPhoneCaptureBar(colors),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

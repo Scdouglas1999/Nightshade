@@ -37,10 +37,17 @@ import '../../harness/pump_app_screen.dart';
 
 /// The real alert stream opens a 15-minute polling timer that outlives the
 /// widget tree; the chrome only cares that it resolves.
+/// The rail joined that list when it grew the attention dot. It reads the
+/// verdict through `railWeatherUnsafeProvider`, a one-bool view, precisely so
+/// a test about the rail's LABELS does not have to build the weather-safety
+/// subsystem — whose constructor schedules a re-evaluation that is still
+/// pending when the binding checks for leaked timers.
 final _quietAlerts = <Override>[
   activeTransientAlertsProvider.overrideWith(
     (ref) => Stream.value(const <TransientAlert>[]),
   ),
+  railWeatherUnsafeProvider.overrideWithValue(false),
+  railAnyDeviceConnectedProvider.overrideWithValue(true),
 ];
 
 /// Every label in the compiled semantics tree, in traversal order.
@@ -74,9 +81,10 @@ Matcher _publishes(String label) => predicate<List<String>>(
       'publishes a semantics label containing "$label"',
     );
 
-SemanticsData? _nodeLabelled(List<SemanticsData> nodes, String label) {
+/// Exact-match lookup, for rows whose whole name is the string.
+SemanticsData? _nodeLabelledExactly(List<SemanticsData> nodes, String label) {
   for (final node in nodes) {
-    if (node.label.contains(label)) return node;
+    if (node.label == label) return node;
   }
   return null;
 }
@@ -136,6 +144,7 @@ void main() {
         onToggleExpanded: () {},
       ),
       settle: false,
+      extraOverrides: _quietAlerts,
     );
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -156,6 +165,7 @@ void main() {
         onToggleExpanded: () {},
       ),
       settle: false,
+      extraOverrides: _quietAlerts,
     );
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -196,11 +206,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     final labels = _semanticsLabels(tester);
-    // The title-bar icons the live tree could not find.
+    // The title-bar icons the live tree could not find. The equipment-profile
+    // shortcut is no longer among them: profiles live on Equipment and in the
+    // instrument bar, and a third way in was a third thing to keep in sync.
     expect(labels, _publishes('Settings'));
-    expect(labels, _publishes('Equipment Profiles'));
+    expect(labels, _publishes('Help for this screen'));
     // A nav destination and the rail's own control.
-    expect(labels, _publishes('Dashboard'),
+    expect(labels, _publishes('Tonight'),
         reason: 'the rail must publish its destinations');
     expect(labels, _publishes('Collapse navigation'));
     // And the routed content, so the assertion above is not vacuous.
@@ -293,18 +305,18 @@ void main() {
         index++) {
       final destination = ShellNavigation.primaryDestinations[index];
       final name = destination.label(l10n);
-      // Match on the description, not the name: the title bar's own
-      // "Equipment Profiles" button contains "Equipment" and would answer for
-      // the rail's Equipment destination. Only the rail renders the
-      // description under the name, so this picks out the rail row.
-      final node = _nodeLabelled(nodes, destination.description(l10n));
+      // The rail row's Semantics label is EXACTLY the destination name (the
+      // descriptions are gone in the Observatory rail), so match on equality:
+      // a `contains` match would let the top bar's own buttons answer for a
+      // rail row that is not published at all.
+      final node = _nodeLabelledExactly(nodes, name);
       expect(
         node,
         isNotNull,
         reason: 'the rail destination "$name" must reach the semantics tree; '
             'the routed page route barrier used to erase the whole rail',
       );
-      expect(node!.label, contains(name),
+      expect(node!.label, name,
           reason: 'the rail row must announce its destination by name');
       expect(node.flagsCollection.isButton, isTrue,
           reason: '"$name" must publish a button role');
@@ -324,7 +336,6 @@ void main() {
     // The rail's own control and the title-bar action row, in the order a
     // reader meets them.
     expect(labels, _publishes('Collapse navigation'));
-    expect(labels, _publishes(l10n.text('settingsEquipmentProfiles')));
     expect(labels, _publishes(l10n.text('settingsTitle')));
     expect(labels, _publishes('Minimize'));
     expect(labels, _publishes('Maximize'));

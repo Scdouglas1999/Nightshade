@@ -1,33 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../localization/nightshade_localizations.dart';
 
-/// One primary shell destination (side nav + indexed tab selection).
+/// The three things an operator does with this app, in the order a night runs.
+///
+/// The rail is grouped by them rather than being one flat list of nine, because
+/// a flat list makes "Weather" and "Guiding" look like peers of equal weight
+/// when one is a thing you check before you start and the other is a thing you
+/// watch while running.
+enum ShellNavGroup { observe, prepare, review }
+
+/// One primary shell destination (rail + indexed tab selection).
 class ShellPrimaryDestination {
   final String route;
   final IconData icon;
   final String Function(NightshadeLocalizations l10n) label;
-  final String Function(NightshadeLocalizations l10n) description;
+
+  /// Which rail group this destination sits under.
+  final ShellNavGroup group;
 
   const ShellPrimaryDestination({
     required this.route,
     required this.icon,
     required this.label,
-    required this.description,
+    required this.group,
   });
 }
 
-/// Route-only destination for mobile bottom nav (no side-nav index).
+/// Route-only destination for the phone bottom nav (no rail index).
 class ShellRouteDestination {
   final String route;
   final IconData icon;
   final String Function(NightshadeLocalizations l10n) label;
 
-  /// Optional short form for the ~60dp phone bottom-nav slots; `null` falls
-  /// back to [label]. The full labels ("Planetarium", "Sequencer") all
-  /// ellipsized at seven slots on a 430dp phone.
+  /// Optional short form for the phone bottom-nav slots; `null` falls back to
+  /// [label].
   final String Function(NightshadeLocalizations l10n)? shortLabel;
 
   /// The label the phone bottom nav renders.
@@ -42,146 +50,162 @@ class ShellRouteDestination {
   });
 }
 
-/// Canonical shell routes shared by side nav, bottom nav, and GoRouter helpers.
+/// Canonical shell routes shared by the rail, the bottom nav, the command
+/// palette and the GoRouter helpers.
 abstract final class ShellNavigation {
   ShellNavigation._();
 
-  /// The consolidated top-level features in side-nav order (matches desktop):
-  /// Dashboard, Equipment, Imaging, Sequencer, Guiding, Weather, Planner,
-  /// Analytics. The rail leads with the tools an imager touches every night;
-  /// less-frequent surfaces are nested rather than given a rail slot. Folded
-  /// destinations resolve via redirects: Framing/Planetarium and Your
-  /// Sky/Constellation live inside Plan Tonight's tabs, Science + Transients
-  /// inside Analytics, and Settings is reached from the title-bar / app-bar gear.
+  /// The rail, in rail order, grouped Observe / Prepare / Review.
+  ///
+  /// Settings is deliberately NOT here: it lives in the top bar, because it is
+  /// a place you go to change the app rather than a place you observe from.
+  /// Folded destinations resolve through [primaryIndexForLocation]'s alias
+  /// table or the command palette: Framing / Planetarium and Your Sky /
+  /// Constellation are Plan tabs, Science and Transients are Analytics tabs,
+  /// and Session review / Mosaic / Stack result belong to Darkroom.
   static const List<ShellPrimaryDestination> primaryDestinations = [
     ShellPrimaryDestination(
       route: '/dashboard',
-      icon: LucideIcons.layoutDashboard,
-      label: _navDashboard,
-      description: _navDashboardDesc,
-    ),
-    ShellPrimaryDestination(
-      route: '/equipment',
-      icon: NightshadeIcons.connected,
-      label: _navEquipment,
-      description: _navEquipmentDesc,
+      icon: LucideIcons.moonStar,
+      label: _navTonight,
+      group: ShellNavGroup.observe,
     ),
     ShellPrimaryDestination(
       route: '/imaging',
-      icon: NightshadeIcons.camera,
+      icon: LucideIcons.camera,
       label: _navImaging,
-      description: _navImagingDesc,
+      group: ShellNavGroup.observe,
     ),
     ShellPrimaryDestination(
       route: '/sequencer',
-      icon: NightshadeIcons.listOrdered,
+      icon: LucideIcons.listOrdered,
       label: _navSequencer,
-      description: _navSequencerDesc,
+      group: ShellNavGroup.observe,
     ),
     ShellPrimaryDestination(
       route: '/guiding',
-      icon: NightshadeIcons.guider,
+      icon: LucideIcons.crosshair,
       label: _navGuiding,
-      description: _navGuidingDesc,
-    ),
-    ShellPrimaryDestination(
-      route: '/weather',
-      icon: NightshadeIcons.weather,
-      label: _navWeather,
-      description: _navWeatherDesc,
+      group: ShellNavGroup.observe,
     ),
     ShellPrimaryDestination(
       route: '/planner',
-      icon: LucideIcons.moonStar,
-      label: _navPlanner,
-      description: _navPlannerDesc,
+      icon: LucideIcons.compass,
+      label: _navPlan,
+      group: ShellNavGroup.prepare,
+    ),
+    ShellPrimaryDestination(
+      route: '/equipment',
+      icon: LucideIcons.plug,
+      label: _navEquipment,
+      group: ShellNavGroup.prepare,
+    ),
+    ShellPrimaryDestination(
+      route: '/weather',
+      icon: LucideIcons.cloudSun,
+      label: _navWeather,
+      group: ShellNavGroup.prepare,
+    ),
+    ShellPrimaryDestination(
+      route: '/darkroom',
+      icon: LucideIcons.aperture,
+      label: _navDarkroom,
+      group: ShellNavGroup.review,
     ),
     ShellPrimaryDestination(
       route: '/analytics',
       icon: LucideIcons.barChart3,
       label: _navAnalytics,
-      description: _navAnalyticsDesc,
+      group: ShellNavGroup.review,
     ),
   ];
 
   static const ShellPrimaryDestination settings = ShellPrimaryDestination(
     route: '/settings',
-    icon: NightshadeIcons.settings,
+    icon: LucideIcons.settings,
     label: _settingsTitle,
-    description: _settingsDesc,
+    group: ShellNavGroup.prepare,
   );
 
-  /// Mobile bottom-nav slots — exactly the six core routes, fixed width.
-  ///
-  /// Dashboard leads for thumb reach; Settings leaves the bar and is reachable
-  /// from the mobile app-bar gear.
+  /// The five phone bottom-nav slots are four routes plus "More"; the fifth
+  /// slot is the overflow sheet, which the bar renders itself.
   static const List<ShellRouteDestination> bottomNavigationDestinations = [
     ShellRouteDestination(
       route: '/dashboard',
-      icon: LucideIcons.layoutDashboard,
-      label: _navDashboard,
-      shortLabel: _navDashboardShort,
-    ),
-    ShellRouteDestination(
-      route: '/equipment',
-      icon: NightshadeIcons.connected,
-      label: _navEquipment,
-      shortLabel: _navEquipmentShort,
+      icon: LucideIcons.moonStar,
+      label: _navTonight,
     ),
     ShellRouteDestination(
       route: '/imaging',
-      icon: NightshadeIcons.camera,
+      icon: LucideIcons.camera,
       label: _navImaging,
       shortLabel: _navImagingShort,
     ),
     ShellRouteDestination(
-      route: '/sequencer',
-      icon: NightshadeIcons.listOrdered,
+      route: kSequencerRoute,
+      icon: LucideIcons.listOrdered,
       label: _navSequencer,
       shortLabel: _navSequencerShort,
     ),
     ShellRouteDestination(
       route: '/guiding',
-      icon: NightshadeIcons.guider,
+      icon: LucideIcons.crosshair,
       label: _navGuiding,
       shortLabel: _navGuidingShort,
     ),
-    ShellRouteDestination(
-      route: '/planner',
-      icon: LucideIcons.moonStar,
-      label: _navPlanner,
-      shortLabel: _navPlannerShort,
-    ),
   ];
 
-  /// Primary destinations that do NOT have a fixed bottom-nav slot on phone, in
-  /// side-nav order — today Weather and Analytics. Surfaced through the bottom
-  /// bar's "More" overflow so every top-level feature is reachable on mobile,
-  /// not just the six core slots + Settings gear. (Your Sky and Constellation
-  /// are Plan Tonight tabs, not rail destinations, so they arrive via Planner.)
+  /// Everything the More sheet lists: every primary destination without a
+  /// fixed slot (Plan, Equipment, Weather, Darkroom, Analytics) plus
+  /// [settings], which has no rail slot either.
   static List<ShellPrimaryDestination> get overflowDestinations {
     final bottomRoutes =
         bottomNavigationDestinations.map((d) => d.route).toSet();
     return [
       for (final dest in primaryDestinations)
-        if (!bottomRoutes.contains(dest.route) && dest.route != settings.route)
-          dest,
+        if (!bottomRoutes.contains(dest.route)) dest,
+      settings,
     ];
   }
 
   static final List<String> primaryRoutes =
       primaryDestinations.map((d) => d.route).toList(growable: false);
 
+  /// Routes that are not rail destinations but whose screen belongs to one.
+  ///
+  /// Consulted BEFORE the prefix walk, because a prefix walk cannot answer
+  /// these: `/session-review` shares no prefix with `/darkroom`, and
+  /// `/settings` shares one with nothing at all yet must light nothing. A
+  /// value of -1 means "no rail selection" — the shell renders nothing
+  /// highlighted rather than picking a plausible-looking item, because a lit
+  /// rail item is a statement about where the operator is.
+  static const Map<String, String?> _routeAliases = {
+    '/session-review': '/darkroom',
+    '/stack-result': '/darkroom',
+    '/mosaic': '/darkroom',
+    '/polar-alignment': '/equipment',
+    '/flat-wizard': '/equipment',
+    '/tonight': '/dashboard',
+    '/settings': null,
+    '/onboarding': null,
+    '/pairing': null,
+    '/replay': null,
+    '/diagnostics': null,
+  };
+
   /// Index of the primary destination that HOSTS [location], or -1 when none
   /// does.
   ///
-  /// Sub-routes resolve to their host: `/imaging/preview/42` (the
-  /// image-ready deep link) is Imaging, `/settings/plate-solving` is not a rail
-  /// destination at all. -1 means "no rail selection" — the shell must render
-  /// nothing highlighted rather than pick a plausible-looking tab, because a lit
-  /// rail item is a statement about where the operator is.
+  /// Sub-routes resolve to their host: `/imaging/preview/42` (the image-ready
+  /// deep link) is Imaging.
   static int primaryIndexForLocation(String location) {
     final path = _normalizePath(location);
+    for (final entry in _routeAliases.entries) {
+      if (path == entry.key || path.startsWith('${entry.key}/')) {
+        final target = entry.value;
+        return target == null ? -1 : primaryRoutes.indexOf(target);
+      }
+    }
     final exact = primaryRoutes.indexOf(path);
     if (exact >= 0) return exact;
     for (var i = 0; i < primaryRoutes.length; i++) {
@@ -205,7 +229,7 @@ abstract final class ShellNavigation {
 
   static bool isBottomNavRoute(String location) {
     final path = _normalizePath(location);
-    return primaryRoutes.contains(path);
+    return bottomNavigationDestinations.any((d) => d.route == path);
   }
 
   static String _normalizePath(String location) {
@@ -216,52 +240,43 @@ abstract final class ShellNavigation {
     return location.split('?').first;
   }
 
-  static String _navDashboard(NightshadeLocalizations l10n) =>
-      l10n.text('navDashboard');
-  static String _navDashboardShort(NightshadeLocalizations l10n) =>
-      l10n.text('navDashboardShort');
-  static String _navEquipmentShort(NightshadeLocalizations l10n) =>
-      l10n.text('navEquipmentShort');
-  static String _navImagingShort(NightshadeLocalizations l10n) =>
-      l10n.text('navImagingShort');
-  static String _navSequencerShort(NightshadeLocalizations l10n) =>
-      l10n.text('navSequencerShort');
-  static String _navGuidingShort(NightshadeLocalizations l10n) =>
-      l10n.text('navGuidingShort');
-  static String _navPlannerShort(NightshadeLocalizations l10n) =>
-      l10n.text('navPlannerShort');
-  static String _navDashboardDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navDashboardDesc');
+  /// Kept beside the destination list rather than imported from the sequencer
+  /// screen: this file is the router's nav contract and must not depend on a
+  /// screen to state one of its own routes.
+  static const String kSequencerRoute = '/sequencer';
+
+  static String _navTonight(NightshadeLocalizations l10n) =>
+      l10n.text('navTonight');
   static String _navEquipment(NightshadeLocalizations l10n) =>
       l10n.text('navEquipment');
-  static String _navEquipmentDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navEquipmentDesc');
   static String _navImaging(NightshadeLocalizations l10n) =>
       l10n.text('navImaging');
-  static String _navImagingDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navImagingDesc');
+  static String _navImagingShort(NightshadeLocalizations l10n) =>
+      l10n.text('navImagingShort');
   static String _navSequencer(NightshadeLocalizations l10n) =>
       l10n.text('navSequencer');
-  static String _navSequencerDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navSequencerDesc');
-  static String _navAnalytics(NightshadeLocalizations l10n) =>
-      l10n.text('navAnalytics');
-  static String _navAnalyticsDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navAnalyticsDesc');
+  static String _navSequencerShort(NightshadeLocalizations l10n) =>
+      l10n.text('navSequencerShort');
   static String _navGuiding(NightshadeLocalizations l10n) =>
       l10n.text('navGuiding');
-  static String _navGuidingDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navGuidingDesc');
+  static String _navGuidingShort(NightshadeLocalizations l10n) =>
+      l10n.text('navGuidingShort');
+  static String _navPlan(NightshadeLocalizations l10n) => l10n.text('navPlan');
   static String _navWeather(NightshadeLocalizations l10n) =>
       l10n.text('navWeather');
-  static String _navWeatherDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navWeatherDesc');
-  static String _navPlanner(NightshadeLocalizations l10n) =>
-      l10n.text('navPlanner');
-  static String _navPlannerDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navPlannerDesc');
+  static String _navDarkroom(NightshadeLocalizations l10n) =>
+      l10n.text('navDarkroom');
+  static String _navAnalytics(NightshadeLocalizations l10n) =>
+      l10n.text('navAnalytics');
   static String _settingsTitle(NightshadeLocalizations l10n) =>
       l10n.text('settingsTitle');
-  static String _settingsDesc(NightshadeLocalizations l10n) =>
-      l10n.text('settingsDesc');
+}
+
+/// The rail group headings, in rail order.
+extension ShellNavGroupLabel on ShellNavGroup {
+  String label(NightshadeLocalizations l10n) => switch (this) {
+        ShellNavGroup.observe => l10n.text('navGroupObserve'),
+        ShellNavGroup.prepare => l10n.text('navGroupPrepare'),
+        ShellNavGroup.review => l10n.text('navGroupReview'),
+      };
 }
