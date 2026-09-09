@@ -6,7 +6,7 @@ const Map<String, String> _defaultSettings = {
   'accent_color': kDefaultAccentColorHex,
   'font_size': 'Medium',
   'ui_scale': 'Auto',
-  'sidebar_collapsed': 'false',
+  'sidebar_collapsed': 'true',
   'start_minimized': 'false',
   'auto_connect_equipment': 'true',
   'confirm_before_closing': 'true',
