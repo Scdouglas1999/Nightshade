@@ -97,14 +97,13 @@ The table is exposed to the test via
 
 **Fully localized / wired:**
 
-- App shell navigation labels + descriptions (`shell_navigation.dart`).
+- App shell navigation group and destination labels (`shell_navigation.dart`).
 - Settings catalog section labels (`settings_catalog.dart`) and General /
   Appearance / many section bodies.
 - Mobile connection screens, Tailscale setup sheet, saved-servers screen.
-- Dashboard, analytics, diagnostics chrome, planner header + sub-tab labels.
+- Tonight, analytics, diagnostics chrome, planner header + tab labels.
 - First-night wizard chrome + step UI (was the `v2.5.x i18n` TODO).
-- Equipment screen profile management snackbars/dialogs + tour prompt.
-- Sequencer screen tour prompt.
+- Equipment screen profile management snackbars/dialogs.
 
 **Remaining (the long tail — NOT yet extracted).** These still contain
 hard-coded English `Text('...')` / labels. Tackle them screen-by-screen using

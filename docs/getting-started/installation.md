@@ -112,9 +112,10 @@ the full equipment-control surface.
 
 ## First launch
 
-1. Open the Dashboard and confirm the UI loads without an error banner.
+1. Open Tonight and confirm the UI loads without an error banner.
 2. Create an equipment profile under Equipment.
-3. Open Planetarium and confirm the sky view renders.
+3. Open the Planetarium (Ctrl+K, then type its name) and confirm the sky
+   view renders.
 4. Connect one device at a time and verify telemetry before issuing motion or
    exposure commands.
 5. Run at least one complete supervised session on your exact rig before using
